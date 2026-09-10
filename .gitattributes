@@ -1,0 +1,6 @@
+# Reference-only material, not part of the running application — excluded from GitHub's
+# language-detection stats (linguist) so the repo's language bar reflects the real app
+# (TypeScript/PLpgSQL) instead of being dominated by prototype/qmp-inspect-prototype.html's
+# ~3MB single-file demo. Purely cosmetic; has no effect on builds or deploys.
+prototype/** linguist-vendored
+project_requiremnets_details/** linguist-vendored
