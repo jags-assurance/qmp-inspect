@@ -1,0 +1,92 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  ITP_MASTER_PROPOSALS_TABLE,
+  ITP_MASTER_TEMPLATES_TABLE,
+  type ItpMasterProposedAction,
+} from "@/lib/itp-master/types";
+import { ProposalReviewForm } from "./proposal-review-form";
+
+interface ProposalWithSourceItp {
+  id: string;
+  proposed_action: ItpMasterProposedAction;
+  target_template_id: string | null;
+  proposed_title: string | null;
+  proposal_notes: string | null;
+  created_at: string;
+  itps: { id: string; itp_number: string; title: string } | null;
+}
+
+export default async function ItpMasterProposalsPage() {
+  const session = await requireSession();
+  if (!session.isJagsStaff) redirect("/inspect/itps");
+
+  const supabase = await createSupabaseServerClient();
+
+  const [{ data: proposals }, { data: templates }] = await Promise.all([
+    supabase
+      .from(ITP_MASTER_PROPOSALS_TABLE)
+      .select("id, proposed_action, target_template_id, proposed_title, proposal_notes, created_at, itps(id, itp_number, title)")
+      .eq("status", "pending")
+      .order("created_at")
+      .returns<ProposalWithSourceItp[]>(),
+    supabase.from(ITP_MASTER_TEMPLATES_TABLE).select("id, title").returns<{ id: string; title: string }[]>(),
+  ]);
+
+  const templateTitleById = new Map((templates ?? []).map((t) => [t.id, t.title]));
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">Master Library Proposals</h1>
+          <p className="mt-1 text-sm text-muted">
+            Pending proposals to add a new master template, or update an existing one, from a
+            project&apos;s own ITP.
+          </p>
+        </div>
+        <Link href="/inspect/itp-master" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
+          ← Library
+        </Link>
+      </div>
+
+      <div className="mt-6 space-y-4">
+        {(proposals ?? []).map((proposal) => (
+          <div key={proposal.id} className="rounded-lg border border-border bg-surface p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium text-ink">
+                  {proposal.proposed_action === "new_template"
+                    ? `New template: ${proposal.proposed_title || proposal.itps?.title || "Untitled"}`
+                    : `Update existing: ${templateTitleById.get(proposal.target_template_id ?? "") ?? "Unknown template"}`}
+                </p>
+                <p className="mt-0.5 text-xs text-muted">
+                  From {proposal.itps ? `${proposal.itps.itp_number} — ${proposal.itps.title}` : "an ITP"} ·{" "}
+                  {new Date(proposal.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              {proposal.itps && (
+                <Link href={`/inspect/itps/${proposal.itps.id}`} className="text-sm text-burgundy hover:underline">
+                  View source ITP →
+                </Link>
+              )}
+            </div>
+            {proposal.proposal_notes && <p className="mt-2 text-sm text-muted">{proposal.proposal_notes}</p>}
+            {isAdminStaff(session) ? (
+              <ProposalReviewForm proposalId={proposal.id} />
+            ) : (
+              <p className="mt-3 text-xs text-muted">Awaiting review by a JAGS Admin.</p>
+            )}
+          </div>
+        ))}
+        {(proposals ?? []).length === 0 && (
+          <p className="rounded-lg border border-border bg-surface p-6 text-center text-sm text-muted">
+            No pending proposals.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

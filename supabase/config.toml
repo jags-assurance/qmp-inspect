@@ -1,0 +1,8 @@
+# Minimal config — this project develops against a real (cloud) Supabase project, not the local
+# Docker stack, so the usual CLI-generated local-service ports/settings have been removed.
+# `project_id` is only used to namespace CLI state locally; it does not need to match anything.
+#
+# To apply supabase/migrations to your actual Supabase project:
+#   npx supabase link --project-ref <your-project-ref>
+#   npx supabase db push
+project_id = "jags_assurance_project"

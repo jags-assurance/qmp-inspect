@@ -1,0 +1,144 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession } from "@/lib/auth/session";
+import {
+  ACTIVITY_EXPECTED_RECORDS_TABLE,
+  EXPECTED_RECORD_PROVIDERS,
+  PROVIDER_TO_PARTY_TYPES,
+  type ActivityExpectedRecordRow,
+  type ExpectedRecordProvider,
+} from "./db-types";
+
+// R54-R56: the "expected -> received" list for third-party test records/reports (TPI lab test
+// certificates, mill certs, etc). Two server actions here: create the pending row (JAGS staff sets
+// up the expected list, mirroring who sets up the H/W/R/S grid) and mark one received (the actual
+// provider party, or staff on their behalf, once the document exists).
+
+export interface ExpectedRecordActionResult {
+  error: string | null;
+}
+
+async function findItpIdForItem(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("itp_items")
+    .select("itp_sections(itp_id)")
+    .eq("id", itpItemId)
+    .maybeSingle<{ itp_sections: { itp_id: string } | null }>();
+  return data?.itp_sections?.itp_id ?? null;
+}
+
+/**
+ * Staff-only creation of a pending expected record (R56: "At ITP creation the record is listed
+ * with its provider and the number left BLANK"). Not restricted to ITP-creation time specifically —
+ * the ITP detail page is where activities already live, so this is exposed there instead, but the
+ * row still starts out pending/blank exactly per spec.
+ */
+export async function createExpectedRecordAction(
+  _prev: ExpectedRecordActionResult,
+  formData: FormData
+): Promise<ExpectedRecordActionResult> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) {
+    return { error: "Only JAGS staff can add an expected record." };
+  }
+
+  const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
+  const provider = String(formData.get("provider") ?? "").trim() as ExpectedRecordProvider;
+  const recordType = String(formData.get("record_type") ?? "").trim();
+
+  if (!itpItemId || !recordType) {
+    return { error: "Record type is required." };
+  }
+  if (!EXPECTED_RECORD_PROVIDERS.includes(provider)) {
+    return { error: "Invalid provider." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(ACTIVITY_EXPECTED_RECORDS_TABLE).insert({
+    itp_item_id: itpItemId,
+    provider,
+    record_type: recordType,
+  });
+
+  if (error) return { error: "Could not add the expected record. Check you have permission and try again." };
+
+  const itpId = await findItpIdForItem(supabase, itpItemId);
+  if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
+/**
+ * Marks an expected record received: document number + (already-uploaded) storage path. The file
+ * upload itself happens client-side straight to Supabase Storage (same pattern as
+ * checklists/[templateId]/photo-upload.tsx) before this action is called with the resulting path —
+ * this action only writes the row, it never touches file bytes.
+ *
+ * Restricted to the party the row's `provider` names (via project_parties.user_id, same check as
+ * canSignOffForParty in lib/signoff/actions.ts) or JAGS staff on their behalf.
+ */
+export async function markExpectedRecordReceivedAction(
+  _prev: ExpectedRecordActionResult,
+  formData: FormData
+): Promise<ExpectedRecordActionResult> {
+  const recordId = String(formData.get("record_id") ?? "").trim();
+  const documentNumber = String(formData.get("document_number") ?? "").trim();
+  const storagePath = String(formData.get("storage_path") ?? "").trim();
+
+  if (!recordId || !documentNumber) {
+    return { error: "A document number is required to mark a record received." };
+  }
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: record } = await supabase
+    .from(ACTIVITY_EXPECTED_RECORDS_TABLE)
+    .select("id, itp_item_id, provider")
+    .eq("id", recordId)
+    .maybeSingle<Pick<ActivityExpectedRecordRow, "id" | "itp_item_id" | "provider">>();
+
+  if (!record) return { error: "Expected record not found." };
+
+  if (!session.isJagsStaff) {
+    const { data: itpId } = await supabase
+      .from("itp_items")
+      .select("itp_sections(itps(project_id))")
+      .eq("id", record.itp_item_id)
+      .maybeSingle<{ itp_sections: { itps: { project_id: string } | null } | null }>();
+    const projectId = itpId?.itp_sections?.itps?.project_id ?? null;
+
+    const { data: party } = projectId
+      ? await supabase
+          .from("project_parties")
+          .select("id")
+          .eq("project_id", projectId)
+          .in("party_type", PROVIDER_TO_PARTY_TYPES[record.provider])
+          .eq("user_id", session.userId)
+          .maybeSingle<{ id: string }>()
+      : { data: null };
+
+    if (!party) {
+      return { error: "You can only mark received the records your own party provides." };
+    }
+  }
+
+  const { error } = await supabase
+    .from(ACTIVITY_EXPECTED_RECORDS_TABLE)
+    .update({
+      document_number: documentNumber,
+      storage_path: storagePath || null,
+      received_at: new Date().toISOString(),
+    })
+    .eq("id", recordId);
+
+  if (error) return { error: "Could not mark the record received. Check you have permission and try again." };
+
+  const itpId = await findItpIdForItem(supabase, record.itp_item_id);
+  if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}

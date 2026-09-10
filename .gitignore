@@ -1,0 +1,26 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+supabase/.branches/
+supabase/.temp/
+coverage/
+
+# Vercel CLI
+.vercel
+
+# Machine-local Claude Code settings — permissions/allowlist is per-developer, not shared
+.claude/settings.local.json
+
+# OS cruft
+Thumbs.db
+desktop.ini

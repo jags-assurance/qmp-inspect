@@ -1,0 +1,22 @@
+{
+  "name": "@jags/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jags/shared-types": "workspace:*",
+    "@supabase/supabase-js": "^2.116.0",
+    "dotenv": "^16.4.5",
+    "puppeteer": "^23.9.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "@types/node": "^20.14.9"
+  }
+}

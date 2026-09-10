@@ -1,0 +1,15 @@
+{
+  "name": "jags-assurance-project",
+  "private": true,
+  "packageManager": "pnpm@10.8.0",
+  "scripts": {
+    "dev": "pnpm --filter @jags/web dev",
+    "dev:worker": "pnpm --filter @jags/worker dev",
+    "build": "pnpm --filter @jags/web build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "db:push": "npx supabase db push",
+    "db:types": "npx supabase gen types typescript --linked > packages/shared-types/src/database.ts"
+  }
+}

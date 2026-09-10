@@ -1,0 +1,71 @@
+"use client";
+
+import { useActionState, type FormEvent } from "react";
+import { finalizeAssignmentAction, type FinalizeAssignmentState } from "@/lib/standalone/actions";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
+
+const initialState: FinalizeAssignmentState = { error: null };
+
+const CONCLUSION_OPTIONS: {
+  value: "pass" | "conditional_pass" | "fail";
+  label: string;
+  toneClasses: string;
+}[] = [
+  {
+    value: "pass",
+    label: "Pass",
+    toneClasses: "has-[:checked]:border-success has-[:checked]:bg-success/10 has-[:checked]:text-success",
+  },
+  {
+    value: "conditional_pass",
+    label: "Conditional Pass",
+    toneClasses: "has-[:checked]:border-gold has-[:checked]:bg-gold/20 has-[:checked]:text-[color:var(--color-burgundy-dark)]",
+  },
+  {
+    value: "fail",
+    label: "Fail",
+    toneClasses: "has-[:checked]:border-danger has-[:checked]:bg-danger/10 has-[:checked]:text-danger",
+  },
+];
+
+export function FinalizeForm({ assignmentId }: { assignmentId: string }) {
+  const [state, formAction, pending] = useActionState(finalizeAssignmentAction, initialState);
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    if (!confirm("Finalizing records the conclusion and locks this assignment from further edits. Continue?")) {
+      e.preventDefault();
+    }
+  }
+
+  return (
+    <form
+      action={formAction}
+      onSubmit={handleSubmit}
+      className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
+    >
+      <input type="hidden" name="assignment_id" value={assignmentId} />
+      <div>
+        <span className="block text-xs text-muted">Conclusion</span>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {CONCLUSION_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className={cn(
+                "cursor-pointer rounded-full border border-border bg-off-white px-4 py-1.5 text-sm font-medium text-muted transition-colors",
+                option.toneClasses
+              )}
+            >
+              <input type="radio" name="conclusion" value={option.value} required className="sr-only" />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </div>
+      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      <Button type="submit" disabled={pending}>
+        {pending ? "Finalizing…" : "Finalize assignment"}
+      </Button>
+    </form>
+  );
+}

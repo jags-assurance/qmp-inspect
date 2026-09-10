@@ -1,0 +1,648 @@
+<title>QMP Inspect Playbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#201c16;
+    --ink-soft:#4a4038;
+    --taupe:#8a7f74;
+    --taupe-line:#e6ddd1;
+    --paper:#faf7f2;
+    --panel:#ffffff;
+    --panel-sunk:#f5f0e8;
+    --maroon:#6B1E2C;
+    --maroon-soft:#f3dde1;
+    --maroon-line:#e3c3ca;
+    --gold:#a9821c;
+    --gold-soft:#fbeec2;
+    --green:#2f6f4e;
+    --green-soft:#dcefe1;
+    --blue:#2a5a94;
+    --blue-soft:#dce7f5;
+    --nav-w:248px;
+    --shadow-card:0 1px 2px rgba(32,28,22,0.05), 0 6px 20px rgba(32,28,22,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#f1ece2;
+      --ink-soft:#d8cfc0;
+      --taupe:#a89c8d;
+      --taupe-line:#3a332a;
+      --paper:#1c1815;
+      --panel:#26211b;
+      --panel-sunk:#211c17;
+      --maroon:#e2919f;
+      --maroon-soft:#3a2126;
+      --maroon-line:#4d2b32;
+      --gold:#e3c565;
+      --gold-soft:#3a3116;
+      --green:#8fc7a4;
+      --green-soft:#1e3226;
+      --blue:#9dc0eb;
+      --blue-soft:#1c2b3f;
+      --shadow-card:0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#f1ece2;
+    --ink-soft:#d8cfc0;
+    --taupe:#a89c8d;
+    --taupe-line:#3a332a;
+    --paper:#1c1815;
+    --panel:#26211b;
+    --panel-sunk:#211c17;
+    --maroon:#e2919f;
+    --maroon-soft:#3a2126;
+    --maroon-line:#4d2b32;
+    --gold:#e3c565;
+    --gold-soft:#3a3116;
+    --green:#8fc7a4;
+    --green-soft:#1e3226;
+    --blue:#9dc0eb;
+    --blue-soft:#1c2b3f;
+    --shadow-card:0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.6;
+  }
+  h1,h2,h3,h4{
+    font-family:'Source Serif 4',Georgia,serif;
+    text-wrap:balance;
+    color:var(--ink);
+    margin:0;
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  a{ color:var(--maroon); }
+
+  .shell{
+    display:grid;
+    grid-template-columns:var(--nav-w) 1fr;
+    min-height:100vh;
+  }
+
+  /* ---------- left nav ---------- */
+  .sidenav{
+    background:var(--maroon);
+    color:#f6e9ea;
+    padding:28px 20px 28px;
+    position:sticky;
+    top:0;
+    height:100vh;
+    overflow-y:auto;
+  }
+  :root[data-theme="dark"] .sidenav, @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .sidenav{ background:#150c0e; } }
+  .brandmark{
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:26px;
+  }
+  .brandmark .crest{
+    width:34px;height:34px;border-radius:50%;
+    border:1.5px solid #e3c565; display:flex;align-items:center;justify-content:center;
+    font-family:'Source Serif 4',serif; font-weight:700; font-size:15px; color:#e3c565;
+    flex-shrink:0;
+  }
+  .brandmark .name{ font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:#e9c8ce; line-height:1.3; }
+  .brandmark .name b{ display:block; font-size:13.5px; color:#fff; letter-spacing:.02em; }
+
+  .navgroup{ margin-bottom:4px; }
+  .navgroup-label{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.09em;
+    color:#c99aa2; padding:14px 8px 6px;
+  }
+  .navlink{
+    display:flex; align-items:center; gap:9px;
+    padding:7px 8px; border-radius:7px; font-size:13px;
+    color:#f3dde1; text-decoration:none;
+  }
+  .navlink:hover{ background:rgba(255,255,255,0.08); }
+  .navlink .dot{ width:5px;height:5px;border-radius:50%;background:#e3c565;flex-shrink:0; }
+
+  /* ---------- main ---------- */
+  main{ padding:48px 56px 90px; max-width:920px; }
+
+  .kicker{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--gold); font-weight:600; margin-bottom:10px;
+  }
+  .hero h1{ font-size:38px; font-weight:600; line-height:1.12; margin-bottom:14px; }
+  .hero p.lede{ font-size:16.5px; color:var(--ink-soft); max-width:62ch; margin-bottom:22px; }
+  .hero .meta{
+    display:flex; gap:22px; flex-wrap:wrap;
+    font-size:12.5px; color:var(--taupe); border-top:1px solid var(--taupe-line); padding-top:16px;
+  }
+  .hero .meta b{ color:var(--ink); font-weight:600; }
+
+  /* flow diagram */
+  .flow{
+    margin:36px 0 48px;
+    background:var(--panel);
+    border:1px solid var(--taupe-line);
+    border-radius:14px;
+    padding:26px 26px 22px;
+    box-shadow:var(--shadow-card);
+  }
+  .flow h2{ font-size:15px; margin-bottom:4px; }
+  .flow .sub{ font-size:12.5px; color:var(--taupe); margin-bottom:18px; }
+  .flow-row{
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:0;
+    align-items:stretch;
+  }
+  .flow-step{
+    display:flex; flex-direction:column; gap:6px;
+    padding:0 10px;
+    position:relative;
+  }
+  .flow-step:not(:first-child)::before{
+    content:"";
+    position:absolute; left:-1px; top:17px;
+    width:calc(100% + 2px); height:1.5px;
+    background:repeating-linear-gradient(90deg,var(--taupe-line) 0 6px, transparent 6px 10px);
+  }
+  .flow-num{
+    width:26px;height:26px;border-radius:50%;
+    background:var(--maroon-soft); color:var(--maroon);
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500;
+    display:flex;align-items:center;justify-content:center;
+    z-index:1; position:relative;
+  }
+  .flow-step b{ font-size:12.5px; }
+  .flow-step span{ font-size:11.5px; color:var(--taupe); line-height:1.4; }
+
+  section.role{ margin-top:64px; scroll-margin-top:28px; }
+  .role-head{
+    display:flex; align-items:baseline; gap:14px;
+    border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:6px;
+  }
+  .role-head .idx{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--gold); }
+  .role-head h2{ font-size:26px; }
+  .role-tag{
+    margin-left:auto; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--taupe); background:var(--panel-sunk); border:1px solid var(--taupe-line);
+    padding:4px 10px; border-radius:999px; white-space:nowrap;
+  }
+  .role-intro{ font-size:14px; color:var(--ink-soft); max-width:70ch; margin:14px 0 26px; }
+
+  .screen{
+    background:var(--panel);
+    border:1px solid var(--taupe-line);
+    border-radius:12px;
+    padding:20px 22px;
+    margin-bottom:16px;
+    box-shadow:var(--shadow-card);
+  }
+  .screen-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:14px;
+    margin-bottom:10px;
+  }
+  .screen-head h3{ font-size:16.5px; font-weight:600; }
+  .screen-head h3 .path{ display:block; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--taupe); font-weight:400; margin-top:3px; letter-spacing:.01em; }
+  .badge{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    padding:3px 9px; border-radius:999px; font-weight:600; white-space:nowrap; flex-shrink:0;
+  }
+  .badge.done{ background:var(--green-soft); color:var(--green); }
+  .badge.new{ background:var(--blue-soft); color:var(--blue); }
+
+  .screen p.purpose{ font-size:13.5px; color:var(--ink-soft); margin-bottom:14px; max-width:68ch; }
+
+  .screen-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px 22px;
+  }
+  @media (max-width: 700px){ .screen-grid{ grid-template-columns:1fr; } }
+  .screen-grid h4{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--gold); margin-bottom:7px; font-family:'IBM Plex Sans',sans-serif; font-weight:600;
+  }
+  .screen-grid ul{ margin:0; padding-left:16px; font-size:13px; color:var(--ink-soft); }
+  .screen-grid li{ margin-bottom:4px; }
+  .screen-grid li b{ color:var(--ink); font-weight:600; }
+
+  .divider-note{
+    display:flex; gap:10px; align-items:flex-start;
+    background:var(--gold-soft); border:1px solid var(--maroon-line);
+    border-radius:10px; padding:12px 16px; margin:30px 0;
+    font-size:13px; color:var(--ink-soft);
+  }
+  .divider-note b{ color:var(--ink); }
+
+  footer{
+    max-width:920px; margin:70px 56px 0; padding-top:22px;
+    border-top:1px solid var(--taupe-line);
+    font-size:12px; color:var(--taupe);
+  }
+
+  ::selection{ background:var(--gold-soft); }
+</style>
+
+<div class="shell">
+  <nav class="sidenav">
+    <div class="brandmark">
+      <div class="crest">JA</div>
+      <div class="name">Jags Assurance<b>QMP Inspect</b></div>
+    </div>
+
+    <div class="navgroup">
+      <div class="navgroup-label">Orientation</div>
+      <a class="navlink" href="#flow"><span class="dot"></span>How the flow works</a>
+    </div>
+
+    <div class="navgroup">
+      <div class="navgroup-label">01 · Jags Admin</div>
+      <a class="navlink" href="#admin"><span class="dot"></span>Setup → Approval</a>
+    </div>
+    <div class="navgroup">
+      <div class="navgroup-label">02 · Jags Inspector</div>
+      <a class="navlink" href="#inspector"><span class="dot"></span>Queue → Release</a>
+    </div>
+    <div class="navgroup">
+      <div class="navgroup-label">03 · Contractor</div>
+      <a class="navlink" href="#contractor"><span class="dot"></span>Review & NCR response</a>
+    </div>
+    <div class="navgroup">
+      <div class="navgroup-label">04 · Subcontractor</div>
+      <a class="navlink" href="#sub"><span class="dot"></span>Field execution</a>
+    </div>
+    <div class="navgroup">
+      <div class="navgroup-label">05 · TPI / Lab</div>
+      <a class="navlink" href="#tpi"><span class="dot"></span>Independent testing</a>
+    </div>
+    <div class="navgroup">
+      <div class="navgroup-label">06 · Client</div>
+      <a class="navlink" href="#client"><span class="dot"></span>Oversight & handover</a>
+    </div>
+    <div class="navgroup">
+      <div class="navgroup-label">07 · Documents</div>
+      <a class="navlink" href="#docs"><span class="dot"></span>Generated & printable</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="kicker">Demo reference · QMP Inspect prototype</div>
+      <h1>Every screen, who it's for, and what it proves.</h1>
+      <p class="lede">This is the walkthrough behind the live prototype — one page per persona, in the order a project actually moves through them, from the first ITP draft to the handover certificate. Use it to navigate the demo with Naresh, or to check a screen against the reference mockups without re-opening the whole deck.</p>
+      <div class="meta">
+        <div><b>2</b> tenants modelled — Meridian Energy (full data), Northgate Rail (mobilisation-stage)</div>
+        <div><b>7</b> personas, one login</div>
+        <div><b>19</b> reference screens covered</div>
+      </div>
+    </div>
+
+    <div class="flow" id="flow">
+      <h2>The chain of custody, in six moves</h2>
+      <div class="sub">Every inspection in QMP Inspect follows this path — the same six roles hand the record forward, no matter the discipline.</div>
+      <div class="flow-row">
+        <div class="flow-step"><div class="flow-num">1</div><b>Admin drafts</b><span>ITP built from the spec, parties assigned</span></div>
+        <div class="flow-step"><div class="flow-num">2</div><b>All parties sign</b><span>Contractor, Sub, TPI, Client approve</span></div>
+        <div class="flow-step"><div class="flow-num">3</div><b>Sub executes</b><span>Field checklist, photos, signature</span></div>
+        <div class="flow-step"><div class="flow-num">4</div><b>TPI / Contractor verify</b><span>Independent measurement + review</span></div>
+        <div class="flow-step"><div class="flow-num">5</div><b>Inspector decides</b><span>Pass → IRN, or Fail → NCR</span></div>
+        <div class="flow-step"><div class="flow-num">6</div><b>Client receives</b><span>Data Book, KPIs, Handover Portal</span></div>
+      </div>
+    </div>
+
+    <!-- ================= ADMIN ================= -->
+    <section class="role" id="admin">
+      <div class="role-head">
+        <span class="idx">01</span>
+        <h2>Jags Admin</h2>
+        <span class="role-tag">Priya Desai</span>
+      </div>
+      <p class="role-intro">The build-and-govern seat. Everything downstream — every checklist a Subcontractor fills, every H/W/R/S pill a Contractor sees — starts here: pulling a spec out of the Vault, drafting an ITP against it, and deciding which parties are even active on a given project.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Orbit Home<span class="path">admin · dash</span></h3></div>
+        <p class="purpose">Landing screen after login — the portfolio view across every tenant, not just one project.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>4 KPI tiles: active clients, active projects, parties, open NCRs</li><li>Licensed-module grid (QMP Inspect active, others greyed "Not enabled")</li><li>My Work + Recent Projects cards</li></ul></div>
+          <div><h4>Proves</h4><ul><li>This is one platform serving <b>many</b> clients, not a single-project tool</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Start Work<span class="path">admin · startWork</span></h3></div>
+        <p class="purpose">The fork in the road before anything gets created — pick the workflow that matches the engagement.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li><b>ITP-driven project</b> card — full workflow, multi-party sign-off</li><li><b>Standalone assignment</b> card — quick setup for a one-off FAT or vendor visit</li></ul></div>
+          <div><h4>Proves</h4><ul><li>Not every job needs a full ITP — Jags doesn't force process onto a 2-hour vendor test</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Project Setup<span class="path">admin · setup</span></h3></div>
+        <p class="purpose">Where a project's parties are assigned and switched on or off.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Party table: Contractor, Subcontractor, TPI/Lab, Jags, Client</li><li>Active / not-required toggle per party</li></ul></div>
+          <div><h4>Proves</h4><ul><li>Deactivating a party (say, no TPI on this job) correctly drops them from every sign-off list downstream — packages, assignments, approvals — without leaving a stuck "pending forever" slot</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Central Vault<span class="path">admin · vault</span></h3></div>
+        <p class="purpose">The revision-controlled source of every drawing and spec — and the on-ramp into AI-assisted ITP drafting.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>4 stat tiles (documents / controlled / awaiting review / last synced)</li><li>11 folders (Drawings, Specifications, Standards…)</li><li>Selected-document detail: metadata, linked standards, revision</li><li>"Ready for ITP generation" card → <b>Generate ITP from this specification</b></li></ul></div>
+          <div><h4>Proves</h4><ul><li>The ITP isn't typed from scratch — it's drafted <i>from</i> the client's own approved spec, with the source document traceable</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>ITP Builder<span class="path">admin · itp</span></h3></div>
+        <p class="purpose">Where the AI-suggested draft becomes a controlled, section-by-section document.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Dismissible "AI-drafted — review required" banner</li><li>Full activity table across Submittals / Execution / Testing / Handover, with H/W/R/S party pills</li><li>Per-row status: Confirmed vs. Review, inline edit panel</li><li>Footer: "9 activities · 6 confirmed · 3 need review"</li></ul></div>
+          <div><h4>Proves</h4><ul><li>AI never writes directly to the approved ITP — a Jags engineer confirms every suggested row before it counts</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Checklists &amp; Forms<span class="path">admin · checklists</span></h3></div>
+        <p class="purpose">The field checklist a Subcontractor will answer, built once and linked to its ITP activity.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Drag-ordered item list, one expandable for options (measured value + unit, photo-required-on-No, helper text)</li><li>Live tablet preview, Desktop/Tablet toggle</li></ul></div>
+          <div><h4>Proves</h4><ul><li>What Admin builds here is <i>exactly</i> what the Subcontractor sees on-site — same items, same order, same rules</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>ITP Packages &amp; FAT / Assignments<span class="path">admin · packages · assignments</span></h3></div>
+        <p class="purpose">Trade-scoped ITPs (Flooring, Ceilings, Painting, Electrical) and standalone tests that don't need a full project ITP.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Assignment-type tabs: FAT / Witness inspection / Specific test / Pre-shipment</li><li>Manufacturer/Model/Serial-Tag + Attached-checklist card</li><li>Tabbed detail: Measurements, Photos, Punch List, Witness Signatures, Notes</li><li>Generated FAT Report (A4): doc control, checklist results, evidence photos, Conditional-Pass banner if punch items remain open</li></ul></div>
+          <div><h4>Proves</h4><ul><li>A factory acceptance test for one pump skid gets the same rigor as a building-wide ITP — just scoped down</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Registers<span class="path">admin · registers</span></h3></div>
+        <p class="purpose">Live registers for everything the project has generated — not static exports.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Punch-List, NCR and Observation registers with stat tiles + <b>aging-profile</b> chart (0–7 / 8–14 / 15–30 / 30+ days)</li><li>Project / Type / Status filters + search, Due-date and Days-open columns</li><li>Calibration, Welder and Material registers</li></ul></div>
+          <div><h4>Proves</h4><ul><li>Nothing on Northgate Rail (still in mobilisation) shows fabricated Meridian data — registers correctly render empty with an explanatory banner per tenant</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>ITP Register<span class="path">admin · register</span></h3></div>
+        <p class="purpose">Every ITP across every client, one table.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Stat tiles, working search + Project/Discipline/Status filters</li><li>% complete progress bar, Open-items, Updated columns, Actions menu</li></ul></div>
+          <div><h4>Proves</h4><ul><li>A Jags Admin managing 12 projects doesn't need to open each one to know what's stuck</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Data Book Builder<span class="path">admin · databookBuilder</span></h3></div>
+        <p class="purpose">The QM's own verification workspace — distinct from the client-facing Data Book progress view.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>5 dossier sections (ITPs, Inspection records, Test certs, NCRs closed, As-builts), each "X of Y verified"</li><li>Readiness donut, recent verification events</li><li>Locked "Compile Data Book" until every section clears</li></ul></div>
+          <div><h4>Proves</h4><ul><li>Handover isn't a button — it's gated on someone actually verifying every record first</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Power BI (Internal)<span class="path">admin · powerbi</span></h3></div>
+        <p class="purpose">Jags' own cross-portfolio analytics — never shown to a client.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Date/Region/Client/Project filter bar</li><li>5 charts: completed-vs-planned, pass-rate trend, NCR trend, hold-point-turnaround gauge, data-book readiness by project</li><li>Vendor performance league table with trend sparklines</li></ul></div>
+          <div><h4>Proves</h4><ul><li>Jags manages quality across its <i>whole book of business</i>, not project-by-project in spreadsheets</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Approvals Centre &amp; Users/Settings<span class="path">admin · approval · settings</span></h3></div>
+        <p class="purpose">Every outstanding sign-off across every client, and the full user/role roster.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>One list of every pending signature — ITP-001, packages, FAT assignments — filtered to what's yours</li><li>Dynamic Users table built from every tenant's actual party roster</li></ul></div>
+          <div><h4>Proves</h4><ul><li>A Contractor with minimal nav can still sign off a package from one central place</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider-note"><b>Handoff →</b> once every party has signed ITP-001, the record moves from "being built" to "being executed" — the next three roles never see an unsigned ITP.</div>
+
+    <!-- ================= INSPECTOR ================= -->
+    <section class="role" id="inspector">
+      <div class="role-head">
+        <span class="idx">02</span>
+        <h2>Jags Inspector</h2>
+        <span class="role-tag">Ravi Kapoor</span>
+      </div>
+      <p class="role-intro">The independent decision-maker. Everyone else's evidence — the Subcontractor's checklist, the TPI's measurement — lands here, and the Inspector makes the one call that actually matters: pass, or raise a non-conformance.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Inspector Dashboard<span class="path">inspector · dash</span></h3></div>
+        <p class="purpose">A working day, not a to-do list.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>4 KPI tiles with context ("3 due today", "Oldest: 3 days")</li><li>All / Today / Overdue pending-actions table</li><li>Awaiting-my-sign-off panel, Today's schedule strip</li></ul></div>
+          <div><h4>Proves</h4><ul><li>An inspector juggling 12 active projects can see what's actually urgent without opening each one</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Inspect Activity<span class="path">inspector · inspect</span></h3></div>
+        <p class="purpose">The core inspection screen — every piece of evidence, gated in order.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Subcontractor checklist / Contractor review / TPI measurement / Client witness status, each blocking the next</li><li>Pass &amp; Issue IRN, or Fail &amp; Raise NCR</li></ul></div>
+          <div><h4>Proves</h4><ul><li>An Inspector physically cannot record Pass while a field item is still flagged — the button disables itself</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>New NCR / Observation<span class="path">inspector · inspect (on Fail)</span></h3></div>
+        <p class="purpose">Raising a non-conformance is a controlled form, not a text box.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Traceability block, AI-drafted description badge (review required)</li><li>Minor vs. Major severity choice, requirement-not-met citation, photo attach, Inspector signature</li></ul></div>
+          <div><h4>Proves</h4><ul><li>A Major NCR routes to the <i>Client</i> for acknowledgement (ISO 17020 impartiality) — a Minor one closes at Jags alone</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Inspection Record<span class="path">inspector · irn</span></h3></div>
+        <p class="purpose">The full IRN detail, and the letterhead document it generates.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Tally tiles (items / Yes / No / N-A) + big PASS result</li><li>Results table with photo-evidence thumbnails, 3-step approval timeline, audit trail</li><li>Right panel: the generated Inspection Release Note with 4-party signatures</li></ul></div>
+          <div><h4>Proves</h4><ul><li>The printable release note isn't a separate re-entry — it's generated straight from the same recorded evidence</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>NCR Register<span class="path">inspector · ncr</span></h3></div>
+        <p class="purpose">Every non-conformance this Inspector has raised, tracked to closure.</p>
+      </div>
+    </section>
+
+    <div class="divider-note"><b>Handoff →</b> a Pass releases the activity forward; a Fail sends a corrective-action request to the Contractor — that's where the next persona picks it up.</div>
+
+    <!-- ================= CONTRACTOR ================= -->
+    <section class="role" id="contractor">
+      <div class="role-head">
+        <span class="idx">03</span>
+        <h2>Contractor</h2>
+        <span class="role-tag">Trident Marine Construction</span>
+      </div>
+      <p class="role-intro">Deliberately thin nav — two screens — because a Main Contractor's job in this system is narrow: review what the Subcontractor submitted, and answer NCRs raised against the work.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Pending Reviews<span class="path">contractor · dash</span></h3></div>
+        <p class="purpose">Whatever the Subcontractor has submitted and is waiting on Contractor sign-off.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>NCR Response<span class="path">contractor · ncr</span></h3></div>
+        <p class="purpose">The corrective-action cycle from the party who caused the non-conformance.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Stage tracker, Cost-of-Poor-Quality estimate</li><li>Log Containment → Log Root Cause → Submit Corrective Action, in that order</li></ul></div>
+          <div><h4>Proves</h4><ul><li>You can't submit a corrective action without first logging containment <i>and</i> root cause — the button stays disabled</li></ul></div>
+        </div>
+      </div>
+
+      <div class="divider-note" style="margin:20px 0 0;"><b>Also reachable here →</b> the <b>Approvals Centre</b> (in the header, every persona) is where this Contractor actually signs ITP packages and FAT assignments, without needing dedicated nav for it.</div>
+    </section>
+
+    <!-- ================= SUBCONTRACTOR ================= -->
+    <section class="role" id="sub">
+      <div class="role-head">
+        <span class="idx">04</span>
+        <h2>Subcontractor</h2>
+        <span class="role-tag">BayShore Rebar Co. · mobile</span>
+      </div>
+      <p class="role-intro">The only persona modelled as a phone-shaped experience — because this is genuinely a person standing at a foundation pour with a tablet, not someone at a desk.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Inbox<span class="path">sub · inbox</span></h3></div>
+        <p class="purpose">One inspection request, one "Start Inspection" button — no dashboard clutter on a job site.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Field Checklist<span class="path">sub · field</span></h3></div>
+        <p class="purpose">The actual on-site record — built to survive a glove and a bad signal.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Traceability panel (Project/ITP/Location/Drawing rev/Spec)</li><li>Yes/No/N-A pills per item, measured-value chip where relevant, voice-note icon</li><li>Photo attach, Overall-result panel (PASS/FAIL + tally)</li><li>Inspector signature (required) + optional Client-witness signature</li></ul></div>
+          <div><h4>Proves</h4><ul><li>Submit stays disabled until every item is answered, a photo is attached, and the Inspector has signed — the optional witness field never blocks it</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TPI ================= -->
+    <section class="role" id="tpi">
+      <div class="role-head">
+        <span class="idx">05</span>
+        <h2>TPI / Lab</h2>
+        <span class="role-tag">Apex Testing Labs</span>
+      </div>
+      <p class="role-intro">Independent, third-party — this persona never sees or edits anyone else's evidence, only submits its own measurement against a stated tolerance.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Assigned Tests → Upload Report<span class="path">tpi · dash → upload</span></h3></div>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>Measured value / unit / acceptance range, entered once</li><li>Auto Pass/Fail against tolerance — the lab doesn't judge, the system does</li></ul></div>
+          <div><h4>Proves</h4><ul><li>The Inspector sees this measurement as independent evidence the moment it's uploaded — no re-keying</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider-note"><b>Handoff →</b> once every party has signed, the Client's dashboards, registers and Data Book update from the same underlying records — nothing is a separate client-side copy.</div>
+
+    <!-- ================= CLIENT ================= -->
+    <section class="role" id="client">
+      <div class="role-head">
+        <span class="idx">06</span>
+        <h2>Client</h2>
+        <span class="role-tag">Meridian Energy · two modes: Jags-Managed / Self-Service</span>
+      </div>
+      <p class="role-intro">The party paying for assurance, not producing it — every screen here is read-oriented, except in Self-Service mode, where Meridian runs its own inspections on the Jags platform and Jags still independently certifies the result.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>KPI Dashboard<span class="path">client · dash</span></h3></div>
+        <p class="purpose">Project health, in the client's own language — not Jags' internal metrics.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>6 KPI tiles: pass rate, hold-point turnaround, NCR close-out days, data-book readiness, inspections vs. planned, ITP completion</li><li>Completed-vs-planned progress bars, ranked "Quality by subcontractor"</li><li>Open Items table with Ref / Owner / Due / Status</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>NCRs &amp; Observations<span class="path">client · ncr</span></h3></div>
+        <p class="purpose">Every quality issue raised against the project — with the lifecycle stage visible, not just a count.</p>
+        <div class="screen-grid">
+          <div><h4>Proves</h4><ul><li>When a Major NCR reaches "Verified", the Client sees a banner asking for its own acknowledgement before it can close — the impartiality step is visible, not hidden in a workflow</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Data Book<span class="path">client · databook</span></h3></div>
+        <p class="purpose">The client-facing completeness view — a simple percentage and a punch-list, not the QM's verification workspace.</p>
+        <div class="screen-grid">
+          <div><h4>Proves</h4><ul><li>Handover can still be issued <i>conditionally</i> with an open punch item, but only with a documented reason — permanently recorded in the Activity Log</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Handover Portal<span class="path">client · handover</span></h3></div>
+        <p class="purpose">Everything Meridian has actually received from Jags, in one place.</p>
+        <div class="screen-grid">
+          <div><h4>Shows</h4><ul><li>4 stat tiles: services, ready-for-download, awaiting acknowledgement, fully acknowledged</li><li>6 service rows (QMP Inspect, FAT Services, Vendor Surveillance, Quality Audit, NCR Close-Out Dossier, Training Records) — download + acknowledge per row</li><li>Recent-activity feed, security card, contact card</li></ul></div>
+          <div><h4>Proves</h4><ul><li>This is the one screen where Jags' relationship with Meridian is visible as a <i>portfolio</i> of delivered services, not just one Data Book</li></ul></div>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Reports &amp; Certificates<span class="path">client · reports</span></h3></div>
+        <p class="purpose">Every generated document, clickable straight into its formatted output — see Documents, below.</p>
+      </div>
+    </section>
+
+    <!-- ================= DOCS ================= -->
+    <section class="role" id="docs">
+      <div class="role-head">
+        <span class="idx">07</span>
+        <h2>Documents &amp; Reports</h2>
+        <span class="role-tag">Reachable from Reports & Certificates</span>
+      </div>
+      <p class="role-intro">Every formatted output the platform generates — each one built from live state, not a static mock. Switching Meridian → Northgate in the demo re-renders every one of these from Northgate's own (mostly pre-execution) data.</p>
+
+      <div class="screen">
+        <div class="screen-head"><h3>Inspection Release Notice (IRN)</h3></div>
+        <p class="purpose">Letterhead doc, 4-party signature block, generated the moment an Inspector records Pass.</p>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><h3>Inspection Report (A4)</h3></div>
+        <p class="purpose">The generic inspection report — traceability, summary stats, results table, evidence photos, conclusion, observation callout, 3-way sign-off. Distinct from the IRN: this is the discipline-level report, not the release note.</p>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><h3>Final ITP — 3-page controlled document</h3></div>
+        <p class="purpose">Party Codes legend (C/SC/TPI/JA/CL), Point Types legend (H/W/R/S), per-row sign-off column, Distribution List, revision history, repeated Approvals block.</p>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><h3>NCR Close-Out Certificate</h3></div>
+        <p class="purpose">Root cause / Corrective action / Preventive action / Verification of effectiveness, each as its own section, plus a closure-confirmation banner.</p>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><h3>FAT Report (A4)</h3></div>
+        <p class="purpose">Document control box, checklist results, measurements, embedded photos, punch list with category/owner/target close-out, and a Conditional-Pass banner that only appears when punch items are genuinely still open.</p>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><h3>Weekly / Monthly Quality Report</h3></div>
+        <p class="purpose">Cover page, executive summary, KPI tiles, progress-per-project bars, NCR open/closed donut, vendor performance ranking.</p>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><h3>Handover Certificate</h3></div>
+        <p class="purpose">Issued once the Data Book gates clear — or conditionally, with the documented exception carried on the certificate itself.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  QMP Inspect prototype · internal demo reference · built against 19 client-supplied UI mockups, tenant data shown throughout is illustrative (Meridian Energy, Northgate Rail).
+</footer>

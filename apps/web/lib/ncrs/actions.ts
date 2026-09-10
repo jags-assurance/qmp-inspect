@@ -1,0 +1,263 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { NCRS_TABLE, NCR_SEVERITIES, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
+import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { assertAiAllowed } from "@/lib/ai/gate";
+import { logAiUsage } from "@/lib/ai/log";
+import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { generateDocumentNumber } from "@/lib/numbering/generate";
+
+export interface CreateNcrState {
+  error: string | null;
+}
+
+export async function createNcrAction(
+  _prev: CreateNcrState,
+  formData: FormData
+): Promise<CreateNcrState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const severity = String(formData.get("severity") ?? "").trim() as NcrSeverity;
+  const description = String(formData.get("description") ?? "").trim();
+  const requirementNotMet = String(formData.get("requirement_not_met") ?? "").trim();
+  const assignedTo = String(formData.get("assigned_to") ?? "").trim();
+  const dueDate = String(formData.get("due_date") ?? "").trim();
+
+  if (!projectId || !severity || !description) {
+    return { error: "Project, severity and description are required." };
+  }
+  if (!NCR_SEVERITIES.includes(severity)) {
+    return { error: "Invalid severity." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("project_number, organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ project_number: string; organization_id: string }>();
+
+  if (!project) {
+    return { error: "Project not found, or you don't have access to it." };
+  }
+
+  // Routed through the shared numbering engine (Phase 2) rather than an inline per-project count —
+  // NCR numbering is a clean fit for it (one sequence per project, no sub-type prefix to preserve,
+  // unlike e.g. standalone assignments' FAT/WIT/... prefixes, which stay on their own local scheme).
+  const { documentNumber: ncrNumber } = await generateDocumentNumber(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    docType: "ncr",
+    projectNumber: project.project_number,
+  });
+
+  const { data: ncr, error } = await supabase
+    .from(NCRS_TABLE)
+    .insert({
+      project_id: projectId,
+      ncr_number: ncrNumber,
+      severity,
+      description,
+      requirement_not_met: requirementNotMet || null,
+      assigned_to: assignedTo || null,
+      due_date: dueDate || null,
+      raised_by: user?.id ?? null,
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !ncr) {
+    if (error?.code === "23505") {
+      return { error: "An NCR with that number already exists for this project." };
+    }
+    if (error?.code === "23503") {
+      return { error: "The assigned-to user ID doesn't match a known user." };
+    }
+    if (error?.code === "22P02") {
+      return { error: "Assigned-to must be a valid user ID (UUID)." };
+    }
+    return { error: "Could not raise the NCR. Check you have permission and try again." };
+  }
+
+  // R95-96: every NCR/observation is a project-wide punch list source, since it represents
+  // something that must be closed out before handover regardless of severity.
+  await createPunchItemFromSource({
+    projectId,
+    description: `${severity === "major_ncr" ? "Major NCR" : severity === "minor_ncr" ? "Minor NCR" : "Observation"}: ${description}`,
+    source: "ncr",
+    sourceNcrId: ncr.id,
+    dueDate: dueDate || undefined,
+  });
+
+  redirect(`/inspect/ncrs/${ncr.id}`);
+}
+
+export interface UpdateNcrState {
+  error: string | null;
+}
+
+/**
+ * Updates the CAPA fields (root cause / corrective / preventive action / verification notes) and,
+ * when requested, closes the NCR. Closure requires root cause, corrective action and verification
+ * notes to already be filled in — enforced here rather than left to the UI, since this action is
+ * the actual authority boundary.
+ */
+export async function updateNcrAction(
+  _prev: UpdateNcrState,
+  formData: FormData
+): Promise<UpdateNcrState> {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  const assignedTo = String(formData.get("assigned_to") ?? "").trim();
+  const dueDate = String(formData.get("due_date") ?? "").trim();
+  const rootCause = String(formData.get("root_cause") ?? "").trim();
+  const correctiveAction = String(formData.get("corrective_action") ?? "").trim();
+  const preventiveAction = String(formData.get("preventive_action") ?? "").trim();
+  const verificationNotes = String(formData.get("verification_notes") ?? "").trim();
+  const closeNow = formData.get("close_now") === "true";
+
+  if (!ncrId) {
+    return { error: "Missing NCR." };
+  }
+
+  if (closeNow && (!rootCause || !correctiveAction || !verificationNotes)) {
+    return {
+      error: "Root cause, corrective action and verification notes are required before closing.",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const update: Record<string, unknown> = {
+    assigned_to: assignedTo || null,
+    due_date: dueDate || null,
+    root_cause: rootCause || null,
+    corrective_action: correctiveAction || null,
+    preventive_action: preventiveAction || null,
+    verification_notes: verificationNotes || null,
+  };
+
+  if (closeNow) {
+    update.status = "closed";
+    update.closed_by = user?.id ?? null;
+    update.closed_at = new Date().toISOString();
+  } else {
+    update.status = "in_progress";
+  }
+
+  const { error } = await supabase.from(NCRS_TABLE).update(update).eq("id", ncrId);
+
+  if (error) {
+    if (error.code === "23503") {
+      return { error: "The assigned-to user ID doesn't match a known user." };
+    }
+    if (error.code === "22P02") {
+      return { error: "Assigned-to must be a valid user ID (UUID)." };
+    }
+    return { error: "Could not update the NCR. Check you have permission and try again." };
+  }
+
+  // Closing the NCR also closes the punch list item it fed (R95-96) — the NCR's own close-out
+  // fields already satisfy the punch item's closing-evidence requirement, so this reuses them
+  // rather than asking for the same evidence twice.
+  if (closeNow) {
+    await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .update({
+        status: "closed",
+        closing_evidence: verificationNotes,
+        closed_by: user?.id ?? null,
+        closed_at: new Date().toISOString(),
+      })
+      .eq("source_ncr_id", ncrId)
+      .eq("status", "open");
+  }
+
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  revalidatePath("/inspect/ncrs");
+  return { error: null };
+}
+
+export interface DraftNcrDescriptionState {
+  error: string | null;
+  description: string | null;
+  requirementNotMet: string | null;
+}
+
+const EMPTY_DRAFT_NCR_STATE: DraftNcrDescriptionState = { error: null, description: null, requirementNotMet: null };
+
+/**
+ * Reqs R82-R84: drafts a description/requirement_not_met pair from the inspector's raw factual
+ * notes. Same non-negotiable rule as everywhere else AI touches this app — this never writes
+ * anything; it only returns text for the caller to drop into the (still fully editable) textareas
+ * on the NCR creation form. The NCR itself is only ever created by createNcrAction above, from
+ * whatever text is actually in those fields when the user submits.
+ */
+export async function draftNcrDescriptionAction(
+  _prev: DraftNcrDescriptionState,
+  formData: FormData
+): Promise<DraftNcrDescriptionState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  if (!projectId || !notes) {
+    return { ...EMPTY_DRAFT_NCR_STATE, error: "Select a project and enter some field notes first." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (!project) {
+    return { ...EMPTY_DRAFT_NCR_STATE, error: "Project not found, or you don't have access to it." };
+  }
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) {
+    return { ...EMPTY_DRAFT_NCR_STATE, error: gate.reason };
+  }
+
+  try {
+    const result = await geminiProvider.draftNcrDescription({ notes });
+    await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "ncr_description_draft",
+    });
+    return { error: null, description: result.description, requirementNotMet: result.requirementNotMet };
+  } catch (err) {
+    return {
+      ...EMPTY_DRAFT_NCR_STATE,
+      error: err instanceof Error ? err.message : "Could not draft a description from those notes.",
+    };
+  }
+}
+
+/** Plain status transition with no CAPA validation — used for the detail page's quick actions. */
+export async function setNcrStatusAction(formData: FormData) {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim() as NcrStatus;
+  if (!ncrId || !status) return;
+
+  const supabase = await createSupabaseServerClient();
+  await supabase.from(NCRS_TABLE).update({ status }).eq("id", ncrId);
+
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  revalidatePath("/inspect/ncrs");
+}

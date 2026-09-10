@@ -1,0 +1,101 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { ENGAGEMENT_MODES, type EngagementMode } from "@jags/shared-types";
+import { NUMBERING_CONFIGS_TABLE } from "./types";
+import type { NumberingDocType } from "./types";
+
+export interface NumberingSettingsState {
+  error: string | null;
+}
+
+/**
+ * RLS (organizations_staff_write / numbering_configs_staff_write) already stops any non-staff user
+ * cold. The Admin/Inspector split below it is a business permission, not a tenant-isolation one — an
+ * Inspector is still JAGS staff and RLS rightly leaves them able to write here — so it's enforced
+ * here in the action, same pattern as itp-master's reviewProposalAction.
+ */
+export async function updateEngagementModeAction(
+  _prev: NumberingSettingsState,
+  formData: FormData
+): Promise<NumberingSettingsState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change engagement mode or numbering settings." };
+  }
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const engagementModeInput = String(formData.get("engagement_mode") ?? "").trim();
+
+  if (!organizationId || !engagementModeInput) {
+    return { error: "Organisation and engagement mode are required." };
+  }
+
+  if (!(ENGAGEMENT_MODES as readonly string[]).includes(engagementModeInput)) {
+    return { error: "Unrecognised engagement mode." };
+  }
+  const engagementMode = engagementModeInput as EngagementMode;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("organizations")
+    .update({ engagement_mode: engagementMode })
+    .eq("id", organizationId);
+
+  if (error) {
+    return { error: "Could not update the engagement mode. Check you have permission and try again." };
+  }
+
+  revalidatePath("/inspect/organisation/numbering");
+  return { error: null };
+}
+
+export async function upsertNumberingConfigAction(
+  _prev: NumberingSettingsState,
+  formData: FormData
+): Promise<NumberingSettingsState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change engagement mode or numbering settings." };
+  }
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const docType = String(formData.get("doc_type") ?? "").trim() as NumberingDocType;
+  const clientCode = String(formData.get("client_code") ?? "").trim();
+  const originatorCode = String(formData.get("originator_code") ?? "JAGS").trim() || "JAGS";
+  const separator = String(formData.get("separator") ?? "-").trim() || "-";
+  const sequencePaddingRaw = String(formData.get("sequence_padding") ?? "3").trim();
+  const includeYear = formData.get("include_year") === "on";
+
+  const sequencePadding = Number.parseInt(sequencePaddingRaw, 10);
+
+  if (!organizationId || !docType || !clientCode || Number.isNaN(sequencePadding)) {
+    return { error: "Client code and a valid sequence padding are required." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  // Org-level config only (project_id null) — per-project overrides aren't exposed in this
+  // settings screen, only the org-wide default per doc type.
+  const { error } = await supabase.from(NUMBERING_CONFIGS_TABLE).upsert(
+    {
+      organization_id: organizationId,
+      project_id: null,
+      doc_type: docType,
+      client_code: clientCode,
+      originator_code: originatorCode,
+      separator,
+      sequence_padding: sequencePadding,
+      include_year: includeYear,
+    },
+    { onConflict: "organization_id,project_id,doc_type" }
+  );
+
+  if (error) {
+    return { error: "Could not save the numbering config. Check you have permission and try again." };
+  }
+
+  revalidatePath("/inspect/organisation/numbering");
+  return { error: null };
+}

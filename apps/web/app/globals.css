@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  /* Fixed brand palette (client-mandated, non-negotiable) */
+  --color-burgundy: #6b1e2c;
+  --color-burgundy-dark: #501623;
+  --color-gold: #f5c518;
+  --color-off-white: #f9f7f4;
+  --color-ink: #1c1c1e;
+
+  --color-border: #e7e1d8;
+  --color-surface: #ffffff;
+  --color-muted: #8a8378;
+
+  --color-success: #1f7a4d;
+  --color-danger: #b3261e;
+  --color-warning: #b8860b;
+  --color-info: #3a6ea5;
+
+  --background: var(--color-off-white);
+  --foreground: var(--color-ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-burgundy: var(--color-burgundy);
+  --color-burgundy-dark: var(--color-burgundy-dark);
+  --color-gold: var(--color-gold);
+  --color-off-white: var(--color-off-white);
+  --color-ink: var(--color-ink);
+  --color-border: var(--color-border);
+  --color-surface: var(--color-surface);
+  --color-muted: var(--color-muted);
+  --color-success: var(--color-success);
+  --color-danger: var(--color-danger);
+  --color-warning: var(--color-warning);
+  --color-info: var(--color-info);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono-ui);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Document/record identifiers (ITP numbers, checklist codes, NCR refs) use monospace throughout
+   the app — an established convention from the client's UI reference screens. */
+.doc-id {
+  font-family: var(--font-mono-ui), ui-monospace, monospace;
+  letter-spacing: 0.01em;
+}

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "C:\Users\haris\AppData\Local\Temp\claude\C--Users-haris-Downloads-new-client-req\bc6b6da0-2dfc-4594-92f7-79bef1d3f6bd\scratchpad\extract_docx.py", line 49, in <module>
+    print(dump(path))
+    ~~~~~^^^^^^^^^^^^
+  File "C:\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 842: character maps to <undefined>

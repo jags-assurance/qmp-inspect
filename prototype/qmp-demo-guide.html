@@ -1,0 +1,444 @@
+<title>QMP Inspect Demo Playbook</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --burgundy: #6B1E2C;
+    --burgundy-deep: #4a1420;
+    --gold: #C99A1E;
+    --gold-bg: #FBEEC2;
+    --ink: #1C1C1E;
+    --paper: #F9F7F4;
+    --surface: #FFFFFF;
+    --line: #E6DDD3;
+    --muted: #8A7F74;
+    --muted-2: #A49484;
+    --green: #2F6F4E;
+    --green-bg: #DCEFE1;
+    --red-bg: #F3DDE1;
+    --code-bg: #F1EAE0;
+    --shadow: 0 1px 2px rgba(28,20,16,.04), 0 8px 24px rgba(28,20,16,.06);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --burgundy: #E0899A;
+      --burgundy-deep: #f0aab6;
+      --gold: #F5C518;
+      --gold-bg: #3a2f14;
+      --ink: #F2EEE8;
+      --paper: #171512;
+      --surface: #221E1B;
+      --line: #3a332c;
+      --muted: #a99e93;
+      --muted-2: #8c8175;
+      --green: #7fbf9a;
+      --green-bg: #1c3527;
+      --red-bg: #3a2028;
+      --code-bg: #29241f;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --burgundy: #E0899A;
+    --burgundy-deep: #f0aab6;
+    --gold: #F5C518;
+    --gold-bg: #3a2f14;
+    --ink: #F2EEE8;
+    --paper: #171512;
+    --surface: #221E1B;
+    --line: #3a332c;
+    --muted: #a99e93;
+    --muted-2: #8c8175;
+    --green: #7fbf9a;
+    --green-bg: #1c3527;
+    --red-bg: #3a2028;
+    --code-bg: #29241f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  .shell { display: flex; max-width: 1280px; margin: 0 auto; align-items: flex-start; }
+
+  /* ---- Sidebar ---- */
+  nav.toc {
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    width: 268px; flex-shrink: 0; padding: 36px 22px 40px 32px;
+    border-right: 1px solid var(--line);
+  }
+  .toc-brand { display:flex; align-items:center; gap:10px; margin-bottom: 6px; }
+  .toc-mark { width:30px;height:30px;border-radius:8px;background:var(--burgundy);color:var(--paper);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0; }
+  .toc-brand b { font-size: 13.5px; letter-spacing:.01em; }
+  .toc-brand span { display:block; font-size:10.5px; color: var(--muted); }
+  .toc-list { margin-top: 26px; list-style: none; padding: 0; }
+  .toc-list a {
+    display: flex; gap: 10px; align-items:baseline; text-decoration: none; color: var(--muted);
+    font-size: 13px; padding: 7px 0; border-left: 2px solid transparent; padding-left: 12px; margin-left: -14px;
+    transition: color .12s ease, border-color .12s ease;
+  }
+  .toc-list a:hover { color: var(--ink); }
+  .toc-list a b { color: var(--burgundy); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; flex-shrink:0; }
+  .toc-list a:focus-visible { outline: 2px solid var(--burgundy); outline-offset: 2px; }
+
+  /* ---- Main column ---- */
+  main { flex: 1; min-width: 0; padding: 48px 56px 90px; max-width: 840px; }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+  :root:not([data-theme="light"]) .kicker { @media (prefers-color-scheme: dark) { color: #d9b23a; } }
+  :root[data-theme="dark"] .kicker { color: #d9b23a; }
+  h1.title { font-size: 34px; font-weight: 800; letter-spacing: -.02em; margin: 10px 0 12px; text-wrap: balance; }
+  .lede { font-size: 16px; color: var(--muted); max-width: 62ch; }
+  .meta-row { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+  .meta-chip {
+    font-family:'JetBrains Mono',monospace; font-size: 11px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; color: var(--muted);
+  }
+  .meta-chip b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 64px; scroll-margin-top: 24px; }
+  section:first-of-type { margin-top: 44px; }
+  .sec-head { display:flex; align-items:baseline; gap:14px; margin-bottom: 18px; }
+  .sec-num { font-family:'JetBrains Mono',monospace; font-size:13px; color: var(--gold-bg); background:var(--burgundy); width:30px;height:30px;border-radius:7px; display:flex;align-items:center;justify-content:center; font-weight:700; flex-shrink:0; }
+  h2 { font-size: 22px; font-weight: 750; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+  h3 { font-size: 16px; font-weight: 700; margin: 28px 0 10px; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  .sub { color: var(--muted); font-size: 14px; margin-top: -8px; margin-bottom: 20px; max-width: 66ch; }
+
+  code, .clickpath { font-family:'JetBrains Mono',monospace; font-size: 12.5px; }
+  .clickpath {
+    display:inline-flex; align-items:center; gap:6px; background: var(--code-bg); border:1px solid var(--line);
+    border-radius: 6px; padding: 3px 10px; color: var(--burgundy); font-weight: 500;
+  }
+  :root:not([data-theme="light"]) .clickpath { @media (prefers-color-scheme: dark) { color: #f0aab6; } }
+  :root[data-theme="dark"] .clickpath { color: #f0aab6; }
+  .clickpath .arrow { color: var(--muted-2); }
+
+  /* diagram */
+  .hier {
+    background: var(--surface); border:1px solid var(--line); border-radius: 12px; padding: 26px 28px;
+    box-shadow: var(--shadow); font-family:'JetBrains Mono',monospace; font-size: 13px; overflow-x:auto;
+  }
+  .hier-row { display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+  .hier-node { border:1px solid var(--line); border-radius:7px; padding:7px 13px; background: var(--paper); white-space:nowrap; }
+  .hier-node.on { background: var(--burgundy); color: var(--paper); border-color: var(--burgundy); font-weight:600; }
+  .hier-arrow { color: var(--muted-2); flex-shrink:0; }
+  .hier-indent { margin-left: 26px; margin-top: 10px; }
+
+  /* role grid */
+  .roles { display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 6px; }
+  .role-card { border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:16px 18px; box-shadow: var(--shadow); }
+  .role-card .who { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .role-dot { width:9px;height:9px;border-radius:50%; flex-shrink:0; }
+  .role-card b { font-size: 13.5px; }
+  .role-card .org { font-size:11.5px; color:var(--muted); margin-left:auto; font-style:normal; }
+  .role-card p { font-size: 13px; margin:0; color: var(--ink); opacity:.85; }
+
+  /* lifecycle stages */
+  .stages { display:flex; gap:0; margin: 10px 0 4px; overflow-x:auto; }
+  .stage-box { flex:1; min-width:118px; text-align:center; padding: 14px 8px 16px; border-top: 3px solid var(--line); position:relative; }
+  .stage-box.done { border-top-color: var(--green); }
+  .stage-box .num { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted-2); }
+  .stage-box .label { font-size:12.5px; font-weight:600; margin-top:4px; }
+
+  /* demo script acts */
+  .act { border:1px solid var(--line); border-radius:12px; background:var(--surface); box-shadow: var(--shadow); margin-bottom: 18px; overflow:hidden; }
+  .act-head { display:flex; align-items:center; gap:12px; padding: 16px 20px; background: var(--paper); border-bottom:1px solid var(--line); }
+  .act-badge { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; background:var(--burgundy); color:var(--paper); border-radius:5px; padding:3px 9px; flex-shrink:0; }
+  .act-head b { font-size: 14.5px; }
+  .act-head .time { margin-left:auto; font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+  .steps { list-style:none; padding: 6px 20px 18px; margin:0; counter-reset: step; }
+  .steps li { counter-increment: step; padding: 10px 0 10px 30px; position:relative; border-bottom:1px dashed var(--line); font-size: 13.5px; }
+  .steps li:last-child { border-bottom:none; }
+  .steps li::before { content: counter(step); position:absolute; left:0; top:10px; width:20px;height:20px;border-radius:50%; background:var(--gold-bg); color:var(--burgundy-deep); font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; display:flex;align-items:center;justify-content:center; }
+  .say { display:block; margin-top:6px; padding: 9px 12px; background: var(--code-bg); border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0; font-size: 12.5px; color: var(--ink); opacity:.9; }
+  .say b { font-family:'JetBrains Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color: var(--muted); display:block; margin-bottom:3px; font-weight:600; }
+
+  /* scenario table */
+  .scenarios { display:grid; gap: 10px; margin-top: 10px; }
+  .scen-row { display:grid; grid-template-columns: 34px 100px 1fr; gap: 16px; align-items:start; padding: 13px 16px; background: var(--surface); border:1px solid var(--line); border-radius:9px; }
+  .scen-key { font-family:'JetBrains Mono',monospace; font-weight:800; font-size:15px; color:var(--burgundy); background:var(--gold-bg); border-radius:6px; display:flex;align-items:center;justify-content:center;height:34px; }
+  :root:not([data-theme="light"]) .scen-key { @media (prefers-color-scheme: dark) { color:#171512; } }
+  :root[data-theme="dark"] .scen-key { color:#171512; }
+  .scen-name { font-size: 13px; font-weight:700; align-self:center; }
+  .scen-desc { font-size: 13px; color: var(--muted); }
+  .scen-desc b { color: var(--ink); font-weight:600; }
+
+  /* talking points table */
+  .tp-table { width:100%; border-collapse: collapse; margin-top: 8px; }
+  .tp-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+  .tp-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+  .tp-table tr:last-child td { border-bottom: none; }
+  .tp-table td:first-child { font-weight: 600; white-space:nowrap; width: 190px; }
+
+  /* faq */
+  .faq-item { border:1px solid var(--line); border-radius:10px; background:var(--surface); padding: 16px 18px; margin-bottom: 10px; box-shadow: var(--shadow); }
+  .faq-q { font-size: 13.5px; font-weight:700; display:flex; gap:10px; }
+  .faq-q .qmark { color: var(--burgundy); flex-shrink:0; }
+  .faq-a { font-size: 13px; color: var(--ink); opacity:.88; margin-top: 8px; padding-left: 24px; }
+
+  .callout { border-radius: 10px; padding: 15px 18px; font-size: 13px; margin: 18px 0; }
+  .callout.warn { background: var(--gold-bg); border:1px solid var(--gold); color: var(--ink); }
+  .callout.ok { background: var(--green-bg); border:1px solid var(--green); color: var(--ink); }
+  .callout b { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
+
+  .badge-list { list-style:none; padding:0; margin: 10px 0 0; display:flex; flex-direction:column; gap:8px; }
+  .badge-list li { display:flex; gap:10px; font-size:13px; }
+  .badge-list li .tick { color: var(--green); flex-shrink:0; }
+
+  footer.page-footer { border-top:1px solid var(--line); margin-top:70px; padding-top:24px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; }
+
+  @media (max-width: 860px) {
+    .shell { flex-direction: column; }
+    nav.toc { position: static; width:100%; height:auto; border-right:none; border-bottom:1px solid var(--line); }
+    main { padding: 32px 22px 60px; }
+    .roles { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Table of contents">
+    <div class="toc-brand">
+      <div class="toc-mark">JA</div>
+      <div><b>QMP Inspect</b><span>Demo Playbook</span></div>
+    </div>
+    <ul class="toc-list">
+      <li><a href="#what-it-is"><b>00</b> What you're presenting</a></li>
+      <li><a href="#architecture"><b>01</b> Platform structure</a></li>
+      <li><a href="#clients"><b>02</b> The two clients</a></li>
+      <li><a href="#roles"><b>03</b> Who's who (6 seats)</a></li>
+      <li><a href="#lifecycle"><b>04</b> Project lifecycle</a></li>
+      <li><a href="#script"><b>05</b> Live demo script</a></li>
+      <li><a href="#scenarios"><b>06</b> Instant scenarios A&ndash;F</a></li>
+      <li><a href="#talking-points"><b>07</b> What to say, where</a></li>
+      <li><a href="#faq"><b>08</b> Anticipated questions</a></li>
+      <li><a href="#cheatsheet"><b>09</b> One-page cheat sheet</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <div class="kicker">Client Presentation Prep</div>
+    <h1 class="title">Presenting QMP Inspect to Naresh</h1>
+    <p class="lede">A working script and reference for demoing the QMP Inspect prototype &mdash; what it is, how to click through it live, and what to say at each screen so the story lands as "this is how QMP actually runs a project," not "here are some screens we mocked up."</p>
+    <div class="meta-row">
+      <div class="meta-chip">Presenter: <b>Harish</b></div>
+      <div class="meta-chip">Client: <b>Naresh</b></div>
+      <div class="meta-chip">Product: <b>QMP Inspect</b> for Jags Assurance</div>
+      <div class="meta-chip">Login: <b>Priya Desai &middot; Jags Admin</b></div>
+    </div>
+
+    <section id="what-it-is">
+      <div class="sec-head"><div class="sec-num">00</div><h2>What you're presenting</h2></div>
+      <p>QMP Inspect is the first module of Jags Assurance's Quality Management Platform (QMP) &mdash; the system that runs a construction/infrastructure quality-inspection project end to end: setting up a client and project, drafting the Inspection &amp; Test Plan (ITP), running field inspections across every party in the chain, managing non-conformances, and compiling the final Data Book that gets handed over to the client.</p>
+      <p>The prototype you're demoing is a fully clickable, stateful simulation &mdash; not static mockups. Every action taken as one role (an inspector signing off, a subcontractor submitting a checklist) is immediately visible to every other role, because they all read from the same underlying project state. That's the single most important thing to communicate: <b>this behaves like the real system will, not like a slideshow.</b></p>
+      <div class="callout ok"><b>Your one-line pitch</b>One shared project record. Six parties. Every inspection, sign-off and non-conformance traceable from the first drawing to the handover certificate.</div>
+    </section>
+
+    <section id="architecture">
+      <div class="sec-head"><div class="sec-num">01</div><h2>Platform structure</h2></div>
+      <p class="sub">This is the mental model to plant early &mdash; before Naresh sees a single inspection screen, he should understand that QMP Inspect is one module inside a bigger platform, and that a project is reached by drilling down through a real hierarchy, not by picking a role off a list.</p>
+      <div class="hier">
+        <div class="hier-row"><span class="hier-node on">QMP Orbit</span><span class="hier-arrow">&rarr;</span><span class="hier-node">Client</span><span class="hier-arrow">&rarr;</span><span class="hier-node">Project</span><span class="hier-arrow">&rarr;</span><span class="hier-node">Service (QMP Inspect)</span></div>
+        <div class="hier-indent hier-row"><span class="hier-node">Discipline</span><span class="hier-arrow">&rarr;</span><span class="hier-node">Activity</span><span class="hier-arrow">&rarr;</span><span class="hier-node">Inspection Instance</span><span class="hier-arrow">&rarr;</span><span class="hier-node">360&deg; Record</span></div>
+      </div>
+      <p style="margin-top:18px;">The Orbit Hub is the platform home screen &mdash; every Jags Admin login lands there first. It shows every client, every open action across the business, and which QMP modules are licensed (only <b>QMP Inspect</b> is active today; Surveillance, Audit, Comply and the rest show as "Not licensed" or "Coming soon" &mdash; that's the multi-module story told honestly, not oversold).</p>
+    </section>
+
+    <section id="clients">
+      <div class="sec-head"><div class="sec-num">02</div><h2>The two clients &mdash; and why two</h2></div>
+      <p class="sub">Jags Assurance serves multiple clients from one platform. The demo deliberately carries two, at different depths, to prove tenant isolation without pretending every client is built out identically.</p>
+      <table class="tp-table">
+        <tr><th>Client</th><th>Project</th><th>Depth in this demo</th></tr>
+        <tr><td><b>Meridian Energy</b></td><td>Coastal LNG Terminal Ph.2</td><td>Fully live &mdash; this is where you run the real workflow.</td></tr>
+        <tr><td><b>Northgate Rail</b></td><td>Signal Renewal Package 3</td><td>Configured (parties, ITP, numbering) but no execution yet &mdash; proves a second tenant's data never leaks into Meridian's.</td></tr>
+      </table>
+      <div class="callout warn"><b>If asked</b>"Del Rio Petrochem" also appears, marked Onboarding &mdash; that's the third scenario: a client mid-setup, not yet live. Click it to show the onboarding checklist if asked "what happens before a client goes live?"</div>
+    </section>
+
+    <section id="roles">
+      <div class="sec-head"><div class="sec-num">03</div><h2>Who's who &mdash; the six seats at the table</h2></div>
+      <p class="sub">Every party in the inspection chain has a real login. Switching between them is what proves "everyone sees the same truth" &mdash; it's the demo's best trick, so don't rush it.</p>
+      <div class="roles">
+        <div class="role-card"><div class="who"><span class="role-dot" style="background:#6B1E2C;"></span><b>Priya Desai</b><span class="org">Jags Assurance</span></div><p>Jags Admin. Configures the project, builds the ITP, gets every party signed off. Your main seat &mdash; you'll open the demo as her.</p></div>
+        <div class="role-card"><div class="who"><span class="role-dot" style="background:#6B1E2C;"></span><b>Ravi Kapoor</b><span class="org">Jags Assurance</span></div><p>Jags Inspector. Runs the inspection queue, makes the pass/fail call, manages NCRs and observations.</p></div>
+        <div class="role-card"><div class="who"><span class="role-dot" style="background:#8a5a1e;"></span><b>Marcus Tan</b><span class="org">Trident Marine Construction</span></div><p>Main Contractor. Reviews the subcontractor's field submission, forwards it, responds if an NCR lands on him.</p></div>
+        <div class="role-card"><div class="who"><span class="role-dot" style="background:#2f6f4e;"></span><b>Sofia Alvarez</b><span class="org">BayShore Rebar Co.</span></div><p>Subcontractor. Executes the inspection on site &mdash; checklist, photo, signature &mdash; in a phone-sized field view.</p></div>
+        <div class="role-card"><div class="who"><span class="role-dot" style="background:#2f5f7a;"></span><b>Dr. Amara Rao</b><span class="org">Apex Testing Labs</span></div><p>TPI / Lab. Independent third party &mdash; uploads measurement evidence against the acceptance range.</p></div>
+        <div class="role-card"><div class="who"><span class="role-dot" style="background:#4a4038;"></span><b>Naveen Iyer</b><span class="org">Meridian Energy</span></div><p>Client. Witnesses hold points, tracks KPIs, holds the final word on the Data Book and handover.</p></div>
+      </div>
+      <p style="margin-top:16px;">You switch seats from the <span class="clickpath">Demo Persona <span class="arrow">&#9662;</span></span> control in the top bar &mdash; deliberately small and out of the way, because in production this is one platform, not six separate apps.</p>
+    </section>
+
+    <section id="lifecycle">
+      <div class="sec-head"><div class="sec-num">04</div><h2>The project lifecycle</h2></div>
+      <p class="sub">Every project moves through the same six stages. The Orbit Hub, the Project Control Centre and the Client's own dashboard all show this exact bar &mdash; point that out, it's the same truth rendered for three different audiences.</p>
+      <div class="stages">
+        <div class="stage-box done"><div class="num">1</div><div class="label">Project Setup</div></div>
+        <div class="stage-box done"><div class="num">2</div><div class="label">ITP Development</div></div>
+        <div class="stage-box"><div class="num">3</div><div class="label">Execution</div></div>
+        <div class="stage-box"><div class="num">4</div><div class="label">NCR / Observation</div></div>
+        <div class="stage-box"><div class="num">5</div><div class="label">Data Book</div></div>
+        <div class="stage-box"><div class="num">6</div><div class="label">Handover</div></div>
+      </div>
+      <h3>What happens at each stage</h3>
+      <ul class="badge-list">
+        <li><span class="tick">&#10003;</span><div><b>Setup</b> &mdash; parties, disciplines, locations and document numbering configured once per project, reused everywhere.</div></li>
+        <li><span class="tick">&#10003;</span><div><b>ITP Development</b> &mdash; the Inspection &amp; Test Plan is drafted from an uploaded specification, then reviewed and signed by all five parties before execution can start.</div></li>
+        <li><span class="tick">&#10003;</span><div><b>Execution</b> &mdash; the subcontractor runs the field checklist, the contractor reviews it, the lab uploads test evidence, the client witnesses &mdash; then Jags makes the pass/fail call.</div></li>
+        <li><span class="tick">&#10003;</span><div><b>NCR / Observation</b> &mdash; a fail becomes a Non-Conformance Report that runs through containment, root cause, corrective action, Jags verification and (for a Major NCR) client acknowledgement before it closes.</div></li>
+        <li><span class="tick">&#10003;</span><div><b>Data Book</b> &mdash; the full quality record compiles automatically and is blocked at less than 100% until every ITP, checklist, NCR and certificate is actually in.</div></li>
+        <li><span class="tick">&#10003;</span><div><b>Handover</b> &mdash; once the Data Book reads 100%, the Certificate of Handover generates and the client portal unlocks every deliverable for download.</div></li>
+      </ul>
+    </section>
+
+    <section id="script">
+      <div class="sec-head"><div class="sec-num">05</div><h2>Live demo script</h2></div>
+      <p class="sub">Roughly 15&ndash;20 minutes end to end. Each act names the seat you're in and the exact click path &mdash; read the <span class="say"><b>say</b>boxes</span> as your talking points, not a script to recite word for word.</p>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 1</span><b>Sign in &amp; the Orbit Hub</b><span class="time">~2 min</span></div>
+        <ol class="steps">
+          <li>Open the artifact link. On the sign-in screen, click <span class="clickpath">Priya Desai &middot; Jags Admin</span>.
+            <div class="say"><b>Say</b>"Every login only ever sees its own seat &mdash; this row is standing in for a real password check today."</div>
+          </li>
+          <li>You land on the <span class="clickpath">Orbit Hub</span> &mdash; the platform home. Point at the top stat row (Active clients, Active projects, Parties across portfolio, Open NCRs) and the <span class="clickpath">QMP ORBIT &mdash; Licensed Modules</span> tile row.
+            <div class="say"><b>Say</b>"QMP Inspect is one of ten planned modules. It's the only one licensed and live today &mdash; the others show honestly as not licensed or coming soon."</div>
+          </li>
+          <li>Point at <span class="clickpath">My Work</span> and <span class="clickpath">Action Required</span> &mdash; explain these are real, computed from live project state, not decoration.</li>
+        </ol>
+      </div>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 2</span><b>Drill into a client and a project</b><span class="time">~2 min</span></div>
+        <ol class="steps">
+          <li>Click <span class="clickpath">Meridian Energy <span class="arrow">&rarr;</span> Open</span> under Recent Projects. You're now in the <span class="clickpath">Client Workspace</span>.
+            <div class="say"><b>Say</b>"This is Meridian's own space &mdash; their services, their parties, their documents. Nothing here is visible to Northgate, and vice versa."</div>
+          </li>
+          <li>Click <span class="clickpath">Open Project Control Centre &rarr;</span>. Walk the Project Health bars and the clickable lifecycle stage bar.
+            <div class="say"><b>Say</b>"This is the one page a project manager needs &mdash; health, team, disciplines, and what's blocking progress, before they ever learn the app's internal page names."</div>
+          </li>
+          <li>Click into the <span class="clickpath">Civil</span> discipline tile, then into the <span class="clickpath">Foundation F-001</span> instance row.
+            <div class="say"><b>Say</b>"Reinforcement Inspection isn't a one-off &mdash; the same activity runs across six real locations. This one is live; the others are the same activity at different foundations."</div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 3</span><b>Build &amp; approve the ITP</b><span class="time">~3 min</span></div>
+        <ol class="steps">
+          <li>Sidebar &rarr; <span class="clickpath">Document Vault</span>. Show the uploaded specification, then click <span class="clickpath">Draft ITP from Specification &rarr;</span>.
+            <div class="say"><b>Say</b>"In production, AI drafts the ITP activities and acceptance criteria straight from this spec and the relevant standards &mdash; always reviewed and signed by a named person, never auto-approved."</div>
+          </li>
+          <li>Sidebar &rarr; <span class="clickpath">Approvals</span>. Sign each of the five parties one at a time, watching the sign-off count climb.
+            <div class="say"><b>Say</b>"Execution stays locked for everyone &mdash; all six seats &mdash; until every party has signed. That's not five separate approvals living in five inboxes; it's one gate."</div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 4</span><b>Run the inspection across every party</b><span class="time">~4 min</span></div>
+        <ol class="steps">
+          <li>Switch persona to <span class="clickpath">Subcontractor &middot; Sofia Alvarez</span>. Open the field checklist, answer all five items Yes, attach a photo, sign, submit.</li>
+          <li>Switch to <span class="clickpath">Contractor &middot; Marcus Tan</span> &mdash; his queue already shows Sofia's submission. Approve &amp; forward.</li>
+          <li>Switch to <span class="clickpath">TPI / Lab &middot; Dr. Amara Rao</span> &mdash; upload the measurement report.</li>
+          <li>Switch to <span class="clickpath">Client &middot; Naveen Iyer</span> &mdash; attend &amp; witness the hold point.
+            <div class="say"><b>Say</b>"Four different organisations, one shared record. Nobody re-typed anything for the next party to see it."</div>
+          </li>
+          <li>Switch to <span class="clickpath">Jags Inspector &middot; Ravi Kapoor</span> &mdash; all evidence is now in. Click <span class="clickpath">Pass</span>.</li>
+        </ol>
+      </div>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 5</span><b>Show a failure &mdash; the NCR lifecycle</b><span class="time">~3 min</span></div>
+        <ol class="steps">
+          <li>Use <span class="clickpath">Scenario B</span> from Demo Control (see Section 06) to jump straight to a failed inspection with a Major NCR already open, on the Inspector's NCR Register.</li>
+          <li>Point at the 7-stage stepper: <span class="clickpath">Open &rarr; Assigned &rarr; Containment &rarr; Root Cause &rarr; Corrective Action &rarr; Jags Verification &rarr; Client Ack/Closed</span>.</li>
+          <li>Switch to <span class="clickpath">Contractor</span>, log Containment, log Root Cause, submit the corrective action.</li>
+          <li>Switch to <span class="clickpath">Jags Inspector</span>, verify &amp; forward. Switch to <span class="clickpath">Client</span>, acknowledge closure.
+            <div class="say"><b>Say</b>"A Major NCR can't quietly disappear &mdash; it needs the client's own sign-off to close, and every step is timestamped in the Audit Trail."</div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 6</span><b>Data Book &amp; Handover</b><span class="time">~2 min</span></div>
+        <ol class="steps">
+          <li>Use <span class="clickpath">Scenario E</span> to jump to a fully passed, fully closed, 100% Data Book. As Client, open <span class="clickpath">Data Book</span> &mdash; show every category at 100%.</li>
+          <li>Click <span class="clickpath">Generate Handover Certificate</span>, then <span class="clickpath">Reports &amp; Certificates</span> &mdash; every document generated straight from the live record, nothing retyped.</li>
+        </ol>
+      </div>
+
+      <div class="act">
+        <div class="act-head"><span class="act-badge">ACT 7</span><b>Prove tenant isolation</b><span class="time">~2 min</span></div>
+        <ol class="steps">
+          <li>Back to Priya Desai. Open <span class="clickpath">Northgate Rail's</span> Client Workspace &mdash; same screens, completely separate parties, numbering (<code>NGR-JAGS-ITP-001</code>), documents.</li>
+          <li>Open <span class="clickpath">Users &amp; Settings</span> and read the line: "a subcontractor login can never see another client's records, even by guessing a URL."</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="scenarios">
+      <div class="sec-head"><div class="sec-num">06</div><h2>Instant scenarios &mdash; the Demo Control shortcuts</h2></div>
+      <p class="sub">Six one-click buttons in the fixed <span class="clickpath">Demo Control</span> panel (top-right), for when Naresh asks "what if&hellip;" and you don't want to click through fifteen steps live.</p>
+      <div class="scenarios">
+        <div class="scen-row"><div class="scen-key">A</div><div class="scen-name">Normal flow</div><div class="scen-desc">The default, reset starting point &mdash; <b>Jags-led</b>, nothing yet in progress.</div></div>
+        <div class="scen-row"><div class="scen-key">B</div><div class="scen-name">Failed inspection</div><div class="scen-desc">Jumps straight to a <b>Major NCR open</b> on the Inspector's register &mdash; use for Act 5.</div></div>
+        <div class="scen-row"><div class="scen-key">C</div><div class="scen-name">Hold Point locked</div><div class="scen-desc">CSA discipline verified, <b>MEP still outstanding</b> &mdash; shows a multi-discipline hold point genuinely blocked.</div></div>
+        <div class="scen-row"><div class="scen-key">D</div><div class="scen-name">Client-led project</div><div class="scen-desc">Meridian flips to <b>Client Self-Service</b> &mdash; their own team runs Setup and the Vault themselves.</div></div>
+        <div class="scen-row"><div class="scen-key">E</div><div class="scen-name">Handover</div><div class="scen-desc"><b>Data Book at 100%</b>, Certificate issued &mdash; use for Act 6.</div></div>
+        <div class="scen-row"><div class="scen-key">F</div><div class="scen-name">Revision change</div><div class="scen-desc">A drawing gets a new revision, raising a <b>document impact alert</b> with unresolved linked records.</div></div>
+      </div>
+      <div class="callout warn"><b>Reset</b>The <span class="clickpath">Reset Demo</span> button in the same panel restores the deterministic starting state at any point &mdash; use it before switching topics or if a click goes somewhere unintended.</div>
+    </section>
+
+    <section id="talking-points">
+      <div class="sec-head"><div class="sec-num">07</div><h2>What to say, screen by screen</h2></div>
+      <p class="sub">A quick-reference for screens the script above doesn't visit explicitly, in case Naresh clicks ahead on his own.</p>
+      <table class="tp-table">
+        <tr><td>Engagement Mode (Branding)</td><td>Setup tab, separate from Service Delivery Mode. One choice &mdash; Jags-led, Co-branded, or White-label &mdash; drives <em>both</em> the app's branding and the document numbering format everywhere, automatically. Toggle it live: watch the header wordmark and the "next ITP number" preview change together.</td></tr>
+        <tr><td>Master Library</td><td>Jags-owned template ITPs, organised by discipline, copied into a project and then customised &mdash; the master itself never changes from a client edit.</td></tr>
+        <tr><td>QMP Command Centre</td><td>Admin-only, cross-client view: portfolio pass rate, client health, and a live Risk panel built from real open items &mdash; not a static dashboard mock.</td></tr>
+        <tr><td>Universal Search</td><td>Top bar. Search any party name, document, or ITP/NCR number and jump straight there &mdash; try "Grace Okafor" (Northgate's client contact) to show search spans both tenants appropriately.</td></tr>
+        <tr><td>Del Rio Petrochem</td><td>Marked "Onboarding" on the Clients screen. Click through the 7-step onboarding checklist to show what happens before a client's first project goes live.</td></tr>
+      </table>
+    </section>
+
+    <section id="faq">
+      <div class="sec-head"><div class="sec-num">08</div><h2>Anticipated questions</h2></div>
+      <p class="sub">Answer honestly and move on &mdash; these are known, deliberate scope boundaries of the <em>demo</em>, not gaps in the plan for the real product.</p>
+
+      <div class="faq-item"><div class="faq-q"><span class="qmark">Q.</span>"Why does Northgate look thinner than Meridian?"</div><div class="faq-a">Deliberate &mdash; it's built to prove tenant isolation (separate parties, numbering, documents), not to duplicate Meridian's full live execution. In production every client gets full depth; the demo only needed to build one all the way through.</div></div>
+
+      <div class="faq-item"><div class="faq-q"><span class="qmark">Q.</span>"Is the AI actually drafting anything, or is that just a button?"</div><div class="faq-a">In this prototype, cosmetic &mdash; it demonstrates the intended flow (spec in, draft ITP with suggested activities and intervention points out, human reviews and accepts) without a live model behind it yet. Always framed as assistive, never as the approver of record.</div></div>
+
+      <div class="faq-item"><div class="faq-q"><span class="qmark">Q.</span>"Can a subcontractor accidentally see another client's project?"</div><div class="faq-a">No &mdash; access is enforced by row-level security in the real system, not by hiding menu items. Point at the note on the Users &amp; Settings screen.</div></div>
+
+      <div class="faq-item"><div class="faq-q"><span class="qmark">Q.</span>"What happens offline, on site with no signal?"</div><div class="faq-a">Open item for the build phase &mdash; the field checklist is designed for tablet-first capture; exact offline behaviour is one of the scoping questions still to confirm with you before development starts.</div></div>
+
+      <div class="faq-item"><div class="faq-q"><span class="qmark">Q.</span>"How long will the real build take?"</div><div class="faq-a">Have your effort estimate ready separately &mdash; don't quote a number live unless asked directly, and frame it as "full-time weeks for QMP Inspect alone," not the whole ten-module platform.</div></div>
+    </section>
+
+    <section id="cheatsheet">
+      <div class="sec-head"><div class="sec-num">09</div><h2>One-page cheat sheet</h2></div>
+      <p class="sub">Print this section or keep it open on a second screen while presenting.</p>
+      <table class="tp-table">
+        <tr><td>Open with</td><td>Sign in as <b>Priya Desai</b> &rarr; Orbit Hub &rarr; Meridian Energy &rarr; Project Control Centre</td></tr>
+        <tr><td>Core loop to demonstrate</td><td>ITP approval (all 5 sign) &rarr; field checklist &rarr; contractor review &rarr; lab upload &rarr; client witness &rarr; Jags pass/fail</td></tr>
+        <tr><td>Best "wow" moment</td><td>Switching personas mid-flow and showing the other party's screen already updated</td></tr>
+        <tr><td>To show a failure fast</td><td>Demo Control &rarr; Scenario <b>B</b></td></tr>
+        <tr><td>To show a finished project fast</td><td>Demo Control &rarr; Scenario <b>E</b></td></tr>
+        <tr><td>To prove isolation</td><td>Switch to Northgate Rail &rarr; same screens, entirely separate data</td></tr>
+        <tr><td>If anything looks wrong mid-demo</td><td>Click <b>Reset Demo</b> in the top-right panel, breathe, continue</td></tr>
+        <tr><td>Close with</td><td>The one-line pitch from Section 00 &mdash; repeat it verbatim as your last sentence</td></tr>
+      </table>
+    </section>
+
+    <footer class="page-footer">
+      <span>QMP Inspect &middot; Jags Assurance</span>
+      <span>Prepared for Harish &middot; internal use before the Naresh presentation</span>
+    </footer>
+  </main>
+</div>

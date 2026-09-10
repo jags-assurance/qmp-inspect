@@ -1,0 +1,520 @@
+<title>QMP Sample Output Documents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --paper:#f7f4ec; --paper-edge:#eee9dc; --ground:#e9e4d6;
+    --ink:#211c15; --ink-soft:rgba(33,28,21,.64); --ink-faint:rgba(33,28,21,.4);
+    --rule:rgba(33,28,21,.16); --rule-strong:rgba(33,28,21,.32);
+    --brand:#6b1e2c; --brand-soft:rgba(107,30,44,.08);
+    --meridian:#1f5c52; --meridian-soft:rgba(31,92,82,.1);
+    --northgate:#2c4a63; --northgate-soft:rgba(44,74,99,.1);
+    --good:#3f7d4a; --good-soft:rgba(63,125,74,.12);
+    --warn:#a9821f; --warn-soft:rgba(169,130,31,.14);
+    --bad:#a63244; --bad-soft:rgba(166,50,68,.1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#252119; --paper-edge:#2d2820; --ground:#171410;
+      --ink:#ece7da; --ink-soft:rgba(236,231,218,.68); --ink-faint:rgba(236,231,218,.42);
+      --rule:rgba(236,231,218,.16); --rule-strong:rgba(236,231,218,.32);
+      --brand:#dd8f9a; --brand-soft:rgba(221,143,154,.14);
+      --meridian:#57ab9b; --meridian-soft:rgba(87,171,155,.14);
+      --northgate:#7c9dbc; --northgate-soft:rgba(124,157,188,.14);
+      --good:#71c47e; --good-soft:rgba(113,196,126,.14);
+      --warn:#dcb457; --warn-soft:rgba(220,180,87,.16);
+      --bad:#e28b98; --bad-soft:rgba(226,139,152,.14);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#252119; --paper-edge:#2d2820; --ground:#171410;
+    --ink:#ece7da; --ink-soft:rgba(236,231,218,.68); --ink-faint:rgba(236,231,218,.42);
+    --rule:rgba(236,231,218,.16); --rule-strong:rgba(236,231,218,.32);
+    --brand:#dd8f9a; --brand-soft:rgba(221,143,154,.14);
+    --meridian:#57ab9b; --meridian-soft:rgba(87,171,155,.14);
+    --northgate:#7c9dbc; --northgate-soft:rgba(124,157,188,.14);
+    --good:#71c47e; --good-soft:rgba(113,196,126,.14);
+    --warn:#dcb457; --warn-soft:rgba(220,180,87,.16);
+    --bad:#e28b98; --bad-soft:rgba(226,139,152,.14);
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    display:flex; min-height:100vh;
+  }
+  h1,h2,h3{font-family:'IBM Plex Serif', Georgia, serif; text-wrap:balance; margin:0;}
+  .mono{font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums;}
+
+  /* ---------- rail ---------- */
+  .rail{
+    width:252px; flex:none; background:#161310; color:#f2ede1;
+    display:flex; flex-direction:column; padding:22px 16px;
+    position:sticky; top:0; height:100vh; overflow-y:auto;
+  }
+  .rail-mark{display:flex; align-items:center; gap:9px; padding:2px 4px 18px;}
+  .rail-mark .sq{width:22px; height:22px; border-radius:4px; background:linear-gradient(155deg,#8a3345,#5a1522); flex:none;}
+  .rail-mark b{font-family:'IBM Plex Serif'; font-size:14.5px; letter-spacing:.2px;}
+  .rail-mark span{display:block; font-size:9.5px; color:rgba(242,237,225,.5); letter-spacing:.6px; text-transform:uppercase; margin-top:1px;}
+  .rail-label{font-size:10px; text-transform:uppercase; letter-spacing:.7px; color:rgba(242,237,225,.42); margin:16px 4px 8px;}
+  .proj-btn{
+    display:flex; flex-direction:column; gap:2px; text-align:left;
+    border:1px solid rgba(242,237,225,.1); background:rgba(242,237,225,.03);
+    border-radius:8px; padding:10px 12px; margin-bottom:8px; cursor:pointer;
+    color:#f2ede1; font:inherit;
+  }
+  .proj-btn .stripe{width:26px; height:3px; border-radius:2px; margin-bottom:7px;}
+  .proj-btn b{font-size:13px;}
+  .proj-btn small{font-size:11px; color:rgba(242,237,225,.5);}
+  .proj-btn.active{background:rgba(242,237,225,.09); border-color:rgba(242,237,225,.22);}
+  .doc-btn{
+    display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+    border:none; background:transparent; color:rgba(242,237,225,.72);
+    border-radius:7px; padding:8px 10px; margin-bottom:2px; cursor:pointer; font:inherit; font-size:12.5px;
+  }
+  .doc-btn .dot{width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.5; flex:none;}
+  .doc-btn.active{background:rgba(242,237,225,.1); color:#f2ede1; font-weight:500;}
+  .doc-btn.active .dot{opacity:1;}
+  .doc-btn:hover{color:#f2ede1;}
+  .rail-foot{margin-top:auto; padding-top:16px; border-top:1px solid rgba(242,237,225,.1);}
+  .rail-foot p{font-size:10.5px; line-height:1.5; color:rgba(242,237,225,.42); margin:0 0 12px;}
+  .print-btn{
+    width:100%; padding:9px 10px; border-radius:7px; border:1px solid rgba(242,237,225,.18);
+    background:rgba(242,237,225,.06); color:#f2ede1; font:inherit; font-size:12px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+  }
+  .print-btn:hover{background:rgba(242,237,225,.12);}
+
+  /* ---------- stage ---------- */
+  .stage{flex:1; min-width:0; padding:44px 40px 80px; display:flex; justify-content:center;}
+  .sheet-wrap{width:100%; max-width:786px;}
+  .sheet-tag{font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-faint); margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .sheet-tag .swatch{width:8px; height:8px; border-radius:2px;}
+  .doc{
+    display:none; background:var(--paper); border:1px solid var(--paper-edge);
+    border-radius:3px; box-shadow:0 24px 48px rgba(0,0,0,.16), 0 3px 10px rgba(0,0,0,.08);
+    padding:52px 56px 44px; position:relative; overflow:hidden;
+  }
+  .doc.active{display:block;}
+  .watermark{
+    position:absolute; top:46%; left:50%; transform:translate(-50%,-50%) rotate(-24deg);
+    font-family:'IBM Plex Serif'; font-weight:600; font-size:64px; letter-spacing:2px;
+    color:var(--ink); opacity:.05; white-space:nowrap; pointer-events:none;
+  }
+
+  /* letterhead */
+  .letterhead{display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:18px; border-bottom:2px solid var(--ink);}
+  .lh-brand{display:flex; align-items:center; gap:9px;}
+  .lh-brand .sq{width:24px; height:24px; border-radius:4px; background:linear-gradient(155deg,var(--brand),#3a0f18); flex:none;}
+  .lh-brand b{font-family:'IBM Plex Serif'; font-size:15px;}
+  .lh-brand span{display:block; font-size:9px; letter-spacing:.6px; text-transform:uppercase; color:var(--ink-faint); margin-top:1px;}
+  .lh-doc{text-align:right;}
+  .lh-doc .doctype{font-size:10px; text-transform:uppercase; letter-spacing:.8px; color:var(--ink-faint);}
+  .lh-doc .docno{font-size:14px; font-weight:500; margin-top:2px;}
+
+  .doc-title{font-size:22px; font-weight:600; margin:22px 0 3px;}
+  .doc-sub{font-size:13px; color:var(--ink-soft); margin-bottom:20px;}
+
+  .ctrl-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:0;
+    border:1px solid var(--rule); border-radius:6px; overflow:hidden; margin-bottom:24px;
+  }
+  .ctrl-cell{padding:9px 12px; border-right:1px solid var(--rule); background:var(--brand-soft);}
+  .ctrl-cell:last-child{border-right:none;}
+  .ctrl-cell .k{font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-faint); margin-bottom:3px;}
+  .ctrl-cell .v{font-size:12.5px; font-weight:500;}
+
+  .section-h{
+    font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--brand);
+    font-weight:600; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--rule-strong);
+  }
+  p.body-text{font-size:13px; line-height:1.65; color:var(--ink-soft); max-width:64ch; margin:0 0 10px;}
+
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  th{
+    text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.4px;
+    color:var(--ink-faint); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--rule-strong);
+    white-space:nowrap;
+  }
+  td{padding:7px 8px; border-bottom:1px solid var(--rule); vertical-align:top;}
+  tr:last-child td{border-bottom:1px solid var(--rule-strong);}
+  .tbl-wrap{overflow-x:auto;}
+  .num{font-family:'IBM Plex Mono'; font-variant-numeric:tabular-nums; text-align:center;}
+
+  .pill{
+    display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px;
+    font-size:10.5px; font-weight:500; white-space:nowrap;
+  }
+  .pill-good{background:var(--good-soft); color:var(--good);}
+  .pill-warn{background:var(--warn-soft); color:var(--warn);}
+  .pill-bad{background:var(--bad-soft); color:var(--bad);}
+  .pill-muted{background:var(--rule); color:var(--ink-faint);}
+  .hwr{
+    display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+    border-radius:5px; font-family:'IBM Plex Mono'; font-size:10.5px; font-weight:500;
+  }
+  .hwr-H{background:var(--bad-soft); color:var(--bad);}
+  .hwr-W{background:var(--warn-soft); color:var(--warn);}
+  .hwr-R{background:var(--northgate-soft); color:var(--northgate);}
+  .hwr-S{background:var(--good-soft); color:var(--good);}
+
+  .kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:22px;}
+  .kpi{border:1px solid var(--rule); border-radius:7px; padding:12px 13px;}
+  .kpi .n{font-family:'IBM Plex Mono'; font-size:19px; font-weight:500; font-variant-numeric:tabular-nums;}
+  .kpi .l{font-size:10px; color:var(--ink-faint); margin-top:3px; line-height:1.3;}
+
+  .callout{border-radius:7px; padding:12px 14px; font-size:12.5px; line-height:1.55; margin:14px 0;}
+  .callout-bad{background:var(--bad-soft); color:var(--ink); border-left:3px solid var(--bad);}
+  .callout-warn{background:var(--warn-soft); color:var(--ink); border-left:3px solid var(--warn);}
+  .callout-good{background:var(--good-soft); color:var(--ink); border-left:3px solid var(--good);}
+  .callout-muted{background:var(--rule); color:var(--ink-soft); border-left:3px solid var(--ink-faint);}
+  .callout b{font-weight:600;}
+
+  .sig-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:14px 24px; margin-top:8px;}
+  .sig{border-top:1px solid var(--rule-strong); padding-top:8px;}
+  .sig .role{font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-faint);}
+  .sig .name{font-size:13px; font-weight:500; margin:3px 0 1px;}
+  .sig .meta{font-size:11px; color:var(--ink-soft);}
+  .sig .status{margin-top:4px;}
+
+  .cert-body{text-align:center; padding:8px 0 6px;}
+  .cert-body .rule-top{width:52px; height:2px; background:var(--brand); margin:0 auto 18px;}
+  .cert-body h2{font-size:19px; font-weight:600;}
+  .cert-body .proj{font-size:13px; color:var(--ink-soft); margin-top:4px;}
+  .cert-text{max-width:52ch; margin:20px auto; font-size:13px; line-height:1.75; color:var(--ink-soft);}
+  .cert-checks{display:grid; grid-template-columns:repeat(2,1fr); gap:8px 20px; max-width:56ch; margin:0 auto 22px; text-align:left;}
+  .cert-check{display:flex; gap:8px; font-size:12px; align-items:flex-start;}
+  .cert-check .c{color:var(--good); font-weight:600; flex:none;}
+
+  .doc-footer{
+    margin-top:34px; padding-top:12px; border-top:1px solid var(--rule);
+    display:flex; justify-content:space-between; font-size:10px; color:var(--ink-faint);
+  }
+  .idx-note{font-size:11.5px; color:var(--ink-soft); font-style:italic; margin-top:2px;}
+
+  @media print{
+    .rail{display:none;}
+    body{background:#fff;}
+    .stage{padding:0;}
+    .doc{box-shadow:none; border:none; display:none;}
+    .doc.active{display:block;}
+  }
+</style>
+
+<div class="rail">
+  <div class="rail-mark"><div class="sq"></div><div><b>Jags Assurance</b><span>QMP Inspect</span></div></div>
+
+  <div class="rail-label">Project</div>
+  <button class="proj-btn active" data-proj="meridian">
+    <div class="stripe" style="background:var(--meridian);"></div>
+    <b>Meridian Energy</b><small>Coastal LNG Terminal Ph.2 &middot; Civil / Electrical</small>
+  </button>
+  <button class="proj-btn" data-proj="northgate">
+    <div class="stripe" style="background:var(--northgate);"></div>
+    <b>Northgate Rail</b><small>Signal Renewal Package 3 &middot; Signalling</small>
+  </button>
+
+  <div class="rail-label">Sample Documents</div>
+  <button class="doc-btn active" data-type="itp"><span class="dot"></span>Inspection &amp; Test Plan</button>
+  <button class="doc-btn" data-type="weekly"><span class="dot"></span>Weekly Progress Report</button>
+  <button class="doc-btn" data-type="databook"><span class="dot"></span>Data Book Index</button>
+  <button class="doc-btn" data-type="handover"><span class="dot"></span>Handover Certificate</button>
+
+  <div class="rail-foot">
+    <p>Illustrative output samples generated from the QMP Inspect platform. Names, dates and figures are demo data — for walkthrough purposes only.</p>
+    <button class="print-btn" id="printBtn">&#128438;&nbsp; Print / Save as PDF</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="sheet-wrap">
+
+    <div class="sheet-tag"><span class="swatch" id="tagSwatch" style="background:var(--meridian);"></span><span id="tagText">Meridian Energy &middot; Inspection &amp; Test Plan</span></div>
+
+    <!-- ================= MERIDIAN · ITP ================= -->
+    <div class="doc active" data-key="meridian-itp">
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Inspection &amp; Test Plan</div><div class="docno mono">MER-JAGS-ITP-101</div></div>
+      </div>
+      <div class="doc-title">Flooring &amp; Screed &mdash; Inspection &amp; Test Plan</div>
+      <div class="doc-sub">Coastal LNG Terminal Ph.2 &middot; Meridian Energy &middot; Discipline: Civil</div>
+      <div class="ctrl-grid">
+        <div class="ctrl-cell"><div class="k">Revision</div><div class="v">Rev 2</div></div>
+        <div class="ctrl-cell"><div class="k">Status</div><div class="v"><span class="pill pill-warn">Draft &mdash; 3/5 signed</span></div></div>
+        <div class="ctrl-cell"><div class="k">Issued</div><div class="v mono">2026-08-29</div></div>
+        <div class="ctrl-cell"><div class="k">Prepared by</div><div class="v">Priya Desai, Jags Assurance</div></div>
+      </div>
+      <p class="body-text">Reference documents: <b>DRG-CIV-001 Rev 3</b> &mdash; Foundation Reinforcement Detail; <b>SPEC-CIV-014 Rev 1</b> &mdash; Civil Concrete &amp; Reinforcement Spec. AI-drafted from the Document Vault and reviewed by Priya Desai prior to issue. Rev 2 reflects an updated substrate spec &mdash; all parties are required to re-approve.</p>
+      <div class="section-h">Inspection Activities &amp; Hold / Witness Points</div>
+      <div class="tbl-wrap"><table>
+        <tr><th style="width:26px;">#</th><th>Activity</th><th>Acceptance Criteria</th><th>Method</th><th class="num">Contractor</th><th class="num">Sub­contractor</th><th class="num">TPI</th><th class="num">Jags</th><th class="num">Client</th><th>Records</th></tr>
+        <tr><td class="num">1</td><td>Substrate prep &amp; moisture test</td><td>Moisture &le;4% MC, substrate clean &amp; sound</td><td>Visual / Moisture meter</td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-101-1</td></tr>
+        <tr><td class="num">2</td><td>Screed mix design &amp; batching</td><td>Per approved mix design</td><td>Visual / Batch record</td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-101-2</td></tr>
+        <tr><td class="num">3</td><td>Screed laying &amp; levelling</td><td>Level tolerance &plusmn;3mm / 3m</td><td>Visual / Straightedge</td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-101-3</td></tr>
+        <tr><td class="num">4</td><td>Curing period verification</td><td>Min. 7-day cure, protected</td><td>Visual / Records</td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-101-4</td></tr>
+        <tr><td class="num">5</td><td>Floor finish / coating application</td><td>Per manufacturer spec, no visible defects</td><td>Visual</td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-101-5</td></tr>
+        <tr><td class="num">6</td><td>Final flatness &amp; thickness verification</td><td>FF/FL per spec, thickness &plusmn;2mm</td><td>Dimensional / Profilometer</td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-101-6</td></tr>
+      </table></div>
+      <p class="idx-note">H = Hold Point &middot; W = Witness Point &middot; R = Review &middot; S = Surveillance</p>
+      <div class="section-h">Party Sign-Off</div>
+      <div class="sig-grid">
+        <div class="sig"><div class="role">Contractor</div><div class="name">Marcus Tan</div><div class="meta">Trident Marine Construction</div><div class="status"><span class="pill pill-good">Signed &middot; 09 Sep</span></div></div>
+        <div class="sig"><div class="role">Subcontractor</div><div class="name">Sofia Alvarez</div><div class="meta">BayShore Rebar Co.</div><div class="status"><span class="pill pill-good">Signed &middot; 09 Sep</span></div></div>
+        <div class="sig"><div class="role">TPI / Lab</div><div class="name">Dr. Amara Rao</div><div class="meta">Apex Testing Labs</div><div class="status"><span class="pill pill-warn">Pending</span></div></div>
+        <div class="sig"><div class="role">Jags Assurance</div><div class="name">Priya Desai</div><div class="meta">Lead Inspector</div><div class="status"><span class="pill pill-good">Signed &middot; 09 Sep</span></div></div>
+        <div class="sig"><div class="role">Client</div><div class="name">Naveen Iyer</div><div class="meta">Meridian Energy</div><div class="status"><span class="pill pill-warn">Pending</span></div></div>
+      </div>
+      <div class="doc-footer"><span>MER-JAGS-ITP-101 &middot; Rev 2</span><span>Page 1 of 1 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= MERIDIAN · WEEKLY ================= -->
+    <div class="doc" data-key="meridian-weekly">
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Weekly Progress Report</div><div class="docno mono">MER-JAGS-WPR-2026-W37</div></div>
+      </div>
+      <div class="doc-title">Weekly Quality &amp; Progress Report</div>
+      <div class="doc-sub">Coastal LNG Terminal Ph.2 &middot; Meridian Energy &middot; Week ending 13 Sep 2026</div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="n">92%</div><div class="l">Data Book readiness</div></div>
+        <div class="kpi"><div class="n">6</div><div class="l">Inspections this week</div></div>
+        <div class="kpi"><div class="n">96%</div><div class="l">Pass rate</div></div>
+        <div class="kpi"><div class="n">1</div><div class="l">Open NCR (Major)</div></div>
+      </div>
+      <p class="body-text">Reinforcement and flooring works progressed across Tank Farm North with 6 inspections completed and one hold point (Column C-04 rebar cover) still pending resolution. One Major NCR remains open pending Meridian Energy&rsquo;s independent acknowledgement per ISO 17020 impartiality requirements. Two punch-list items remain open ahead of Data Book closure.</p>
+      <div class="section-h">Inspections Completed This Week</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>Date</th><th>Activity</th><th>Location</th><th>Result</th><th>Record</th></tr>
+        <tr><td class="mono">08 Sep</td><td>Activity 2.1 &mdash; Reinforcement Inspection</td><td>Foundation F-001</td><td><span class="pill pill-good">Pass</span></td><td class="mono">CHK-001-2.1</td></tr>
+        <tr><td class="mono">09 Sep</td><td>Substrate Prep (ITP-101 Act. 1)</td><td>Tank Farm North</td><td><span class="pill pill-good">Pass</span></td><td class="mono">CHK-101-1</td></tr>
+        <tr><td class="mono">10 Sep</td><td>Screed Mix Batching (ITP-101 Act. 2)</td><td>Tank Farm North</td><td><span class="pill pill-good">Pass</span></td><td class="mono">CHK-101-2</td></tr>
+        <tr><td class="mono">11 Sep</td><td>Reinforcement Cover Check</td><td>Column C-04</td><td><span class="pill pill-warn">Hold &mdash; pending</span></td><td class="mono">CHK-002-3.1</td></tr>
+        <tr><td class="mono">12 Sep</td><td>Screed Levelling (ITP-101 Act. 3)</td><td>Tank Farm North</td><td><span class="pill pill-good">Pass</span></td><td class="mono">CHK-101-3</td></tr>
+        <tr><td class="mono">12 Sep</td><td>Pipe Rack Weld Visual</td><td>Pipe Rack Sec. 14</td><td><span class="pill pill-good">Pass</span></td><td class="mono">CHK-014-1</td></tr>
+      </table></div>
+      <div class="section-h">Non-Conformance Register</div>
+      <div class="callout callout-bad"><b>MER-NCR-2026-001 &middot; Major</b> &mdash; Rebar cover deviation, Foundation F-001. Raised against Trident Marine Construction. Corrective action verified by Jags Assurance; awaiting Meridian Energy&rsquo;s independent acknowledgement before closure.</div>
+      <div class="section-h">Punch-List Status</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>Item</th><th>Raised By</th><th>Status</th></tr>
+        <tr><td>Touch-up paint on Foundation F-001 formwork edge</td><td>BayShore Rebar Co.</td><td><span class="pill pill-warn">Open</span></td></tr>
+        <tr><td>Confirm rebar cover tolerance on Column C-04</td><td>Trident Marine Construction</td><td><span class="pill pill-warn">Open</span></td></tr>
+        <tr><td>Housekeeping &mdash; clear debris near Vault access route</td><td>Jags Inspector</td><td><span class="pill pill-good">Closed</span></td></tr>
+      </table></div>
+      <div class="section-h">Plan for Next Week</div>
+      <p class="body-text">Complete Column C-04 cover verification hold point; close remaining punch-list items; progress Flooring ITP-101 into curing stage; begin document review for Ceiling &amp; Partitions ITP-102.</p>
+      <div class="doc-footer"><span>Prepared by Priya Desai, Jags Assurance</span><span>Page 1 of 1 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= MERIDIAN · DATA BOOK ================= -->
+    <div class="doc" data-key="meridian-databook">
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Data Book Index</div><div class="docno mono">MER-JAGS-DBK-001</div></div>
+      </div>
+      <div class="doc-title">Data Book &mdash; Completeness Index</div>
+      <div class="doc-sub">Coastal LNG Terminal Ph.2 &middot; Meridian Energy &middot; As of 13 Sep 2026</div>
+      <div class="ctrl-grid">
+        <div class="ctrl-cell"><div class="k">Completeness</div><div class="v mono">92%</div></div>
+        <div class="ctrl-cell"><div class="k">Status</div><div class="v"><span class="pill pill-warn">In progress &mdash; 1 blocker</span></div></div>
+        <div class="ctrl-cell"><div class="k">Sections</div><div class="v mono">7</div></div>
+        <div class="ctrl-cell"><div class="k">Compiled by</div><div class="v">Jags Assurance</div></div>
+      </div>
+      <div class="section-h">Contents</div>
+      <div class="tbl-wrap"><table>
+        <tr><th style="width:26px;">#</th><th>Section</th><th>Included Records</th><th>Status</th></tr>
+        <tr><td class="num">1</td><td>Project Setup &amp; Scope</td><td>Contract, ITP Register, Party Assignment Log</td><td><span class="pill pill-good">Complete</span></td></tr>
+        <tr><td class="num">2</td><td>ITP-001 Civil (Reinforcement)</td><td>CHK-001, Contractor Review, TPI Witness Record, IRN-001</td><td><span class="pill pill-good">Complete</span></td></tr>
+        <tr><td class="num">3</td><td>ITP-101 Flooring &amp; Screed (Rev 2)</td><td>CHK-101-1 &ndash; 6, Sign-off Record</td><td><span class="pill pill-warn">3/5 signed</span></td></tr>
+        <tr><td class="num">4</td><td>Non-Conformance Register</td><td>MER-NCR-2026-001 (Major &mdash; pending client ack)</td><td><span class="pill pill-bad">Blocked</span></td></tr>
+        <tr><td class="num">5</td><td>Live Registers Extract</td><td>Calibration, Welder Qualification, Material Registers</td><td><span class="pill pill-good">Complete</span></td></tr>
+        <tr><td class="num">6</td><td>Punch-List Record</td><td>2 open / 1 closed as of report date</td><td><span class="pill pill-warn">Open items</span></td></tr>
+        <tr><td class="num">7</td><td>Handover Certificate</td><td>Not yet issued</td><td><span class="pill pill-muted">Pending</span></td></tr>
+      </table></div>
+      <div class="callout callout-warn"><b>Blocked from 100%:</b> Data Book cannot close until Meridian Energy independently acknowledges MER-NCR-2026-001 (ISO 17020 impartiality requirement) and the two remaining punch-list items are closed.</div>
+      <div class="doc-footer"><span>Compiled automatically from ITP, NCR, Register &amp; Punch-List records</span><span>Page 1 of 1 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= MERIDIAN · HANDOVER ================= -->
+    <div class="doc" data-key="meridian-handover">
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Handover Certificate</div><div class="docno mono">MER-JAGS-HOC-001</div></div>
+      </div>
+      <div class="cert-body">
+        <div class="rule-top"></div>
+        <h2>Certificate of Quality Handover</h2>
+        <div class="proj">Coastal LNG Terminal Ph.2 &middot; Meridian Energy</div>
+        <p class="cert-text">This is to certify that the Quality Management Programme for the above project has been executed and independently verified complete by Jags Assurance, in accordance with the approved Inspection &amp; Test Plans, and that all associated records form part of Data Book <b>MER-JAGS-DBK-001</b>.</p>
+        <div class="cert-checks">
+          <div class="cert-check"><span class="c">&#10003;</span>All ITP activities inspected &amp; closed</div>
+          <div class="cert-check"><span class="c">&#10003;</span>All NCRs closed &amp; acknowledged</div>
+          <div class="cert-check"><span class="c">&#10003;</span>Punch-list clear</div>
+          <div class="cert-check"><span class="c">&#10003;</span>Data Book verified 100% complete</div>
+        </div>
+      </div>
+      <div class="section-h">Scope Certified</div>
+      <p class="body-text">Civil (Reinforcement, Flooring &amp; Screed), Electrical Fit-out &mdash; Tank Farm North &amp; South, Pipe Rack Section 14.</p>
+      <div class="section-h">Certifying Parties</div>
+      <div class="sig-grid">
+        <div class="sig"><div class="role">Contractor</div><div class="name">Marcus Tan</div><div class="meta">Trident Marine Construction</div><div class="status"><span class="pill pill-good">Signed</span></div></div>
+        <div class="sig"><div class="role">Subcontractor</div><div class="name">Sofia Alvarez</div><div class="meta">BayShore Rebar Co.</div><div class="status"><span class="pill pill-good">Signed</span></div></div>
+        <div class="sig"><div class="role">TPI / Lab</div><div class="name">Dr. Amara Rao</div><div class="meta">Apex Testing Labs</div><div class="status"><span class="pill pill-good">Signed</span></div></div>
+        <div class="sig"><div class="role">Jags Assurance</div><div class="name">Priya Desai</div><div class="meta">Lead Inspector</div><div class="status"><span class="pill pill-good">Signed</span></div></div>
+        <div class="sig"><div class="role">Client</div><div class="name">Naveen Iyer</div><div class="meta">Meridian Energy</div><div class="status"><span class="pill pill-good">Signed</span></div></div>
+      </div>
+      <div class="doc-footer"><span>Issued 20 Sep 2026</span><span>MER-JAGS-HOC-001 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= NORTHGATE · ITP ================= -->
+    <div class="doc" data-key="northgate-itp">
+      <div class="watermark">DRAFT</div>
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Inspection &amp; Test Plan</div><div class="docno mono">NGR-JAGS-ITP-004</div></div>
+      </div>
+      <div class="doc-title">Signal Cable Termination &mdash; Inspection &amp; Test Plan</div>
+      <div class="doc-sub">Signal Renewal Package 3 &middot; Northgate Rail &middot; Discipline: Signalling</div>
+      <div class="ctrl-grid">
+        <div class="ctrl-cell"><div class="k">Revision</div><div class="v">Rev 2</div></div>
+        <div class="ctrl-cell"><div class="k">Status</div><div class="v"><span class="pill pill-warn">Draft &mdash; 2/5 signed</span></div></div>
+        <div class="ctrl-cell"><div class="k">Issued</div><div class="v mono">2026-09-09</div></div>
+        <div class="ctrl-cell"><div class="k">Prepared by</div><div class="v">Priya Desai, Jags Assurance</div></div>
+      </div>
+      <p class="body-text">Reference documents: <b>SPEC-SIG-004 Rev 2</b> &mdash; Signal Cable Termination Spec; <b>DRG-SIG-011 Rev 1</b> &mdash; Cable Route Section 3. AI-drafted from the Document Vault; awaiting Contractor, Subcontractor and Client sign-off to activate.</p>
+      <div class="section-h">Inspection Activities &amp; Hold / Witness Points</div>
+      <div class="tbl-wrap"><table>
+        <tr><th style="width:26px;">#</th><th>Checklist Item</th><th class="num">Contractor</th><th class="num">Sub­contractor</th><th class="num">TPI</th><th class="num">Jags</th><th class="num">Client</th><th>Records</th></tr>
+        <tr><td class="num">1</td><td>Cable identification tags match schematic</td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-004-4.2</td></tr>
+        <tr><td class="num">2</td><td>Termination torque within manufacturer spec</td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-004-4.2</td></tr>
+        <tr><td class="num">3</td><td>Continuity test passed</td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-004-4.2</td></tr>
+        <tr><td class="num">4</td><td>Earth bonding continuity verified</td><td class="num"><span class="hwr hwr-H">H</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-W">W</span></td><td class="num"><span class="hwr hwr-R">R</span></td><td class="num"><span class="hwr hwr-S">S</span></td><td class="mono">CHK-004-4.2</td></tr>
+      </table></div>
+      <p class="idx-note">H = Hold Point &middot; W = Witness Point &middot; R = Review &middot; S = Surveillance</p>
+      <div class="section-h">Party Sign-Off</div>
+      <div class="sig-grid">
+        <div class="sig"><div class="role">Contractor</div><div class="name">Elena Osei</div><div class="meta">Ferrovia Rail Systems</div><div class="status"><span class="pill pill-warn">Pending</span></div></div>
+        <div class="sig"><div class="role">Subcontractor</div><div class="name">Tom Whitfield</div><div class="meta">SignalTech Installations</div><div class="status"><span class="pill pill-warn">Pending</span></div></div>
+        <div class="sig"><div class="role">TPI / Lab</div><div class="name">Priya Nair</div><div class="meta">Kestrel Test &amp; Certification</div><div class="status"><span class="pill pill-good">Signed &middot; Day 1, 10:15 AM</span></div></div>
+        <div class="sig"><div class="role">Jags Assurance</div><div class="name">Priya Desai / Ravi Kapoor</div><div class="meta">Jags Assurance</div><div class="status"><span class="pill pill-good">Signed &middot; Day 1, 9:40 AM</span></div></div>
+        <div class="sig"><div class="role">Client</div><div class="name">Grace Okafor</div><div class="meta">Northgate Rail</div><div class="status"><span class="pill pill-warn">Pending</span></div></div>
+      </div>
+      <div class="doc-footer"><span>NGR-JAGS-ITP-004 &middot; Rev 2</span><span>Page 1 of 1 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= NORTHGATE · WEEKLY ================= -->
+    <div class="doc" data-key="northgate-weekly">
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Weekly Progress Report</div><div class="docno mono">NGR-JAGS-WPR-2026-W37</div></div>
+      </div>
+      <div class="doc-title">Weekly Quality &amp; Progress Report</div>
+      <div class="doc-sub">Signal Renewal Package 3 &middot; Northgate Rail &middot; Week ending 13 Sep 2026</div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="n">0%</div><div class="l">Data Book readiness</div></div>
+        <div class="kpi"><div class="n">0</div><div class="l">Inspections this week</div></div>
+        <div class="kpi"><div class="n">2/5</div><div class="l">ITP-004 sign-off</div></div>
+        <div class="kpi"><div class="n">0</div><div class="l">Open NCRs</div></div>
+      </div>
+      <p class="body-text">Signal Renewal Package 3 remains in mobilisation. NGR-JAGS-ITP-004 (Signal Cable Termination) has been drafted from Vault documents and reviewed internally; no field inspections have been executed yet, pending full ITP sign-off.</p>
+      <div class="section-h">Activity This Week</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>Date</th><th>Activity</th><th>Note</th></tr>
+        <tr><td class="mono">09 Sep</td><td>ITP NGR-JAGS-ITP-004 drafted from Vault</td><td>SPEC-SIG-004 Rev 2, DRG-SIG-011 Rev 1 &mdash; reviewed by Priya Desai</td></tr>
+        <tr><td class="mono">10 Sep</td><td>TPI review &amp; sign-off</td><td>Kestrel Test &amp; Certification signed</td></tr>
+        <tr><td class="mono">10 Sep</td><td>Jags Assurance sign-off</td><td>Internal review complete</td></tr>
+      </table></div>
+      <div class="section-h">Plan for Next Week</div>
+      <p class="body-text">Obtain Contractor (Ferrovia Rail Systems), Subcontractor (SignalTech Installations) and Client (Northgate Rail &mdash; Grace Okafor) sign-off to activate ITP-004; schedule the first witnessed inspection on Cable Route Section 3.</p>
+      <div class="doc-footer"><span>Prepared by Priya Desai, Jags Assurance</span><span>Page 1 of 1 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= NORTHGATE · DATA BOOK (preview) ================= -->
+    <div class="doc" data-key="northgate-databook">
+      <div class="watermark">PREVIEW</div>
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Data Book Index</div><div class="docno mono">NGR-JAGS-DBK-001</div></div>
+      </div>
+      <div class="doc-title">Data Book &mdash; Completeness Index</div>
+      <div class="doc-sub">Signal Renewal Package 3 &middot; Northgate Rail</div>
+      <div class="callout callout-muted"><b>Not yet active.</b> This Data Book populates automatically once ITP-004 is fully signed and field inspections begin. Structure shown below for reference.</div>
+      <div class="ctrl-grid">
+        <div class="ctrl-cell"><div class="k">Completeness</div><div class="v mono">0%</div></div>
+        <div class="ctrl-cell"><div class="k">Status</div><div class="v"><span class="pill pill-muted">Not started</span></div></div>
+        <div class="ctrl-cell"><div class="k">Sections</div><div class="v mono">5 (template)</div></div>
+        <div class="ctrl-cell"><div class="k">Compiled by</div><div class="v">Jags Assurance</div></div>
+      </div>
+      <div class="section-h">Contents (Template)</div>
+      <div class="tbl-wrap"><table>
+        <tr><th style="width:26px;">#</th><th>Section</th><th>Included Records</th><th>Status</th></tr>
+        <tr><td class="num">1</td><td>Project Setup &amp; Scope</td><td>Contract, ITP Register, Party Assignment Log</td><td><span class="pill pill-good">Complete</span></td></tr>
+        <tr><td class="num">2</td><td>ITP-004 Signalling (Cable Termination)</td><td>CHK-004-4.2, Sign-off Record</td><td><span class="pill pill-muted">2/5 signed</span></td></tr>
+        <tr><td class="num">3</td><td>Non-Conformance Register</td><td>&mdash;</td><td><span class="pill pill-muted">No records yet</span></td></tr>
+        <tr><td class="num">4</td><td>Live Registers Extract</td><td>&mdash;</td><td><span class="pill pill-muted">No records yet</span></td></tr>
+        <tr><td class="num">5</td><td>Handover Certificate</td><td>Not yet issued</td><td><span class="pill pill-muted">Pending</span></td></tr>
+      </table></div>
+      <div class="doc-footer"><span>Auto-compiled from ITP, NCR, Register &amp; Punch-List records</span><span>Page 1 of 1 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+    <!-- ================= NORTHGATE · HANDOVER (preview) ================= -->
+    <div class="doc" data-key="northgate-handover">
+      <div class="watermark">NOT YET ISSUED</div>
+      <div class="letterhead">
+        <div class="lh-brand"><div class="sq"></div><div><b>Jags Assurance</b><span>Independent Quality Inspection</span></div></div>
+        <div class="lh-doc"><div class="doctype">Handover Certificate</div><div class="docno mono">NGR-JAGS-HOC-001</div></div>
+      </div>
+      <div class="cert-body">
+        <div class="rule-top"></div>
+        <h2 style="color:var(--ink-faint);">Certificate of Quality Handover</h2>
+        <div class="proj">Signal Renewal Package 3 &middot; Northgate Rail</div>
+        <p class="cert-text">This certificate is issued automatically once Data Book <b>NGR-JAGS-DBK-001</b> reaches 100% completeness for the above project. Preview shown below with sample fields.</p>
+        <div class="cert-checks">
+          <div class="cert-check" style="color:var(--ink-faint);"><span class="c" style="color:var(--ink-faint);">&#9675;</span>All ITP activities inspected &amp; closed</div>
+          <div class="cert-check" style="color:var(--ink-faint);"><span class="c" style="color:var(--ink-faint);">&#9675;</span>All NCRs closed &amp; acknowledged</div>
+          <div class="cert-check" style="color:var(--ink-faint);"><span class="c" style="color:var(--ink-faint);">&#9675;</span>Punch-list clear</div>
+          <div class="cert-check" style="color:var(--ink-faint);"><span class="c" style="color:var(--ink-faint);">&#9675;</span>Data Book verified 100% complete</div>
+        </div>
+      </div>
+      <div class="section-h">Certifying Parties (Template)</div>
+      <div class="sig-grid">
+        <div class="sig"><div class="role">Contractor</div><div class="name">Elena Osei</div><div class="meta">Ferrovia Rail Systems</div><div class="status"><span class="pill pill-muted">Not yet due</span></div></div>
+        <div class="sig"><div class="role">Subcontractor</div><div class="name">Tom Whitfield</div><div class="meta">SignalTech Installations</div><div class="status"><span class="pill pill-muted">Not yet due</span></div></div>
+        <div class="sig"><div class="role">TPI / Lab</div><div class="name">Priya Nair</div><div class="meta">Kestrel Test &amp; Certification</div><div class="status"><span class="pill pill-muted">Not yet due</span></div></div>
+        <div class="sig"><div class="role">Jags Assurance</div><div class="name">Priya Desai / Ravi Kapoor</div><div class="meta">Jags Assurance</div><div class="status"><span class="pill pill-muted">Not yet due</span></div></div>
+        <div class="sig"><div class="role">Client</div><div class="name">Grace Okafor</div><div class="meta">Northgate Rail</div><div class="status"><span class="pill pill-muted">Not yet due</span></div></div>
+      </div>
+      <div class="doc-footer"><span>Issued at project completion</span><span>NGR-JAGS-HOC-001 &middot; Sample output &mdash; not a controlled record</span></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const PROJ = {
+    meridian:{ label:'Meridian Energy', color:'var(--meridian)' },
+    northgate:{ label:'Northgate Rail', color:'var(--northgate)' }
+  };
+  const TYPE_LABEL = {
+    itp:'Inspection & Test Plan', weekly:'Weekly Progress Report',
+    databook:'Data Book Index', handover:'Handover Certificate'
+  };
+  let curProj = 'meridian', curType = 'itp';
+
+  function render(){
+    document.querySelectorAll('.proj-btn').forEach(b => b.classList.toggle('active', b.dataset.proj===curProj));
+    document.querySelectorAll('.doc-btn').forEach(b => b.classList.toggle('active', b.dataset.type===curType));
+    document.querySelectorAll('.doc').forEach(d => d.classList.toggle('active', d.dataset.key === curProj+'-'+curType));
+    document.getElementById('tagSwatch').style.background = PROJ[curProj].color;
+    document.getElementById('tagText').textContent = PROJ[curProj].label + ' · ' + TYPE_LABEL[curType];
+  }
+  document.querySelectorAll('.proj-btn').forEach(b => b.addEventListener('click', () => { curProj = b.dataset.proj; render(); }));
+  document.querySelectorAll('.doc-btn').forEach(b => b.addEventListener('click', () => { curType = b.dataset.type; render(); }));
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+  render();
+</script>
