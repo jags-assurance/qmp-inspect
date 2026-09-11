@@ -1,0 +1,170 @@
+import puppeteer from "puppeteer";
+import { supabase } from "../supabase";
+import { buildFatReportHtml, type FatReportData, type FatReportPhoto } from "./fatReportTemplate";
+import type { RenderFatReportPdfPayload } from "./types";
+
+const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
+const EVIDENCE_BUCKET = "inspection-evidence";
+
+async function toDataUri(storagePath: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(EVIDENCE_BUCKET).download(storagePath);
+  if (error || !data) return null;
+  const buffer = Buffer.from(await data.arrayBuffer());
+  const contentType = data.type || "image/jpeg";
+  return `data:${contentType};base64,${buffer.toString("base64")}`;
+}
+
+/**
+ * Fetches everything for a FAT / Standalone Assignment Report (R14 — the report IS the
+ * deliverable for this mode), renders it to portrait A4 PDF, uploads it, and returns the storage
+ * path. Mirrors renderInspectionReportPdf.ts's structure; signatures are already data: URL PNGs
+ * captured at signing time (standalone_assignment_signatures.signature_data), so unlike photos
+ * they need no Storage round-trip.
+ */
+export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Promise<{ resultStoragePath: string }> {
+  const { data: assignment, error: assignmentError } = await supabase
+    .from("standalone_assignments" as any)
+    .select(
+      "id, project_id, assignment_number, assignment_type, equipment_description, manufacturer, model, serial_tag, location, standard_reference, assignment_date, conclusion, notes"
+    )
+    .eq("id", payload.assignment_id)
+    .single();
+
+  if (assignmentError || !assignment) {
+    throw new Error(`Standalone assignment ${payload.assignment_id} not found: ${assignmentError?.message ?? "no row"}`);
+  }
+
+  const a = assignment as unknown as {
+    id: string;
+    project_id: string;
+    assignment_number: string;
+    assignment_type: string;
+    equipment_description: string;
+    manufacturer: string | null;
+    model: string | null;
+    serial_tag: string | null;
+    location: string | null;
+    standard_reference: string | null;
+    assignment_date: string | null;
+    conclusion: "pass" | "conditional_pass" | "fail" | null;
+    notes: string | null;
+  };
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select("id, organization_id, name")
+    .eq("id", a.project_id)
+    .single();
+
+  if (projectError || !project) {
+    throw new Error(`Project ${a.project_id} not found: ${projectError?.message ?? "no row"}`);
+  }
+
+  const { data: organization, error: orgError } = await supabase
+    .from("organizations")
+    .select("id, name")
+    .eq("id", project.organization_id)
+    .single();
+
+  if (orgError || !organization) {
+    throw new Error(`Organization ${project.organization_id} not found: ${orgError?.message ?? "no row"}`);
+  }
+
+  const [{ data: measurements }, { data: photoRows }, { data: punchItems }, { data: signatureRows }] = await Promise.all([
+    supabase
+      .from("standalone_assignment_measurements" as any)
+      .select("description, nominal_value, tolerance, actual_value, unit, result, sort_order")
+      .eq("assignment_id", a.id)
+      .order("sort_order"),
+    supabase
+      .from("standalone_assignment_photos" as any)
+      .select("storage_path, caption")
+      .eq("assignment_id", a.id),
+    supabase
+      .from("standalone_assignment_punch_items" as any)
+      .select("description, status")
+      .eq("assignment_id", a.id),
+    supabase
+      .from("standalone_assignment_signatures" as any)
+      .select("role, signatory_name, signature_data, signed_at")
+      .eq("assignment_id", a.id),
+  ]);
+
+  const photoRowsTyped = (photoRows ?? []) as unknown as { storage_path: string; caption: string | null }[];
+  const photoDataUris = await Promise.all(photoRowsTyped.map((p) => toDataUri(p.storage_path)));
+  const photos: FatReportPhoto[] = photoRowsTyped
+    .map((p, i) => ({ caption: p.caption, dataUri: photoDataUris[i] }))
+    .filter((p): p is FatReportPhoto => Boolean(p.dataUri));
+
+  const templateData: FatReportData = {
+    assignmentNumber: a.assignment_number,
+    assignmentType: a.assignment_type,
+    equipmentDescription: a.equipment_description,
+    manufacturer: a.manufacturer,
+    model: a.model,
+    serialTag: a.serial_tag,
+    location: a.location,
+    standardReference: a.standard_reference,
+    assignmentDate: a.assignment_date,
+    conclusion: a.conclusion,
+    notes: a.notes,
+    organizationName: organization.name,
+    projectName: project.name,
+    measurements: ((measurements ?? []) as unknown as {
+      description: string;
+      nominal_value: string | null;
+      tolerance: string | null;
+      actual_value: string | null;
+      unit: string | null;
+      result: "pass" | "fail" | null;
+    }[]).map((m) => ({
+      description: m.description,
+      nominalValue: m.nominal_value,
+      tolerance: m.tolerance,
+      actualValue: m.actual_value,
+      unit: m.unit,
+      result: m.result,
+    })),
+    photos,
+    punchItems: ((punchItems ?? []) as unknown as { description: string; status: "open" | "closed" }[]).map((p) => ({
+      description: p.description,
+      status: p.status,
+    })),
+    signatures: ((signatureRows ?? []) as unknown as {
+      role: string;
+      signatory_name: string;
+      signature_data: string;
+      signed_at: string;
+    }[]).map((s) => ({
+      role: s.role,
+      signatoryName: s.signatory_name,
+      signatureDataUri: s.signature_data,
+      signedAt: s.signed_at,
+    })),
+    generatedAt: new Date(),
+  };
+
+  const html = buildFatReportHtml(templateData);
+
+  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  let pdfBuffer: Buffer;
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    pdfBuffer = Buffer.from(await page.pdf({ format: "A4", landscape: false, printBackground: true }));
+  } finally {
+    await browser.close();
+  }
+
+  const storagePath = `fat-reports/${a.id}/${a.assignment_number}.pdf`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(GENERATED_DOCUMENTS_BUCKET)
+    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+
+  if (uploadError) {
+    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
+  }
+
+  return { resultStoragePath: storagePath };
+}

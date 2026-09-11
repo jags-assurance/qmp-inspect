@@ -3,9 +3,11 @@ import { supabase } from "./supabase";
 import { renderItpPdf } from "./jobs/renderItpPdf";
 import { generateMonthlyReportPack } from "./jobs/generateMonthlyReportPack";
 import { renderInspectionReportPdf } from "./jobs/renderInspectionReportPdf";
+import { renderFatReportPdf } from "./jobs/renderFatReportPdf";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
+  RenderFatReportPdfPayload,
   RenderInspectionReportPdfPayload,
   RenderItpPdfPayload,
 } from "./jobs/types";
@@ -106,6 +108,12 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
         const { resultStoragePath } = await renderInspectionReportPdf(
           job.payload as unknown as RenderInspectionReportPdfPayload
         );
+        await markCompleted(job.id, resultStoragePath);
+        console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
+        break;
+      }
+      case "render_fat_report_pdf": {
+        const { resultStoragePath } = await renderFatReportPdf(job.payload as unknown as RenderFatReportPdfPayload);
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
         break;

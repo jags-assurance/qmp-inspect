@@ -24,10 +24,15 @@ export interface RenderInspectionReportPdfPayload {
   requested_by: string;
 }
 
+export interface RenderFatReportPdfPayload {
+  assignment_id: string;
+  requested_by: string;
+}
+
 export interface BackgroundJobRow {
   id: string;
   job_type: string;
-  payload: MonthlyReportPackPayload | RenderItpPdfPayload | RenderInspectionReportPdfPayload;
+  payload: MonthlyReportPackPayload | RenderItpPdfPayload | RenderInspectionReportPdfPayload | RenderFatReportPdfPayload;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
   error_message: string | null;

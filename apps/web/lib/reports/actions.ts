@@ -9,6 +9,7 @@ import {
   csvPathFromPdfPath,
   type BackgroundJobRow,
   type MonthlyReportPackPayload,
+  type RenderFatReportPdfPayload,
   type RenderInspectionReportPdfPayload,
   type RenderItpPdfPayload,
 } from "./types";
@@ -212,6 +213,81 @@ export async function getLatestInspectionReportPdf(inspectionRecordId: string): 
     >();
 
   const latest = (jobs ?? []).find((j) => j.payload.inspection_record_id === inspectionRecordId);
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const { data: signed } = await supabase.storage
+      .from(GENERATED_DOCUMENTS_BUCKET)
+      .createSignedUrl(latest.result_storage_path, 3600);
+    pdfUrl = signed?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+  };
+}
+
+export interface RequestFatReportPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_fat_report_pdf" background job (R14 — the report IS the deliverable for a
+ * standalone assignment). Same insert-a-row pattern as the ITP/inspection-report actions above.
+ */
+export async function requestFatReportPdfAction(
+  _prev: RequestFatReportPdfState,
+  formData: FormData
+): Promise<RequestFatReportPdfState> {
+  const session = await requireSession();
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  if (!assignmentId) return { error: "Missing assignment." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_fat_report_pdf",
+    payload: { assignment_id: assignmentId, requested_by: session.userId } satisfies RenderFatReportPdfPayload,
+  });
+
+  if (error) {
+    return { error: "Could not queue the report. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+  return { error: null, success: true };
+}
+
+export interface FatReportPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+}
+
+/** Most recent render for this assignment — same "reload to see progress" pattern as the others. */
+export async function getLatestFatReportPdf(assignmentId: string): Promise<FatReportPdfStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: jobs } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_fat_report_pdf")
+    .order("created_at", { ascending: false })
+    .returns<
+      (Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderFatReportPdfPayload;
+        result_storage_path: string | null;
+      })[]
+    >();
+
+  const latest = (jobs ?? []).find((j) => j.payload.assignment_id === assignmentId);
   if (!latest) return null;
 
   let pdfUrl: string | null = null;

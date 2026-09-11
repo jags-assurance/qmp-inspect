@@ -12,6 +12,8 @@ import type {
   StandaloneAssignmentSignatureRow,
 } from "@/lib/standalone/actions";
 import { AssignmentWorkspace } from "./assignment-workspace";
+import { getLatestFatReportPdf } from "@/lib/reports/actions";
+import { FatReportPdfButton } from "./fat-report-pdf-button";
 
 interface AssignmentDetail {
   id: string;
@@ -62,6 +64,8 @@ export default async function StandaloneAssignmentDetailPage({
 
   if (!assignment) notFound();
 
+  const latestReportPdf = await getLatestFatReportPdf(id);
+
   const [{ data: measurements }, { data: photos }, { data: punchItems }, { data: signatures }] =
     await Promise.all([
       supabase
@@ -104,6 +108,7 @@ export default async function StandaloneAssignmentDetailPage({
             {assignment.standard_reference ? ` · ${assignment.standard_reference}` : ""}
           </p>
         </div>
+        <FatReportPdfButton assignmentId={assignment.id} latest={latestReportPdf} />
       </div>
 
       <div className="mt-8">

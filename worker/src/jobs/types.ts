@@ -5,7 +5,11 @@
 // through the rest of the file. Delete this once `Database` picks up `background_jobs` for real.
 export interface BackgroundJobRow {
   id: string;
-  job_type: "render_itp_pdf" | "generate_monthly_report_pack" | "render_inspection_report_pdf";
+  job_type:
+    | "render_itp_pdf"
+    | "generate_monthly_report_pack"
+    | "render_inspection_report_pdf"
+    | "render_fat_report_pdf";
   payload: Record<string, unknown>;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
@@ -32,5 +36,10 @@ export interface GenerateMonthlyReportPackPayload {
 
 export interface RenderInspectionReportPdfPayload {
   inspection_record_id: string;
+  requested_by: string;
+}
+
+export interface RenderFatReportPdfPayload {
+  assignment_id: string;
   requested_by: string;
 }
