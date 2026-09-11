@@ -313,6 +313,7 @@ export interface Database {
           inspector_signature: string | null;
           overall_result: "pass" | "fail" | "partial" | null;
           notes: string | null;
+          narrative: string | null;
           created_at: string;
         };
         Insert: {
@@ -330,6 +331,7 @@ export interface Database {
           inspector_signature?: string | null;
           overall_result?: "pass" | "fail" | "partial" | null;
           notes?: string | null;
+          narrative?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["inspection_records"]["Insert"]>;

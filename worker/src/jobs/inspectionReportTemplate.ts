@@ -33,6 +33,8 @@ export interface InspectionReportData {
   overallResult: "pass" | "fail" | "partial" | null;
   discipline: string | null;
   notes: string | null;
+  /** Human-approved AI-drafted (or hand-written) conclusion text, saved via saveInspectionNarrativeAction. Falls back to buildConclusion()'s factual sentence when null. */
+  narrative: string | null;
   results: InspectionReportResult[];
   photos: InspectionReportPhoto[];
   signoffs: InspectionReportSignoff[];
@@ -317,7 +319,7 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
 
   <div class="section">
     <h2>Conclusion</h2>
-    <p class="conclusion">${escapeHtml(buildConclusion(data))}</p>
+    <p class="conclusion">${escapeHtml(data.narrative || buildConclusion(data))}</p>
   </div>
 
   ${data.notes ? `<div class="section"><h2>Notes</h2><p class="conclusion">${escapeHtml(data.notes)}</p></div>` : ""}

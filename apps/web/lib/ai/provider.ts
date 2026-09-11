@@ -79,6 +79,17 @@ export interface DraftNcrDescriptionInput {
   notes: string;
 }
 
+export interface DraftReportNarrativeInput {
+  /** "inspection" (a general Inspection Report) or "fat" (a FAT/standalone assignment report). */
+  reportType: "inspection" | "fat";
+  subject: string;
+  projectName: string;
+  /** e.g. "pass" | "fail" | "partial" for an inspection; "pass" | "conditional_pass" | "fail" for a FAT. */
+  outcome: string | null;
+  /** Plain facts only — item counts, punch items, etc. — the model may summarise but not invent beyond these. */
+  facts: string[];
+}
+
 export interface DraftNcrDescriptionResult {
   description: string;
   requirementNotMet: string;
@@ -94,4 +105,5 @@ export interface AiProvider {
   generateChecklistItems(input: GenerateChecklistItemsInput): Promise<ChecklistItemDraft[]>;
   draftNcrDescription(input: DraftNcrDescriptionInput): Promise<DraftNcrDescriptionResult>;
   checkConsistency(input: CheckConsistencyInput): Promise<string[]>;
+  draftReportNarrative(input: DraftReportNarrativeInput): Promise<string>;
 }

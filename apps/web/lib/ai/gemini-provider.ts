@@ -4,6 +4,7 @@ import type {
   CheckConsistencyInput,
   DraftNcrDescriptionInput,
   DraftNcrDescriptionResult,
+  DraftReportNarrativeInput,
   GenerateChecklistItemsInput,
   GenerateItpDraftInput,
   ItpDraftResult,
@@ -321,6 +322,30 @@ export class GeminiProvider implements AiProvider {
     const raw = parseJson<{ flags: string[] }>(text, "the consistency check");
 
     return Array.isArray(raw.flags) ? raw.flags.map((f) => String(f)) : [];
+  }
+
+  async draftReportNarrative(input: DraftReportNarrativeInput): Promise<string> {
+    const reportLabel = input.reportType === "fat" ? "FAT / standalone assignment report" : "inspection report";
+    const factsList = input.facts.length > 0 ? input.facts.map((f) => `- ${f}`).join("\n") : "(no additional facts given)";
+
+    const prompt = [
+      `You are a QA/QC engineer writing the conclusion paragraph of a ${reportLabel}.`,
+      "Write a concise, professional, factual summary (2-4 sentences): what was inspected/tested,",
+      "the overall outcome, and any key facts given below. Use ONLY the facts provided — never",
+      "invent a number, name, or finding that isn't stated. Do not assign blame or speculate about",
+      "causes. Write in the third person, past tense, as it will appear on an issued document.",
+      "",
+      "Return plain text only — no markdown, no headings, no quotation marks around the output.",
+      "",
+      `Subject: ${input.subject}`,
+      `Project: ${input.projectName}`,
+      `Outcome: ${input.outcome ?? "not yet determined"}`,
+      "Facts:",
+      factsList,
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, false);
+    return text.trim();
   }
 }
 

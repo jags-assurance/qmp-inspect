@@ -51,6 +51,7 @@ export interface InspectionRecordRow {
   inspector_signature: string | null;
   overall_result: OverallResult | null;
   notes: string | null;
+  narrative: string | null;
   created_at: string;
 }
 

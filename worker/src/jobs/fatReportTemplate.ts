@@ -42,6 +42,8 @@ export interface FatReportData {
   assignmentDate: string | null;
   conclusion: "pass" | "conditional_pass" | "fail" | null;
   notes: string | null;
+  /** Human-approved AI-drafted (or hand-written) conclusion text, saved via saveFatNarrativeAction. */
+  narrative: string | null;
   organizationName: string;
   projectName: string;
   measurements: FatReportMeasurement[];
@@ -284,6 +286,8 @@ export function buildFatReportHtml(data: FatReportData): string {
         </div>`
       : ""
   }
+
+  ${data.narrative ? `<div class="section"><h2>Summary</h2><p class="conclusion">${escapeHtml(data.narrative)}</p></div>` : ""}
 
   ${renderMeasurements(data.measurements)}
   ${renderPunchList(data.punchItems)}

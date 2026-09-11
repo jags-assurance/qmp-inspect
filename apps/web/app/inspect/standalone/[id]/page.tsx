@@ -12,8 +12,9 @@ import type {
   StandaloneAssignmentSignatureRow,
 } from "@/lib/standalone/actions";
 import { AssignmentWorkspace } from "./assignment-workspace";
-import { getLatestFatReportPdf } from "@/lib/reports/actions";
+import { getLatestFatReportPdf, draftFatNarrativeAction, saveFatNarrativeAction } from "@/lib/reports/actions";
 import { FatReportPdfButton } from "./fat-report-pdf-button";
+import { NarrativeEditor } from "@/components/domain/narrative-editor";
 
 interface AssignmentDetail {
   id: string;
@@ -30,6 +31,7 @@ interface AssignmentDetail {
   status: AssignmentStatus;
   conclusion: AssignmentConclusion | null;
   notes: string | null;
+  narrative: string | null;
   projects: { id: string; name: string; organizations: { name: string } | null } | null;
 }
 
@@ -53,7 +55,7 @@ export default async function StandaloneAssignmentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
   const { data: assignment } = await supabase
@@ -120,6 +122,18 @@ export default async function StandaloneAssignmentDetailPage({
           signatures={signatures ?? []}
         />
       </div>
+
+      {session.isJagsStaff && (
+        <div className="mt-6">
+          <NarrativeEditor
+            recordIdFieldName="assignment_id"
+            recordId={assignment.id}
+            initialNarrative={assignment.narrative}
+            draftAction={draftFatNarrativeAction}
+            saveAction={saveFatNarrativeAction}
+          />
+        </div>
+      )}
     </div>
   );
 }

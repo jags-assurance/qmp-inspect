@@ -7,7 +7,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
 export const AI_USAGE_LOG_TABLE = "ai_usage_log" as any;
 
-export type AiFeature = "itp_draft" | "ncr_description_draft" | "checklist_consistency_check" | "checklist_generation";
+export type AiFeature =
+  | "itp_draft"
+  | "ncr_description_draft"
+  | "checklist_consistency_check"
+  | "checklist_generation"
+  | "report_narrative_draft";
 
 /**
  * Minimal usage log — one row per AI feature invocation — for whoever's ai_consent-gated admin

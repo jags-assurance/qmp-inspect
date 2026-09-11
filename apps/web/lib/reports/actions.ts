@@ -3,6 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { assertAiAllowed } from "@/lib/ai/gate";
+import { logAiUsage } from "@/lib/ai/log";
+import { geminiProvider } from "@/lib/ai/gemini-provider";
+import {
+  STANDALONE_ASSIGNMENTS,
+  STANDALONE_ASSIGNMENT_MEASUREMENTS,
+  STANDALONE_ASSIGNMENT_PUNCH_ITEMS,
+} from "@/lib/standalone/types";
 import {
   BACKGROUND_JOBS_TABLE,
   GENERATED_DOCUMENTS_BUCKET,
@@ -305,6 +313,214 @@ export async function getLatestFatReportPdf(assignmentId: string): Promise<FatRe
     createdAt: latest.created_at,
     pdfUrl,
   };
+}
+
+export interface DraftReportNarrativeState {
+  error: string | null;
+  narrative: string | null;
+}
+
+const EMPTY_NARRATIVE_STATE: DraftReportNarrativeState = { error: null, narrative: null };
+
+/**
+ * Drafts the conclusion paragraph for an Inspection Report (R111: "draft inspection narratives...
+ * and report conclusions"). Facts are gathered here from the record's own real data — never
+ * trusted from the client — so the model can only summarise what actually happened, not whatever
+ * a form field claims. Nothing is saved by this action; saveInspectionNarrativeAction (below) is
+ * the separate, explicit "the human reviewed and approved this" step, same split as every other
+ * AI draft in this app (e.g. generateItpDraftAction / createItpFromDraftAction).
+ */
+export async function draftInspectionNarrativeAction(
+  _prev: DraftReportNarrativeState,
+  formData: FormData
+): Promise<DraftReportNarrativeState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { ...EMPTY_NARRATIVE_STATE, error: "Only JAGS staff can draft a report narrative." };
+
+  const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
+  if (!inspectionRecordId) return { ...EMPTY_NARRATIVE_STATE, error: "Missing inspection record." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: record } = await supabase
+    .from("inspection_records")
+    .select("activity, project_id, project_name, itp_number, overall_result")
+    .eq("id", inspectionRecordId)
+    .maybeSingle<{ activity: string; project_id: string; project_name: string; itp_number: string; overall_result: string | null }>();
+
+  if (!record) return { ...EMPTY_NARRATIVE_STATE, error: "Inspection record not found." };
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", record.project_id)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (!project) return { ...EMPTY_NARRATIVE_STATE, error: "Project not found." };
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) return { ...EMPTY_NARRATIVE_STATE, error: gate.reason };
+
+  const { data: responses } = await supabase
+    .from("checklist_responses")
+    .select("result")
+    .eq("inspection_record_id", inspectionRecordId)
+    .returns<{ result: "yes" | "no" | "na" }[]>();
+
+  const counts = { yes: 0, no: 0, na: 0 };
+  for (const r of responses ?? []) counts[r.result]++;
+
+  const facts = [
+    `${counts.yes + counts.no + counts.na} checklist items checked`,
+    `${counts.yes} passed`,
+    `${counts.no} failed`,
+    `${counts.na} not applicable`,
+    `Governing ITP: ${record.itp_number}`,
+  ];
+
+  try {
+    const narrative = await geminiProvider.draftReportNarrative({
+      reportType: "inspection",
+      subject: record.activity,
+      projectName: record.project_name,
+      outcome: record.overall_result,
+      facts,
+    });
+    await logAiUsage(supabase, { organizationId: project.organization_id, userId: user?.id ?? null, feature: "report_narrative_draft" });
+    return { error: null, narrative };
+  } catch (err) {
+    return { ...EMPTY_NARRATIVE_STATE, error: err instanceof Error ? err.message : "Could not draft a narrative." };
+  }
+}
+
+export interface SaveNarrativeState {
+  error: string | null;
+}
+
+/** Persists the (human-reviewed, possibly hand-edited) narrative onto the inspection record. */
+export async function saveInspectionNarrativeAction(_prev: SaveNarrativeState, formData: FormData): Promise<SaveNarrativeState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: "Only JAGS staff can edit the report narrative." };
+
+  const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
+  const narrative = String(formData.get("narrative") ?? "").trim();
+  if (!inspectionRecordId) return { error: "Missing inspection record." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("inspection_records")
+    .update({ narrative: narrative || null })
+    .eq("id", inspectionRecordId);
+
+  if (error) return { error: "Could not save the narrative. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+  return { error: null };
+}
+
+/** Same pattern as draftInspectionNarrativeAction, for a FAT / standalone assignment report. */
+export async function draftFatNarrativeAction(
+  _prev: DraftReportNarrativeState,
+  formData: FormData
+): Promise<DraftReportNarrativeState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { ...EMPTY_NARRATIVE_STATE, error: "Only JAGS staff can draft a report narrative." };
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  if (!assignmentId) return { ...EMPTY_NARRATIVE_STATE, error: "Missing assignment." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: assignment } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .select("equipment_description, project_id, conclusion, projects(name)")
+    .eq("id", assignmentId)
+    .maybeSingle<{
+      equipment_description: string;
+      project_id: string;
+      conclusion: string | null;
+      projects: { name: string } | null;
+    }>();
+
+  if (!assignment) return { ...EMPTY_NARRATIVE_STATE, error: "Assignment not found." };
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", assignment.project_id)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (!project) return { ...EMPTY_NARRATIVE_STATE, error: "Project not found." };
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) return { ...EMPTY_NARRATIVE_STATE, error: gate.reason };
+
+  const [{ data: measurements }, { data: punchItems }] = await Promise.all([
+    supabase
+      .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
+      .select("result")
+      .eq("assignment_id", assignmentId)
+      .returns<{ result: "pass" | "fail" | null }[]>(),
+    supabase
+      .from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS)
+      .select("status")
+      .eq("assignment_id", assignmentId)
+      .returns<{ status: "open" | "closed" }[]>(),
+  ]);
+
+  const measurementCounts = { pass: 0, fail: 0 };
+  for (const m of measurements ?? []) {
+    if (m.result === "pass") measurementCounts.pass++;
+    else if (m.result === "fail") measurementCounts.fail++;
+  }
+  const openPunchItems = (punchItems ?? []).filter((p) => p.status === "open").length;
+
+  const facts = [
+    `${measurementCounts.pass} measurements within limit`,
+    `${measurementCounts.fail} measurements outside limit`,
+    `${openPunchItems} open punch-list item(s)`,
+  ];
+
+  try {
+    const narrative = await geminiProvider.draftReportNarrative({
+      reportType: "fat",
+      subject: assignment.equipment_description,
+      projectName: assignment.projects?.name ?? "",
+      outcome: assignment.conclusion,
+      facts,
+    });
+    await logAiUsage(supabase, { organizationId: project.organization_id, userId: user?.id ?? null, feature: "report_narrative_draft" });
+    return { error: null, narrative };
+  } catch (err) {
+    return { ...EMPTY_NARRATIVE_STATE, error: err instanceof Error ? err.message : "Could not draft a narrative." };
+  }
+}
+
+/** Persists the (human-reviewed, possibly hand-edited) narrative onto the standalone assignment. */
+export async function saveFatNarrativeAction(_prev: SaveNarrativeState, formData: FormData): Promise<SaveNarrativeState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: "Only JAGS staff can edit the report narrative." };
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const narrative = String(formData.get("narrative") ?? "").trim();
+  if (!assignmentId) return { error: "Missing assignment." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .update({ narrative: narrative || null })
+    .eq("id", assignmentId);
+
+  if (error) return { error: "Could not save the narrative. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+  return { error: null };
 }
 
 export interface ReportPackListItem {

@@ -33,7 +33,7 @@ export async function renderInspectionReportPdf(
   const { data: record, error: recordError } = await supabase
     .from("inspection_records")
     .select(
-      "id, record_number, project_id, project_name, itp_number, itp_item_id, activity, location, inspection_date, overall_result, notes, inspector_signature, inspector_id"
+      "id, record_number, project_id, project_name, itp_number, itp_item_id, activity, location, inspection_date, overall_result, notes, narrative, inspector_signature, inspector_id"
     )
     .eq("id", payload.inspection_record_id)
     .single();
@@ -91,6 +91,7 @@ export async function renderInspectionReportPdf(
     overallResult: record.overall_result,
     discipline: itpItem?.master_disciplines?.name ?? null,
     notes: record.notes,
+    narrative: record.narrative,
     results,
     photos,
     signoffs: [

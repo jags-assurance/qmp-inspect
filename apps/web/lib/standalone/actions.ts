@@ -5,6 +5,13 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import {
+  STANDALONE_ASSIGNMENTS,
+  STANDALONE_ASSIGNMENT_MEASUREMENTS,
+  STANDALONE_ASSIGNMENT_PHOTOS,
+  STANDALONE_ASSIGNMENT_PUNCH_ITEMS,
+  STANDALONE_ASSIGNMENT_SIGNATURES,
+} from "./types";
 
 const STAFF_ONLY_ERROR = "Only JAGS staff can run a standalone assignment.";
 
@@ -72,16 +79,6 @@ export interface StandaloneAssignmentSignatureRow {
   signature_data: string;
   signed_at: string;
 }
-
-// "standalone_assignments" and its child tables aren't in the generated Database type yet (see
-// packages/shared-types/src/database.ts header comment) — `as any` on the relation name is the
-// narrowest way to bypass that gap; every call site still gets a properly-typed result via
-// `.returns<T>()`, so nothing downstream of these actions loses type safety.
-const STANDALONE_ASSIGNMENTS = "standalone_assignments" as any;
-const STANDALONE_ASSIGNMENT_MEASUREMENTS = "standalone_assignment_measurements" as any;
-const STANDALONE_ASSIGNMENT_PHOTOS = "standalone_assignment_photos" as any;
-const STANDALONE_ASSIGNMENT_PUNCH_ITEMS = "standalone_assignment_punch_items" as any;
-const STANDALONE_ASSIGNMENT_SIGNATURES = "standalone_assignment_signatures" as any;
 
 const ASSIGNMENT_TYPE_PREFIX: Record<AssignmentType, string> = {
   fat: "FAT",

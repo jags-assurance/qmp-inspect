@@ -25,7 +25,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
   const { data: assignment, error: assignmentError } = await supabase
     .from("standalone_assignments" as any)
     .select(
-      "id, project_id, assignment_number, assignment_type, equipment_description, manufacturer, model, serial_tag, location, standard_reference, assignment_date, conclusion, notes"
+      "id, project_id, assignment_number, assignment_type, equipment_description, manufacturer, model, serial_tag, location, standard_reference, assignment_date, conclusion, notes, narrative"
     )
     .eq("id", payload.assignment_id)
     .single();
@@ -48,6 +48,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     assignment_date: string | null;
     conclusion: "pass" | "conditional_pass" | "fail" | null;
     notes: string | null;
+    narrative: string | null;
   };
 
   const { data: project, error: projectError } = await supabase
@@ -108,6 +109,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     assignmentDate: a.assignment_date,
     conclusion: a.conclusion,
     notes: a.notes,
+    narrative: a.narrative,
     organizationName: organization.name,
     projectName: project.name,
     measurements: ((measurements ?? []) as unknown as {

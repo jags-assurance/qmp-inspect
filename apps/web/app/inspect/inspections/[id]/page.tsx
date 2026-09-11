@@ -15,8 +15,13 @@ import {
 } from "@/lib/checklists/db-types";
 import { PhotoGallery } from "./photo-gallery";
 import { IssueIrnForm } from "./issue-irn-form";
-import { getLatestInspectionReportPdf } from "@/lib/reports/actions";
+import {
+  getLatestInspectionReportPdf,
+  draftInspectionNarrativeAction,
+  saveInspectionNarrativeAction,
+} from "@/lib/reports/actions";
 import { InspectionReportPdfButton } from "./inspection-report-pdf-button";
+import { NarrativeEditor } from "@/components/domain/narrative-editor";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -27,13 +32,13 @@ const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> 
 /** Read-only view of a completed inspection record — traceability header, every response, photo evidence, the inspector's signature, and IRN issuance/status. */
 export default async function InspectionRecordPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select(
-      "id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, notes, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
+      "id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -48,6 +53,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         | "inspection_date"
         | "overall_result"
         | "notes"
+        | "narrative"
         | "inspector_signature"
         | "checklist_template_id"
         | "inspector_id"
@@ -161,6 +167,18 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           {sortedResponses.length === 0 && <li className="px-4 py-6 text-center text-muted">No responses recorded.</li>}
         </ul>
       </div>
+
+      {session.isJagsStaff && (
+        <div className="mt-6">
+          <NarrativeEditor
+            recordIdFieldName="inspection_record_id"
+            recordId={record.id}
+            initialNarrative={record.narrative}
+            draftAction={draftInspectionNarrativeAction}
+            saveAction={saveInspectionNarrativeAction}
+          />
+        </div>
+      )}
 
       {record.notes && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
