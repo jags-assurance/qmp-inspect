@@ -6,6 +6,7 @@ import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { PendingActionsTable } from "@/components/domain/pending-actions-table";
+import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 
 interface PendingSignoffRow {
   id: string;
@@ -71,9 +72,9 @@ export default async function InspectDashboardPage() {
   // countersign any party) it's less meaningful, so the panel only renders for a linked party.
   const { data: ownParties } = await supabase
     .from("project_parties")
-    .select("id, name")
+    .select("id, name, party_type")
     .eq("user_id", session.userId)
-    .returns<{ id: string; name: string }[]>();
+    .returns<{ id: string; name: string; party_type: string }[]>();
 
   let pendingSignoffs: PendingSignoffRow[] = [];
   if (ownParties && ownParties.length > 0) {
@@ -96,14 +97,14 @@ export default async function InspectDashboardPage() {
   // not every non-staff party.
   const isClientRole = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
   const isMainContractorRole = !session.isJagsStaff && session.grants.some((g) => g.role === "main_contractor");
-  let itpsAwaitingAcceptance: { id: string; itp_number: string; title: string }[] = [];
+  let itpsAwaitingAcceptance: { id: string; itp_number: string; title: string; projects: { name: string } | null }[] = [];
   if (isClientRole) {
     const { data } = await supabase
       .from("itps")
-      .select("id, itp_number, title")
+      .select("id, itp_number, title, projects(name)")
       .eq("status", "approved")
       .limit(5)
-      .returns<{ id: string; itp_number: string; title: string }[]>();
+      .returns<{ id: string; itp_number: string; title: string; projects: { name: string } | null }[]>();
     itpsAwaitingAcceptance = data ?? [];
   }
 
@@ -277,6 +278,41 @@ export default async function InspectDashboardPage() {
       : "Your day-to-day queue across every project you have access to."
     : "Status across the project(s) you're engaged on.";
 
+  if (!session.isJagsStaff) {
+    const toSignoffQueueRow = (row: PendingSignoffRow): SignoffQueueRow => {
+      const itp = row.itp_items?.itp_sections?.itps;
+      return {
+        id: row.id,
+        intervention: row.intervention,
+        activity: row.itp_items?.activity ?? "Untitled activity",
+        itpId: itp?.id ?? "",
+        itpNumber: itp?.itp_number ?? "",
+        itpTitle: itp?.title ?? "",
+        when: timeAgo(row.notified_at),
+      };
+    };
+
+    return (
+      <ExternalPartyDashboard
+        orgName={ownParties && ownParties.length > 0 ? ownParties[0].name : null}
+        roleKey={ownParties && ownParties.length > 0 ? ownParties[0].party_type : null}
+        today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        activeProjects={activeProjects ?? 0}
+        activeItps={activeItps ?? 0}
+        pendingInspections={pendingInspections ?? 0}
+        openNcrs={openNcrs ?? 0}
+        itpsAwaitingAcceptance={itpsAwaitingAcceptance.map((itp) => ({
+          id: itp.id,
+          itpNumber: itp.itp_number,
+          title: itp.title,
+          projectName: itp.projects?.name ?? "",
+        }))}
+        workAwaitingReview={workAwaitingReview.map(toSignoffQueueRow)}
+        pendingSignoffs={pendingSignoffs.map(toSignoffQueueRow)}
+      />
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-ink">{heading}</h1>
@@ -364,132 +400,6 @@ export default async function InspectDashboardPage() {
               Review {pendingProposalsCount} →
             </Link>
           </div>
-        </div>
-      )}
-
-      {itpsAwaitingAcceptance.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">ITPs awaiting your acceptance</h2>
-          <p className="mt-1 text-sm text-muted">
-            JAGS has approved these — your acceptance is the last step before field work begins.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {itpsAwaitingAcceptance.map((itp) => (
-              <li
-                key={itp.id}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-              >
-                <span className="text-ink">
-                  {itp.itp_number} — {itp.title}
-                </span>
-                <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">
-                  Review & accept →
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {isMainContractorRole && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Work awaiting your review</h2>
-          <p className="mt-1 text-sm text-muted">
-            Activities where a subcontractor has already signed off their part, and your own
-            sign-off on the same activity is still pending or notified.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {workAwaitingReview.map((row) => {
-              const itp = row.itp_items?.itp_sections?.itps;
-              const activity = row.itp_items?.activity ?? "Untitled activity";
-              const initial = activity.trim().charAt(0).toUpperCase() || "?";
-              const when = timeAgo(row.notified_at);
-              return (
-                <li
-                  key={row.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-burgundy/10 text-xs font-semibold text-burgundy">
-                      {initial}
-                    </span>
-                    <span className="min-w-0 truncate text-ink">
-                      {row.intervention} · {activity}
-                      {itp && (
-                        <span className="text-muted">
-                          {" "}
-                          — {itp.itp_number} {itp.title}
-                        </span>
-                      )}
-                      {when && <span className="ml-2 text-xs text-muted">{when}</span>}
-                    </span>
-                  </div>
-                  {itp && (
-                    <Link
-                      href={`/inspect/itps/${itp.id}`}
-                      className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
-                    >
-                      Review →
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-            {workAwaitingReview.length === 0 && (
-              <li className="text-sm text-muted">Nothing awaiting your review right now.</li>
-            )}
-          </ul>
-        </div>
-      )}
-
-      {ownParties && ownParties.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Awaiting your sign-off</h2>
-          <p className="mt-1 text-sm text-muted">
-            Hold/Witness/Review/Surveillance points on your own party&apos;s column that still need
-            a Notify or Sign off — only what your login is linked to, not the whole project.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {pendingSignoffs.map((row) => {
-              const itp = row.itp_items?.itp_sections?.itps;
-              const activity = row.itp_items?.activity ?? "Untitled activity";
-              const initial = activity.trim().charAt(0).toUpperCase() || "?";
-              const when = timeAgo(row.notified_at);
-              return (
-                <li
-                  key={row.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-burgundy/10 text-xs font-semibold text-burgundy">
-                      {initial}
-                    </span>
-                    <span className="min-w-0 truncate text-ink">
-                      {row.intervention} · {activity}
-                      {itp && (
-                        <span className="text-muted">
-                          {" "}
-                          — {itp.itp_number} {itp.title}
-                        </span>
-                      )}
-                      {when && <span className="ml-2 text-xs text-muted">{when}</span>}
-                    </span>
-                  </div>
-                  {itp && (
-                    <Link
-                      href={`/inspect/itps/${itp.id}`}
-                      className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
-                    >
-                      Review →
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-            {pendingSignoffs.length === 0 && (
-              <li className="text-sm text-muted">Nothing awaiting your sign-off right now.</li>
-            )}
-          </ul>
         </div>
       )}
 
