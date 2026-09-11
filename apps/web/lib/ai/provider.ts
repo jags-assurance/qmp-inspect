@@ -95,6 +95,12 @@ export interface DraftNcrDescriptionResult {
   requirementNotMet: string;
 }
 
+export interface SuggestRootCauseInput {
+  description: string;
+  requirementNotMet: string | null;
+  severity: string;
+}
+
 export interface CheckConsistencyInput {
   acceptanceCriteria: string;
   responses: { itemDescription: string; result: "yes" | "no" | "na"; comment: string | null }[];
@@ -106,4 +112,5 @@ export interface AiProvider {
   draftNcrDescription(input: DraftNcrDescriptionInput): Promise<DraftNcrDescriptionResult>;
   checkConsistency(input: CheckConsistencyInput): Promise<string[]>;
   draftReportNarrative(input: DraftReportNarrativeInput): Promise<string>;
+  suggestRootCause(input: SuggestRootCauseInput): Promise<string>;
 }

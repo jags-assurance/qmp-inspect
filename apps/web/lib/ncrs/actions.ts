@@ -249,6 +249,68 @@ export async function draftNcrDescriptionAction(
   }
 }
 
+export interface SuggestRootCauseState {
+  error: string | null;
+  rootCause: string | null;
+}
+
+const EMPTY_ROOT_CAUSE_STATE: SuggestRootCauseState = { error: null, rootCause: null };
+
+/**
+ * Reqs R111: "suggest likely root causes for an NCR". Facts come from the NCR's own already-saved
+ * description/requirement_not_met/severity — never from the client — so the suggestion can only
+ * reflect what was actually recorded. Same non-negotiable rule as every other AI assist here: this
+ * never writes anything, it only returns text for the (still fully editable) root_cause textarea
+ * on the close-out form; updateNcrAction below is the only thing that ever persists a root cause.
+ */
+export async function suggestNcrRootCauseAction(
+  _prev: SuggestRootCauseState,
+  formData: FormData
+): Promise<SuggestRootCauseState> {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  if (!ncrId) return { ...EMPTY_ROOT_CAUSE_STATE, error: "Missing NCR." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: ncr } = await supabase
+    .from(NCRS_TABLE)
+    .select("description, requirement_not_met, severity, project_id")
+    .eq("id", ncrId)
+    .maybeSingle<{ description: string; requirement_not_met: string | null; severity: NcrSeverity; project_id: string }>();
+
+  if (!ncr) return { ...EMPTY_ROOT_CAUSE_STATE, error: "NCR not found." };
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", ncr.project_id)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (!project) return { ...EMPTY_ROOT_CAUSE_STATE, error: "Project not found." };
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) return { ...EMPTY_ROOT_CAUSE_STATE, error: gate.reason };
+
+  try {
+    const rootCause = await geminiProvider.suggestRootCause({
+      description: ncr.description,
+      requirementNotMet: ncr.requirement_not_met,
+      severity: ncr.severity,
+    });
+    await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "ncr_root_cause_suggestion",
+    });
+    return { error: null, rootCause };
+  } catch (err) {
+    return { ...EMPTY_ROOT_CAUSE_STATE, error: err instanceof Error ? err.message : "Could not suggest a root cause." };
+  }
+}
+
 /** Plain status transition with no CAPA validation — used for the detail page's quick actions. */
 export async function setNcrStatusAction(formData: FormData) {
   const ncrId = String(formData.get("ncr_id") ?? "").trim();

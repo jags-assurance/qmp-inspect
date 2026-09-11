@@ -8,6 +8,7 @@ import type {
   GenerateChecklistItemsInput,
   GenerateItpDraftInput,
   ItpDraftResult,
+  SuggestRootCauseInput,
 } from "@/lib/ai/provider";
 
 // Gemini REST API via a raw fetch wrapper — deliberately not the `@google/generative-ai` package.
@@ -342,6 +343,27 @@ export class GeminiProvider implements AiProvider {
       `Outcome: ${input.outcome ?? "not yet determined"}`,
       "Facts:",
       factsList,
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, false);
+    return text.trim();
+  }
+
+  async suggestRootCause(input: SuggestRootCauseInput): Promise<string> {
+    const prompt = [
+      "You are a QA/QC engineer suggesting the LIKELY root cause of a non-conformance, for an",
+      "inspector to review before writing the NCR's formal root cause.",
+      "Based only on the description and requirement below, suggest the most probable root cause",
+      "(e.g. workmanship error, incorrect material, missing/misread drawing revision, inadequate",
+      "method statement, equipment fault, training gap). Be specific to what's actually described —",
+      "do not invent details the description doesn't support. If the description genuinely doesn't",
+      "give enough information to suggest a cause, say so plainly instead of guessing.",
+      "",
+      "Return plain text only: 1-2 sentences, third person, no markdown, no quotation marks.",
+      "",
+      `Severity: ${input.severity}`,
+      `Description: ${input.description}`,
+      `Requirement not met: ${input.requirementNotMet || "(not recorded)"}`,
     ].join("\n");
 
     const text = await generateContent("light", prompt, false);

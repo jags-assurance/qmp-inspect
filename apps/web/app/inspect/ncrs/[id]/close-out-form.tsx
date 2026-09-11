@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { updateNcrAction, type UpdateNcrState } from "@/lib/ncrs/actions";
+import { updateNcrAction, suggestNcrRootCauseAction, type UpdateNcrState, type SuggestRootCauseState } from "@/lib/ncrs/actions";
 import { Button } from "@/components/ui/button";
 
 const initialState: UpdateNcrState = { error: null };
+const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null };
 
 export function CloseOutForm({
   ncrId,
@@ -26,11 +27,18 @@ export function CloseOutForm({
   isClosed: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateNcrAction, initialState);
+  const [suggestState, suggestFormAction, suggestPending] = useActionState(suggestNcrRootCauseAction, suggestInitialState);
   const [fields, setFields] = useState({
     rootCause: rootCause ?? "",
     correctiveAction: correctiveAction ?? "",
     verificationNotes: verificationNotes ?? "",
   });
+
+  const [appliedSuggestState, setAppliedSuggestState] = useState(suggestState);
+  if (suggestState !== appliedSuggestState) {
+    setAppliedSuggestState(suggestState);
+    if (suggestState.rootCause !== null) setFields((f) => ({ ...f, rootCause: suggestState.rootCause! }));
+  }
 
   const canClose = Boolean(fields.rootCause.trim() && fields.correctiveAction.trim() && fields.verificationNotes.trim());
 
@@ -67,18 +75,35 @@ export function CloseOutForm({
       </div>
 
       <div>
-        <label htmlFor="root_cause" className="block text-sm font-medium text-ink">
-          Root cause
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="root_cause" className="block text-sm font-medium text-ink">
+            Root cause
+          </label>
+          {!isClosed && (
+            <button
+              type="button"
+              onClick={() => {
+                const fd = new FormData();
+                fd.set("ncr_id", ncrId);
+                suggestFormAction(fd);
+              }}
+              disabled={suggestPending}
+              className="text-xs font-medium text-burgundy hover:underline disabled:opacity-50"
+            >
+              {suggestPending ? "Suggesting…" : "Suggest with AI"}
+            </button>
+          )}
+        </div>
         <textarea
           id="root_cause"
           name="root_cause"
           rows={3}
-          defaultValue={rootCause ?? ""}
+          value={fields.rootCause}
           disabled={isClosed}
           onChange={(e) => setFields((f) => ({ ...f, rootCause: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
+        {suggestState.error && <p className="mt-1 text-xs text-danger">{suggestState.error}</p>}
       </div>
 
       <div>
