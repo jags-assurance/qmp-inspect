@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
-import { BACKGROUND_JOBS_TABLE, GENERATED_DOCUMENTS_BUCKET, csvPathFromPdfPath, type BackgroundJobRow } from "./types";
+import {
+  BACKGROUND_JOBS_TABLE,
+  GENERATED_DOCUMENTS_BUCKET,
+  csvPathFromPdfPath,
+  type BackgroundJobRow,
+  type MonthlyReportPackPayload,
+  type RenderItpPdfPayload,
+} from "./types";
 
 export interface GenerateMonthlyReportPackState {
   error: string | null;
@@ -61,6 +68,91 @@ export async function generateMonthlyReportPackAction(
   return { error: null, success: true };
 }
 
+export interface RequestItpPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_itp_pdf" background job (R40, R106, R107 — the controlled A4 ITP document).
+ * The worker side of this has existed since the background-jobs queue itself was introduced
+ * (worker/src/jobs/renderItpPdf.ts, wired into worker/src/index.ts's job-type switch) — this
+ * action is the missing other half: nothing in the web app ever inserted a row for it, so there
+ * was no way to actually trigger a render. Same insert-a-row pattern as
+ * generateMonthlyReportPackAction above; the worker does the rendering, not this action.
+ *
+ * Any org-scoped user can request a render (not staff-only) — the RLS policy on background_jobs
+ * already restricts inserts to users with access to that ITP's project (see
+ * 20260909270000_phase1_background_jobs.sql), so this mirrors "who can view the ITP can download
+ * it as a PDF."
+ */
+export async function requestItpPdfAction(_prev: RequestItpPdfState, formData: FormData): Promise<RequestItpPdfState> {
+  const session = await requireSession();
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  if (!itpId) return { error: "Missing ITP." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_itp_pdf",
+    payload: { itp_id: itpId, requested_by: session.userId } satisfies RenderItpPdfPayload,
+  });
+
+  if (error) {
+    return { error: "Could not queue the PDF. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null, success: true };
+}
+
+export interface ItpPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+}
+
+/**
+ * The most recent render_itp_pdf job for this ITP (any revision) — enough to show "still
+ * rendering" / "ready, here's the link" / "failed" without a dedicated polling endpoint. A user
+ * reloads the page to see progress, same UX as listMonthlyReportPacks below (no client-side
+ * polling exists anywhere else in this app either).
+ */
+export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: job } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_itp_pdf")
+    .order("created_at", { ascending: false })
+    .returns<
+      (Pick<BackgroundJobRow, "id" | "payload" | "status" | "error_message" | "created_at"> & {
+        result_storage_path: string | null;
+      })[]
+    >();
+
+  const latest = (job ?? []).find((j) => (j.payload as RenderItpPdfPayload).itp_id === itpId);
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const { data: signed } = await supabase.storage
+      .from(GENERATED_DOCUMENTS_BUCKET)
+      .createSignedUrl(latest.result_storage_path, 3600);
+    pdfUrl = signed?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+  };
+}
+
 export interface ReportPackListItem {
   id: string;
   year: number;
@@ -87,9 +179,10 @@ export async function listMonthlyReportPacks(organizationId: string): Promise<Re
     .eq("job_type", "generate_monthly_report_pack")
     .order("created_at", { ascending: false })
     .returns<
-      (Pick<BackgroundJobRow, "id" | "job_type" | "payload" | "status" | "error_message" | "created_at" | "completed_at"> & {
-        result_storage_path: string | null;
-      })[]
+      (Omit<
+        Pick<BackgroundJobRow, "id" | "job_type" | "payload" | "status" | "error_message" | "created_at" | "completed_at">,
+        "payload"
+      > & { payload: MonthlyReportPackPayload; result_storage_path: string | null })[]
     >();
 
   const orgJobs = (jobs ?? []).filter((job) => job.payload?.organization_id === organizationId);

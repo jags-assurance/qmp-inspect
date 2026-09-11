@@ -22,6 +22,8 @@ import {
   type ExpectedRecordProvider,
 } from "@/lib/expected-records/db-types";
 import { ExpectedRecordsSection } from "./expected-record-form";
+import { getLatestItpPdf } from "@/lib/reports/actions";
+import { ItpPdfButton } from "./itp-pdf-button";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -81,6 +83,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     }>();
 
   if (!itp) notFound();
+
+  const latestPdf = await getLatestItpPdf(itp.id);
 
   interface SectionWithItems {
     id: string;
@@ -247,6 +251,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div className="flex gap-2">
+          <ItpPdfButton itpId={itp.id} latest={latestPdf} />
           {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
           <Link
             href={`/inspect/itps/${itp.id}/checklists`}

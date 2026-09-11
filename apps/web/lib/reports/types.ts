@@ -14,10 +14,15 @@ export interface MonthlyReportPackPayload {
   requested_by: string;
 }
 
+export interface RenderItpPdfPayload {
+  itp_id: string;
+  requested_by: string;
+}
+
 export interface BackgroundJobRow {
   id: string;
   job_type: string;
-  payload: MonthlyReportPackPayload;
+  payload: MonthlyReportPackPayload | RenderItpPdfPayload;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
   error_message: string | null;
