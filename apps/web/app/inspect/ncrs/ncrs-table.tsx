@@ -13,6 +13,7 @@ export interface NcrRegisterRow {
   description: string;
   status: NcrStatus;
   due_date: string | null;
+  created_at: string;
   projects: { name: string; project_number: string } | null;
 }
 

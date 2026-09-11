@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
+import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { isOverdue } from "./is-overdue";
@@ -18,7 +19,8 @@ export default async function NcrsPage({
 
   let query = supabase
     .from(NCRS_TABLE)
-    .select("id, ncr_number, severity, description, status, due_date, projects(name, project_number)")
+    .select("id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number)")
+    .neq("severity", "observation")
     .order("created_at", { ascending: false });
   if (projectId) query = query.eq("project_id", projectId);
 
@@ -29,16 +31,24 @@ export default async function NcrsPage({
   const open = rows.filter((r) => r.status !== "closed").length;
   const closed = rows.filter((r) => r.status === "closed").length;
   const overdue = rows.filter(isOverdue).length;
+  const today = new Date().getTime();
+  const openAgeDays = rows
+    .filter((r) => r.status !== "closed")
+    .map((r) => Math.floor((today - new Date(r.created_at).getTime()) / 86_400_000));
+  const agingCounts = bucketAge(openAgeDays);
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">NCR & Observation Register</h1>
+          <h1 className="text-2xl font-semibold text-ink">NCR Register</h1>
           <p className="mt-1 text-sm text-muted">
             {session.isJagsStaff
-              ? "Non-conformances and observations across every project you have access to."
-              : "Non-conformances and observations on your organisation's projects."}
+              ? "Minor and major non-conformances across every project you have access to."
+              : "Minor and major non-conformances on your organisation's projects."}{" "}
+            <Link href="/inspect/observations" className="text-burgundy hover:underline">
+              See observations →
+            </Link>
           </p>
         </div>
         <Link href="/inspect/ncrs/new">
@@ -60,6 +70,10 @@ export default async function NcrsPage({
         <StatCard label="Open" value={open} />
         <StatCard label="Overdue" value={overdue} />
         <StatCard label="Closed" value={closed} />
+      </div>
+
+      <div className="mt-6">
+        <AgingChart counts={agingCounts} />
       </div>
 
       <div className="mt-6">

@@ -24,6 +24,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
     { label: "Projects", href: "/inspect/projects" },
     { label: "ITPs", href: "/inspect/itps" },
     { label: "NCRs", href: "/inspect/ncrs" },
+    { label: "Observations", href: "/inspect/observations" },
     ...(!isClientRole ? [{ label: "Standalone Assignments", href: "/inspect/standalone" }] : []),
     { label: "Document Vault", href: "/inspect/vault" },
     ...(session.isJagsStaff || isClientRole ? [{ label: "Handover", href: "/inspect/handover" }] : []),
