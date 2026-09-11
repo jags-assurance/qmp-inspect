@@ -15,6 +15,8 @@ import {
 } from "@/lib/checklists/db-types";
 import { PhotoGallery } from "./photo-gallery";
 import { IssueIrnForm } from "./issue-irn-form";
+import { getLatestInspectionReportPdf } from "@/lib/reports/actions";
+import { InspectionReportPdfButton } from "./inspection-report-pdf-button";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -54,6 +56,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
   if (!record) notFound();
 
+  const latestReportPdf = await getLatestInspectionReportPdf(id);
+
   const [{ data: responses }, { data: photos }, { data: irn }] = await Promise.all([
     supabase
       .from(CHECKLIST_RESPONSES_TABLE)
@@ -89,9 +93,14 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <p className="text-xs uppercase tracking-wide text-white/70">Inspection Record</p>
             <h1 className="doc-id text-2xl font-semibold">{record.record_number}</h1>
           </div>
-          <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>
-            {(record.overall_result ?? "In progress").toString().toUpperCase()}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>
+              {(record.overall_result ?? "In progress").toString().toUpperCase()}
+            </Badge>
+          </div>
+        </div>
+        <div className="bg-surface px-5 py-3">
+          <InspectionReportPdfButton inspectionRecordId={record.id} latest={latestReportPdf} />
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 text-sm sm:grid-cols-4">
           <div>

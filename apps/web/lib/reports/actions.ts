@@ -9,6 +9,7 @@ import {
   csvPathFromPdfPath,
   type BackgroundJobRow,
   type MonthlyReportPackPayload,
+  type RenderInspectionReportPdfPayload,
   type RenderItpPdfPayload,
 } from "./types";
 
@@ -134,6 +135,83 @@ export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | nul
     >();
 
   const latest = (job ?? []).find((j) => (j.payload as RenderItpPdfPayload).itp_id === itpId);
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const { data: signed } = await supabase.storage
+      .from(GENERATED_DOCUMENTS_BUCKET)
+      .createSignedUrl(latest.result_storage_path, 3600);
+    pdfUrl = signed?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+  };
+}
+
+export interface RequestInspectionReportPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_inspection_report_pdf" background job (R63-R65, R108 — the general branded A4
+ * Inspection Report, distinct from the small IRN certificate). Same insert-a-row pattern as
+ * requestItpPdfAction above; RLS on background_jobs already restricts this to users with access to
+ * the inspection record's project (20260911010000_phase4_inspection_report_pdf_job.sql).
+ */
+export async function requestInspectionReportPdfAction(
+  _prev: RequestInspectionReportPdfState,
+  formData: FormData
+): Promise<RequestInspectionReportPdfState> {
+  const session = await requireSession();
+  const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
+  if (!inspectionRecordId) return { error: "Missing inspection record." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_inspection_report_pdf",
+    payload: { inspection_record_id: inspectionRecordId, requested_by: session.userId } satisfies RenderInspectionReportPdfPayload,
+  });
+
+  if (error) {
+    return { error: "Could not queue the report. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+  return { error: null, success: true };
+}
+
+export interface InspectionReportPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+}
+
+/** The most recent render for this inspection record — same "reload to see progress" pattern as getLatestItpPdf. */
+export async function getLatestInspectionReportPdf(inspectionRecordId: string): Promise<InspectionReportPdfStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: jobs } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_inspection_report_pdf")
+    .order("created_at", { ascending: false })
+    .returns<
+      (Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderInspectionReportPdfPayload;
+        result_storage_path: string | null;
+      })[]
+    >();
+
+  const latest = (jobs ?? []).find((j) => j.payload.inspection_record_id === inspectionRecordId);
   if (!latest) return null;
 
   let pdfUrl: string | null = null;

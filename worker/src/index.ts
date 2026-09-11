@@ -2,7 +2,13 @@ import "dotenv/config";
 import { supabase } from "./supabase";
 import { renderItpPdf } from "./jobs/renderItpPdf";
 import { generateMonthlyReportPack } from "./jobs/generateMonthlyReportPack";
-import type { BackgroundJobRow, GenerateMonthlyReportPackPayload, RenderItpPdfPayload } from "./jobs/types";
+import { renderInspectionReportPdf } from "./jobs/renderInspectionReportPdf";
+import type {
+  BackgroundJobRow,
+  GenerateMonthlyReportPackPayload,
+  RenderInspectionReportPdfPayload,
+  RenderItpPdfPayload,
+} from "./jobs/types";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -91,6 +97,14 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
       case "generate_monthly_report_pack": {
         const { resultStoragePath } = await generateMonthlyReportPack(
           job.payload as unknown as GenerateMonthlyReportPackPayload
+        );
+        await markCompleted(job.id, resultStoragePath);
+        console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
+        break;
+      }
+      case "render_inspection_report_pdf": {
+        const { resultStoragePath } = await renderInspectionReportPdf(
+          job.payload as unknown as RenderInspectionReportPdfPayload
         );
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
