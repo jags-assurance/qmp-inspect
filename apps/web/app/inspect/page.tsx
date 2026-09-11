@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StatCard } from "@/components/ui/stat-card";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
   DEFAULT_NOTICE_PERIOD_HOURS,
@@ -13,6 +11,7 @@ import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/check
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 import { InspectorDashboard } from "./inspector-dashboard";
+import { AdminDashboard } from "./admin-dashboard";
 
 interface PendingSignoffRow {
   id: string;
@@ -178,13 +177,55 @@ export default async function InspectDashboardPage() {
 
   // An Admin's own queue item: proposals to the Tier-1 library waiting on their decision (an
   // Inspector can submit one, per lib/itp-master/actions.ts, but only an Admin can approve it).
-  let pendingProposalsCount = 0;
+  // Real fields (title, source ITP, date), the same join pattern as the proposals review page
+  // itself — not just a count, so the dashboard panel is actually useful without a click-through.
+  interface PendingProposalRow {
+    id: string;
+    proposed_action: "new_template" | "update_existing";
+    proposed_title: string | null;
+    created_at: string;
+    itps: { id: string; itp_number: string; title: string } | null;
+  }
+  let pendingProposals: PendingProposalRow[] = [];
+  let orgPortfolio: { id: string; name: string; engagementMode: string; activeProjects: number; openNcrs: number }[] = [];
   if (isAdminStaff(session)) {
-    const { count } = await supabase
-      .from(ITP_MASTER_PROPOSALS_TABLE)
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending");
-    pendingProposalsCount = count ?? 0;
+    const [{ data: proposals }, { data: activeProjectRows }, { data: openNcrRows }] = await Promise.all([
+      supabase
+        .from(ITP_MASTER_PROPOSALS_TABLE)
+        .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)")
+        .eq("status", "pending")
+        .order("created_at")
+        .limit(5)
+        .returns<PendingProposalRow[]>(),
+      supabase.from("projects").select("organization_id").eq("status", "active").returns<{ organization_id: string }[]>(),
+      supabase
+        .from("ncrs")
+        .select("projects(organization_id)")
+        .neq("status", "closed")
+        .returns<{ projects: { organization_id: string } | null }[]>(),
+    ]);
+    pendingProposals = proposals ?? [];
+
+    // Per-org portfolio counts: no GROUP BY over PostgREST, so counted client-side from the raw
+    // rows above — fine at this scale (a handful of orgs/projects), and still two real, RLS-scoped
+    // queries rather than one per organisation.
+    const activeProjectsByOrg = new Map<string, number>();
+    for (const row of activeProjectRows ?? []) {
+      activeProjectsByOrg.set(row.organization_id, (activeProjectsByOrg.get(row.organization_id) ?? 0) + 1);
+    }
+    const openNcrsByOrg = new Map<string, number>();
+    for (const row of openNcrRows ?? []) {
+      const orgId = row.projects?.organization_id;
+      if (!orgId) continue;
+      openNcrsByOrg.set(orgId, (openNcrsByOrg.get(orgId) ?? 0) + 1);
+    }
+    orgPortfolio = (organizations ?? []).map((org) => ({
+      id: org.id,
+      name: org.name,
+      engagementMode: org.engagement_mode,
+      activeProjects: activeProjectsByOrg.get(org.id) ?? 0,
+      openNcrs: openNcrsByOrg.get(org.id) ?? 0,
+    }));
   }
 
   // "My pending actions" (matches the prototype's Inspector Dashboard reference) — a real worklist
@@ -384,102 +425,24 @@ export default async function InspectDashboardPage() {
   // Only JAGS Admin reaches this point — external parties and Inspectors both returned their own
   // dedicated dashboard component above.
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-ink">JAGS Admin Overview</h1>
-      <p className="mt-1 text-sm text-muted">Portfolio status across every client you have access to.</p>
-
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Active projects"
-          value={activeProjects ?? 0}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="3" y="7" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 7V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 13 5.5V7" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </span>
-          }
-        />
-        <StatCard
-          label="Active ITPs"
-          value={activeItps ?? 0}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-[color:var(--color-burgundy-dark)]">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="5" y="3" width="10" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7.5 7h5M7.5 10h5M7.5 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </span>
-          }
-        />
-        <StatCard
-          label="Pending inspections"
-          value={pendingInspections ?? 0}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          }
-        />
-        <StatCard
-          label="Open NCRs"
-          value={openNcrs ?? 0}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <path d="M10 3.5l7 12.5H3l7-12.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M10 8.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="10" cy="13.5" r="0.75" fill="currentColor" />
-              </svg>
-            </span>
-          }
-        />
-      </div>
-
-      {isAdminStaff(session) && pendingProposalsCount > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-medium text-ink">Master Library proposals awaiting review</h2>
-              <p className="mt-1 text-sm text-muted">
-                Submitted by staff, waiting on an Admin decision.
-              </p>
-            </div>
-            <Link
-              href="/inspect/itp-master/proposals"
-              className="rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium hover:bg-surface"
-            >
-              Review {pendingProposalsCount} →
-            </Link>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">Your organisations</h2>
-        <p className="mt-1 text-sm text-muted">
-          Visible here only because your access grants reach them — this list is the tenant
-          isolation check made visible.
-        </p>
-        <ul className="mt-4 space-y-2">
-          {(organizations ?? []).map((org) => (
-            <li
-              key={org.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-            >
-              <span className="text-ink">{org.name}</span>
-              <span className="text-muted">{org.engagement_mode}</span>
-            </li>
-          ))}
-          {(organizations ?? []).length === 0 && (
-            <li className="text-sm text-muted">No organisations are visible to your account yet.</li>
-          )}
-        </ul>
-      </div>
-    </div>
+    <AdminDashboard
+      firstName={session.fullName.split(" ")[0] ?? session.fullName}
+      today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+      activeProjects={activeProjects ?? 0}
+      activeItps={activeItps ?? 0}
+      pendingInspections={pendingInspections ?? 0}
+      openNcrs={openNcrs ?? 0}
+      pendingProposals={pendingProposals.map((p) => ({
+        id: p.id,
+        title:
+          p.proposed_action === "new_template"
+            ? `New template: ${p.proposed_title || p.itps?.title || "Untitled"}`
+            : `Update existing template`,
+        sourceItpId: p.itps?.id ?? null,
+        sourceItpLabel: p.itps ? `${p.itps.itp_number} — ${p.itps.title}` : null,
+        submittedOn: p.created_at,
+      }))}
+      orgPortfolio={orgPortfolio}
+    />
   );
 }
