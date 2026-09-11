@@ -1,10 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  NUMBERING_CONFIGS_TABLE,
-  DOCUMENT_SEQUENCES_TABLE,
-  type NumberingConfigRow,
-  type NumberingDocType,
-} from "@/lib/numbering/types";
+import { NUMBERING_CONFIGS_TABLE, type NumberingConfigRow, type NumberingDocType } from "@/lib/numbering/types";
 
 export interface GenerateDocumentNumberParams {
   organizationId: string;

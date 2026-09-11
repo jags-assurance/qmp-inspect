@@ -1,12 +1,12 @@
-// Domain types + table-name handles for `numbering_configs` and `document_sequences`
-// (supabase/migrations/20260910020000_phase2_numbering_engine.sql).
+// Domain types + table-name handle for `numbering_configs`
+// (supabase/migrations/20260910020000_phase2_numbering_engine.sql). `document_sequences`, the
+// other table from that migration, is only ever touched via the `next_document_sequence` RPC (see
+// lib/numbering/generate.ts) — never queried directly — so it has no handle here.
 //
-// Neither table is in the generated Database type yet — same documented cast pattern as
+// This table isn't in the generated Database type yet — same documented cast pattern as
 // apps/web/lib/ncrs/types.ts and apps/web/lib/vault/types.ts.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
 export const NUMBERING_CONFIGS_TABLE = "numbering_configs" as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
-export const DOCUMENT_SEQUENCES_TABLE = "document_sequences" as any;
 
 export const NUMBERING_DOC_TYPES = [
   "itp",
