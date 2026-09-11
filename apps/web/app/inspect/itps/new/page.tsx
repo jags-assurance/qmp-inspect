@@ -17,7 +17,7 @@ export default async function NewItpPage() {
   if (!session.isJagsStaff) redirect("/inspect/itps");
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: projects }, { data: templates }, { data: vaultDocumentRows }] = await Promise.all([
+  const [{ data: projects }, { data: templates }, { data: disciplines }, { data: vaultDocumentRows }] = await Promise.all([
     supabase.from("projects").select("id, project_number, name").order("name"),
     supabase
       .from(ITP_MASTER_TEMPLATES_TABLE)
@@ -25,13 +25,22 @@ export default async function NewItpPage() {
       .eq("is_active", true)
       .order("title")
       .returns<{ id: string; title: string; industry: string; version: number }[]>(),
-    // For the "generate from a spec description" tab's optional document picker (attaches a vault
-    // document's own metadata as extra text context — never its file content, see
-    // new-itp-from-ai-form.tsx). Scoped by RLS to projects this user has access to; fetched
-    // unconditionally here (not per-project) since the project picker lives client-side in that form.
+    supabase
+      .from("master_disciplines")
+      .select("code, name")
+      .eq("is_active", true)
+      .order("sort_order")
+      .returns<{ code: string; name: string }[]>(),
+    // For the "generate from vault documents" tab's document picker — the real source material an
+    // ITP draft is grounded in (see new-itp-from-ai-form.tsx). Scoped by RLS to projects this user
+    // has access to; fetched unconditionally here (not per-project) since the project picker lives
+    // client-side in that form. extraction_status lets the picker show which documents actually
+    // have usable text without exposing extracted_text itself to the client.
     supabase
       .from(VAULT_DOCUMENTS_TABLE)
-      .select("id, title, notes, document_number, document_reference, revision, vault_folders(project_id)")
+      .select(
+        "id, title, notes, document_number, document_reference, revision, extraction_status, vault_folders(project_id, name)"
+      )
       .neq("status", "superseded")
       .order("title")
       .returns<
@@ -42,7 +51,8 @@ export default async function NewItpPage() {
           document_number: string | null;
           document_reference: string | null;
           revision: string;
-          vault_folders: { project_id: string } | null;
+          extraction_status: string;
+          vault_folders: { project_id: string; name: string } | null;
         }[]
       >(),
   ]);
@@ -52,11 +62,13 @@ export default async function NewItpPage() {
     .map((d) => ({
       id: d.id,
       projectId: d.vault_folders!.project_id,
+      folderName: d.vault_folders!.name,
       title: d.title,
       notes: d.notes,
       documentNumber: d.document_number,
       documentReference: d.document_reference,
       revision: d.revision,
+      extractionStatus: d.extraction_status,
     }));
 
   return (
@@ -70,7 +82,9 @@ export default async function NewItpPage() {
       <ItpCreationTabs
         manual={<NewItpForm projects={projects ?? []} />}
         fromTemplate={<NewItpFromTemplateForm projects={projects ?? []} templates={templates ?? []} />}
-        fromAi={<NewItpFromAiForm projects={projects ?? []} vaultDocuments={vaultDocuments} />}
+        fromAi={
+          <NewItpFromAiForm projects={projects ?? []} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
+        }
       />
     </div>
   );

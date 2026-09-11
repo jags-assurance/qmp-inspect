@@ -28,6 +28,9 @@ export type VaultFolderKey = (typeof VAULT_FOLDER_KEYS)[number];
 export const VAULT_DOCUMENT_STATUSES = ["for_review", "approved", "superseded"] as const;
 export type VaultDocumentStatus = (typeof VAULT_DOCUMENT_STATUSES)[number];
 
+export const VAULT_DOCUMENT_EXTRACTION_STATUSES = ["pending", "done", "empty", "unsupported", "failed"] as const;
+export type VaultDocumentExtractionStatus = (typeof VAULT_DOCUMENT_EXTRACTION_STATUSES)[number];
+
 export interface VaultFolderRow {
   id: string;
   project_id: string;
@@ -52,4 +55,7 @@ export interface VaultDocumentRow {
   superseded_by: string | null;
   uploaded_by: string | null;
   created_at: string;
+  extracted_text: string | null;
+  extraction_status: VaultDocumentExtractionStatus;
+  extraction_error: string | null;
 }

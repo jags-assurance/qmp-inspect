@@ -43,7 +43,7 @@ export function ItpCreationTabs({
           onClick={() => setTab("ai")}
           className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
         >
-          Generate from a spec description
+          Generate from vault documents
         </button>
       </div>
 

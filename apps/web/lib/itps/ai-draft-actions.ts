@@ -5,14 +5,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
-import type { ItpDraftResult } from "@/lib/ai/provider";
+import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
+import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 
-// Reqs R34-R43: spec-to-ITP draft generation. This is a THIRD way to start an ITP, alongside the
-// manual form (new-itp-form.tsx) and the master-template copy (new-itp-from-template-form.tsx) —
-// neither of those is touched here. The same non-negotiable rule applies as everywhere else AI
-// touches this app: nothing produced by generateItpDraftAction below is ever written to the
-// database. It only returns a draft for the user to review and edit; only createItpFromDraftAction,
-// called separately once the user explicitly confirms, inserts anything.
+// Reqs R34-R43: spec-to-ITP draft generation, grounded in the project's own vault documents (the
+// actual attached specs/standards/method statements) rather than a free-typed description alone.
+// This is a THIRD way to start an ITP, alongside the manual form (new-itp-form.tsx) and the
+// master-template copy (new-itp-from-template-form.tsx) — neither of those is touched here. The
+// same non-negotiable rule applies as everywhere else AI touches this app: nothing produced by
+// generateItpDraftAction below is ever written to the database. It only returns a draft for the
+// user to review and edit; only createItpFromDraftAction, called separately once the user
+// explicitly confirms, inserts anything.
 
 export interface GenerateItpDraftState {
   error: string | null;
@@ -27,10 +30,14 @@ export async function generateItpDraftAction(
   formData: FormData
 ): Promise<GenerateItpDraftState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const specDescription = String(formData.get("spec_description") ?? "").trim();
+  const additionalInstructions = String(formData.get("additional_instructions") ?? "").trim();
+  const vaultDocumentIds = formData.getAll("vault_document_ids").map(String).filter(Boolean);
 
-  if (!projectId || !specDescription) {
-    return { ...EMPTY_DRAFT_STATE, error: "Project and a spec/scope description are required." };
+  if (!projectId || (vaultDocumentIds.length === 0 && !additionalInstructions)) {
+    return {
+      ...EMPTY_DRAFT_STATE,
+      error: "Select at least one vault document, or describe the spec/scope, to generate from.",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -53,22 +60,72 @@ export async function generateItpDraftAction(
     return { ...EMPTY_DRAFT_STATE, error: gate.reason };
   }
 
-  const { data: parties } = await supabase
-    .from("project_parties")
-    .select("id, party_type, name")
-    .eq("project_id", projectId)
-    .eq("is_active", true)
-    .returns<{ id: string; party_type: string; name: string }[]>();
+  const [{ data: parties }, { data: disciplines }] = await Promise.all([
+    supabase
+      .from("project_parties")
+      .select("id, party_type, name")
+      .eq("project_id", projectId)
+      .eq("is_active", true)
+      .returns<{ id: string; party_type: string; name: string }[]>(),
+    supabase
+      .from("master_disciplines")
+      .select("code, name")
+      .eq("is_active", true)
+      .order("sort_order")
+      .returns<{ code: string; name: string }[]>(),
+  ]);
 
   const projectParties = (parties ?? []).map((p) => ({ id: p.id, partyType: p.party_type, name: p.name }));
 
+  let sourceDocuments: ItpSourceDocument[] = [];
+  if (vaultDocumentIds.length > 0) {
+    // Scoped by RLS (same has_org_access join as every other vault_documents read) — a document id
+    // for a project/org this user can't reach simply won't come back, not an error.
+    const { data: docs } = await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select("id, title, extracted_text, extraction_status, vault_folders(project_id, name)")
+      .in("id", vaultDocumentIds)
+      .returns<
+        {
+          id: string;
+          title: string;
+          extracted_text: string | null;
+          extraction_status: string;
+          vault_folders: { project_id: string; name: string } | null;
+        }[]
+      >();
+
+    const usable = (docs ?? []).filter(
+      (d) => d.vault_folders?.project_id === projectId && d.extraction_status === "done" && d.extracted_text
+    );
+
+    if (usable.length === 0) {
+      return {
+        ...EMPTY_DRAFT_STATE,
+        error:
+          "None of the selected documents have usable extracted text yet (still processing, or their file type isn't supported for text extraction) — pick a different document or add scope in the instructions box instead.",
+      };
+    }
+
+    sourceDocuments = usable.map((d) => ({
+      title: d.title,
+      category: d.vault_folders?.name ?? "Document",
+      text: d.extracted_text ?? "",
+    }));
+  }
+
   let draft: ItpDraftResult;
   try {
-    draft = await geminiProvider.generateItpDraft({ specDescription, projectParties });
+    draft = await geminiProvider.generateItpDraft({
+      sourceDocuments,
+      additionalInstructions,
+      projectParties,
+      disciplines: disciplines ?? [],
+    });
   } catch (err) {
     return {
       ...EMPTY_DRAFT_STATE,
-      error: err instanceof Error ? err.message : "Could not generate a draft from that description.",
+      error: err instanceof Error ? err.message : "Could not generate a draft from the selected documents.",
     };
   }
 
@@ -152,6 +209,17 @@ export async function createItpFromDraftAction(
     return { error: "ITP created, but its sections could not be added from the draft." };
   }
 
+  const disciplineCodes = [...new Set(draft.sections.flatMap((s) => s.items.map((i) => i.disciplineCode).filter(Boolean)))];
+  const disciplineIdByCode = new Map<string, string>();
+  if (disciplineCodes.length > 0) {
+    const { data: disciplineRows } = await supabase
+      .from("master_disciplines")
+      .select("id, code")
+      .in("code", disciplineCodes as string[])
+      .returns<{ id: string; code: string }[]>();
+    for (const d of disciplineRows ?? []) disciplineIdByCode.set(d.code, d.id);
+  }
+
   const sectionIdByNumber = new Map(newSections.map((s) => [s.section_number, s.id]));
   const itemsBySectionNumber = new Map(draft.sections.map((s, i) => [s.sectionNumber || i + 1, s.items]));
 
@@ -163,8 +231,12 @@ export async function createItpFromDraftAction(
         section_id: sectionId,
         item_number: item.itemNumber,
         activity: item.activity,
+        reference_spec: item.referenceSpec || null,
         acceptance_criteria: item.acceptanceCriteria || null,
+        method: item.method || null,
+        frequency: item.frequency || null,
         evidence_type: item.evidenceType,
+        discipline_id: item.disciplineCode ? (disciplineIdByCode.get(item.disciplineCode) ?? null) : null,
         sort_order: i,
       }));
   });

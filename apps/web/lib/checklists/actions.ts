@@ -62,8 +62,21 @@ export async function generateChecklistTemplatesAction(
   if (!itpId) return { error: "Missing ITP." };
 
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: itp } = await supabase.from("itps").select("id, itp_number, status").eq("id", itpId).maybeSingle();
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("id, itp_number, status, project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{
+      id: string;
+      itp_number: string;
+      status: string;
+      project_id: string;
+      projects: { organization_id: string } | null;
+    }>();
 
   if (!itp) return { error: "ITP not found." };
   if (itp.status !== "approved") return { error: "The ITP must be approved before checklists can be generated." };
@@ -74,7 +87,7 @@ export async function generateChecklistTemplatesAction(
 
   const { data: items } = await supabase
     .from("itp_items")
-    .select("id, activity, acceptance_criteria")
+    .select("id, activity, reference_spec, acceptance_criteria, method, frequency")
     .in("section_id", sectionIds)
     .eq("evidence_type", 1);
 
@@ -94,8 +107,44 @@ export async function generateChecklistTemplatesAction(
 
   if (pending.length === 0) return { error: "Checklists already exist for every checklist-type activity." };
 
+  // Real, field-usable checklist items — one AI call per activity, run in parallel. This is
+  // gated the same way as every other AI feature (assertAiAllowed) and is best-effort per item:
+  // an item the AI can't draft for (unavailable, malformed response) falls back to the single
+  // "acceptance criteria as one item" placeholder rather than failing checklist generation
+  // outright, so this action never regresses below what it did before AI was wired in.
+  const gate = await assertAiAllowed(supabase, itp.projects?.organization_id ?? "");
+  let aiUsed = false;
+  const itemsByPendingId = new Map(
+    await Promise.all(
+      pending.map(async (item) => {
+        if (!gate.allowed) return [item.id, null] as const;
+        try {
+          const drafted = await geminiProvider.generateChecklistItems({
+            activity: item.activity,
+            referenceSpec: item.reference_spec ?? "",
+            acceptanceCriteria: item.acceptance_criteria ?? "",
+            method: item.method ?? "",
+            frequency: item.frequency ?? "",
+            sourceExcerpt: "",
+          });
+          aiUsed = true;
+          return [item.id, drafted] as const;
+        } catch {
+          return [item.id, null] as const;
+        }
+      })
+    )
+  );
+
+  if (aiUsed && itp.projects?.organization_id) {
+    await logAiUsage(supabase, {
+      organizationId: itp.projects.organization_id,
+      userId: user?.id ?? null,
+      feature: "checklist_generation",
+    });
+  }
+
   let seq = (existingTemplates ?? []).length + 1;
-  const descriptionByItem = new Map(pending.map((item) => [item.id, item.acceptance_criteria ?? item.activity]));
   const newTemplates = pending.map((item) => ({
     itp_item_id: item.id,
     checklist_number: `${itp.itp_number}-CHK-${seq++}`,
@@ -112,18 +161,34 @@ export async function generateChecklistTemplatesAction(
     return { error: "Could not generate checklists. Check you have permission and try again." };
   }
 
-  const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(
-    inserted.map((t) => ({
-      template_id: t.id,
-      item_number: "1",
-      description: descriptionByItem.get(t.itp_item_id) ?? "",
-      is_mandatory: true,
-      sort_order: 0,
-    }))
-  );
+  const pendingById = new Map(pending.map((item) => [item.id, item]));
+  const checklistItemsToInsert = inserted.flatMap((t) => {
+    const drafted = itemsByPendingId.get(t.itp_item_id);
+    if (drafted && drafted.length > 0) {
+      return drafted.map((di, i) => ({
+        template_id: t.id,
+        item_number: String(i + 1),
+        description: di.text,
+        is_mandatory: di.mandatory,
+        sort_order: i,
+      }));
+    }
+    const item = pendingById.get(t.itp_item_id);
+    return [
+      {
+        template_id: t.id,
+        item_number: "1",
+        description: item?.acceptance_criteria ?? item?.activity ?? "",
+        is_mandatory: true,
+        sort_order: 0,
+      },
+    ];
+  });
+
+  const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(checklistItemsToInsert);
 
   if (itemsError) {
-    return { error: "Checklists were created, but their default items could not be added." };
+    return { error: "Checklists were created, but their items could not be added." };
   }
 
   revalidatePath(`/inspect/itps/${itpId}/checklists`);

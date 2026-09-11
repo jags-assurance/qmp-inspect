@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { extractTextFromFile } from "@/lib/vault/extract-text";
 
 export interface UploadVaultDocumentState {
   error: string | null;
@@ -111,6 +112,43 @@ export async function uploadVaultDocumentAction(
       .from(VAULT_DOCUMENTS_TABLE)
       .update({ status: "superseded", superseded_by: document.id })
       .eq("id", previousLatest.id);
+  }
+
+  // Best-effort: this is what makes the document usable as AI generation input later (see
+  // lib/itps/ai-draft-actions.ts) but is never allowed to fail the upload itself — a document
+  // stuck at extraction_status 'pending'/'failed' still uploads and displays fine, it just can't
+  // be picked as source text for a generation call.
+  try {
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from("inspection-evidence")
+      .download(storagePath);
+
+    if (downloadError || !fileBlob) {
+      await supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .update({ extraction_status: "failed", extraction_error: downloadError?.message ?? "Could not read the uploaded file." })
+        .eq("id", document.id);
+    } else {
+      const outcome = await extractTextFromFile(await fileBlob.arrayBuffer(), storagePath);
+      await supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .update(
+          outcome.status === "done"
+            ? { extraction_status: "done", extracted_text: outcome.text, extraction_error: null }
+            : outcome.status === "failed"
+              ? { extraction_status: "failed", extraction_error: outcome.error }
+              : { extraction_status: outcome.status, extraction_error: null }
+        )
+        .eq("id", document.id);
+    }
+  } catch (err) {
+    await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .update({
+        extraction_status: "failed",
+        extraction_error: err instanceof Error ? err.message : "Unknown extraction error.",
+      })
+      .eq("id", document.id);
   }
 
   revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
