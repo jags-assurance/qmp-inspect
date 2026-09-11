@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 
@@ -24,9 +25,21 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
   {
     key: "project_number",
     header: "Project No.",
-    render: (row) => <span className="doc-id text-ink">{row.project_number}</span>,
+    render: (row) => (
+      <Link href={`/inspect/projects/${row.id}`} className="doc-id text-burgundy hover:underline">
+        {row.project_number}
+      </Link>
+    ),
   },
-  { key: "name", header: "Name", render: (row) => row.name },
+  {
+    key: "name",
+    header: "Name",
+    render: (row) => (
+      <Link href={`/inspect/projects/${row.id}`} className="hover:underline">
+        {row.name}
+      </Link>
+    ),
+  },
   { key: "organization", header: "Client", render: (row) => row.organizations?.name ?? "—" },
   { key: "site_location", header: "Location", render: (row) => row.site_location ?? "—" },
   {

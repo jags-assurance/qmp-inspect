@@ -4,17 +4,24 @@ import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
 
-export default async function StandaloneAssignmentsPage() {
+export default async function StandaloneAssignmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
   const session = await requireSession();
+  const { project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: assignments } = await supabase
+  let query = supabase
     .from("standalone_assignments" as any)
     .select(
       "id, assignment_number, assignment_type, equipment_description, assignment_date, status, conclusion, projects(name)"
     )
-    .order("created_at", { ascending: false })
-    .returns<StandaloneAssignmentListRow[]>();
+    .order("created_at", { ascending: false });
+  if (projectId) query = query.eq("project_id", projectId);
+
+  const { data: assignments } = await query.returns<StandaloneAssignmentListRow[]>();
 
   return (
     <div>
@@ -32,6 +39,15 @@ export default async function StandaloneAssignmentsPage() {
           </Link>
         )}
       </div>
+
+      {projectId && (
+        <p className="mt-3 text-sm text-muted">
+          Filtered to one project.{" "}
+          <Link href="/inspect/standalone" className="text-burgundy hover:underline">
+            Clear filter
+          </Link>
+        </p>
+      )}
 
       <div className="mt-6">
         <StandaloneTable rows={assignments ?? []} />

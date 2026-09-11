@@ -7,15 +7,22 @@ import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { isOverdue } from "./is-overdue";
 
-export default async function NcrsPage() {
+export default async function NcrsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
   const session = await requireSession();
+  const { project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: ncrs } = await supabase
+  let query = supabase
     .from(NCRS_TABLE)
     .select("id, ncr_number, severity, description, status, due_date, projects(name, project_number)")
-    .order("created_at", { ascending: false })
-    .returns<NcrRegisterRow[]>();
+    .order("created_at", { ascending: false });
+  if (projectId) query = query.eq("project_id", projectId);
+
+  const { data: ncrs } = await query.returns<NcrRegisterRow[]>();
 
   const rows = ncrs ?? [];
   const total = rows.length;
@@ -38,6 +45,15 @@ export default async function NcrsPage() {
           <Button>+ Raise NCR</Button>
         </Link>
       </div>
+
+      {projectId && (
+        <p className="mt-3 text-sm text-muted">
+          Filtered to one project.{" "}
+          <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
+            Clear filter
+          </Link>
+        </p>
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Total" value={total} />

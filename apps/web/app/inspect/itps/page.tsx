@@ -8,10 +8,10 @@ import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter
 export default async function ItpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId } = await searchParams;
+  const { discipline: disciplineId, project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: disciplines } = await supabase
@@ -44,6 +44,7 @@ export default async function ItpsPage({
   if (itpIdFilter) {
     query = itpIdFilter.length > 0 ? query.in("id", itpIdFilter) : query.eq("id", "00000000-0000-0000-0000-000000000000");
   }
+  if (projectId) query = query.eq("project_id", projectId);
 
   const { data: itps } = await query.returns<ItpRow[]>();
 
@@ -60,6 +61,15 @@ export default async function ItpsPage({
           </Link>
         )}
       </div>
+
+      {projectId && (
+        <p className="mt-3 text-sm text-muted">
+          Filtered to one project.{" "}
+          <Link href="/inspect/itps" className="text-burgundy hover:underline">
+            Clear filter
+          </Link>
+        </p>
+      )}
 
       <div className="mt-6">
         <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
