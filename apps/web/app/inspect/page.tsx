@@ -2,11 +2,17 @@ import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
-import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
+import {
+  ACTIVITY_SIGNOFF_PROGRESS_TABLE,
+  DEFAULT_NOTICE_PERIOD_HOURS,
+  NOTICE_PERIOD_CONFIGS_TABLE,
+  type ActivitySignoffProgressRow,
+} from "@/lib/signoff/db-types";
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
-import { PendingActionsTable } from "@/components/domain/pending-actions-table";
+import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
+import { InspectorDashboard } from "./inspector-dashboard";
 
 interface PendingSignoffRow {
   id: string;
@@ -39,12 +45,11 @@ function timeAgo(iso: string | null): string | null {
 }
 
 /**
- * Every role sees the same shell (stat cards + org list) but with real, RLS-scoped numbers instead
- * of Phase 0's hardcoded zeros, plus a role-appropriate heading and an "awaiting your sign-off"
- * panel for anyone (staff or external party) actually on the hook for one. This intentionally
- * doesn't fork into separate page components per role — the underlying queries are identical
- * (RLS decides what rows come back), only the heading text, subtitle, and whether the sign-off
- * panel appears change.
+ * One route, three real dashboards: every query below is computed once (RLS already scopes what
+ * comes back per login), then handed to whichever role-specific view actually matches the session
+ * — ExternalPartyDashboard (client/subcontractor/main contractor/TPI-lab), InspectorDashboard, or
+ * the JAGS Admin view still rendered inline below. Each was designed against its own UI reference
+ * screen rather than sharing one generic layout, so they're built and reviewed one at a time.
  */
 export default async function InspectDashboardPage() {
   const session = await requireSession();
@@ -186,17 +191,6 @@ export default async function InspectDashboardPage() {
   // of checklists that either haven't been started yet or have a draft in progress, not just a
   // count. Scoped to Inspector rather than Admin: an Admin's dashboard stays portfolio/strategic
   // (see the proposals panel above), while an Inspector's is the operational one this mirrors.
-  interface PendingActionRow {
-    templateId: string;
-    checklistNumber: string;
-    activity: string;
-    itpId: string;
-    itpNumber: string;
-    projectName: string;
-    status: "not_started" | "in_progress";
-    createdAt: string;
-    ageDays: number;
-  }
   // A checklist generated more than OVERDUE_DAYS ago with no response yet counts as overdue —
   // there's no separate "due date" concept in the schema, so age-since-generation is the closest
   // real signal (not a fabricated field).
@@ -210,15 +204,26 @@ export default async function InspectDashboardPage() {
       d.getDate() === today.getDate()
     );
   };
+  interface PendingActionRow extends PendingActionItem {
+    itpId: string;
+    itpNumber: string;
+    createdAt: string;
+    ageDays: number;
+  }
   let pendingActions: PendingActionRow[] = [];
+  let overdueHoldPoints = 0;
+  let oldestHoldPointDays = 0;
   const isInspector = session.isJagsStaff && !isAdminStaff(session);
   if (isInspector) {
     interface TemplateRow {
       id: string;
+      itp_item_id: string;
       checklist_number: string;
       created_at: string;
       itp_items: {
         activity: string;
+        discipline_id: string | null;
+        master_disciplines: { code: string } | null;
         itp_sections: {
           itps: { id: string; itp_number: string; projects: { name: string } | null } | null;
         } | null;
@@ -226,7 +231,9 @@ export default async function InspectDashboardPage() {
     }
     const { data: templates } = await supabase
       .from(CHECKLIST_TEMPLATES_TABLE)
-      .select("id, checklist_number, created_at, itp_items(activity, itp_sections(itps(id, itp_number, projects(name))))")
+      .select(
+        "id, itp_item_id, checklist_number, created_at, itp_items(activity, discipline_id, master_disciplines(code), itp_sections(itps(id, itp_number, projects(name))))"
+      )
       .order("created_at", { ascending: false })
       .limit(20)
       .returns<TemplateRow[]>();
@@ -241,8 +248,30 @@ export default async function InspectDashboardPage() {
     const hasCompleted = new Set((records ?? []).filter((r) => r.overall_result !== null).map((r) => r.checklist_template_id));
     const hasDraft = new Set((records ?? []).filter((r) => r.overall_result === null).map((r) => r.checklist_template_id));
 
-    pendingActions = (templates ?? [])
-      .filter((t) => !hasCompleted.has(t.id))
+    const pendingTemplates = (templates ?? []).filter((t) => !hasCompleted.has(t.id));
+
+    // Priority isn't a stored field anywhere in the schema — inventing an arbitrary High/Medium/Low
+    // would be fabricated data. Instead it's derived, transparently, from the real intervention
+    // levels already configured on the activity: a Hold anywhere on it makes the activity High
+    // priority (work is blocked on it), a Witness makes it Medium, anything else is Low.
+    const itemIds = [...new Set(pendingTemplates.map((t) => t.itp_item_id).filter(Boolean))];
+    const { data: interventions } = itemIds.length
+      ? await supabase
+          .from("activity_party_intervention")
+          .select("itp_item_id, intervention")
+          .in("itp_item_id", itemIds)
+          .returns<{ itp_item_id: string; intervention: "H" | "W" | "R" | "S" }[]>()
+      : { data: [] as { itp_item_id: string; intervention: "H" | "W" | "R" | "S" }[] };
+
+    const priorityByItem = new Map<string, "high" | "medium" | "low">();
+    for (const row of interventions ?? []) {
+      const current = priorityByItem.get(row.itp_item_id);
+      if (row.intervention === "H") priorityByItem.set(row.itp_item_id, "high");
+      else if (row.intervention === "W" && current !== "high") priorityByItem.set(row.itp_item_id, "medium");
+      else if (!current) priorityByItem.set(row.itp_item_id, "low");
+    }
+
+    pendingActions = pendingTemplates
       .map((t) => {
         const itp = t.itp_items?.itp_sections?.itps;
         const ageDays = Math.floor((today.getTime() - new Date(t.created_at).getTime()) / 86_400_000);
@@ -250,6 +279,8 @@ export default async function InspectDashboardPage() {
           templateId: t.id,
           checklistNumber: t.checklist_number,
           activity: t.itp_items?.activity ?? "Untitled activity",
+          discipline: t.itp_items?.master_disciplines?.code ?? null,
+          priority: priorityByItem.get(t.itp_item_id) ?? "low",
           itpId: itp?.id ?? "",
           itpNumber: itp?.itp_number ?? "",
           projectName: itp?.projects?.name ?? "",
@@ -259,24 +290,44 @@ export default async function InspectDashboardPage() {
         };
       })
       .slice(0, 8);
+
+    // "Overdue hold points": a Hold that's been notified but not yet signed off, past its project's
+    // notice period (default 48h, same threshold lib/signoff/actions.ts uses to gate everything
+    // else Hold-related) — a real, already-established definition, not a new invented one.
+    const { data: notifiedHolds } = await supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .select("notified_at, itp_items(itp_sections(itps(project_id)))")
+      .eq("intervention", "H")
+      .eq("status", "notified")
+      .returns<{ notified_at: string | null; itp_items: { itp_sections: { itps: { project_id: string } | null } | null } | null }[]>();
+
+    const projectIds = [
+      ...new Set((notifiedHolds ?? []).map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
+    ];
+    const { data: noticeConfigs } = projectIds.length
+      ? await supabase
+          .from(NOTICE_PERIOD_CONFIGS_TABLE)
+          .select("project_id, hours")
+          .eq("intervention", "H")
+          .in("project_id", projectIds)
+          .returns<{ project_id: string; hours: number }[]>()
+      : { data: [] as { project_id: string; hours: number }[] };
+    const hoursByProject = new Map((noticeConfigs ?? []).map((c) => [c.project_id, c.hours]));
+
+    const overdueAgeDays: number[] = [];
+    for (const row of notifiedHolds ?? []) {
+      if (!row.notified_at) continue;
+      const projectId = row.itp_items?.itp_sections?.itps?.project_id;
+      const noticeHours = (projectId ? hoursByProject.get(projectId) : undefined) ?? DEFAULT_NOTICE_PERIOD_HOURS.H;
+      const ageMs = today.getTime() - new Date(row.notified_at).getTime();
+      if (ageMs > noticeHours * 60 * 60 * 1000) overdueAgeDays.push(Math.floor(ageMs / 86_400_000));
+    }
+    overdueHoldPoints = overdueAgeDays.length;
+    oldestHoldPointDays = overdueAgeDays.length > 0 ? Math.max(...overdueAgeDays) : 0;
   }
 
   const pendingToday = pendingActions.filter((a) => isSameDay(a.createdAt));
   const pendingOverdue = pendingActions.filter((a) => a.ageDays >= OVERDUE_DAYS);
-
-  const heading = isAdminStaff(session)
-    ? "JAGS Admin Overview"
-    : session.isJagsStaff
-      ? "Inspector Dashboard"
-      : ownParties && ownParties.length > 0
-        ? `${ownParties[0].name} Dashboard`
-        : "Dashboard";
-
-  const subtitle = session.isJagsStaff
-    ? isAdminStaff(session)
-      ? "Portfolio status across every client you have access to."
-      : "Your day-to-day queue across every project you have access to."
-    : "Status across the project(s) you're engaged on.";
 
   if (!session.isJagsStaff) {
     const toSignoffQueueRow = (row: PendingSignoffRow): SignoffQueueRow => {
@@ -313,10 +364,29 @@ export default async function InspectDashboardPage() {
     );
   }
 
+  if (isInspector) {
+    return (
+      <InspectorDashboard
+        firstName={session.fullName.split(" ")[0] ?? session.fullName}
+        today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        activeProjects={activeProjects ?? 0}
+        activeItps={activeItps ?? 0}
+        pendingInspections={pendingInspections ?? 0}
+        overdueHoldPoints={overdueHoldPoints}
+        oldestHoldPointDays={oldestHoldPointDays}
+        pendingActions={pendingActions}
+        pendingToday={pendingToday}
+        pendingOverdue={pendingOverdue}
+      />
+    );
+  }
+
+  // Only JAGS Admin reaches this point — external parties and Inspectors both returned their own
+  // dedicated dashboard component above.
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">{heading}</h1>
-      <p className="mt-1 text-sm text-muted">{subtitle}</p>
+      <h1 className="text-2xl font-semibold text-ink">JAGS Admin Overview</h1>
+      <p className="mt-1 text-sm text-muted">Portfolio status across every client you have access to.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
@@ -369,20 +439,6 @@ export default async function InspectDashboardPage() {
           }
         />
       </div>
-
-      {isInspector && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">My pending actions</h2>
-          <p className="mt-1 text-sm text-muted">Checklists not yet started, or still in progress, across every project you have access to.</p>
-          <div className="mt-4">
-            <PendingActionsTable
-              all={pendingActions}
-              today={pendingToday}
-              overdue={pendingOverdue}
-            />
-          </div>
-        </div>
-      )}
 
       {isAdminStaff(session) && pendingProposalsCount > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">

@@ -16,6 +16,16 @@ export const ACTIVITY_SIGNOFF_PROGRESS_TABLE = "activity_signoff_progress" as an
 export const SIGNOFF_STATUSES = ["pending", "notified", "signed_off", "proceeded_no_response"] as const;
 export type SignoffStatus = (typeof SIGNOFF_STATUSES)[number];
 
+// Fallback notice periods (hours) used when a project has no notice_period_configs row for the
+// given intervention level — R66-R81 documents these as the defaults, overridable per project.
+// Shared (not just internal to actions.ts) so anything computing "is this Hold/Witness overdue"
+// (e.g. the Inspector dashboard's "Overdue hold points" stat) uses the exact same threshold as the
+// actions that actually enforce it.
+export const DEFAULT_NOTICE_PERIOD_HOURS: Record<"H" | "W", number> = {
+  H: 48,
+  W: 24,
+};
+
 export interface NoticePeriodConfigRow {
   id: string;
   project_id: string;

@@ -5,17 +5,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
+  DEFAULT_NOTICE_PERIOD_HOURS,
   NOTICE_PERIOD_CONFIGS_TABLE,
   type ActivitySignoffProgressRow,
   type NoticePeriodConfigRow,
 } from "./db-types";
-
-// Fallback notice periods (hours) used when a project has no notice_period_configs row for the
-// given intervention level — R66-R81 documents these as the defaults, overridable per project.
-const DEFAULT_NOTICE_PERIOD_HOURS: Record<"H" | "W", number> = {
-  H: 48,
-  W: 24,
-};
 
 export interface SignoffActionResult {
   error: string | null;
