@@ -5,6 +5,8 @@ import { saveChecklistResponseAction } from "@/lib/checklists/actions";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
 import { cn } from "@/lib/cn";
+import { enqueueOutboxItem } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
 const PILLS: { value: ChecklistResponseResult; label: string; activeClass: string }[] = [
   { value: "yes", label: "Yes", activeClass: "bg-success text-white border-success" },
@@ -82,8 +84,22 @@ export function ResponseRow({
     formData.set("checklist_item_id", checklistItemId);
     formData.set("result", nextResult);
     formData.set("comment", combineStoredComment(nextOverrideReason, nextComment));
-    startTransition(() => {
-      saveChecklistResponseAction(formData);
+
+    startTransition(async () => {
+      // Offline (R60): rather than let the Server Action's own fetch fail, queue the response
+      // right away when we already know there's no connection, and fall back to the queue if a
+      // "we thought we were online" attempt fails too (a dropped connection mid-save).
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
+        notifyOutboxChanged();
+        return;
+      }
+      try {
+        await saveChecklistResponseAction(formData);
+      } catch {
+        await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
+        notifyOutboxChanged();
+      }
     });
   }
 

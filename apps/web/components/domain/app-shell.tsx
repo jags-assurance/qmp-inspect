@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { signOutAction } from "@/lib/auth/actions";
 import { SidebarNav } from "./sidebar-nav";
+import { OfflineBanner } from "./offline-banner";
 
 export interface NavItem {
   label: string;
@@ -99,6 +100,7 @@ export function AppShell({
             </div>
           </div>
         </header>
+        <OfflineBanner />
         <main className="flex-1 bg-background p-6">{children}</main>
       </div>
     </div>

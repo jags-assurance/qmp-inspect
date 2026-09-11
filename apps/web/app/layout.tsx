@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/domain/service-worker-register";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -19,12 +20,25 @@ const monoUi = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "JAGS Assurance",
   description: "QMP Inspect — quality & inspection management platform",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "QMP Inspect",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#6B1E2C",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${monoUi.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-background text-foreground">{children}</body>
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

@@ -346,10 +346,14 @@ export interface CompleteInspectionState {
  * NCR off it is a separate feature (a different agent's work); this only surfaces that possibility
  * to the inspector, it doesn't call anything for it.
  */
-export async function completeInspectionAction(
-  _prev: CompleteInspectionState,
-  formData: FormData
-): Promise<CompleteInspectionState> {
+/**
+ * The validation + write logic shared by completeInspectionAction (the live form, which redirects
+ * on success) and the offline-sync route handler (POST /api/offline-sync, which never redirects —
+ * it's a background fetch, not a page navigation). Pulled out so both places enforce exactly the
+ * same rules (Hold gating, every item answered) instead of the sync path re-implementing — and
+ * potentially drifting from — the real one.
+ */
+export async function completeInspectionCore(formData: FormData): Promise<CompleteInspectionState & { inspectionRecordId?: string }> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   const templateId = String(formData.get("template_id") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
@@ -427,7 +431,16 @@ export async function completeInspectionAction(
     });
   }
 
-  redirect(`/inspect/inspections/${inspectionRecordId}`);
+  return { error: null, inspectionRecordId };
+}
+
+export async function completeInspectionAction(
+  _prev: CompleteInspectionState,
+  formData: FormData
+): Promise<CompleteInspectionState> {
+  const result = await completeInspectionCore(formData);
+  if (result.error) return { error: result.error };
+  redirect(`/inspect/inspections/${result.inspectionRecordId}`);
 }
 
 export interface CheckConsistencyState {

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Offline — QMP Inspect</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #F9F7F4;
+    color: #1C1C1E;
+  }
+  .card {
+    max-width: 360px;
+    padding: 32px;
+    text-align: center;
+  }
+  .mark {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px auto;
+    border-radius: 50%;
+    background: #6B1E2C;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 20px;
+  }
+  h1 { font-size: 18px; margin: 0 0 8px 0; }
+  p { font-size: 14px; color: #555; line-height: 1.5; }
+  button {
+    margin-top: 16px;
+    background: #6B1E2C;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">JA</div>
+    <h1>You're offline</h1>
+    <p>
+      This page hasn't been loaded before, so it isn't available offline yet. Anything you already
+      opened (a checklist, an inspection) still works, and answers/photos you record are queued and
+      sync automatically once you're back online.
+    </p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>
