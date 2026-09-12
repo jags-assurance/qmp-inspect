@@ -7,6 +7,7 @@ import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
 import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
+import { generateChecklistsForItp } from "@/lib/checklists/actions";
 
 // Reqs R34-R43: spec-to-ITP draft generation, grounded in the project's own vault documents (the
 // actual attached specs/standards/method statements) rather than a free-typed description alone.
@@ -276,6 +277,27 @@ export async function createItpFromDraftAction(
     // Not treated as a hard failure — the intervention grid remains editable afterward from the
     // normal ITP detail page regardless.
     await supabase.from("activity_party_intervention").insert(interventionsToInsert);
+  }
+
+  // Generate checklists immediately — this ITP's activities came from real, reviewed source
+  // material (the vault documents/instructions the draft was grounded in), not built up one item
+  // at a time, so there's no reason to make the user separately advance the ITP through
+  // Draft -> Under Review -> Approved before it's field-usable. Best-effort: a failure here never
+  // undoes the ITP that was just successfully created (see generateChecklistsForItp's doc comment
+  // for why this path is intentionally not gated on approval, unlike the manual button).
+  const { data: projectForChecklists } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+  if (projectForChecklists) {
+    await generateChecklistsForItp(supabase, {
+      itpId: itp.id,
+      itpNumber,
+      projectId,
+      organizationId: projectForChecklists.organization_id,
+      userId: user?.id ?? null,
+    });
   }
 
   redirect(`/inspect/itps/${itp.id}`);

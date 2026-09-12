@@ -14,6 +14,7 @@ import {
   type ItpMasterSectionRow,
   type ItpMasterItemRow,
 } from "@/lib/itp-master/types";
+import { generateChecklistsForItp } from "@/lib/checklists/actions";
 
 export interface CopyMasterTemplateState {
   error: string | null;
@@ -128,6 +129,25 @@ export async function copyMasterTemplateToItpAction(
     if (itemsError) {
       return { error: "ITP and sections created, but activities could not be copied from the template." };
     }
+  }
+
+  // Generate checklists immediately — the master template is already-reviewed, real material (a
+  // Tier 1 template promoted through the propose/approve workflow), so this copy is complete and
+  // field-usable activities from the moment it's created, same reasoning as the AI-draft path in
+  // lib/itps/ai-draft-actions.ts. Best-effort: never blocks the ITP that was just created.
+  const { data: projectForChecklists } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+  if (projectForChecklists) {
+    await generateChecklistsForItp(supabase, {
+      itpId: itp.id,
+      itpNumber,
+      projectId,
+      organizationId: projectForChecklists.organization_id,
+      userId: user?.id ?? null,
+    });
   }
 
   redirect(`/inspect/itps/${itp.id}`);

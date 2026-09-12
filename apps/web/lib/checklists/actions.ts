@@ -49,42 +49,39 @@ async function canExecuteChecklistForItem(
   return (stakeholderParties ?? []).some((row) => row.project_parties?.user_id === session.userId);
 }
 
+export interface GenerateChecklistsResult {
+  error: string | null;
+  created: number;
+}
+
 /**
- * Generates and numbers a checklist for every evidence_type = 1 activity on an approved ITP that
- * doesn't already have one (R48: checklists are generated at approval, not draft). Deliberately a
- * standalone action rather than a hook into advanceItpStatusAction — approval and "produce the
- * checklists for this approval" stay two separate, auditable steps.
+ * Core checklist generation, shared by two callers with two different gating rules:
+ *
+ * 1. generateChecklistTemplatesAction (manual button) — only runs once an ITP is 'approved'
+ *    (R48: checklists get their official numbers at approval, not draft).
+ * 2. The "generate the whole ITP" flows — AI spec-to-ITP draft (lib/itps/ai-draft-actions.ts) and
+ *    master-template copy (lib/itp-master/actions.ts) — call this immediately after the ITP's
+ *    sections/items are inserted, with no status gate, per an explicit product decision: those two
+ *    flows already have real, complete activities in hand (from the source vault documents or the
+ *    master template) the moment the ITP exists, so there is no reason to make the user click
+ *    through Draft -> Under Review -> Approved -> "Generate checklists" by hand before the ITP is
+ *    field-usable. R48's numbering rule still holds for the plain manual "start from a blank ITP,
+ *    add activities one at a time" path, which is the only path still gated on approval.
+ *
+ * Silently generates nothing (created: 0, error: null) for an ITP with no sections, no
+ * evidence_type = 1 activities, or where every such activity already has a checklist — this is a
+ * normal, non-error outcome for a caller that runs automatically right after creation, not just for
+ * the manual button.
  */
-export async function generateChecklistTemplatesAction(
-  _prev: GenerateChecklistsState,
-  formData: FormData
-): Promise<GenerateChecklistsState> {
-  const itpId = String(formData.get("itp_id") ?? "").trim();
-  if (!itpId) return { error: "Missing ITP." };
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: itp } = await supabase
-    .from("itps")
-    .select("id, itp_number, status, project_id, projects(organization_id)")
-    .eq("id", itpId)
-    .maybeSingle<{
-      id: string;
-      itp_number: string;
-      status: string;
-      project_id: string;
-      projects: { organization_id: string } | null;
-    }>();
-
-  if (!itp) return { error: "ITP not found." };
-  if (itp.status !== "approved") return { error: "The ITP must be approved before checklists can be generated." };
+export async function generateChecklistsForItp(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  params: { itpId: string; itpNumber: string; projectId: string; organizationId: string; userId: string | null }
+): Promise<GenerateChecklistsResult> {
+  const { itpId, itpNumber, projectId, organizationId, userId } = params;
 
   const { data: sections } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId);
   const sectionIds = (sections ?? []).map((s) => s.id);
-  if (sectionIds.length === 0) return { error: "This ITP has no sections yet." };
+  if (sectionIds.length === 0) return { error: null, created: 0 };
 
   const { data: items } = await supabase
     .from("itp_items")
@@ -92,7 +89,7 @@ export async function generateChecklistTemplatesAction(
     .in("section_id", sectionIds)
     .eq("evidence_type", 1);
 
-  if (!items || items.length === 0) return { error: "This ITP has no checklist-type activities." };
+  if (!items || items.length === 0) return { error: null, created: 0 };
 
   const { data: existingTemplates } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
@@ -106,14 +103,14 @@ export async function generateChecklistTemplatesAction(
   const alreadyTemplated = new Set((existingTemplates ?? []).map((t) => t.itp_item_id));
   const pending = items.filter((i) => !alreadyTemplated.has(i.id));
 
-  if (pending.length === 0) return { error: "Checklists already exist for every checklist-type activity." };
+  if (pending.length === 0) return { error: null, created: 0 };
 
   // Real, field-usable checklist items — one AI call per activity, run in parallel. This is
   // gated the same way as every other AI feature (assertAiAllowed) and is best-effort per item:
   // an item the AI can't draft for (unavailable, malformed response) falls back to the single
   // "acceptance criteria as one item" placeholder rather than failing checklist generation
   // outright, so this action never regresses below what it did before AI was wired in.
-  const gate = await assertAiAllowed(supabase, itp.projects?.organization_id ?? "");
+  const gate = await assertAiAllowed(supabase, organizationId);
   let aiUsed = false;
   const itemsByPendingId = new Map(
     await Promise.all(
@@ -137,12 +134,8 @@ export async function generateChecklistTemplatesAction(
     )
   );
 
-  if (aiUsed && itp.projects?.organization_id) {
-    await logAiUsage(supabase, {
-      organizationId: itp.projects.organization_id,
-      userId: user?.id ?? null,
-      feature: "checklist_generation",
-    });
+  if (aiUsed && organizationId) {
+    await logAiUsage(supabase, { organizationId, userId, feature: "checklist_generation" });
   }
 
   // Atomic per-ITP counter (race-free even if this action fires twice concurrently, e.g. a
@@ -153,11 +146,11 @@ export async function generateChecklistTemplatesAction(
   const newTemplates: { itp_item_id: string; checklist_number: string; name: string }[] = [];
   for (const item of pending) {
     const seq = await nextSequenceNumber(supabase, {
-      organizationId: itp.projects?.organization_id ?? "",
-      projectId: itp.project_id,
+      organizationId,
+      projectId,
       seqKey: `checklist:${itpId}`,
     });
-    newTemplates.push({ itp_item_id: item.id, checklist_number: `${itp.itp_number}-CHK-${seq}`, name: item.activity });
+    newTemplates.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity });
   }
 
   const { data: inserted, error: templatesError } = await supabase
@@ -167,7 +160,7 @@ export async function generateChecklistTemplatesAction(
     .returns<Pick<ChecklistTemplateRow, "id" | "itp_item_id">[]>();
 
   if (templatesError || !inserted) {
-    return { error: "Could not generate checklists. Check you have permission and try again." };
+    return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
   }
 
   const pendingById = new Map(pending.map((item) => [item.id, item]));
@@ -197,8 +190,56 @@ export async function generateChecklistTemplatesAction(
   const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(checklistItemsToInsert);
 
   if (itemsError) {
-    return { error: "Checklists were created, but their items could not be added." };
+    return { error: "Checklists were created, but their items could not be added.", created: inserted.length };
   }
+
+  return { error: null, created: inserted.length };
+}
+
+/**
+ * Manual "Generate checklists" button on an approved ITP's checklists page. Still gated on
+ * 'approved' — this is the one remaining path where an ITP can accumulate activities one at a time
+ * over Draft/Under Review before checklists are wanted, so R48's "number at approval" rule still
+ * applies here. See generateChecklistsForItp's doc comment for the two auto-generating flows that
+ * intentionally do not have this gate.
+ */
+export async function generateChecklistTemplatesAction(
+  _prev: GenerateChecklistsState,
+  formData: FormData
+): Promise<GenerateChecklistsState> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  if (!itpId) return { error: "Missing ITP." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("id, itp_number, status, project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{
+      id: string;
+      itp_number: string;
+      status: string;
+      project_id: string;
+      projects: { organization_id: string } | null;
+    }>();
+
+  if (!itp) return { error: "ITP not found." };
+  if (itp.status !== "approved") return { error: "The ITP must be approved before checklists can be generated." };
+
+  const result = await generateChecklistsForItp(supabase, {
+    itpId,
+    itpNumber: itp.itp_number,
+    projectId: itp.project_id,
+    organizationId: itp.projects?.organization_id ?? "",
+    userId: user?.id ?? null,
+  });
+
+  if (result.error) return { error: result.error };
+  if (result.created === 0) return { error: "Checklists already exist for every checklist-type activity, or this ITP has none." };
 
   revalidatePath(`/inspect/itps/${itpId}/checklists`);
   return { error: null };
