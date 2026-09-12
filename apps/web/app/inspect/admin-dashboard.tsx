@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";

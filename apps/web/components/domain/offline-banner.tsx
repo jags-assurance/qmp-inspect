@@ -11,7 +11,13 @@ import { onOutboxChanged, syncOutbox } from "@/lib/offline/sync-client";
  * from anywhere in the field-work flow, not just the checklist page.
  */
 export function OfflineBanner() {
-  const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  // Always matches the server's render on first paint (server has no `navigator`, so it always
+  // renders as if online) — reading the real navigator.onLine value happens only inside the effect
+  // below, which runs post-hydration. Reading it directly in the initial state, even guarded by a
+  // typeof check, still diverges from the server whenever the client is actually offline at first
+  // paint, which is exactly the case this component exists to handle — that mismatch is what was
+  // throwing "Hydration failed" on every load.
+  const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
