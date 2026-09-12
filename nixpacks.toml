@@ -1,0 +1,43 @@
+# Railway's worker service builds from the repo root (see README's Railway setup: build command
+# `pnpm --filter @jags/worker build`). Nixpacks' default Node builder has no browser dependencies at
+# all, so headless Chrome (used by every PDF-rendering job in worker/src/jobs/) fails to even launch
+# with an error like "error while loading shared libraries: libnss3.so" once Puppeteer's own Chrome
+# binary is actually present (see package.json's pnpm.onlyBuiltDependencies for the other half of this
+# fix — pnpm 10 silently skips puppeteer's postinstall Chrome download unless explicitly allowed).
+#
+# This list is the standard set Google/Puppeteer document for running headless Chrome on Debian —
+# not guessed at; trimming it risks reintroducing the same "shared library not found" failure for
+# whichever one turns out to be load-bearing.
+[phases.setup]
+aptPkgs = [
+  "ca-certificates",
+  "fonts-liberation",
+  "libasound2",
+  "libatk-bridge2.0-0",
+  "libatk1.0-0",
+  "libc6",
+  "libcairo2",
+  "libcups2",
+  "libdbus-1-3",
+  "libexpat1",
+  "libfontconfig1",
+  "libgbm1",
+  "libglib2.0-0",
+  "libgtk-3-0",
+  "libnspr4",
+  "libnss3",
+  "libpango-1.0-0",
+  "libx11-6",
+  "libx11-xcb1",
+  "libxcb1",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxext6",
+  "libxfixes3",
+  "libxrandr2",
+  "libxrender1",
+  "libxtst6",
+  "lsb-release",
+  "wget",
+  "xdg-utils",
+]

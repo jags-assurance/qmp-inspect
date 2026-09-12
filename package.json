@@ -11,5 +11,10 @@
     "test": "pnpm -r --if-present test",
     "db:push": "npx supabase db push",
     "db:types": "npx supabase gen types typescript --linked > packages/shared-types/src/database.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "puppeteer"
+    ]
   }
 }

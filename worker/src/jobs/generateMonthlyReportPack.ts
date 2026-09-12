@@ -215,9 +215,12 @@ export async function generateMonthlyReportPack(
   const html = buildMonthlyReportHtml(templateData);
   const csv = buildCsv(templateData);
 
-  // executablePath override is opt-in via env var only — Railway's real deployment installs
-  // Chromium via its own buildpack and needs no override; this exists purely so local dev on a
-  // machine without Puppeteer's bundled Chromium (e.g. this one) can still exercise the pipeline.
+  // executablePath override is opt-in via env var only — Railway's deployment gets Puppeteer's own
+  // downloaded Chrome (root package.json's pnpm.onlyBuiltDependencies lets its postinstall script
+  // actually run; pnpm 10 silently skips it otherwise) plus the shared libraries Chrome needs to
+  // launch on Linux at all (root nixpacks.toml's aptPkgs) and needs no override; this exists purely
+  // so local dev on a machine without a working Puppeteer Chrome install can still exercise the
+  // pipeline by pointing at a system Chrome/Chromium instead.
   const browser = await puppeteer.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],

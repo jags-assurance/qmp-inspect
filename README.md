@@ -80,14 +80,25 @@ exactly (see the comment at its top).
 
 ### Railway (`worker`)
 
-1. New Railway service from this repository, **Root Directory** set to `worker`.
-2. Build command: `pnpm install && pnpm --filter worker build` (or let Railway's Nixpacks
-   auto-detect — it respects the pnpm workspace). Start command: `pnpm --filter worker start`.
+1. New Railway service from this repository, **Root Directory left as the repo root** (not
+   `worker`) — `worker/package.json` depends on `@jags/shared-types` via `workspace:*`, which only
+   resolves with the root `pnpm-workspace.yaml`/`pnpm-lock.yaml` in scope.
+2. Build command: `pnpm install && pnpm --filter @jags/worker build`. Start command:
+   `pnpm --filter @jags/worker start`. Watch Paths: `/worker/**` (avoids redeploying this service on
+   unrelated `apps/web` pushes).
 3. Environment variables (see `worker/.env.example`): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` —
    the **same production Supabase project** as the Vercel deployment.
-4. Railway's own buildpack provides Chromium for Puppeteer automatically — no extra configuration
-   needed there (unlike plain local dev, which may need a `PUPPETEER_EXECUTABLE_PATH` override
-   depending on the machine).
+4. Puppeteer's headless Chrome needs two things Railway's plain Nixpacks Node image does not provide
+   on its own, both already committed at the repo root — nothing further to configure:
+   - `package.json`'s `pnpm.onlyBuiltDependencies: ["puppeteer"]` — pnpm 10 silently skips a
+     dependency's `postinstall` script (which is how Puppeteer downloads its own Chrome build)
+     unless it's explicitly allowed here; without it, `pnpm install` "succeeds" but no Chrome ever
+     gets downloaded, and every PDF-rendering job fails at runtime with "Could not find Chrome".
+   - `nixpacks.toml`'s `aptPkgs` — the shared libraries (`libnss3`, `libatk-bridge2.0-0`, etc.)
+     headless Chrome needs just to launch on Linux; a bare Nixpacks Node image has none of them.
+   If a job still fails with "Could not find Chrome" after these, check the Railway build logs for
+   the "Ignored build scripts" warning — if it's still there, `onlyBuiltDependencies` didn't take
+   effect (e.g. a stale build cache) and a clean redeploy is worth trying.
 
 ### Supabase
 
