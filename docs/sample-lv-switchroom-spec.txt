@@ -1,0 +1,53 @@
+PROJECT SPECIFICATION — LV SWITCHROOM REFURBISHMENT
+Document No: MER-SPEC-ELEC-004   Rev: 2   Date: 2026-09-01
+Client: Meridian Energy   Discipline: Electrical
+
+1. SCOPE
+This specification covers the supply, installation, testing and commissioning of a new
+415V low-voltage (LV) switchboard and associated outgoing feeders in the main switchroom,
+including cable termination, insulation resistance testing, protective device settings,
+and final functional testing prior to energization.
+
+2. APPLICABLE STANDARDS
+- IEC 61439-1/2 — Low-voltage switchgear and controlgear assemblies
+- IEC 60364 — Electrical installations of buildings
+- Client Electrical Installation Standard MER-ES-100 Rev 3
+
+3. MATERIALS AND SUBMITTALS
+3.1 The switchgear nameplate rating shall be verified against the approved submittal
+    (drawing MER-DWG-E-201) before installation proceeds. Any deviation shall be raised
+    as a non-conformance before work continues.
+3.2 All cable and cable gland materials shall match the approved material submittal
+    schedule MER-MAT-004.
+
+4. INSTALLATION
+4.1 Cable terminations at the switchgear shall be torqued to the manufacturer's
+    specified values and visually inspected for correct lug crimping, gland sealing,
+    and cable segregation (power vs control).
+4.2 Earthing and bonding connections shall be installed and visually verified for
+    continuity path integrity before energization.
+
+5. TESTING AND COMMISSIONING
+5.1 Insulation resistance (IR) testing shall be performed on each of the three (3)
+    outgoing feeders (F1, F2, F3) at 500V DC, minimum acceptable value 100 megohms,
+    per IEC 60364-6. Results shall be recorded on the IR test record.
+5.2 Protective device (MCCB/relay) settings shall be verified against the approved
+    protection coordination study MER-PCS-002 before the panel is energized.
+5.3 A final functional test of the switchgear panel — confirming correct operation of
+    all breakers, indication lamps, and interlocks — shall be carried out and witnessed
+    prior to handover.
+5.4 Phase rotation and voltage balance across all three phases shall be verified and
+    recorded at first energization.
+
+6. HOLD POINTS
+- Cable termination and IR testing (Section 5.1) is a MANDATORY HOLD POINT for the
+  Main Contractor and JAGS Assurance — work shall not proceed to energization without
+  written sign-off.
+- Final functional test (Section 5.3) is a WITNESS POINT for the Client.
+
+7. ACCEPTANCE CRITERIA SUMMARY
+- Nameplate rating matches approved submittal — no deviation.
+- IR test result >= 100 megohms per feeder, all three feeders.
+- Protection settings match the approved coordination study, verified before energization.
+- Functional test: all breakers operate correctly, no fault indications, interlocks function.
+- Phase rotation correct (R-Y-B), voltage balance within +/-2% across phases.
