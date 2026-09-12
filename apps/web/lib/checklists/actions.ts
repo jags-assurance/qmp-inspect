@@ -22,6 +22,7 @@ import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { nextSequenceNumber } from "@/lib/numbering/generate";
 
 export interface GenerateChecklistsState {
   error: string | null;
@@ -144,12 +145,20 @@ export async function generateChecklistTemplatesAction(
     });
   }
 
-  let seq = (existingTemplates ?? []).length + 1;
-  const newTemplates = pending.map((item) => ({
-    itp_item_id: item.id,
-    checklist_number: `${itp.itp_number}-CHK-${seq++}`,
-    name: item.activity,
-  }));
+  // Atomic per-ITP counter (race-free even if this action fires twice concurrently, e.g. a
+  // double-click, or a later run adding checklists for newly-added items) rather than
+  // (existingTemplates.length + 1), which two concurrent callers could both read before either
+  // writes — see nextSequenceNumber. Sequential (not Promise.all) so checklist_number order
+  // matches item order, since each call must await the previous one's DB round trip anyway.
+  const newTemplates: { itp_item_id: string; checklist_number: string; name: string }[] = [];
+  for (const item of pending) {
+    const seq = await nextSequenceNumber(supabase, {
+      organizationId: itp.projects?.organization_id ?? "",
+      projectId: itp.project_id,
+      seqKey: `checklist:${itpId}`,
+    });
+    newTemplates.push({ itp_item_id: item.id, checklist_number: `${itp.itp_number}-CHK-${seq}`, name: item.activity });
+  }
 
   const { data: inserted, error: templatesError } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
@@ -310,16 +319,26 @@ export async function startInspectionAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { count } = await supabase
-    .from(INSPECTION_RECORDS_TABLE)
-    .select("id", { count: "exact", head: true })
-    .eq("itp_number", itpNumber);
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+
+  // Atomic per-ITP counter, same reasoning as checklist_number above — a plain count-then-insert
+  // would let two inspectors starting a field inspection at the same moment collide on the same
+  // INSP suffix.
+  const seq = await nextSequenceNumber(supabase, {
+    organizationId: project?.organization_id ?? "",
+    projectId,
+    seqKey: `inspection:${itpNumber}`,
+  });
 
   const { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert({
     project_id: projectId,
     itp_item_id: itpItemId,
     checklist_template_id: templateId,
-    record_number: `${itpNumber}-INSP-${(count ?? 0) + 1}`,
+    record_number: `${itpNumber}-INSP-${seq}`,
     project_name: projectName,
     itp_number: itpNumber,
     activity,
@@ -541,7 +560,7 @@ export interface IssueIrnState {
   error: string | null;
 }
 
-/** Issues an IRN off a passed inspection record. Numbering is a simple per-ITP counter (R44-R65). */
+/** Issues an IRN off a passed inspection record. Numbering is an atomic per-ITP counter (R44-R65). */
 export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): Promise<IssueIrnState> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   if (!inspectionRecordId) return { error: "Missing inspection record." };
@@ -550,26 +569,27 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
 
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("id, itp_number, overall_result")
+    .select("id, project_id, itp_number, overall_result")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "id" | "itp_number" | "overall_result">>();
+    .maybeSingle<Pick<InspectionRecordRow, "id" | "project_id" | "itp_number" | "overall_result">>();
 
   if (!record) return { error: "Inspection record not found." };
   if (record.overall_result !== "pass") return { error: "An IRN can only be issued from a passed inspection." };
 
-  // Simple per-ITP counter: count IRNs already issued against inspection records sharing this
-  // ITP number. Not collision-proof under concurrent issuance, which is an acceptable trade-off
-  // for this phase (see the migration file header).
-  const { data: itpRecordIds } = await supabase
-    .from(INSPECTION_RECORDS_TABLE)
-    .select("id")
-    .eq("itp_number", record.itp_number)
-    .returns<Pick<InspectionRecordRow, "id">[]>();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", record.project_id)
+    .maybeSingle<{ organization_id: string }>();
 
-  const { count } = await supabase
-    .from(IRNS_TABLE)
-    .select("id", { count: "exact", head: true })
-    .in("inspection_record_id", (itpRecordIds ?? []).map((r) => r.id));
+  // Atomic per-ITP counter (next_document_sequence), same as checklist_number and the INSP suffix
+  // above — replaces the earlier count-then-insert, which wasn't collision-proof under concurrent
+  // IRN issuance against the same ITP.
+  const seq = await nextSequenceNumber(supabase, {
+    organizationId: project?.organization_id ?? "",
+    projectId: record.project_id,
+    seqKey: `irn:${record.itp_number}`,
+  });
 
   const {
     data: { user },
@@ -577,7 +597,7 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
 
   const { error } = await supabase.from(IRNS_TABLE).insert({
     inspection_record_id: inspectionRecordId,
-    irn_number: `${record.itp_number}-IRN-${(count ?? 0) + 1}`,
+    irn_number: `${record.itp_number}-IRN-${seq}`,
     issued_by: user?.id ?? null,
   });
 

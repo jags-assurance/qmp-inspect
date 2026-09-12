@@ -9,12 +9,12 @@
 // Actions are POST-only and can never be meaningfully cached; the app-level offline queue in
 // lib/offline/ is what makes those resilient to being offline, not this service worker).
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const APP_SHELL_CACHE = `qmp-inspect-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `qmp-inspect-runtime-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 
-const APP_SHELL_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/icon.svg"];
+const APP_SHELL_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

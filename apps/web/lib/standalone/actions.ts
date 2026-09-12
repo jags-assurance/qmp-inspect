@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import { nextSequenceNumber } from "@/lib/numbering/generate";
 import {
   STANDALONE_ASSIGNMENTS,
   STANDALONE_ASSIGNMENT_MEASUREMENTS,
@@ -121,21 +122,23 @@ export async function createAssignmentAction(
 
   const { data: project } = await supabase
     .from("projects")
-    .select("project_number")
+    .select("project_number, organization_id")
     .eq("id", projectId)
-    .maybeSingle();
+    .maybeSingle<{ project_number: string; organization_id: string }>();
 
   if (!project) {
     return { error: "Project not found." };
   }
 
-  const { count } = await supabase
-    .from(STANDALONE_ASSIGNMENTS)
-    .select("id", { count: "exact", head: true })
-    .eq("project_id", projectId)
-    .eq("assignment_type", assignmentType);
-
-  const seq = String((count ?? 0) + 1).padStart(3, "0");
+  // Atomic per-project-per-type counter (next_document_sequence) — a plain count-then-insert would
+  // let two assignments of the same type created at the same moment collide on the same number,
+  // which is exactly the race the 23505 handling below used to paper over rather than prevent.
+  const rawSeq = await nextSequenceNumber(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    seqKey: `standalone_assignment:${assignmentType}`,
+  });
+  const seq = String(rawSeq).padStart(3, "0");
   const assignmentNumber = `${project.project_number}-${ASSIGNMENT_TYPE_PREFIX[assignmentType]}-${seq}`;
 
   const { data: assignment, error } = await supabase

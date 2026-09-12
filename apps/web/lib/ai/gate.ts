@@ -1,4 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
+
+// Cheap abuse guard on top of the consent gate below: caps how many AI calls one organisation can
+// make in a rolling window, using the usage log that already exists for admin-visibility purposes
+// (lib/ai/log.ts) rather than a new table or an in-memory counter — a DB-backed count survives a
+// restart/redeploy and is correct even if this app ever runs more than one instance, unlike an
+// in-process Map would be. Not per-user: an org sharing its seat across staff shouldn't be able to
+// bypass the cap by spreading calls across accounts.
+const AI_RATE_LIMIT_WINDOW_MS = 60_000;
+const AI_RATE_LIMIT_MAX_CALLS = 20;
 
 /**
  * The single enforcement point for the non-negotiable data-privacy rule: an organisation's real
@@ -39,6 +49,19 @@ export async function assertAiAllowed(
       allowed: false,
       reason:
         "AI assistance is not available for this organisation yet. A JAGS admin can enable it once the account is on the paid tier.",
+    };
+  }
+
+  const { count: recentCalls } = await supabase
+    .from(AI_USAGE_LOG_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .gte("created_at", new Date(Date.now() - AI_RATE_LIMIT_WINDOW_MS).toISOString());
+
+  if ((recentCalls ?? 0) >= AI_RATE_LIMIT_MAX_CALLS) {
+    return {
+      allowed: false,
+      reason: "AI assistance is being used heavily right now — please wait a moment and try again.",
     };
   }
 

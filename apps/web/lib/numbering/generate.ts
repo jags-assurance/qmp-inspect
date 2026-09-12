@@ -128,3 +128,32 @@ export async function generateDocumentNumber(
 
   return { documentNumber, internalReference };
 }
+
+/**
+ * The same atomic, race-free primitive as generateDocumentNumber (next_document_sequence), for the
+ * sub-document numbers that live inside a single ITP's own scheme rather than the client-configured
+ * project/org numbering (checklist_number, an inspection record's INSP suffix, an IRN suffix,
+ * standalone assignment numbers per type) — these don't have a client_code/format to look up in
+ * numbering_configs, just a plain incrementing int, so there's no need to go through
+ * generateDocumentNumber's config+formatting layer for them.
+ *
+ * seqKey should be namespaced by whatever the sequence is actually scoped to (e.g. `checklist:${itpId}`,
+ * `irn:${itpNumber}`) so two different ITPs in the same project don't share one counter.
+ */
+export async function nextSequenceNumber(
+  supabase: SupabaseClient,
+  { organizationId, projectId, seqKey }: { organizationId: string; projectId: string | null; seqKey: string }
+): Promise<number> {
+  const { data, error } = await supabase.rpc("next_document_sequence", {
+    org_id: organizationId,
+    proj_id: projectId,
+    seq_doc_type: seqKey,
+  });
+
+  if (error || typeof data !== "number") {
+    // Numbering must never block document creation — same fallback spirit as generateDocumentNumber.
+    return Date.now() % 100000;
+  }
+
+  return data;
+}
