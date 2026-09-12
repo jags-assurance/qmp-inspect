@@ -33,6 +33,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // above already show every organisation to any JAGS staff login, admin or inspector alike).
     ...(isAdminStaff(session)
       ? [
+          { label: "Client Organisations", href: "/inspect/organisation/clients" },
           { label: "Master ITP Library", href: "/inspect/itp-master" },
           { label: "Numbering", href: "/inspect/organisation/numbering" },
           { label: "Staff Access", href: "/inspect/organisation/staff-access" },

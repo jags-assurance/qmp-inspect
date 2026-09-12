@@ -1,0 +1,80 @@
+"use client";
+
+import { useActionState } from "react";
+import { createOrganizationAction, type CreateOrganizationState } from "@/lib/organizations/actions";
+import { Button } from "@/components/ui/button";
+
+const initialState: CreateOrganizationState = { error: null };
+
+const ENGAGEMENT_MODE_OPTIONS: { value: string; label: string; description: string }[] = [
+  { value: "jags_led", label: "JAGS-led", description: "JAGS branding on every document — the default." },
+  { value: "co_branded", label: "Co-branded", description: "Client's branding alongside JAGS's on documents." },
+  {
+    value: "white_label",
+    label: "White-label",
+    description: "Client's own branding only. Internal JAGS traceability stays on the document, hidden from the client-visible number.",
+  },
+];
+
+export function NewOrganizationForm() {
+  const [state, formAction, pending] = useActionState(createOrganizationAction, initialState);
+
+  return (
+    <form action={formAction} className="mt-6 max-w-lg space-y-4 rounded-lg border border-border bg-surface p-5">
+      <div>
+        <label htmlFor="org_name" className="block text-sm font-medium text-ink">
+          Organisation name
+        </label>
+        <input
+          id="org_name"
+          name="name"
+          required
+          placeholder="e.g. Northgate Industries"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="org_slug" className="block text-sm font-medium text-ink">
+          Slug <span className="font-normal text-muted">(optional — derived from the name if left blank)</span>
+        </label>
+        <input
+          id="org_slug"
+          name="slug"
+          placeholder="e.g. northgate"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+
+      <div>
+        <span className="block text-sm font-medium text-ink">Engagement mode</span>
+        <div className="mt-2 space-y-2">
+          {ENGAGEMENT_MODE_OPTIONS.map((opt) => (
+            <label key={opt.value} className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="engagement_mode"
+                value={opt.value}
+                defaultChecked={opt.value === "jags_led"}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium text-ink">{opt.label}</span>
+                <span className="block text-xs text-muted">{opt.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          This can be changed later from Numbering &amp; engagement mode.
+        </p>
+      </div>
+
+      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+
+      <Button type="submit" disabled={pending}>
+        {pending ? "Creating…" : "Create organisation"}
+      </Button>
+    </form>
+  );
+}

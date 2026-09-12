@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { createProjectAction, type CreateProjectState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,14 @@ export function NewProjectForm({ organizations }: { organizations: { id: string;
   return (
     <form action={formAction} className="mt-6 space-y-4">
       <div>
-        <label htmlFor="organization_id" className="block text-sm font-medium text-ink">
-          Client organisation
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="organization_id" className="block text-sm font-medium text-ink">
+            Client organisation
+          </label>
+          <Link href="/inspect/organisation/clients" className="text-xs font-medium text-burgundy hover:underline">
+            + New organisation
+          </Link>
+        </div>
         <select
           id="organization_id"
           name="organization_id"
@@ -28,6 +34,11 @@ export function NewProjectForm({ organizations }: { organizations: { id: string;
             </option>
           ))}
         </select>
+        {organizations.length === 0 && (
+          <p className="mt-1 text-xs text-muted">
+            No client organisations exist yet — create one first.
+          </p>
+        )}
       </div>
 
       <div>
