@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { AddProjectPartyForm } from "./add-project-party-form";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -142,6 +143,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           ))}
           {(parties ?? []).length === 0 && <li className="text-sm text-muted">No parties recorded on this project yet.</li>}
         </ul>
+        {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} />}
       </div>
     </div>
   );
