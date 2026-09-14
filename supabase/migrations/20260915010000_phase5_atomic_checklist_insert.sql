@@ -15,6 +15,7 @@ create or replace function public.insert_checklists_atomic(templates jsonb)
 returns table (id uuid, itp_item_id uuid)
 language plpgsql
 security invoker
+set search_path = public
 as $$
 declare
   tmpl jsonb;
