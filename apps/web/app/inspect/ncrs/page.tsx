@@ -8,21 +8,49 @@ import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { isOverdue } from "./is-overdue";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
 
 export default async function NcrsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string }>;
 }) {
   const session = await requireSession();
-  const { project: projectId } = await searchParams;
+  const { discipline: disciplineId, project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
+
+  const { data: disciplines } = await supabase
+    .from("master_disciplines")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("sort_order")
+    .returns<DisciplineOption[]>();
+
+  // NCRs don't carry a discipline_id column of their own — they only reach one through the
+  // (optional, nullable) itp_item_id link to itp_items.discipline_id. So the filter is applied as
+  // an id allowlist, same shape as apps/web/app/inspect/itps/page.tsx: resolve the matching
+  // itp_item ids first, then .in() the NCR query by those. An NCR raised standalone (no
+  // itp_item_id) simply never matches a discipline filter — it's still shown in the unfiltered
+  // register, never excluded from that.
+  let itpItemIdFilter: string[] | null = null;
+  if (disciplineId) {
+    const { data: taggedItems } = await supabase
+      .from("itp_items")
+      .select("id")
+      .eq("discipline_id", disciplineId)
+      .returns<{ id: string }[]>();
+
+    itpItemIdFilter = (taggedItems ?? []).map((i) => i.id);
+  }
 
   let query = supabase
     .from(NCRS_TABLE)
     .select("id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number)")
     .neq("severity", "observation")
     .order("created_at", { ascending: false });
+  if (itpItemIdFilter) {
+    query = itpItemIdFilter.length > 0 ? query.in("itp_item_id", itpItemIdFilter) : query.eq("id", "00000000-0000-0000-0000-000000000000");
+  }
   if (projectId) query = query.eq("project_id", projectId);
 
   const { data: ncrs } = await query.returns<NcrRegisterRow[]>();
@@ -66,6 +94,10 @@ export default async function NcrsPage({
           </Link>
         </p>
       )}
+
+      <div className="mt-6">
+        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+      </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Total" value={total} />

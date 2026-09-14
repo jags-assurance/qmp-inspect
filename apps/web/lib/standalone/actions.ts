@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { createNotification } from "@/lib/notifications/helpers";
 import {
   STANDALONE_ASSIGNMENTS,
   STANDALONE_ASSIGNMENT_MEASUREMENTS,
@@ -404,8 +405,10 @@ export async function finalizeAssignmentAction(
     .update({ status: "completed", conclusion })
     .eq("id", assignmentId)
     .eq("status", "draft")
-    .select("id, project_id, assignment_number, equipment_description")
-    .returns<{ id: string; project_id: string; assignment_number: string; equipment_description: string }[]>();
+    .select("id, project_id, assignment_number, equipment_description, created_by")
+    .returns<
+      { id: string; project_id: string; assignment_number: string; equipment_description: string; created_by: string | null }[]
+    >();
 
   if (error) {
     return { error: "Could not finalize the assignment. Check you have permission and try again." };
@@ -415,16 +418,42 @@ export async function finalizeAssignmentAction(
     return { error: "This assignment has already been finalized." };
   }
 
+  const assignment = data[0];
+
   // R95-96: a conditional pass on a FAT/witness/etc. always leaves something to close out before
   // handover — feed the project-wide punch list, same as a failed ITP-driven inspection does.
   if (conclusion === "conditional_pass") {
-    const assignment = data[0];
     await createPunchItemFromSource({
       projectId: assignment.project_id,
       description: `Conditional pass: ${assignment.equipment_description} (${assignment.assignment_number})`,
       source: "fat_conditional_pass",
       sourceStandaloneAssignmentId: assignmentId,
     });
+  }
+
+  // Best-effort: whoever ran the assignment should hear about a conclusion that leaves follow-up
+  // work, without having to notice it themselves. Never blocks finalization, which already succeeded.
+  if ((conclusion === "conditional_pass" || conclusion === "fail") && assignment.created_by) {
+    try {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("organization_id")
+        .eq("id", assignment.project_id)
+        .maybeSingle<{ organization_id: string }>();
+
+      if (project?.organization_id) {
+        await createNotification(supabase, {
+          organizationId: project.organization_id,
+          projectId: assignment.project_id,
+          recipientUserId: assignment.created_by,
+          title: "Standalone assignment needs follow-up",
+          body: `${assignment.equipment_description} (${assignment.assignment_number})`,
+          link: `/inspect/standalone/${assignmentId}`,
+        });
+      }
+    } catch {
+      // Notification delivery is best-effort — see comment above.
+    }
   }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);

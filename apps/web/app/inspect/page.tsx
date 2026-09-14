@@ -54,31 +54,30 @@ export default async function InspectDashboardPage() {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: organizations } = await supabase
-    .from("organizations")
-    .select("id, name, engagement_mode")
-    .order("name");
-
+  // These six queries are mutually independent (none consumes another's result), so they're fired
+  // together as a single Promise.all instead of four separate sequential round-trips.
   const [
+    { data: organizations },
     { count: activeProjects },
     { count: activeItps },
     { count: pendingInspections },
     { count: openNcrs },
+    { data: ownParties },
   ] = await Promise.all([
+    supabase.from("organizations").select("id, name, engagement_mode").order("name"),
     supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("itps").select("id", { count: "exact", head: true }).in("status", ["approved", "client_accepted"]),
     supabase.from("inspection_records").select("id", { count: "exact", head: true }).is("overall_result", null),
     supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed"),
+    // A user's own project_parties link (see lib/signoff/actions.ts's canSignOffForParty) is what
+    // "awaiting your sign-off" actually means for an external party; for JAGS staff (who can
+    // countersign any party) it's less meaningful, so the panel only renders for a linked party.
+    supabase
+      .from("project_parties")
+      .select("id, name, party_type")
+      .eq("user_id", session.userId)
+      .returns<{ id: string; name: string; party_type: string }[]>(),
   ]);
-
-  // A user's own project_parties link (see lib/signoff/actions.ts's canSignOffForParty) is what
-  // "awaiting your sign-off" actually means for an external party; for JAGS staff (who can
-  // countersign any party) it's less meaningful, so the panel only renders for a linked party.
-  const { data: ownParties } = await supabase
-    .from("project_parties")
-    .select("id, name, party_type")
-    .eq("user_id", session.userId)
-    .returns<{ id: string; name: string; party_type: string }[]>();
 
   let pendingSignoffs: PendingSignoffRow[] = [];
   if (ownParties && ownParties.length > 0) {

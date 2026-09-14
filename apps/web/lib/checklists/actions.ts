@@ -19,6 +19,7 @@ import {
 import { requireSession } from "@/lib/auth/session";
 import { canCompleteInspection } from "@/lib/signoff/actions";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
@@ -476,6 +477,39 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       source: "inspection_failure",
       sourceInspectionRecordId: inspectionRecordId,
     });
+
+    // Best-effort: let the ITP's preparer know their activity failed without them having to notice
+    // it on the register. Never blocks inspection completion, which has already succeeded above.
+    try {
+      const { data: context } = await supabase
+        .from("itp_items")
+        .select("itp_sections(itps(prepared_by, projects(organization_id)))")
+        .eq("id", recordForHoldCheck.itp_item_id)
+        .maybeSingle<{
+          itp_sections: {
+            itps: {
+              prepared_by: string | null;
+              projects: { organization_id: string } | null;
+            } | null;
+          } | null;
+        }>();
+
+      const itp = context?.itp_sections?.itps;
+      const organizationId = itp?.projects?.organization_id;
+
+      if (itp?.prepared_by && organizationId) {
+        await createNotification(supabase, {
+          organizationId,
+          projectId: recordForHoldCheck.project_id,
+          recipientUserId: itp.prepared_by,
+          title: "Inspection failed",
+          body: `${recordForHoldCheck.activity} (${recordForHoldCheck.record_number})`,
+          link: `/inspect/inspections/${inspectionRecordId}`,
+        });
+      }
+    } catch {
+      // Notification delivery is best-effort — see doc comment above.
+    }
   }
 
   return { error: null, inspectionRecordId };

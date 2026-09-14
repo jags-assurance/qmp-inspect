@@ -7,6 +7,7 @@ import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "../ncrs/ncrs-table";
 import { isOverdue } from "../ncrs/is-overdue";
+import { DisciplineFilterForm, type DisciplineOption } from "../ncrs/discipline-filter-form";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -19,17 +20,41 @@ import { isOverdue } from "../ncrs/is-overdue";
 export default async function ObservationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string }>;
 }) {
   const session = await requireSession();
-  const { project: projectId } = await searchParams;
+  const { discipline: disciplineId, project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
+
+  const { data: disciplines } = await supabase
+    .from("master_disciplines")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("sort_order")
+    .returns<DisciplineOption[]>();
+
+  // Same shape as apps/web/app/inspect/ncrs/page.tsx: observations reuse the ncrs table (graded
+  // by severity), so they reach a discipline the same indirect way — via the optional itp_item_id
+  // link to itp_items.discipline_id.
+  let itpItemIdFilter: string[] | null = null;
+  if (disciplineId) {
+    const { data: taggedItems } = await supabase
+      .from("itp_items")
+      .select("id")
+      .eq("discipline_id", disciplineId)
+      .returns<{ id: string }[]>();
+
+    itpItemIdFilter = (taggedItems ?? []).map((i) => i.id);
+  }
 
   let query = supabase
     .from(NCRS_TABLE)
     .select("id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number)")
     .eq("severity", "observation")
     .order("created_at", { ascending: false });
+  if (itpItemIdFilter) {
+    query = itpItemIdFilter.length > 0 ? query.in("itp_item_id", itpItemIdFilter) : query.eq("id", "00000000-0000-0000-0000-000000000000");
+  }
   if (projectId) query = query.eq("project_id", projectId);
 
   const { data: observations } = await query.returns<NcrRegisterRow[]>();
@@ -72,6 +97,10 @@ export default async function ObservationsPage({
           </Link>
         </p>
       )}
+
+      <div className="mt-6">
+        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+      </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Total" value={total} />

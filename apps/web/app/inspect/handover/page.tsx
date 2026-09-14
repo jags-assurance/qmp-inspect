@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { AcknowledgeForm } from "./acknowledge-form";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 interface HandoverRow {
   id: string;
@@ -37,6 +38,7 @@ export default async function HandoverPage() {
 
   return (
     <div className="max-w-3xl">
+      <RealtimeRefresh table="handover_certificates" />
       <h1 className="text-2xl font-semibold text-ink">Handover Portal</h1>
       <p className="mt-1 text-sm text-muted">
         Issued Data Books and handover certificates for the projects you have access to.

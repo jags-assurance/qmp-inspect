@@ -15,6 +15,7 @@ import { AssignmentWorkspace } from "./assignment-workspace";
 import { getLatestFatReportPdf, draftFatNarrativeAction, saveFatNarrativeAction } from "@/lib/reports/actions";
 import { FatReportPdfButton } from "./fat-report-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 interface AssignmentDetail {
   id: string;
@@ -98,6 +99,7 @@ export default async function StandaloneAssignmentDetailPage({
 
   return (
     <div>
+      <RealtimeRefresh table="standalone_assignments" filter={`id=eq.${id}`} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">

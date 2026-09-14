@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AddPunchItemForm } from "./add-punch-item-form";
 import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 export default async function PunchListPage({
   params,
@@ -41,6 +42,7 @@ export default async function PunchListPage({
 
   return (
     <div>
+      <RealtimeRefresh table="punch_list_items" filter={`project_id=eq.${projectId}`} />
       <div>
         <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Punch List</h1>
         <p className="mt-1 text-sm text-muted">

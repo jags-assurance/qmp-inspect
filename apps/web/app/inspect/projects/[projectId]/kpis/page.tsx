@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
 import { computeProjectKpis, computeQualityByParty } from "@/lib/kpis/compute";
 import { OpenItemsTable } from "./open-items-table";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value)}%`;
@@ -41,6 +42,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
 
   return (
     <div>
+      <RealtimeRefresh table="inspection_records" filter={`project_id=eq.${projectId}`} />
       <div>
         <h1 className="text-2xl font-semibold text-ink">Quality performance</h1>
         <p className="mt-1 text-sm text-muted">

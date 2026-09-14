@@ -172,7 +172,18 @@ export async function updateNcrAction(
     update.status = "in_progress";
   }
 
-  const { error } = await supabase.from(NCRS_TABLE).update(update).eq("id", ncrId);
+  const { data: updatedNcr, error } = await supabase
+    .from(NCRS_TABLE)
+    .update(update)
+    .eq("id", ncrId)
+    .select("id, ncr_number, project_id, raised_by, projects(organization_id)")
+    .maybeSingle<{
+      id: string;
+      ncr_number: string;
+      project_id: string;
+      raised_by: string | null;
+      projects: { organization_id: string } | null;
+    }>();
 
   if (error) {
     if (error.code === "23503") {
@@ -198,6 +209,23 @@ export async function updateNcrAction(
       })
       .eq("source_ncr_id", ncrId)
       .eq("status", "open");
+
+    // Best-effort: whoever raised this NCR should hear that it's now closed, without having to
+    // notice it themselves on the register. Never blocks the close, which has already succeeded.
+    if (updatedNcr?.raised_by && updatedNcr.projects?.organization_id) {
+      try {
+        await createNotification(supabase, {
+          organizationId: updatedNcr.projects.organization_id,
+          projectId: updatedNcr.project_id,
+          recipientUserId: updatedNcr.raised_by,
+          title: "Your NCR has been closed",
+          body: updatedNcr.ncr_number,
+          link: `/inspect/ncrs/${ncrId}`,
+        });
+      } catch {
+        // Notification delivery is best-effort — see comment above.
+      }
+    }
   }
 
   revalidatePath(`/inspect/ncrs/${ncrId}`);

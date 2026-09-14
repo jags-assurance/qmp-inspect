@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documents-table";
 import { VaultUploadForm } from "./upload-form";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 interface DocumentWithUploader {
   id: string;
@@ -60,6 +61,7 @@ export default async function VaultFolderPage({
 
   return (
     <div>
+      <RealtimeRefresh table="vault_documents" filter={`folder_id=eq.${folderId}`} />
       <Link href={`/inspect/vault?project=${projectId}`} className="text-sm text-burgundy hover:underline">
         ← Back to Document Vault
       </Link>

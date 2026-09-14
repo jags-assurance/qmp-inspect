@@ -8,6 +8,7 @@ import { ReadinessPanel } from "./readiness-panel";
 import { CreateDataBookForm } from "./create-databook-form";
 import { CompileDataBookForm } from "./compile-databook-form";
 import { IssueHandoverForm } from "./issue-handover-form";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   draft: "neutral",
@@ -44,6 +45,7 @@ export default async function DataBookPage({
 
   return (
     <div className="max-w-3xl">
+      <RealtimeRefresh table="data_books" filter={`project_id=eq.${projectId}`} />
       <div>
         <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Data Book</h1>
         <p className="mt-1 text-sm text-muted">

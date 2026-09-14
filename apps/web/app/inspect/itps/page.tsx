@@ -14,25 +14,32 @@ export default async function ItpsPage({
   const { discipline: disciplineId, project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: disciplines } = await supabase
-    .from("master_disciplines")
-    .select("id, code, name")
-    .eq("is_active", true)
-    .order("sort_order")
-    .returns<DisciplineOption[]>();
-
   // Discipline-based routing (Reqs R32): filter the register down to ITPs that have at least one
   // activity tagged with the selected discipline, rather than filtering activities within an ITP —
   // this is a register-level view, so the useful question is "which ITPs involve this discipline",
   // not "which rows in this one ITP".
+  //
+  // `disciplines` (for the filter dropdown) and `taggedItems` (for the id filter) don't depend on
+  // each other's results — only the later `itps` query depends on taggedItems — so they're fetched
+  // together instead of waterfalled.
+  const [{ data: disciplines }, { data: taggedItems }] = await Promise.all([
+    supabase
+      .from("master_disciplines")
+      .select("id, code, name")
+      .eq("is_active", true)
+      .order("sort_order")
+      .returns<DisciplineOption[]>(),
+    disciplineId
+      ? supabase
+          .from("itp_items")
+          .select("section_id, itp_sections(itp_id)")
+          .eq("discipline_id", disciplineId)
+          .returns<{ section_id: string; itp_sections: { itp_id: string } | null }[]>()
+      : Promise.resolve({ data: null as { section_id: string; itp_sections: { itp_id: string } | null }[] | null }),
+  ]);
+
   let itpIdFilter: string[] | null = null;
   if (disciplineId) {
-    const { data: taggedItems } = await supabase
-      .from("itp_items")
-      .select("section_id, itp_sections(itp_id)")
-      .eq("discipline_id", disciplineId)
-      .returns<{ section_id: string; itp_sections: { itp_id: string } | null }[]>();
-
     itpIdFilter = [...new Set((taggedItems ?? []).map((i) => i.itp_sections?.itp_id).filter((id): id is string => Boolean(id)))];
   }
 
