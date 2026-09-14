@@ -28,6 +28,35 @@ const EXTRACTION_LABEL: Record<string, string> = {
 const createInitialState: CreateItpFromDraftState = { error: null };
 const genInitialState: GenerateItpDraftState = { error: null, draft: null, projectParties: [] };
 
+type CountMode = "auto" | "concise" | "standard" | "detailed" | "custom";
+
+const COUNT_MODE_OPTIONS: { value: CountMode; label: string; hint: string }[] = [
+  { value: "auto", label: "Let AI decide", hint: "Whatever the source material naturally supports." },
+  { value: "concise", label: "Concise", hint: "~1–2 activities per section — the critical points only." },
+  { value: "standard", label: "Standard", hint: "~3–4 activities per section — typical level of detail." },
+  { value: "detailed", label: "Detailed", hint: "~5–7 activities per section — as thorough as the source allows." },
+  { value: "custom", label: "Custom", hint: "Set an exact target number per section." },
+];
+
+/** Builds the extra instruction line the count control adds on top of the user's own free text. */
+function countInstructionFor(mode: CountMode, customCount: string): string {
+  switch (mode) {
+    case "concise":
+      return "Keep each section concise — aim for roughly 1-2 activities per section, covering only the most critical checks.";
+    case "standard":
+      return "Aim for a standard level of detail — roughly 3-4 activities per section.";
+    case "detailed":
+      return "Be thorough — aim for roughly 5-7 activities per section, covering as many distinct checks or tests as the source material supports.";
+    case "custom": {
+      const n = Number(customCount);
+      return n > 0 ? `Aim for approximately ${n} activities in each section.` : "";
+    }
+    case "auto":
+    default:
+      return "";
+  }
+}
+
 /** A vault document this user can pick as real source material for generation. */
 export interface VaultDocumentOption {
   id: string;
@@ -66,11 +95,19 @@ export function NewItpFromAiForm({
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [feedback, setFeedback] = useState("");
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [countMode, setCountMode] = useState<CountMode>("auto");
+  const [customCount, setCustomCount] = useState("4");
 
   const projectVaultDocuments = vaultDocuments.filter((d) => d.projectId === projectId);
+  const disciplineNameByCode = new Map(disciplines.map((d) => [d.code, d.name]));
 
   function toggleDoc(docId: string) {
     setSelectedDocIds((ids) => (ids.includes(docId) ? ids.filter((id) => id !== docId) : [...ids, docId]));
+  }
+
+  function combinedInstructions(extra?: string): string {
+    const countLine = countInstructionFor(countMode, customCount);
+    return [countLine, additionalInstructions, extra].filter(Boolean).join("\n\n");
   }
 
   // Derives the editable draft copy from a fresh generateItpDraftAction result during render
@@ -95,9 +132,9 @@ export function NewItpFromAiForm({
 
   if (!draft) {
     return (
-      <form action={genFormAction} className="mt-6 space-y-4">
+      <form action={genFormAction} className="mt-6 space-y-6">
         <div>
-          <label htmlFor="ai_project_id" className="block text-sm font-medium text-ink">
+          <label htmlFor="ai_project_id" className="block text-sm font-semibold text-ink">
             Project
           </label>
           <select
@@ -109,7 +146,7 @@ export function NewItpFromAiForm({
               setProjectId(e.target.value);
               setSelectedDocIds([]);
             }}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
           >
             <option value="">Select…</option>
             {projects.map((p) => (
@@ -122,7 +159,7 @@ export function NewItpFromAiForm({
 
         {projectId && (
           <div>
-            <p className="block text-sm font-medium text-ink">Requirement documents from the vault</p>
+            <p className="block text-sm font-semibold text-ink">Requirement documents from the vault</p>
             <p className="mt-1 text-xs text-muted">
               Pick everything relevant — specs, standards, method statements, drawings notes. The AI
               reads their actual text and covers every discipline they touch in one draft.
@@ -137,7 +174,7 @@ export function NewItpFromAiForm({
                 {projectVaultDocuments.map((doc) => {
                   const usable = doc.extractionStatus === "done";
                   return (
-                    <li key={doc.id} className="flex items-start gap-2 rounded px-1 py-1 hover:bg-off-white">
+                    <li key={doc.id} className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-off-white">
                       <input
                         type="checkbox"
                         id={`doc_${doc.id}`}
@@ -169,19 +206,63 @@ export function NewItpFromAiForm({
         )}
 
         <div>
-          <label htmlFor="additional_instructions" className="block text-sm font-medium text-ink">
+          <p className="block text-sm font-semibold text-ink">Activities per section</p>
+          <p className="mt-1 text-xs text-muted">
+            How thorough each of the 4 sections should be — the AI still decides exactly which
+            checks matter most, this just sets the target depth.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {COUNT_MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setCountMode(opt.value)}
+                title={opt.hint}
+                className={`rounded-md border px-2 py-2 text-xs font-medium transition-colors ${
+                  countMode === opt.value
+                    ? "border-burgundy bg-burgundy text-white"
+                    : "border-border bg-surface text-ink hover:bg-off-white"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">
+            {COUNT_MODE_OPTIONS.find((o) => o.value === countMode)?.hint}
+          </p>
+          {countMode === "custom" && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={customCount}
+                onChange={(e) => setCustomCount(e.target.value)}
+                className="w-24 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              />
+              <span className="text-xs text-muted">activities per section</span>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="additional_instructions_visible" className="block text-sm font-semibold text-ink">
             Additional instructions <span className="font-normal text-muted">(optional)</span>
           </label>
           <textarea
-            id="additional_instructions"
-            name="additional_instructions"
+            id="additional_instructions_visible"
             rows={4}
             value={additionalInstructions}
             onChange={(e) => setAdditionalInstructions(e.target.value)}
             placeholder="Anything the documents don't cover, or a focus to apply — e.g. &quot;electrical works only&quot;, or paste extra scope text if you have no document to attach."
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
           />
-          <p className="mt-1 text-xs text-muted">
+          {/* Combines the count-mode instruction with the user's free text into the one field the
+              server action actually reads — keeps the count control a first-class UI element instead
+              of asking the user to type it themselves. */}
+          <input type="hidden" name="additional_instructions" value={combinedInstructions()} />
+          <p className="mt-1.5 text-xs text-muted">
             The AI drafts sections, activities, references, acceptance criteria and suggested
             intervention levels per party for you to review and edit below — nothing is created
             until you confirm.
@@ -198,6 +279,7 @@ export function NewItpFromAiForm({
   }
 
   const project = projects.find((p) => p.id === projectId);
+  const totalActivities = draft.sections.reduce((sum, s) => sum + s.items.length, 0);
 
   function updateSectionTitle(sectionIdx: number, title: string) {
     setDraft((d) => {
@@ -233,30 +315,58 @@ export function NewItpFromAiForm({
     });
   }
 
+  // Manual "+ Add activity" for a section — lets the user top up a section themselves (e.g. after
+  // narrowing the AI's count-mode target) rather than only ever being able to Remove or regenerate
+  // the whole draft. Starts blank; the same field-level editors below fill it in.
+  function addItem(sectionIdx: number) {
+    setDraft((d) => {
+      if (!d) return d;
+      const sections = d.sections.map((s, si) => {
+        if (si !== sectionIdx) return s;
+        const nextNumber = `${sectionIdx + 1}.${s.items.length + 1}`;
+        return {
+          ...s,
+          items: [
+            ...s.items,
+            {
+              itemNumber: nextNumber,
+              activity: "",
+              referenceSpec: "",
+              acceptanceCriteria: "",
+              method: "",
+              frequency: "",
+              evidenceType: 1 as const,
+              disciplineCode: null,
+              suggestedInterventions: [],
+            },
+          ],
+        };
+      });
+      return { sections };
+    });
+  }
+
   return (
     <div className="mt-6 space-y-6">
-      <div className="rounded-md border border-border bg-off-white p-3">
-        <p className="text-sm text-muted">
-          Draft for <span className="font-medium text-ink">{project?.name ?? "the selected project"}</span> —
-          edit anything below directly, or if the draft isn&apos;t right, describe what to change and
-          regenerate instead of editing by hand.
+      <div className="rounded-lg border border-border bg-off-white p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm text-muted">
+            Draft for <span className="font-semibold text-ink">{project?.name ?? "the selected project"}</span>
+          </p>
+          <p className="text-xs text-muted">
+            {draft.sections.length} sections · {totalActivities} activities total
+          </p>
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          Edit anything below directly, use <strong>+ Add activity</strong> to top up a section, or
+          describe a change and regenerate the whole draft instead of editing by hand.
         </p>
         <form action={genFormAction} className="mt-3 space-y-2">
           <input type="hidden" name="project_id" value={projectId} />
           {selectedDocIds.map((id) => (
             <input key={id} type="hidden" name="vault_document_ids" value={id} />
           ))}
-          <input
-            type="hidden"
-            name="additional_instructions"
-            value={
-              feedback
-                ? [additionalInstructions, `Feedback on the previous draft — apply this: ${feedback}`]
-                    .filter(Boolean)
-                    .join("\n\n")
-                : additionalInstructions
-            }
-          />
+          <input type="hidden" name="additional_instructions" value={combinedInstructions(feedback ? `Feedback on the previous draft — apply this: ${feedback}` : undefined)} />
           <textarea
             rows={2}
             value={feedback}
@@ -281,150 +391,200 @@ export function NewItpFromAiForm({
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="draft_json" value={JSON.stringify(draft)} readOnly />
 
-        <div>
-          <label htmlFor="ai_itp_number" className="block text-sm font-medium text-ink">
-            ITP number
-          </label>
-          <input
-            id="ai_itp_number"
-            name="itp_number"
-            required
-            placeholder="e.g. MER-JAGS-ITP-002"
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy doc-id"
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label htmlFor="ai_itp_number" className="block text-sm font-semibold text-ink">
+              ITP number
+            </label>
+            <input
+              id="ai_itp_number"
+              name="itp_number"
+              required
+              placeholder="e.g. MER-JAGS-ITP-002"
+              className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy doc-id"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="ai_title" className="block text-sm font-semibold text-ink">
+              Title
+            </label>
+            <input
+              id="ai_title"
+              name="title"
+              required
+              className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+            />
+          </div>
         </div>
 
         <div>
-          <label htmlFor="ai_title" className="block text-sm font-medium text-ink">
-            Title
-          </label>
-          <input
-            id="ai_title"
-            name="title"
-            required
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="ai_applicable_standard" className="block text-sm font-medium text-ink">
-            Applicable standard
+          <label htmlFor="ai_applicable_standard" className="block text-sm font-semibold text-ink">
+            Applicable standard <span className="font-normal text-muted">(optional)</span>
           </label>
           <input
             id="ai_applicable_standard"
             name="applicable_standard"
             placeholder="e.g. IEC 61439"
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1.5 w-full max-w-sm rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {draft.sections.map((section, sectionIdx) => (
-            <div key={sectionIdx} className="rounded-md border border-border p-3">
-              <input
-                value={section.title}
-                onChange={(e) => updateSectionTitle(sectionIdx, e.target.value)}
-                className="w-full rounded border border-border bg-surface px-2 py-1 text-sm font-medium text-ink"
-              />
-              <div className="mt-3 space-y-3">
+            <div key={sectionIdx} className="rounded-lg border border-border">
+              <div className="flex items-center justify-between gap-3 rounded-t-lg border-b border-border bg-off-white px-3 py-2">
+                <input
+                  value={section.title}
+                  onChange={(e) => updateSectionTitle(sectionIdx, e.target.value)}
+                  aria-label={`Section ${sectionIdx + 1} title`}
+                  className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm font-semibold text-ink hover:border-border focus:border-burgundy focus:bg-surface focus:outline-none"
+                />
+                <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-muted">
+                  {section.items.length} {section.items.length === 1 ? "activity" : "activities"}
+                </span>
+              </div>
+
+              <div className="space-y-3 p-3">
+                {section.items.length === 0 && (
+                  <p className="rounded-md border border-dashed border-border bg-off-white p-3 text-center text-xs text-muted">
+                    No activities in this section yet.
+                  </p>
+                )}
                 {section.items.map((item, itemIdx) => (
-                  <div key={itemIdx} className="rounded border border-border bg-off-white p-2 text-sm">
-                    <div className="grid grid-cols-[80px_1fr] gap-2">
-                      <input
-                        value={item.itemNumber}
-                        onChange={(e) => updateItem(sectionIdx, itemIdx, { itemNumber: e.target.value })}
-                        className="rounded border border-border bg-surface px-2 py-1 doc-id"
-                        placeholder="Item #"
-                      />
-                      <input
-                        value={item.activity}
-                        onChange={(e) => updateItem(sectionIdx, itemIdx, { activity: e.target.value })}
-                        className="rounded border border-border bg-surface px-2 py-1"
-                        placeholder="Activity"
-                      />
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <input
-                        value={item.referenceSpec}
-                        onChange={(e) => updateItem(sectionIdx, itemIdx, { referenceSpec: e.target.value })}
-                        className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                        placeholder="Reference (spec clause / standard)"
-                      />
-                      <select
-                        value={item.disciplineCode ?? ""}
-                        onChange={(e) =>
-                          updateItem(sectionIdx, itemIdx, { disciplineCode: e.target.value || null })
-                        }
-                        className="rounded border border-border bg-surface px-2 py-1 text-xs"
+                  <div key={itemIdx} className="rounded-md border border-border bg-surface p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="doc-id rounded bg-off-white px-2 py-1 text-xs font-medium text-ink">
+                        Item {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(sectionIdx, itemIdx)}
+                        className="text-xs font-medium text-danger hover:underline"
                       >
-                        <option value="">No discipline</option>
-                        {disciplines.map((d) => (
-                          <option key={d.code} value={d.code}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
+                        Remove
+                      </button>
                     </div>
 
-                    <textarea
-                      value={item.acceptanceCriteria}
-                      onChange={(e) => updateItem(sectionIdx, itemIdx, { acceptanceCriteria: e.target.value })}
-                      rows={2}
-                      className="mt-2 w-full rounded border border-border bg-surface px-2 py-1"
-                      placeholder="Acceptance criteria"
-                    />
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[80px_1fr]">
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Item no.</label>
+                        <input
+                          value={item.itemNumber}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { itemNumber: e.target.value })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm doc-id"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Activity</label>
+                        <input
+                          value={item.activity}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { activity: e.target.value })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    </div>
 
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <input
-                        value={item.method}
-                        onChange={(e) => updateItem(sectionIdx, itemIdx, { method: e.target.value })}
-                        className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                        placeholder="Method (e.g. Megger test)"
-                      />
-                      <input
-                        value={item.frequency}
-                        onChange={(e) => updateItem(sectionIdx, itemIdx, { frequency: e.target.value })}
-                        className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                        placeholder="Frequency (e.g. Each circuit)"
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-muted">Acceptance criteria</label>
+                      <textarea
+                        value={item.acceptanceCriteria}
+                        onChange={(e) => updateItem(sectionIdx, itemIdx, { acceptanceCriteria: e.target.value })}
+                        rows={2}
+                        className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm"
                       />
                     </div>
 
-                    <div className="mt-2 flex items-center justify-between">
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Reference (spec clause / standard)</label>
+                        <input
+                          value={item.referenceSpec}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { referenceSpec: e.target.value })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Discipline</label>
+                        <select
+                          value={item.disciplineCode ?? ""}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { disciplineCode: e.target.value || null })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                        >
+                          <option value="">No discipline</option>
+                          {disciplines.map((d) => (
+                            <option key={d.code} value={d.code}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Method (e.g. Megger test)</label>
+                        <input
+                          value={item.method}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { method: e.target.value })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Frequency (e.g. Each circuit)</label>
+                        <input
+                          value={item.frequency}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { frequency: e.target.value })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-muted">Evidence type</label>
                       <select
                         value={item.evidenceType}
-                        onChange={(e) =>
-                          updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })
-                        }
-                        className="rounded border border-border bg-surface px-2 py-1 text-xs"
+                        onChange={(e) => updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })}
+                        className="mt-1 w-full max-w-xs rounded border border-border bg-surface px-2 py-1.5 text-xs"
                       >
                         <option value={1}>Checklist</option>
                         <option value={2}>Document upload</option>
                         <option value={3}>Measurement record</option>
                       </select>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(sectionIdx, itemIdx)}
-                        className="text-xs text-danger hover:underline"
-                      >
-                        Remove
-                      </button>
                     </div>
+
                     {item.suggestedInterventions.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-muted">
-                        {item.suggestedInterventions.map((si, siIdx) => {
-                          const party = projectParties.find((p) => p.id === si.projectPartyId);
-                          return (
-                            <li key={siIdx}>
-                              <span className="font-medium text-ink">{party?.name ?? "Unknown party"}</span>:{" "}
-                              {INTERVENTION_LABEL[si.intervention]} — {si.reason}
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      <div className="mt-3 rounded-md bg-off-white p-2">
+                        <p className="text-xs font-medium text-muted">Suggested intervention levels</p>
+                        <ul className="mt-1 space-y-1 text-xs text-muted">
+                          {item.suggestedInterventions.map((si, siIdx) => {
+                            const party = projectParties.find((p) => p.id === si.projectPartyId);
+                            return (
+                              <li key={siIdx}>
+                                <span className="font-medium text-ink">{party?.name ?? "Unknown party"}</span>:{" "}
+                                <span className="font-medium text-burgundy">{INTERVENTION_LABEL[si.intervention]}</span> —{" "}
+                                {si.reason}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                    {item.disciplineCode && !disciplineNameByCode.has(item.disciplineCode) && (
+                      <p className="mt-2 text-xs text-warning">
+                        Unrecognised discipline code &quot;{item.disciplineCode}&quot; — pick one from the list above.
+                      </p>
                     )}
                   </div>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => addItem(sectionIdx)}
+                  className="w-full rounded-md border border-dashed border-border py-2 text-xs font-medium text-muted hover:border-burgundy hover:text-burgundy"
+                >
+                  + Add activity to this section
+                </button>
               </div>
             </div>
           ))}
