@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { signOutAction } from "@/lib/auth/actions";
-import { SidebarNav } from "./sidebar-nav";
+import { SidebarShell } from "./sidebar-shell";
 import { OfflineBanner } from "./offline-banner";
 
 export interface NavItem {
@@ -28,26 +28,9 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 flex-col bg-burgundy text-white">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gold text-sm font-semibold">
-            JA
-          </div>
-          <span className="font-semibold tracking-wide">JAGS Assurance</span>
-        </div>
-        <SidebarNav items={navItems} />
-        <div className="border-t border-white/15 px-4 py-4">
-          <div className="text-sm font-medium">{userName}</div>
-          <div className="text-xs text-white/70">{userRole}</div>
-          <form action={signOutAction}>
-            <button type="submit" className="mt-2 text-xs text-white/70 hover:text-white hover:underline">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </aside>
+      <SidebarShell navItems={navItems} userName={userName} userRole={userRole} signOutAction={signOutAction} />
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
           <span className="text-sm text-muted">{breadcrumb}</span>
           <div className="flex flex-1 items-center justify-end gap-4">
             <div className="relative hidden w-full max-w-xs sm:block">
