@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { setNcrStatusAction } from "@/lib/ncrs/actions";
 import { NCRS_TABLE, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
 import { CloseOutForm } from "./close-out-form";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 interface NcrDetail {
   id: string;
@@ -139,6 +140,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="max-w-3xl">
+      <RealtimeRefresh table="ncrs" filter={`id=eq.${id}`} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">

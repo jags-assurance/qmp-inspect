@@ -143,54 +143,41 @@ export async function generateChecklistsForItp(
   // (existingTemplates.length + 1), which two concurrent callers could both read before either
   // writes — see nextSequenceNumber. Sequential (not Promise.all) so checklist_number order
   // matches item order, since each call must await the previous one's DB round trip anyway.
-  const newTemplates: { itp_item_id: string; checklist_number: string; name: string }[] = [];
+  const payload: {
+    itp_item_id: string;
+    checklist_number: string;
+    name: string;
+    items: { item_number: string; description: string; is_mandatory: boolean; sort_order: number }[];
+  }[] = [];
+
   for (const item of pending) {
     const seq = await nextSequenceNumber(supabase, {
       organizationId,
       projectId,
       seqKey: `checklist:${itpId}`,
     });
-    newTemplates.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity });
+    const drafted = itemsByPendingId.get(item.id);
+    const items =
+      drafted && drafted.length > 0
+        ? drafted.map((di, i) => ({ item_number: String(i + 1), description: di.text, is_mandatory: di.mandatory, sort_order: i }))
+        : [
+            {
+              item_number: "1",
+              description: item.acceptance_criteria ?? item.activity ?? "",
+              is_mandatory: true,
+              sort_order: 0,
+            },
+          ];
+    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity, items });
   }
 
-  const { data: inserted, error: templatesError } = await supabase
-    .from(CHECKLIST_TEMPLATES_TABLE)
-    .insert(newTemplates)
-    .select("id, itp_item_id")
-    .returns<Pick<ChecklistTemplateRow, "id" | "itp_item_id">[]>();
+  // Single RPC call, one Postgres transaction (insert_checklists_atomic — see its migration for
+  // why): every checklist_templates row and every checklist_items row for this run either all land
+  // or none do, instead of a failed second insert silently leaving templates with no items behind.
+  const { data: inserted, error: insertError } = await supabase.rpc("insert_checklists_atomic", { templates: payload });
 
-  if (templatesError || !inserted) {
+  if (insertError || !inserted) {
     return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
-  }
-
-  const pendingById = new Map(pending.map((item) => [item.id, item]));
-  const checklistItemsToInsert = inserted.flatMap((t) => {
-    const drafted = itemsByPendingId.get(t.itp_item_id);
-    if (drafted && drafted.length > 0) {
-      return drafted.map((di, i) => ({
-        template_id: t.id,
-        item_number: String(i + 1),
-        description: di.text,
-        is_mandatory: di.mandatory,
-        sort_order: i,
-      }));
-    }
-    const item = pendingById.get(t.itp_item_id);
-    return [
-      {
-        template_id: t.id,
-        item_number: "1",
-        description: item?.acceptance_criteria ?? item?.activity ?? "",
-        is_mandatory: true,
-        sort_order: 0,
-      },
-    ];
-  });
-
-  const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(checklistItemsToInsert);
-
-  if (itemsError) {
-    return { error: "Checklists were created, but their items could not be added.", created: inserted.length };
   }
 
   return { error: null, created: inserted.length };

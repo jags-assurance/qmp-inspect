@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { createNotification } from "@/lib/notifications/helpers";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
   DEFAULT_NOTICE_PERIOD_HOURS,
@@ -10,6 +11,13 @@ import {
   type ActivitySignoffProgressRow,
   type NoticePeriodConfigRow,
 } from "./db-types";
+
+const INTERVENTION_LABEL: Record<"H" | "W" | "R" | "S", string> = {
+  H: "Hold",
+  W: "Witness",
+  R: "Review",
+  S: "Surveillance",
+};
 
 export interface SignoffActionResult {
   error: string | null;
@@ -53,8 +61,12 @@ async function findItpIdForProgress(
 }
 
 /**
- * Marks a party notified of a pending Hold/Witness/Review/Surveillance sign-off. Real notification
- * delivery (email/push) is a future integration point — this only records that the notice went out.
+ * Marks a party notified of a pending Hold/Witness/Review/Surveillance sign-off, and delivers a real
+ * in-app notification to that party's linked user (project_parties.user_id) — replacing what used to
+ * be a pure timestamp with no actual delivery. Best-effort: a party with no linked login yet (set up
+ * in advance of that user's account existing, a legitimate real-world ordering) simply gets no
+ * notification row — the notified_at timestamp is still the source of truth for the notice-period
+ * clock either way, so this never blocks the core action.
  */
 export async function notifyPartyAction(progressId: string): Promise<SignoffActionResult> {
   if (!progressId) return { error: "Missing sign-off record." };
@@ -63,9 +75,11 @@ export async function notifyPartyAction(progressId: string): Promise<SignoffActi
 
   const { data: progress } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .select("id, itp_item_id, status")
+    .select("id, itp_item_id, project_party_id, intervention, status")
     .eq("id", progressId)
-    .maybeSingle<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "status">>();
+    .maybeSingle<
+      Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">
+    >();
 
   if (!progress) return { error: "Sign-off record not found." };
 
@@ -77,6 +91,49 @@ export async function notifyPartyAction(progressId: string): Promise<SignoffActi
   if (error) return { error: "Could not notify the party. Check you have permission and try again." };
 
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
+
+  // Best-effort real notification delivery — failures here (missing user link, RLS denial for an
+  // edge case) never surface as an error on the Notify action itself; the status update above is
+  // what actually matters and has already succeeded.
+  try {
+    const { data: context } = await supabase
+      .from("itp_items")
+      .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
+      .eq("id", progress.itp_item_id)
+      .maybeSingle<{
+        activity: string;
+        itp_sections: {
+          itps: {
+            itp_number: string;
+            project_id: string;
+            projects: { organization_id: string } | null;
+          } | null;
+        } | null;
+      }>();
+
+    const { data: party } = await supabase
+      .from("project_parties")
+      .select("user_id, name")
+      .eq("id", progress.project_party_id)
+      .maybeSingle<{ user_id: string | null; name: string }>();
+
+    const itp = context?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+
+    if (party?.user_id && itp && organizationId) {
+      await createNotification(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        recipientUserId: party.user_id,
+        title: `${INTERVENTION_LABEL[progress.intervention]} sign-off needed`,
+        body: `${itp.itp_number} — ${context?.activity ?? "an activity"}`,
+        link: itpId ? `/inspect/itps/${itpId}` : null,
+      });
+    }
+  } catch {
+    // Notification delivery is best-effort — see doc comment above.
+  }
+
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
 }

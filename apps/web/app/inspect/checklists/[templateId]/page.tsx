@@ -18,6 +18,7 @@ import { checkRegisterVerification, type RegisterVerificationResult } from "@/li
 import { ResponseRow } from "./response-row";
 import { AddChecklistItemForm } from "./add-checklist-item-form";
 import { StartInspectionForm } from "./start-inspection-form";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { ConsistencyCheck } from "./consistency-check";
@@ -147,6 +148,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
   return (
     <div className="max-w-3xl">
+      <RealtimeRefresh table="checklist_responses" />
       <p className="text-sm text-muted">
         {project.organizations?.name} · {project.name} ·{" "}
         <Link href={`/inspect/itps/${itp.id}`} className="hover:underline">

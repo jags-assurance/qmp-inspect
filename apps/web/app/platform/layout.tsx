@@ -11,6 +11,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   return (
     <AppShell
       navItems={NAV_ITEMS}
+      userId={session.userId}
       userName={session.fullName}
       userRole="JAGS Admin"
       breadcrumb="JAGS Assurance"

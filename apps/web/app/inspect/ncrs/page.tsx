@@ -7,6 +7,7 @@ import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { isOverdue } from "./is-overdue";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 export default async function NcrsPage({
   searchParams,
@@ -39,6 +40,7 @@ export default async function NcrsPage({
 
   return (
     <div>
+      <RealtimeRefresh table="ncrs" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink">NCR Register</h1>

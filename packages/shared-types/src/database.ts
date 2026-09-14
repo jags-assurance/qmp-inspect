@@ -31,6 +31,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["organizations"]["Insert"]>;
         Relationships: [];
       };
+      notifications: {
+        Row: {
+          id: string;
+          organization_id: string;
+          project_id: string | null;
+          recipient_user_id: string;
+          title: string;
+          body: string | null;
+          link: string | null;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          project_id?: string | null;
+          recipient_user_id: string;
+          title: string;
+          body?: string | null;
+          link?: string | null;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+        Relationships: [];
+      };
       users: {
         Row: {
           id: string;
@@ -601,6 +627,10 @@ export interface Database {
       is_jags_staff: { Args: Record<string, never>; Returns: boolean };
       has_org_access: { Args: { target_org_id: string }; Returns: boolean };
       accept_itp: { Args: { target_itp_id: string }; Returns: undefined };
+      insert_checklists_atomic: {
+        Args: { templates: unknown };
+        Returns: { id: string; itp_item_id: string }[];
+      };
     };
     Enums: Record<string, never>;
   };

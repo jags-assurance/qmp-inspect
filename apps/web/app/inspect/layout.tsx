@@ -52,6 +52,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
   return (
     <AppShell
       navItems={navItems}
+      userId={session.userId}
       userName={session.fullName}
       userRole={userRole}
       breadcrumb="QMP Inspect"

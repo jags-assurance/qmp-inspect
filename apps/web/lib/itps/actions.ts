@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { createNotification } from "@/lib/notifications/helpers";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -171,7 +172,49 @@ export async function advanceItpStatusAction(formData: FormData) {
       ? { status: nextStatus, reviewed_by: user?.id ?? null }
       : { status: nextStatus, approved_by: user?.id ?? null };
 
-  await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
+  const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
+
+  // Best-effort: once Approved, the client's own acceptance is the next real step in the workflow
+  // (accept_itp()) — notify their linked user directly rather than relying on them noticing it on
+  // their own dashboard. Never blocks the status change itself, which has already succeeded.
+  if (!error && nextStatus === "approved") {
+    try {
+      const { data: itp } = await supabase
+        .from("itps")
+        .select("itp_number, title, project_id, projects(organization_id)")
+        .eq("id", itpId)
+        .maybeSingle<{
+          itp_number: string;
+          title: string;
+          project_id: string;
+          projects: { organization_id: string } | null;
+        }>();
+
+      if (itp?.projects?.organization_id) {
+        const { data: clientParty } = await supabase
+          .from("project_parties")
+          .select("user_id")
+          .eq("project_id", itp.project_id)
+          .eq("party_type", "client")
+          .not("user_id", "is", null)
+          .returns<{ user_id: string | null }[]>();
+
+        for (const party of clientParty ?? []) {
+          if (!party.user_id) continue;
+          await createNotification(supabase, {
+            organizationId: itp.projects.organization_id,
+            projectId: itp.project_id,
+            recipientUserId: party.user_id,
+            title: "ITP ready for your acceptance",
+            body: `${itp.itp_number} — ${itp.title}`,
+            link: `/inspect/itps/${itpId}`,
+          });
+        }
+      }
+    } catch {
+      // Best-effort — see doc comment above.
+    }
+  }
 
   revalidatePath(`/inspect/itps/${itpId}`);
 }

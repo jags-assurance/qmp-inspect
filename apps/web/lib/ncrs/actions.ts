@@ -10,6 +10,7 @@ import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { createNotification } from "@/lib/notifications/helpers";
 
 export interface CreateNcrState {
   error: string | null;
@@ -95,6 +96,23 @@ export async function createNcrAction(
     sourceNcrId: ncr.id,
     dueDate: dueDate || undefined,
   });
+
+  // Best-effort: whoever this NCR is assigned to should hear about it without having to notice it
+  // themselves on the register. Never blocks NCR creation, which has already succeeded.
+  if (assignedTo) {
+    try {
+      await createNotification(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        recipientUserId: assignedTo,
+        title: `${severity === "major_ncr" ? "Major NCR" : severity === "minor_ncr" ? "Minor NCR" : "Observation"} assigned to you`,
+        body: `${ncrNumber} — ${description}`,
+        link: `/inspect/ncrs/${ncr.id}`,
+      });
+    } catch {
+      // Best-effort — see comment above.
+    }
+  }
 
   redirect(`/inspect/ncrs/${ncr.id}`);
 }

@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
 import { signOutAction } from "@/lib/auth/actions";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { listRecentNotifications } from "@/lib/notifications/helpers";
 import { SidebarShell } from "./sidebar-shell";
 import { OfflineBanner } from "./offline-banner";
+import { NotificationsBell } from "./notifications-bell";
 
 export interface NavItem {
   label: string;
@@ -13,19 +16,24 @@ export interface NavItem {
  * and every QMP Inspect page) — established as the site-wide navigation pattern in the client's
  * UI reference screenshots.
  */
-export function AppShell({
+export async function AppShell({
   navItems,
+  userId,
   userName,
   userRole,
   breadcrumb,
   children,
 }: {
   navItems: NavItem[];
+  userId: string;
   userName: string;
   userRole: string;
   breadcrumb: string;
   children: ReactNode;
 }) {
+  const supabase = await createSupabaseServerClient();
+  const initialNotifications = await listRecentNotifications(supabase, userId);
+
   return (
     <div className="flex min-h-screen">
       <SidebarShell navItems={navItems} userName={userName} userRole={userRole} signOutAction={signOutAction} />
@@ -49,24 +57,7 @@ export function AppShell({
                 className="w-full rounded-md border border-border bg-off-white py-1.5 pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-burgundy focus:outline-none"
               />
             </div>
-            <button
-              type="button"
-              aria-label="Notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted hover:bg-off-white hover:text-ink"
-            >
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <path
-                  d="M10 2.5c-2.2 0-4 1.8-4 4v2.4c0 .5-.2 1-.5 1.4l-1 1.2c-.6.7-.1 1.8.8 1.8h9.4c.9 0 1.4-1.1.8-1.8l-1-1.2c-.3-.4-.5-.9-.5-1.4V6.5c0-2.2-1.8-4-4-4z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-                <path d="M8.2 15.5a1.8 1.8 0 0 0 3.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-burgundy text-[9px] font-semibold text-white">
-                •
-              </span>
-            </button>
+            <NotificationsBell userId={userId} initialNotifications={initialNotifications} />
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
                 {userName

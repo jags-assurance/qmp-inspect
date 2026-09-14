@@ -10,6 +10,7 @@ import { advanceItpStatusAction, acceptItpAction } from "@/lib/itps/actions";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { AddItemForm } from "./add-item-form";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 // Added for the "propose to master library" action (Reqs R31) — no other change to this file.
 import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
 import { ProposeToMasterForm } from "./propose-to-master-form";
@@ -213,6 +214,13 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div>
+      {/* Live cross-party updates: another party's sign-off, or a status/section change, refreshes
+          this page automatically instead of requiring a manual reload — the point of the intervention
+          grid being multi-party in the first place. Unfiltered on this table (small per-ITP volume;
+          Supabase Realtime filters only support simple equality, and this page's relevant rows span
+          several itp_item_ids with no single column to filter on cheaply). */}
+      <RealtimeRefresh table="activity_signoff_progress" />
+      <RealtimeRefresh table="itps" filter={`id=eq.${id}`} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
