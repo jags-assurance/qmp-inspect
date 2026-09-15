@@ -15,8 +15,11 @@ const MODULES = [
 ];
 
 // Ring layout for the module "orbit": the active module sits at 12 o'clock, the rest fan out
-// clockwise around the JA emblem, matching the client's reference mockup.
-const RING_RADIUS = 230;
+// clockwise around the JA emblem, matching the client's reference mockup. Sized to fit inside one
+// screen with no scrolling on a typical laptop viewport (~700px of content height after the app
+// header) — the whole page, including heading and legend, targets well under that.
+const RING_RADIUS = 145;
+const RING_SIZE = "h-[360px]";
 
 export default async function PlatformHomePage() {
   const session = await requireSession();
@@ -24,13 +27,13 @@ export default async function PlatformHomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Welcome back, {firstName}</h1>
+      <h1 className="text-xl font-semibold text-ink">Welcome back, {firstName}</h1>
       <p className="mt-1 text-sm text-muted">
         Your Quality Management Platform. Licensed modules are active — the rest light up as
         they&apos;re enabled for your organisation.
       </p>
 
-      <div className="relative mx-auto mt-10 flex h-[560px] w-full max-w-3xl items-center justify-center">
+      <div className={`relative mx-auto mt-4 flex ${RING_SIZE} w-full max-w-2xl items-center justify-center`}>
         {/* Guide ring */}
         <div
           className="pointer-events-none absolute rounded-full border border-border"
@@ -38,7 +41,7 @@ export default async function PlatformHomePage() {
         />
 
         {/* Centre JA emblem */}
-        <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-gold bg-surface text-3xl font-bold text-burgundy shadow-sm">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-gold bg-surface text-xl font-bold text-burgundy shadow-sm">
           JA
         </div>
 
@@ -49,19 +52,19 @@ export default async function PlatformHomePage() {
           const bubble = (
             <div
               className={
-                "flex h-16 w-16 items-center justify-center rounded-full border-2 text-center shadow-sm " +
+                "flex h-11 w-11 items-center justify-center rounded-full border-2 text-center shadow-sm " +
                 (mod.active
                   ? "border-gold bg-burgundy text-white"
                   : "border-border bg-surface text-muted")
               }
             >
               {mod.active ? (
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-6 w-6">
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
                   <rect x="4" y="3" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M7 7.5h6M7 10.5h6M7 13.5h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               ) : (
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                   <rect x="5" y="9" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M7 9V6.5a3 3 0 0 1 6 0V9" stroke="currentColor" strokeWidth="1.5" />
                 </svg>
@@ -72,7 +75,7 @@ export default async function PlatformHomePage() {
           return (
             <div
               key={mod.key}
-              className="absolute flex flex-col items-center gap-2"
+              className="absolute flex flex-col items-center gap-1"
               style={{ transform: `translate(${x}px, ${y}px)` }}
             >
               {mod.active && mod.href ? (
@@ -82,8 +85,8 @@ export default async function PlatformHomePage() {
               ) : (
                 bubble
               )}
-              <div className="w-28 text-center">
-                <div className="text-xs font-medium text-ink">{mod.name}</div>
+              <div className="w-20 text-center leading-tight">
+                <div className="text-[10.5px] font-medium text-ink">{mod.name}</div>
                 {mod.active ? (
                   <Badge tone="gold">Active</Badge>
                 ) : (
@@ -93,7 +96,7 @@ export default async function PlatformHomePage() {
               {mod.active && mod.href && (
                 <Link
                   href={mod.href}
-                  className="text-xs font-medium text-burgundy hover:underline"
+                  className="text-[10.5px] font-medium text-burgundy hover:underline"
                 >
                   Open module →
                 </Link>
@@ -103,7 +106,7 @@ export default async function PlatformHomePage() {
         })}
       </div>
 
-      <div className="mx-auto mt-4 flex max-w-3xl items-center justify-center gap-6 text-xs text-muted">
+      <div className="mx-auto mt-2 flex max-w-2xl items-center justify-center gap-6 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full border-2 border-gold bg-burgundy" /> Active module
         </span>
