@@ -28,6 +28,35 @@ const ROLE_LABEL: Record<string, string> = {
   tpi_lab: "TPI / Lab",
 };
 
+// Plain-language responsibility guide per role, shown at the top of this dashboard. Each role sees
+// the same page shape (stat cards, queue panels) but what's actually theirs to do differs sharply —
+// this exists because that difference wasn't obvious from the panels alone (real feedback: a TPI/lab
+// user couldn't tell field-checklist entry wasn't their job, and a subcontractor couldn't tell
+// sign-off vs self-inspection apart). Kept to short, concrete "you do X, here's where" bullets rather
+// than a general role description.
+const ROLE_GUIDE: Record<string, string[]> = {
+  client: [
+    "JAGS Assurance runs inspections on your behalf — you don't fill in field checklists yourself.",
+    "Once JAGS approves an ITP, accepting it is your last step before field work can start — see \"ITPs awaiting your acceptance\" below.",
+    "Where you hold a Review (R) point on an activity, you review the contractor's evidence and sign off — see \"Awaiting your sign-off\" below.",
+    "Any NCR raised on your project stays visible under \"NCRs assigned to you\" until it's closed.",
+  ],
+  subcontractor: [
+    "You perform the physical work, so you fill in the field checklist yourself for activities you're assigned to — open the checklist from the ITP and record results as you go.",
+    "Where you hold a Hold (H) or Witness (W) point, you'll be notified and must sign off before the activity can proceed — see \"Awaiting your sign-off\" below.",
+    "Any NCR raised against your work needs root cause and corrective action from you — see \"NCRs assigned to you\" below.",
+  ],
+  main_contractor: [
+    "You may self-inspect and fill in field checklists for activities directly under your own scope.",
+    "Where a subcontractor has already signed off their part, it's your job to review their work and add your own sign-off — see \"Work awaiting your review\" below.",
+    "Where you hold your own Hold/Witness/Review point, sign off directly from \"Awaiting your sign-off\" below.",
+  ],
+  tpi_lab: [
+    "You're an independent inspector — you never fill in the field checklist; the contractor performing the work does that.",
+    "Your job is to independently verify: once notified of a Hold/Witness point, inspect in person, then Sign off — or, for a Hold, withhold sign-off until you're satisfied — see \"Awaiting your sign-off\" below.",
+  ],
+};
+
 export interface SignoffQueueRow {
   id: string;
   intervention: "H" | "W" | "R" | "S";
@@ -115,6 +144,22 @@ export function ExternalPartyDashboard({
       <p className="mt-1 text-sm text-muted">
         {roleLabel} · {today}
       </p>
+
+      {roleKey && ROLE_GUIDE[roleKey] && (
+        <details className="mt-4 rounded-lg border border-gold/40 bg-gold/5 open:pb-4" open>
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink">
+            Your role as {roleLabel}: what to do here
+          </summary>
+          <ul className="space-y-1.5 px-4 text-sm text-ink">
+            {ROLE_GUIDE[roleKey].map((line, i) => (
+              <li key={i} className="flex gap-2">
+                <span aria-hidden className="text-burgundy">•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard

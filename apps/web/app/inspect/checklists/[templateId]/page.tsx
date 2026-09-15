@@ -67,16 +67,29 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   if (!itpItem || !itp || !project) notFound();
 
   // R76: "the originator (typically the subcontractor/contractor) raises the inspection request" —
-  // self-inspection is that party's own spec'd role, not JAGS staff's alone. A party is a legitimate
-  // stakeholder on this specific activity when they hold an intervention level (H/W/R/S) on it; if
-  // the current login is linked (via project_parties.user_id) to one of those parties, they can run
-  // this checklist too. A client with no intervention on this activity still can't.
+  // self-inspection is that party's own spec'd role, not JAGS staff's alone. But holding SOME
+  // intervention level on the activity isn't enough on its own: an independent verifier (TPI/lab
+  // holding a Hold/Witness point) or the project owner (client holding a Review point) exists on the
+  // grid specifically to check someone else's work after the fact — they don't do the field data
+  // entry themselves, or the independent-verification point is meaningless. Only the party actually
+  // performing/self-inspecting the work — subcontractor or main contractor — can run the checklist;
+  // client and tpi_lab are sign-off-only regardless of which intervention level they hold here.
+  const EXECUTING_PARTY_TYPES = new Set(["subcontractor", "main_contractor"]);
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
-    .select("project_parties(user_id)")
+    .select("project_parties(user_id, party_type)")
     .eq("itp_item_id", itpItem.id)
-    .returns<{ project_parties: { user_id: string | null } | null }[]>();
-  const isAssignedParty = (stakeholderParties ?? []).some((row) => row.project_parties?.user_id === session.userId);
+    .returns<{ project_parties: { user_id: string | null; party_type: string } | null }[]>();
+  const isAssignedParty = (stakeholderParties ?? []).some(
+    (row) =>
+      row.project_parties?.user_id === session.userId &&
+      EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
+  );
+  // Distinguishes "you hold a sign-off point here but don't do field entry" from "your party isn't
+  // on this activity at all" — both land on !isAssignedParty, but the guidance differs.
+  const isSignoffOnlyParty = (stakeholderParties ?? []).some(
+    (row) => row.project_parties?.user_id === session.userId && !EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
+  );
 
   // Whether the viewer is linked to SOME project party at all — used to tell "you're a project
   // party, just not this activity's" apart from "you have no party link on this project," since the
@@ -147,8 +160,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   }
 
   // Field execution (starting/answering/completing a checklist) is JAGS staff's job — the actual
-  // field officer running the inspection — either JAGS staff, or (R76) the party actually assigned
-  // to this activity self-inspecting their own section. A client or an unrelated party still can't.
+  // field officer running the inspection — either JAGS staff, or (R76) the performing contractor
+  // (subcontractor/main contractor) self-inspecting their own section. An independent verifier
+  // (TPI/lab), the client, or an unrelated party still can't — see EXECUTING_PARTY_TYPES above.
   // Everyone with project access can still VIEW the checklist and its past results.
   const canExecute = session.isJagsStaff || isAssignedParty;
 
@@ -189,9 +203,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && !canExecute && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          {ownPartyLink
-            ? "Not started yet. Your organisation doesn't hold a sign-off point on this specific activity, so a JAGS inspector or the party assigned to it will run this field inspection."
-            : "Not started yet — a JAGS inspector or the party assigned to this activity will run this field inspection."}
+          {isSignoffOnlyParty
+            ? "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
+            : ownPartyLink
+              ? "Not started yet. Your organisation doesn't hold a sign-off point on this specific activity, so a JAGS inspector or the party assigned to it will run this field inspection."
+              : "Not started yet — a JAGS inspector or the party assigned to this activity will run this field inspection."}
         </p>
       )}
 
