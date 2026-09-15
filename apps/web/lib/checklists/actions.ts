@@ -276,18 +276,27 @@ export async function addChecklistItemAction(
   return { error: null };
 }
 
+export interface SaveChecklistResponseResult {
+  error: string | null;
+}
+
 /**
  * One checklist_responses upsert per item — auto-submitted from the field UI as the inspector taps
  * Yes/No/N-A, the same "no separate save step" pattern as setInterventionAction.
+ *
+ * Returns an explicit result rather than void: a permission failure (canExecuteChecklistForItem)
+ * used to just return silently, which from the caller's side looked identical to a successful save
+ * — no error, no thrown exception, just nothing — so a blocked response never told the user why.
  */
-export async function saveChecklistResponseAction(formData: FormData) {
-  const templateId = String(formData.get("template_id") ?? "").trim();
+export async function saveChecklistResponseAction(formData: FormData): Promise<SaveChecklistResponseResult> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim();
   const result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
   const comment = String(formData.get("comment") ?? "").trim();
 
-  if (!inspectionRecordId || !checklistItemId || !result) return;
+  if (!inspectionRecordId || !checklistItemId || !result) {
+    return { error: "Missing required fields — could not save your response." };
+  }
 
   const supabase = await createSupabaseServerClient();
 
@@ -299,9 +308,11 @@ export async function saveChecklistResponseAction(formData: FormData) {
     .select("itp_item_id")
     .eq("id", inspectionRecordId)
     .maybeSingle<Pick<InspectionRecordRow, "itp_item_id">>();
-  if (!record || !(await canExecuteChecklistForItem(supabase, record.itp_item_id))) return;
+  if (!record || !(await canExecuteChecklistForItem(supabase, record.itp_item_id))) {
+    return { error: "Could not save — you don't have permission to record a response for this activity." };
+  }
 
-  await supabase.from(CHECKLIST_RESPONSES_TABLE).upsert(
+  const { error } = await supabase.from(CHECKLIST_RESPONSES_TABLE).upsert(
     {
       inspection_record_id: inspectionRecordId,
       checklist_item_id: checklistItemId,
@@ -311,7 +322,17 @@ export async function saveChecklistResponseAction(formData: FormData) {
     { onConflict: "inspection_record_id,checklist_item_id" }
   );
 
-  revalidatePath(`/inspect/checklists/${templateId}`);
+  if (error) {
+    return { error: "Could not save your response. Check your connection and try again." };
+  }
+
+  // Deliberately no revalidatePath here: ResponseRow already reflects the save optimistically via
+  // its own local state, so a full-page RSC refetch on every single field blur bought nothing but
+  // latency — with several sequential queries on this route (register verification, past records,
+  // etc.), it made useTransition's isPending (the "Saving…" label) stay true for seconds after the
+  // actual write had long since completed, reading as stuck to a real user. Other viewers still pick
+  // up the change via the page's own RealtimeRefresh subscription on checklist_responses.
+  return { error: null };
 }
 
 export interface StartInspectionState {
