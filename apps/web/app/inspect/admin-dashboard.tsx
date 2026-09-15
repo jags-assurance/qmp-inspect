@@ -27,6 +27,17 @@ const ENGAGEMENT_MODE_LABEL: Record<string, string> = {
   white_label: "White-label",
 };
 
+// Plain-language "what to do here" guide, matching the one added to the external-party dashboard
+// (see ROLE_GUIDE in external-party-dashboard.tsx) — same reasoning applied to the Admin view: the
+// panels alone don't spell out what an Admin's job actually is. Kept to short, concrete bullets tied
+// to the panels this dashboard actually renders below.
+const ADMIN_GUIDE: string[] = [
+  "You oversee the whole client portfolio, not individual field work — see \"Your organisations\" below for every org your access reaches, with their active projects and open NCRs.",
+  "Inspectors can propose new or updated Master Library ITP templates, but only you can approve them — see \"Master Library proposals awaiting review\" below.",
+  "Use \"New project\" to onboard a client's next project once their organisation and users are set up.",
+  "You have full access across every project and organisation you can see — use it to unblock issues Inspectors or external parties can't resolve themselves.",
+];
+
 /**
  * Third and last of the role-by-role dashboard passes. No dedicated mockup exists for this one
  * (the reference set only covers Inspector and the client-facing KPI view), so it follows the same
@@ -74,6 +85,20 @@ export function AdminDashboard({
           New project
         </Link>
       </div>
+
+      <details className="mt-4 rounded-lg border border-gold/40 bg-gold/5 open:pb-4" open>
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink">
+          Your role as JAGS Admin: what to do here
+        </summary>
+        <ul className="space-y-1.5 px-4 text-sm text-ink">
+          {ADMIN_GUIDE.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span aria-hidden className="text-burgundy">•</span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard

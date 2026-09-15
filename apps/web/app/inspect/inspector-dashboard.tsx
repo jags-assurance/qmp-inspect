@@ -2,6 +2,17 @@ import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { PendingActionsTable, type PendingActionItem } from "@/components/domain/pending-actions-table";
 
+// Plain-language "what to do here" guide, matching the one added to the external-party dashboard
+// (see ROLE_GUIDE in external-party-dashboard.tsx) — same reasoning: the panels alone don't spell
+// out what an Inspector's actual job is day to day. Kept to short, concrete bullets tied to the
+// panels this dashboard actually renders below.
+const INSPECTOR_GUIDE: string[] = [
+  "Run field inspections: open \"New inspection\" or pick a checklist from \"My pending actions\" below to fill in results for an activity.",
+  "Chase the ones not yet started or still in progress — that's exactly what \"My pending actions\" lists, split into Today and Overdue.",
+  "Where an activity has a Hold point, sign-off can't happen until you've completed the checklist and it's been notified to the relevant party — \"Overdue hold points\" above flags any stuck past their notice period.",
+  "If an inspection fails, raise an NCR against it so it's tracked through to closure.",
+];
+
 /**
  * The Inspector's own operational dashboard — visually aligned to the client's UI reference
  * (group-1-2-inspector-dashboard.png: greeting + date, a primary "New inspection" action, icon-
@@ -54,6 +65,20 @@ export function InspectorDashboard({
           New inspection
         </Link>
       </div>
+
+      <details className="mt-4 rounded-lg border border-gold/40 bg-gold/5 open:pb-4" open>
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink">
+          Your role as Inspector: what to do here
+        </summary>
+        <ul className="space-y-1.5 px-4 text-sm text-ink">
+          {INSPECTOR_GUIDE.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span aria-hidden className="text-burgundy">•</span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
