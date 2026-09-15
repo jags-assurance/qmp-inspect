@@ -61,41 +61,32 @@ async function findItpIdForProgress(
 }
 
 /**
- * Marks a party notified of a pending Hold/Witness/Review/Surveillance sign-off, and delivers a real
- * in-app notification to that party's linked user (project_parties.user_id) — replacing what used to
- * be a pure timestamp with no actual delivery. Best-effort: a party with no linked login yet (set up
- * in advance of that user's account existing, a legitimate real-world ordering) simply gets no
- * notification row — the notified_at timestamp is still the source of truth for the notice-period
- * clock either way, so this never blocks the core action.
+ * Shared notify logic used by both the single-row Notify button (notifyPartyAction) and the
+ * "Notify all pending" bulk action (notifyAllPendingForItpAction) below — marks the row notified and
+ * delivers a real in-app notification to that party's linked user (project_parties.user_id),
+ * replacing what used to be a pure timestamp with no actual delivery. Best-effort: a party with no
+ * linked login yet (set up in advance of that user's account existing, a legitimate real-world
+ * ordering) simply gets no notification row — the notified_at timestamp is still the source of truth
+ * for the notice-period clock either way, so delivery failures never block the status update. Does
+ * NOT revalidate the page itself — callers do that once, after all rows they touch are done.
  */
-export async function notifyPartyAction(progressId: string): Promise<SignoffActionResult> {
-  if (!progressId) return { error: "Missing sign-off record." };
-
-  const supabase = await createSupabaseServerClient();
-
-  const { data: progress } = await supabase
-    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .select("id, itp_item_id, project_party_id, intervention, status")
-    .eq("id", progressId)
-    .maybeSingle<
-      Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">
-    >();
-
-  if (!progress) return { error: "Sign-off record not found." };
-
+async function notifySignoffRow(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  progress: Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">
+): Promise<SignoffActionResult> {
   const { error } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
     .update({ status: "notified", notified_at: new Date().toISOString() })
-    .eq("id", progressId);
+    .eq("id", progress.id);
 
   if (error) return { error: "Could not notify the party. Check you have permission and try again." };
-
-  const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
 
   // Best-effort real notification delivery — failures here (missing user link, RLS denial for an
   // edge case) never surface as an error on the Notify action itself; the status update above is
   // what actually matters and has already succeeded.
   try {
+    const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
+
     const { data: context } = await supabase
       .from("itp_items")
       .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
@@ -134,8 +125,78 @@ export async function notifyPartyAction(progressId: string): Promise<SignoffActi
     // Notification delivery is best-effort — see doc comment above.
   }
 
+  return { error: null };
+}
+
+/**
+ * Marks a party notified of a pending Hold/Witness/Review/Surveillance sign-off. Thin wrapper around
+ * notifySignoffRow for the single-row Notify button — see that function's doc comment for what it
+ * actually does.
+ */
+export async function notifyPartyAction(progressId: string): Promise<SignoffActionResult> {
+  if (!progressId) return { error: "Missing sign-off record." };
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: progress } = await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .select("id, itp_item_id, project_party_id, intervention, status")
+    .eq("id", progressId)
+    .maybeSingle<
+      Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">
+    >();
+
+  if (!progress) return { error: "Sign-off record not found." };
+
+  const result = await notifySignoffRow(supabase, progress);
+  if (result.error) return result;
+
+  const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
+}
+
+/**
+ * Bulk twin of notifyPartyAction: notifies every activity_signoff_progress row still 'pending' for
+ * this ITP in one click, instead of one Notify click per row — the end-to-end walkthrough found
+ * doing this row-by-row too slow for a JAGS admin managing several ITPs. JAGS-staff only, mirroring
+ * this page's other staff-only actions (matches canEditContent's gating in page.tsx). Calls the same
+ * notifySignoffRow used by the single-row action above for every row, so notification-sending logic
+ * lives in exactly one place.
+ */
+export async function notifyAllPendingForItpAction(formData: FormData): Promise<void> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  if (!itpId) return;
+
+  const session = await requireSession();
+  if (!session.isJagsStaff) return;
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: sections } = await supabase
+    .from("itp_sections")
+    .select("itp_items(id)")
+    .eq("itp_id", itpId)
+    .returns<{ itp_items: { id: string }[] }[]>();
+
+  const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((i) => i.id));
+
+  if (itemIds.length > 0) {
+    const { data: pending } = await supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .select("id, itp_item_id, project_party_id, intervention, status")
+      .in("itp_item_id", itemIds)
+      .eq("status", "pending")
+      .returns<
+        Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">[]
+      >();
+
+    for (const row of pending ?? []) {
+      await notifySignoffRow(supabase, row);
+    }
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
 }
 
 /** Records sign-off. Valid for any intervention level, regardless of whether it was ever notified. */

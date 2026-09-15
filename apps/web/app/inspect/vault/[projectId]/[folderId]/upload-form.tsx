@@ -143,6 +143,10 @@ export function VaultUploadForm({
             disabled={uploading}
             className="mt-1 block w-full text-sm text-ink file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
           />
+          <p className="mt-1 text-xs text-muted">
+            PDF, Word (.docx), or plain text/.md support AI-assisted generation later — other file
+            types still upload and store fine, just without that.
+          </p>
         </div>
       </div>
 

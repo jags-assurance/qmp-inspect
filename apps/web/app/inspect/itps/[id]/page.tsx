@@ -8,6 +8,7 @@ import { InterventionSelect } from "@/components/domain/intervention-select";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import { advanceItpStatusAction, acceptItpAction } from "@/lib/itps/actions";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
+import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
 import type { InterventionLevel } from "@jags/shared-types";
 import { AddItemForm } from "./add-item-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -194,6 +195,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     signoffMap.set(`${row.itp_item_id}:${row.project_party_id}`, row);
   }
 
+  // Sign-off progress summary (near the page top) and "Notify all pending" gating below — both
+  // computed from the same activity_signoff_progress rows already fetched above, no extra query.
+  const signoffTotal = (signoffs ?? []).length;
+  const signoffComplete = (signoffs ?? []).filter((row) => row.status === "signed_off").length;
+  const hasPendingSignoffs = (signoffs ?? []).some((row) => row.status === "pending");
+
   const noticeHours: Record<"H" | "W", number> = { ...DEFAULT_NOTICE_PERIOD_HOURS };
   for (const config of noticeConfigs ?? []) {
     noticeHours[config.intervention] = config.hours;
@@ -233,6 +240,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             {itp.projects?.organizations?.name} · {itp.projects?.name}
             {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
           </p>
+          {signoffTotal > 0 && (
+            <p className="mt-1 text-sm text-muted">
+              {signoffComplete} of {signoffTotal} sign-off points complete
+            </p>
+          )}
 
           <ol className="mt-3 flex items-center gap-2">
             {STATUS_STEPS.map((step, i) => {
@@ -282,6 +294,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
               <input type="hidden" name="from_status" value="under_review" />
               <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">
                 Approve
+              </button>
+            </form>
+          )}
+          {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
+              activity_signoff_progress row for this ITP in one click, matching this page's existing
+              staff-only gating (canEditContent) rather than introducing a new permission check. */}
+          {canEditContent && hasPendingSignoffs && (
+            <form action={notifyAllPendingForItpAction}>
+              <input type="hidden" name="itp_id" value={itp.id} />
+              <button type="submit" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
+                Notify all pending
               </button>
             </form>
           )}

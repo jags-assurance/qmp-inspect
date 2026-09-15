@@ -196,6 +196,12 @@ export function NewItpFromAiForm({
                             {EXTRACTION_LABEL[doc.extractionStatus] ?? doc.extractionStatus}
                           </span>
                         </span>
+                        {doc.extractionStatus === "unsupported" && (
+                          <span className="mt-0.5 block text-xs text-muted">
+                            Only PDF, Word (.docx), or plain text/.md can be read for AI generation —
+                            re-upload this document as one of those to use it here.
+                          </span>
+                        )}
                       </label>
                     </li>
                   );
