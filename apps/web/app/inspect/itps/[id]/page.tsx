@@ -86,8 +86,6 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   if (!itp) notFound();
 
-  const latestPdf = await getLatestItpPdf(itp.id);
-
   interface SectionWithItems {
     id: string;
     section_number: number;
@@ -105,8 +103,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   const canPropose = session.isJagsStaff && (itp.status === "approved" || itp.status === "client_accepted");
 
-  const [{ data: sections }, { data: parties }, { data: interventions }, { data: signoffs }, { data: noticeConfigs }, { data: masterTemplates }, { data: disciplines }] =
+  const [latestPdf, { data: sections }, { data: parties }, { data: interventions }, { data: signoffs }, { data: noticeConfigs }, { data: masterTemplates }, { data: disciplines }] =
     await Promise.all([
+      // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
+      // everything else below, so it runs concurrently instead of blocking the rest of the page
+      // behind it (previously awaited sequentially before this Promise.all even started).
+      getLatestItpPdf(itp.id),
       supabase
         .from("itp_sections")
         .select(
@@ -324,9 +326,30 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {/* Jump-to-section nav: purely a scanning aid for long ITPs (several sections, each a wide
+          H/W/R/S table) — no data is hidden or removed, this just anchors to each section's
+          existing heading. Only worth showing once there's more than one section to jump between. */}
+      {(sections ?? []).length > 1 && (
+        <nav
+          aria-label="Jump to section"
+          className="sticky top-0 z-10 mt-8 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface/80"
+        >
+          <span className="text-xs font-medium text-muted">Jump to:</span>
+          {(sections ?? []).map((section) => (
+            <a
+              key={section.id}
+              href={`#section-${section.section_number}`}
+              className="rounded-full bg-burgundy/10 px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-burgundy/20"
+            >
+              {section.section_number}. {section.title}
+            </a>
+          ))}
+        </nav>
+      )}
+
       <div className="mt-8 space-y-8">
         {(sections ?? []).map((section) => (
-          <div key={section.id} className="rounded-lg border border-border bg-surface">
+          <div key={section.id} id={`section-${section.section_number}`} className="rounded-lg border border-border bg-surface scroll-mt-20">
             <div className="border-b border-border px-4 py-3">
               <h2 className="font-medium text-ink">
                 {section.section_number}. {section.title}
