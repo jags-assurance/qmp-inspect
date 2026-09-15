@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { signInAction, type SignInState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
+import { PasswordField } from "@/components/domain/password-field";
 
 const initialState: SignInState = { error: null };
 
@@ -39,17 +41,17 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-ink">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
-            />
+            <div className="flex items-center justify-between">
+              <label htmlFor="password" className="block text-sm font-medium text-ink">
+                Password
+              </label>
+              <Link href="/forgot-password" className="text-xs font-medium text-burgundy hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+            <div className="mt-1">
+              <PasswordField id="password" name="password" label="" autoComplete="current-password" />
+            </div>
           </div>
 
           {state.error && <p className="text-sm text-danger">{state.error}</p>}
