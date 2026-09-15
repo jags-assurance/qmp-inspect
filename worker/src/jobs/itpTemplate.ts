@@ -110,14 +110,13 @@ const SIGNOFF_STATUS_LABEL: Record<ItpTemplateSignoffStatus, string> = {
 };
 
 // Appended to the intervention letter so a freshly-approved ITP and a fully-executed one don't
-// render an identical grid. Plain ASCII/common-Unicode marks only, since they need to survive
-// Puppeteer's default font rendering: a check for done, a tilde for in-progress, nothing for
-// not-yet-started (the letter alone already reads as "not started" without extra noise).
-const SIGNOFF_STATUS_MARK: Record<ItpTemplateSignoffStatus, string> = {
-  pending: "",
-  notified: "~",
-  signed_off: "✓",
-};
+// render an identical grid: a tilde for in-progress (plain ASCII, safe in any font), nothing for
+// not-yet-started (the letter alone already reads as "not started" without extra noise). Signed-off
+// uses an inline SVG rather than a Unicode check mark (U+2713) — Puppeteer's default Arial/Helvetica
+// fallback doesn't carry that glyph and silently renders it as a missing-character box instead.
+const SIGNOFF_NOTIFIED_MARK = "~";
+const SIGNOFF_CHECK_SVG =
+  '<svg class="signoff-check" viewBox="0 0 12 12" width="8" height="8"><polyline points="2,6.5 5,9.5 10,3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function interventionCell(
   code: "H" | "W" | "R" | "S" | undefined,
@@ -125,7 +124,8 @@ function interventionCell(
 ): string {
   if (!code) return '<td class="intervention-cell intervention-none">&mdash;</td>';
   const effectiveStatus = status ?? "pending";
-  const mark = SIGNOFF_STATUS_MARK[effectiveStatus];
+  const mark =
+    effectiveStatus === "signed_off" ? SIGNOFF_CHECK_SVG : effectiveStatus === "notified" ? SIGNOFF_NOTIFIED_MARK : "";
   const title = `${INTERVENTION_LABEL[code]} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
   return `<td class="intervention-cell intervention-${code} signoff-${effectiveStatus}" title="${title}">${code}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</td>`;
 }
@@ -201,7 +201,7 @@ function renderLegend(): string {
       <span class="legend-item"><span class="legend-swatch intervention-W"></span>W &ndash; Witness</span>
       <span class="legend-item"><span class="legend-swatch intervention-R"></span>R &ndash; Review</span>
       <span class="legend-item"><span class="legend-swatch intervention-S"></span>S &ndash; Surveillance</span>
-      <span class="legend-item legend-signoff">${SIGNOFF_STATUS_MARK.signed_off} Signed off &nbsp;&nbsp; ${SIGNOFF_STATUS_MARK.notified} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
+      <span class="legend-item legend-signoff">${SIGNOFF_CHECK_SVG} Signed off &nbsp;&nbsp; ${SIGNOFF_NOTIFIED_MARK} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
     </div>`;
 }
 
@@ -480,6 +480,16 @@ export function buildItpHtml(data: ItpTemplateData): string {
     display: inline-block;
     margin-left: 2px;
     font-size: 7px;
+    vertical-align: middle;
+  }
+
+  .signoff-check {
+    vertical-align: -1px;
+  }
+
+  .legend-signoff .signoff-check {
+    vertical-align: -1px;
+    color: var(--ink);
   }
 
   .legend {
