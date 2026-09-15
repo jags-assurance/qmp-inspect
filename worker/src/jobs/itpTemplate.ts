@@ -15,6 +15,19 @@ export interface ItpTemplateIntervention {
   code: "H" | "W" | "R" | "S";
 }
 
+/**
+ * Whether the party holding this intervention has actually acted on it yet — separate from the
+ * intervention code itself (which only ever says who holds what, never whether it happened). Without
+ * this, a freshly-approved ITP and a fully-executed one render an identical-looking grid.
+ */
+export type ItpTemplateSignoffStatus = "pending" | "notified" | "signed_off";
+
+export interface ItpTemplateSignoffCell {
+  itpItemId: string;
+  projectPartyId: string;
+  status: ItpTemplateSignoffStatus;
+}
+
 export interface ItpTemplateItem {
   id: string;
   itemNumber: string;
@@ -52,6 +65,7 @@ export interface ItpTemplateData {
   parties: ItpTemplateParty[];
   sections: ItpTemplateSection[];
   interventions: ItpTemplateIntervention[];
+  signoffStatuses: ItpTemplateSignoffCell[];
   signoffs: ItpTemplateSignoff[];
   generatedAt: Date;
 }
@@ -89,22 +103,57 @@ function cell(value: string | null | undefined): string {
   return value ? escapeHtml(value) : "&mdash;";
 }
 
-function interventionCell(code: "H" | "W" | "R" | "S" | undefined): string {
+const SIGNOFF_STATUS_LABEL: Record<ItpTemplateSignoffStatus, string> = {
+  pending: "Pending — not yet notified",
+  notified: "Notified — awaiting sign-off",
+  signed_off: "Signed off",
+};
+
+// Appended to the intervention letter so a freshly-approved ITP and a fully-executed one don't
+// render an identical grid. Plain ASCII/common-Unicode marks only, since they need to survive
+// Puppeteer's default font rendering: a check for done, a tilde for in-progress, nothing for
+// not-yet-started (the letter alone already reads as "not started" without extra noise).
+const SIGNOFF_STATUS_MARK: Record<ItpTemplateSignoffStatus, string> = {
+  pending: "",
+  notified: "~",
+  signed_off: "✓",
+};
+
+function interventionCell(
+  code: "H" | "W" | "R" | "S" | undefined,
+  status: ItpTemplateSignoffStatus | undefined
+): string {
   if (!code) return '<td class="intervention-cell intervention-none">&mdash;</td>';
-  return `<td class="intervention-cell intervention-${code}" title="${INTERVENTION_LABEL[code]}">${code}</td>`;
+  const effectiveStatus = status ?? "pending";
+  const mark = SIGNOFF_STATUS_MARK[effectiveStatus];
+  const title = `${INTERVENTION_LABEL[code]} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
+  return `<td class="intervention-cell intervention-${code} signoff-${effectiveStatus}" title="${title}">${code}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</td>`;
 }
 
-function renderSection(section: ItpTemplateSection, parties: ItpTemplateParty[], interventions: ItpTemplateIntervention[]): string {
+function renderSection(
+  section: ItpTemplateSection,
+  parties: ItpTemplateParty[],
+  interventions: ItpTemplateIntervention[],
+  signoffStatuses: ItpTemplateSignoffCell[]
+): string {
   const interventionByItem = new Map<string, Map<string, "H" | "W" | "R" | "S">>();
   for (const iv of interventions) {
     if (!interventionByItem.has(iv.itpItemId)) interventionByItem.set(iv.itpItemId, new Map());
     interventionByItem.get(iv.itpItemId)!.set(iv.projectPartyId, iv.code);
   }
 
+  const statusByItem = new Map<string, Map<string, ItpTemplateSignoffStatus>>();
+  for (const s of signoffStatuses) {
+    if (!statusByItem.has(s.itpItemId)) statusByItem.set(s.itpItemId, new Map());
+    statusByItem.get(s.itpItemId)!.set(s.projectPartyId, s.status);
+  }
+
   const rows = section.items
     .map((item) => {
       const partyCells = parties
-        .map((party) => interventionCell(interventionByItem.get(item.id)?.get(party.id)))
+        .map((party) =>
+          interventionCell(interventionByItem.get(item.id)?.get(party.id), statusByItem.get(item.id)?.get(party.id))
+        )
         .join("");
       return `
         <tr>
@@ -152,6 +201,7 @@ function renderLegend(): string {
       <span class="legend-item"><span class="legend-swatch intervention-W"></span>W &ndash; Witness</span>
       <span class="legend-item"><span class="legend-swatch intervention-R"></span>R &ndash; Review</span>
       <span class="legend-item"><span class="legend-swatch intervention-S"></span>S &ndash; Surveillance</span>
+      <span class="legend-item legend-signoff">${SIGNOFF_STATUS_MARK.signed_off} Signed off &nbsp;&nbsp; ${SIGNOFF_STATUS_MARK.notified} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
     </div>`;
 }
 
@@ -173,7 +223,9 @@ function renderSignoffs(signoffs: ItpTemplateSignoff[]): string {
 
 export function buildItpHtml(data: ItpTemplateData): string {
   const statusLabel = STATUS_LABEL[data.status] ?? data.status;
-  const sectionsHtml = data.sections.map((s) => renderSection(s, data.parties, data.interventions)).join("");
+  const sectionsHtml = data.sections
+    .map((s) => renderSection(s, data.parties, data.interventions, data.signoffStatuses))
+    .join("");
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 19) + " UTC";
 
   return `<!doctype html>
@@ -418,11 +470,30 @@ export function buildItpHtml(data: ItpTemplateData): string {
   .intervention-S { background: #9AA0A6; color: #fff; }
   .intervention-none { color: #bbb; }
 
+  /* Sign-off completion, layered on top of the intervention color above: a pending cell (holder
+     assigned but not yet notified) is dimmed so it reads as "not started"; a notified cell gets a
+     dashed outline (in progress); a signed-off cell stays full-strength with a check mark. Without
+     this a freshly-approved ITP and a fully-executed one would render an identical-looking grid. */
+  .intervention-cell.signoff-pending { opacity: 0.45; }
+  .intervention-cell.signoff-notified { outline: 1.5px dashed var(--ink); outline-offset: -2px; }
+  .signoff-mark {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 7px;
+  }
+
   .legend {
     display: flex;
     gap: 14px;
     margin: 6px 0 14px 0;
     font-size: 8px;
+    flex-wrap: wrap;
+  }
+
+  .legend-signoff {
+    color: #555;
+    border-left: 1px solid #ccc;
+    padding-left: 14px;
   }
 
   .legend-item { display: flex; align-items: center; gap: 4px; }

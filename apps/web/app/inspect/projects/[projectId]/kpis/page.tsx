@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
-import { computeProjectKpis, computeQualityByParty } from "@/lib/kpis/compute";
+import { computeProjectKpis, computeQualityByParty, computeFirstTimePassRateByDiscipline } from "@/lib/kpis/compute";
 import { OpenItemsTable } from "./open-items-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
@@ -35,9 +35,10 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
 
   if (!project) notFound();
 
-  const [kpis, qualityByParty] = await Promise.all([
+  const [kpis, qualityByParty, qualityByDiscipline] = await Promise.all([
     computeProjectKpis(supabase, projectId),
     computeQualityByParty(supabase, projectId),
+    computeFirstTimePassRateByDiscipline(supabase, projectId),
   ]);
 
   return (
@@ -98,6 +99,30 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
                   <div className="h-2 rounded-full bg-burgundy" style={{ width: `${row.percentage}%` }} />
                 </div>
                 <span className="w-12 shrink-0 text-right text-sm font-medium text-ink">{row.percentage}%</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {qualityByDiscipline.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <h2 className="font-medium text-ink">Quality by discipline</h2>
+          <p className="mt-1 text-sm text-muted">First-time pass rate per discipline, ranked highest to lowest.</p>
+          <ol className="mt-4 space-y-3">
+            {qualityByDiscipline.map((row, index) => (
+              <li key={row.disciplineCode} className="flex items-center gap-3">
+                <span className="w-5 shrink-0 text-sm text-muted">{index + 1}</span>
+                <span className="w-36 shrink-0 truncate text-sm text-ink" title={row.disciplineName}>
+                  {row.disciplineCode}
+                </span>
+                <div className="h-2 flex-1 rounded-full bg-border">
+                  <div className="h-2 rounded-full bg-burgundy" style={{ width: `${row.rate ?? 0}%` }} />
+                </div>
+                <span className="w-12 shrink-0 text-right text-sm font-medium text-ink">{formatPercent(row.rate)}</span>
+                <span className="w-20 shrink-0 text-right text-xs text-muted">
+                  {row.firstTimePasses}/{row.firstAttempts}
+                </span>
               </li>
             ))}
           </ol>

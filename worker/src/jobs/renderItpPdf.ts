@@ -1,7 +1,14 @@
 import puppeteer from "puppeteer";
 import type { Database } from "@jags/shared-types";
 import { supabase } from "../supabase";
-import { buildItpHtml, type ItpTemplateData, type ItpTemplateIntervention, type ItpTemplateSignoff } from "./itpTemplate";
+import {
+  buildItpHtml,
+  type ItpTemplateData,
+  type ItpTemplateIntervention,
+  type ItpTemplateSignoff,
+  type ItpTemplateSignoffCell,
+  type ItpTemplateSignoffStatus,
+} from "./itpTemplate";
 import type { RenderItpPdfPayload } from "./types";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -107,6 +114,22 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     throw new Error(`Failed to load intervention grid: ${interventionError.message}`);
   }
 
+  // Not in the generated Database type yet (added by a later migration than the last type
+  // generation) — same "as any" escape hatch used elsewhere in this repo for this table, still
+  // typed at the call site via .returns<T>().
+  const { data: signoffRows, error: signoffError } =
+    itemIds.length > 0
+      ? await supabase
+          .from("activity_signoff_progress" as any)
+          .select("itp_item_id, project_party_id, status")
+          .in("itp_item_id", itemIds)
+          .returns<{ itp_item_id: string; project_party_id: string; status: ItpTemplateSignoffStatus }[]>()
+      : { data: [] as { itp_item_id: string; project_party_id: string; status: ItpTemplateSignoffStatus }[], error: null };
+
+  if (signoffError) {
+    throw new Error(`Failed to load sign-off progress: ${signoffError.message}`);
+  }
+
   const signoffUserIds = [itp.prepared_by, itp.reviewed_by, itp.approved_by, itp.client_accepted_by].filter(
     (id): id is string => Boolean(id)
   );
@@ -137,6 +160,12 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     itpItemId: row.itp_item_id,
     projectPartyId: row.project_party_id,
     code: row.intervention,
+  }));
+
+  const signoffStatuses: ItpTemplateSignoffCell[] = (signoffRows ?? []).map((row) => ({
+    itpItemId: row.itp_item_id,
+    projectPartyId: row.project_party_id,
+    status: row.status,
   }));
 
   const signoffs: ItpTemplateSignoff[] = [
@@ -177,6 +206,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
       })),
     })),
     interventions,
+    signoffStatuses,
     signoffs,
     generatedAt: new Date(),
   };

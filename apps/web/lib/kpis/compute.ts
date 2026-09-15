@@ -141,6 +141,92 @@ export async function computeQualityByParty(supabase: SupabaseClient, projectId:
     .sort((a, b) => b.percentage - a.percentage);
 }
 
+export interface DisciplinePassRateRow {
+  disciplineCode: string;
+  disciplineName: string;
+  firstAttempts: number;
+  firstTimePasses: number;
+  rate: number | null;
+}
+
+/**
+ * First-time pass rate broken out per discipline (Piping, Welding & NDT, Instrumentation, ...),
+ * instead of computeProjectKpis's single project-wide number — a multi-discipline project (e.g. an
+ * oil & gas platform upgrade) can have one discipline driving quality issues while others are clean,
+ * and a single blended rate hides that. Same "first attempt per item" logic as
+ * computeProjectKpis.firstTimePassRate, just grouped by itp_items.discipline_id instead of summed
+ * across the whole project. Disciplines with zero first attempts are omitted entirely, matching
+ * computeQualityByParty's "never show 0/0" convention.
+ */
+export async function computeFirstTimePassRateByDiscipline(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<DisciplinePassRateRow[]> {
+  const { data: itps } = await supabase.from("itps").select("id").eq("project_id", projectId).returns<{ id: string }[]>();
+  const itpIds = (itps ?? []).map((itp) => itp.id);
+  if (itpIds.length === 0) return [];
+
+  const { data: sections } = await supabase.from("itp_sections").select("id").in("itp_id", itpIds).returns<{ id: string }[]>();
+  const sectionIds = (sections ?? []).map((s) => s.id);
+  if (sectionIds.length === 0) return [];
+
+  const { data: items } = await supabase
+    .from("itp_items")
+    .select("id, discipline_id")
+    .in("section_id", sectionIds)
+    .not("discipline_id", "is", null)
+    .returns<{ id: string; discipline_id: string }[]>();
+  const itemIds = (items ?? []).map((i) => i.id);
+  if (itemIds.length === 0) return [];
+
+  const disciplineByItem = new Map(items!.map((i) => [i.id, i.discipline_id]));
+
+  const { data: records } = await supabase
+    .from("inspection_records")
+    .select("itp_item_id, overall_result, created_at")
+    .in("itp_item_id", itemIds)
+    .order("created_at", { ascending: true })
+    .returns<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null; created_at: string }[]>();
+
+  const firstAttemptByItem = new Map<string, (typeof records extends (infer T)[] | null ? T : never)>();
+  for (const record of records ?? []) {
+    if (!firstAttemptByItem.has(record.itp_item_id)) firstAttemptByItem.set(record.itp_item_id, record);
+  }
+
+  const totalsByDiscipline = new Map<string, { firstAttempts: number; firstTimePasses: number }>();
+  for (const [itemId, record] of firstAttemptByItem) {
+    if (record.overall_result === null) continue;
+    const disciplineId = disciplineByItem.get(itemId);
+    if (!disciplineId) continue;
+    const entry = totalsByDiscipline.get(disciplineId) ?? { firstAttempts: 0, firstTimePasses: 0 };
+    entry.firstAttempts += 1;
+    if (record.overall_result === "pass") entry.firstTimePasses += 1;
+    totalsByDiscipline.set(disciplineId, entry);
+  }
+
+  if (totalsByDiscipline.size === 0) return [];
+
+  const { data: disciplines } = await supabase
+    .from("master_disciplines")
+    .select("id, code, name")
+    .in("id", [...totalsByDiscipline.keys()])
+    .returns<{ id: string; code: string; name: string }[]>();
+  const disciplineById = new Map((disciplines ?? []).map((d) => [d.id, d]));
+
+  return [...totalsByDiscipline.entries()]
+    .map(([disciplineId, counts]) => {
+      const discipline = disciplineById.get(disciplineId);
+      return {
+        disciplineCode: discipline?.code ?? "—",
+        disciplineName: discipline?.name ?? "Unknown discipline",
+        firstAttempts: counts.firstAttempts,
+        firstTimePasses: counts.firstTimePasses,
+        rate: counts.firstAttempts > 0 ? Math.round((counts.firstTimePasses / counts.firstAttempts) * 100) : null,
+      };
+    })
+    .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
+}
+
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
