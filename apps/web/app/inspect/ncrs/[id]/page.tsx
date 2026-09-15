@@ -4,8 +4,10 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { setNcrStatusAction } from "@/lib/ncrs/actions";
-import { NCRS_TABLE, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
+import { NCRS_TABLE, NCR_PHOTOS_TABLE, type NcrPhotoRow, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
 import { CloseOutForm } from "./close-out-form";
+import { NcrPhotoUpload } from "./ncr-photo-upload";
+import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 interface NcrDetail {
@@ -135,6 +137,13 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
 
   if (!ncr) notFound();
 
+  const { data: photos } = await supabase
+    .from(NCR_PHOTOS_TABLE)
+    .select("*")
+    .eq("ncr_id", id)
+    .order("created_at")
+    .returns<NcrPhotoRow[]>();
+
   const isClosed = ncr.status === "closed";
   const nextStatus = NEXT_STATUS[ncr.status];
 
@@ -181,6 +190,22 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
             <p className="mt-1 text-sm text-muted">{ncr.requirement_not_met}</p>
           </>
         )}
+      </div>
+
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+          {(photos ?? []).map((photo) => (
+            <div key={photo.id}>
+              <PhotoThumbnail storagePath={photo.storage_path} caption={photo.caption} />
+              {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
+            </div>
+          ))}
+          {(photos ?? []).length === 0 && (
+            <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>
+          )}
+        </div>
+        {!isClosed && <NcrPhotoUpload ncrId={ncr.id} />}
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">

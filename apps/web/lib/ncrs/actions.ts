@@ -3,7 +3,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { NCRS_TABLE, NCR_SEVERITIES, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
+import {
+  NCRS_TABLE,
+  NCR_PHOTOS_TABLE,
+  NCR_SEVERITIES,
+  type NcrSeverity,
+  type NcrStatus,
+} from "@/lib/ncrs/types";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { assertAiAllowed } from "@/lib/ai/gate";
@@ -368,4 +374,41 @@ export async function setNcrStatusAction(formData: FormData) {
 
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");
+}
+
+export interface AddNcrPhotoState {
+  error: string | null;
+}
+
+/** Records a photo already uploaded to the "inspection-evidence" bucket against an NCR. */
+export async function addNcrPhotoAction(
+  _prev: AddNcrPhotoState,
+  formData: FormData
+): Promise<AddNcrPhotoState> {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  const storagePath = String(formData.get("storage_path") ?? "").trim();
+  const caption = String(formData.get("caption") ?? "").trim();
+
+  if (!ncrId || !storagePath) {
+    return { error: "Upload failed — no file path was returned." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from(NCR_PHOTOS_TABLE).insert({
+    ncr_id: ncrId,
+    storage_path: storagePath,
+    caption: caption || null,
+    uploaded_by: user?.id ?? null,
+  });
+
+  if (error) {
+    return { error: "Could not save the photo record. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  return { error: null };
 }

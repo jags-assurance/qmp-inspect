@@ -10,6 +10,8 @@
 // downstream of this file works with untyped data.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
 export const NCRS_TABLE = "ncrs" as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
+export const NCR_PHOTOS_TABLE = "ncr_photos" as any;
 
 export const NCR_SEVERITIES = ["observation", "minor_ncr", "major_ncr"] as const;
 export type NcrSeverity = (typeof NCR_SEVERITIES)[number];
@@ -38,4 +40,13 @@ export interface NcrRow {
   closed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface NcrPhotoRow {
+  id: string;
+  ncr_id: string;
+  storage_path: string;
+  caption: string | null;
+  uploaded_by: string | null;
+  created_at: string;
 }
