@@ -78,6 +78,18 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     .returns<{ project_parties: { user_id: string | null } | null }[]>();
   const isAssignedParty = (stakeholderParties ?? []).some((row) => row.project_parties?.user_id === session.userId);
 
+  // Whether the viewer is linked to SOME project party at all — used to tell "you're a project
+  // party, just not this activity's" apart from "you have no party link on this project," since the
+  // former reads as a dead end otherwise (see the not-canExecute message below).
+  const { data: ownPartyLink } = session.isJagsStaff
+    ? { data: null }
+    : await supabase
+        .from("project_parties")
+        .select("id")
+        .eq("project_id", project.id)
+        .eq("user_id", session.userId)
+        .maybeSingle<{ id: string }>();
+
   const { data: items } = await supabase
     .from(CHECKLIST_ITEMS_TABLE)
     .select("id, item_number, description, is_mandatory, sort_order")
@@ -177,8 +189,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && !canExecute && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          Not started yet — a JAGS inspector or the party assigned to this activity will run this
-          field inspection.
+          {ownPartyLink
+            ? "Not started yet. Your organisation doesn't hold a sign-off point on this specific activity, so a JAGS inspector or the party assigned to it will run this field inspection."
+            : "Not started yet — a JAGS inspector or the party assigned to this activity will run this field inspection."}
         </p>
       )}
 

@@ -153,6 +153,7 @@ export async function notifyPartyAction(progressId: string): Promise<SignoffActi
 
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
   return { error: null };
 }
 
@@ -197,6 +198,7 @@ export async function notifyAllPendingForItpAction(formData: FormData): Promise<
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
 }
 
 /** Records sign-off. Valid for any intervention level, regardless of whether it was ever notified. */
@@ -233,6 +235,7 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
 
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
   return { error: null };
 }
 
@@ -288,6 +291,7 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
 
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
   return { error: null };
 }
 

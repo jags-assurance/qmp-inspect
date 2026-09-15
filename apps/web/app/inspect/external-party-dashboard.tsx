@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { StatCard } from "@/components/ui/stat-card";
+import { SignoffCell } from "@/components/domain/signoff-cell";
+import type { SignoffStatus } from "@/lib/signoff/db-types";
 
 const INTERVENTION_TONE: Record<"H" | "W" | "R" | "S", "danger" | "warning" | "info" | "neutral"> = {
   H: "danger",
@@ -29,6 +31,7 @@ const ROLE_LABEL: Record<string, string> = {
 export interface SignoffQueueRow {
   id: string;
   intervention: "H" | "W" | "R" | "S";
+  status: SignoffStatus;
   activity: string;
   itpId: string;
   itpNumber: string;
@@ -42,6 +45,27 @@ export interface ItpAwaitingAcceptanceRow {
   title: string;
   projectName: string;
 }
+
+export interface AssignedNcrRow {
+  id: string;
+  ncrNumber: string;
+  severity: "observation" | "minor_ncr" | "major_ncr";
+  description: string;
+  dueDate: string | null;
+  projectName: string;
+}
+
+const NCR_SEVERITY_TONE: Record<AssignedNcrRow["severity"], "danger" | "warning" | "info"> = {
+  major_ncr: "danger",
+  minor_ncr: "warning",
+  observation: "info",
+};
+
+const NCR_SEVERITY_LABEL: Record<AssignedNcrRow["severity"], string> = {
+  major_ncr: "Major NCR",
+  minor_ncr: "Minor NCR",
+  observation: "Observation",
+};
 
 /**
  * The dashboard landing for the four non-staff roles (client, subcontractor, main contractor,
@@ -66,6 +90,7 @@ export function ExternalPartyDashboard({
   itpsAwaitingAcceptance,
   workAwaitingReview,
   pendingSignoffs,
+  ncrsAssignedToMe,
 }: {
   orgName: string | null;
   /** project_parties.party_type of the user's own linked party, e.g. "client" | "subcontractor". */
@@ -78,9 +103,11 @@ export function ExternalPartyDashboard({
   itpsAwaitingAcceptance: ItpAwaitingAcceptanceRow[];
   workAwaitingReview: SignoffQueueRow[];
   pendingSignoffs: SignoffQueueRow[];
+  ncrsAssignedToMe: AssignedNcrRow[];
 }) {
   const roleLabel = roleKey ? (ROLE_LABEL[roleKey] ?? roleKey) : "Project party";
-  const needsAttention = itpsAwaitingAcceptance.length + workAwaitingReview.length + pendingSignoffs.length;
+  const needsAttention =
+    itpsAwaitingAcceptance.length + workAwaitingReview.length + pendingSignoffs.length + ncrsAssignedToMe.length;
 
   return (
     <div>
@@ -200,6 +227,40 @@ export function ExternalPartyDashboard({
         rows={pendingSignoffs}
         emptyMessage="Nothing awaiting your sign-off right now."
       />
+
+      {ncrsAssignedToMe.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">NCRs assigned to you</h2>
+          <p className="mt-1 text-sm text-muted">
+            Non-conformances raised against your organisation that still need corrective action.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {ncrsAssignedToMe.map((ncr) => (
+              <li
+                key={ncr.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={NCR_SEVERITY_TONE[ncr.severity]}>{NCR_SEVERITY_LABEL[ncr.severity]}</Badge>
+                    <span className="doc-id text-ink">{ncr.ncrNumber}</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted">
+                    {ncr.projectName} — {ncr.description}
+                    {ncr.dueDate && <span className="ml-2">Due {ncr.dueDate}</span>}
+                  </div>
+                </div>
+                <Link
+                  href={`/inspect/ncrs/${ncr.id}`}
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
+                >
+                  Close out →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -242,12 +303,23 @@ function SignoffQueuePanel({
                   </div>
                 </div>
               </div>
-              <Link
-                href={`/inspect/itps/${row.itpId}`}
-                className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
-              >
-                Review →
-              </Link>
+              <div className="flex shrink-0 items-center gap-3">
+                <SignoffCell
+                  progressId={row.id}
+                  intervention={row.intervention}
+                  status={row.status}
+                  notifiedAt={null}
+                  noticeHours={null}
+                  canSignOff
+                  isJagsStaff={false}
+                />
+                <Link
+                  href={`/inspect/itps/${row.itpId}`}
+                  className="text-xs font-medium text-burgundy hover:underline"
+                >
+                  View ITP →
+                </Link>
+              </div>
             </li>
           );
         })}

@@ -369,12 +369,37 @@ export default async function InspectDashboardPage() {
   const pendingToday = pendingActions.filter((a) => isSameDay(a.createdAt));
   const pendingOverdue = pendingActions.filter((a) => a.ageDays >= OVERDUE_DAYS);
 
+  interface AssignedNcrRow {
+    id: string;
+    ncr_number: string;
+    severity: "observation" | "minor_ncr" | "major_ncr";
+    description: string;
+    due_date: string | null;
+    projects: { name: string } | null;
+  }
+  let ncrsAssignedToMe: AssignedNcrRow[] = [];
+  if (!session.isJagsStaff) {
+    // Mirrors the sign-off queue's own reasoning: a notification is how a party first hears about
+    // an assigned NCR, but if it's missed or dismissed there was previously no dashboard path back
+    // to it — only the aggregate "Open NCRs" count, which isn't actionable.
+    const { data } = await supabase
+      .from("ncrs" as never)
+      .select("id, ncr_number, severity, description, due_date, projects(name)")
+      .eq("assigned_to", session.userId)
+      .neq("status", "closed")
+      .order("due_date", { nullsFirst: false })
+      .limit(5)
+      .returns<AssignedNcrRow[]>();
+    ncrsAssignedToMe = data ?? [];
+  }
+
   if (!session.isJagsStaff) {
     const toSignoffQueueRow = (row: PendingSignoffRow): SignoffQueueRow => {
       const itp = row.itp_items?.itp_sections?.itps;
       return {
         id: row.id,
         intervention: row.intervention,
+        status: row.status,
         activity: row.itp_items?.activity ?? "Untitled activity",
         itpId: itp?.id ?? "",
         itpNumber: itp?.itp_number ?? "",
@@ -400,6 +425,14 @@ export default async function InspectDashboardPage() {
         }))}
         workAwaitingReview={workAwaitingReview.map(toSignoffQueueRow)}
         pendingSignoffs={pendingSignoffs.map(toSignoffQueueRow)}
+        ncrsAssignedToMe={ncrsAssignedToMe.map((n) => ({
+          id: n.id,
+          ncrNumber: n.ncr_number,
+          severity: n.severity,
+          description: n.description,
+          dueDate: n.due_date,
+          projectName: n.projects?.name ?? "",
+        }))}
       />
     );
   }
