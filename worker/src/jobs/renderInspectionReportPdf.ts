@@ -95,9 +95,9 @@ export async function renderInspectionReportPdf(
     results,
     photos,
     signoffs: [
-      { label: "Inspector", name: inspector?.full_name ?? null, date: record.overall_result ? record.inspection_date : null },
-      { label: "Contractor Witness", name: null, date: null },
-      { label: "Client Representative", name: null, date: null },
+      { label: "INSPECTOR", name: inspector?.full_name ?? null, date: record.overall_result ? record.inspection_date : null },
+      { label: "CONTRACTOR WITNESS", name: null, date: null },
+      { label: "CLIENT REPRESENTATIVE", name: null, date: null },
     ],
     generatedAt: new Date(),
   };

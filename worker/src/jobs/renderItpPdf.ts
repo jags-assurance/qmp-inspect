@@ -169,11 +169,11 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   }));
 
   const signoffs: ItpTemplateSignoff[] = [
-    { label: "Prepared", name: itp.prepared_by ? usersById.get(itp.prepared_by) ?? null : null, date: null },
-    { label: "Reviewed", name: itp.reviewed_by ? usersById.get(itp.reviewed_by) ?? null : null, date: null },
-    { label: "Approved", name: itp.approved_by ? usersById.get(itp.approved_by) ?? null : null, date: null },
+    { label: "PREPARED", name: itp.prepared_by ? usersById.get(itp.prepared_by) ?? null : null, date: null },
+    { label: "REVIEWED", name: itp.reviewed_by ? usersById.get(itp.reviewed_by) ?? null : null, date: null },
+    { label: "APPROVED", name: itp.approved_by ? usersById.get(itp.approved_by) ?? null : null, date: null },
     {
-      label: "Client Accepted",
+      label: "CLIENT ACCEPTED",
       name: itp.client_accepted_by ? usersById.get(itp.client_accepted_by) ?? null : null,
       date: itp.client_accepted_at,
     },

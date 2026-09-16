@@ -63,22 +63,22 @@ function pct(value: number | null): string {
 function renderKpiCards(data: MonthlyReportTemplateData): string {
   const cards = [
     {
-      label: "First-Time Pass Rate",
+      label: "FIRST-TIME PASS RATE",
       value: pct(data.firstTimePassRate),
       sub: `${data.firstTimePassCounts.firstTimePasses} / ${data.firstTimePassCounts.firstAttempts} first attempts`,
     },
     {
-      label: "Inspections Completed",
+      label: "INSPECTIONS COMPLETED",
       value: String(data.inspectionsCompleted),
       sub: `across ${data.perProject.length} project${data.perProject.length === 1 ? "" : "s"}`,
     },
     {
-      label: "ITP Completion",
+      label: "ITP COMPLETION",
       value: pct(data.itpCompletionRate),
       sub: `${data.itpCompletionCounts.clientAccepted} / ${data.itpCompletionCounts.total} client-accepted (all-time)`,
     },
     {
-      label: "NCRs This Month",
+      label: "NCRS THIS MONTH",
       value: `${data.ncrsOpenedInMonth} opened / ${data.ncrsClosedInMonth} closed`,
       sub: "see NCR summary below",
     },
@@ -112,7 +112,7 @@ function renderNcrTable(rows: { severity: string; opened: number; closed: number
     .join("");
   return `
     <table class="data-table">
-      <thead><tr><th>Severity</th><th>Opened This Month</th><th>Closed This Month</th></tr></thead>
+      <thead><tr><th>SEVERITY</th><th>OPENED THIS MONTH</th><th>CLOSED THIS MONTH</th></tr></thead>
       <tbody>${body}</tbody>
     </table>`;
 }
@@ -136,7 +136,7 @@ function renderProjectTable(rows: MonthlyReportProjectRow[]): string {
   return `
     <table class="data-table">
       <thead>
-        <tr><th>Project No.</th><th>Project</th><th>Inspections Completed</th><th>NCRs Opened</th><th>NCRs Closed</th></tr>
+        <tr><th>PROJECT NO.</th><th>PROJECT</th><th>INSPECTIONS COMPLETED</th><th>NCRS OPENED</th><th>NCRS CLOSED</th></tr>
       </thead>
       <tbody>${body}</tbody>
     </table>`;
@@ -301,14 +301,14 @@ export function buildMonthlyReportHtml(data: MonthlyReportTemplateData): string 
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>Quality Management &amp; Inspection</small></div>
+      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
-      <div class="doc-control-title">Document Control</div>
+      <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
-        <dt>Report Type</dt><dd>Monthly Pack</dd>
-        <dt>Period</dt><dd>${escapeHtml(data.monthLabel)}</dd>
-        <dt>Generated</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>REPORT TYPE</dt><dd>Monthly Pack</dd>
+        <dt>PERIOD</dt><dd>${escapeHtml(data.monthLabel)}</dd>
+        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
       </dl>
     </div>
   </div>

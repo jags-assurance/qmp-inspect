@@ -196,13 +196,13 @@ function renderSection(
       <table class="items-table">
         <thead>
           <tr>
-            <th>Item No.</th>
-            <th>Activity</th>
-            <th>Reference</th>
-            <th>Acceptance Criteria</th>
-            <th>Method</th>
-            <th>Frequency</th>
-            <th>Evidence Type</th>
+            <th>ITEM NO.</th>
+            <th>ACTIVITY</th>
+            <th>REFERENCE</th>
+            <th>ACCEPTANCE CRITERIA</th>
+            <th>METHOD</th>
+            <th>FREQUENCY</th>
+            <th>EVIDENCE TYPE</th>
             ${partyHeaders}
           </tr>
         </thead>
@@ -230,7 +230,7 @@ function renderSignoffs(signoffs: ItpTemplateSignoff[]): string {
           <div class="signoff-card-label">${escapeHtml(s.label)}</div>
           <div class="signoff-card-name">${cell(s.name)}</div>
           <div class="signoff-card-line"></div>
-          <div class="signoff-card-date"><span class="label">Date</span>${cell(s.date)}</div>
+          <div class="signoff-card-date"><span class="label">DATE</span>${cell(s.date)}</div>
         </div>`
     )
     .join("");
@@ -609,15 +609,15 @@ export function buildItpHtml(data: ItpTemplateData): string {
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>Quality Management &amp; Inspection</small></div>
+      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
-      <div class="doc-control-title">Document Control</div>
+      <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
-        <dt>Doc No.</dt><dd>${escapeHtml(data.itpNumber)}</dd>
-        <dt>Revision</dt><dd>${data.revision}</dd>
-        <dt>Status</dt><dd>${escapeHtml(statusLabel)}</dd>
-        <dt>Generated</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>DOC NO.</dt><dd>${escapeHtml(data.itpNumber)}</dd>
+        <dt>REVISION</dt><dd>${data.revision}</dd>
+        <dt>STATUS</dt><dd>${escapeHtml(statusLabel)}</dd>
+        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
       </dl>
     </div>
   </div>
@@ -628,10 +628,10 @@ export function buildItpHtml(data: ItpTemplateData): string {
   </div>
 
   <div class="info-grid">
-    <div><span class="label">Scope</span>${cell(data.scope)}</div>
-    <div><span class="label">Applicable Standard</span>${cell(data.applicableStandard)}</div>
-    <div><span class="label">Revision</span>${data.revision}</div>
-    <div><span class="label">Status</span>${escapeHtml(statusLabel)}</div>
+    <div><span class="label">SCOPE</span>${cell(data.scope)}</div>
+    <div><span class="label">APPLICABLE STANDARD</span>${cell(data.applicableStandard)}</div>
+    <div><span class="label">REVISION</span>${data.revision}</div>
+    <div><span class="label">STATUS</span>${escapeHtml(statusLabel)}</div>
   </div>
 
   ${renderLegend()}

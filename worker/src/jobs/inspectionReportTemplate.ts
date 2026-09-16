@@ -87,7 +87,7 @@ function renderResultsTable(results: InspectionReportResult[]): string {
   return `
     <table class="items-table">
       <thead>
-        <tr><th>Item</th><th>Inspection point</th><th>Result</th><th>Comment / measurement</th></tr>
+        <tr><th>ITEM</th><th>INSPECTION POINT</th><th>RESULT</th><th>COMMENT / MEASUREMENT</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -119,7 +119,7 @@ function renderSignoffs(signoffs: InspectionReportSignoff[]): string {
           <div class="signoff-card-label">${escapeHtml(s.label)}</div>
           <div class="signoff-card-name">${cell(s.name)}</div>
           <div class="signoff-card-line"></div>
-          <div class="signoff-card-date"><span class="label">Date</span>${cell(s.date)}</div>
+          <div class="signoff-card-date"><span class="label">DATE</span>${cell(s.date)}</div>
         </div>`
     )
     .join("");
@@ -280,14 +280,14 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>Quality Management &amp; Inspection</small></div>
+      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
-      <div class="doc-control-title">Document Control</div>
+      <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
-        <dt>Doc No.</dt><dd>${escapeHtml(data.recordNumber)}</dd>
-        <dt>Rev</dt><dd>0</dd>
-        <dt>Generated</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>DOC NO.</dt><dd>${escapeHtml(data.recordNumber)}</dd>
+        <dt>REV</dt><dd>0</dd>
+        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
       </dl>
     </div>
   </div>
@@ -295,17 +295,17 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   <h1>Inspection Report</h1>
 
   <div class="info-grid">
-    <div><span class="label">Project</span>${cell(data.projectName)}</div>
-    <div><span class="label">ITP / Procedure</span>${cell(data.itpNumber)}</div>
-    <div><span class="label">Activity</span>${cell(data.activity)}</div>
-    <div><span class="label">Discipline</span>${cell(data.discipline)}</div>
-    <div><span class="label">Location</span>${cell(data.location)}</div>
-    <div><span class="label">Date</span>${cell(data.inspectionDate)}</div>
+    <div><span class="label">PROJECT</span>${cell(data.projectName)}</div>
+    <div><span class="label">ITP / PROCEDURE</span>${cell(data.itpNumber)}</div>
+    <div><span class="label">ACTIVITY</span>${cell(data.activity)}</div>
+    <div><span class="label">DISCIPLINE</span>${cell(data.discipline)}</div>
+    <div><span class="label">LOCATION</span>${cell(data.location)}</div>
+    <div><span class="label">DATE</span>${cell(data.inspectionDate)}</div>
   </div>
 
   <div class="summary-bar">
     <div>
-      <div class="label" style="font-size:8px;color:#666;text-transform:uppercase;">Status</div>
+      <div class="label" style="font-size:8px;color:#666;text-transform:uppercase;">STATUS</div>
       <div class="summary-status ${data.overallResult ?? ""}">${escapeHtml(resultLabel)}</div>
     </div>
     <div class="summary-stat"><b>${counts.yes + counts.no + counts.na}</b>Checks completed</div>

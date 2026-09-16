@@ -98,7 +98,7 @@ function renderMeasurements(rows: FatReportMeasurement[]): string {
     <div class="section">
       <h2>Measurements / Test Data</h2>
       <table class="items-table">
-        <thead><tr><th>Parameter</th><th>Nominal</th><th>Tolerance</th><th>Actual</th><th>Unit</th><th>Result</th></tr></thead>
+        <thead><tr><th>PARAMETER</th><th>NOMINAL</th><th>TOLERANCE</th><th>ACTUAL</th><th>UNIT</th><th>RESULT</th></tr></thead>
         <tbody>${body}</tbody>
       </table>
     </div>`;
@@ -119,7 +119,7 @@ function renderPunchList(rows: FatReportPunchItem[]): string {
     <div class="section">
       <h2>Punch List</h2>
       <table class="items-table">
-        <thead><tr><th>Item</th><th>Status</th></tr></thead>
+        <thead><tr><th>ITEM</th><th>STATUS</th></tr></thead>
         <tbody>${body}</tbody>
       </table>
     </div>`;
@@ -151,7 +151,7 @@ function renderSignatures(signatures: FatReportSignature[]): string {
           <img class="signature-img" src="${s.signatureDataUri}" alt="${escapeHtml(s.signatoryName)} signature" />
           <div class="signoff-card-line"></div>
           <div class="signoff-card-name">${escapeHtml(s.signatoryName)}</div>
-          <div class="signoff-card-date"><span class="label">Date</span>${escapeHtml(new Date(s.signedAt).toLocaleDateString())}</div>
+          <div class="signoff-card-date"><span class="label">DATE</span>${escapeHtml(new Date(s.signedAt).toLocaleDateString())}</div>
         </div>`
     )
     .join("");
@@ -257,14 +257,14 @@ export function buildFatReportHtml(data: FatReportData): string {
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>Quality Management &amp; Inspection</small></div>
+      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
-      <div class="doc-control-title">Document Control</div>
+      <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
-        <dt>Doc No.</dt><dd>${escapeHtml(data.assignmentNumber)}</dd>
-        <dt>Rev</dt><dd>0</dd>
-        <dt>Generated</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>DOC NO.</dt><dd>${escapeHtml(data.assignmentNumber)}</dd>
+        <dt>REV</dt><dd>0</dd>
+        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
       </dl>
     </div>
   </div>
@@ -272,20 +272,20 @@ export function buildFatReportHtml(data: FatReportData): string {
   <h1>${escapeHtml(typeLabel)} Report</h1>
 
   <div class="info-grid">
-    <div><span class="label">Client</span>${cell(data.organizationName)}</div>
-    <div><span class="label">Project</span>${cell(data.projectName)}</div>
-    <div><span class="label">Equipment</span>${cell(data.equipmentDescription)}</div>
-    <div><span class="label">Manufacturer / Model</span>${cell([data.manufacturer, data.model].filter(Boolean).join(" / ") || null)}</div>
-    <div><span class="label">Serial / Tag</span>${cell(data.serialTag)}</div>
-    <div><span class="label">Location</span>${cell(data.location)}</div>
-    <div><span class="label">Standard / Spec</span>${cell(data.standardReference)}</div>
-    <div><span class="label">Date</span>${cell(data.assignmentDate)}</div>
+    <div><span class="label">CLIENT</span>${cell(data.organizationName)}</div>
+    <div><span class="label">PROJECT</span>${cell(data.projectName)}</div>
+    <div><span class="label">EQUIPMENT</span>${cell(data.equipmentDescription)}</div>
+    <div><span class="label">MANUFACTURER / MODEL</span>${cell([data.manufacturer, data.model].filter(Boolean).join(" / ") || null)}</div>
+    <div><span class="label">SERIAL / TAG</span>${cell(data.serialTag)}</div>
+    <div><span class="label">LOCATION</span>${cell(data.location)}</div>
+    <div><span class="label">STANDARD / SPEC</span>${cell(data.standardReference)}</div>
+    <div><span class="label">DATE</span>${cell(data.assignmentDate)}</div>
   </div>
 
   ${
     data.conclusion
       ? `<div class="conclusion-banner ${data.conclusion}">
-          <div><span class="label">Conclusion</span><span class="value">${escapeHtml(conclusionLabel)}</span></div>
+          <div><span class="label">CONCLUSION</span><span class="value">${escapeHtml(conclusionLabel)}</span></div>
         </div>`
       : ""
   }
