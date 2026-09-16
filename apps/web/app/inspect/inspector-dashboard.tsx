@@ -108,6 +108,7 @@ export function InspectorDashboard({
         <StatCard
           label="Pending inspections"
           value={pendingInspections}
+          href="#pending-actions"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -137,7 +138,7 @@ export function InspectorDashboard({
         </p>
       )}
 
-      <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+      <div id="pending-actions" className="mt-8 scroll-mt-20 rounded-lg border border-border bg-surface p-5">
         <h2 className="font-medium text-ink">My pending actions</h2>
         <p className="mt-1 text-sm text-muted">
           Checklists not yet started, or still in progress, across every project you have access to.
