@@ -14,6 +14,11 @@ export default async function NewStandaloneAssignmentPage() {
     .from("projects")
     .select("id, project_number, name")
     .order("name");
+  const { data: disciplines } = await supabase
+    .from("master_disciplines")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("sort_order");
 
   return (
     <div className="max-w-2xl">
@@ -22,7 +27,7 @@ export default async function NewStandaloneAssignmentPage() {
         Set up a one-off FAT, witness inspection, specific test or pre-shipment check. The
         assignment number is generated automatically once you save.
       </p>
-      <NewAssignmentForm projects={projects ?? []} />
+      <NewAssignmentForm projects={projects ?? []} disciplines={disciplines ?? []} />
     </div>
   );
 }

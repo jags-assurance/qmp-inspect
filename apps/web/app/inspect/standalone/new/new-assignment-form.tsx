@@ -16,8 +16,10 @@ const ASSIGNMENT_TYPES: { value: AssignmentType; label: string; hint: string }[]
 
 export function NewAssignmentForm({
   projects,
+  disciplines,
 }: {
   projects: { id: string; project_number: string; name: string }[];
+  disciplines: { id: string; code: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(createAssignmentAction, initialState);
 
@@ -151,6 +153,25 @@ export function NewAssignmentForm({
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="discipline_id" className="block text-sm font-medium text-ink">
+          Discipline
+        </label>
+        <select
+          id="discipline_id"
+          name="discipline_id"
+          defaultValue=""
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        >
+          <option value="">—</option>
+          {disciplines.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.code} — {d.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}

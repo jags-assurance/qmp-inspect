@@ -39,6 +39,7 @@ export interface StandaloneAssignmentRow {
   location: string | null;
   standard_reference: string | null;
   assignment_date: string | null;
+  discipline_id: string | null;
   status: AssignmentStatus;
   conclusion: AssignmentConclusion | null;
   notes: string | null;
@@ -115,6 +116,7 @@ export async function createAssignmentAction(
   const location = String(formData.get("location") ?? "").trim();
   const standardReference = String(formData.get("standard_reference") ?? "").trim();
   const assignmentDate = String(formData.get("assignment_date") ?? "").trim();
+  const disciplineId = String(formData.get("discipline_id") ?? "").trim();
 
   if (!projectId || !ASSIGNMENT_TYPES.includes(assignmentType) || !equipmentDescription) {
     return { error: "Project, assignment type and equipment description are required." };
@@ -159,6 +161,7 @@ export async function createAssignmentAction(
       location: location || null,
       standard_reference: standardReference || null,
       assignment_date: assignmentDate || null,
+      discipline_id: disciplineId || null,
       created_by: user?.id ?? null,
     })
     .select("id")

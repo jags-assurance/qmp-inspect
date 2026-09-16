@@ -13,7 +13,9 @@ export interface StandaloneAssignmentListRow {
   assignment_date: string | null;
   status: AssignmentStatus;
   conclusion: AssignmentConclusion | null;
+  discipline_id: string | null;
   projects: { name: string } | null;
+  master_disciplines: { code: string; name: string } | null;
 }
 
 const TYPE_LABEL: Record<AssignmentType, string> = {
@@ -52,6 +54,16 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
   },
   { key: "equipment_description", header: "Equipment", render: (row) => row.equipment_description },
   { key: "project", header: "Project", render: (row) => row.projects?.name ?? "—" },
+  {
+    key: "discipline",
+    header: "Discipline",
+    render: (row) =>
+      row.master_disciplines ? (
+        <Badge tone="neutral">{row.master_disciplines.code}</Badge>
+      ) : (
+        <span className="text-muted">—</span>
+      ),
+  },
   { key: "assignment_date", header: "Date", render: (row) => row.assignment_date ?? "—" },
   {
     key: "status",

@@ -3,23 +3,32 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
+import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ project?: string; discipline?: string }>;
 }) {
   const session = await requireSession();
-  const { project: projectId } = await searchParams;
+  const { project: projectId, discipline: disciplineId } = await searchParams;
   const supabase = await createSupabaseServerClient();
+
+  const { data: disciplines } = await supabase
+    .from("master_disciplines")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("sort_order")
+    .returns<DisciplineOption[]>();
 
   let query = supabase
     .from("standalone_assignments" as any)
     .select(
-      "id, assignment_number, assignment_type, equipment_description, assignment_date, status, conclusion, projects(name)"
+      "id, assignment_number, assignment_type, equipment_description, assignment_date, status, conclusion, discipline_id, projects(name), master_disciplines(code, name)"
     )
     .order("created_at", { ascending: false });
   if (projectId) query = query.eq("project_id", projectId);
+  if (disciplineId) query = query.eq("discipline_id", disciplineId);
 
   const { data: assignments } = await query.returns<StandaloneAssignmentListRow[]>();
 
@@ -48,6 +57,10 @@ export default async function StandaloneAssignmentsPage({
           </Link>
         </p>
       )}
+
+      <div className="mt-6">
+        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+      </div>
 
       <div className="mt-6">
         <StandaloneTable rows={assignments ?? []} />

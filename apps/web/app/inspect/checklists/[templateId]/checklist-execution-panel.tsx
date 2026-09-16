@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ResponseRow } from "./response-row";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
@@ -45,11 +45,37 @@ export function ChecklistExecutionPanel({
   incompleteSlot: ReactNode;
 }) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set(initialResponses.keys()));
+  // Round-table finding: the old per-row transient "Saving…" text disappeared the instant that one
+  // row's request settled, giving no sense of overall sync state. This tracks how many rows are
+  // currently in flight (not just the last one) plus real navigator.onLine, for one persistent
+  // status pill instead of N flickering per-row messages.
+  const [savingCount, setSavingCount] = useState(0);
+  // Same hydration-safe pattern as offline-banner.tsx: default true (matches the server's render,
+  // which has no `navigator`), then read the real value post-mount inside the effect.
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   const totalCount = items.length;
   const answeredCount = answeredIds.size;
   const answeredPct = totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
   const allAnswered = answeredCount === totalCount;
+
+  const syncStatus = !isOnline
+    ? { label: "Offline — will sync when reconnected", className: "text-warning" }
+    : savingCount > 0
+      ? { label: "Saving…", className: "text-muted" }
+      : { label: "All changes saved", className: "text-success" };
 
   return (
     <>
@@ -64,6 +90,9 @@ export function ChecklistExecutionPanel({
           <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-off-white">
             <div className="h-full rounded-full bg-gold transition-[width]" style={{ width: `${answeredPct}%` }} />
           </div>
+          {canExecute && (
+            <p className={"mt-1.5 text-xs font-medium " + syncStatus.className}>{syncStatus.label}</p>
+          )}
         </div>
       )}
       <div className="rounded-lg border border-border bg-surface">
@@ -88,6 +117,7 @@ export function ChecklistExecutionPanel({
                 return next;
               })
             }
+            onSavingChange={(saving) => setSavingCount((prev) => Math.max(0, prev + (saving ? 1 : -1)))}
           />
         ))}
         {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}

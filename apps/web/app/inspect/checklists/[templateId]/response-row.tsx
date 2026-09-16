@@ -51,6 +51,7 @@ export function ResponseRow({
   readOnly,
   registerVerification,
   onResultChange,
+  onSavingChange,
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -65,12 +66,15 @@ export function ResponseRow({
   registerVerification: RegisterVerificationResult | null;
   /** Notifies the parent progress header immediately on tap, ahead of the save round trip. */
   onResultChange?: (result: ChecklistResponseResult | null) => void;
+  /** Feeds the persistent sync-status indicator in the panel header — one row saving is enough to
+   *  show "Saving…" for the whole checklist, so the parent just needs true/false per row. */
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
   const [comment, setComment] = useState(initialSplit.comment);
   const [overrideReason, setOverrideReason] = useState(initialSplit.overrideReason);
-  const [isSaving, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // R99: a register mismatch/not-found is a soft-stop — it never blocks recording a response
@@ -90,21 +94,26 @@ export function ResponseRow({
     formData.set("comment", combineStoredComment(nextOverrideReason, nextComment));
 
     setSaveError(null);
+    onSavingChange?.(true);
     startTransition(async () => {
-      // Offline (R60): rather than let the Server Action's own fetch fail, queue the response
-      // right away when we already know there's no connection, and fall back to the queue if a
-      // "we thought we were online" attempt fails too (a dropped connection mid-save).
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
-        notifyOutboxChanged();
-        return;
-      }
       try {
-        const outcome = await saveChecklistResponseAction(formData);
-        if (outcome.error) setSaveError(outcome.error);
-      } catch {
-        await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
-        notifyOutboxChanged();
+        // Offline (R60): rather than let the Server Action's own fetch fail, queue the response
+        // right away when we already know there's no connection, and fall back to the queue if a
+        // "we thought we were online" attempt fails too (a dropped connection mid-save).
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
+          notifyOutboxChanged();
+          return;
+        }
+        try {
+          const outcome = await saveChecklistResponseAction(formData);
+          if (outcome.error) setSaveError(outcome.error);
+        } catch {
+          await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
+          notifyOutboxChanged();
+        }
+      } finally {
+        onSavingChange?.(false);
       }
     });
   }
@@ -186,8 +195,7 @@ export function ResponseRow({
           }}
           className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
-        {isSaving && <p className="text-xs text-muted">Saving…</p>}
-        {!isSaving && saveError && <p className="text-xs text-danger">{saveError}</p>}
+        {saveError && <p className="text-xs text-danger">{saveError}</p>}
       </div>
     </div>
   );
