@@ -9,7 +9,8 @@ export interface BackgroundJobRow {
     | "render_itp_pdf"
     | "generate_monthly_report_pack"
     | "render_inspection_report_pdf"
-    | "render_fat_report_pdf";
+    | "render_fat_report_pdf"
+    | "render_portfolio_summary_pdf";
   payload: Record<string, unknown>;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
@@ -41,5 +42,13 @@ export interface RenderInspectionReportPdfPayload {
 
 export interface RenderFatReportPdfPayload {
   assignment_id: string;
+  requested_by: string;
+}
+
+/** Payload for "render_portfolio_summary_pdf" — the one-click portfolio-wide PDF summary
+ *  (every organisation, every project). No target id: the worker queries everything, and only
+ *  is_jags_staff() admins can queue this job_type at all (see the RLS with-check on
+ *  background_jobs_insert in 20260916150000_portfolio_summary_pdf_job.sql). */
+export interface RenderPortfolioSummaryPdfPayload {
   requested_by: string;
 }

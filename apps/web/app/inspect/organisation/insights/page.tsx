@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { getLatestPortfolioSummaryPdf } from "@/lib/reports/actions";
+import { PortfolioSummaryPdfButton } from "./portfolio-summary-pdf-button";
 
 /**
  * A lightweight in-app equivalent of the vw_powerbi_* views (see
@@ -77,6 +79,8 @@ export default async function PortfolioInsightsPage() {
 
   const supabase = await createSupabaseServerClient();
 
+  const latestPortfolioSummaryPdf = await getLatestPortfolioSummaryPdf();
+
   const { data: projects } = await supabase
     .from("projects")
     .select("id, project_number, name")
@@ -86,7 +90,10 @@ export default async function PortfolioInsightsPage() {
   if (projectIds.length === 0) {
     return (
       <div className="max-w-4xl">
-        <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+          <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
+        </div>
         <p className="mt-3 text-sm text-muted">No projects yet.</p>
       </div>
     );
@@ -197,16 +204,21 @@ export default async function PortfolioInsightsPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
-      <p className="mt-1 text-sm text-muted">
-        A live, in-app summary across every client and project you have access to — the same
-        aggregates Power BI Desktop reads (see{" "}
-        <a href="/inspect/organisation/reporting" className="underline">
-          Reporting
-        </a>
-        ), computed here through the ordinary RLS-scoped queries every other page in this app uses.
-        Admin-only.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+          <p className="mt-1 text-sm text-muted">
+            A live, in-app summary across every client and project you have access to — the same
+            aggregates Power BI Desktop reads (see{" "}
+            <a href="/inspect/organisation/reporting" className="underline">
+              Reporting
+            </a>
+            ), computed here through the ordinary RLS-scoped queries every other page in this app uses.
+            Admin-only.
+          </p>
+        </div>
+        <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
+      </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard

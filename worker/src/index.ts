@@ -4,12 +4,14 @@ import { renderItpPdf } from "./jobs/renderItpPdf";
 import { generateMonthlyReportPack } from "./jobs/generateMonthlyReportPack";
 import { renderInspectionReportPdf } from "./jobs/renderInspectionReportPdf";
 import { renderFatReportPdf } from "./jobs/renderFatReportPdf";
+import { renderPortfolioSummaryPdf } from "./jobs/renderPortfolioSummaryPdf";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
   RenderFatReportPdfPayload,
   RenderInspectionReportPdfPayload,
   RenderItpPdfPayload,
+  RenderPortfolioSummaryPdfPayload,
 } from "./jobs/types";
 
 const POLL_INTERVAL_MS = 3000;
@@ -114,6 +116,14 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
       }
       case "render_fat_report_pdf": {
         const { resultStoragePath } = await renderFatReportPdf(job.payload as unknown as RenderFatReportPdfPayload);
+        await markCompleted(job.id, resultStoragePath);
+        console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
+        break;
+      }
+      case "render_portfolio_summary_pdf": {
+        const { resultStoragePath } = await renderPortfolioSummaryPdf(
+          job.payload as unknown as RenderPortfolioSummaryPdfPayload
+        );
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
         break;

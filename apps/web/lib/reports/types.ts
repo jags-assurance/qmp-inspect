@@ -29,10 +29,21 @@ export interface RenderFatReportPdfPayload {
   requested_by: string;
 }
 
+/** Payload for "render_portfolio_summary_pdf" — the one-click portfolio-wide PDF summary (every
+ *  organisation, every project). No target id: admin-only, see requestPortfolioSummaryPdfAction. */
+export interface RenderPortfolioSummaryPdfPayload {
+  requested_by: string;
+}
+
 export interface BackgroundJobRow {
   id: string;
   job_type: string;
-  payload: MonthlyReportPackPayload | RenderItpPdfPayload | RenderInspectionReportPdfPayload | RenderFatReportPdfPayload;
+  payload:
+    | MonthlyReportPackPayload
+    | RenderItpPdfPayload
+    | RenderInspectionReportPdfPayload
+    | RenderFatReportPdfPayload
+    | RenderPortfolioSummaryPdfPayload;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
   error_message: string | null;

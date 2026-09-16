@@ -20,6 +20,7 @@ import {
   type RenderFatReportPdfPayload,
   type RenderInspectionReportPdfPayload,
   type RenderItpPdfPayload,
+  type RenderPortfolioSummaryPdfPayload,
 } from "./types";
 
 export interface GenerateMonthlyReportPackState {
@@ -585,4 +586,96 @@ export async function listMonthlyReportPacks(organizationId: string): Promise<Re
   }
 
   return items;
+}
+
+export interface RequestPortfolioSummaryPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_portfolio_summary_pdf" background job — the one-click "Export portfolio summary
+ * (PDF)" button (round-table market-readiness finding: an admin had no way to get a single PDF
+ * summary of the whole portfolio to send a stakeholder, short of compiling per-project reports by
+ * hand). Same insert-a-row pattern as generateMonthlyReportPackAction above; admin-gated here (same
+ * isAdminStaff() check the monthly report pack action uses) AND at the DB layer via
+ * is_jags_staff() on background_jobs_insert (20260916150000_portfolio_summary_pdf_job.sql) as
+ * defence in depth — unlike every other job_type here, this one has no organization_id/project_id
+ * on the payload to scope by, since it deliberately covers the whole portfolio.
+ */
+export async function requestPortfolioSummaryPdfAction(
+  _prev: RequestPortfolioSummaryPdfState,
+  _formData: FormData
+): Promise<RequestPortfolioSummaryPdfState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can export a portfolio summary." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_portfolio_summary_pdf",
+    payload: { requested_by: session.userId } satisfies RenderPortfolioSummaryPdfPayload,
+  });
+
+  if (error) {
+    return { error: "Could not queue the portfolio summary. Check you have permission and try again." };
+  }
+
+  revalidatePath("/inspect/organisation/insights");
+  return { error: null, success: true };
+}
+
+export interface PortfolioSummaryPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+}
+
+/**
+ * The most recent render_portfolio_summary_pdf job requested by THIS user — same "reload to see
+ * progress" pattern as getLatestItpPdf, but scoped to the current session's own requests (there's
+ * no shared target id like an itp_id to filter by; every admin's own last export is what they care
+ * about seeing). RLS (background_jobs_select) also restricts this to jobs either requested by this
+ * user or visible under the is_jags_staff() portfolio-summary branch, so a non-admin session simply
+ * sees no rows here even if this were ever called for one.
+ */
+export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPdfStatus | null> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return null;
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: jobs } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_portfolio_summary_pdf")
+    .order("created_at", { ascending: false })
+    .returns<
+      (Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderPortfolioSummaryPdfPayload;
+        result_storage_path: string | null;
+      })[]
+    >();
+
+  const latest = (jobs ?? []).find((j) => j.payload.requested_by === session.userId);
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const { data: signed } = await supabase.storage
+      .from(GENERATED_DOCUMENTS_BUCKET)
+      .createSignedUrl(latest.result_storage_path, 3600);
+    pdfUrl = signed?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+  };
 }
