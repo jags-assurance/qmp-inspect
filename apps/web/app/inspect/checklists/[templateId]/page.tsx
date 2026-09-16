@@ -246,10 +246,14 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       )}
 
       {session.isJagsStaff && (
-        <div className="mt-8 rounded-lg border border-border bg-surface">
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="font-medium text-ink">Checklist items</h2>
-          </div>
+        // Round-table finding: template-editing controls (drag handle, +Add item) used to sit
+        // directly under the field-answering view, in the default line of sight of an inspector who
+        // just wants to fill in the checklist. Collapsed behind a <details> disclosure, closed by
+        // default, so answering and editing read as two distinct modes rather than one crowded page.
+        <details className="mt-8 rounded-lg border border-border bg-surface">
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-ink">
+            Edit checklist template
+          </summary>
           <ul className="divide-y divide-border">
             {(items ?? []).map((item) => (
               <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 text-sm text-ink">
@@ -262,7 +266,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             ))}
           </ul>
           <AddChecklistItemForm templateId={template.id} />
-        </div>
+        </details>
       )}
 
       {(pastRecords ?? []).length > 0 && (

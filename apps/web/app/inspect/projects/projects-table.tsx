@@ -11,6 +11,10 @@ export interface ProjectRow {
   site_location: string | null;
   status: string;
   organizations: { name: string } | null;
+  /** round(client_accepted ITPs / total ITPs * 100); null when the project has zero ITPs. */
+  itpCompletionPct: number | null;
+  /** Count of NCRs on this project with status != 'closed'. */
+  openNcrCount: number;
 }
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
@@ -46,6 +50,21 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
     key: "status",
     header: "Status",
     render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</Badge>,
+  },
+  {
+    key: "itp_completion",
+    header: "ITP Completion",
+    render: (row) =>
+      row.itpCompletionPct === null ? (
+        <span className="text-muted">—</span>
+      ) : (
+        <Badge tone={row.itpCompletionPct === 100 ? "success" : "neutral"}>{row.itpCompletionPct}%</Badge>
+      ),
+  },
+  {
+    key: "open_ncrs",
+    header: "Open NCRs",
+    render: (row) => <Badge tone={row.openNcrCount > 0 ? "danger" : "success"}>{row.openNcrCount}</Badge>,
   },
 ];
 

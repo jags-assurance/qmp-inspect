@@ -7,6 +7,7 @@ import { OfflineBanner } from "./offline-banner";
 import { NotificationsBell } from "./notifications-bell";
 import { SidebarMobileProvider } from "./sidebar-mobile-context";
 import { MobileSidebarToggle } from "./mobile-sidebar-toggle";
+import { IdleTimeout } from "./idle-timeout";
 
 export interface NavItem {
   label: string;
@@ -38,6 +39,7 @@ export async function AppShell({
 
   return (
     <SidebarMobileProvider>
+      <IdleTimeout />
       <div className="flex min-h-screen">
         <SidebarShell navItems={navItems} userName={userName} userRole={userRole} signOutAction={signOutAction} />
         <div className="flex flex-1 flex-col">
