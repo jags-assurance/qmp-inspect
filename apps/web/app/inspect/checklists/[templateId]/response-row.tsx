@@ -50,6 +50,7 @@ export function ResponseRow({
   initialComment,
   readOnly,
   registerVerification,
+  onResultChange,
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -62,6 +63,8 @@ export function ResponseRow({
   readOnly: boolean;
   /** R92-R100 register-fed auto-verification for this item's activity, or null if not applicable. */
   registerVerification: RegisterVerificationResult | null;
+  /** Notifies the parent progress header immediately on tap, ahead of the save round trip. */
+  onResultChange?: (result: ChecklistResponseResult | null) => void;
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
@@ -153,6 +156,7 @@ export function ResponseRow({
               title={!overrideSatisfied ? "Enter a reason above before recording a response." : undefined}
               onClick={() => {
                 setResult(pill.value);
+                onResultChange?.(pill.value);
                 save(pill.value, comment, overrideReason);
               }}
               className={cn(

@@ -15,7 +15,7 @@ import {
   type InspectionRecordRow,
 } from "@/lib/checklists/db-types";
 import { checkRegisterVerification, type RegisterVerificationResult } from "@/lib/registers/verify";
-import { ResponseRow } from "./response-row";
+import { ChecklistExecutionPanel } from "./checklist-execution-panel";
 import { AddChecklistItemForm } from "./add-checklist-item-form";
 import { StartInspectionForm } from "./start-inspection-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -166,10 +166,6 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // Everyone with project access can still VIEW the checklist and its past results.
   const canExecute = session.isJagsStaff || isAssignedParty;
 
-  const allAnswered = (items ?? []).every((i) => responseByItem.has(i.id));
-  const answeredCount = (items ?? []).filter((i) => responseByItem.has(i.id)).length;
-  const totalCount = (items ?? []).length;
-  const answeredPct = totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
   const RESULT_TONE: Record<string, "success" | "danger" | "warning"> = { pass: "success", fail: "danger", partial: "warning" };
 
   return (
@@ -213,59 +209,39 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {draft && (
         <div className="mt-6 space-y-6">
-          {totalCount > 0 && (
-            <div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-ink">
-                  {answeredCount} of {totalCount} answered
-                </span>
-                <span className="text-muted">{answeredPct}%</span>
+          <ChecklistExecutionPanel
+            templateId={template.id}
+            inspectionRecordId={draft.id}
+            items={(items ?? []).map((i) => ({
+              id: i.id,
+              item_number: i.item_number,
+              description: i.description,
+              is_mandatory: i.is_mandatory,
+            }))}
+            initialResponses={responseByItem}
+            readOnly={!canExecute}
+            registerVerification={registerVerification}
+            canExecute={canExecute}
+            photoSlot={
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
+                <div className="mt-3">
+                  <PhotoUpload projectId={project.id} inspectionRecordId={draft.id} photos={photos} readOnly={!canExecute} />
+                </div>
               </div>
-              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-off-white">
-                <div
-                  className="h-full rounded-full bg-gold transition-[width]"
-                  style={{ width: `${answeredPct}%` }}
-                />
-              </div>
-            </div>
-          )}
-          <div className="rounded-lg border border-border bg-surface">
-            {(items ?? []).map((item) => (
-              <ResponseRow
-                key={item.id}
-                templateId={template.id}
-                inspectionRecordId={draft.id}
-                checklistItemId={item.id}
-                itemNumber={item.item_number}
-                description={item.description}
-                isMandatory={item.is_mandatory}
-                initialResult={responseByItem.get(item.id)?.result ?? null}
-                initialComment={responseByItem.get(item.id)?.comment ?? ""}
-                readOnly={!canExecute}
-                registerVerification={registerVerification}
-              />
-            ))}
-            {(items ?? []).length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}
-          </div>
-
-          <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
-            <div className="mt-3">
-              <PhotoUpload projectId={project.id} inspectionRecordId={draft.id} photos={photos} readOnly={!canExecute} />
-            </div>
-          </div>
-
-          {canExecute &&
-            (allAnswered ? (
+            }
+            completeSlot={
               <>
                 <ConsistencyCheck templateId={template.id} inspectionRecordId={draft.id} />
                 <CompleteInspectionForm templateId={template.id} inspectionRecordId={draft.id} />
               </>
-            ) : (
+            }
+            incompleteSlot={
               <p className="rounded-md bg-off-white p-4 text-sm text-muted">
                 Answer every item above (Yes / No / N-A) to complete this inspection.
               </p>
-            ))}
+            }
+          />
         </div>
       )}
 
