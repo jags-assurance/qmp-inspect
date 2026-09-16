@@ -8,6 +8,8 @@ import {
 } from "@/lib/signoff/db-types";
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
+import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 import { InspectorDashboard } from "./inspector-dashboard";
@@ -253,6 +255,23 @@ export default async function InspectDashboardPage() {
   let pendingActions: PendingActionRow[] = [];
   let overdueHoldPoints = 0;
   let oldestHoldPointDays = 0;
+
+  // Standalone/FAT assignments are real field work items just like checklists, but they live in
+  // their own table with their own status machine (draft -> completed, see lib/standalone/actions.ts),
+  // so they can't be folded into the checklist query above. Scoped the same way as everything else
+  // on this page: no explicit project/user filter, relying on has_project_access RLS (mirrors
+  // app/inspect/standalone/page.tsx's own listing query, which is unfiltered beyond an optional
+  // project query-param).
+  interface PendingStandaloneAssignmentRow {
+    id: string;
+    assignmentNumber: string;
+    assignmentType: AssignmentType;
+    equipmentDescription: string;
+    status: AssignmentStatus;
+    updatedAt: string;
+    projectName: string;
+  }
+  let pendingStandaloneAssignments: PendingStandaloneAssignmentRow[] = [];
   const isInspector = session.isJagsStaff && !isAdminStaff(session);
   if (isInspector) {
     interface TemplateRow {
@@ -364,6 +383,33 @@ export default async function InspectDashboardPage() {
     }
     overdueHoldPoints = overdueAgeDays.length;
     oldestHoldPointDays = overdueAgeDays.length > 0 ? Math.max(...overdueAgeDays) : 0;
+
+    interface StandaloneAssignmentRow {
+      id: string;
+      assignment_number: string;
+      assignment_type: AssignmentType;
+      equipment_description: string;
+      status: AssignmentStatus;
+      updated_at: string;
+      projects: { name: string } | null;
+    }
+    const { data: standaloneAssignments } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("id, assignment_number, assignment_type, equipment_description, status, updated_at, projects(name)")
+      .neq("status", "completed")
+      .order("updated_at", { ascending: false })
+      .limit(8)
+      .returns<StandaloneAssignmentRow[]>();
+
+    pendingStandaloneAssignments = (standaloneAssignments ?? []).map((a) => ({
+      id: a.id,
+      assignmentNumber: a.assignment_number,
+      assignmentType: a.assignment_type,
+      equipmentDescription: a.equipment_description,
+      status: a.status,
+      updatedAt: a.updated_at,
+      projectName: a.projects?.name ?? "",
+    }));
   }
 
   const pendingToday = pendingActions.filter((a) => isSameDay(a.createdAt));
@@ -450,6 +496,7 @@ export default async function InspectDashboardPage() {
         pendingActions={pendingActions}
         pendingToday={pendingToday}
         pendingOverdue={pendingOverdue}
+        pendingStandaloneAssignments={pendingStandaloneAssignments}
       />
     );
   }

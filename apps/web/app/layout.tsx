@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/domain/service-worker-register";
+import { RouteProgressBar } from "@/components/domain/route-progress-bar";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${monoUi.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <RouteProgressBar />
         {children}
         <ServiceWorkerRegister />
       </body>

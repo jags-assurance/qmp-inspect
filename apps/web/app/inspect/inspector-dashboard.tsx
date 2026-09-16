@@ -1,6 +1,35 @@
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
+import { Badge } from "@/components/ui/badge";
 import { PendingActionsTable, type PendingActionItem } from "@/components/domain/pending-actions-table";
+import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
+
+export interface PendingStandaloneAssignmentItem {
+  id: string;
+  assignmentNumber: string;
+  assignmentType: AssignmentType;
+  equipmentDescription: string;
+  status: AssignmentStatus;
+  updatedAt: string;
+  projectName: string;
+}
+
+// Same badge labels/tones as the assignment detail page (app/inspect/standalone/[id]/page.tsx's
+// TYPE_LABEL/TYPE_TONE) — kept in sync deliberately rather than importing, since that page's
+// constants aren't exported.
+const ASSIGNMENT_TYPE_LABEL: Record<AssignmentType, string> = {
+  fat: "FAT",
+  witness_inspection: "Witness Inspection",
+  specific_test: "Specific Test",
+  pre_shipment: "Pre-Shipment",
+};
+
+const ASSIGNMENT_TYPE_TONE: Record<AssignmentType, "gold" | "info" | "neutral" | "warning"> = {
+  fat: "gold",
+  witness_inspection: "info",
+  specific_test: "neutral",
+  pre_shipment: "warning",
+};
 
 // Plain-language "what to do here" guide, matching the one added to the external-party dashboard
 // (see ROLE_GUIDE in external-party-dashboard.tsx) — same reasoning: the panels alone don't spell
@@ -33,6 +62,7 @@ export function InspectorDashboard({
   pendingActions,
   pendingToday,
   pendingOverdue,
+  pendingStandaloneAssignments,
 }: {
   firstName: string;
   today: string;
@@ -44,6 +74,7 @@ export function InspectorDashboard({
   pendingActions: PendingActionItem[];
   pendingToday: PendingActionItem[];
   pendingOverdue: PendingActionItem[];
+  pendingStandaloneAssignments: PendingStandaloneAssignmentItem[];
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -146,6 +177,39 @@ export function InspectorDashboard({
         <div className="mt-4">
           <PendingActionsTable all={pendingActions} today={pendingToday} overdue={pendingOverdue} />
         </div>
+
+        {pendingStandaloneAssignments.length > 0 && (
+          <div className="mt-6 border-t border-border pt-4">
+            <h3 className="text-sm font-medium text-ink">Standalone assignments in progress</h3>
+            <p className="mt-1 text-xs text-muted">
+              FATs, witness inspections, specific tests and pre-shipment checks not yet finalized.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {pendingStandaloneAssignments.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Badge tone={ASSIGNMENT_TYPE_TONE[a.assignmentType]}>
+                      {ASSIGNMENT_TYPE_LABEL[a.assignmentType]}
+                    </Badge>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm text-ink">{a.equipmentDescription}</div>
+                      <div className="doc-id text-xs text-muted">
+                        {a.assignmentNumber}
+                        {a.projectName && <span> · {a.projectName}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <Link href={`/inspect/standalone/${a.id}`} className="shrink-0 text-sm text-burgundy hover:underline">
+                    {a.status === "draft" ? "Continue →" : "View →"}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
