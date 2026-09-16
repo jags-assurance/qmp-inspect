@@ -16,6 +16,18 @@ const PROVIDER_LABEL: Record<ExpectedRecordProvider, string> = {
   contractor: "Contractor",
 };
 
+/** A document already on file in this project's vault — offered as an alternative to a fresh upload
+ * when marking an expected record received (R54-R56): a calibration cert or mill certificate is
+ * often already stored before the test that needs it even runs, so re-uploading the same file a
+ * second time is pure friction. */
+export interface VaultDocumentOption {
+  id: string;
+  title: string;
+  documentReference: string | null;
+  storagePath: string;
+  folderName: string;
+}
+
 /**
  * R54-R56: the "expected -> received" list of third-party test records for one activity. Staff can
  * add an expected record (provider + record type, number left blank per spec); the provider's own
@@ -28,6 +40,7 @@ export function ExpectedRecordsSection({
   canAdd,
   canMarkReceivedByProvider,
   projectId,
+  vaultDocuments,
 }: {
   itpItemId: string;
   records: ActivityExpectedRecordRow[];
@@ -35,6 +48,7 @@ export function ExpectedRecordsSection({
   /** Whether the CURRENT user may mark a given provider's row received (staff, or that party's own linked login). */
   canMarkReceivedByProvider: Record<ExpectedRecordProvider, boolean>;
   projectId: string;
+  vaultDocuments: VaultDocumentOption[];
 }) {
   return (
     <div className="border-t border-border px-3 py-3">
@@ -48,6 +62,7 @@ export function ExpectedRecordsSection({
             record={record}
             canMarkReceived={canMarkReceivedByProvider[record.provider]}
             projectId={projectId}
+            vaultDocuments={vaultDocuments}
           />
         ))}
         {records.length === 0 && <li className="text-xs text-muted">No expected records listed for this activity.</li>}
@@ -61,10 +76,12 @@ function ExpectedRecordRow({
   record,
   canMarkReceived,
   projectId,
+  vaultDocuments,
 }: {
   record: ActivityExpectedRecordRow;
   canMarkReceived: boolean;
   projectId: string;
+  vaultDocuments: VaultDocumentOption[];
 }) {
   const [open, setOpen] = useState(false);
   const isReceived = record.received_at != null;
@@ -95,7 +112,12 @@ function ExpectedRecordRow({
                 Mark received →
               </button>
             ) : (
-              <MarkReceivedForm record={record} projectId={projectId} onClose={() => setOpen(false)} />
+              <MarkReceivedForm
+                record={record}
+                projectId={projectId}
+                vaultDocuments={vaultDocuments}
+                onClose={() => setOpen(false)}
+              />
             )}
           </div>
         )
@@ -107,17 +129,32 @@ function ExpectedRecordRow({
 function MarkReceivedForm({
   record,
   projectId,
+  vaultDocuments,
   onClose,
 }: {
   record: ActivityExpectedRecordRow;
   projectId: string;
+  vaultDocuments: VaultDocumentOption[];
   onClose: () => void;
 }) {
+  const [source, setSource] = useState<"upload" | "vault">(vaultDocuments.length > 0 ? "vault" : "upload");
   const [documentNumber, setDocumentNumber] = useState("");
+  const [vaultDocumentId, setVaultDocumentId] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  function onVaultDocumentChange(id: string) {
+    setVaultDocumentId(id);
+    // The document number is required either way — pre-fill from the vault doc's own reference so
+    // the inspector isn't re-typing something already on file, but still editable (a vault
+    // document_reference and the record's actual document number aren't always the same thing).
+    if (!documentNumber.trim()) {
+      const doc = vaultDocuments.find((d) => d.id === id);
+      if (doc?.documentReference) setDocumentNumber(doc.documentReference);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,20 +162,28 @@ function MarkReceivedForm({
       setError("A document number is required.");
       return;
     }
+    if (source === "vault" && !vaultDocumentId) {
+      setError("Choose a document from the vault, or switch to uploading a new file.");
+      return;
+    }
     setUploading(true);
     setError(null);
 
     try {
       let storagePath = "";
-      const file = fileRef.current?.files?.[0];
-      if (file) {
-        const supabase = createSupabaseBrowserClient();
-        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-        storagePath = `expected-records/${projectId}/${record.itp_item_id}/${Date.now()}-${safeName}`;
-        const { error: uploadError } = await supabase.storage
-          .from("inspection-evidence")
-          .upload(storagePath, file);
-        if (uploadError) throw uploadError;
+      if (source === "vault") {
+        storagePath = vaultDocuments.find((d) => d.id === vaultDocumentId)?.storagePath ?? "";
+      } else {
+        const file = fileRef.current?.files?.[0];
+        if (file) {
+          const supabase = createSupabaseBrowserClient();
+          const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+          storagePath = `expected-records/${projectId}/${record.itp_item_id}/${Date.now()}-${safeName}`;
+          const { error: uploadError } = await supabase.storage
+            .from("inspection-evidence")
+            .upload(storagePath, file);
+          if (uploadError) throw uploadError;
+        }
       }
 
       const formData = new FormData();
@@ -167,7 +212,44 @@ function MarkReceivedForm({
         placeholder="Document number"
         className="doc-id w-full rounded border border-border bg-surface px-2 py-1 text-xs"
       />
-      <input ref={fileRef} type="file" className="w-full text-[11px]" />
+
+      {vaultDocuments.length > 0 && (
+        <div className="flex gap-1 text-[11px]">
+          <button
+            type="button"
+            onClick={() => setSource("vault")}
+            className={`rounded px-2 py-1 font-medium ${source === "vault" ? "bg-burgundy text-white" : "border border-border bg-surface text-ink"}`}
+          >
+            Attach from vault
+          </button>
+          <button
+            type="button"
+            onClick={() => setSource("upload")}
+            className={`rounded px-2 py-1 font-medium ${source === "upload" ? "bg-burgundy text-white" : "border border-border bg-surface text-ink"}`}
+          >
+            Upload new file
+          </button>
+        </div>
+      )}
+
+      {source === "vault" ? (
+        <select
+          value={vaultDocumentId}
+          onChange={(e) => onVaultDocumentChange(e.target.value)}
+          className="w-full rounded border border-border bg-surface px-2 py-1 text-xs"
+        >
+          <option value="">Select a document already in the vault…</option>
+          {vaultDocuments.map((doc) => (
+            <option key={doc.id} value={doc.id}>
+              {doc.folderName} — {doc.title}
+              {doc.documentReference ? ` (${doc.documentReference})` : ""}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input ref={fileRef} type="file" className="w-full text-[11px]" />
+      )}
+
       {error && <p className="text-danger">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={uploading}>

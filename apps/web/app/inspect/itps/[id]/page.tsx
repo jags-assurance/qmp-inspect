@@ -26,6 +26,8 @@ import {
 import { ExpectedRecordsSection } from "./expected-record-form";
 import { getLatestItpPdf } from "@/lib/reports/actions";
 import { ItpPdfButton } from "./itp-pdf-button";
+import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
+import type { VaultDocumentOption } from "./expected-record-form";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -103,8 +105,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   const canPropose = session.isJagsStaff && (itp.status === "approved" || itp.status === "client_accepted");
 
-  const [latestPdf, { data: sections }, { data: parties }, { data: interventions }, { data: signoffs }, { data: noticeConfigs }, { data: masterTemplates }, { data: disciplines }] =
-    await Promise.all([
+  const [
+    latestPdf,
+    { data: sections },
+    { data: parties },
+    { data: interventions },
+    { data: signoffs },
+    { data: noticeConfigs },
+    { data: masterTemplates },
+    { data: disciplines },
+    { data: rawVaultDocuments },
+  ] = await Promise.all([
       // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
       // everything else below, so it runs concurrently instead of blocking the rest of the page
       // behind it (previously awaited sequentially before this Promise.all even started).
@@ -153,6 +164,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .eq("is_active", true)
         .order("sort_order")
         .returns<{ id: string; code: string; name: string }[]>(),
+      // R54-R56 "attach from vault" — lets an expected record (e.g. a calibration cert already on
+      // file before the test runs) be satisfied by picking an existing vault document instead of
+      // always re-uploading the same file a second time. Joined to the folder for a readable label.
+      supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .select("id, title, document_reference, storage_path, vault_folders!inner(project_id, name)")
+        .eq("vault_folders.project_id", itp.projects?.id ?? "")
+        .order("title")
+        .returns<
+          { id: string; title: string; document_reference: string | null; storage_path: string; vault_folders: { name: string } | null }[]
+        >(),
     ]);
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
@@ -173,6 +195,14 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     list.push(record);
     expectedRecordsByItem.set(record.itp_item_id, list);
   }
+
+  const vaultDocuments: VaultDocumentOption[] = (rawVaultDocuments ?? []).map((d) => ({
+    id: d.id,
+    title: d.title,
+    documentReference: d.document_reference,
+    storagePath: d.storage_path,
+    folderName: d.vault_folders?.name ?? "Document Vault",
+  }));
 
   // A party can mark their own provider's record received if their login is linked to a
   // project_parties row of that party_type (mirrors canSignOffForParty) — staff always can. Computed
@@ -426,6 +456,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                               canAdd={session.isJagsStaff}
                               canMarkReceivedByProvider={canMarkReceivedByProvider}
                               projectId={itp.projects?.id ?? ""}
+                              vaultDocuments={vaultDocuments}
                             />
                           </td>
                         </tr>
