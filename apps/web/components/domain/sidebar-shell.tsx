@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { NavItem } from "./app-shell";
 import { SidebarNav } from "./sidebar-nav";
+import { useSidebarMobile } from "./sidebar-mobile-context";
 
 const STORAGE_KEY = "jags-sidebar-collapsed";
 
@@ -29,6 +30,12 @@ export function SidebarShell({
   // real stored preference in an effect once mounted.
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // The desktop collapse preference is meaningless on a mobile drawer meant to be opened
+  // deliberately (an icon-only rail there defeats the point) — tracked separately from `collapsed`
+  // so the drawer always renders fully expanded below 901px regardless of what was last toggled
+  // on a wider viewport.
+  const [isDesktop, setIsDesktop] = useState(true);
+  const { open: mobileOpen, setOpen: setMobileOpen } = useSidebarMobile();
 
   useEffect(() => {
     try {
@@ -37,7 +44,15 @@ export function SidebarShell({
       // Private browsing / storage blocked — just stays expanded.
     }
     setMounted(true);
+
+    const mql = window.matchMedia("(min-width: 901px)");
+    setIsDesktop(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
   }, []);
+
+  const effectiveCollapsed = isDesktop && collapsed;
 
   function toggle() {
     setCollapsed((prev) => {
@@ -59,24 +74,40 @@ export function SidebarShell({
     .toUpperCase();
 
   return (
-    <aside
-      className={
-        "sticky top-0 flex h-screen self-start shrink-0 flex-col overflow-y-auto bg-burgundy text-white transition-all duration-150 " +
-        (collapsed ? "w-16" : "w-60") +
-        // Avoids a flash of the wrong width on first paint while the effect above hasn't run yet.
-        (mounted ? "" : " duration-0")
-      }
-    >
-      <div className={"flex items-center gap-2 px-4 py-5 " + (collapsed ? "justify-center px-2" : "")}>
+    <>
+      {/* Backdrop, mobile-only (<=900px), closes the drawer on tap outside it. */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 min-[901px]:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={
+          "flex h-screen flex-col overflow-y-auto bg-burgundy text-white transition-all duration-150 " +
+          // Desktop (>900px): permanent, sticky column, collapsible width.
+          "min-[901px]:sticky min-[901px]:top-0 min-[901px]:z-auto min-[901px]:self-start min-[901px]:shrink-0 min-[901px]:translate-x-0 " +
+          (collapsed ? "min-[901px]:w-16" : "min-[901px]:w-60") +
+          // Mobile (<=900px): fixed off-canvas drawer, closed by default, full nav width regardless
+          // of the desktop collapse preference (a collapsed icon-only rail defeats the point of a
+          // drawer meant to be opened deliberately).
+          " fixed inset-y-0 left-0 z-30 w-64 max-[900px]:shadow-xl " +
+          (mobileOpen ? "translate-x-0" : "-translate-x-full min-[901px]:translate-x-0") +
+          // Avoids a flash of the wrong width on first paint while the effect above hasn't run yet.
+          (mounted ? "" : " duration-0")
+        }
+      >
+      <div className={"flex items-center gap-2 px-4 py-5 " + (effectiveCollapsed ? "justify-center px-2" : "")}>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold text-sm font-semibold">
           JA
         </div>
-        {!collapsed && <span className="truncate font-semibold tracking-wide">JAGS Assurance</span>}
+        {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide">JAGS Assurance</span>}
       </div>
 
-      <SidebarNav items={navItems} collapsed={collapsed} />
+      <SidebarNav items={navItems} collapsed={effectiveCollapsed} />
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2 max-[900px]:hidden">
         <button
           type="button"
           onClick={toggle}
@@ -103,8 +134,8 @@ export function SidebarShell({
         </button>
       </div>
 
-      <div className={"border-t border-white/15 px-4 py-4 " + (collapsed ? "px-2 text-center" : "")}>
-        {collapsed ? (
+      <div className={"border-t border-white/15 px-4 py-4 " + (effectiveCollapsed ? "px-2 text-center" : "")}>
+        {effectiveCollapsed ? (
           <div
             title={`${userName} · ${userRole}`}
             className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold"
@@ -117,17 +148,17 @@ export function SidebarShell({
             <div className="text-xs text-white/70">{userRole}</div>
           </>
         )}
-        <form action={signOutAction} className={collapsed ? "mt-2 flex justify-center" : ""}>
+        <form action={signOutAction} className={effectiveCollapsed ? "mt-2 flex justify-center" : ""}>
           <button
             type="submit"
             title="Sign out"
             className={
-              collapsed
+              effectiveCollapsed
                 ? "flex h-7 w-7 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white"
                 : "mt-2 text-xs text-white/70 hover:text-white hover:underline"
             }
           >
-            {collapsed ? (
+            {effectiveCollapsed ? (
               <svg
                 aria-hidden="true"
                 viewBox="0 0 20 20"
@@ -148,6 +179,7 @@ export function SidebarShell({
           </button>
         </form>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

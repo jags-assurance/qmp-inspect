@@ -3,9 +3,11 @@
 import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { NavIcon } from "./nav-icons";
+import { useSidebarMobile } from "./sidebar-mobile-context";
 
 export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: boolean }) {
   const pathname = usePathname();
+  const { setOpen } = useSidebarMobile();
 
   return (
     <nav className="flex-1 space-y-1 px-3">
@@ -19,6 +21,7 @@ export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: 
             key={item.href}
             href={item.href}
             title={collapsed ? item.label : undefined}
+            onClick={() => setOpen(false)}
             className={
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
               (collapsed ? "justify-center px-0" : "") +

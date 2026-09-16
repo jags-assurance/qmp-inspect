@@ -5,6 +5,8 @@ import { listRecentNotifications } from "@/lib/notifications/helpers";
 import { SidebarShell } from "./sidebar-shell";
 import { OfflineBanner } from "./offline-banner";
 import { NotificationsBell } from "./notifications-bell";
+import { SidebarMobileProvider } from "./sidebar-mobile-context";
+import { MobileSidebarToggle } from "./mobile-sidebar-toggle";
 
 export interface NavItem {
   label: string;
@@ -35,11 +37,15 @@ export async function AppShell({
   const initialNotifications = await listRecentNotifications(supabase, userId);
 
   return (
-    <div className="flex min-h-screen">
-      <SidebarShell navItems={navItems} userName={userName} userRole={userRole} signOutAction={signOutAction} />
-      <div className="flex flex-1 flex-col">
+    <SidebarMobileProvider>
+      <div className="flex min-h-screen">
+        <SidebarShell navItems={navItems} userName={userName} userRole={userRole} signOutAction={signOutAction} />
+        <div className="flex flex-1 flex-col">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
-          <span className="text-sm text-muted">{breadcrumb}</span>
+          <div className="flex items-center gap-3">
+            <MobileSidebarToggle />
+            <span className="text-sm text-muted">{breadcrumb}</span>
+          </div>
           <div className="flex flex-1 items-center justify-end gap-4">
             <div className="relative hidden w-full max-w-xs sm:block">
               <svg
@@ -76,7 +82,8 @@ export async function AppShell({
         </header>
         <OfflineBanner />
         <main className="flex-1 bg-background p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </SidebarMobileProvider>
   );
 }

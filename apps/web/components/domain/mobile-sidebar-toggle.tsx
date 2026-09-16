@@ -1,0 +1,30 @@
+"use client";
+
+import { useSidebarMobile } from "./sidebar-mobile-context";
+
+/** Hamburger button, visible only below ~900px where the sidebar is an off-canvas drawer. */
+export function MobileSidebarToggle() {
+  const { open, setOpen } = useSidebarMobile();
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(!open)}
+      aria-label={open ? "Close menu" : "Open menu"}
+      aria-expanded={open}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink hover:bg-off-white min-[901px]:hidden"
+    >
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="h-5 w-5">
+        {open ? (
+          <path d="M5 5l10 10M15 5L5 15" />
+        ) : (
+          <>
+            <path d="M3 5.5h14" />
+            <path d="M3 10h14" />
+            <path d="M3 14.5h14" />
+          </>
+        )}
+      </svg>
+    </button>
+  );
+}
