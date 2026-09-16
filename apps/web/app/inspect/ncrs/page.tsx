@@ -45,7 +45,9 @@ export default async function NcrsPage({
 
   let query = supabase
     .from(NCRS_TABLE)
-    .select("id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number)")
+    .select(
+      "id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number), itp_items(master_disciplines(code, name))"
+    )
     .neq("severity", "observation")
     .order("created_at", { ascending: false });
   if (itpItemIdFilter) {

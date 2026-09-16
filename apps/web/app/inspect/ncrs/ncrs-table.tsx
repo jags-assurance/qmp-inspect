@@ -15,6 +15,7 @@ export interface NcrRegisterRow {
   due_date: string | null;
   created_at: string;
   projects: { name: string; project_number: string } | null;
+  itp_items: { master_disciplines: { code: string; name: string } | null } | null;
 }
 
 const SEVERITY_TONE: Record<NcrSeverity, "danger" | "warning" | "info"> = {
@@ -59,6 +60,16 @@ const COLUMNS: DataTableColumn<NcrRegisterRow>[] = [
     render: (row) => <Badge tone={SEVERITY_TONE[row.severity]}>{SEVERITY_LABEL[row.severity]}</Badge>,
   },
   { key: "description", header: "Description", render: (row) => row.description },
+  {
+    key: "discipline",
+    header: "Discipline",
+    render: (row) =>
+      row.itp_items?.master_disciplines ? (
+        <Badge tone="neutral">{row.itp_items.master_disciplines.code}</Badge>
+      ) : (
+        <span className="text-muted">—</span>
+      ),
+  },
   { key: "project", header: "Project", render: (row) => row.projects?.name ?? "—" },
   { key: "due_date", header: "Due", render: (row) => row.due_date ?? "—" },
   {
