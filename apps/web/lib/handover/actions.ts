@@ -22,6 +22,7 @@ export async function issueHandoverAction(
   const projectId = String(formData.get("project_id") ?? "").trim();
   const certificateNumber = String(formData.get("certificate_number") ?? "").trim();
   const packageStoragePath = String(formData.get("package_storage_path") ?? "").trim();
+  const packageSha256 = String(formData.get("package_sha256") ?? "").trim();
 
   if (!dataBookId || !projectId || !certificateNumber) {
     return { error: "Certificate number is required." };
@@ -58,6 +59,7 @@ export async function issueHandoverAction(
     certificate_number: certificateNumber,
     issued_by: user?.id ?? null,
     package_storage_path: packageStoragePath,
+    package_sha256: packageSha256 || null,
   });
 
   if (certError) {

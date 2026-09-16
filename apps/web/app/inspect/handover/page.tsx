@@ -14,6 +14,7 @@ interface HandoverRow {
   received_by_company: string | null;
   acknowledged_at: string | null;
   package_storage_path: string | null;
+  package_sha256: string | null;
   data_books: {
     book_number: string;
     title: string;
@@ -34,7 +35,7 @@ export default async function HandoverPage() {
   const { data: certificates } = await supabase
     .from(HANDOVER_CERTIFICATES_TABLE)
     .select(
-      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, package_storage_path, data_books(book_number, title, projects(name, project_number, organizations(name)))"
+      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, package_storage_path, package_sha256, data_books(book_number, title, projects(name, project_number, organizations(name)))"
     )
     .order("issued_date", { ascending: false })
     .returns<HandoverRow[]>();
@@ -81,11 +82,18 @@ export default async function HandoverPage() {
                 {new Date(cert.issued_date).toLocaleDateString()}
               </p>
               {packageLinks.has(cert.id) ? (
-                <p className="mt-2 text-sm">
-                  <a href={packageLinks.get(cert.id)} className="font-medium text-burgundy hover:underline">
-                    Download handover package →
-                  </a>
-                </p>
+                <>
+                  <p className="mt-2 text-sm">
+                    <a href={packageLinks.get(cert.id)} className="font-medium text-burgundy hover:underline">
+                      Download handover package →
+                    </a>
+                  </p>
+                  {cert.package_sha256 && (
+                    <p className="mt-1 font-mono text-xs text-muted" title="SHA-256 fingerprint of the exact certified file — compare this to any copy you receive elsewhere to verify it's unmodified.">
+                      SHA-256: {cert.package_sha256}
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
                   ⚠ No package file is attached to this certificate. Contact JAGS Assurance to resolve

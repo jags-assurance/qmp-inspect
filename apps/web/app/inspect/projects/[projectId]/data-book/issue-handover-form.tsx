@@ -5,11 +5,25 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { issueHandoverAction } from "@/lib/handover/actions";
 import { Button } from "@/components/ui/button";
 
+/** SHA-256 of the file's exact bytes, hex-encoded — computed client-side before upload so the
+ *  fingerprint reflects what was actually selected, not anything that could change in transit. */
+async function sha256Hex(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 /**
  * Same client-upload-then-record split as vault/[projectId]/[folderId]/upload-form.tsx: the package
  * file goes straight from the browser to the generated-documents bucket, then the server action is
  * called directly (not via a plain <form action>, since the storage path is only known after the
  * upload completes) — issueHandoverAction refuses to issue a certificate without one.
+ *
+ * Also computes and stores a SHA-256 fingerprint of the package at issue time (an immutable
+ * handover snapshot, in miniature): once issued, the Handover Portal shows this hash next to the
+ * download link, so anyone who receives the file separately (e.g. forwarded by email) can verify
+ * their copy is byte-for-byte the one that was actually certified, not a since-modified version.
  */
 export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string; dataBookId: string }) {
   const [pending, setPending] = useState(false);
@@ -33,7 +47,10 @@ export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `handover/${dataBookId}/${Date.now()}-${safeName}`;
 
-    const { error: uploadError } = await supabase.storage.from("generated-documents").upload(path, file);
+    const [sha256, { error: uploadError }] = await Promise.all([
+      sha256Hex(file),
+      supabase.storage.from("generated-documents").upload(path, file),
+    ]);
     if (uploadError) {
       setError("Package upload failed. Check your connection and try again.");
       setPending(false);
@@ -44,6 +61,7 @@ export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string
     formData.set("data_book_id", dataBookId);
     formData.set("project_id", projectId);
     formData.set("package_storage_path", path);
+    formData.set("package_sha256", sha256);
 
     const result = await issueHandoverAction({ error: null }, formData);
     if (result.error) {
