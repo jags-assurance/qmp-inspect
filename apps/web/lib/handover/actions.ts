@@ -21,9 +21,16 @@ export async function issueHandoverAction(
   const dataBookId = String(formData.get("data_book_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
   const certificateNumber = String(formData.get("certificate_number") ?? "").trim();
+  const packageStoragePath = String(formData.get("package_storage_path") ?? "").trim();
 
   if (!dataBookId || !projectId || !certificateNumber) {
     return { error: "Certificate number is required." };
+  }
+
+  // Round-table finding: a certificate must never be issuable without an actual package file behind
+  // it — the client is being asked to formally accept receipt of something real, not a placeholder.
+  if (!packageStoragePath) {
+    return { error: "Upload the handover package file before issuing this certificate." };
   }
 
   const session = await requireSession();
@@ -50,6 +57,7 @@ export async function issueHandoverAction(
     data_book_id: dataBookId,
     certificate_number: certificateNumber,
     issued_by: user?.id ?? null,
+    package_storage_path: packageStoragePath,
   });
 
   if (certError) {

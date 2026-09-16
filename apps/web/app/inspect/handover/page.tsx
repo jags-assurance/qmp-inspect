@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
+import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
 import { AcknowledgeForm } from "./acknowledge-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
@@ -12,6 +13,7 @@ interface HandoverRow {
   received_by_name: string | null;
   received_by_company: string | null;
   acknowledged_at: string | null;
+  package_storage_path: string | null;
   data_books: {
     book_number: string;
     title: string;
@@ -21,9 +23,10 @@ interface HandoverRow {
 
 // Handover Portal (Part C): softer, still-branded client-facing view of every handover certificate
 // the signed-in user's access reaches — has_org_access-gated via handover_certificates_select, so a
-// client only ever sees their own organisation's issued packages. No live PDF exists yet (that's a
-// worker job outside this module's scope), so the download slot always reads "Not yet available"
-// rather than linking to a file that isn't there.
+// client only ever sees their own organisation's issued packages. Every certificate issued since the
+// package-integrity fix (see the "handover_certificate_package_integrity" migration) carries a real
+// package_storage_path; a certificate with none is a pre-fix legacy row and gets a red warning
+// banner rather than silently reading "Not yet available" as if that were normal.
 export default async function HandoverPage() {
   await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -31,10 +34,19 @@ export default async function HandoverPage() {
   const { data: certificates } = await supabase
     .from(HANDOVER_CERTIFICATES_TABLE)
     .select(
-      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, data_books(book_number, title, projects(name, project_number, organizations(name)))"
+      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, package_storage_path, data_books(book_number, title, projects(name, project_number, organizations(name)))"
     )
     .order("issued_date", { ascending: false })
     .returns<HandoverRow[]>();
+
+  const packageLinks = new Map<string, string>();
+  for (const cert of certificates ?? []) {
+    if (!cert.package_storage_path) continue;
+    const { data: signed } = await supabase.storage
+      .from(GENERATED_DOCUMENTS_BUCKET)
+      .createSignedUrl(cert.package_storage_path, 3600);
+    if (signed?.signedUrl) packageLinks.set(cert.id, signed.signedUrl);
+  }
 
   return (
     <div className="max-w-3xl">
@@ -68,7 +80,18 @@ export default async function HandoverPage() {
                 {cert.data_books?.projects?.project_number}) · Issued{" "}
                 {new Date(cert.issued_date).toLocaleDateString()}
               </p>
-              <p className="mt-2 text-sm text-muted">Package: Not yet available</p>
+              {packageLinks.has(cert.id) ? (
+                <p className="mt-2 text-sm">
+                  <a href={packageLinks.get(cert.id)} className="font-medium text-burgundy hover:underline">
+                    Download handover package →
+                  </a>
+                </p>
+              ) : (
+                <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+                  ⚠ No package file is attached to this certificate. Contact JAGS Assurance to resolve
+                  before relying on this handover as complete.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-off-white px-5 py-3">
