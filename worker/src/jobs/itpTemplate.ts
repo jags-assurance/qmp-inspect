@@ -9,6 +9,23 @@ export interface ItpTemplateParty {
   partyType: string;
 }
 
+// The raw party_type enum ("main_contractor", "tpi_lab") rendered as-is with CSS text-transform:
+// capitalize used to produce "Main_contractor" / "Tpi_lab" — capitalize only affects the first
+// letter of a whitespace-delimited word, and an underscore isn't a word boundary. Same label set as
+// ROLE_LABEL in apps/web/app/inspect/external-party-dashboard.tsx, kept in sync by hand since the
+// worker and web app don't share a lib.
+const PARTY_TYPE_LABEL: Record<string, string> = {
+  client: "Client",
+  subcontractor: "Subcontractor",
+  main_contractor: "Main Contractor",
+  tpi_lab: "TPI / Lab",
+  jags: "JAGS",
+};
+
+function partyTypeLabel(partyType: string): string {
+  return PARTY_TYPE_LABEL[partyType] ?? partyType;
+}
+
 export interface ItpTemplateIntervention {
   itpItemId: string;
   projectPartyId: string;
@@ -170,7 +187,7 @@ function renderSection(
     .join("");
 
   const partyHeaders = parties
-    .map((party) => `<th class="party-header">${escapeHtml(party.name)}<span class="party-type">${escapeHtml(party.partyType)}</span></th>`)
+    .map((party) => `<th class="party-header">${escapeHtml(party.name)}<span class="party-type">${escapeHtml(partyTypeLabel(party.partyType))}</span></th>`)
     .join("");
 
   return `
@@ -260,10 +277,14 @@ export function buildItpHtml(data: ItpTemplateData): string {
     gap: 14px;
     background: var(--burgundy);
     border-bottom: 4px solid var(--gold);
-    padding: 8px 12px;
-    margin: -15mm -15mm 10px -15mm;
-    padding-left: calc(15mm - 4px);
-    padding-right: 15mm;
+    border-radius: 4px;
+    /* Deliberately NOT bled to the true page edge via a negative margin cancelling @page's margin —
+       Chrome's print-to-PDF does not reliably apply that margin the same way twice in a row (visible
+       as the logo/wordmark getting clipped on some renders and not others, with no CSS change that
+       reliably fixed it), so the letterhead now sits as a normal box inside the margin, the same
+       reliable box model every other section on this page already uses. */
+    padding: 10px 16px;
+    margin-bottom: 10px;
   }
 
   .brand {
@@ -444,7 +465,6 @@ export function buildItpHtml(data: ItpTemplateData): string {
   th.party-header .party-type {
     display: block;
     font-weight: normal;
-    text-transform: capitalize;
     font-size: 6.5px;
     opacity: 0.85;
   }

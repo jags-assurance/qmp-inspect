@@ -219,7 +219,16 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
-      await page.pdf({ format: "A4", landscape: true, printBackground: true })
+      // Explicit margin so it definitely matches this template's `@page { margin: 15mm }` — Chrome's
+      // print-to-PDF doesn't reliably fall back to the CSS value on its own (preferCSSPageSize
+      // mainly governs page *size*, not margin).
+      await page.pdf({
+        format: "A4",
+        landscape: true,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: "15mm", right: "15mm", bottom: "15mm", left: "15mm" },
+      })
     );
   } finally {
     await browser.close();

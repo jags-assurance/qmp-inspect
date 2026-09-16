@@ -153,7 +153,17 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
-    pdfBuffer = Buffer.from(await page.pdf({ format: "A4", landscape: false, printBackground: true }));
+    // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
+    // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
+    pdfBuffer = Buffer.from(
+      await page.pdf({
+        format: "A4",
+        landscape: false,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: "15mm", right: "15mm", bottom: "15mm", left: "15mm" },
+      })
+    );
   } finally {
     await browser.close();
   }

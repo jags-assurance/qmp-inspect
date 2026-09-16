@@ -180,9 +180,12 @@ export function buildFatReportHtml(data: FatReportData): string {
 
   .letterhead {
     display: flex; justify-content: space-between; align-items: stretch; gap: 14px;
-    background: var(--burgundy); border-bottom: 4px solid var(--gold);
-    padding: 8px 12px; margin: -15mm -15mm 10px -15mm;
-    padding-left: calc(15mm - 4px); padding-right: 15mm;
+    background: var(--burgundy); border-bottom: 4px solid var(--gold); border-radius: 4px;
+    /* Deliberately NOT bled to the true page edge via a negative margin cancelling @page's margin —
+       Chrome's print-to-PDF does not reliably apply that margin the same way twice in a row (visible
+       as the logo/wordmark getting clipped), so this sits as a normal box inside the margin, the
+       same reliable box model every other section on this page already uses. */
+    padding: 10px 16px; margin-bottom: 10px;
   }
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand-mark {
