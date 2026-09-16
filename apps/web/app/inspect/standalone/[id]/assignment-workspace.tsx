@@ -76,15 +76,27 @@ export function AssignmentWorkspace({
   photos,
   punchItems,
   signatures,
+  isJagsStaff,
 }: {
   assignment: Assignment;
   measurements: StandaloneAssignmentMeasurementRow[];
   photos: StandaloneAssignmentPhotoRow[];
   punchItems: StandaloneAssignmentPunchItemRow[];
   signatures: StandaloneAssignmentSignatureRow[];
+  /** Every mutating control below (add measurement/punch item/photo/signature, finalize) is
+   * staff-only server-side — every action in lib/standalone/actions.ts rejects a non-staff call.
+   * Without this, the controls still rendered for any logged-in party (client, subcontractor,
+   * TPI), who could click "+ Add measurement" or "Finalize" and only find out it was blocked
+   * after submitting. Gating on isDraft alone was never enough; it has to be isDraft && staff. */
+  isJagsStaff: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("measurements");
   const isDraft = assignment.status === "draft";
+  // Distinct from isDraft: isDraft is about the assignment's actual state (still correct to show
+  // as "Draft" to anyone), canEdit is about whether THIS viewer may mutate it. Every action this
+  // gates is staff-only server-side (lib/standalone/actions.ts) — this just stops the controls
+  // from rendering for a party who'd only find that out after clicking submit.
+  const canEdit = isDraft && isJagsStaff;
   const openPunchCount = punchItems.filter((p) => p.status === "open").length;
 
   return (
@@ -190,8 +202,8 @@ export function AssignmentWorkspace({
                 </tbody>
               </table>
             </div>
-            {isDraft && <SuggestMeasurements assignmentId={assignment.id} />}
-            {isDraft && <AddMeasurementForm assignmentId={assignment.id} />}
+            {canEdit && <SuggestMeasurements assignmentId={assignment.id} />}
+            {canEdit && <AddMeasurementForm assignmentId={assignment.id} />}
           </div>
         )}
 
@@ -203,7 +215,7 @@ export function AssignmentWorkspace({
               ))}
               {photos.length === 0 && <p className="col-span-full text-center text-sm text-muted">No photos uploaded yet.</p>}
             </div>
-            {isDraft && <PhotoUpload assignmentId={assignment.id} />}
+            {canEdit && <PhotoUpload assignmentId={assignment.id} />}
           </div>
         )}
 
@@ -215,7 +227,7 @@ export function AssignmentWorkspace({
                   <tr className="border-b border-border text-left text-xs text-muted">
                     <th className="px-3 py-2 font-medium">Description</th>
                     <th className="px-3 py-2 font-medium">Status</th>
-                    {isDraft && <th className="px-3 py-2 font-medium">&nbsp;</th>}
+                    {canEdit && <th className="px-3 py-2 font-medium">&nbsp;</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -225,7 +237,7 @@ export function AssignmentWorkspace({
                       <td className="px-3 py-2">
                         <Badge tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>
                       </td>
-                      {isDraft && (
+                      {canEdit && (
                         <td className="px-3 py-2">
                           <form action={togglePunchItemAction}>
                             <input type="hidden" name="assignment_id" value={assignment.id} />
@@ -244,7 +256,7 @@ export function AssignmentWorkspace({
                   ))}
                   {punchItems.length === 0 && (
                     <tr>
-                      <td colSpan={isDraft ? 3 : 2} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={canEdit ? 3 : 2} className="px-3 py-6 text-center text-muted">
                         No punch list items yet.
                       </td>
                     </tr>
@@ -252,7 +264,7 @@ export function AssignmentWorkspace({
                 </tbody>
               </table>
             </div>
-            {isDraft && <AddPunchItemForm assignmentId={assignment.id} />}
+            {canEdit && <AddPunchItemForm assignmentId={assignment.id} />}
           </div>
         )}
 
@@ -273,22 +285,26 @@ export function AssignmentWorkspace({
               ))}
               {signatures.length === 0 && <p className="col-span-full text-center text-sm text-muted">No signatures captured yet.</p>}
             </div>
-            {isDraft && <SignaturePad assignmentId={assignment.id} />}
+            {canEdit && <SignaturePad assignmentId={assignment.id} />}
           </div>
         )}
 
         {activeTab === "notes" && (
           <div className="p-4">
-            <NotesForm assignmentId={assignment.id} notes={assignment.notes} readOnly={!isDraft} />
+            <NotesForm assignmentId={assignment.id} notes={assignment.notes} readOnly={!canEdit} />
           </div>
         )}
       </div>
 
-      {isDraft ? (
+      {canEdit && (
         <div className="mt-6">
           <FinalizeForm assignmentId={assignment.id} />
         </div>
-      ) : (
+      )}
+      {isDraft && !canEdit && (
+        <p className="mt-6 text-sm text-muted">This assignment is still in progress — a JAGS inspector will finalize it.</p>
+      )}
+      {!isDraft && (
         <p className="mt-6 text-sm text-muted">
           This assignment is finalized and read-only. Its conclusion was recorded as{" "}
           <span className="font-medium text-ink">

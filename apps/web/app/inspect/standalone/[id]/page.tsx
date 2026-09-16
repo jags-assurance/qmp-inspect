@@ -122,6 +122,7 @@ export default async function StandaloneAssignmentDetailPage({
           photos={photos ?? []}
           punchItems={punchItems ?? []}
           signatures={signatures ?? []}
+          isJagsStaff={session.isJagsStaff}
         />
       </div>
 
