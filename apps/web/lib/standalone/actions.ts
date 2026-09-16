@@ -7,6 +7,10 @@ import { requireSession } from "@/lib/auth/session";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { assertAiAllowed } from "@/lib/ai/gate";
+import { logAiUsage } from "@/lib/ai/log";
+import { geminiProvider } from "@/lib/ai/gemini-provider";
+import type { StandaloneMeasurementSuggestion } from "@/lib/ai/provider";
 import {
   STANDALONE_ASSIGNMENTS,
   STANDALONE_ASSIGNMENT_MEASUREMENTS,
@@ -217,6 +221,80 @@ export async function addMeasurementAction(
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
   return { error: null };
+}
+
+export interface SuggestMeasurementsState {
+  error: string | null;
+  suggestions: StandaloneMeasurementSuggestion[] | null;
+}
+
+const EMPTY_SUGGEST_MEASUREMENTS_STATE: SuggestMeasurementsState = { error: null, suggestions: null };
+
+/**
+ * Purely advisory: drafts a handful of equipment-specific measurement/test-parameter suggestions
+ * for the inspector to review, one at a time, via their own "+ Add" (addMeasurementAction) —
+ * mirrors the "AI drafts, human decides" rule used everywhere else in the app (e.g.
+ * checkChecklistConsistencyAction, draftFatNarrativeAction). Never writes a measurement itself.
+ */
+export async function suggestStandaloneMeasurementsAction(
+  _prev: SuggestMeasurementsState,
+  formData: FormData
+): Promise<SuggestMeasurementsState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: STAFF_ONLY_ERROR };
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  if (!assignmentId) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: "Missing assignment." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: assignment } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .select("assignment_type, equipment_description, manufacturer, model, standard_reference, project_id")
+    .eq("id", assignmentId)
+    .maybeSingle<
+      Pick<
+        StandaloneAssignmentRow,
+        "assignment_type" | "equipment_description" | "manufacturer" | "model" | "standard_reference" | "project_id"
+      >
+    >();
+
+  if (!assignment) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: "Assignment not found." };
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", assignment.project_id)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (!project) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: "Project not found." };
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: gate.reason };
+
+  try {
+    const suggestions = await geminiProvider.suggestStandaloneMeasurements({
+      assignmentType: assignment.assignment_type,
+      equipmentDescription: assignment.equipment_description,
+      manufacturer: assignment.manufacturer,
+      model: assignment.model,
+      standardReference: assignment.standard_reference,
+    });
+    await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "standalone_measurement_suggestion",
+    });
+    return { error: null, suggestions };
+  } catch (err) {
+    return {
+      ...EMPTY_SUGGEST_MEASUREMENTS_STATE,
+      error: err instanceof Error ? err.message : "Could not generate measurement suggestions.",
+    };
+  }
 }
 
 export interface AddPunchItemState {

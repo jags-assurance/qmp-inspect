@@ -13,7 +13,8 @@ export type AiFeature =
   | "checklist_consistency_check"
   | "checklist_generation"
   | "report_narrative_draft"
-  | "ncr_root_cause_suggestion";
+  | "ncr_root_cause_suggestion"
+  | "standalone_measurement_suggestion";
 
 /**
  * Minimal usage log — one row per AI feature invocation — for whoever's ai_consent-gated admin

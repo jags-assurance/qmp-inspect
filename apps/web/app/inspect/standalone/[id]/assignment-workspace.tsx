@@ -17,6 +17,7 @@ import type {
 } from "@/lib/standalone/actions";
 import { togglePunchItemAction } from "@/lib/standalone/actions";
 import { AddMeasurementForm } from "./add-measurement-form";
+import { SuggestMeasurements } from "./suggest-measurements";
 import { AddPunchItemForm } from "./add-punch-item-form";
 import { PhotoUpload } from "./photo-upload";
 import { SignaturePad } from "./signature-pad";
@@ -189,6 +190,7 @@ export function AssignmentWorkspace({
                 </tbody>
               </table>
             </div>
+            {isDraft && <SuggestMeasurements assignmentId={assignment.id} />}
             {isDraft && <AddMeasurementForm assignmentId={assignment.id} />}
           </div>
         )}

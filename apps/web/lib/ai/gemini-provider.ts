@@ -8,7 +8,9 @@ import type {
   GenerateChecklistItemsInput,
   GenerateItpDraftInput,
   ItpDraftResult,
+  StandaloneMeasurementSuggestion,
   SuggestRootCauseInput,
+  SuggestStandaloneMeasurementsInput,
 } from "@/lib/ai/provider";
 
 // Gemini REST API via a raw fetch wrapper — deliberately not the `@google/generative-ai` package.
@@ -368,6 +370,70 @@ export class GeminiProvider implements AiProvider {
 
     const text = await generateContent("light", prompt, false);
     return text.trim();
+  }
+
+  async suggestStandaloneMeasurements(
+    input: SuggestStandaloneMeasurementsInput
+  ): Promise<StandaloneMeasurementSuggestion[]> {
+    const typeLabel =
+      {
+        fat: "Factory Acceptance Test (FAT)",
+        witness_inspection: "Witness Inspection",
+        specific_test: "Specific Test",
+        pre_shipment: "Pre-Shipment Inspection",
+      }[input.assignmentType] ?? input.assignmentType;
+
+    const prompt = [
+      `You are a senior QA/QC inspector preparing the measurement/test-parameter sheet for a`,
+      `${typeLabel}, to the standard a real inspector would fill in on site — specific to the`,
+      "actual equipment given below, not a generic template.",
+      "",
+      "Based on the equipment description, manufacturer/model and standard/spec reference given",
+      "below, list the specific measurements, dimensional checks and test parameters a competent",
+      "inspector would actually record for this equipment type.",
+      "",
+      "RULES:",
+      "- 3-8 suggestions. Each must be a specific, physically checkable parameter for THIS",
+      "  equipment (e.g. for a pressure safety valve: set pressure, reseat pressure, seat",
+      "  tightness/leak rate, body hydrostatic test pressure, blowdown — not vague items like",
+      "  \"general condition\" or \"check equipment\").",
+      "- Only give a numeric nominal value and tolerance when the standard/equipment description",
+      "  actually supports one (e.g. a stated set pressure or a value the reference standard",
+      "  fixes). Do NOT invent a number that isn't grounded in what's given — if a real value",
+      "  can't be grounded, leave nominal and tolerance as empty strings and let the description",
+      "  itself state the check qualitatively (e.g. \"Visual inspection of weld seams for defects\").",
+      "- unit should be a real engineering unit (e.g. \"bar\", \"mm\", \"Nm\", \"°C\") or an empty string",
+      "  if the check has no numeric unit (e.g. a pass/fail visual or functional check).",
+      "",
+      'Return ONLY a JSON object (no markdown fences, no commentary): {"suggestions":[{"description":string,"nominal":string,"tolerance":string,"unit":string}]}',
+      "",
+      `ASSIGNMENT TYPE: ${typeLabel}`,
+      `EQUIPMENT: ${input.equipmentDescription}`,
+      input.manufacturer ? `MANUFACTURER: ${input.manufacturer}` : "",
+      input.model ? `MODEL: ${input.model}` : "",
+      input.standardReference ? `STANDARD / SPEC REFERENCE: ${input.standardReference}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const text = await generateContent("light", prompt, true);
+    const raw = parseJson<{ suggestions: { description: string; nominal?: string; tolerance?: string; unit?: string }[] }>(
+      text,
+      "the measurement suggestions"
+    );
+
+    if (!Array.isArray(raw.suggestions) || raw.suggestions.length === 0) {
+      throw new Error("AI response for the measurement suggestions had no items.");
+    }
+
+    return raw.suggestions
+      .filter((s) => s.description && String(s.description).trim())
+      .map((s) => ({
+        description: String(s.description).trim(),
+        nominal: String(s.nominal ?? "").trim(),
+        tolerance: String(s.tolerance ?? "").trim(),
+        unit: String(s.unit ?? "").trim(),
+      }));
   }
 }
 

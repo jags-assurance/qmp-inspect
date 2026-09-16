@@ -106,6 +106,23 @@ export interface CheckConsistencyInput {
   responses: { itemDescription: string; result: "yes" | "no" | "na"; comment: string | null }[];
 }
 
+export interface SuggestStandaloneMeasurementsInput {
+  /** "fat" | "witness_inspection" | "specific_test" | "pre_shipment". */
+  assignmentType: string;
+  equipmentDescription: string;
+  manufacturer: string | null;
+  model: string | null;
+  standardReference: string | null;
+}
+
+export interface StandaloneMeasurementSuggestion {
+  description: string;
+  /** Blank when a real numeric value can't be grounded in the given standard/equipment description. */
+  nominal: string;
+  tolerance: string;
+  unit: string;
+}
+
 export interface AiProvider {
   generateItpDraft(input: GenerateItpDraftInput): Promise<ItpDraftResult>;
   generateChecklistItems(input: GenerateChecklistItemsInput): Promise<ChecklistItemDraft[]>;
@@ -113,4 +130,5 @@ export interface AiProvider {
   checkConsistency(input: CheckConsistencyInput): Promise<string[]>;
   draftReportNarrative(input: DraftReportNarrativeInput): Promise<string>;
   suggestRootCause(input: SuggestRootCauseInput): Promise<string>;
+  suggestStandaloneMeasurements(input: SuggestStandaloneMeasurementsInput): Promise<StandaloneMeasurementSuggestion[]>;
 }
