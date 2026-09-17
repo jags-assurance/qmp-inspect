@@ -1,0 +1,16 @@
+{
+  "name": "@jags/rls-tests",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "tsx src/tenant-isolation.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

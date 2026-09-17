@@ -69,6 +69,22 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/rls-tests:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.116.0
+        version: 2.116.0
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+    devDependencies:
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.13
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/shared-types:
     devDependencies:
       typescript:

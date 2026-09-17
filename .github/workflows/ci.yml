@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  typecheck:
+    name: Typecheck (web + worker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  build:
+    name: Build (web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  # Round-table finding: every RLS scoping bug fixed this cycle (project-vs-org access, storage
+  # policies, an unscoped analytics-view grant) was caught by manual review, not by anything
+  # automated — meaning the same class of mistake could ship again unnoticed. This job runs the
+  # tenant-isolation regression suite (packages/rls-tests) against the real dev Supabase project on
+  # every PR that touches a migration or an RLS-relevant path, and fails the check if any
+  # cross-tenant read succeeds. It is NOT run on push-to-main/dev (only pull_request) since it needs
+  # write access to create/tear down disposable fixture data, which should stay confined to review,
+  # not run unattended on every merge.
+  #
+  # Required repo secrets (Settings -> Secrets and variables -> Actions), matching the same three
+  # values already used in apps/web/.env.local for local development against the same project:
+  #   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+  tenant-isolation:
+    name: Tenant isolation regression suite
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run tenant-isolation checks
+        working-directory: packages/rls-tests
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: pnpm test
