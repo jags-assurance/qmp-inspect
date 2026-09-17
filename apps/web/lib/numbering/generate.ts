@@ -89,7 +89,12 @@ export async function generateDocumentNumber(
 
   if (seqError || typeof seqValue !== "number") {
     // Numbering must never block document creation — fall back to a timestamp-based placeholder
-    // number rather than throwing.
+    // number rather than throwing. Still log loudly: a silent fallback here means collision-prone
+    // numbers are being issued instead of real atomic ones, and nobody would otherwise know.
+    console.error(
+      `[numbering] next_document_sequence RPC failed for org ${organizationId}, docType "${docType}" — using fallback sequence number.`,
+      seqError?.message ?? `unexpected RPC result: ${JSON.stringify(seqValue)}`
+    );
     const fallbackSeq = Date.now() % 100000;
     return {
       documentNumber: formatNumber(
@@ -152,6 +157,11 @@ export async function nextSequenceNumber(
 
   if (error || typeof data !== "number") {
     // Numbering must never block document creation — same fallback spirit as generateDocumentNumber.
+    // Still log loudly: a silent fallback here means a collision-prone number is being issued.
+    console.error(
+      `[numbering] next_document_sequence RPC failed for org ${organizationId}, seqKey "${seqKey}" — using fallback sequence number.`,
+      error?.message ?? `unexpected RPC result: ${JSON.stringify(data)}`
+    );
     return Date.now() % 100000;
   }
 

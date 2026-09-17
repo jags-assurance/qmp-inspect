@@ -15,12 +15,7 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const rawFile = e.target.files?.[0];
-    if (!rawFile) return;
-
-    setUploading(true);
-    setError(null);
+  async function uploadOne(rawFile: File): Promise<string | null> {
     const file = await compressImageFile(rawFile);
 
     const supabase = createSupabaseBrowserClient();
@@ -28,19 +23,30 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
     const path = `standalone/${assignmentId}/${Date.now()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
-
-    if (uploadError) {
-      setError("Upload failed. Check your connection and try again.");
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-      return;
-    }
+    if (uploadError) return "Upload failed. Check your connection and try again.";
 
     const formData = new FormData();
     formData.set("assignment_id", assignmentId);
     formData.set("storage_path", path);
     const result = await addPhotoAction({ error: null }, formData);
-    if (result.error) setError(result.error);
+    return result.error;
+  }
+
+  // Round-table field-usability finding: batch-select several photos at once instead of one tap
+  // per photo, uploaded sequentially here so each still gets its own compress/upload handling.
+  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    setError(null);
+
+    let lastError: string | null = null;
+    for (const file of files) {
+      const err = await uploadOne(file);
+      if (err) lastError = err;
+    }
+    if (lastError) setError(lastError);
 
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
@@ -53,6 +59,7 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple
         disabled={uploading}
         onChange={handleFileChange}
         className="mt-1 block text-sm text-ink file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"

@@ -1,7 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/auth/confirm",
+  "/forgot-password",
+  "/reset-password",
+  // Health check must be reachable by uptime monitors / load balancers with no session.
+  "/api/health",
+];
 
 /**
  * Refreshes the Supabase session on every request (required by @supabase/ssr) and redirects

@@ -59,21 +59,11 @@ export function PhotoUpload({
     setQueuedPreviews((prev) => [...prev, URL.createObjectURL(file)]);
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const rawFile = e.target.files?.[0];
-    if (!rawFile) return;
-    setUploading(true);
-    setError(null);
+  async function uploadOne(rawFile: File) {
     const file = await compressImageFile(rawFile);
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      try {
-        await queueForOffline(file);
-      } catch {
-        setError("Could not queue the photo for later sync.");
-      }
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      await queueForOffline(file);
       return;
     }
 
@@ -95,20 +85,39 @@ export function PhotoUpload({
         uploaded_by: user?.id ?? null,
       });
       if (insertError) throw insertError;
-
-      router.refresh();
     } catch {
       // Could be a genuine failure or a connection that dropped mid-upload — either way, don't
       // lose the photo: queue it the same as the offline path instead of just showing an error.
-      try {
-        await queueForOffline(file);
-      } catch {
-        setError("Could not upload the photo. Check your connection and try again.");
-      }
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      await queueForOffline(file);
     }
+  }
+
+  // Round-table field-usability finding: an inspector previously had to tap "Add photo" once per
+  // photo, a real per-tap friction point when documenting several findings in one visit — `multiple`
+  // lets them select a batch at once (e.g. from their camera roll after shooting several), uploaded
+  // sequentially here so each one still gets its own compress/upload-or-queue handling.
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setUploading(true);
+    setError(null);
+
+    let failedCount = 0;
+    for (const file of files) {
+      try {
+        await uploadOne(file);
+      } catch {
+        failedCount += 1;
+      }
+    }
+
+    if (failedCount > 0) {
+      setError(`Could not upload ${failedCount} of ${files.length} photo${files.length === 1 ? "" : "s"}. Check your connection and try again.`);
+    }
+
+    router.refresh();
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   return (
@@ -134,7 +143,7 @@ export function PhotoUpload({
             ref={inputRef}
             type="file"
             accept="image/*"
-            capture="environment"
+            multiple
             onChange={handleFileChange}
             className="hidden"
             id="photo-input"
