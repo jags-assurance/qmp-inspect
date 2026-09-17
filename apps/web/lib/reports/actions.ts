@@ -149,18 +149,23 @@ export interface ItpPdfStatus {
 export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | null> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: job } = await supabase
+  // Round-table finding: this used to fetch and JSON-parse EVERY render_itp_pdf job ever queued,
+  // platform-wide, then find() the matching one in JS — filtering by the JSONB payload column
+  // server-side (PostgREST's `payload->>itp_id` path operator) plus a hard limit(1) turns an
+  // unbounded, linearly-growing scan into an indexed, single-row lookup.
+  const { data: latest } = await supabase
     .from(BACKGROUND_JOBS_TABLE)
     .select("id, payload, status, result_storage_path, error_message, created_at")
     .eq("job_type", "render_itp_pdf")
+    .eq("payload->>itp_id", itpId)
     .order("created_at", { ascending: false })
-    .returns<
-      (Pick<BackgroundJobRow, "id" | "payload" | "status" | "error_message" | "created_at"> & {
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "payload" | "status" | "error_message" | "created_at"> & {
         result_storage_path: string | null;
-      })[]
+      }
     >();
 
-  const latest = (job ?? []).find((j) => (j.payload as RenderItpPdfPayload).itp_id === itpId);
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
@@ -225,19 +230,21 @@ export interface InspectionReportPdfStatus {
 export async function getLatestInspectionReportPdf(inspectionRecordId: string): Promise<InspectionReportPdfStatus | null> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: jobs } = await supabase
+  // See getLatestItpPdf's comment — same server-side-filter + limit(1) fix.
+  const { data: latest } = await supabase
     .from(BACKGROUND_JOBS_TABLE)
     .select("id, payload, status, result_storage_path, error_message, created_at")
     .eq("job_type", "render_inspection_report_pdf")
+    .eq("payload->>inspection_record_id", inspectionRecordId)
     .order("created_at", { ascending: false })
-    .returns<
-      (Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
         payload: RenderInspectionReportPdfPayload;
         result_storage_path: string | null;
-      })[]
+      }
     >();
 
-  const latest = (jobs ?? []).find((j) => j.payload.inspection_record_id === inspectionRecordId);
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
@@ -300,19 +307,21 @@ export interface FatReportPdfStatus {
 export async function getLatestFatReportPdf(assignmentId: string): Promise<FatReportPdfStatus | null> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: jobs } = await supabase
+  // See getLatestItpPdf's comment — same server-side-filter + limit(1) fix.
+  const { data: latest } = await supabase
     .from(BACKGROUND_JOBS_TABLE)
     .select("id, payload, status, result_storage_path, error_message, created_at")
     .eq("job_type", "render_fat_report_pdf")
+    .eq("payload->>assignment_id", assignmentId)
     .order("created_at", { ascending: false })
-    .returns<
-      (Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
         payload: RenderFatReportPdfPayload;
         result_storage_path: string | null;
-      })[]
+      }
     >();
 
-  const latest = (jobs ?? []).find((j) => j.payload.assignment_id === assignmentId);
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
@@ -560,11 +569,17 @@ export interface ReportPackListItem {
 export async function listMonthlyReportPacks(organizationId: string): Promise<ReportPackListItem[]> {
   const supabase = await createSupabaseServerClient();
 
+  // Round-table finding: this used to fetch and JSON-parse EVERY org's monthly-report-pack job
+  // ever queued, platform-wide, filtering by organization_id in JS. Filtering server-side via the
+  // JSONB payload path plus a generous cap (2 years of monthly packs) turns an unbounded,
+  // linearly-growing scan into a small, indexed query.
   const { data: jobs } = await supabase
     .from(BACKGROUND_JOBS_TABLE)
     .select("id, job_type, payload, status, result_storage_path, error_message, created_at, completed_at")
     .eq("job_type", "generate_monthly_report_pack")
+    .eq("payload->>organization_id", organizationId)
     .order("created_at", { ascending: false })
+    .limit(24)
     .returns<
       (Omit<
         Pick<BackgroundJobRow, "id" | "job_type" | "payload" | "status" | "error_message" | "created_at" | "completed_at">,
@@ -572,7 +587,7 @@ export async function listMonthlyReportPacks(organizationId: string): Promise<Re
       > & { payload: MonthlyReportPackPayload; result_storage_path: string | null })[]
     >();
 
-  const orgJobs = (jobs ?? []).filter((job) => job.payload?.organization_id === organizationId);
+  const orgJobs = jobs ?? [];
 
   const items: ReportPackListItem[] = [];
   for (const job of orgJobs) {
@@ -664,19 +679,21 @@ export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPd
 
   const supabase = await createSupabaseServerClient();
 
-  const { data: jobs } = await supabase
+  // See getLatestItpPdf's comment — same server-side-filter + limit(1) fix.
+  const { data: latest } = await supabase
     .from(BACKGROUND_JOBS_TABLE)
     .select("id, payload, status, result_storage_path, error_message, created_at")
     .eq("job_type", "render_portfolio_summary_pdf")
+    .eq("payload->>requested_by", session.userId)
     .order("created_at", { ascending: false })
-    .returns<
-      (Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
         payload: RenderPortfolioSummaryPdfPayload;
         result_storage_path: string | null;
-      })[]
+      }
     >();
 
-  const latest = (jobs ?? []).find((j) => j.payload.requested_by === session.userId);
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
