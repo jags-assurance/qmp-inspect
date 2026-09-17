@@ -196,13 +196,13 @@ function renderSection(
       <table class="items-table">
         <thead>
           <tr>
-            <th>ITEM NO.</th>
-            <th>ACTIVITY</th>
-            <th>REFERENCE</th>
-            <th>ACCEPTANCE CRITERIA</th>
-            <th>METHOD</th>
-            <th>FREQUENCY</th>
-            <th>EVIDENCE TYPE</th>
+            <th>Item No.</th>
+            <th>Activity</th>
+            <th>Reference</th>
+            <th>Acceptance Criteria</th>
+            <th>Method</th>
+            <th>Frequency</th>
+            <th>Evidence Type</th>
             ${partyHeaders}
           </tr>
         </thead>
@@ -445,7 +445,6 @@ export function buildItpHtml(data: ItpTemplateData): string {
     color: var(--off-white);
     font-weight: bold;
     font-size: 8px;
-    text-transform: uppercase;
     border-bottom: 2px solid var(--gold);
   }
 
