@@ -216,9 +216,57 @@ async function logQueueHealth(): Promise<void> {
   console.log(`[worker] Queue health: ${pending.length} pending job(s), oldest pending age ${oldestAgeSec}s.`);
 }
 
+/**
+ * `processJobWithTimeout`'s JOB_TIMEOUT_MS race only protects against a hung render *within this
+ * process* — if the whole worker process is killed (a Railway redeploy, an OOM, a crash) while a
+ * job is claimed, the row is left in 'processing' forever: nothing else ever revisits it, so the
+ * web app's "latest job for this ITP" lookup (getLatestItpPdf) shows an infinite "Rendering…" with
+ * no way to retry. Found live: a render_itp_pdf job orphaned by a redeploy on 2026-09-15 sat in
+ * 'processing' for 2+ days, making the Generate PDF button on that ITP look permanently broken.
+ * This sweep reclaims any job that's been 'processing' longer than the same JOB_TIMEOUT_MS this
+ * worker itself uses to give up on an in-process render — by then a live worker would already have
+ * timed it out, so anything still 'processing' past that point can only be orphaned.
+ */
+async function reclaimOrphanedJobs(): Promise<void> {
+  const cutoff = new Date(Date.now() - JOB_TIMEOUT_MS).toISOString();
+  const { data: stale, error } = (await supabase
+    .from("background_jobs" as never)
+    .select("id, job_type")
+    .eq("status", "processing")
+    .lt("created_at", cutoff)) as unknown as {
+    data: { id: string; job_type: string }[] | null;
+    error: { message: string } | null;
+  };
+
+  if (error) {
+    console.error("[worker] Failed to check for orphaned jobs:", error.message);
+    return;
+  }
+  if (!stale || stale.length === 0) return;
+
+  for (const job of stale) {
+    const { error: updateError } = (await supabase
+      .from("background_jobs" as never)
+      .update({
+        status: "failed",
+        error_message: "Orphaned: the worker was restarted before this job finished rendering. Please retry.",
+        completed_at: new Date().toISOString(),
+      } as never)
+      .eq("id", job.id)
+      .eq("status", "processing")) as unknown as { error: { message: string } | null };
+
+    if (updateError) {
+      console.error(`[worker] Failed to reclaim orphaned job ${job.id}:`, updateError.message);
+    } else {
+      console.error(`[worker] Reclaimed orphaned job ${job.id} (${job.job_type}) — stuck in 'processing' since before ${cutoff}.`);
+    }
+  }
+}
+
 async function pollOnce(cycle: number): Promise<void> {
   if (cycle % OBSERVABILITY_LOG_EVERY_N_CYCLES === 0) {
     await logQueueHealth();
+    await reclaimOrphanedJobs();
   }
 
   const job = await claimNextPendingJob();
@@ -231,6 +279,11 @@ async function main() {
     reportError("[worker] Supabase connectivity check failed:", error);
     process.exit(1);
   }
+
+  // Reclaim on startup too, not just periodically — the whole reason a job gets orphaned is a
+  // worker restart, so the moment right after one is exactly when a stale row is most likely to
+  // be sitting there from before.
+  await reclaimOrphanedJobs();
 
   console.log(`[worker] Connected to Supabase. Polling background_jobs every ${POLL_INTERVAL_MS}ms.`);
 
