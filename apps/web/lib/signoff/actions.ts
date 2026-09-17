@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { createNotification } from "@/lib/notifications/helpers";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
@@ -322,6 +323,58 @@ async function findProjectIdForItpItem(
     .eq("id", itpItemId)
     .maybeSingle<{ itp_sections: { itps: { project_id: string } | null } | null }>();
   return data?.itp_sections?.itps?.project_id ?? null;
+}
+
+export interface ReassignPartyState {
+  error: string | null;
+}
+
+/**
+ * The practical "someone's out, hand their responsibility to someone else" mechanism: repoints
+ * which user is linked to a project_party (project_parties.user_id) — the same column
+ * canSignOffForParty above gates sign-off on. Deliberately does not add new delegation schema; this
+ * is the simplest correct primitive that unblocks a stuck sign-off (see this file's doc comment on
+ * canSignOffForParty for why an absent linked user otherwise blocks the chain indefinitely).
+ *
+ * RLS (project_parties_staff_write) already allows ANY JAGS staff to update this column — this
+ * action deliberately narrows that to a JAGS Admin, or a lead of a team actually assigned to this
+ * party's project, checked here explicitly rather than relying on RLS alone, since reassigning who
+ * can sign off on a party's behalf is a sensitive capability that shouldn't be left to "any
+ * inspector with project access."
+ */
+export async function reassignSignoffPartyAction(
+  _prev: ReassignPartyState,
+  formData: FormData
+): Promise<ReassignPartyState> {
+  const projectPartyId = String(formData.get("project_party_id") ?? "").trim();
+  const newUserId = String(formData.get("new_user_id") ?? "").trim();
+  if (!projectPartyId || !newUserId) return { error: "Missing party or new user." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: party } = await supabase
+    .from("project_parties")
+    .select("id, project_id")
+    .eq("id", projectPartyId)
+    .maybeSingle<{ id: string; project_id: string }>();
+
+  if (!party) return { error: "Party not found." };
+
+  const allowed = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, party.project_id));
+  if (!allowed) {
+    return { error: "Only a JAGS Admin, or a lead of a team assigned to this project, can reassign a party." };
+  }
+
+  const { error } = await supabase
+    .from("project_parties")
+    .update({ user_id: newUserId })
+    .eq("id", projectPartyId);
+
+  if (error) return { error: "Could not reassign the party. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${party.project_id}`);
+  return { error: null };
 }
 
 async function getNoticePeriodHours(

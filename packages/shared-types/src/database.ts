@@ -14,6 +14,10 @@ export interface Database {
           engagement_mode: "jags_led" | "co_branded" | "white_label";
           ai_consent: boolean;
           branding_logo_path: string | null;
+          // Per-org display override for the fixed burgundy/gold theme (see
+          // 20260917060000_org_brand_colors.sql). Null means "use the default JAGS palette".
+          brand_primary_color: string | null;
+          brand_accent_color: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -25,10 +29,32 @@ export interface Database {
           engagement_mode?: "jags_led" | "co_branded" | "white_label";
           ai_consent?: boolean;
           branding_logo_path?: string | null;
+          brand_primary_color?: string | null;
+          brand_accent_color?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["organizations"]["Insert"]>;
+        Relationships: [];
+      };
+      organization_plans: {
+        Row: {
+          id: string;
+          organization_id: string;
+          plan_tier: "starter" | "professional" | "enterprise";
+          seat_limit: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          plan_tier?: "starter" | "professional" | "enterprise";
+          seat_limit?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["organization_plans"]["Insert"]>;
         Relationships: [];
       };
       notifications: {
@@ -138,6 +164,7 @@ export interface Database {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          allow_client_execution: boolean;
         };
         Insert: {
           id?: string;
@@ -153,6 +180,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          allow_client_execution?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["projects"]["Insert"]>;
         Relationships: [];
@@ -169,6 +197,7 @@ export interface Database {
           is_active: boolean;
           created_at: string;
           user_id: string | null;
+          onboarded_by: "jags" | "client";
         };
         Insert: {
           id?: string;
@@ -181,8 +210,32 @@ export interface Database {
           is_active?: boolean;
           created_at?: string;
           user_id?: string | null;
+          onboarded_by?: "jags" | "client";
         };
         Update: Partial<Database["public"]["Tables"]["project_parties"]["Insert"]>;
+        Relationships: [];
+      };
+      teams: {
+        Row: { id: string; name: string; created_at: string };
+        Insert: { id?: string; name: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["teams"]["Insert"]>;
+        Relationships: [];
+      };
+      team_members: {
+        Row: { team_id: string; user_id: string; is_team_lead: boolean; created_at: string };
+        Insert: {
+          team_id: string;
+          user_id: string;
+          is_team_lead?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["team_members"]["Insert"]>;
+        Relationships: [];
+      };
+      team_project_assignments: {
+        Row: { team_id: string; project_id: string; created_at: string };
+        Insert: { team_id: string; project_id: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["team_project_assignments"]["Insert"]>;
         Relationships: [];
       };
       itps: {

@@ -18,6 +18,7 @@ import {
 } from "./db-types";
 import { requireSession } from "@/lib/auth/session";
 import { canCompleteInspection } from "@/lib/signoff/actions";
+import { getExecutingPartyTypes, findProjectIdForItpItem } from "./execution-parties";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
@@ -32,8 +33,12 @@ export interface GenerateChecklistsState {
 
 /**
  * R76: self-inspection is the assigned party's own spec'd role, not JAGS staff's alone — a party
- * holding an intervention level (H/W/R/S) on this specific activity is a legitimate stakeholder who
- * can run its checklist, same rule as the checklist page's own isAssignedParty check.
+ * holding an intervention level (H/W/R/S) on this specific activity is a legitimate stakeholder, but
+ * only one whose party_type is actually an executing type (subcontractor/main_contractor, plus
+ * client when the project has opted into projects.allow_client_execution — see
+ * lib/checklists/execution-parties.ts) may run its checklist; an independent verifier (TPI/lab) or
+ * a client without that opt-in still can't, same rule as the checklist page's own isAssignedParty
+ * check (apps/web/app/inspect/checklists/[templateId]/page.tsx), kept in sync via the shared helper.
  */
 async function canExecuteChecklistForItem(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -44,11 +49,20 @@ async function canExecuteChecklistForItem(
 
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
-    .select("project_parties(user_id)")
+    .select("project_parties(user_id, party_type)")
     .eq("itp_item_id", itpItemId)
-    .returns<{ project_parties: { user_id: string | null } | null }[]>();
+    .returns<{ project_parties: { user_id: string | null; party_type: string } | null }[]>();
 
-  return (stakeholderParties ?? []).some((row) => row.project_parties?.user_id === session.userId);
+  const projectId = await findProjectIdForItpItem(supabase, itpItemId);
+  const executingPartyTypes = projectId
+    ? await getExecutingPartyTypes(supabase, projectId)
+    : new Set<string>();
+
+  return (stakeholderParties ?? []).some(
+    (row) =>
+      row.project_parties?.user_id === session.userId &&
+      executingPartyTypes.has(row.project_parties.party_type)
+  );
 }
 
 export interface GenerateChecklistsResult {

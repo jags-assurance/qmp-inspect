@@ -1,8 +1,17 @@
 import { requireSession, canSeePlatformHome, isAdminStaff } from "@/lib/auth/session";
 import { AppShell, type NavItem } from "@/components/domain/app-shell";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
+
+  // Teams is visible to a JAGS Admin (manages every team) or any staff account that leads at least
+  // one team (manages only their own) — an Inspector with no lead role has no reason to see it.
+  // Admin already implies this, so the extra DB round-trip only happens for non-admin staff.
+  const showTeamsNav =
+    session.isJagsStaff &&
+    (isAdminStaff(session) || (await isLeadOfAnyTeam(await createSupabaseServerClient(), session.userId)));
 
   // Every non-staff role used to get the identical nav, with only the underlying data differing
   // via RLS — no portal actually looked or felt different per party. This is a first, deliberately
@@ -21,6 +30,10 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : []),
     { label: "Dashboard", href: "/inspect" },
     ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
+    // Account security (MFA enrollment) is every staff member's own concern, not an
+    // administrative one — unlike the Admin-only block below, this is available to any JAGS
+    // staff login (Admin or Inspector).
+    ...(session.isJagsStaff ? [{ label: "Security", href: "/inspect/organisation/security" }] : []),
     { label: "Projects", href: "/inspect/projects" },
     { label: "ITPs", href: "/inspect/itps" },
     { label: "NCRs", href: "/inspect/ncrs" },
@@ -36,11 +49,17 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Client Organisations", href: "/inspect/organisation/clients" },
           { label: "Master ITP Library", href: "/inspect/itp-master" },
           { label: "Numbering", href: "/inspect/organisation/numbering" },
+          { label: "Brand Colors", href: "/inspect/organisation/branding" },
+          { label: "Plans & Seats", href: "/inspect/organisation/plans" },
           { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
           { label: "Usage & Cost", href: "/inspect/organisation/usage" },
           { label: "Reporting", href: "/inspect/organisation/reporting" },
           { label: "Staff Access", href: "/inspect/organisation/staff-access" },
+          { label: "Teams", href: "/inspect/organisation/teams" },
         ]
+      : []),
+    ...(showTeamsNav && !isAdminStaff(session)
+      ? [{ label: "Teams", href: "/inspect/organisation/teams" }]
       : []),
   ];
 

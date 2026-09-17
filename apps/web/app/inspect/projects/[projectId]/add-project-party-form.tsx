@@ -72,6 +72,17 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
         </div>
+        <div>
+          <span className="block text-xs font-medium text-ink">Onboarded by</span>
+          <div className="mt-1 flex items-center gap-4 text-sm text-ink">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="onboarded_by" value="jags" defaultChecked /> JAGS
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="onboarded_by" value="client" /> Client
+            </label>
+          </div>
+        </div>
       </div>
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}

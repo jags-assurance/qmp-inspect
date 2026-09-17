@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 
 export interface CreateProjectState {
   error: string | null;
@@ -68,6 +69,9 @@ type PartyType = (typeof VALID_PARTY_TYPES)[number];
  * isn't required for JAGS staff to exercise the sign-off chain themselves, since staff can always
  * act on any party's behalf regardless of this link.
  */
+const VALID_ONBOARDED_BY = ["jags", "client"] as const;
+type OnboardedBy = (typeof VALID_ONBOARDED_BY)[number];
+
 export async function addProjectPartyAction(
   _prev: AddProjectPartyState,
   formData: FormData
@@ -77,6 +81,10 @@ export async function addProjectPartyAction(
   const name = String(formData.get("name") ?? "").trim();
   const contactName = String(formData.get("contact_name") ?? "").trim();
   const contactEmail = String(formData.get("contact_email") ?? "").trim();
+  const onboardedByRaw = String(formData.get("onboarded_by") ?? "jags").trim();
+  const onboardedBy: OnboardedBy = VALID_ONBOARDED_BY.includes(onboardedByRaw as OnboardedBy)
+    ? (onboardedByRaw as OnboardedBy)
+    : "jags";
 
   if (!projectId || !partyType || !name) {
     return { error: "Party type and name are required." };
@@ -92,11 +100,47 @@ export async function addProjectPartyAction(
     name,
     contact_name: contactName || null,
     contact_email: contactEmail || null,
+    onboarded_by: onboardedBy,
   });
 
   if (error) {
     return { error: "Could not add the party. Check you have permission and try again." };
   }
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
+export interface SetAllowClientExecutionState {
+  error: string | null;
+}
+
+/**
+ * Piece 4 of the teams/delegation work: per-project opt-in that widens checklist execution to also
+ * allow a client-type party to execute (see lib/checklists/execution-parties.ts, read by both the
+ * checklist page and lib/checklists/actions.ts). Admin-only, same boundary as project creation and
+ * every other project-settings action.
+ */
+export async function setAllowClientExecutionAction(
+  _prev: SetAllowClientExecutionState,
+  formData: FormData
+): Promise<SetAllowClientExecutionState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this setting." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const allow = formData.get("allow_client_execution") === "on";
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ allow_client_execution: allow })
+    .eq("id", projectId);
+
+  if (error) return { error: "Could not update this setting. Check you have permission and try again." };
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };

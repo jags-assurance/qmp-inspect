@@ -26,6 +26,7 @@ import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { ConsistencyCheck } from "./consistency-check";
+import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 
 /**
  * Field execution surface for one checklist: shows any in-progress inspection to keep filling in,
@@ -77,8 +78,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // grid specifically to check someone else's work after the fact — they don't do the field data
   // entry themselves, or the independent-verification point is meaningless. Only the party actually
   // performing/self-inspecting the work — subcontractor or main contractor — can run the checklist;
-  // client and tpi_lab are sign-off-only regardless of which intervention level they hold here.
-  const EXECUTING_PARTY_TYPES = new Set(["subcontractor", "main_contractor"]);
+  // client and tpi_lab are sign-off-only, UNLESS this project has opted into
+  // projects.allow_client_execution (piece 4 of the teams/delegation work — see
+  // lib/checklists/execution-parties.ts, also used by lib/checklists/actions.ts so the UI and the
+  // actual server-side gate can never drift apart), in which case client joins the executing set too.
+  const EXECUTING_PARTY_TYPES = await getExecutingPartyTypes(supabase, project.id);
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
     .select("project_parties(id, user_id, party_type)")

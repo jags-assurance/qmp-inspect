@@ -5,7 +5,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { OrgBrandScope } from "@/components/domain/org-brand-scope";
 import { AddProjectPartyForm } from "./add-project-party-form";
+import { ReassignPartyForm } from "./reassign-party-form";
+import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
+import { isTeamLeadForProject } from "@/lib/teams/helpers";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -34,7 +38,14 @@ interface ProjectDetail {
   start_date: string | null;
   end_date: string | null;
   status: string;
-  organizations: { name: string; engagement_mode: string } | null;
+  organization_id: string;
+  allow_client_execution: boolean;
+  organizations: {
+    name: string;
+    engagement_mode: string;
+    brand_primary_color: string | null;
+    brand_accent_color: string | null;
+  } | null;
 }
 
 /**
@@ -53,7 +64,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organizations(name, engagement_mode)")
+    .select(
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
+    )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
 
@@ -68,11 +81,21 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   ] = await Promise.all([
     supabase
       .from("project_parties")
-      .select("id, name, party_type, is_active")
+      .select("id, name, party_type, is_active, onboarded_by, user_id, users(full_name, email)")
       .eq("project_id", projectId)
       .eq("is_active", true)
       .order("party_type")
-      .returns<{ id: string; name: string; party_type: string; is_active: boolean }[]>(),
+      .returns<
+        {
+          id: string;
+          name: string;
+          party_type: string;
+          is_active: boolean;
+          onboarded_by: "jags" | "client";
+          user_id: string | null;
+          users: { full_name: string; email: string } | null;
+        }[]
+      >(),
     supabase.from("itps").select("id", { count: "exact", head: true }).eq("project_id", projectId),
     supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase
@@ -87,7 +110,40 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       .eq("status", "open"),
   ]);
 
+  // Reassignment (piece 3) and the client-execution toggle (piece 4) are both sensitive, staff-only
+  // affordances — gated the same way reassignSignoffPartyAction gates itself server-side: a JAGS
+  // Admin, or a lead of a team actually assigned to this project. Computed once here so both the
+  // party list and the settings toggle below use the identical check the server action re-verifies.
+  const canReassign = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, project.id));
+
+  // Eligible reassignment targets: anyone whose access already reaches this project's organisation
+  // (global/organisation/project-scoped access_grants) or this project specifically — a broader set
+  // than only existing party-linked users, since reassignment is precisely for handing a party's
+  // sign-off responsibility to someone who doesn't hold it yet.
+  let eligibleUsers: { id: string; full_name: string; email: string }[] = [];
+  if (canReassign) {
+    const { data: grantedUserIds } = await supabase
+      .from("access_grants")
+      .select("user_id")
+      .or(`scope_type.eq.global,organization_id.eq.${project.organization_id},project_id.eq.${project.id}`);
+    const userIds = Array.from(new Set((grantedUserIds ?? []).map((g) => g.user_id)));
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", userIds)
+        .order("full_name");
+      eligibleUsers = users ?? [];
+    }
+  }
+
   return (
+    <OrgBrandScope
+      colors={{
+        brand_primary_color: project.organizations?.brand_primary_color ?? null,
+        brand_accent_color: project.organizations?.brand_accent_color ?? null,
+      }}
+    >
     <div>
       <Link href="/inspect/projects" className="text-sm text-burgundy hover:underline">
         ← Back to Projects
@@ -141,16 +197,41 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <p className="mt-1 text-sm text-muted">Every organisation engaged on this project.</p>
         <ul className="mt-4 space-y-2">
           {(parties ?? []).map((party) => (
-            <li key={party.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-              <span className="text-ink">{party.name}</span>
-              <span className="text-muted">{PARTY_TYPE_LABEL[party.party_type] ?? party.party_type}</span>
+            <li key={party.id} className="rounded-md border border-border px-3 py-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-ink">{party.name}</span>
+                <span className="flex items-center gap-2">
+                  <Badge tone={party.onboarded_by === "client" ? "info" : "neutral"}>
+                    {party.onboarded_by === "client" ? "Client-onboarded" : "JAGS-onboarded"}
+                  </Badge>
+                  <span className="text-muted">{PARTY_TYPE_LABEL[party.party_type] ?? party.party_type}</span>
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs text-muted">
+                <span>{party.users ? `${party.users.full_name} (${party.users.email})` : "No linked login yet"}</span>
+                {canReassign && <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />}
+              </div>
             </li>
           ))}
           {(parties ?? []).length === 0 && <li className="text-sm text-muted">No parties recorded on this project yet.</li>}
         </ul>
         {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} />}
       </div>
+
+      {isAdminStaff(session) && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Checklist execution settings</h2>
+          <p className="mt-1 text-sm text-muted">
+            By default only the performing contractor (subcontractor/main contractor) self-inspects
+            and fills in checklists — a client-type party only holds independent sign-off points.
+            Turning this on lets a client-type party on THIS project also execute checklists,
+            without changing behaviour on any other project.
+          </p>
+          <AllowClientExecutionToggle projectId={project.id} allowClientExecution={project.allow_client_execution} />
+        </div>
+      )}
     </div>
+    </OrgBrandScope>
   );
 }
 
