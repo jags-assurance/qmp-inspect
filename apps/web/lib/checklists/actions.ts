@@ -24,6 +24,7 @@ import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
 
 export interface GenerateChecklistsState {
   error: string | null;
@@ -470,17 +471,16 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // Round-table finding: `.some()` over an empty set is vacuously false, so a checklist with zero
   // items (e.g. one created but never populated with items) would silently "complete" with
   // overall_result='pass' despite recording nothing at all — indistinguishable downstream from a
-  // real, evidenced pass. A checklist must have at least one answered item to be completed.
-  if (itemIds.size === 0) {
-    return { error: "This checklist has no items yet — add at least one before it can be completed." };
-  }
-  const missing = [...itemIds].some((id) => !responseByItem.has(id));
-  if (missing) {
-    return { error: "Every checklist item needs a Yes / No / N-A response before you can complete the inspection." };
+  // real, evidenced pass. A checklist must have at least one answered item to be completed. The
+  // check itself lives in validateChecklistItemsAnswered (completion-logic.ts), pulled out so it's
+  // unit-testable without a live DB — see lib/checklists/__tests__/completion-logic.test.ts.
+  const validationError = validateChecklistItemsAnswered(itemIds, responseByItem);
+  if (validationError) {
+    return { error: validationError };
   }
 
   const results = [...responseByItem.values()];
-  const overallResult: OverallResult = results.includes("no") ? "fail" : results.includes("na") ? "partial" : "pass";
+  const overallResult: OverallResult = computeOverallResult(results);
 
   const { error } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
