@@ -1,0 +1,91 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { requireSession } from "@/lib/auth/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
+import { DRAWING_MARKUPS_TABLE, type DrawingMarkupRow } from "@/lib/drawing-markups/types";
+import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { DrawingMarkupViewer } from "./drawing-markup-viewer";
+
+interface DocumentRow {
+  id: string;
+  folder_id: string;
+  title: string;
+  document_number: string | null;
+  revision: string;
+  storage_path: string;
+}
+
+/**
+ * Vault document viewer. Round-table finding: field inspectors reviewing a drawing/plan had no way
+ * to mark up WHERE on the drawing something happened — see drawing-markup-viewer.tsx for the
+ * pin-drop overlay itself. This page just resolves the document + its folder/project (for the back
+ * link and RLS-scoped queries) and the pick-list of NCRs this project's pins can link to.
+ */
+export default async function VaultDocumentPage({
+  params,
+}: {
+  params: Promise<{ projectId: string; documentId: string }>;
+}) {
+  await requireSession();
+  const { projectId, documentId } = await params;
+  const supabase = await createSupabaseServerClient();
+
+  const { data: document } = await supabase
+    .from(VAULT_DOCUMENTS_TABLE)
+    .select("id, folder_id, title, document_number, revision, storage_path")
+    .eq("id", documentId)
+    .maybeSingle()
+    .returns<DocumentRow | null>();
+
+  if (!document) notFound();
+
+  const { data: folder } = await supabase
+    .from(VAULT_FOLDERS_TABLE)
+    .select("id, project_id, folder_key, name, created_at")
+    .eq("id", document.folder_id)
+    .eq("project_id", projectId)
+    .maybeSingle()
+    .returns<VaultFolderRow | null>();
+
+  if (!folder) notFound();
+
+  const { data: markups } = await supabase
+    .from(DRAWING_MARKUPS_TABLE)
+    .select("id, project_id, vault_document_id, x, y, markup_type, linked_entity_id, label, created_by, created_at")
+    .eq("vault_document_id", documentId)
+    .order("created_at", { ascending: true })
+    .returns<DrawingMarkupRow[]>();
+
+  const { data: ncrs } = await supabase
+    .from(NCRS_TABLE)
+    .select("id, ncr_number, description")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .returns<{ id: string; ncr_number: string; description: string }[]>();
+
+  return (
+    <div>
+      <RealtimeRefresh table="drawing_markups" filter={`vault_document_id=eq.${documentId}`} />
+      <Link href={`/inspect/vault/${projectId}/${folder.id}`} className="text-sm text-burgundy hover:underline">
+        ← Back to {folder.name}
+      </Link>
+
+      <h1 className="mt-2 text-2xl font-semibold text-ink">{document.title}</h1>
+      <p className="mt-1 text-sm text-muted">
+        {document.document_number ?? "—"} · Rev. {document.revision}
+      </p>
+
+      <div className="mt-6">
+        <DrawingMarkupViewer
+          projectId={projectId}
+          documentId={documentId}
+          storagePath={document.storage_path}
+          markups={markups ?? []}
+          ncrOptions={(ncrs ?? []).map((n) => ({ id: n.id, label: `${n.ncr_number} — ${n.description}` }))}
+        />
+      </div>
+    </div>
+  );
+}

@@ -49,6 +49,7 @@ export default async function VaultFolderPage({
 
   const rows: VaultDocumentTableRow[] = (documents ?? []).map((d) => ({
     id: d.id,
+    project_id: projectId,
     title: d.title,
     document_number: d.document_number,
     document_reference: d.document_reference,

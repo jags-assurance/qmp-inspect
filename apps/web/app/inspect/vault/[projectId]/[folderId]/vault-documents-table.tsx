@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 
 export interface VaultDocumentTableRow {
   id: string;
+  project_id: string;
   title: string;
   document_number: string | null;
   document_reference: string | null;
@@ -33,7 +35,15 @@ const COLUMNS: DataTableColumn<VaultDocumentTableRow>[] = [
     header: "Document No.",
     render: (row) => <span className="doc-id text-ink">{row.document_number ?? "—"}</span>,
   },
-  { key: "title", header: "Title", render: (row) => row.title },
+  {
+    key: "title",
+    header: "Title",
+    render: (row) => (
+      <Link href={`/inspect/vault/${row.project_id}/document/${row.id}`} className="text-burgundy hover:underline">
+        {row.title}
+      </Link>
+    ),
+  },
   { key: "revision", header: "Rev.", render: (row) => row.revision },
   {
     key: "status",
