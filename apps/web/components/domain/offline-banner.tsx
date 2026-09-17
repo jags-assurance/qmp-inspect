@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getOutboxItems } from "@/lib/offline/db";
+import { getOutboxItems, isStoragePersisted, requestPersistentStorage } from "@/lib/offline/db";
 import { onOutboxChanged, syncOutbox } from "@/lib/offline/sync-client";
 
 /**
@@ -22,6 +22,12 @@ export function OfflineBanner() {
   const [failedCount, setFailedCount] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // Round-table finding: the offline outbox lives in "best-effort" IndexedDB storage by default,
+  // which the browser (iOS Safari most aggressively) can silently evict under storage pressure —
+  // losing hours of unsynced field work with no warning. Requested proactively on every mount, not
+  // only once data is already queued, since eviction risk exists the moment the origin is used, and
+  // by the time there's something to protect it may already be too late to ask.
+  const [storagePersisted, setStoragePersisted] = useState(true);
 
   const refreshCounts = useCallback(async () => {
     const items = await getOutboxItems();
@@ -61,6 +67,13 @@ export function OfflineBanner() {
     const initialCheck = setTimeout(() => {
       refreshCounts();
       if (navigator.onLine) attemptSync();
+      isStoragePersisted().then((already) => {
+        if (already) {
+          setStoragePersisted(true);
+        } else {
+          requestPersistentStorage().then(setStoragePersisted);
+        }
+      });
     }, 0);
 
     return () => {
@@ -70,6 +83,8 @@ export function OfflineBanner() {
       unsubscribe();
     };
   }, [attemptSync, refreshCounts]);
+
+  const showStorageWarning = pendingCount > 0 && !storagePersisted;
 
   if (isOnline && pendingCount === 0) return null;
 
@@ -90,6 +105,8 @@ export function OfflineBanner() {
         {pendingCount > 0 && `${pendingCount} change${pendingCount === 1 ? "" : "s"} queued`}
         {pendingCount > 0 && !isOnline && " — will sync automatically when you're back online."}
         {failedCount > 0 && ` — ${failedCount} couldn't sync${lastError ? `: ${lastError}` : ""}.`}
+        {showStorageWarning &&
+          " — this browser did not grant protected storage for queued data; sync as soon as you're back online to avoid losing it."}
       </span>
       {isOnline && pendingCount > 0 && !syncing && (
         <button type="button" onClick={attemptSync} className="shrink-0 font-medium underline">

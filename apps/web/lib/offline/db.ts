@@ -97,3 +97,30 @@ export async function getOutboxCount(): Promise<number> {
   if (!isBrowser()) return 0;
   return withStore<number>("readonly", (store) => store.count());
 }
+
+/**
+ * Round-table field-usability finding: this IndexedDB outbox is the only thing standing between an
+ * inspector's hours of offline work and total data loss, but storage in "best-effort" mode (the
+ * browser default) can be silently evicted under storage pressure — most aggressively by iOS
+ * Safari, which can clear it after as little as 7 days of the site being unvisited, with no warning
+ * to the user. `navigator.storage.persist()` asks the browser to exempt this origin from that
+ * automatic eviction. Never assume it was granted — some browsers silently refuse it outside
+ * specific engagement heuristics (e.g. installed-as-PWA) — always check the actual result.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.storage?.persist) return false;
+  try {
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
+export async function isStoragePersisted(): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.storage?.persisted) return false;
+  try {
+    return await navigator.storage.persisted();
+  } catch {
+    return false;
+  }
+}
