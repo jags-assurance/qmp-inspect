@@ -15,10 +15,20 @@ export const PARTY_TYPES = [
 ] as const;
 export type PartyType = (typeof PARTY_TYPES)[number];
 
-export const INTERVENTION_LEVELS = ["H", "W", "R", "S"] as const;
-export type InterventionLevel = (typeof INTERVENTION_LEVELS)[number];
+// The four levels every organisation is seeded with (supabase/migrations/
+// 20260917090000_configurable_intervention_levels.sql) — a STARTING POINT, not a fixed enum. An
+// intervention level is now a plain string code, custom per organisation and stored in the
+// intervention_level_types table (label, sort_order, is_blocking, default_notice_hours). Anything
+// that used to type this as "H" | "W" | "R" | "S" now types it as `string` and looks up its
+// label/tone/blocking-ness from that org's configured levels — see
+// apps/web/lib/intervention-levels/types.ts for the row shape and helpers.
+export type InterventionLevel = string;
 
-export const INTERVENTION_LEVEL_LABELS: Record<InterventionLevel, string> = {
+// Kept only for the one-time seed list and any doc-comment cross-references — never used to
+// validate or restrict what a real intervention code can be anymore.
+export const DEFAULT_INTERVENTION_LEVELS = ["H", "W", "R", "S"] as const;
+
+export const DEFAULT_INTERVENTION_LEVEL_LABELS: Record<(typeof DEFAULT_INTERVENTION_LEVELS)[number], string> = {
   H: "Hold",
   W: "Witness",
   R: "Review",

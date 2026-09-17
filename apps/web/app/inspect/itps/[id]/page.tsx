@@ -27,6 +27,12 @@ import { getLatestItpPdf } from "@/lib/reports/actions";
 import { ItpPdfButton } from "./itp-pdf-button";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import type { VaultDocumentOption } from "./expected-record-form";
+import {
+  INTERVENTION_LEVEL_TYPES_TABLE,
+  FALLBACK_NOTICE_PERIOD_HOURS,
+  sortLevels,
+  type InterventionLevelTypeRow,
+} from "@/lib/intervention-levels/types";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -60,10 +66,6 @@ const EVIDENCE_LABEL: Record<number, string> = {
   2: "Document upload",
   3: "Measurement record",
 };
-
-// R66-R81 defaults, mirrored from apps/web/lib/signoff/actions.ts (used only when a project has no
-// notice_period_configs row for that intervention).
-const DEFAULT_NOTICE_PERIOD_HOURS: Record<"H" | "W", number> = { H: 48, W: 24 };
 
 export default async function ItpDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -114,6 +116,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     { data: masterTemplates },
     { data: disciplines },
     { data: rawVaultDocuments },
+    { data: levelTypes },
   ] = await Promise.all([
       // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
       // everything else below, so it runs concurrently instead of blocking the rest of the page
@@ -146,7 +149,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .from("notice_period_configs")
         .select("intervention, hours")
         .eq("project_id", itp.projects?.id ?? "")
-        .returns<{ intervention: "H" | "W"; hours: number }[]>(),
+        .returns<{ intervention: string; hours: number }[]>(),
       // Only used to populate the "update existing" picker in the propose-to-master form below;
       // querying unconditionally keeps this straightforward, and the table is tiny.
       canPropose
@@ -174,6 +177,15 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .returns<
           { id: string; title: string; document_reference: string | null; storage_path: string; vault_folders: { name: string } | null }[]
         >(),
+      // This organisation's configured intervention levels (supabase/migrations/
+      // 20260917090000_configurable_intervention_levels.sql) — replaces the old hardcoded H/W/R/S
+      // set everywhere below, so a custom level an admin adds actually shows up and behaves
+      // correctly on this page (picker, chip tone, blocking, notice period).
+      supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("id, organization_id, code, label, sort_order, is_blocking, default_notice_hours, created_at")
+        .eq("organization_id", itp.projects?.organization_id ?? "")
+        .returns<InterventionLevelTypeRow[]>(),
     ]);
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
@@ -232,7 +244,18 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
   const signoffComplete = (signoffs ?? []).filter((row) => row.status === "signed_off").length;
   const hasPendingSignoffs = (signoffs ?? []).some((row) => row.status === "pending");
 
-  const noticeHours: Record<"H" | "W", number> = { ...DEFAULT_NOTICE_PERIOD_HOURS };
+  const levels = sortLevels(levelTypes ?? []);
+  const blockingCodes = new Set(levels.filter((l) => l.is_blocking).map((l) => l.code));
+
+  // Precedence, highest first: a project-level notice_period_configs override, then this
+  // organisation's own configured default_notice_hours for that level, then the original hardcoded
+  // spec fallback (Hold=48h/Witness=24h) for the two levels that ever had one — same three-tier
+  // fallback behaviour the app always had, just no longer restricted to literal "H"/"W" codes.
+  const noticeHours: Record<string, number> = {};
+  for (const level of levels) {
+    if (level.default_notice_hours != null) noticeHours[level.code] = level.default_notice_hours;
+    else if (FALLBACK_NOTICE_PERIOD_HOURS[level.code] != null) noticeHours[level.code] = FALLBACK_NOTICE_PERIOD_HOURS[level.code];
+  }
   for (const config of noticeConfigs ?? []) {
     noticeHours[config.intervention] = config.hours;
   }
@@ -414,6 +437,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                         canEditContent={canEditContent}
                         isJagsStaff={session.isJagsStaff}
                         noticeHours={noticeHours}
+                        levels={levels}
+                        blockingCodes={blockingCodes}
                       />
                       {/* R54-R56: expected -> received third-party test record tracking per activity. */}
                       <div className="border-b border-border px-4 py-3 last:border-0 bg-off-white/40">

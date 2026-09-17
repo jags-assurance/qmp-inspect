@@ -10,7 +10,11 @@ import {
 import type { ItpDraftResult } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 
-const INTERVENTION_LABEL: Record<"H" | "W" | "R" | "S", string> = {
+// The AI draft flow only ever suggests one of the four built-in codes (see
+// AI_SUGGESTED_INTERVENTION_LEVELS in lib/ai/provider.ts) — a custom organisation-specific level
+// isn't something the model has been told about, so this preview-only label map stays a plain
+// fallback (falls back to the bare code for anything unrecognised) rather than an org-scoped lookup.
+const INTERVENTION_LABEL: Record<string, string> = {
   H: "Hold",
   W: "Witness",
   R: "Review",
@@ -568,7 +572,7 @@ export function NewItpFromAiForm({
                             return (
                               <li key={siIdx}>
                                 <span className="font-medium text-ink">{party?.name ?? "Unknown party"}</span>:{" "}
-                                <span className="font-medium text-burgundy">{INTERVENTION_LABEL[si.intervention]}</span> —{" "}
+                                <span className="font-medium text-burgundy">{INTERVENTION_LABEL[si.intervention] ?? si.intervention}</span> —{" "}
                                 {si.reason}
                               </li>
                             );

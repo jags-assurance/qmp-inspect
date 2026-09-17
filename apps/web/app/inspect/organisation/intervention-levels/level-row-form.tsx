@@ -1,0 +1,81 @@
+"use client";
+
+import { useActionState } from "react";
+import { updateInterventionLevelAction, deleteInterventionLevelAction, type InterventionLevelState } from "@/lib/intervention-levels/actions";
+import type { InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
+import { Button } from "@/components/ui/button";
+
+const initialState: InterventionLevelState = { error: null };
+
+/** One editable row: rename the label, reorder (sort_order), mark blocking or not, and set a
+ *  default notice-period. The `code` itself is shown but not editable here — see doc comment on
+ *  updateInterventionLevelAction for why. Delete is a separate form using the plain-action variant
+ *  (no client-side pending state needed for a single destructive click, mirrors
+ *  remove-grant-button.tsx's pattern elsewhere in this app), and surfaces the DB's "still in use"
+ *  guard as a plain error instead of letting a raw exception bubble up.
+ */
+export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
+  const [state, formAction, pending] = useActionState(updateInterventionLevelAction, initialState);
+  const [deleteState, deleteAction, deletePending] = useActionState(deleteInterventionLevelAction, initialState);
+
+  return (
+    <div className="py-3">
+      <form action={formAction} className="grid grid-cols-[60px_1fr_90px_90px_110px_auto] items-end gap-2">
+        <input type="hidden" name="id" value={level.id} />
+        <div>
+          <label className="block text-xs text-muted">Code</label>
+          <span className="doc-id mt-1 block text-sm font-semibold text-ink">{level.code}</span>
+        </div>
+        <div>
+          <label className="block text-xs text-muted">Label</label>
+          <input
+            name="label"
+            required
+            defaultValue={level.label}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-muted">Order</label>
+          <input
+            name="sort_order"
+            type="number"
+            defaultValue={level.sort_order}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          />
+        </div>
+        <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
+          <input type="checkbox" name="is_blocking" defaultChecked={level.is_blocking} />
+          Blocking
+        </label>
+        <div>
+          <label className="block text-xs text-muted">Notice hrs</label>
+          <input
+            name="default_notice_hours"
+            type="number"
+            min={0}
+            defaultValue={level.default_notice_hours ?? ""}
+            placeholder="none"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          />
+        </div>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : "Save"}
+        </Button>
+      </form>
+      {state.error && <p className="mt-1 text-sm text-danger">{state.error}</p>}
+
+      <form action={deleteAction} className="mt-1.5">
+        <input type="hidden" name="id" value={level.id} />
+        <button
+          type="submit"
+          disabled={deletePending}
+          className="text-xs font-medium text-danger hover:underline disabled:opacity-50"
+        >
+          {deletePending ? "Removing…" : "Remove level"}
+        </button>
+      </form>
+      {deleteState.error && <p className="mt-1 text-sm text-danger">{deleteState.error}</p>}
+    </div>
+  );
+}

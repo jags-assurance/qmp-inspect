@@ -29,7 +29,19 @@ function partyTypeLabel(partyType: string): string {
 export interface ItpTemplateIntervention {
   itpItemId: string;
   projectPartyId: string;
-  code: "H" | "W" | "R" | "S";
+  code: string;
+}
+
+/**
+ * This ITP's organisation's configured intervention levels, in sort_order (supabase/migrations/
+ * 20260917090000_configurable_intervention_levels.sql) — replaces the old hardcoded H/W/R/S legend
+ * and per-code CSS classes, so a custom level (e.g. "Client QA Review") gets its own legend entry
+ * and its own distinct swatch color in the rendered PDF, not just the picker/grid in the web app.
+ */
+export interface ItpTemplateLevelType {
+  code: string;
+  label: string;
+  sortOrder: number;
 }
 
 /**
@@ -84,6 +96,7 @@ export interface ItpTemplateData {
   interventions: ItpTemplateIntervention[];
   signoffStatuses: ItpTemplateSignoffCell[];
   signoffs: ItpTemplateSignoff[];
+  levelTypes: ItpTemplateLevelType[];
   generatedAt: Date;
 }
 
@@ -93,12 +106,23 @@ const EVIDENCE_TYPE_LABEL: Record<1 | 2 | 3, string> = {
   3: "Measurement Record",
 };
 
-const INTERVENTION_LABEL: Record<"H" | "W" | "R" | "S", string> = {
-  H: "Hold",
-  W: "Witness",
-  R: "Review",
-  S: "Surveillance",
-};
+// Swatch/text colors assigned by POSITION in the organisation's own sorted level list, not by a
+// fixed code — matches apps/web/lib/intervention-levels/types.ts's TONE_PALETTE reasoning (kept in
+// sync by hand, same as PARTY_TYPE_LABEL above, since the worker and web app don't share a lib). The
+// first four entries are the exact original H/W/R/S colors so every existing org's PDF renders
+// pixel-identical to before this feature; a 5th+ custom level cycles through the rest of the palette.
+const LEVEL_COLOR_PALETTE: { background: string; color: string }[] = [
+  { background: "#E5555A", color: "#fff" }, // was .intervention-H
+  { background: "#F5C518", color: "#1C1C1E" }, // was .intervention-W
+  { background: "#4C7EA8", color: "#fff" }, // was .intervention-R
+  { background: "#9AA0A6", color: "#fff" }, // was .intervention-S
+  { background: "#6B8F71", color: "#fff" },
+  { background: "#8B6BAF", color: "#fff" },
+];
+
+function colorForLevelIndex(index: number): { background: string; color: string } {
+  return LEVEL_COLOR_PALETTE[index % LEVEL_COLOR_PALETTE.length];
+}
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
@@ -136,24 +160,30 @@ const SIGNOFF_CHECK_SVG =
   '<svg class="signoff-check" viewBox="0 0 12 12" width="8" height="8"><polyline points="2,6.5 5,9.5 10,3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function interventionCell(
-  code: "H" | "W" | "R" | "S" | undefined,
-  status: ItpTemplateSignoffStatus | undefined
+  code: string | undefined,
+  status: ItpTemplateSignoffStatus | undefined,
+  levelIndexByCode: Map<string, number>,
+  levelLabelByCode: Map<string, string>
 ): string {
   if (!code) return '<td class="intervention-cell intervention-none">&mdash;</td>';
   const effectiveStatus = status ?? "pending";
   const mark =
     effectiveStatus === "signed_off" ? SIGNOFF_CHECK_SVG : effectiveStatus === "notified" ? SIGNOFF_NOTIFIED_MARK : "";
-  const title = `${INTERVENTION_LABEL[code]} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
-  return `<td class="intervention-cell intervention-${code} signoff-${effectiveStatus}" title="${title}">${code}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</td>`;
+  const label = levelLabelByCode.get(code) ?? code;
+  const title = `${escapeHtml(label)} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
+  const { background, color } = colorForLevelIndex(levelIndexByCode.get(code) ?? 0);
+  return `<td class="intervention-cell signoff-${effectiveStatus}" style="background:${background};color:${color}" title="${title}">${escapeHtml(code)}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</td>`;
 }
 
 function renderSection(
   section: ItpTemplateSection,
   parties: ItpTemplateParty[],
   interventions: ItpTemplateIntervention[],
-  signoffStatuses: ItpTemplateSignoffCell[]
+  signoffStatuses: ItpTemplateSignoffCell[],
+  levelIndexByCode: Map<string, number>,
+  levelLabelByCode: Map<string, string>
 ): string {
-  const interventionByItem = new Map<string, Map<string, "H" | "W" | "R" | "S">>();
+  const interventionByItem = new Map<string, Map<string, string>>();
   for (const iv of interventions) {
     if (!interventionByItem.has(iv.itpItemId)) interventionByItem.set(iv.itpItemId, new Map());
     interventionByItem.get(iv.itpItemId)!.set(iv.projectPartyId, iv.code);
@@ -169,7 +199,12 @@ function renderSection(
     .map((item) => {
       const partyCells = parties
         .map((party) =>
-          interventionCell(interventionByItem.get(item.id)?.get(party.id), statusByItem.get(item.id)?.get(party.id))
+          interventionCell(
+            interventionByItem.get(item.id)?.get(party.id),
+            statusByItem.get(item.id)?.get(party.id),
+            levelIndexByCode,
+            levelLabelByCode
+          )
         )
         .join("");
       return `
@@ -211,13 +246,19 @@ function renderSection(
     </section>`;
 }
 
-function renderLegend(): string {
+// Built from this ITP's ORGANISATION's own configured intervention levels (sort_order), not a
+// hardcoded H/W/R/S list — so a custom 5th level an admin adds shows up in the legend too, with its
+// own swatch color (see colorForLevelIndex).
+function renderLegend(levelTypes: ItpTemplateLevelType[]): string {
+  const items = levelTypes
+    .map((lt, i) => {
+      const { background } = colorForLevelIndex(i);
+      return `<span class="legend-item"><span class="legend-swatch" style="background:${background}"></span>${escapeHtml(lt.code)} &ndash; ${escapeHtml(lt.label)}</span>`;
+    })
+    .join("");
   return `
     <div class="legend">
-      <span class="legend-item"><span class="legend-swatch intervention-H"></span>H &ndash; Hold</span>
-      <span class="legend-item"><span class="legend-swatch intervention-W"></span>W &ndash; Witness</span>
-      <span class="legend-item"><span class="legend-swatch intervention-R"></span>R &ndash; Review</span>
-      <span class="legend-item"><span class="legend-swatch intervention-S"></span>S &ndash; Surveillance</span>
+      ${items}
       <span class="legend-item legend-signoff">${SIGNOFF_CHECK_SVG} Signed off &nbsp;&nbsp; ${SIGNOFF_NOTIFIED_MARK} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
     </div>`;
 }
@@ -240,8 +281,11 @@ function renderSignoffs(signoffs: ItpTemplateSignoff[]): string {
 
 export function buildItpHtml(data: ItpTemplateData): string {
   const statusLabel = STATUS_LABEL[data.status] ?? data.status;
+  const sortedLevelTypes = [...data.levelTypes].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
+  const levelIndexByCode = new Map(sortedLevelTypes.map((lt, i) => [lt.code, i]));
+  const levelLabelByCode = new Map(sortedLevelTypes.map((lt) => [lt.code, lt.label]));
   const sectionsHtml = data.sections
-    .map((s) => renderSection(s, data.parties, data.interventions, data.signoffStatuses))
+    .map((s) => renderSection(s, data.parties, data.interventions, data.signoffStatuses, levelIndexByCode, levelLabelByCode))
     .join("");
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 19) + " UTC";
 
@@ -483,10 +527,9 @@ export function buildItpHtml(data: ItpTemplateData): string {
     width: 22px;
   }
 
-  .intervention-H { background: #E5555A; color: #fff; }
-  .intervention-W { background: #F5C518; color: var(--ink); }
-  .intervention-R { background: #4C7EA8; color: #fff; }
-  .intervention-S { background: #9AA0A6; color: #fff; }
+  /* Per-level background/text color is now set inline per cell (colorForLevelIndex), keyed by that
+     level's position in the organisation's own sorted list rather than a fixed H/W/R/S class — a
+     custom level gets a color this way too. */
   .intervention-none { color: #bbb; }
 
   /* Sign-off completion, layered on top of the intervention color above: a pending cell (holder
@@ -633,7 +676,7 @@ export function buildItpHtml(data: ItpTemplateData): string {
     <div><span class="label">STATUS</span>${escapeHtml(statusLabel)}</div>
   </div>
 
-  ${renderLegend()}
+  ${renderLegend(sortedLevelTypes)}
 
   ${sectionsHtml}
 

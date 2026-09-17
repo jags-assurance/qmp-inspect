@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -138,46 +139,65 @@ export async function setInterventionAction(formData: FormData) {
       .eq("itp_item_id", itpItemId)
       .eq("project_party_id", projectPartyId);
   } else {
-    await supabase.from("activity_party_intervention").upsert(
+    // Look up the label for the notification below (and, incidentally, resolve the organisation so
+    // we know which org's levels to check against) before writing the row — the DB itself is the
+    // real source of truth for "is this a valid code" (validate_activity_intervention_code trigger,
+    // supabase/migrations/20260917090000_configurable_intervention_levels.sql), this is just so the
+    // notification reads e.g. "Client QA Review" for a custom level instead of a bare code.
+    const { data: context } = await supabase
+      .from("itp_items")
+      .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
+      .eq("id", itpItemId)
+      .maybeSingle<{
+        activity: string;
+        itp_sections: {
+          itps: {
+            itp_number: string;
+            project_id: string;
+            projects: { organization_id: string } | null;
+          } | null;
+        } | null;
+      }>();
+
+    const itp = context?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+
+    let interventionLabel = intervention;
+    if (organizationId) {
+      const { data: levelType } = await supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("label")
+        .eq("organization_id", organizationId)
+        .eq("code", intervention)
+        .maybeSingle<{ label: string }>();
+      if (levelType?.label) interventionLabel = levelType.label;
+    }
+
+    const { error: upsertError } = await supabase.from("activity_party_intervention").upsert(
       {
         itp_item_id: itpItemId,
         project_party_id: projectPartyId,
-        intervention: intervention as "H" | "W" | "R" | "S",
+        intervention,
       },
       { onConflict: "itp_item_id,project_party_id" }
     );
 
+    if (upsertError) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return;
+    }
+
     // Best-effort: the assigned party otherwise has no signal at all that they're now responsible
     // for a sign-off — the only other notification in this flow is notifyPartyAction, which fires
     // solely when someone manually clicks "Notify" on the resulting activity_signoff_progress row.
-    // Without this, a party can go unaware of new Hold/Witness/Review/Surveillance work indefinitely.
-    // Never blocks the intervention assignment itself, which has already succeeded above.
+    // Without this, a party can go unaware of new intervention work indefinitely. Never blocks the
+    // intervention assignment itself, which has already succeeded above.
     try {
-      const { data: context } = await supabase
-        .from("itp_items")
-        .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
-        .eq("id", itpItemId)
-        .maybeSingle<{
-          activity: string;
-          itp_sections: {
-            itps: {
-              itp_number: string;
-              project_id: string;
-              projects: { organization_id: string } | null;
-            } | null;
-          } | null;
-        }>();
-
       const { data: party } = await supabase
         .from("project_parties")
         .select("user_id")
         .eq("id", projectPartyId)
         .maybeSingle<{ user_id: string | null }>();
-
-      const itp = context?.itp_sections?.itps;
-      const organizationId = itp?.projects?.organization_id;
-      const interventionLabel =
-        intervention === "H" ? "Hold" : intervention === "W" ? "Witness" : intervention === "R" ? "Review" : "Surveillance";
 
       if (party?.user_id && itp && organizationId) {
         await createNotification(supabase, {

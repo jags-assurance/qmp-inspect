@@ -16,20 +16,22 @@ export const ACTIVITY_SIGNOFF_PROGRESS_TABLE = "activity_signoff_progress" as an
 export const SIGNOFF_STATUSES = ["pending", "notified", "signed_off", "proceeded_no_response"] as const;
 export type SignoffStatus = (typeof SIGNOFF_STATUSES)[number];
 
-// Fallback notice periods (hours) used when a project has no notice_period_configs row for the
-// given intervention level — R66-R81 documents these as the defaults, overridable per project.
-// Shared (not just internal to actions.ts) so anything computing "is this Hold/Witness overdue"
-// (e.g. the Inspector dashboard's "Overdue hold points" stat) uses the exact same threshold as the
-// actions that actually enforce it.
-export const DEFAULT_NOTICE_PERIOD_HOURS: Record<"H" | "W", number> = {
-  H: 48,
-  W: 24,
-};
+// Fallback notice periods (hours) — used only when NEITHER a project's notice_period_configs row
+// NOR the organisation's own intervention_level_types.default_notice_hours has a value for the
+// given code. R66-R81 documents 48h/24h as the Hold/Witness defaults; kept here (re-exported from
+// lib/intervention-levels/types.ts, the new source of truth) purely so existing imports of this
+// name keep working. Shared (not just internal to actions.ts) so anything computing "is this
+// Hold/Witness overdue" (e.g. the Inspector dashboard's "Overdue hold points" stat) uses the exact
+// same threshold as the actions that actually enforce it.
+export { FALLBACK_NOTICE_PERIOD_HOURS as DEFAULT_NOTICE_PERIOD_HOURS } from "@/lib/intervention-levels/types";
 
 export interface NoticePeriodConfigRow {
   id: string;
   project_id: string;
-  intervention: "H" | "W";
+  /** Any of this project's organisation's configured intervention_level_types codes — no longer
+   *  restricted to "H" | "W" now that a custom level can also get a per-project notice-period
+   *  override. */
+  intervention: string;
   hours: number;
 }
 
@@ -37,7 +39,10 @@ export interface ActivitySignoffProgressRow {
   id: string;
   itp_item_id: string;
   project_party_id: string;
-  intervention: "H" | "W" | "R" | "S";
+  /** Any of this activity's organisation's configured intervention_level_types codes — no longer a
+   *  fixed "H" | "W" | "R" | "S" enum, see supabase/migrations/
+   *  20260917090000_configurable_intervention_levels.sql. */
+  intervention: string;
   status: SignoffStatus;
   notified_at: string | null;
   signed_off_at: string | null;

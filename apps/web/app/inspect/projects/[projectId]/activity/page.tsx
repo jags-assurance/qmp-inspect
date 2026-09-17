@@ -4,13 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
-
-const INTERVENTION_LABEL: Record<"H" | "W" | "R" | "S", string> = {
-  H: "Hold",
-  W: "Witness",
-  R: "Review",
-  S: "Surveillance",
-};
+import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 
 const EVENT_DOT_TONE: Record<ActivityEvent["kind"], string> = {
   inspection: "bg-emerald-600",
@@ -42,11 +36,24 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, project_number, name, organizations(name)")
+    .select("id, project_number, name, organization_id, organizations(name)")
     .eq("id", projectId)
-    .maybeSingle<{ id: string; project_number: string; name: string; organizations: { name: string } | null }>();
+    .maybeSingle<{
+      id: string;
+      project_number: string;
+      name: string;
+      organization_id: string;
+      organizations: { name: string } | null;
+    }>();
 
   if (!project) notFound();
+
+  const { data: levelTypes } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("code, label")
+    .eq("organization_id", project.organization_id)
+    .returns<{ code: string; label: string }[]>();
+  const levelLabelByCode = new Map((levelTypes ?? []).map((l) => [l.code, l.label]));
 
   const [{ data: inspections }, { data: ncrs }, { data: itps }] = await Promise.all([
     supabase
@@ -101,7 +108,7 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
               id: string;
               itp_item_id: string;
               project_party_id: string;
-              intervention: "H" | "W" | "R" | "S";
+              intervention: string;
               status: string;
               signed_off_at: string | null;
             }[]
@@ -125,7 +132,7 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
             id: row.id,
             kind: "signoff" as const,
             timestamp: row.signed_off_at as string,
-            description: `${INTERVENTION_LABEL[row.intervention]} sign-off recorded by ${
+            description: `${levelLabelByCode.get(row.intervention) ?? row.intervention} sign-off recorded by ${
               partyNameById.get(row.project_party_id) ?? "Unknown party"
             } on ${activityByItemId.get(row.itp_item_id) ?? "an activity"}`,
           }));

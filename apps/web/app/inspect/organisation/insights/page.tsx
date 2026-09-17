@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
+import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { getLatestPortfolioSummaryPdf } from "@/lib/reports/actions";
 import { PortfolioSummaryPdfButton } from "./portfolio-summary-pdf-button";
@@ -130,6 +131,19 @@ export default async function PortfolioInsightsPage() {
     : { data: [] as ItpItemRow[] };
   const itemIds = (items ?? []).map((i) => i.id);
 
+  // Blocking-level codes (Hold-equivalent) across EVERY organisation — this page is a global,
+  // all-clients rollup (see header comment above), so unlike the single-project KPI computation
+  // (lib/kpis/compute.ts, which resolves one project's own organisation), there's no single org to
+  // scope to here. Using every org's distinct blocking codes is a reasonable approximation: every
+  // org still has the built-in "H" among them, and a custom blocking code from one org simply
+  // widens the filter slightly rather than narrowing it incorrectly for another.
+  const { data: blockingLevelTypes } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("code")
+    .eq("is_blocking", true)
+    .returns<{ code: string }[]>();
+  const blockingCodes = [...new Set((blockingLevelTypes ?? []).map((l) => l.code))];
+
   const [{ data: records }, { data: signoffs }] = await Promise.all([
     itemIds.length
       ? supabase
@@ -139,11 +153,11 @@ export default async function PortfolioInsightsPage() {
           .order("created_at", { ascending: true })
           .returns<InspectionRecordRow[]>()
       : Promise.resolve({ data: [] as InspectionRecordRow[] }),
-    itemIds.length
+    itemIds.length && blockingCodes.length
       ? supabase
           .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
           .select("itp_item_id, notified_at, signed_off_at")
-          .eq("intervention", "H")
+          .in("intervention", blockingCodes)
           .in("itp_item_id", itemIds)
           .returns<SignoffRow[]>()
       : Promise.resolve({ data: [] as SignoffRow[] }),

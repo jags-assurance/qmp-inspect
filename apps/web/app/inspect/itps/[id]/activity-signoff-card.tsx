@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { InterventionSelect } from "@/components/domain/intervention-select";
+import { InterventionSelect, type InterventionLevelOption } from "@/components/domain/intervention-select";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
@@ -13,12 +13,13 @@ interface PartySignoffCell {
   canSignOff: boolean;
 }
 
-// Hold is the only level that ever blocks progress outright (R66-R81) — a thicker, tinted border
-// makes that meaningfully more prominent than Witness/Review/Surveillance, whose chips stay neutral.
-// A party with no intervention set at all gets a quieter dashed outline so it reads as "not
-// applicable" rather than "missing data".
-function chipToneClass(intervention: InterventionLevel | null): string {
-  if (intervention === "H") return "border-burgundy/40 bg-burgundy/5";
+// A blocking level (Hold-equivalent, per this organisation's own intervention_level_types —
+// is_blocking is no longer implied by the literal code "H") is the only kind that ever blocks
+// progress outright (R66-R81) — a thicker, tinted border makes that meaningfully more prominent
+// than a non-blocking level's chip, which stays neutral. A party with no intervention set at all
+// gets a quieter dashed outline so it reads as "not applicable" rather than "missing data".
+function chipToneClass(intervention: InterventionLevel | null, isBlocking: boolean): string {
+  if (intervention && isBlocking) return "border-burgundy/40 bg-burgundy/5";
   if (intervention) return "border-border bg-off-white/60";
   return "border-dashed border-border/70 bg-transparent";
 }
@@ -43,6 +44,8 @@ export function ActivitySignoffCard({
   canEditContent,
   isJagsStaff,
   noticeHours,
+  levels,
+  blockingCodes,
 }: {
   itpId: string;
   itemId: string;
@@ -54,7 +57,14 @@ export function ActivitySignoffCard({
   partyCells: PartySignoffCell[];
   canEditContent: boolean;
   isJagsStaff: boolean;
-  noticeHours: Record<"H" | "W", number>;
+  /** Notice-period hours keyed by this organisation's own intervention level codes (project override
+   *  if set, else that level's default_notice_hours, else the built-in H=48/W=24 fallback). */
+  noticeHours: Record<string, number>;
+  /** This activity's ORGANISATION's configured intervention levels, in sort_order — replaces the old
+   *  hardcoded H/W/R/S set so a custom level shows up in the picker and renders correctly here. */
+  levels: InterventionLevelOption[];
+  /** Codes configured as is_blocking=true for this organisation. */
+  blockingCodes: Set<string>;
 }) {
   return (
     <div className="border-b border-border p-4 last:border-0">
@@ -82,7 +92,7 @@ export function ActivitySignoffCard({
               <div
                 className={cn(
                   "flex min-w-28 flex-col items-center gap-1 rounded-lg border px-2.5 py-2 text-center",
-                  chipToneClass(intervention)
+                  chipToneClass(intervention, !!intervention && blockingCodes.has(intervention))
                 )}
               >
                 <span className="max-w-28 truncate text-[10px] font-medium uppercase tracking-wide text-muted" title={party.name}>
@@ -94,14 +104,15 @@ export function ActivitySignoffCard({
                   projectPartyId={party.id}
                   value={intervention}
                   editable={canEditContent}
+                  levels={levels}
                 />
                 {intervention && signoff && (
                   <SignoffCell
                     progressId={signoff.id}
-                    intervention={intervention}
+                    isBlocking={blockingCodes.has(intervention)}
                     status={signoff.status}
                     notifiedAt={signoff.notified_at}
-                    noticeHours={noticeHours[intervention as "H" | "W"] ?? null}
+                    noticeHours={noticeHours[intervention] ?? null}
                     canSignOff={canSignOff}
                     isJagsStaff={isJagsStaff}
                   />

@@ -7,19 +7,20 @@ import { StatCard } from "@/components/ui/stat-card";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 
-const INTERVENTION_TONE: Record<"H" | "W" | "R" | "S", "danger" | "warning" | "info" | "neutral"> = {
-  H: "danger",
-  W: "warning",
-  R: "neutral",
-  S: "info",
-};
+export interface DashboardLevelOption {
+  code: string;
+  label: string;
+  is_blocking: boolean;
+}
 
-const INTERVENTION_LABEL: Record<"H" | "W" | "R" | "S", string> = {
-  H: "Hold",
-  W: "Witness",
-  R: "Review",
-  S: "Surveillance",
-};
+// Tone assigned by is_blocking rather than a fixed code — a blocking level (Hold-equivalent, per
+// this organisation's own intervention_level_types) always reads as "danger", matching the original
+// H=danger tone; every non-blocking level reads as "warning", matching the original W/R/S tones
+// closely enough (this dashboard's badge only has room for one non-neutral accent per row anyway).
+function toneForLevel(level: DashboardLevelOption | undefined): "danger" | "warning" | "neutral" {
+  if (!level) return "neutral";
+  return level.is_blocking ? "danger" : "warning";
+}
 
 const ROLE_LABEL: Record<string, string> = {
   client: "Client",
@@ -59,7 +60,7 @@ const ROLE_GUIDE: Record<string, string[]> = {
 
 export interface SignoffQueueRow {
   id: string;
-  intervention: "H" | "W" | "R" | "S";
+  intervention: string;
   status: SignoffStatus;
   activity: string;
   itpId: string;
@@ -119,6 +120,7 @@ export function ExternalPartyDashboard({
   itpsAwaitingAcceptance,
   workAwaitingReview,
   pendingSignoffs,
+  levels,
   ncrsAssignedToMe,
 }: {
   orgName: string | null;
@@ -132,6 +134,9 @@ export function ExternalPartyDashboard({
   itpsAwaitingAcceptance: ItpAwaitingAcceptanceRow[];
   workAwaitingReview: SignoffQueueRow[];
   pendingSignoffs: SignoffQueueRow[];
+  /** This party's ORGANISATION's configured intervention levels — replaces the old hardcoded
+   *  H/W/R/S tone/label maps so a custom level renders with its real label and a sensible tone. */
+  levels: DashboardLevelOption[];
   ncrsAssignedToMe: AssignedNcrRow[];
 }) {
   const roleLabel = roleKey ? (ROLE_LABEL[roleKey] ?? roleKey) : "Project party";
@@ -263,13 +268,15 @@ export function ExternalPartyDashboard({
           title="Work awaiting your review"
           description="Activities where a subcontractor has already signed off their part, and your own sign-off on the same activity is still pending or notified."
           rows={workAwaitingReview}
+          levels={levels}
         />
       )}
 
       <SignoffQueuePanel
         title="Awaiting your sign-off"
-        description="Hold / Witness / Review / Surveillance points on your own party's column that still need a Notify or Sign off — only what your login is linked to, not the whole project."
+        description="Points on your own party's column that still need a Notify or Sign off — only what your login is linked to, not the whole project."
         rows={pendingSignoffs}
+        levels={levels}
         emptyMessage="Nothing awaiting your sign-off right now."
       />
 
@@ -314,13 +321,16 @@ function SignoffQueuePanel({
   title,
   description,
   rows,
+  levels,
   emptyMessage,
 }: {
   title: string;
   description: string;
   rows: SignoffQueueRow[];
+  levels: DashboardLevelOption[];
   emptyMessage?: string;
 }) {
+  const levelByCode = new Map(levels.map((l) => [l.code, l]));
   return (
     <div className="mt-8 rounded-lg border border-border bg-surface p-5">
       <h2 className="font-medium text-ink">{title}</h2>
@@ -328,6 +338,7 @@ function SignoffQueuePanel({
       <ul className="mt-4 space-y-2">
         {rows.map((row) => {
           const initial = row.activity.trim().charAt(0).toUpperCase() || "?";
+          const level = levelByCode.get(row.intervention);
           return (
             <li
               key={row.id}
@@ -339,7 +350,7 @@ function SignoffQueuePanel({
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={INTERVENTION_TONE[row.intervention]}>{INTERVENTION_LABEL[row.intervention]}</Badge>
+                    <Badge tone={toneForLevel(level)}>{level?.label ?? row.intervention}</Badge>
                     <span className="truncate text-ink">{row.activity}</span>
                   </div>
                   <div className="mt-0.5 truncate text-xs text-muted">
@@ -351,7 +362,7 @@ function SignoffQueuePanel({
               <div className="flex shrink-0 items-center gap-3">
                 <SignoffCell
                   progressId={row.id}
-                  intervention={row.intervention}
+                  isBlocking={level?.is_blocking ?? false}
                   status={row.status}
                   notifiedAt={null}
                   noticeHours={null}

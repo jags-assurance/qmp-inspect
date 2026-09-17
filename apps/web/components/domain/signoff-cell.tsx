@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { notifyPartyAction, proceedWithoutResponseAction, signOffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
-import type { InterventionLevel } from "@jags/shared-types";
 
 const STATUS_LABEL: Record<SignoffStatus, string> = {
   pending: "Pending",
@@ -26,7 +25,7 @@ const STATUS_TONE: Record<SignoffStatus, string> = {
  */
 export function SignoffCell({
   progressId,
-  intervention,
+  isBlocking,
   status,
   notifiedAt,
   noticeHours,
@@ -34,7 +33,10 @@ export function SignoffCell({
   isJagsStaff,
 }: {
   progressId: string;
-  intervention: InterventionLevel;
+  /** Whether this activity's ORGANISATION has configured this level as blocking (Hold-equivalent).
+   *  Only a non-blocking level can ever "proceed without response" — a blocking level must always
+   *  get an actual sign-off, mirroring the DB-level canCompleteInspection check. */
+  isBlocking: boolean;
   status: SignoffStatus;
   notifiedAt: string | null;
   noticeHours: number | null;
@@ -55,7 +57,7 @@ export function SignoffCell({
 
   const canNotify = status === "pending";
   const canSignOff = (status === "pending" || status === "notified") && canSignOffForThisParty;
-  const canProceed = intervention === "W" && status === "notified" && noticeElapsed && isJagsStaff;
+  const canProceed = !isBlocking && status === "notified" && noticeElapsed && isJagsStaff;
 
   function run(action: () => Promise<{ error: string | null }>) {
     setError(null);

@@ -17,6 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type SignoffStatus } from "@/lib/signoff/db-types";
 import { NCRS_TABLE, type NcrRow } from "@/lib/ncrs/types";
+import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 
 export interface OpenNcrItem {
   kind: "ncr";
@@ -328,7 +329,7 @@ export async function computeProjectKpis(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<ProjectKpis> {
-  const [itpsResult, ncrsResult] = await Promise.all([
+  const [itpsResult, ncrsResult, projectResult] = await Promise.all([
     supabase
       .from("itps")
       .select("id, status, updated_at")
@@ -339,7 +340,21 @@ export async function computeProjectKpis(
       .select("id, ncr_number, description, status, created_at, closed_at")
       .eq("project_id", projectId)
       .returns<Pick<NcrRow, "id" | "ncr_number" | "description" | "status" | "created_at" | "closed_at">[]>(),
+    supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>(),
   ]);
+
+  // Blocking-level codes (Hold-equivalent) for THIS project's organisation — no longer a hardcoded
+  // "H" — so "Hold-point turnaround" actually reflects whatever level(s) this org has configured as
+  // is_blocking, including a custom one.
+  const { data: blockingLevelsForProject } = projectResult.data?.organization_id
+    ? await supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("code")
+        .eq("organization_id", projectResult.data.organization_id)
+        .eq("is_blocking", true)
+        .returns<{ code: string }[]>()
+    : { data: [] as { code: string }[] };
+  const blockingCodes = (blockingLevelsForProject ?? []).map((l) => l.code);
 
   const itps = itpsResult.data ?? [];
   const ncrs = ncrsResult.data ?? [];
@@ -384,17 +399,17 @@ export async function computeProjectKpis(
           created_at: string;
         }[]
       >(),
-    itpItems.length > 0
+    itpItems.length > 0 && blockingCodes.length > 0
       ? supabase
           .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
           .select("itp_item_id, intervention, notified_at, signed_off_at")
-          .eq("intervention", "H")
+          .in("intervention", blockingCodes)
           .in(
             "itp_item_id",
             itpItems.map((item) => item.id)
           )
-          .returns<{ itp_item_id: string; intervention: "H"; notified_at: string | null; signed_off_at: string | null }[]>()
-      : Promise.resolve({ data: [] as { itp_item_id: string; intervention: "H"; notified_at: string | null; signed_off_at: string | null }[] }),
+          .returns<{ itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }[]>()
+      : Promise.resolve({ data: [] as { itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }[] }),
   ]);
 
   const inspectionRecords = inspectionRecordsResult.data ?? [];

@@ -5,6 +5,7 @@ import {
   buildItpHtml,
   type ItpTemplateData,
   type ItpTemplateIntervention,
+  type ItpTemplateLevelType,
   type ItpTemplateSignoff,
   type ItpTemplateSignoffCell,
   type ItpTemplateSignoffStatus,
@@ -51,6 +52,19 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
 
   if (orgError || !organization) {
     throw new Error(`Organization ${project.organization_id} not found: ${orgError?.message ?? "no row"}`);
+  }
+
+  // This ITP's organisation's configured intervention levels (supabase/migrations/
+  // 20260917090000_configurable_intervention_levels.sql) — not in the generated Database type yet,
+  // same "as any" cast used elsewhere in this file for activity_signoff_progress below.
+  const { data: levelTypeRows, error: levelTypesError } = await supabase
+    .from("intervention_level_types" as any)
+    .select("code, label, sort_order")
+    .eq("organization_id", organization.id)
+    .returns<{ code: string; label: string; sort_order: number }[]>();
+
+  if (levelTypesError) {
+    throw new Error(`Failed to load intervention level types: ${levelTypesError.message}`);
   }
 
   const { data: parties, error: partiesError } = await supabase
@@ -208,6 +222,9 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     interventions,
     signoffStatuses,
     signoffs,
+    levelTypes: (levelTypeRows ?? []).map(
+      (lt): ItpTemplateLevelType => ({ code: lt.code, label: lt.label, sortOrder: lt.sort_order })
+    ),
     generatedAt: new Date(),
   };
 

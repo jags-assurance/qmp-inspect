@@ -12,13 +12,35 @@ import {
   type ActivitySignoffProgressRow,
   type NoticePeriodConfigRow,
 } from "./db-types";
+import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 
-const INTERVENTION_LABEL: Record<"H" | "W" | "R" | "S", string> = {
-  H: "Hold",
-  W: "Witness",
-  R: "Review",
-  S: "Surveillance",
-};
+/** Looks up a level's label/is_blocking, resolving this activity's organisation via
+ *  itp_item -> itp_section -> itp -> project -> organization — replaces the old hardcoded
+ *  INTERVENTION_LABEL: Record<"H"|"W"|"R"|"S", string> map so a custom level's real label/blocking
+ *  behaviour is used everywhere this file used to assume one of the fixed four. */
+async function getLevelTypeForItem(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string,
+  code: string
+): Promise<Pick<InterventionLevelTypeRow, "label" | "is_blocking" | "default_notice_hours"> | null> {
+  const { data } = await supabase
+    .from("itp_items")
+    .select("itp_sections(itps(projects(organization_id)))")
+    .eq("id", itpItemId)
+    .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
+
+  const organizationId = data?.itp_sections?.itps?.projects?.organization_id;
+  if (!organizationId) return null;
+
+  const { data: levelType } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("label, is_blocking, default_notice_hours")
+    .eq("organization_id", organizationId)
+    .eq("code", code)
+    .maybeSingle<Pick<InterventionLevelTypeRow, "label" | "is_blocking" | "default_notice_hours">>();
+
+  return levelType ?? null;
+}
 
 export interface SignoffActionResult {
   error: string | null;
@@ -113,11 +135,18 @@ async function notifySignoffRow(
     const organizationId = itp?.projects?.organization_id;
 
     if (party?.user_id && itp && organizationId) {
+      const { data: levelType } = await supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("label")
+        .eq("organization_id", organizationId)
+        .eq("code", progress.intervention)
+        .maybeSingle<{ label: string }>();
+
       await createNotification(supabase, {
         organizationId,
         projectId: itp.project_id,
         recipientUserId: party.user_id,
-        title: `${INTERVENTION_LABEL[progress.intervention]} sign-off needed`,
+        title: `${levelType?.label ?? progress.intervention} sign-off needed`,
         body: `${itp.itp_number} — ${context?.activity ?? "an activity"}`,
         link: itpId ? `/inspect/itps/${itpId}` : null,
       });
@@ -241,9 +270,11 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
 }
 
 /**
- * Lets a Witness activity proceed without a response once its notice period has elapsed (R66-R81:
- * unlike a Hold, a Witness never blocks progress indefinitely). Rejected for anything other than a
- * notified Witness whose notice period has actually passed.
+ * Lets a non-blocking-level activity (Witness by default, or any other level an organisation has
+ * configured as is_blocking=false — see intervention_level_types) proceed without a response once
+ * its notice period has elapsed (R66-R81: unlike a Hold, a non-blocking level never blocks progress
+ * indefinitely). Rejected for anything other than a notified, non-blocking level whose notice period
+ * has actually passed.
  */
 export async function proceedWithoutResponseAction(progressId: string): Promise<SignoffActionResult> {
   if (!progressId) return { error: "Missing sign-off record." };
@@ -267,13 +298,17 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
     >();
 
   if (!progress) return { error: "Sign-off record not found." };
-  if (progress.intervention !== "W") return { error: "Only a Witness sign-off can proceed without a response." };
+
+  const levelType = await getLevelTypeForItem(supabase, progress.itp_item_id, progress.intervention);
+  if (!levelType || levelType.is_blocking) {
+    return { error: "Only a non-blocking level (e.g. Witness) can proceed without a response." };
+  }
   if (progress.status !== "notified" || !progress.notified_at) {
     return { error: "The party must be notified before proceeding without a response." };
   }
 
   const projectId = await findProjectIdForItpItem(supabase, progress.itp_item_id);
-  const noticeHours = await getNoticePeriodHours(supabase, projectId, "W");
+  const noticeHours = await getNoticePeriodHours(supabase, projectId, progress.itp_item_id, progress.intervention);
   const noticeExpiresAt = new Date(progress.notified_at).getTime() + noticeHours * 60 * 60 * 1000;
 
   if (Date.now() < noticeExpiresAt) {
@@ -297,17 +332,37 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
 }
 
 /**
- * Blocks inspection completion until every Hold on the activity has been signed off (R66-R81:
- * Witness/Review/Surveillance never block). True when there are no Hold rows at all.
+ * Blocks inspection completion until every blocking-level (Hold-equivalent, per this activity's
+ * organisation's own intervention_level_types.is_blocking) row on the activity has been signed off
+ * (R66-R81: a non-blocking level never blocks). True when there are no blocking rows at all.
  */
 export async function canCompleteInspection(itpItemId: string): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
+
+  const { data: itemContext } = await supabase
+    .from("itp_items")
+    .select("itp_sections(itps(projects(organization_id)))")
+    .eq("id", itpItemId)
+    .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
+
+  const organizationId = itemContext?.itp_sections?.itps?.projects?.organization_id;
+  if (!organizationId) return true;
+
+  const { data: blockingLevels } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("code")
+    .eq("organization_id", organizationId)
+    .eq("is_blocking", true)
+    .returns<{ code: string }[]>();
+
+  const blockingCodes = (blockingLevels ?? []).map((l) => l.code);
+  if (blockingCodes.length === 0) return true;
 
   const { data: holds } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
     .select("status")
     .eq("itp_item_id", itpItemId)
-    .eq("intervention", "H")
+    .in("intervention", blockingCodes)
     .returns<Pick<ActivitySignoffProgressRow, "status">[]>();
 
   return (holds ?? []).every((h) => h.status === "signed_off");
@@ -377,19 +432,33 @@ export async function reassignSignoffPartyAction(
   return { error: null };
 }
 
+/**
+ * Precedence, highest first: a project-level notice_period_configs override, then this
+ * organisation's own configured default_notice_hours for that level (intervention_level_types),
+ * then the original hardcoded spec fallback (Hold=48h/Witness=24h, DEFAULT_NOTICE_PERIOD_HOURS) for
+ * the two levels that ever had one. Same three-tier fallback the app always had, just no longer
+ * restricted to literal "H"/"W" codes — a custom level with its own default_notice_hours now
+ * participates in the middle tier too.
+ */
 async function getNoticePeriodHours(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   projectId: string | null,
-  intervention: "H" | "W"
+  itpItemId: string,
+  intervention: string
 ): Promise<number> {
-  if (!projectId) return DEFAULT_NOTICE_PERIOD_HOURS[intervention];
+  if (projectId) {
+    const { data: config } = await supabase
+      .from(NOTICE_PERIOD_CONFIGS_TABLE)
+      .select("hours")
+      .eq("project_id", projectId)
+      .eq("intervention", intervention)
+      .maybeSingle<Pick<NoticePeriodConfigRow, "hours">>();
 
-  const { data: config } = await supabase
-    .from(NOTICE_PERIOD_CONFIGS_TABLE)
-    .select("hours")
-    .eq("project_id", projectId)
-    .eq("intervention", intervention)
-    .maybeSingle<Pick<NoticePeriodConfigRow, "hours">>();
+    if (config?.hours != null) return config.hours;
+  }
 
-  return config?.hours ?? DEFAULT_NOTICE_PERIOD_HOURS[intervention];
+  const levelType = await getLevelTypeForItem(supabase, itpItemId, intervention);
+  if (levelType?.default_notice_hours != null) return levelType.default_notice_hours;
+
+  return DEFAULT_NOTICE_PERIOD_HOURS[intervention] ?? 24;
 }

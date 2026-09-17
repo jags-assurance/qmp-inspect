@@ -7,6 +7,7 @@ import {
   type ActivitySignoffProgressRow,
 } from "@/lib/signoff/db-types";
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
+import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
 import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
@@ -79,10 +80,25 @@ export default async function InspectDashboardPage() {
     // countersign any party) it's less meaningful, so the panel only renders for a linked party.
     supabase
       .from("project_parties")
-      .select("id, name, party_type")
+      .select("id, name, party_type, projects(organization_id)")
       .eq("user_id", session.userId)
-      .returns<{ id: string; name: string; party_type: string }[]>(),
+      .returns<{ id: string; name: string; party_type: string; projects: { organization_id: string } | null }[]>(),
   ]);
+
+  // This party's organisation's configured intervention levels (supabase/migrations/
+  // 20260917090000_configurable_intervention_levels.sql) — used below to give ExternalPartyDashboard
+  // real labels/tones for a custom level instead of the old hardcoded H/W/R/S maps. An external
+  // party is scoped to one organisation in practice (same assumption ownParties[0].name already
+  // makes for orgName below), so the first linked party's org is used.
+  const ownOrgId = ownParties?.[0]?.projects?.organization_id ?? null;
+  const { data: ownOrgLevelTypes } = ownOrgId
+    ? await supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("code, label, sort_order, is_blocking")
+        .eq("organization_id", ownOrgId)
+        .order("sort_order")
+        .returns<Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[]>()
+    : { data: [] as Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[] };
 
   let pendingSignoffs: PendingSignoffRow[] = [];
   if (ownParties && ownParties.length > 0) {
@@ -288,14 +304,14 @@ export default async function InspectDashboardPage() {
         discipline_id: string | null;
         master_disciplines: { code: string } | null;
         itp_sections: {
-          itps: { id: string; itp_number: string; projects: { name: string } | null } | null;
+          itps: { id: string; itp_number: string; projects: { name: string; organization_id: string } | null } | null;
         } | null;
       } | null;
     }
     const { data: templates } = await supabase
       .from(CHECKLIST_TEMPLATES_TABLE)
       .select(
-        "id, itp_item_id, checklist_number, created_at, itp_items(activity, discipline_id, master_disciplines(code), itp_sections(itps(id, itp_number, projects(name))))"
+        "id, itp_item_id, checklist_number, created_at, itp_items(activity, discipline_id, master_disciplines(code), itp_sections(itps(id, itp_number, projects(name, organization_id))))"
       )
       .order("created_at", { ascending: false })
       .limit(20)
@@ -315,22 +331,44 @@ export default async function InspectDashboardPage() {
 
     // Priority isn't a stored field anywhere in the schema — inventing an arbitrary High/Medium/Low
     // would be fabricated data. Instead it's derived, transparently, from the real intervention
-    // levels already configured on the activity: a Hold anywhere on it makes the activity High
-    // priority (work is blocked on it), a Witness makes it Medium, anything else is Low.
+    // levels already configured on the activity, resolved through each activity's OWN organisation's
+    // configured intervention_level_types (no longer a hardcoded "H"/"W" check): a blocking level
+    // anywhere on it makes the activity High priority (work is blocked on it), a non-blocking level
+    // that still carries a notice period (the old Witness's defining trait) makes it Medium, anything
+    // else (e.g. Review/Surveillance, or a custom level with neither) is Low.
     const itemIds = [...new Set(pendingTemplates.map((t) => t.itp_item_id).filter(Boolean))];
     const { data: interventions } = itemIds.length
       ? await supabase
           .from("activity_party_intervention")
           .select("itp_item_id, intervention")
           .in("itp_item_id", itemIds)
-          .returns<{ itp_item_id: string; intervention: "H" | "W" | "R" | "S" }[]>()
-      : { data: [] as { itp_item_id: string; intervention: "H" | "W" | "R" | "S" }[] };
+          .returns<{ itp_item_id: string; intervention: string }[]>()
+      : { data: [] as { itp_item_id: string; intervention: string }[] };
+
+    const itemOrgById = new Map<string, string>();
+    for (const t of pendingTemplates) {
+      const orgId = t.itp_items?.itp_sections?.itps?.projects?.organization_id;
+      if (orgId) itemOrgById.set(t.itp_item_id, orgId);
+    }
+    const orgIdsForPriority = [...new Set(itemOrgById.values())];
+    const { data: levelTypesForPriority } = orgIdsForPriority.length
+      ? await supabase
+          .from(INTERVENTION_LEVEL_TYPES_TABLE)
+          .select("organization_id, code, is_blocking, default_notice_hours")
+          .in("organization_id", orgIdsForPriority)
+          .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
+      : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
+    const levelTypeByOrgCode = new Map(
+      (levelTypesForPriority ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
+    );
 
     const priorityByItem = new Map<string, "high" | "medium" | "low">();
     for (const row of interventions ?? []) {
+      const orgId = itemOrgById.get(row.itp_item_id);
+      const levelType = orgId ? levelTypeByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
       const current = priorityByItem.get(row.itp_item_id);
-      if (row.intervention === "H") priorityByItem.set(row.itp_item_id, "high");
-      else if (row.intervention === "W" && current !== "high") priorityByItem.set(row.itp_item_id, "medium");
+      if (levelType?.is_blocking) priorityByItem.set(row.itp_item_id, "high");
+      else if (levelType?.default_notice_hours != null && current !== "high") priorityByItem.set(row.itp_item_id, "medium");
       else if (!current) priorityByItem.set(row.itp_item_id, "low");
     }
 
@@ -354,15 +392,46 @@ export default async function InspectDashboardPage() {
       })
       .slice(0, 8);
 
-    // "Overdue hold points": a Hold that's been notified but not yet signed off, past its project's
-    // notice period (default 48h, same threshold lib/signoff/actions.ts uses to gate everything
-    // else Hold-related) — a real, already-established definition, not a new invented one.
-    const { data: notifiedHolds } = await supabase
+    // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
+    // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
+    // been notified but not yet signed off, past its project's notice period (falling back to that
+    // organisation's configured default, then the original hardcoded 48h, same three-tier precedence
+    // lib/signoff/actions.ts uses to gate everything else Hold-related).
+    const { data: notifiedRows } = await supabase
       .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select("notified_at, itp_items(itp_sections(itps(project_id)))")
-      .eq("intervention", "H")
+      .select("intervention, notified_at, itp_items(itp_sections(itps(project_id, projects(organization_id))))")
       .eq("status", "notified")
-      .returns<{ notified_at: string | null; itp_items: { itp_sections: { itps: { project_id: string } | null } | null } | null }[]>();
+      .returns<
+        {
+          intervention: string;
+          notified_at: string | null;
+          itp_items: { itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null } | null;
+        }[]
+      >();
+
+    const orgIdsForOverdue = [
+      ...new Set(
+        (notifiedRows ?? [])
+          .map((r) => r.itp_items?.itp_sections?.itps?.projects?.organization_id)
+          .filter((id): id is string => !!id)
+      ),
+    ];
+    const { data: levelTypesForOverdue } = orgIdsForOverdue.length
+      ? await supabase
+          .from(INTERVENTION_LEVEL_TYPES_TABLE)
+          .select("organization_id, code, is_blocking, default_notice_hours")
+          .in("organization_id", orgIdsForOverdue)
+          .eq("is_blocking", true)
+          .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
+      : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
+    const blockingLevelByOrgCode = new Map(
+      (levelTypesForOverdue ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
+    );
+
+    const notifiedHolds = (notifiedRows ?? []).filter((row) => {
+      const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
+      return orgId && blockingLevelByOrgCode.has(`${orgId}:${row.intervention}`);
+    });
 
     const projectIds = [
       ...new Set((notifiedHolds ?? []).map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
@@ -370,18 +439,24 @@ export default async function InspectDashboardPage() {
     const { data: noticeConfigs } = projectIds.length
       ? await supabase
           .from(NOTICE_PERIOD_CONFIGS_TABLE)
-          .select("project_id, hours")
-          .eq("intervention", "H")
+          .select("project_id, intervention, hours")
+          .in("intervention", ["H", ...[...blockingLevelByOrgCode.values()].map((l) => l.code)])
           .in("project_id", projectIds)
-          .returns<{ project_id: string; hours: number }[]>()
-      : { data: [] as { project_id: string; hours: number }[] };
-    const hoursByProject = new Map((noticeConfigs ?? []).map((c) => [c.project_id, c.hours]));
+          .returns<{ project_id: string; intervention: string; hours: number }[]>()
+      : { data: [] as { project_id: string; intervention: string; hours: number }[] };
+    const hoursByProjectIntervention = new Map((noticeConfigs ?? []).map((c) => [`${c.project_id}:${c.intervention}`, c.hours]));
 
     const overdueAgeDays: number[] = [];
     for (const row of notifiedHolds ?? []) {
       if (!row.notified_at) continue;
       const projectId = row.itp_items?.itp_sections?.itps?.project_id;
-      const noticeHours = (projectId ? hoursByProject.get(projectId) : undefined) ?? DEFAULT_NOTICE_PERIOD_HOURS.H;
+      const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
+      const levelType = orgId ? blockingLevelByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
+      const noticeHours =
+        (projectId ? hoursByProjectIntervention.get(`${projectId}:${row.intervention}`) : undefined) ??
+        levelType?.default_notice_hours ??
+        DEFAULT_NOTICE_PERIOD_HOURS[row.intervention] ??
+        48;
       const ageMs = today.getTime() - new Date(row.notified_at).getTime();
       if (ageMs > noticeHours * 60 * 60 * 1000) overdueAgeDays.push(Math.floor(ageMs / 86_400_000));
     }
@@ -475,6 +550,7 @@ export default async function InspectDashboardPage() {
         }))}
         workAwaitingReview={workAwaitingReview.map(toSignoffQueueRow)}
         pendingSignoffs={pendingSignoffs.map(toSignoffQueueRow)}
+        levels={ownOrgLevelTypes ?? []}
         ncrsAssignedToMe={ncrsAssignedToMe.map((n) => ({
           id: n.id,
           ncrNumber: n.ncr_number,
