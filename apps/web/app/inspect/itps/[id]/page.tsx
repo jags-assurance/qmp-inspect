@@ -302,7 +302,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           </ol>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ItpPdfButton itpId={itp.id} latest={latestPdf} />
           {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
           <Link

@@ -77,35 +77,37 @@ export function DataTable<T>({
           className="w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-burgundy"
         />
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs text-muted">
-            {columns.map((col) => (
-              <th key={col.key} className="px-4 py-2 font-medium">
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((row, i) => (
-            <tr key={i} className="border-b border-border last:border-0 hover:bg-off-white">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs text-muted">
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3">
-                  {col.render(row)}
-                </td>
+                <th key={col.key} className="px-4 py-2 font-medium">
+                  {col.header}
+                </th>
               ))}
             </tr>
-          ))}
-          {filtered.length === 0 && (
-            <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-muted">
-                {emptyMessage}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filtered.map((row, i) => (
+              <tr key={i} className="border-b border-border last:border-0 hover:bg-off-white">
+                {columns.map((col) => (
+                  <td key={col.key} className="px-4 py-3">
+                    {col.render(row)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-muted">
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       {pagination && totalPages !== null && pagination.totalCount > 0 && (
         <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-sm">
           <span className="text-muted">
