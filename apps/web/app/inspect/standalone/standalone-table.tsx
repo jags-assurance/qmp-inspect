@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import type { AssignmentConclusion, AssignmentStatus, AssignmentType } from "@/lib/standalone/actions";
 import { STANDALONE_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
 
@@ -90,41 +89,8 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
  * back to the original all-client-side behavior when `totalCount` is omitted.
  */
 export function StandaloneTable({ rows, totalCount }: { rows: StandaloneAssignmentListRow[]; totalCount?: number }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const serverDriven = totalCount !== undefined;
-
-  const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const pushParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(updates)) {
-        if (value === null || value === "") params.delete(key);
-        else params.set(key, value);
-      }
-      router.push(`${pathname}?${params.toString()}`);
-    },
-    [pathname, router, searchParams]
-  );
-
-  useEffect(() => {
-    if (!serverDriven) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      // A new search always jumps back to page 1 — staying on e.g. page 4 of a narrowed-down
-      // result set almost always lands past the end and shows an empty table.
-      pushParams({ q: searchValue || null, page: null });
-    }, 350);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchValue, serverDriven]);
-
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+  const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(serverDriven);
 
   return (
     <DataTable
@@ -140,7 +106,7 @@ export function StandaloneTable({ rows, totalCount }: { rows: StandaloneAssignme
               page,
               pageSize: PAGE_SIZE,
               totalCount: totalCount!,
-              onPageChange: (nextPage) => pushParams({ page: nextPage === 1 ? null : String(nextPage) }),
+              onPageChange: goToPage,
             }
           : undefined
       }
