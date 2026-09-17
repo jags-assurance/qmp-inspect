@@ -363,11 +363,26 @@ export async function suggestNcrRootCauseAction(
   }
 }
 
-/** Plain status transition with no CAPA validation — used for the detail page's quick actions. */
+// Round-table finding: this action previously accepted ANY status value with no validation,
+// including 'closed' — bypassing updateNcrAction's own comment that it "is the actual authority
+// boundary" for closure (root cause / corrective action / verification notes required). The
+// detail page's quick-action button only ever sends 'in_progress' or 'pending_verification' (see
+// NEXT_STATUS in app/inspect/ncrs/[id]/page.tsx), but the server action itself had no server-side
+// guard stopping a directly-crafted request from setting 'closed' with none of that evidence
+// present, no closed_by/closed_at stamp, and without closing the linked punch-list item — an NCR
+// could end up closed in a state indistinguishable, downstream, from a properly resolved one.
+const QUICK_ACTION_STATUSES: readonly NcrStatus[] = ["in_progress", "pending_verification"];
+
+/**
+ * Plain, non-CAPA status progression for the detail page's quick-action button — deliberately
+ * restricted to the two non-terminal transitions (open->in_progress, in_progress->
+ * pending_verification). Closing an NCR must go through updateNcrAction, which enforces the
+ * CAPA fields; this action refuses to ever set 'closed' itself.
+ */
 export async function setNcrStatusAction(formData: FormData) {
   const ncrId = String(formData.get("ncr_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim() as NcrStatus;
-  if (!ncrId || !status) return;
+  if (!ncrId || !QUICK_ACTION_STATUSES.includes(status)) return;
 
   const supabase = await createSupabaseServerClient();
   await supabase.from(NCRS_TABLE).update({ status }).eq("id", ncrId);

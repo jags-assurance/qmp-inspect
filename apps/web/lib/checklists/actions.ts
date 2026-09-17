@@ -467,6 +467,13 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const itemIds = new Set((items ?? []).map((i) => i.id));
   const responseByItem = new Map((responses ?? []).map((r) => [r.checklist_item_id, r.result]));
 
+  // Round-table finding: `.some()` over an empty set is vacuously false, so a checklist with zero
+  // items (e.g. one created but never populated with items) would silently "complete" with
+  // overall_result='pass' despite recording nothing at all — indistinguishable downstream from a
+  // real, evidenced pass. A checklist must have at least one answered item to be completed.
+  if (itemIds.size === 0) {
+    return { error: "This checklist has no items yet — add at least one before it can be completed." };
+  }
   const missing = [...itemIds].some((id) => !responseByItem.has(id));
   if (missing) {
     return { error: "Every checklist item needs a Yes / No / N-A response before you can complete the inspection." };
