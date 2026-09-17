@@ -2,7 +2,13 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
-import { computeProjectKpis, computeQualityByParty, computeFirstTimePassRateByDiscipline } from "@/lib/kpis/compute";
+import {
+  computeProjectKpis,
+  computeQualityByParty,
+  computeFirstTimePassRateByDiscipline,
+  computeMonthlyTrends,
+  type MonthlyTrendPoint,
+} from "@/lib/kpis/compute";
 import { NCRS_TABLE, NCR_SEVERITIES, type NcrSeverity } from "@/lib/ncrs/types";
 import { OpenItemsTable } from "./open-items-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -119,6 +125,53 @@ function NcrSeverityChart({ counts }: { counts: Record<NcrSeverity, number> }) {
   );
 }
 
+/**
+ * Grouped monthly bar chart for the two real trend series (NCR volume, inspections completed).
+ * Only ever plots the months returned by computeMonthlyTrends — which is already clipped to the
+ * project's own created_at month, so no fabricated "zero" history is ever drawn here.
+ */
+function MonthlyTrendChart({ points }: { points: MonthlyTrendPoint[] }) {
+  const groupWidth = 70;
+  const barWidth = 22;
+  const gap = 6;
+  const chartHeight = 120;
+  const width = points.length * groupWidth;
+  const max = Math.max(1, ...points.map((p) => Math.max(p.ncrCount, p.inspectionsCompletedCount)));
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${chartHeight + 40}`}
+      width="100%"
+      style={{ maxWidth: Math.max(width, 320) }}
+      role="img"
+      aria-label="Monthly NCR volume and inspections completed"
+    >
+      {points.map((point, i) => {
+        const groupX = i * groupWidth;
+        const ncrHeight = point.ncrCount === 0 ? 0 : Math.max(2, (point.ncrCount / max) * chartHeight);
+        const inspHeight = point.inspectionsCompletedCount === 0 ? 0 : Math.max(2, (point.inspectionsCompletedCount / max) * chartHeight);
+        const ncrX = groupX + (groupWidth - (barWidth * 2 + gap)) / 2;
+        const inspX = ncrX + barWidth + gap;
+        return (
+          <g key={point.monthStart}>
+            <rect x={ncrX} y={chartHeight - ncrHeight} width={barWidth} height={ncrHeight} rx="2" fill="currentColor" className="text-danger" />
+            <text x={ncrX + barWidth / 2} y={chartHeight - ncrHeight - 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="currentColor" className="text-ink">
+              {point.ncrCount}
+            </text>
+            <rect x={inspX} y={chartHeight - inspHeight} width={barWidth} height={inspHeight} rx="2" fill="currentColor" className="text-burgundy" />
+            <text x={inspX + barWidth / 2} y={chartHeight - inspHeight - 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="currentColor" className="text-ink">
+              {point.inspectionsCompletedCount}
+            </text>
+            <text x={groupX + groupWidth / 2} y={chartHeight + 18} textAnchor="middle" fontSize="11" fill="currentColor" className="text-muted">
+              {point.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 // Client-facing KPI dashboard (Reqs R89-R90). Scoped to a single project, taken only from the URL
 // route param — every query in computeProjectKpis is filtered by that project id explicitly, on
 // top of (not instead of) has_org_access RLS, so a mistake here can never widen into a
@@ -132,16 +185,17 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, project_number, name, organizations(name)")
+    .select("id, project_number, name, created_at, organizations(name)")
     .eq("id", projectId)
-    .maybeSingle<{ id: string; project_number: string; name: string; organizations: { name: string } | null }>();
+    .maybeSingle<{ id: string; project_number: string; name: string; created_at: string; organizations: { name: string } | null }>();
 
   if (!project) notFound();
 
-  const [kpis, qualityByParty, qualityByDiscipline, itpsResult, ncrSeverityResult] = await Promise.all([
+  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itpsResult, ncrSeverityResult] = await Promise.all([
     computeProjectKpis(supabase, projectId),
     computeQualityByParty(supabase, projectId),
     computeFirstTimePassRateByDiscipline(supabase, projectId),
+    computeMonthlyTrends(supabase, projectId, project.created_at),
     supabase
       .from("itps")
       .select("id, itp_number, title, status")
@@ -317,6 +371,27 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
           <p className="mt-1 text-sm text-muted">{totalNcrs} NCR{totalNcrs === 1 ? "" : "s"} raised on this project to date.</p>
           <div className="mt-4">
             <NcrSeverityChart counts={ncrSeverityCounts} />
+          </div>
+        </div>
+      )}
+
+      {monthlyTrends.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <h2 className="font-medium text-ink">Monthly trend</h2>
+          <p className="mt-1 text-sm text-muted">
+            NCRs raised and inspections completed per month, since this project began
+            {monthlyTrends.length < 6 ? " — history so far, more months will appear over time" : " (last 6 months)"}.
+          </p>
+          <div className="mt-3 flex items-center gap-4 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger" /> NCRs raised
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-burgundy" /> Inspections completed
+            </span>
+          </div>
+          <div className="mt-4 overflow-x-auto text-ink">
+            <MonthlyTrendChart points={monthlyTrends} />
           </div>
         </div>
       )}

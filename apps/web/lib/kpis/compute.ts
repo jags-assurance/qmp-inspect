@@ -232,6 +232,94 @@ function average(values: number[]): number | null {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
+export interface MonthlyTrendPoint {
+  /** First day of the month, ISO (UTC) — used as the bucket key. */
+  monthStart: string;
+  /** e.g. "Mar 2026". */
+  label: string;
+  ncrCount: number;
+  inspectionsCompletedCount: number;
+}
+
+/**
+ * Real per-project monthly trend of NCR volume and inspection-completion counts, over the last 6
+ * calendar months — the same underlying rows (ncrs.created_at, inspection_records.created_at)
+ * already read/aggregated elsewhere in this file, just bucketed by month instead of collapsed to a
+ * single current-snapshot number. Mirrors the shape of vw_powerbi_ncr_trends (Power BI's
+ * project/severity/status/month grouping over the same `ncrs` table -
+ * supabase/migrations/20260910120000_phase3_powerbi_reporting_views.sql) but queried directly
+ * against the project-scoped, RLS-protected tables rather than that view, since that view is
+ * intentionally reachable only by the internal `powerbi_reader` login role and carries no
+ * per-row tenant filtering of its own.
+ *
+ * Honesty rule: never fabricate months. The window is clipped to whichever is later — "6 months
+ * ago" or the project's own `created_at` month — so a brand-new project only ever shows the
+ * month(s) it has actually existed for, never a run of fake leading zero-NCR months that could be
+ * mistaken for real history predating the project.
+ */
+export async function computeMonthlyTrends(
+  supabase: SupabaseClient,
+  projectId: string,
+  projectCreatedAt: string
+): Promise<MonthlyTrendPoint[]> {
+  const [ncrsResult, recordsResult] = await Promise.all([
+    supabase.from(NCRS_TABLE).select("created_at").eq("project_id", projectId).returns<{ created_at: string }[]>(),
+    supabase
+      .from("inspection_records")
+      .select("created_at, overall_result")
+      .eq("project_id", projectId)
+      .returns<{ created_at: string; overall_result: "pass" | "fail" | "partial" | null }[]>(),
+  ]);
+
+  const ncrs = ncrsResult.data ?? [];
+  const completedRecords = (recordsResult.data ?? []).filter((r) => r.overall_result !== null);
+
+  const now = new Date();
+  const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const projectCreated = new Date(projectCreatedAt);
+  const projectMonthStart = new Date(Date.UTC(projectCreated.getUTCFullYear(), projectCreated.getUTCMonth(), 1));
+
+  // 6-month window, but never reaching back before the project existed.
+  const sixMonthsAgo = new Date(Date.UTC(currentMonthStart.getUTCFullYear(), currentMonthStart.getUTCMonth() - 5, 1));
+  const earliestMonthStart = sixMonthsAgo.getTime() > projectMonthStart.getTime() ? sixMonthsAgo : projectMonthStart;
+
+  const months: Date[] = [];
+  const cursor = new Date(earliestMonthStart);
+  while (cursor.getTime() <= currentMonthStart.getTime()) {
+    months.push(new Date(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  function monthKey(iso: string): string {
+    const d = new Date(iso);
+    return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+  }
+
+  const ncrCountsByMonth = new Map<string, number>();
+  for (const ncr of ncrs) {
+    const key = monthKey(ncr.created_at);
+    ncrCountsByMonth.set(key, (ncrCountsByMonth.get(key) ?? 0) + 1);
+  }
+
+  const inspectionCountsByMonth = new Map<string, number>();
+  for (const record of completedRecords) {
+    const key = monthKey(record.created_at);
+    inspectionCountsByMonth.set(key, (inspectionCountsByMonth.get(key) ?? 0) + 1);
+  }
+
+  const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+  return months.map((monthStart) => {
+    const key = `${monthStart.getUTCFullYear()}-${monthStart.getUTCMonth()}`;
+    return {
+      monthStart: monthStart.toISOString(),
+      label: monthFormatter.format(monthStart),
+      ncrCount: ncrCountsByMonth.get(key) ?? 0,
+      inspectionsCompletedCount: inspectionCountsByMonth.get(key) ?? 0,
+    };
+  });
+}
+
 function hoursBetween(startIso: string, endIso: string): number {
   return (new Date(endIso).getTime() - new Date(startIso).getTime()) / (1000 * 60 * 60);
 }
