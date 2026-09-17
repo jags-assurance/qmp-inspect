@@ -1,10 +1,29 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import i18next from "eslint-plugin-i18next";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // --- i18n string audit (opportunistic, cheap step; NOT a migration) ---
+  // Every UI string in this app is hardcoded English today. That's an
+  // accepted trade-off for now (see the round-table synthesis: a full
+  // message-catalog migration is deliberately deferred). This rule does
+  // NOT try to fix that — it only makes future hardcoded strings visible
+  // to reviewers via a lint warning, so the debt is at least tracked
+  // instead of growing silently. It is intentionally a WARNING, not an
+  // error: the existing app/ and components/ trees are unmigrated and
+  // will produce a large number of warnings. Do not "fix" those warnings
+  // as part of unrelated changes — that cleanup is future, scoped work.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": "warn",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
