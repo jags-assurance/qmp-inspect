@@ -73,6 +73,12 @@ export async function addStaffGrantAction(
     if (error.code === "23505") {
       return { error: "This staff member already has a grant at that same scope." };
     }
+    // Surfaces the access_grants_org_seat_limit trigger's own message (see
+    // 20260917070000_org_plans_and_seat_limit.sql) rather than a generic failure, same pattern as
+    // the background_jobs org rate-limit trigger in lib/reports/actions.ts.
+    if (error.message.includes("seat limit")) {
+      return { error: error.message };
+    }
     return { error: "Could not add the grant. Check you have permission and try again." };
   }
 
