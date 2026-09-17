@@ -8,10 +8,32 @@ export interface DataTableColumn<T> {
   render: (row: T) => ReactNode;
 }
 
+export interface DataTableServerSearch {
+  /** Current search text, owned by the parent (usually mirrored to a URL search param). */
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export interface DataTablePagination {
+  page: number; // 1-indexed
+  pageSize: number;
+  totalCount: number;
+  onPageChange: (page: number) => void;
+}
+
 /**
  * The canonical register/list pattern from the UI reference screens (ITP Register, NCR Register,
  * Observation Register, Projects list, etc.): a search box + a table. One implementation, reused
  * everywhere a list of records needs to be shown, instead of a bespoke table per screen.
+ *
+ * Round-table performance finding: every call site fetched its ENTIRE table server-side and handed
+ * the full array here, filtered client-side on every keystroke — fine at a few hundred rows, a real
+ * problem once a large tenant accumulates thousands. `serverSearch` and `pagination` are opt-in:
+ * when provided, `rows` is assumed to already be exactly the current page's (already-filtered)
+ * rows, and this component stops doing its own client-side filtering/pagination — the search input
+ * becomes controlled by the parent and pagination controls render below the table. Omitting both
+ * keeps the original all-client-side behavior unchanged, so existing call sites need no changes
+ * until they're deliberately migrated.
  */
 export function DataTable<T>({
   columns,
@@ -19,27 +41,38 @@ export function DataTable<T>({
   searchPlaceholder = "Search…",
   searchKeys,
   emptyMessage = "Nothing to show yet.",
+  serverSearch,
+  pagination,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
   searchPlaceholder?: string;
   searchKeys: (row: T) => string;
   emptyMessage?: string;
+  /** When set, the search input is controlled server-side instead of filtering `rows` in-memory. */
+  serverSearch?: DataTableServerSearch;
+  /** When set, renders Prev/Next controls below the table instead of showing every row at once. */
+  pagination?: DataTablePagination;
 }) {
-  const [query, setQuery] = useState("");
+  const [localQuery, setLocalQuery] = useState("");
+  const isServerDriven = !!serverSearch;
+  const query = isServerDriven ? serverSearch.value : localQuery;
 
   const filtered = useMemo(() => {
+    if (isServerDriven) return rows; // already filtered server-side
     if (!query.trim()) return rows;
     const q = query.trim().toLowerCase();
     return rows.filter((row) => searchKeys(row).toLowerCase().includes(q));
-  }, [rows, query, searchKeys]);
+  }, [rows, query, searchKeys, isServerDriven]);
+
+  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.totalCount / pagination.pageSize)) : null;
 
   return (
     <div className="rounded-lg border border-border bg-surface">
       <div className="border-b border-border p-3">
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => (isServerDriven ? serverSearch.onChange(e.target.value) : setLocalQuery(e.target.value))}
           placeholder={searchPlaceholder}
           className="w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-sm outline-none focus:border-burgundy"
         />
@@ -73,6 +106,35 @@ export function DataTable<T>({
           )}
         </tbody>
       </table>
+      {pagination && totalPages !== null && pagination.totalCount > 0 && (
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-sm">
+          <span className="text-muted">
+            {(pagination.page - 1) * pagination.pageSize + 1}–
+            {Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} of {pagination.totalCount}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={pagination.page <= 1}
+              onClick={() => pagination.onPageChange(pagination.page - 1)}
+              className="rounded-md border border-border px-2.5 py-1 font-medium text-ink hover:bg-off-white disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              Prev
+            </button>
+            <span className="text-muted">
+              Page {pagination.page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={pagination.page >= totalPages}
+              onClick={() => pagination.onPageChange(pagination.page + 1)}
+              className="rounded-md border border-border px-2.5 py-1 font-medium text-ink hover:bg-off-white disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

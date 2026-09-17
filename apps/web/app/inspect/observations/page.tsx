@@ -6,6 +6,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "../ncrs/ncrs-table";
+import { NCR_TABLE_PAGE_SIZE } from "../ncrs/constants";
 import { isOverdue } from "../ncrs/is-overdue";
 import { DisciplineFilterForm, type DisciplineOption } from "../ncrs/discipline-filter-form";
 
@@ -20,10 +21,11 @@ import { DisciplineFilterForm, type DisciplineOption } from "../ncrs/discipline-
 export default async function ObservationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId } = await searchParams;
+  const { discipline: disciplineId, project: projectId, q, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
   const { data: disciplines } = await supabase
@@ -47,25 +49,46 @@ export default async function ObservationsPage({
     itpItemIdFilter = (taggedItems ?? []).map((i) => i.id);
   }
 
-  let query = supabase
+  // Same split as apps/web/app/inspect/ncrs/page.tsx: a light, unpaginated query for stat-card/
+  // aging-chart totals, and a real server-side-paginated + searched query for the table itself.
+  let statsQuery = supabase.from(NCRS_TABLE).select("status, due_date, created_at").eq("severity", "observation");
+  let tableQuery = supabase
     .from(NCRS_TABLE)
-    .select("id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number)")
-    .eq("severity", "observation")
-    .order("created_at", { ascending: false });
-  if (itpItemIdFilter) {
-    query = itpItemIdFilter.length > 0 ? query.in("itp_item_id", itpItemIdFilter) : query.eq("id", "00000000-0000-0000-0000-000000000000");
-  }
-  if (projectId) query = query.eq("project_id", projectId);
+    .select("id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number)", {
+      count: "exact",
+    })
+    .eq("severity", "observation");
 
-  const { data: observations } = await query.returns<NcrRegisterRow[]>();
+  if (itpItemIdFilter) {
+    const noMatch = itpItemIdFilter.length === 0;
+    statsQuery = noMatch ? statsQuery.eq("id", "00000000-0000-0000-0000-000000000000") : statsQuery.in("itp_item_id", itpItemIdFilter);
+    tableQuery = noMatch ? tableQuery.eq("id", "00000000-0000-0000-0000-000000000000") : tableQuery.in("itp_item_id", itpItemIdFilter);
+  }
+  if (projectId) {
+    statsQuery = statsQuery.eq("project_id", projectId);
+    tableQuery = tableQuery.eq("project_id", projectId);
+  }
+  if (q) {
+    tableQuery = tableQuery.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);
+  }
+
+  const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
+  const [{ data: statsRows }, { data: observations, count: totalCount }] = await Promise.all([
+    statsQuery.returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>(),
+    tableQuery
+      .order("created_at", { ascending: false })
+      .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
+      .returns<NcrRegisterRow[]>(),
+  ]);
 
   const rows = observations ?? [];
-  const total = rows.length;
-  const open = rows.filter((r) => r.status !== "closed").length;
-  const closed = rows.filter((r) => r.status === "closed").length;
-  const overdue = rows.filter(isOverdue).length;
+  const statRows = statsRows ?? [];
+  const total = statRows.length;
+  const open = statRows.filter((r) => r.status !== "closed").length;
+  const closed = statRows.filter((r) => r.status === "closed").length;
+  const overdue = statRows.filter(isOverdue).length;
   const today = new Date().getTime();
-  const openAgeDays = rows
+  const openAgeDays = statRows
     .filter((r) => r.status !== "closed")
     .map((r) => Math.floor((today - new Date(r.created_at).getTime()) / 86_400_000));
   const agingCounts = bucketAge(openAgeDays);
@@ -114,7 +137,13 @@ export default async function ObservationsPage({
       </div>
 
       <div className="mt-6">
-        <NcrsTable rows={rows} />
+        <NcrsTable
+          rows={rows}
+          totalCount={totalCount ?? 0}
+          idColumnHeader="Observation No."
+          searchPlaceholder="Search observations…"
+          emptyMessage="No observations raised yet."
+        />
       </div>
     </div>
   );

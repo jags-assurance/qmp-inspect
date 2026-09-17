@@ -15,6 +15,18 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: {
+        // Next.js patches the global `fetch` to run every request through its own Data
+        // Cache/request-memoization layer unless told not to. That layer was observed to corrupt
+        // a `.range()` query (PostgREST responds 206 Partial Content for those) — the exact
+        // `count` came back correctly (from the Content-Range header) but the response body was
+        // silently emptied, and only for range/paginated requests specifically, which is why this
+        // was never hit before this app used `.range()` anywhere. Every query through this client
+        // is already always-fresh, RLS-scoped, per-request data — nothing here should ever be
+        // served from Next's cache — so caching is disabled unconditionally rather than only for
+        // the one query type that happened to surface the bug.
+        fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
