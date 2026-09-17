@@ -3,9 +3,11 @@ import {
   CALIBRATION_REGISTER_TABLE,
   MATERIAL_APPROVAL_STATUS_LABELS,
   MATERIAL_REGISTER_TABLE,
+  PERSONNEL_CERTIFICATIONS_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
   type CalibrationRegisterRow,
   type MaterialRegisterRow,
+  type PersonnelCertificationRow,
   type WelderQualificationRegisterRow,
 } from "./types";
 
@@ -150,6 +152,86 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
   return {
     tone: "info",
     message: `Material approved${refSuffix} — ${entry.material_description}: ${label} (Material Register).`,
+    requiresOverrideReason: false,
+  };
+}
+
+// Same coarse heuristic as checkRegisterVerification above, but mapping activity text to the kind of
+// personal certification it plausibly requires (rather than to a register table). certification_type
+// is free text (see types.ts), so the second half of the match is also a keyword check against it
+// rather than an exact code lookup — "does some cert this person holds look like the right kind" is
+// the same spirit as "does some register entry of the relevant kind look current" above.
+const PERSONNEL_CERT_ACTIVITY_MATCHES: { activityKeywords: string[]; certKeywords: string[] }[] = [
+  { activityKeywords: ["weld"], certKeywords: ["weld"] },
+  {
+    activityKeywords: ["ndt", "non-destruct", "nondestructive", "radiograph", "ultrasonic", "penetrant", "magnetic particle"],
+    certKeywords: ["ndt", "nde", "asnt"],
+  },
+  { activityKeywords: ["electric"], certKeywords: ["electric"] },
+];
+
+/**
+ * Personnel-certification soft-stop (round-table finding, same R92-R100 spirit as
+ * checkRegisterVerification above): the calibration/welder/material checks confirm a register entry
+ * of the right kind exists for the PROJECT, but never confirmed the PERSON about to record the
+ * response actually holds a current certification for that kind of work. This mirrors that pattern
+ * one level down — same coarse keyword match, same warning-tone/override-reason shape, same "assist,
+ * not a classifier" caveat — scoped to the one project_party executing this checklist.
+ *
+ * executingProjectPartyId is the resolved project_parties.id for the current signed-in user on this
+ * activity (see page.tsx: the same activity_party_intervention lookup that already decides who CAN
+ * execute the checklist). It's null when the current user isn't linked to a project_party here at
+ * all — e.g. JAGS staff running the inspection directly — in which case there's no personnel_
+ * certifications row to check against and this returns null, same as "not applicable."
+ */
+export async function checkPersonnelCertification(
+  supabase: SupabaseClient,
+  params: {
+    projectId: string;
+    executingProjectPartyId: string | null;
+    itpItemReferenceSpec: string | null;
+    itpItemAcceptanceCriteria: string | null;
+  }
+): Promise<RegisterVerificationResult | null> {
+  if (!params.executingProjectPartyId) return null;
+
+  const haystack = `${params.itpItemReferenceSpec ?? ""} ${params.itpItemAcceptanceCriteria ?? ""}`.toLowerCase();
+  const match = PERSONNEL_CERT_ACTIVITY_MATCHES.find((m) => m.activityKeywords.some((kw) => haystack.includes(kw)));
+  if (!match) return null;
+
+  const { data } = await supabase
+    .from(PERSONNEL_CERTIFICATIONS_TABLE)
+    .select("certification_type, cert_number, expiry_date, status")
+    .eq("project_id", params.projectId)
+    .eq("project_party_id", params.executingProjectPartyId)
+    .order("expiry_date", { ascending: true })
+    .returns<Pick<PersonnelCertificationRow, "certification_type" | "cert_number" | "expiry_date" | "status">[]>();
+
+  const candidates = (data ?? []).filter((row) =>
+    match.certKeywords.some((kw) => row.certification_type.toLowerCase().includes(kw))
+  );
+  const entry = candidates[0];
+
+  if (!entry) {
+    return {
+      tone: "warning",
+      message:
+        "Personnel certification record not found for this person for this type of activity (Personnel Certification Register). This does not block the inspection.",
+      requiresOverrideReason: true,
+    };
+  }
+
+  if (entry.status === "expired") {
+    return {
+      tone: "warning",
+      message: `Personnel certification expired — ${entry.certification_type}${entry.cert_number ? ` (cert ${entry.cert_number})` : ""} was due ${entry.expiry_date} (Personnel Certification Register). This does not block the inspection.`,
+      requiresOverrideReason: true,
+    };
+  }
+
+  return {
+    tone: "info",
+    message: `Personnel certification current — ${entry.certification_type}${entry.cert_number ? ` (cert ${entry.cert_number})` : ""}, expires ${entry.expiry_date} (Personnel Certification Register).`,
     requiresOverrideReason: false,
   };
 }

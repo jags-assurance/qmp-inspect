@@ -51,6 +51,7 @@ export function ResponseRow({
   initialComment,
   readOnly,
   registerVerification,
+  personnelCertVerification,
   onResultChange,
   onSavingChange,
   projectId,
@@ -67,6 +68,10 @@ export function ResponseRow({
   readOnly: boolean;
   /** R92-R100 register-fed auto-verification for this item's activity, or null if not applicable. */
   registerVerification: RegisterVerificationResult | null;
+  /** R92-R100 personnel-cert soft-stop for whichever project_party the current signed-in user is on
+   *  this activity — independent of registerVerification above (see registers/verify.ts), or null
+   *  when not applicable / the user has no project_party link here. */
+  personnelCertVerification: RegisterVerificationResult | null;
   /** Notifies the parent progress header immediately on tap, ahead of the save round trip. */
   onResultChange?: (result: ChecklistResponseResult | null) => void;
   /** Feeds the persistent sync-status indicator in the panel header — one row saving is enough to
@@ -87,8 +92,13 @@ export function ResponseRow({
 
   // R99: a register mismatch/not-found is a soft-stop — it never blocks recording a response
   // outright, but does require the inspector to type a short reason before the Yes/No/N-A buttons
-  // become usable for this item.
-  const needsOverrideReason = registerVerification?.tone === "warning" && registerVerification.requiresOverrideReason;
+  // become usable for this item. Both checks share one override-reason input: either warning is
+  // enough to require it, and typing one reason satisfies both (there's no need to make the
+  // inspector justify each warning separately).
+  const registerNeedsOverride = registerVerification?.tone === "warning" && registerVerification.requiresOverrideReason;
+  const personnelCertNeedsOverride =
+    personnelCertVerification?.tone === "warning" && personnelCertVerification.requiresOverrideReason;
+  const needsOverrideReason = registerNeedsOverride || personnelCertNeedsOverride;
   const overrideSatisfied = !needsOverrideReason || overrideReason.trim().length > 0;
 
   function save(nextResult: ChecklistResponseResult | null, nextComment: string, nextOverrideReason: string) {
@@ -147,6 +157,18 @@ export function ResponseRow({
           >
             {registerVerification.tone === "warning" ? "⚠ " : ""}
             {registerVerification.message}
+          </p>
+        )}
+
+        {personnelCertVerification && (
+          <p
+            className={cn(
+              "rounded-md px-3 py-2 text-xs",
+              personnelCertVerification.tone === "warning" ? "bg-warning/10 text-warning" : "bg-info/10 text-info"
+            )}
+          >
+            {personnelCertVerification.tone === "warning" ? "⚠ " : ""}
+            {personnelCertVerification.message}
           </p>
         )}
 

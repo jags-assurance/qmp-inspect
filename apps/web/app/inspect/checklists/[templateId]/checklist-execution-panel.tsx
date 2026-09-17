@@ -25,6 +25,7 @@ export function ChecklistExecutionPanel({
   initialResponses,
   readOnly,
   registerVerification,
+  personnelCertVerification,
   canExecute,
   photoSlot,
   completeSlot,
@@ -38,6 +39,9 @@ export function ChecklistExecutionPanel({
   initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null }>;
   readOnly: boolean;
   registerVerification: RegisterVerificationResult | null;
+  /** R92-R100 personnel-cert soft-stop for the executing party — independent of registerVerification
+   *  above, see registers/verify.ts. */
+  personnelCertVerification: RegisterVerificationResult | null;
   canExecute: boolean;
   /** Rendered between the response rows and the complete/incomplete slot below. */
   photoSlot: ReactNode;
@@ -116,6 +120,7 @@ export function ChecklistExecutionPanel({
             initialComment={initialResponses.get(item.id)?.comment ?? ""}
             readOnly={readOnly}
             registerVerification={registerVerification}
+            personnelCertVerification={personnelCertVerification}
             onResultChange={(result) =>
               setAnsweredIds((prev) => {
                 const next = new Set(prev);

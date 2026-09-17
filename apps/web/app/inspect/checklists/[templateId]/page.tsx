@@ -14,7 +14,11 @@ import {
   type InspectionPhotoRow,
   type InspectionRecordRow,
 } from "@/lib/checklists/db-types";
-import { checkRegisterVerification, type RegisterVerificationResult } from "@/lib/registers/verify";
+import {
+  checkPersonnelCertification,
+  checkRegisterVerification,
+  type RegisterVerificationResult,
+} from "@/lib/registers/verify";
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
 import { AddChecklistItemForm } from "./add-checklist-item-form";
 import { StartInspectionForm } from "./start-inspection-form";
@@ -77,9 +81,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const EXECUTING_PARTY_TYPES = new Set(["subcontractor", "main_contractor"]);
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
-    .select("project_parties(user_id, party_type)")
+    .select("project_parties(id, user_id, party_type)")
     .eq("itp_item_id", itpItem.id)
-    .returns<{ project_parties: { user_id: string | null; party_type: string } | null }[]>();
+    .returns<{ project_parties: { id: string; user_id: string | null; party_type: string } | null }[]>();
   const isAssignedParty = (stakeholderParties ?? []).some(
     (row) =>
       row.project_parties?.user_id === session.userId &&
@@ -90,6 +94,19 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const isSignoffOnlyParty = (stakeholderParties ?? []).some(
     (row) => row.project_parties?.user_id === session.userId && !EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
   );
+  // R92-R100 personnel-cert soft-stop: which project_party's certifications to check. Same
+  // resolution as isAssignedParty above — the executing party is whichever subcontractor/main_
+  // contractor row on this activity is linked to the CURRENT signed-in user, since they're the one
+  // about to record the response. There can be more than one qualifying party on an activity (e.g. a
+  // subcontractor and main_contractor both intervening) but at most one of them is ever "you," so
+  // this is unambiguous. Null when the signed-in user has no such party link (e.g. JAGS staff running
+  // the inspection directly) — checkPersonnelCertification treats that as "not applicable."
+  const executingProjectPartyId =
+    (stakeholderParties ?? []).find(
+      (row) =>
+        row.project_parties?.user_id === session.userId &&
+        EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
+    )?.project_parties?.id ?? null;
 
   // Whether the viewer is linked to SOME project party at all — used to tell "you're a project
   // party, just not this activity's" apart from "you have no party link on this project," since the
@@ -135,6 +152,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   let photos: { id: string; storage_path: string; caption: string | null }[] = [];
   let itemPhotos = new Map<string, { id: string; storage_path: string; caption: string | null }[]>();
   let registerVerification: RegisterVerificationResult | null = null;
+  let personnelCertVerification: RegisterVerificationResult | null = null;
 
   if (draft) {
     const [{ data: responses }, { data: photoRows }] = await Promise.all([
@@ -164,6 +182,16 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     // inline on every response row below.
     registerVerification = await checkRegisterVerification(supabase, {
       projectId: project.id,
+      itpItemReferenceSpec: itpItem.reference_spec,
+      itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+    });
+
+    // Parallel soft-stop, not a replacement for the check above — that one asks "does a register
+    // entry of the right kind exist for this project," this one asks "does the person about to
+    // answer hold a current cert of the right kind." Both can fire independently on the same item.
+    personnelCertVerification = await checkPersonnelCertification(supabase, {
+      projectId: project.id,
+      executingProjectPartyId,
       itpItemReferenceSpec: itpItem.reference_spec,
       itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
     });
@@ -231,6 +259,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             initialResponses={responseByItem}
             readOnly={!canExecute}
             registerVerification={registerVerification}
+            personnelCertVerification={personnelCertVerification}
             canExecute={canExecute}
             projectId={project.id}
             itemPhotos={itemPhotos}
