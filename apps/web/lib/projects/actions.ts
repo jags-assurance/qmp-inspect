@@ -145,3 +145,164 @@ export async function setAllowClientExecutionAction(
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
 }
+
+export interface ProjectPartyActiveState {
+  error: string | null;
+}
+
+/**
+ * Single-party activate/deactivate. Admin-only. NOTE ON WHAT THIS ACTUALLY DOES: project_parties.is_active
+ * is a display/record-keeping flag only — it is filtered on in the project detail page's party list
+ * query (`.eq("is_active", true)`) but is NOT read by any RLS policy or by canSignOffForParty (see
+ * lib/signoff/actions.ts, which gates purely on project_parties.user_id === session.userId) or by any
+ * checklist-execution check. Flipping this does not, by itself, revoke a party's linked user's ability
+ * to sign off or execute checklists on this project — that ability actually comes from access_grants
+ * (platform-level reach) plus project_parties.user_id (which party a login represents). This action
+ * still does something real and useful (it's the project's own record of who's currently engaged, and
+ * every list/summary that filters on is_active reflects it), but it is not, today, an access-control
+ * boundary. See deactivateAllProjectPartiesAction below for the bulk version this backs.
+ */
+async function setProjectPartyActive(
+  formData: FormData,
+  active: boolean
+): Promise<ProjectPartyActiveState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this." };
+  }
+
+  const projectPartyId = String(formData.get("project_party_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectPartyId || !projectId) return { error: "Missing party or project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("project_parties")
+    .update({ is_active: active })
+    .eq("id", projectPartyId);
+
+  if (error) return { error: "Could not update this party. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
+export async function deactivateProjectPartyAction(
+  _prev: ProjectPartyActiveState,
+  formData: FormData
+): Promise<ProjectPartyActiveState> {
+  return setProjectPartyActive(formData, false);
+}
+
+export async function reactivateProjectPartyAction(
+  _prev: ProjectPartyActiveState,
+  formData: FormData
+): Promise<ProjectPartyActiveState> {
+  return setProjectPartyActive(formData, true);
+}
+
+export interface BulkProjectPartiesState {
+  error: string | null;
+}
+
+/**
+ * Bulk deactivate/reactivate every project_parties row for a project — the "project's done, no need
+ * people" action from the CEO ask. Deliberately explicit and admin-only, never automatic on a status
+ * change: a project's status can be flipped to 'completed'/'cancelled' by mistake or briefly, and
+ * silently dropping everyone's party record on that alone would be exactly the surprising, hard-to-
+ * notice failure mode the ask calls out. So this is its own button the admin clicks, with its own
+ * confirm step in the UI (see DeactivateAllPartiesControl), not something wired to setProjectStatus.
+ *
+ * Only touches project_parties.is_active — never access_grants, never deletes anything. Reversible
+ * in one click (reactivateAllProjectPartiesAction) for exactly that reason: if the project reopens or
+ * someone needs access again post-handover, nothing has to be recreated from scratch.
+ *
+ * See the note on setProjectPartyActive above: this is a project record-keeping switch, not (today) an
+ * enforced access boundary — real access still runs through access_grants + project_parties.user_id.
+ */
+export async function deactivateAllProjectPartiesAction(
+  _prev: BulkProjectPartiesState,
+  formData: FormData
+): Promise<BulkProjectPartiesState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can do this." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("project_parties")
+    .update({ is_active: false })
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  if (error) return { error: "Could not deactivate project parties. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
+export async function reactivateAllProjectPartiesAction(
+  _prev: BulkProjectPartiesState,
+  formData: FormData
+): Promise<BulkProjectPartiesState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can do this." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("project_parties")
+    .update({ is_active: true })
+    .eq("project_id", projectId)
+    .eq("is_active", false);
+
+  if (error) return { error: "Could not reactivate project parties. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
+export interface SetResponsiblePersonState {
+  error: string | null;
+}
+
+/**
+ * The project's named point of accountability (projects.responsible_person_id), distinct from the
+ * per-activity H/W/R/S party assignments — this is "who do I go to for this project overall", picked
+ * from anyone whose access_grants already reach this project's organisation/project, same eligible-
+ * user set the reassign-party-form.tsx flow already uses (see the eligibleUsers query in
+ * app/inspect/projects/[projectId]/page.tsx). Admin-only to change; visible to everyone with access
+ * to the project (the page itself decides display, not this action).
+ */
+export async function setResponsiblePersonAction(
+  _prev: SetResponsiblePersonState,
+  formData: FormData
+): Promise<SetResponsiblePersonState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const responsiblePersonId = String(formData.get("responsible_person_id") ?? "").trim();
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ responsible_person_id: responsiblePersonId || null })
+    .eq("id", projectId);
+
+  if (error) return { error: "Could not update the responsible person. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}

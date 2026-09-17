@@ -165,6 +165,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           allow_client_execution: boolean;
+          responsible_person_id: string | null;
         };
         Insert: {
           id?: string;
@@ -181,6 +182,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           allow_client_execution?: boolean;
+          responsible_person_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["projects"]["Insert"]>;
         Relationships: [];
@@ -331,13 +333,13 @@ export interface Database {
           id: string;
           itp_item_id: string;
           project_party_id: string;
-          intervention: "H" | "W" | "R" | "S";
+          intervention: string;
         };
         Insert: {
           id?: string;
           itp_item_id: string;
           project_party_id: string;
-          intervention: "H" | "W" | "R" | "S";
+          intervention: string;
         };
         Update: Partial<Database["public"]["Tables"]["activity_party_intervention"]["Insert"]>;
         Relationships: [];

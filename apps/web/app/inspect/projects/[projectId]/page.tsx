@@ -10,6 +10,9 @@ import { AddProjectPartyForm } from "./add-project-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
+import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
+import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
+import { ResponsiblePersonPicker } from "./responsible-person-picker";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -40,6 +43,8 @@ interface ProjectDetail {
   status: string;
   organization_id: string;
   allow_client_execution: boolean;
+  responsible_person_id: string | null;
+  responsible_person: { full_name: string; email: string } | null;
   organizations: {
     name: string;
     engagement_mode: string;
@@ -47,6 +52,14 @@ interface ProjectDetail {
     brand_accent_color: string | null;
   } | null;
 }
+
+/**
+ * A project's status can be flipped to completed/cancelled by mistake or only briefly — so the bulk
+ * "deactivate all project access" action is gated on this, not fired automatically by the status
+ * change itself. See lib/projects/actions.ts (deactivateAllProjectPartiesAction) for the full
+ * rationale.
+ */
+const STATUSES_ELIGIBLE_FOR_BULK_DEACTIVATE = new Set(["completed", "cancelled"]);
 
 /**
  * The project-detail hub this app was missing: before this, registers/data-book/kpis/punch-list
@@ -65,7 +78,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
     )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
@@ -83,7 +96,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       .from("project_parties")
       .select("id, name, party_type, is_active, onboarded_by, user_id, users(full_name, email)")
       .eq("project_id", projectId)
-      .eq("is_active", true)
+      .order("is_active", { ascending: false })
       .order("party_type")
       .returns<
         {
@@ -161,6 +174,25 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-off-white px-3 py-2">
+        <span className="text-sm font-medium text-ink">Responsible Person:</span>
+        {project.responsible_person ? (
+          <span className="text-sm text-ink">
+            {project.responsible_person.full_name}{" "}
+            <span className="text-muted">({project.responsible_person.email})</span>
+          </span>
+        ) : (
+          <span className="text-sm text-muted">Not set</span>
+        )}
+      </div>
+      {isAdminStaff(session) && (
+        <ResponsiblePersonPicker
+          projectId={project.id}
+          currentResponsiblePersonId={project.responsible_person_id}
+          eligibleUsers={eligibleUsers}
+        />
+      )}
+
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="ITPs" value={itpCount ?? 0} />
         <StatCard label="Pending inspections" value={pendingInspectionCount ?? 0} />
@@ -193,13 +225,31 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">Project parties</h2>
-        <p className="mt-1 text-sm text-muted">Every organisation engaged on this project.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-medium text-ink">Project parties</h2>
+            <p className="mt-1 text-sm text-muted">Every organisation engaged on this project.</p>
+          </div>
+          {isAdminStaff(session) && STATUSES_ELIGIBLE_FOR_BULK_DEACTIVATE.has(project.status) && (
+            <DeactivateAllPartiesControl
+              projectId={project.id}
+              hasActiveParties={(parties ?? []).some((p) => p.is_active)}
+            />
+          )}
+        </div>
         <ul className="mt-4 space-y-2">
           {(parties ?? []).map((party) => (
-            <li key={party.id} className="rounded-md border border-border px-3 py-2 text-sm">
+            <li
+              key={party.id}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                party.is_active ? "border-border" : "border-border bg-off-white opacity-70"
+              }`}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-ink">{party.name}</span>
+                <span className="text-ink">
+                  {party.name}
+                  {!party.is_active && <span className="ml-2 text-xs text-muted">(inactive)</span>}
+                </span>
                 <span className="flex items-center gap-2">
                   <Badge tone={party.onboarded_by === "client" ? "info" : "neutral"}>
                     {party.onboarded_by === "client" ? "Client-onboarded" : "JAGS-onboarded"}
@@ -209,7 +259,22 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               </div>
               <div className="mt-1 flex items-center justify-between text-xs text-muted">
                 <span>{party.users ? `${party.users.full_name} (${party.users.email})` : "No linked login yet"}</span>
-                {canReassign && <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />}
+                <span className="flex items-center gap-2">
+                  {canReassign && party.is_active && (
+                    <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />
+                  )}
+                  {isAdminStaff(session) && (
+                    <ProjectPartyActiveToggle
+                      // Force a remount whenever is_active flips: useActionState binds its action
+                      // function once at mount, so without a key that changes here the toggle would
+                      // keep calling whichever of deactivate/reactivate it was first mounted with.
+                      key={party.is_active ? "active" : "inactive"}
+                      projectId={project.id}
+                      projectPartyId={party.id}
+                      isActive={party.is_active}
+                    />
+                  )}
+                </span>
               </div>
             </li>
           ))}
