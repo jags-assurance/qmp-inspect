@@ -143,24 +143,32 @@ export function ResponseRow({
         )}
 
         {needsOverrideReason && (
-          <input
-            type="text"
-            disabled={readOnly}
-            defaultValue={overrideReason}
-            placeholder="Reason to proceed despite the register warning above (required)"
-            onBlur={(e) => {
-              setOverrideReason(e.target.value);
-              save(result, comment, e.target.value);
-            }}
-            className="w-full rounded-md border border-warning/40 bg-surface px-3 py-2 text-sm outline-none focus:border-warning disabled:opacity-60"
-          />
+          <div>
+            <label htmlFor={`override-reason-${checklistItemId}`} className="sr-only">
+              Reason to proceed despite the register warning for item {itemNumber}
+            </label>
+            <input
+              id={`override-reason-${checklistItemId}`}
+              type="text"
+              disabled={readOnly}
+              defaultValue={overrideReason}
+              placeholder="Reason to proceed despite the register warning above (required)"
+              onBlur={(e) => {
+                setOverrideReason(e.target.value);
+                save(result, comment, e.target.value);
+              }}
+              className="w-full rounded-md border border-warning/40 bg-surface px-3 py-2 text-sm outline-none focus:border-warning disabled:opacity-60"
+            />
+          </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="radiogroup" aria-label={`Result for item ${itemNumber}`}>
           {PILLS.map((pill) => (
             <button
               key={pill.value}
               type="button"
+              role="radio"
+              aria-checked={result === pill.value}
               disabled={readOnly || !overrideSatisfied}
               title={!overrideSatisfied ? "Enter a reason above before recording a response." : undefined}
               onClick={() => {
@@ -173,6 +181,7 @@ export function ResponseRow({
                 result === pill.value ? pill.activeClass : "border-border bg-surface text-ink hover:bg-off-white"
               )}
             >
+              {result === pill.value && <span aria-hidden="true">✓ </span>}
               {pill.label}
             </button>
           ))}
@@ -184,7 +193,11 @@ export function ResponseRow({
           </p>
         )}
 
+        <label htmlFor={`comment-${checklistItemId}`} className="sr-only">
+          Comment for item {itemNumber}
+        </label>
         <textarea
+          id={`comment-${checklistItemId}`}
           rows={2}
           disabled={readOnly}
           defaultValue={comment}
