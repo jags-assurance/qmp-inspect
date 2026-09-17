@@ -6,6 +6,7 @@ export function StatCard({
   value,
   icon,
   href,
+  caption,
 }: {
   label: string;
   value: ReactNode;
@@ -13,6 +14,9 @@ export function StatCard({
   /** Optional destination — turns the card into a real link instead of a dead number, e.g. to the
    * list of items the count actually represents. Omit for a purely informational stat. */
   href?: string;
+  /** Optional small line under the value — e.g. a sample-size note ("based on 4 data points") so a
+   * viewer can judge how much confidence to put in a computed average/rate. Omit when not needed. */
+  caption?: ReactNode;
 }) {
   const content = (
     <>
@@ -21,6 +25,7 @@ export function StatCard({
         {icon}
       </div>
       <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
+      {caption && <div className="mt-1 text-xs text-muted">{caption}</div>}
     </>
   );
 

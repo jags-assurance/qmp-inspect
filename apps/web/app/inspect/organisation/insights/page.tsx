@@ -73,6 +73,15 @@ function average(values: number[]): number | null {
   return values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
 }
 
+/** Below this many underlying data points, a computed average/rate isn't very meaningful — surface
+ * the sample size alongside the stat so a viewer can judge confidence themselves instead of reading a
+ * decimal-precision figure as a real measurement. */
+const SMALL_SAMPLE_THRESHOLD = 5;
+
+function sampleCaption(sampleSize: number): string | undefined {
+  return sampleSize > 0 && sampleSize < SMALL_SAMPLE_THRESHOLD ? `Based on ${sampleSize} data point${sampleSize === 1 ? "" : "s"}` : undefined;
+}
+
 export default async function PortfolioInsightsPage() {
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -159,6 +168,7 @@ export default async function PortfolioInsightsPage() {
   const itpCompletionByProject = [...itpCountsByProject.entries()].map(([projectId, counts]) => ({
     projectId,
     pct: counts.total > 0 ? Math.round((counts.clientAccepted / counts.total) * 1000) / 10 : null,
+    total: counts.total,
   }));
   const itpRatesWithData = itpCompletionByProject.filter((r) => r.pct !== null);
   const avgItpCompletion = itpRatesWithData.length
@@ -228,14 +238,17 @@ export default async function PortfolioInsightsPage() {
         <StatCard
           label="Avg ITP completion"
           value={avgItpCompletion !== null ? `${avgItpCompletion.toFixed(1)}%` : "—"}
+          caption={avgItpCompletion !== null ? sampleCaption(itpRatesWithData.length) : "No ITP data yet"}
         />
         <StatCard
           label="Avg first-time pass rate"
           value={avgFirstTimePassRate !== null ? `${avgFirstTimePassRate.toFixed(1)}%` : "—"}
+          caption={avgFirstTimePassRate !== null ? sampleCaption(firstAttempts.length) : "No inspection attempts yet"}
         />
         <StatCard
           label="Avg hold-point turnaround"
           value={avgHoldPointHours !== null ? `${avgHoldPointHours.toFixed(1)}h` : "—"}
+          caption={avgHoldPointHours !== null ? sampleCaption(holdDurations.length) : "No hold-point signoffs yet"}
         />
       </div>
 
@@ -271,7 +284,12 @@ export default async function PortfolioInsightsPage() {
                 <span className="text-ink">
                   {r.project?.project_number} — {r.project?.name}
                 </span>
-                <span className="font-medium text-ink">{(r.pct ?? 0).toFixed(1)}%</span>
+                <span className="font-medium text-ink">
+                  {(r.pct ?? 0).toFixed(1)}%
+                  {r.total < SMALL_SAMPLE_THRESHOLD && (
+                    <span className="ml-1 font-normal text-muted">(n={r.total})</span>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
