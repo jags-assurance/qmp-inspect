@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { AssignmentConclusion, AssignmentStatus, AssignmentType } from "@/lib/standalone/actions";
+import { STANDALONE_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
 
 export interface StandaloneAssignmentListRow {
   id: string;
@@ -79,7 +82,50 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
   },
 ];
 
-export function StandaloneTable({ rows }: { rows: StandaloneAssignmentListRow[] }) {
+/**
+ * Round-table performance finding (same as apps/web/app/inspect/ncrs/ncrs-table.tsx): this
+ * register used to receive and client-filter EVERY matching assignment row at once. `totalCount`
+ * (when provided by the server page) switches this into server-driven search + pagination: `rows`
+ * is just the current page, search text and page number both live in the URL (`q`, `page`). Falls
+ * back to the original all-client-side behavior when `totalCount` is omitted.
+ */
+export function StandaloneTable({ rows, totalCount }: { rows: StandaloneAssignmentListRow[]; totalCount?: number }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const serverDriven = totalCount !== undefined;
+
+  const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pushParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === "") params.delete(key);
+        else params.set(key, value);
+      }
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [pathname, router, searchParams]
+  );
+
+  useEffect(() => {
+    if (!serverDriven) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      // A new search always jumps back to page 1 — staying on e.g. page 4 of a narrowed-down
+      // result set almost always lands past the end and shows an empty table.
+      pushParams({ q: searchValue || null, page: null });
+    }, 350);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue, serverDriven]);
+
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+
   return (
     <DataTable
       columns={COLUMNS}
@@ -87,6 +133,17 @@ export function StandaloneTable({ rows }: { rows: StandaloneAssignmentListRow[] 
       searchPlaceholder="Search assignments…"
       searchKeys={(row) => `${row.assignment_number} ${row.equipment_description}`}
       emptyMessage="No standalone assignments yet."
+      serverSearch={serverDriven ? { value: searchValue, onChange: setSearchValue } : undefined}
+      pagination={
+        serverDriven
+          ? {
+              page,
+              pageSize: PAGE_SIZE,
+              totalCount: totalCount!,
+              onPageChange: (nextPage) => pushParams({ page: nextPage === 1 ? null : String(nextPage) }),
+            }
+          : undefined
+      }
     />
   );
 }

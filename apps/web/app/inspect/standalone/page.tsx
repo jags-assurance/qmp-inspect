@@ -3,15 +3,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
+import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
 import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; discipline?: string }>;
+  searchParams: Promise<{ project?: string; discipline?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
-  const { project: projectId, discipline: disciplineId } = await searchParams;
+  const { project: projectId, discipline: disciplineId, q, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
   const { data: disciplines } = await supabase
@@ -21,16 +23,41 @@ export default async function StandaloneAssignmentsPage({
     .order("sort_order")
     .returns<DisciplineOption[]>();
 
-  let query = supabase
+  // Round-table performance finding (same pattern as apps/web/app/inspect/ncrs/page.tsx): this
+  // register used to fetch every matching assignment at once and filter/paginate it client-side.
+  // Split into a dedicated head:true count query (no embeds/joins/range) and a real server-side-
+  // paginated + searched data query, kept separate rather than combining `{count:'exact'}` with
+  // `.range()` on the same query — that combination was observed elsewhere in this app to return
+  // an accurate count alongside a silently empty data array once embedded-resource joins were
+  // involved. This register has no stat cards, so there's no need for a third "light stats" query.
+  let countQuery = supabase.from("standalone_assignments" as any).select("id", { count: "exact", head: true });
+  let tableQuery = supabase
     .from("standalone_assignments" as any)
     .select(
       "id, assignment_number, assignment_type, equipment_description, assignment_date, status, conclusion, discipline_id, projects(name), master_disciplines(code, name)"
-    )
-    .order("created_at", { ascending: false });
-  if (projectId) query = query.eq("project_id", projectId);
-  if (disciplineId) query = query.eq("discipline_id", disciplineId);
+    );
 
-  const { data: assignments } = await query.returns<StandaloneAssignmentListRow[]>();
+  if (projectId) {
+    countQuery = countQuery.eq("project_id", projectId);
+    tableQuery = tableQuery.eq("project_id", projectId);
+  }
+  if (disciplineId) {
+    countQuery = countQuery.eq("discipline_id", disciplineId);
+    tableQuery = tableQuery.eq("discipline_id", disciplineId);
+  }
+  if (q) {
+    countQuery = countQuery.or(`assignment_number.ilike.%${q}%,equipment_description.ilike.%${q}%`);
+    tableQuery = tableQuery.or(`assignment_number.ilike.%${q}%,equipment_description.ilike.%${q}%`);
+  }
+
+  const offset = (page - 1) * STANDALONE_TABLE_PAGE_SIZE;
+  const [{ count: totalCount }, { data: assignments }] = await Promise.all([
+    countQuery,
+    tableQuery
+      .order("created_at", { ascending: false })
+      .range(offset, offset + STANDALONE_TABLE_PAGE_SIZE - 1)
+      .returns<StandaloneAssignmentListRow[]>(),
+  ]);
 
   return (
     <div>
@@ -63,7 +90,7 @@ export default async function StandaloneAssignmentsPage({
       </div>
 
       <div className="mt-6">
-        <StandaloneTable rows={assignments ?? []} />
+        <StandaloneTable rows={assignments ?? []} totalCount={totalCount ?? 0} />
       </div>
     </div>
   );

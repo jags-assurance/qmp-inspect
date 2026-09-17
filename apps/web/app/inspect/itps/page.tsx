@@ -3,15 +3,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { ItpsTable, type ItpRow } from "./itps-table";
+import { ITP_TABLE_PAGE_SIZE } from "./constants";
 import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
 
 export default async function ItpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId } = await searchParams;
+  const { discipline: disciplineId, project: projectId, q, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
   // Discipline-based routing (Reqs R32): filter the register down to ITPs that have at least one
@@ -20,7 +22,7 @@ export default async function ItpsPage({
   // not "which rows in this one ITP".
   //
   // `disciplines` (for the filter dropdown) and `taggedItems` (for the id filter) don't depend on
-  // each other's results — only the later `itps` query depends on taggedItems — so they're fetched
+  // each other's results — only the later ITP queries depend on taggedItems — so they're fetched
   // together instead of waterfalled.
   const [{ data: disciplines }, { data: taggedItems }] = await Promise.all([
     supabase
@@ -43,17 +45,38 @@ export default async function ItpsPage({
     itpIdFilter = [...new Set((taggedItems ?? []).map((i) => i.itp_sections?.itp_id).filter((id): id is string => Boolean(id)))];
   }
 
-  let query = supabase
-    .from("itps")
-    .select("id, itp_number, title, status, revision, projects(name)")
-    .order("created_at", { ascending: false });
+  // Round-table performance finding (same pattern as apps/web/app/inspect/ncrs/page.tsx): this
+  // register used to fetch every matching ITP at once and filter/paginate it client-side. Split
+  // into a dedicated head:true count query (no embeds/joins/range) and a real server-side-
+  // paginated + searched data query, kept separate rather than combining `{count:'exact'}` with
+  // `.range()` on the same query — that combination was observed elsewhere in this app to return
+  // an accurate count alongside a silently empty data array once embedded-resource joins were
+  // involved. This register has no stat cards, so there's no need for a third "light stats" query.
+  let countQuery = supabase.from("itps").select("id", { count: "exact", head: true });
+  let tableQuery = supabase.from("itps").select("id, itp_number, title, status, revision, projects(name)");
 
   if (itpIdFilter) {
-    query = itpIdFilter.length > 0 ? query.in("id", itpIdFilter) : query.eq("id", "00000000-0000-0000-0000-000000000000");
+    const noMatch = itpIdFilter.length === 0;
+    countQuery = noMatch ? countQuery.eq("id", "00000000-0000-0000-0000-000000000000") : countQuery.in("id", itpIdFilter);
+    tableQuery = noMatch ? tableQuery.eq("id", "00000000-0000-0000-0000-000000000000") : tableQuery.in("id", itpIdFilter);
   }
-  if (projectId) query = query.eq("project_id", projectId);
+  if (projectId) {
+    countQuery = countQuery.eq("project_id", projectId);
+    tableQuery = tableQuery.eq("project_id", projectId);
+  }
+  if (q) {
+    countQuery = countQuery.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
+    tableQuery = tableQuery.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
+  }
 
-  const { data: itps } = await query.returns<ItpRow[]>();
+  const offset = (page - 1) * ITP_TABLE_PAGE_SIZE;
+  const [{ count: totalCount }, { data: itps }] = await Promise.all([
+    countQuery,
+    tableQuery
+      .order("created_at", { ascending: false })
+      .range(offset, offset + ITP_TABLE_PAGE_SIZE - 1)
+      .returns<ItpRow[]>(),
+  ]);
 
   return (
     <div>
@@ -83,7 +106,7 @@ export default async function ItpsPage({
       </div>
 
       <div className="mt-6">
-        <ItpsTable rows={itps ?? []} />
+        <ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />
       </div>
     </div>
   );
