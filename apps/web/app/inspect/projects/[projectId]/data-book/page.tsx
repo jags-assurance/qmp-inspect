@@ -16,6 +16,12 @@ const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   issued: "success",
 };
 
+const STATUS_LABEL: Record<DataBookStatus, string> = {
+  draft: "Draft",
+  compiled: "Compiled",
+  issued: "Issued",
+};
+
 export default async function DataBookPage({
   params,
 }: {
@@ -71,7 +77,7 @@ export default async function DataBookPage({
                 <span className="doc-id text-sm font-medium text-ink">{book.book_number}</span>
                 <span className="ml-2 text-sm text-ink">{book.title}</span>
               </div>
-              <Badge tone={STATUS_TONE[book.status]}>{book.status}</Badge>
+              <Badge tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
             </div>
 
             {book.override_reason && (

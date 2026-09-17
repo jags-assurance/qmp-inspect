@@ -21,6 +21,12 @@ const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> 
   superseded: "neutral",
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  approved: "Approved",
+  for_review: "For review",
+  superseded: "Superseded",
+};
+
 const COLUMNS: DataTableColumn<VaultDocumentTableRow>[] = [
   {
     key: "document_number",
@@ -32,7 +38,7 @@ const COLUMNS: DataTableColumn<VaultDocumentTableRow>[] = [
   {
     key: "status",
     header: "Status",
-    render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</Badge>,
+    render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>,
   },
   {
     key: "document_date",

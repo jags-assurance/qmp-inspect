@@ -20,6 +20,11 @@ const STATUS_TONE: Record<PunchListStatus, "success" | "neutral"> = {
   closed: "success",
 };
 
+const PUNCH_LIST_STATUS_LABELS: Record<PunchListStatus, string> = {
+  open: "Open",
+  closed: "Closed",
+};
+
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // this wrapper exists so the Server Component page only ever passes plain, serializable row data
 // down, same pattern as ProjectsTable/NcrsTable.
@@ -45,7 +50,7 @@ export function PunchListTable({ projectId, rows }: { projectId: string; rows: P
     {
       key: "status",
       header: "Status",
-      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>,
+      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{PUNCH_LIST_STATUS_LABELS[row.status]}</Badge>,
     },
     {
       key: "actions",

@@ -20,6 +20,12 @@ const STATUS_TONE: Record<WelderQualificationStatus, "success" | "warning" | "da
   expired: "danger",
 };
 
+const STATUS_LABEL: Record<WelderQualificationStatus, string> = {
+  valid: "Valid",
+  expiring: "Expiring",
+  expired: "Expired",
+};
+
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // this wrapper exists so the Server Component page only ever passes plain, serializable row data
 // down, same pattern as ProjectsTable/PunchListTable.
@@ -32,7 +38,7 @@ export function WelderQualificationTable({ rows }: { rows: WelderQualificationDi
     {
       key: "status",
       header: "Status",
-      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>,
+      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>,
     },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];

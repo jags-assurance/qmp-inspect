@@ -24,6 +24,15 @@ const ITP_STATUS_LABEL: Record<string, string> = {
   client_accepted: "Client accepted",
 };
 
+// Exported so other pages rendering the same report-pack status enum (e.g.
+// app/inspect/organisation/numbering/page.tsx) can reuse this instead of duplicating a copy.
+export const REPORT_PACK_STATUS_LABEL: Record<string, string> = {
+  pending: "Pending",
+  processing: "Processing",
+  completed: "Completed",
+  failed: "Failed",
+};
+
 interface ProjectSummary {
   id: string;
   project_number: string;
@@ -106,7 +115,7 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
                   <td className="py-2">
                     {MONTH_NAMES[pack.month - 1]} {pack.year}
                   </td>
-                  <td className="py-2 capitalize">{pack.status}</td>
+                  <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
                   <td className="py-2 text-xs text-muted">
                     {pack.completedAt ? new Date(pack.completedAt).toLocaleString() : "—"}
                   </td>

@@ -7,6 +7,7 @@ import { EngagementModeForm } from "./engagement-mode-form";
 import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config-row";
 import { OrgPickerForm } from "./org-picker-form";
 import { MonthlyReportPackForm } from "./monthly-report-pack-form";
+import { REPORT_PACK_STATUS_LABEL } from "../../projects/[projectId]/reports/page";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -138,7 +139,7 @@ export default async function NumberingSettingsPage({
                   {reportPacks.map((pack) => (
                     <tr key={pack.id} className="border-b border-border last:border-0">
                       <td className="py-2">{MONTH_NAMES[pack.month - 1]} {pack.year}</td>
-                      <td className="py-2 capitalize">{pack.status}</td>
+                      <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
                       <td className="py-2 text-xs text-muted">{new Date(pack.createdAt).toLocaleString()}</td>
                       <td className="py-2">
                         {pack.status === "completed" && pack.pdfUrl ? (

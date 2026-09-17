@@ -25,6 +25,14 @@ const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> 
   cancelled: "danger",
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  draft: "Draft",
+  on_hold: "On hold",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
 const COLUMNS: DataTableColumn<ProjectRow>[] = [
   {
     key: "project_number",
@@ -49,7 +57,7 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
   {
     key: "status",
     header: "Status",
-    render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</Badge>,
+    render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>,
   },
   {
     key: "itp_completion",

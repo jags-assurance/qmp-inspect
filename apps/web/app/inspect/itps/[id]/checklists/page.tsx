@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
 import { GenerateChecklistsButton } from "./generate-button";
+import { ITP_STATUS_LABEL } from "../../itps-table";
 
 /**
  * Lists every checklist-type (evidence_type = 1) activity on an ITP, generates checklists for an
@@ -65,7 +66,8 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
 
       {itp.status !== "approved" && (
         <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-          Checklists are generated once this ITP is approved. Current status: <Badge tone="neutral">{itp.status}</Badge>
+          Checklists are generated once this ITP is approved. Current status:{" "}
+          <Badge tone="neutral">{ITP_STATUS_LABEL[itp.status] ?? itp.status}</Badge>
         </p>
       )}
 
