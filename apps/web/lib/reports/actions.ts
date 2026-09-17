@@ -17,6 +17,7 @@ import {
   csvPathFromPdfPath,
   type BackgroundJobRow,
   type MonthlyReportPackPayload,
+  type WeeklyReportPackPayload,
   type RenderFatReportPdfPayload,
   type RenderInspectionReportPdfPayload,
   type RenderItpPdfPayload,
@@ -93,6 +94,118 @@ export async function generateMonthlyReportPackAction(
 
   revalidatePath("/inspect/organisation/numbering");
   return { error: null, success: true };
+}
+
+export interface RequestWeeklyReportPackState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "generate_weekly_report_pack" background job for one organisation and one 7-day window
+ * starting at `week_start`, aggregated across all of that org's projects. The weekly sibling of
+ * generateMonthlyReportPackAction above — same admin-only gate, same insert-a-row pattern, same
+ * defence-in-depth DB layer (is_jags_staff() + has_org_access() on insert, see
+ * 20260917100000_weekly_report_pack_job.sql), and covered by the same per-org rate-limit trigger
+ * (20260917000000_background_jobs_org_rate_limit.sql) since that trigger's org resolver isn't
+ * job-type-specific — it now also resolves generate_weekly_report_pack rows by their
+ * organization_id, exactly like generate_monthly_report_pack.
+ */
+export async function requestWeeklyReportPackAction(
+  _prev: RequestWeeklyReportPackState,
+  formData: FormData
+): Promise<RequestWeeklyReportPackState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can generate a weekly report pack." };
+  }
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const weekStart = String(formData.get("week_start") ?? "").trim();
+
+  if (!organizationId || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || Number.isNaN(Date.parse(weekStart))) {
+    return { error: "Organisation and a valid week-starting date are required." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "generate_weekly_report_pack",
+    payload: {
+      organization_id: organizationId,
+      week_start: weekStart,
+      requested_by: session.userId,
+    } satisfies WeeklyReportPackPayload,
+  });
+
+  if (error) {
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the weekly report pack. Check you have permission and try again.") };
+  }
+
+  revalidatePath("/inspect/organisation/numbering");
+  return { error: null, success: true };
+}
+
+export interface WeeklyReportPackListItem {
+  id: string;
+  weekStart: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  pdfUrl: string | null;
+  csvUrl: string | null;
+}
+
+/**
+ * Lists past weekly report packs for an organisation, with signed download URLs — same
+ * createSignedUrl pattern as listMonthlyReportPacks below.
+ */
+export async function listWeeklyReportPacks(organizationId: string): Promise<WeeklyReportPackListItem[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: jobs } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, job_type, payload, status, result_storage_path, error_message, created_at, completed_at")
+    .eq("job_type", "generate_weekly_report_pack")
+    .eq("payload->>organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(52) // ~1 year of weekly packs
+    .returns<
+      (Omit<
+        Pick<BackgroundJobRow, "id" | "job_type" | "payload" | "status" | "error_message" | "created_at" | "completed_at">,
+        "payload"
+      > & { payload: WeeklyReportPackPayload; result_storage_path: string | null })[]
+    >();
+
+  const orgJobs = jobs ?? [];
+
+  const items: WeeklyReportPackListItem[] = [];
+  for (const job of orgJobs) {
+    let pdfUrl: string | null = null;
+    let csvUrl: string | null = null;
+
+    if (job.status === "completed" && job.result_storage_path) {
+      const [{ data: pdfSigned }, { data: csvSigned }] = await Promise.all([
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(csvPathFromPdfPath(job.result_storage_path), 3600),
+      ]);
+      pdfUrl = pdfSigned?.signedUrl ?? null;
+      csvUrl = csvSigned?.signedUrl ?? null;
+    }
+
+    items.push({
+      id: job.id,
+      weekStart: job.payload?.week_start,
+      status: job.status,
+      errorMessage: job.error_message,
+      createdAt: job.created_at,
+      completedAt: job.completed_at,
+      pdfUrl,
+      csvUrl,
+    });
+  }
+
+  return items;
 }
 
 export interface RequestItpPdfState {

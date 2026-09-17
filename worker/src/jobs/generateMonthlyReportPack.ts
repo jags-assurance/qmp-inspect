@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer";
 import { supabase } from "../supabase";
-import { buildMonthlyReportHtml, type MonthlyReportProjectRow, type MonthlyReportTemplateData } from "./monthlyReportTemplate";
+import { buildMonthlyReportHtml, type MonthlyReportTemplateData } from "./monthlyReportTemplate";
+import { aggregateReportPackData } from "./reportPackAggregation";
 import type { GenerateMonthlyReportPackPayload } from "./types";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -9,23 +10,6 @@ const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-
-interface InspectionRecordRow {
-  id: string;
-  project_id: string;
-  itp_item_id: string;
-  overall_result: "pass" | "fail" | "partial" | null;
-  created_at: string;
-}
-
-interface NcrRow {
-  id: string;
-  project_id: string;
-  severity: "observation" | "minor_ncr" | "major_ncr";
-  status: string;
-  created_at: string;
-  closed_at: string | null;
-}
 
 function monthRange(year: number, month: number): { startIso: string; endIso: string } {
   // month is 1-12. Both bounds in UTC, [start, end).
@@ -86,129 +70,25 @@ export async function generateMonthlyReportPack(
 ): Promise<{ resultStoragePath: string }> {
   const { organization_id: organizationId, year, month } = payload;
 
-  const { data: organization, error: orgError } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .eq("id", organizationId)
-    .single();
-
-  if (orgError || !organization) {
-    throw new Error(`Organization ${organizationId} not found: ${orgError?.message ?? "no row"}`);
-  }
-
-  const { data: projects, error: projectsError } = await supabase
-    .from("projects")
-    .select("id, project_number, name")
-    .eq("organization_id", organizationId);
-
-  if (projectsError) {
-    throw new Error(`Failed to load projects for organization ${organizationId}: ${projectsError.message}`);
-  }
-
-  const projectRows = projects ?? [];
-  const projectIds = projectRows.map((p) => p.id);
-
   const { startIso, endIso } = monthRange(year, month);
-
-  // ITPs across the org's projects (all-time snapshot for completion %, per R109/compute.ts).
-  const itpsResult =
-    projectIds.length > 0
-      ? await supabase.from("itps").select("id, project_id, status").in("project_id", projectIds).returns<
-          { id: string; project_id: string; status: "draft" | "under_review" | "approved" | "client_accepted" }[]
-        >()
-      : { data: [] as { id: string; project_id: string; status: "draft" | "under_review" | "approved" | "client_accepted" }[], error: null };
-
-  if (itpsResult.error) {
-    throw new Error(`Failed to load ITPs: ${itpsResult.error.message}`);
-  }
-  const itps = itpsResult.data ?? [];
-
-  // Inspection records for the month, across the org's projects — the same "overall_result is not
-  // null = completed" logic as computeProjectKpis() in apps/web/lib/kpis/compute.ts, scoped to the
-  // reporting month instead of a single project.
-  const inspectionRecordsResult =
-    projectIds.length > 0
-      ? await supabase
-          .from("inspection_records")
-          .select("id, project_id, itp_item_id, overall_result, created_at")
-          .in("project_id", projectIds)
-          .gte("created_at", startIso)
-          .lt("created_at", endIso)
-          .order("created_at", { ascending: true })
-          .returns<InspectionRecordRow[]>()
-      : { data: [] as InspectionRecordRow[], error: null };
-
-  if (inspectionRecordsResult.error) {
-    throw new Error(`Failed to load inspection records: ${inspectionRecordsResult.error.message}`);
-  }
-  const inspectionRecords = inspectionRecordsResult.data ?? [];
-
-  // NCRs opened OR closed in the month, across the org's projects.
-  const ncrsResult =
-    projectIds.length > 0
-      ? await supabase
-          .from("ncrs")
-          .select("id, project_id, severity, status, created_at, closed_at")
-          .in("project_id", projectIds)
-          .returns<NcrRow[]>()
-      : { data: [] as NcrRow[], error: null };
-
-  if (ncrsResult.error) {
-    throw new Error(`Failed to load NCRs: ${ncrsResult.error.message}`);
-  }
-  const allNcrs = ncrsResult.data ?? [];
-  const ncrsOpenedInMonth = allNcrs.filter((n) => n.created_at >= startIso && n.created_at < endIso);
-  const ncrsClosedInMonth = allNcrs.filter((n) => n.closed_at && n.closed_at >= startIso && n.closed_at < endIso);
-
-  // --- First-time pass rate, scoped to first attempts recorded within the month ---
-  const firstAttemptByItem = new Map<string, InspectionRecordRow>();
-  for (const record of inspectionRecords) {
-    if (!firstAttemptByItem.has(record.itp_item_id)) firstAttemptByItem.set(record.itp_item_id, record);
-  }
-  const firstAttempts = [...firstAttemptByItem.values()].filter((r) => r.overall_result !== null);
-  const firstTimePasses = firstAttempts.filter((r) => r.overall_result === "pass");
-  const firstTimePassRate = firstAttempts.length > 0 ? (firstTimePasses.length / firstAttempts.length) * 100 : null;
-
-  // --- ITP completion % (all-time snapshot, per file header note) ---
-  const clientAcceptedCount = itps.filter((itp) => itp.status === "client_accepted").length;
-  const itpCompletionRate = itps.length > 0 ? (clientAcceptedCount / itps.length) * 100 : null;
-
-  // --- NCR summary by severity ---
-  const severities: NcrRow["severity"][] = ["observation", "minor_ncr", "major_ncr"];
-  const ncrsBySeverity = severities
-    .map((severity) => ({
-      severity,
-      opened: ncrsOpenedInMonth.filter((n) => n.severity === severity).length,
-      closed: ncrsClosedInMonth.filter((n) => n.severity === severity).length,
-    }))
-    .filter((row) => row.opened > 0 || row.closed > 0);
-
-  // --- Per-project breakdown ---
-  const perProject: MonthlyReportProjectRow[] = projectRows.map((project) => ({
-    projectId: project.id,
-    projectNumber: project.project_number,
-    projectName: project.name,
-    inspectionsCompleted: inspectionRecords.filter((r) => r.project_id === project.id && r.overall_result !== null).length,
-    ncrsOpened: ncrsOpenedInMonth.filter((n) => n.project_id === project.id).length,
-    ncrsClosed: ncrsClosedInMonth.filter((n) => n.project_id === project.id).length,
-  }));
+  const agg = await aggregateReportPackData(organizationId, startIso, endIso);
 
   const monthLabel = `${MONTH_NAMES[month - 1]} ${year}`;
 
   const templateData: MonthlyReportTemplateData = {
-    organizationName: organization.name,
+    organizationName: agg.organizationName,
     year,
     month,
     monthLabel,
-    firstTimePassRate,
-    firstTimePassCounts: { firstAttempts: firstAttempts.length, firstTimePasses: firstTimePasses.length },
-    inspectionsCompleted: inspectionRecords.filter((r) => r.overall_result !== null).length,
-    ncrsOpenedInMonth: ncrsOpenedInMonth.length,
-    ncrsClosedInMonth: ncrsClosedInMonth.length,
-    ncrsBySeverity,
-    itpCompletionRate,
-    itpCompletionCounts: { clientAccepted: clientAcceptedCount, total: itps.length },
-    perProject,
+    firstTimePassRate: agg.firstTimePassRate,
+    firstTimePassCounts: agg.firstTimePassCounts,
+    inspectionsCompleted: agg.inspectionsCompleted,
+    ncrsOpenedInMonth: agg.ncrsOpened,
+    ncrsClosedInMonth: agg.ncrsClosed,
+    ncrsBySeverity: agg.ncrsBySeverity,
+    itpCompletionRate: agg.itpCompletionRate,
+    itpCompletionCounts: agg.itpCompletionCounts,
+    perProject: agg.perProject,
     generatedAt: new Date(),
   };
 

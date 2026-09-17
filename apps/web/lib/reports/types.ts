@@ -14,6 +14,16 @@ export interface MonthlyReportPackPayload {
   requested_by: string;
 }
 
+/** Payload for "generate_weekly_report_pack" — the weekly equivalent of MonthlyReportPackPayload
+ *  above. `week_start` is an ISO date (YYYY-MM-DD) marking the first day of the 7-day window; see
+ *  worker/src/jobs/types.ts's GenerateWeeklyReportPackPayload for why a start date was chosen over
+ *  an ISO-week-number + year pair. */
+export interface WeeklyReportPackPayload {
+  organization_id: string;
+  week_start: string;
+  requested_by: string;
+}
+
 export interface RenderItpPdfPayload {
   itp_id: string;
   requested_by: string;
@@ -40,6 +50,7 @@ export interface BackgroundJobRow {
   job_type: string;
   payload:
     | MonthlyReportPackPayload
+    | WeeklyReportPackPayload
     | RenderItpPdfPayload
     | RenderInspectionReportPdfPayload
     | RenderFatReportPdfPayload

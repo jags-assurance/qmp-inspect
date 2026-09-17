@@ -8,6 +8,7 @@ export interface BackgroundJobRow {
   job_type:
     | "render_itp_pdf"
     | "generate_monthly_report_pack"
+    | "generate_weekly_report_pack"
     | "render_inspection_report_pdf"
     | "render_fat_report_pdf"
     | "render_portfolio_summary_pdf";
@@ -32,6 +33,18 @@ export interface GenerateMonthlyReportPackPayload {
   organization_id: string;
   year: number;
   month: number;
+  requested_by: string;
+}
+
+/** Payload for "generate_weekly_report_pack" — one organisation, one 7-day window, aggregated
+ *  across ALL of that org's projects. `week_start` is an ISO date (YYYY-MM-DD) marking the first
+ *  day of the 7-day window [week_start, week_start + 7 days); chosen over an ISO-week-number +
+ *  year pair because generateWeeklyReportPack.ts's date-handling adapts directly from
+ *  generateMonthlyReportPack.ts's monthRange()-style helper — a plain start date needs only day
+ *  arithmetic instead of also having to derive a calendar date from an (year, week-number) pair. */
+export interface GenerateWeeklyReportPackPayload {
+  organization_id: string;
+  week_start: string;
   requested_by: string;
 }
 

@@ -3,12 +3,14 @@ import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase";
 import { renderItpPdf } from "./jobs/renderItpPdf";
 import { generateMonthlyReportPack } from "./jobs/generateMonthlyReportPack";
+import { generateWeeklyReportPack } from "./jobs/generateWeeklyReportPack";
 import { renderInspectionReportPdf } from "./jobs/renderInspectionReportPdf";
 import { renderFatReportPdf } from "./jobs/renderFatReportPdf";
 import { renderPortfolioSummaryPdf } from "./jobs/renderPortfolioSummaryPdf";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
+  GenerateWeeklyReportPackPayload,
   RenderFatReportPdfPayload,
   RenderInspectionReportPdfPayload,
   RenderItpPdfPayload,
@@ -136,6 +138,14 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
       case "generate_monthly_report_pack": {
         const { resultStoragePath } = await generateMonthlyReportPack(
           job.payload as unknown as GenerateMonthlyReportPackPayload
+        );
+        await markCompleted(job.id, resultStoragePath);
+        console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
+        break;
+      }
+      case "generate_weekly_report_pack": {
+        const { resultStoragePath } = await generateWeeklyReportPack(
+          job.payload as unknown as GenerateWeeklyReportPackPayload
         );
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
