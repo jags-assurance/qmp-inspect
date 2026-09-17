@@ -22,6 +22,7 @@ export const VAULT_FOLDER_KEYS = [
   "approvals_correspondence",
   "certificates",
   "general_reference",
+  "test_reports",
 ] as const;
 export type VaultFolderKey = (typeof VAULT_FOLDER_KEYS)[number];
 
