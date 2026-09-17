@@ -38,6 +38,9 @@ export async function POST(request: Request) {
       case "photo": {
         const projectId = String(formData.get("project_id") ?? "").trim();
         const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
+        // Optional — set by ItemPhotoUpload when the photo was captured for one specific checklist
+        // item/finding rather than the whole inspection (see photo-upload-helpers.ts).
+        const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim() || null;
         const file = formData.get("file");
         if (!projectId || !inspectionRecordId || !(file instanceof Blob)) {
           return NextResponse.json({ ok: false, error: "Missing photo data." }, { status: 422 });
@@ -49,7 +52,10 @@ export async function POST(request: Request) {
         } = await supabase.auth.getUser();
 
         const fileName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9.\-_]/g, "_");
-        const path = `${projectId}/${inspectionRecordId}/${Date.now()}-${fileName}`;
+        const prefix = checklistItemId
+          ? `${projectId}/${inspectionRecordId}/item-${checklistItemId}`
+          : `${projectId}/${inspectionRecordId}`;
+        const path = `${prefix}/${Date.now()}-${fileName}`;
 
         const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
         if (uploadError) return NextResponse.json({ ok: false, error: uploadError.message }, { status: 422 });
@@ -58,6 +64,7 @@ export async function POST(request: Request) {
           inspection_record_id: inspectionRecordId,
           storage_path: path,
           uploaded_by: user?.id ?? null,
+          checklist_item_id: checklistItemId,
         });
         if (insertError) return NextResponse.json({ ok: false, error: insertError.message }, { status: 422 });
 

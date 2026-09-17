@@ -7,6 +7,7 @@ import type { RegisterVerificationResult } from "@/lib/registers/verify";
 import { cn } from "@/lib/cn";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
+import { ItemPhotoUpload } from "./item-photo-upload";
 
 const PILLS: { value: ChecklistResponseResult; label: string; activeClass: string }[] = [
   { value: "yes", label: "Yes", activeClass: "bg-success text-white border-success" },
@@ -52,6 +53,8 @@ export function ResponseRow({
   registerVerification,
   onResultChange,
   onSavingChange,
+  projectId,
+  photos,
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -69,6 +72,11 @@ export function ResponseRow({
   /** Feeds the persistent sync-status indicator in the panel header — one row saving is enough to
    *  show "Saving…" for the whole checklist, so the parent just needs true/false per row. */
   onSavingChange?: (saving: boolean) => void;
+  /** Needed to build the item-linked photo's storage path (project_id/inspection_record_id/item-…). */
+  projectId: string;
+  /** This item's own evidence photos (checklist_item_id === checklistItemId), for the compact
+   *  per-row "+ photo" affordance below the pills. */
+  photos: { id: string; storage_path: string; caption: string | null }[];
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
@@ -192,6 +200,14 @@ export function ResponseRow({
             Marked as No — consider raising an NCR against this activity once the inspection is complete.
           </p>
         )}
+
+        <ItemPhotoUpload
+          projectId={projectId}
+          inspectionRecordId={inspectionRecordId}
+          checklistItemId={checklistItemId}
+          photos={photos}
+          readOnly={readOnly}
+        />
 
         <label htmlFor={`comment-${checklistItemId}`} className="sr-only">
           Comment for item {itemNumber}

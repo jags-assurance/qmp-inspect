@@ -2,13 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
 import { Button } from "@/components/ui/button";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
-import { enqueueOutboxItem } from "@/lib/offline/db";
-import { notifyOutboxChanged } from "@/lib/offline/sync-client";
-import { compressImageFile } from "@/lib/media/compress-image";
+import { uploadOrQueuePhoto } from "@/lib/checklists/photo-upload-helpers";
 
 interface Photo {
   id: string;
@@ -48,48 +44,9 @@ export function PhotoUpload({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function queueForOffline(file: File) {
-    await enqueueOutboxItem({
-      kind: "photo",
-      fields: { project_id: projectId, inspection_record_id: inspectionRecordId, file_name: file.name },
-      file,
-      fileName: file.name,
-    });
-    notifyOutboxChanged();
-    setQueuedPreviews((prev) => [...prev, URL.createObjectURL(file)]);
-  }
-
   async function uploadOne(rawFile: File) {
-    const file = await compressImageFile(rawFile);
-
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await queueForOffline(file);
-      return;
-    }
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-      const path = `${projectId}/${inspectionRecordId}/${Date.now()}-${safeName}`;
-
-      const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const { error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert({
-        inspection_record_id: inspectionRecordId,
-        storage_path: path,
-        uploaded_by: user?.id ?? null,
-      });
-      if (insertError) throw insertError;
-    } catch {
-      // Could be a genuine failure or a connection that dropped mid-upload — either way, don't
-      // lose the photo: queue it the same as the offline path instead of just showing an error.
-      await queueForOffline(file);
-    }
+    const { queuedPreviewUrl } = await uploadOrQueuePhoto({ projectId, inspectionRecordId, file: rawFile });
+    if (queuedPreviewUrl) setQueuedPreviews((prev) => [...prev, queuedPreviewUrl]);
   }
 
   // Round-table field-usability finding: an inspector previously had to tap "Add photo" once per

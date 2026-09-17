@@ -72,6 +72,9 @@ export interface InspectionPhotoRow {
   storage_path: string;
   caption: string | null;
   uploaded_by: string | null;
+  /** Optional link to the specific checklist item/finding this photo documents. Null for photos
+   *  attached generically to the whole inspection (the original, still-supported behaviour). */
+  checklist_item_id: string | null;
   created_at: string;
 }
 

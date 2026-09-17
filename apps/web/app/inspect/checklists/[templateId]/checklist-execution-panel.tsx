@@ -29,6 +29,8 @@ export function ChecklistExecutionPanel({
   photoSlot,
   completeSlot,
   incompleteSlot,
+  projectId,
+  itemPhotos,
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -43,6 +45,11 @@ export function ChecklistExecutionPanel({
   completeSlot: ReactNode;
   /** Rendered while items remain unanswered. */
   incompleteSlot: ReactNode;
+  /** Needed to build each item-linked photo's storage path. */
+  projectId: string;
+  /** Each checklist item's own evidence photos (checklist_item_id === that item's id), keyed by
+   *  checklist_item_id, for the compact per-row "+ photo" affordance. */
+  itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null }[]>;
 }) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set(initialResponses.keys()));
   // Round-table finding: the old per-row transient "Saving…" text disappeared the instant that one
@@ -118,6 +125,8 @@ export function ChecklistExecutionPanel({
               })
             }
             onSavingChange={(saving) => setSavingCount((prev) => Math.max(0, prev + (saving ? 1 : -1)))}
+            projectId={projectId}
+            photos={itemPhotos.get(item.id) ?? []}
           />
         ))}
         {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}

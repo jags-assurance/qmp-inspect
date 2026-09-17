@@ -130,7 +130,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>();
 
   let responseByItem = new Map<string, { result: "yes" | "no" | "na"; comment: string | null }>();
+  // Photos with a null checklist_item_id go to the generic whole-inspection section (unchanged
+  // behaviour); photos linked to a specific item are grouped here and handed to that item's row.
   let photos: { id: string; storage_path: string; caption: string | null }[] = [];
+  let itemPhotos = new Map<string, { id: string; storage_path: string; caption: string | null }[]>();
   let registerVerification: RegisterVerificationResult | null = null;
 
   if (draft) {
@@ -142,12 +145,19 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result" | "comment">[]>(),
       supabase
         .from(INSPECTION_PHOTOS_TABLE)
-        .select("id, storage_path, caption")
+        .select("id, storage_path, caption, checklist_item_id")
         .eq("inspection_record_id", draft.id)
-        .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption">[]>(),
+        .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>(),
     ]);
     responseByItem = new Map((responses ?? []).map((r) => [r.checklist_item_id, { result: r.result, comment: r.comment }]));
-    photos = photoRows ?? [];
+    photos = (photoRows ?? []).filter((p) => !p.checklist_item_id);
+    itemPhotos = new Map();
+    for (const p of photoRows ?? []) {
+      if (!p.checklist_item_id) continue;
+      const existing = itemPhotos.get(p.checklist_item_id) ?? [];
+      existing.push(p);
+      itemPhotos.set(p.checklist_item_id, existing);
+    }
 
     // R92-R100: register-fed auto-verification — a soft-stop assist, not a hard block. Computed
     // once per checklist (the same itp_items row backs every checklist_items row here), then shown
@@ -222,6 +232,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             readOnly={!canExecute}
             registerVerification={registerVerification}
             canExecute={canExecute}
+            projectId={project.id}
+            itemPhotos={itemPhotos}
             photoSlot={
               <div className="rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
