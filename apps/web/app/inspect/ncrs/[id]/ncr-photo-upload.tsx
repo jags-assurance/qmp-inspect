@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { addNcrPhotoAction } from "@/lib/ncrs/actions";
+import { compressImageFile } from "@/lib/media/compress-image";
 
 /**
  * The file itself goes straight from the browser to the "inspection-evidence" Storage bucket;
@@ -15,11 +16,12 @@ export function NcrPhotoUpload({ ncrId }: { ncrId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setUploading(true);
     setError(null);
+    const file = await compressImageFile(rawFile);
 
     const supabase = createSupabaseBrowserClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");

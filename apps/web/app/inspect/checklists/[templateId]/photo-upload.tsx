@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
+import { compressImageFile } from "@/lib/media/compress-image";
 
 interface Photo {
   id: string;
@@ -59,10 +60,11 @@ export function PhotoUpload({
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
     setUploading(true);
     setError(null);
+    const file = await compressImageFile(rawFile);
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       try {
