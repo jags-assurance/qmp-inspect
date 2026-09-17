@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
@@ -191,7 +192,13 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="ncrs" filter={`id=eq.${id}`} />
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <Link
+        href={ncr.severity === "observation" ? "/inspect/observations" : "/inspect/ncrs"}
+        className="text-sm text-burgundy hover:underline"
+      >
+        ← Back to {ncr.severity === "observation" ? "Observations" : "NCR Register"}
+      </Link>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{ncr.ncr_number}</h1>

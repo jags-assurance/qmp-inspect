@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
@@ -100,7 +101,10 @@ export default async function StandaloneAssignmentDetailPage({
   return (
     <div>
       <RealtimeRefresh table="standalone_assignments" filter={`id=eq.${id}`} />
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
+        ← Back to Standalone Assignments
+      </Link>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{assignment.assignment_number}</h1>

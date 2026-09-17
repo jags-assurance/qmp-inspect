@@ -209,7 +209,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="checklist_responses" />
-      <p className="text-sm text-muted">
+      <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
+        ← Back to {itp.itp_number}
+      </Link>
+      <p className="mt-2 text-sm text-muted">
         {project.organizations?.name} · {project.name} ·{" "}
         <Link href={`/inspect/itps/${itp.id}`} className="hover:underline">
           {itp.itp_number}

@@ -89,7 +89,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <Link href="/inspect/projects" className="text-sm text-burgundy hover:underline">
+        ← Back to Projects
+      </Link>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="doc-id text-sm text-muted">{project.project_number}</p>
           <h1 className="text-2xl font-semibold text-ink">{project.name}</h1>
