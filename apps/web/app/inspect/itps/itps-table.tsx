@@ -16,14 +16,16 @@ export interface ItpRow {
   projects: { name: string } | null;
 }
 
-const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
+// Exported so other pages rendering the same ITP status enum (e.g.
+// app/inspect/itps/[id]/checklists/page.tsx) can reuse this instead of duplicating a copy.
+export const ITP_STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
   under_review: "warning",
   approved: "gold",
   client_accepted: "success",
 };
 
-const STATUS_LABEL: Record<string, string> = {
+export const ITP_STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
   under_review: "Under review",
   approved: "Approved",
@@ -40,13 +42,23 @@ const COLUMNS: DataTableColumn<ItpRow>[] = [
       </Link>
     ),
   },
-  { key: "title", header: "Title", render: (row) => row.title },
+  {
+    key: "title",
+    header: "Title",
+    // Round-table field-usability finding: only the (small, monospace) ITP number was clickable —
+    // the title, the more visually prominent and legible column, was plain text.
+    render: (row) => (
+      <Link href={`/inspect/itps/${row.id}`} className="text-ink hover:underline">
+        {row.title}
+      </Link>
+    ),
+  },
   { key: "project", header: "Project", render: (row) => row.projects?.name ?? "—" },
   { key: "revision", header: "Rev", render: (row) => row.revision },
   {
     key: "status",
     header: "Status",
-    render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>,
+    render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
   },
 ];
 

@@ -70,7 +70,10 @@ export default async function InspectDashboardPage() {
     supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("itps").select("id", { count: "exact", head: true }).in("status", ["approved", "client_accepted"]),
     supabase.from("inspection_records").select("id", { count: "exact", head: true }).is("overall_result", null),
-    supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed"),
+    // Round-table finding: this used to count open Observations (severity='observation') into the
+    // "Open NCRs" stat card too — honest now that the NCR and Observation registers are shown as
+    // two distinct registers elsewhere in this app (see observations/page.tsx's own header comment).
+    supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation"),
     // A user's own project_parties link (see lib/signoff/actions.ts's canSignOffForParty) is what
     // "awaiting your sign-off" actually means for an external party; for JAGS staff (who can
     // countersign any party) it's less meaningful, so the panel only renders for a linked party.
@@ -203,6 +206,7 @@ export default async function InspectDashboardPage() {
         .from("ncrs")
         .select("projects(organization_id)")
         .neq("status", "closed")
+        .neq("severity", "observation")
         .returns<{ projects: { organization_id: string } | null }[]>(),
     ]);
     pendingProposals = proposals ?? [];
