@@ -16,6 +16,16 @@ import type {
 
 const POLL_INTERVAL_MS = 3000;
 
+// All 5 job types render a short, single-page-or-few-page PDF via Puppeteer — none of them should
+// legitimately take anywhere near this long. A hung/OOM'd Chromium render (or a network stall
+// mid-fetch) would otherwise sit in 'processing' forever, silently blocking every other job behind
+// it for every tenant, since this worker processes one row at a time.
+const JOB_TIMEOUT_MS = 3 * 60 * 1000;
+
+// Log queue depth / oldest-pending-job age this often (in poll cycles), not every single tick, so
+// a stuck queue is visible in Railway logs without spamming them.
+const OBSERVABILITY_LOG_EVERY_N_CYCLES = 20; // ~once a minute at POLL_INTERVAL_MS = 3000
+
 // `background_jobs` isn't in `@jags/shared-types` yet (see jobs/types.ts) — this worker is the
 // only thing that queries it, so a single narrow `as unknown as` cast here stands in for
 // generated types rather than threading `any` through every call site below.
@@ -54,6 +64,11 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
 
   // Optimistic claim: only succeeds if the row is still 'pending' (guards against a second worker
   // instance racing this one — there is only one deployed today, but the queue is shared state).
+  // This compare-and-swap is what makes it already safe to run 2+ replicas of this same process
+  // (e.g. to parallelize across the per-org rate-limited queue) without any further code change —
+  // only one replica's UPDATE ... WHERE status = 'pending' can win per row; the loser gets 0 rows
+  // back and simply polls again. Scaling replicas is a Railway dashboard/infra change, not a code
+  // change, and is intentionally out of scope here.
   const { data: claimed, error: claimError } = await jobsTable()
     .update({ status: "processing", attempts: candidate.attempts + 1 })
     .eq("id", candidate.id)
@@ -138,9 +153,56 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
   }
 }
 
-async function pollOnce(): Promise<void> {
+/**
+ * Races `processJob` against a hard wall-clock timeout so one hung/OOM'd Chromium render can't
+ * block the queue forever. `Promise.race` cannot cancel the losing side, so on a timeout the job's
+ * own `processJob`/job-file promise keeps running in the background; its own `try/finally {
+ * browser.close() }` (present in every job file under worker/src/jobs/) still runs whenever that
+ * settles, so no zombie Chromium process is left behind — this just stops the QUEUE from waiting on
+ * it. `markFailed`/`markCompleted` are both conditioned on `.eq("status", "processing")`, so if the
+ * job actually finishes after we've already marked it failed here, that later update is a no-op
+ * against the already-'failed' row instead of clobbering it.
+ */
+async function processJobWithTimeout(job: BackgroundJobRow): Promise<void> {
+  let timedOut = false;
+  const timeout = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, JOB_TIMEOUT_MS);
+  });
+
+  await Promise.race([processJob(job), timeout]);
+
+  if (timedOut) {
+    console.error(`[worker] Job ${job.id} (${job.job_type}) exceeded ${JOB_TIMEOUT_MS}ms — marking failed.`);
+    await markFailed(job.id, `Render timed out after ${Math.round(JOB_TIMEOUT_MS / 1000)}s.`);
+  }
+}
+
+/** Queue depth + oldest-pending-job age, logged periodically so a stuck queue is visible in Railway
+ *  logs (DIY observability — no metrics platform involved). */
+async function logQueueHealth(): Promise<void> {
+  const { data, error } = await jobsTable().select("created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(1000);
+
+  if (error) {
+    console.error("[worker] Failed to check queue health:", error.message);
+    return;
+  }
+
+  const pending = data ?? [];
+  const oldest = pending[0];
+  const oldestAgeSec = oldest ? Math.round((Date.now() - new Date(oldest.created_at).getTime()) / 1000) : 0;
+  console.log(`[worker] Queue health: ${pending.length} pending job(s), oldest pending age ${oldestAgeSec}s.`);
+}
+
+async function pollOnce(cycle: number): Promise<void> {
+  if (cycle % OBSERVABILITY_LOG_EVERY_N_CYCLES === 0) {
+    await logQueueHealth();
+  }
+
   const job = await claimNextPendingJob();
-  if (job) await processJob(job);
+  if (job) await processJobWithTimeout(job);
 }
 
 async function main() {
@@ -152,9 +214,11 @@ async function main() {
 
   console.log(`[worker] Connected to Supabase. Polling background_jobs every ${POLL_INTERVAL_MS}ms.`);
 
+  let cycle = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    await pollOnce().catch((err) => console.error("[worker] Unexpected error in poll loop:", err));
+    await pollOnce(cycle).catch((err) => console.error("[worker] Unexpected error in poll loop:", err));
+    cycle += 1;
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 }

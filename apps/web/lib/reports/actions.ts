@@ -29,6 +29,22 @@ export interface GenerateMonthlyReportPackState {
 }
 
 /**
+ * background_jobs now has a per-organisation rate limit enforced by a BEFORE INSERT trigger (see
+ * supabase/migrations/20260917000000_background_jobs_org_rate_limit.sql) — at most 5
+ * pending/processing jobs per org at once, to stop one org's burst of requests from starving every
+ * other org behind it in the worker's single shared queue. That trigger raises a specific Postgres
+ * exception message; every job-queuing action below passes its insert error through this helper so
+ * the rate-limit case surfaces its own clear copy instead of the generic "check permissions" text.
+ */
+function backgroundJobInsertErrorMessage(error: { message: string } | null, genericMessage: string): string | null {
+  if (!error) return null;
+  if (error.message.includes("Too many reports are already queued")) {
+    return "Too many reports are already queued for your organisation — wait for one to finish before requesting another.";
+  }
+  return genericMessage;
+}
+
+/**
  * Queues a "generate_monthly_report_pack" background job (R109) for one organisation and one
  * calendar month, aggregated across all of that org's projects. Follows the exact insert-a-row
  * pattern the render_itp_pdf job type already uses (see 20260909270000_phase1_background_jobs.sql)
@@ -72,7 +88,7 @@ export async function generateMonthlyReportPackAction(
   });
 
   if (error) {
-    return { error: "Could not queue the monthly report pack. Check you have permission and try again." };
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the monthly report pack. Check you have permission and try again.") };
   }
 
   revalidatePath("/inspect/organisation/numbering");
@@ -109,7 +125,7 @@ export async function requestItpPdfAction(_prev: RequestItpPdfState, formData: F
   });
 
   if (error) {
-    return { error: "Could not queue the PDF. Check you have permission and try again." };
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the PDF. Check you have permission and try again.") };
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
@@ -190,7 +206,7 @@ export async function requestInspectionReportPdfAction(
   });
 
   if (error) {
-    return { error: "Could not queue the report. Check you have permission and try again." };
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the report. Check you have permission and try again.") };
   }
 
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
@@ -265,7 +281,7 @@ export async function requestFatReportPdfAction(
   });
 
   if (error) {
-    return { error: "Could not queue the report. Check you have permission and try again." };
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the report. Check you have permission and try again.") };
   }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
