@@ -10,6 +10,7 @@ const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: nul
 export function CloseOutForm({
   ncrId,
   assignedTo,
+  people,
   dueDate,
   rootCause,
   correctiveAction,
@@ -19,6 +20,7 @@ export function CloseOutForm({
 }: {
   ncrId: string;
   assignedTo: string | null;
+  people: { id: string; name: string }[];
   dueDate: string | null;
   rootCause: string | null;
   correctiveAction: string | null;
@@ -49,15 +51,22 @@ export function CloseOutForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="assigned_to" className="block text-sm font-medium text-ink">
-            Assigned to (user ID)
+            Assigned to
           </label>
-          <input
+          <select
             id="assigned_to"
             name="assigned_to"
             defaultValue={assignedTo ?? ""}
             disabled={isClosed}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
-          />
+          >
+            <option value="">Unassigned</option>
+            {people.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="due_date" className="block text-sm font-medium text-ink">
@@ -67,6 +76,7 @@ export function CloseOutForm({
             id="due_date"
             name="due_date"
             type="date"
+            required
             defaultValue={dueDate ?? ""}
             disabled={isClosed}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"

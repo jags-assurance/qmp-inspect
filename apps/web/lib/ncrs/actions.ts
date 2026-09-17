@@ -8,7 +8,6 @@ import {
   NCR_PHOTOS_TABLE,
   NCR_SEVERITIES,
   type NcrSeverity,
-  type NcrStatus,
 } from "@/lib/ncrs/types";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -17,6 +16,7 @@ import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
 
 export interface CreateNcrState {
   error: string | null;
@@ -38,6 +38,12 @@ export async function createNcrAction(
   }
   if (!NCR_SEVERITIES.includes(severity)) {
     return { error: "Invalid severity." };
+  }
+  // Round-table finding: without a required due date, the "Overdue NCRs" dashboard metric is
+  // structurally unreliable — an NCR with no due date can never be overdue. Enforced here, not
+  // just via the form's `required` attribute, since this action is the actual authority boundary.
+  if (!dueDate) {
+    return { error: "Due date is required." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -371,7 +377,8 @@ export async function suggestNcrRootCauseAction(
 // guard stopping a directly-crafted request from setting 'closed' with none of that evidence
 // present, no closed_by/closed_at stamp, and without closing the linked punch-list item — an NCR
 // could end up closed in a state indistinguishable, downstream, from a properly resolved one.
-const QUICK_ACTION_STATUSES: readonly NcrStatus[] = ["in_progress", "pending_verification"];
+// The allow-list + validation itself lives in resolveQuickActionStatus (status-logic.ts), pulled
+// out so it's unit-testable without a live DB — see lib/ncrs/__tests__/status-logic.test.ts.
 
 /**
  * Plain, non-CAPA status progression for the detail page's quick-action button — deliberately
@@ -381,8 +388,9 @@ const QUICK_ACTION_STATUSES: readonly NcrStatus[] = ["in_progress", "pending_ver
  */
 export async function setNcrStatusAction(formData: FormData) {
   const ncrId = String(formData.get("ncr_id") ?? "").trim();
-  const status = String(formData.get("status") ?? "").trim() as NcrStatus;
-  if (!ncrId || !QUICK_ACTION_STATUSES.includes(status)) return;
+  const requestedStatus = String(formData.get("status") ?? "").trim();
+  const status = resolveQuickActionStatus(ncrId, requestedStatus);
+  if (!status) return;
 
   const supabase = await createSupabaseServerClient();
   await supabase.from(NCRS_TABLE).update({ status }).eq("id", ncrId);

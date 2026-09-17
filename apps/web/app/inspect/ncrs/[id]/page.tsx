@@ -25,6 +25,7 @@ interface NcrDetail {
   verification_notes: string | null;
   closed_at: string | null;
   created_at: string;
+  project_id: string;
   projects: { name: string; project_number: string; organizations: { name: string } | null } | null;
   itp_items: { item_number: string; activity: string } | null;
 }
@@ -130,10 +131,12 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   const { data: ncr } = await supabase
     .from(NCRS_TABLE)
     .select(
-      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, projects(name, project_number, organizations(name)), itp_items(item_number, activity)"
+      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, project_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
     )
     .eq("id", id)
-    .maybeSingle<NcrDetail>();
+    .maybeSingle<
+      NcrDetail & { projects: NcrDetail["projects"] & { organization_id: string } }
+    >();
 
   if (!ncr) notFound();
 
@@ -143,6 +146,44 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
     .eq("ncr_id", id)
     .order("created_at")
     .returns<NcrPhotoRow[]>();
+
+  // Same "real people with access to this project" resolution as the raise-NCR form (see
+  // app/inspect/ncrs/new/page.tsx) — access_grants (global/organization/project staff scopes) plus
+  // project_parties rows linked to a login — just scoped to this NCR's one already-known project.
+  const organizationId = ncr.projects?.organization_id ?? null;
+  const [{ data: users }, { data: grants }, { data: parties }] = await Promise.all([
+    supabase.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<
+      { id: string; full_name: string; email: string }[]
+    >(),
+    supabase
+      .from("access_grants")
+      .select("user_id, scope_type, organization_id, project_id")
+      .returns<{ user_id: string; scope_type: "global" | "organization" | "project"; organization_id: string | null; project_id: string | null }[]>(),
+    supabase
+      .from("project_parties")
+      .select("user_id")
+      .eq("project_id", ncr.project_id)
+      .eq("is_active", true)
+      .not("user_id", "is", null)
+      .returns<{ user_id: string | null }[]>(),
+  ]);
+
+  const userById = new Map((users ?? []).map((u) => [u.id, u]));
+  const people: { id: string; name: string }[] = [];
+  const addPerson = (userId: string) => {
+    const user = userById.get(userId);
+    if (!user || people.some((p) => p.id === userId)) return;
+    people.push({ id: user.id, name: user.full_name || user.email });
+  };
+  for (const grant of grants ?? []) {
+    if (grant.scope_type === "global") addPerson(grant.user_id);
+    else if (grant.scope_type === "organization" && grant.organization_id === organizationId) addPerson(grant.user_id);
+    else if (grant.scope_type === "project" && grant.project_id === ncr.project_id) addPerson(grant.user_id);
+  }
+  for (const party of parties ?? []) {
+    if (party.user_id) addPerson(party.user_id);
+  }
+  people.sort((a, b) => a.name.localeCompare(b.name));
 
   const isClosed = ncr.status === "closed";
   const nextStatus = NEXT_STATUS[ncr.status];
@@ -219,6 +260,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
           <CloseOutForm
             ncrId={ncr.id}
             assignedTo={ncr.assigned_to}
+            people={people}
             dueDate={ncr.due_date}
             rootCause={ncr.root_cause}
             correctiveAction={ncr.corrective_action}

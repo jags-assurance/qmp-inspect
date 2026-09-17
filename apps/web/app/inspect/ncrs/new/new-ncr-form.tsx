@@ -29,8 +29,10 @@ const SEVERITY_PILL_CLASS: Record<NcrSeverity, string> = {
 
 export function NewNcrForm({
   projects,
+  peopleByProject,
 }: {
   projects: { id: string; project_number: string; name: string }[];
+  peopleByProject: Record<string, { id: string; name: string }[]>;
 }) {
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
   const [draftState, draftFormAction, draftPending] = useActionState(
@@ -180,14 +182,23 @@ export function NewNcrForm({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="assigned_to" className="block text-sm font-medium text-ink">
-              Assigned to (user ID)
+              Assigned to
             </label>
-            <input
+            <select
               id="assigned_to"
               name="assigned_to"
-              placeholder="Optional"
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
-            />
+              defaultValue=""
+              disabled={!projectId}
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+            >
+              <option value="">Unassigned</option>
+              {(peopleByProject[projectId] ?? []).map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+            {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
           </div>
           <div>
             <label htmlFor="due_date" className="block text-sm font-medium text-ink">
@@ -197,6 +208,7 @@ export function NewNcrForm({
               id="due_date"
               name="due_date"
               type="date"
+              required
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
