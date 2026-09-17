@@ -4,8 +4,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
-import { InterventionSelect } from "@/components/domain/intervention-select";
-import { SignoffCell } from "@/components/domain/signoff-cell";
+import { ActivitySignoffCard } from "./activity-signoff-card";
 import { advanceItpStatusAction, acceptItpAction } from "@/lib/itps/actions";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
@@ -385,92 +384,51 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 {section.section_number}. {section.title}
               </h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted">
-                    <th className="px-3 py-2 font-medium">Item</th>
-                    <th className="px-3 py-2 font-medium">Activity</th>
-                    <th className="px-3 py-2 font-medium">Acceptance criteria</th>
-                    <th className="px-3 py-2 font-medium">Evidence</th>
-                    <th className="px-3 py-2 font-medium">Discipline</th>
-                    {(parties ?? []).map((party) => (
-                      <th key={party.id} className="px-2 py-2 text-center font-medium">
-                        {party.name}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...(section.itp_items ?? [])]
-                    .sort((a, b) => a.sort_order - b.sort_order)
-                    .map((item) => (
-                      <Fragment key={item.id}>
-                        <tr className="border-b border-border last:border-0">
-                          <td className="doc-id px-3 py-2 text-ink">{item.item_number}</td>
-                          <td className="px-3 py-2 text-ink">{item.activity}</td>
-                          <td className="px-3 py-2 text-muted">{item.acceptance_criteria ?? "—"}</td>
-                          <td className="px-3 py-2 text-muted">{EVIDENCE_LABEL[item.evidence_type]}</td>
-                          <td className="px-3 py-2 text-muted">
-                            {item.discipline_id ? (
-                              <Badge tone="neutral">{disciplineByid.get(item.discipline_id) ?? "—"}</Badge>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                          {(parties ?? []).map((party) => {
-                            const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
-                            const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
-                            return (
-                              <td key={party.id} className="px-2 py-2 text-center">
-                                <div className="flex flex-col items-center gap-1">
-                                  <InterventionSelect
-                                    itpId={itp.id}
-                                    itpItemId={item.id}
-                                    projectPartyId={party.id}
-                                    value={intervention}
-                                    editable={canEditContent}
-                                  />
-                                  {intervention && signoff && (
-                                    <SignoffCell
-                                      progressId={signoff.id}
-                                      intervention={intervention}
-                                      status={signoff.status}
-                                      notifiedAt={signoff.notified_at}
-                                      noticeHours={noticeHours[intervention as "H" | "W"] ?? null}
-                                      canSignOff={canSignOffFor(party.user_id)}
-                                      isJagsStaff={session.isJagsStaff}
-                                    />
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        {/* R54-R56: expected -> received third-party test record tracking per activity. */}
-                        <tr key={`${item.id}-expected-records`} className="border-b border-border last:border-0 bg-off-white/40">
-                          <td colSpan={5 + (parties ?? []).length} className="p-0">
-                            <ExpectedRecordsSection
-                              itpItemId={item.id}
-                              records={expectedRecordsByItem.get(item.id) ?? []}
-                              canAdd={session.isJagsStaff}
-                              canMarkReceivedByProvider={canMarkReceivedByProvider}
-                              projectId={itp.projects?.id ?? ""}
-                              vaultDocuments={vaultDocuments}
-                            />
-                          </td>
-                        </tr>
-                      </Fragment>
-                    ))}
-                  {(section.itp_items ?? []).length === 0 && (
-                    <tr>
-                      <td colSpan={5 + (parties ?? []).length} className="px-3 py-6 text-center text-muted">
-                        No activities in this section yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            {/* Sign-off chain: one card per activity, with each party's H/W/R/S level + sign-off
+                status laid out as a horizontal chain of chips (see ActivitySignoffCard) instead of a
+                dense wide table — reads clearly at any viewport, including 375px phone width, with
+                no horizontal scrolling needed. */}
+            <div>
+              {[...(section.itp_items ?? [])]
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map((item) => {
+                  const partyCells = (parties ?? []).map((party) => {
+                    const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
+                    const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
+                    return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id) };
+                  });
+                  return (
+                    <Fragment key={item.id}>
+                      <ActivitySignoffCard
+                        itpId={itp.id}
+                        itemId={item.id}
+                        itemNumber={item.item_number}
+                        activity={item.activity}
+                        acceptanceCriteria={item.acceptance_criteria}
+                        evidenceLabel={EVIDENCE_LABEL[item.evidence_type]}
+                        disciplineCode={item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null}
+                        partyCells={partyCells}
+                        canEditContent={canEditContent}
+                        isJagsStaff={session.isJagsStaff}
+                        noticeHours={noticeHours}
+                      />
+                      {/* R54-R56: expected -> received third-party test record tracking per activity. */}
+                      <div className="border-b border-border px-4 py-3 last:border-0 bg-off-white/40">
+                        <ExpectedRecordsSection
+                          itpItemId={item.id}
+                          records={expectedRecordsByItem.get(item.id) ?? []}
+                          canAdd={session.isJagsStaff}
+                          canMarkReceivedByProvider={canMarkReceivedByProvider}
+                          projectId={itp.projects?.id ?? ""}
+                          vaultDocuments={vaultDocuments}
+                        />
+                      </div>
+                    </Fragment>
+                  );
+                })}
+              {(section.itp_items ?? []).length === 0 && (
+                <p className="px-3 py-6 text-center text-muted">No activities in this section yet.</p>
+              )}
             </div>
             {canEditContent && (
               <AddItemForm itpId={itp.id} sectionId={section.id} disciplines={disciplines ?? []} />
