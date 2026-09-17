@@ -7,6 +7,7 @@ import {
   MATERIAL_APPROVAL_STATUSES,
   MATERIAL_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
+  PERSONNEL_CERTIFICATIONS_TABLE,
   type MaterialApprovalStatus,
 } from "@/lib/registers/types";
 
@@ -118,6 +119,46 @@ export async function addMaterialEntryAction(
 
   if (error) {
     return { error: "Could not add the material entry. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/projects/${projectId}/registers`);
+  return { error: null };
+}
+
+export interface AddPersonnelCertificationEntryState {
+  error: string | null;
+}
+
+/** Manual "add row" form on the project's Personnel Certifications register. */
+export async function addPersonnelCertificationEntryAction(
+  _prev: AddPersonnelCertificationEntryState,
+  formData: FormData
+): Promise<AddPersonnelCertificationEntryState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const projectPartyId = String(formData.get("project_party_id") ?? "").trim();
+  const certificationType = String(formData.get("certification_type") ?? "").trim();
+  const certNumber = String(formData.get("cert_number") ?? "").trim();
+  const issuedDate = String(formData.get("issued_date") ?? "").trim();
+  const expiryDate = String(formData.get("expiry_date") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  if (!projectId || !projectPartyId || !certificationType || !expiryDate) {
+    return { error: "Person, certification type, and expiry date are required." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(PERSONNEL_CERTIFICATIONS_TABLE).insert({
+    project_id: projectId,
+    project_party_id: projectPartyId,
+    certification_type: certificationType,
+    cert_number: certNumber || null,
+    issued_date: issuedDate || null,
+    expiry_date: expiryDate,
+    notes: notes || null,
+  });
+
+  if (error) {
+    return { error: "Could not add the certification entry. Check you have permission and try again." };
   }
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);

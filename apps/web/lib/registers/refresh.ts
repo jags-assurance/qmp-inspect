@@ -2,16 +2,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CALIBRATION_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
+  PERSONNEL_CERTIFICATIONS_TABLE,
   type CalibrationRegisterRow,
   type CalibrationStatus,
   type WelderQualificationRegisterRow,
   type WelderQualificationStatus,
+  type PersonnelCertificationRow,
+  type PersonnelCertificationStatus,
 } from "./types";
 
 // Windows for the "due soon" / "expiring" bands, per the task spec (30/90 days). Calibration due
 // dates are typically tighter-cycle than welder quals, so it gets the shorter warning window.
 const CALIBRATION_DUE_SOON_DAYS = 30;
 const WELDER_EXPIRING_DAYS = 90;
+// Personal certifications (AWS CWI, ASNT NDT, CSWIP, etc.) typically carry a renewal/CPD cycle an
+// inspection body needs real lead time to act on — same warning window as welder quals.
+const PERSONNEL_CERTIFICATION_EXPIRING_DAYS = 90;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -34,6 +40,13 @@ function computeWelderStatus(expiryDate: string, today: Date): WelderQualificati
   return "valid";
 }
 
+function computePersonnelCertificationStatus(expiryDate: string, today: Date): PersonnelCertificationStatus {
+  const days = daysUntil(expiryDate, today);
+  if (days < 0) return "expired";
+  if (days <= PERSONNEL_CERTIFICATION_EXPIRING_DAYS) return "expiring_soon";
+  return "valid";
+}
+
 /**
  * Recomputes what each register row's `status` *should* be from today's date, and updates any row
  * whose stored value has gone stale. Called at the top of the registers page load (R92-R100) — a
@@ -48,7 +61,7 @@ export async function refreshRegisterStatuses(supabase: SupabaseClient, projectI
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [{ data: calibrationRows }, { data: welderRows }] = await Promise.all([
+  const [{ data: calibrationRows }, { data: welderRows }, { data: personnelCertRows }] = await Promise.all([
     supabase
       .from(CALIBRATION_REGISTER_TABLE)
       .select("id, due_date, status")
@@ -59,6 +72,11 @@ export async function refreshRegisterStatuses(supabase: SupabaseClient, projectI
       .select("id, expiry_date, status")
       .eq("project_id", projectId)
       .returns<Pick<WelderQualificationRegisterRow, "id" | "expiry_date" | "status">[]>(),
+    supabase
+      .from(PERSONNEL_CERTIFICATIONS_TABLE)
+      .select("id, expiry_date, status")
+      .eq("project_id", projectId)
+      .returns<Pick<PersonnelCertificationRow, "id" | "expiry_date" | "status">[]>(),
   ]);
 
   const calibrationUpdates = (calibrationRows ?? [])
@@ -69,12 +87,19 @@ export async function refreshRegisterStatuses(supabase: SupabaseClient, projectI
     .map((row) => ({ id: row.id, next: computeWelderStatus(row.expiry_date, today), prev: row.status }))
     .filter((row) => row.next !== row.prev);
 
+  const personnelCertUpdates = (personnelCertRows ?? [])
+    .map((row) => ({ id: row.id, next: computePersonnelCertificationStatus(row.expiry_date, today), prev: row.status }))
+    .filter((row) => row.next !== row.prev);
+
   await Promise.all([
     ...calibrationUpdates.map((row) =>
       supabase.from(CALIBRATION_REGISTER_TABLE).update({ status: row.next }).eq("id", row.id)
     ),
     ...welderUpdates.map((row) =>
       supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).update({ status: row.next }).eq("id", row.id)
+    ),
+    ...personnelCertUpdates.map((row) =>
+      supabase.from(PERSONNEL_CERTIFICATIONS_TABLE).update({ status: row.next }).eq("id", row.id)
     ),
   ]);
 }

@@ -12,6 +12,7 @@
 export const CALIBRATION_REGISTER_TABLE = "calibration_register" as any;
 export const WELDER_QUALIFICATION_REGISTER_TABLE = "welder_qualification_register" as any;
 export const MATERIAL_REGISTER_TABLE = "material_register" as any;
+export const PERSONNEL_CERTIFICATIONS_TABLE = "personnel_certifications" as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export const CALIBRATION_STATUSES = ["valid", "due_soon", "expired"] as const;
@@ -63,6 +64,26 @@ export interface MaterialRegisterRow {
   submittal_reference: string | null;
   approval_status: MaterialApprovalStatus;
   approved_date: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+// Round-table finding: this app tracked calibration/welder-qualification/material registers but had
+// no register for whether the PERSON performing/signing off an inspection actually holds a current,
+// valid qualification for that activity type. certification_type is free text (e.g. "AWS CWI",
+// "ASNT NDT Level II") since real-world cert schemes vary too widely to enumerate.
+export const PERSONNEL_CERTIFICATION_STATUSES = ["valid", "expiring_soon", "expired"] as const;
+export type PersonnelCertificationStatus = (typeof PERSONNEL_CERTIFICATION_STATUSES)[number];
+
+export interface PersonnelCertificationRow {
+  id: string;
+  project_id: string;
+  project_party_id: string;
+  certification_type: string;
+  cert_number: string | null;
+  issued_date: string | null;
+  expiry_date: string;
+  status: PersonnelCertificationStatus;
   notes: string | null;
   created_at: string;
 }
