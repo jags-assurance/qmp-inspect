@@ -11,6 +11,18 @@ modified, or exposed outside of its intended access boundaries — most concrete
 system like this one, a **cross-tenant or cross-project data-isolation gap**: a user or process
 seeing or writing data belonging to an organisation or project they should not have access to.
 
+## Error tracking
+
+Sentry is scaffolded in both the web app (`apps/web/instrumentation.ts`,
+`instrumentation-client.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`) and the worker
+(`worker/src/index.ts`) — but genuinely inactive until `SENTRY_DSN` (and, for the browser,
+`NEXT_PUBLIC_SENTRY_DSN`) is set, since no Sentry account/project exists yet. Until then, this
+runbook's "who finds out about a production error" story is still exactly what it was before:
+whatever a person notices, plus the console logs each service already writes (`[worker] ...` lines
+in Railway's log viewer, `console.error` in Next.js's server logs) — nothing pushes a notification
+anywhere. Setting up the real Sentry project and both DSNs closes that gap; until then, do not
+assume errors are being tracked anywhere they aren't explicitly logged.
+
 ## Who gets notified internally
 
 - The engineer or reviewer who discovers or suspects the issue notifies the JAGS technical lead

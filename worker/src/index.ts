@@ -1,4 +1,5 @@
 import "dotenv/config";
+import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase";
 import { renderItpPdf } from "./jobs/renderItpPdf";
 import { generateMonthlyReportPack } from "./jobs/generateMonthlyReportPack";
@@ -13,6 +14,25 @@ import type {
   RenderItpPdfPayload,
   RenderPortfolioSummaryPdfPayload,
 } from "./jobs/types";
+
+// Round-table SRE finding: a worker crash-loop or stall previously failed silently — logQueueHealth
+// only logs, nobody is alerted. A true no-op until SENTRY_DSN is actually set (no Sentry account
+// exists yet) — see apps/web/sentry.server.config.ts for the same gating pattern on the web side,
+// and docs/INCIDENT_RESPONSE.md for the current status.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
+}
+
+/** console.error plus (when configured) Sentry.captureException — never instead of the console log,
+ *  which Railway's own log viewer already depends on. */
+function reportError(context: string, error: unknown): void {
+  console.error(context, error instanceof Error ? error.message : error);
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
+      tags: { context },
+    });
+  }
+}
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -148,7 +168,7 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[worker] Job ${job.id} failed:`, message);
+    reportError(`[worker] Job ${job.id} (${job.job_type}) failed:`, err);
     await markFailed(job.id, message);
   }
 }
@@ -208,7 +228,7 @@ async function pollOnce(cycle: number): Promise<void> {
 async function main() {
   const { error } = await supabase.from("organizations").select("id").limit(1);
   if (error) {
-    console.error("[worker] Supabase connectivity check failed:", error.message);
+    reportError("[worker] Supabase connectivity check failed:", error);
     process.exit(1);
   }
 
@@ -217,7 +237,7 @@ async function main() {
   let cycle = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    await pollOnce(cycle).catch((err) => console.error("[worker] Unexpected error in poll loop:", err));
+    await pollOnce(cycle).catch((err) => reportError("[worker] Unexpected error in poll loop:", err));
     cycle += 1;
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
