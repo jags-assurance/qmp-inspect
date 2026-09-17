@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,8 +26,17 @@ export interface SessionContext {
  * Loads the current user's profile + access grants. Every field here is already RLS-scoped to
  * "what this user is allowed to see" — there is no separate permission check layered on top,
  * because the database is the permission check.
+ *
+ * Performance: wrapped in React's `cache()` (request-scoped memoization for Server
+ * Components/Actions) because both `apps/web/app/inspect/layout.tsx` and every nested page call
+ * `requireSession()`/`getSessionContext()` independently — before this, a single page load paid
+ * for TWO full auth+DB round-trips (layout, then page again) on top of the middleware's own
+ * `auth.getUser()` check, i.e. 3 separate auth validations per request. `cache()` collapses same-
+ * request calls into one. The two DB queries below (`users`, `access_grants`) are also now fired
+ * in parallel instead of sequentially — they're independent, so there's no reason to wait for one
+ * before starting the other.
  */
-export async function getSessionContext(): Promise<SessionContext | null> {
+export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -35,24 +45,22 @@ export async function getSessionContext(): Promise<SessionContext | null> {
 
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("id, email, full_name, is_jags_staff, staff_role")
-    .eq("id", user.id)
-    .single<{
-      id: string;
-      email: string;
-      full_name: string;
-      is_jags_staff: boolean;
-      staff_role: StaffRole;
-    }>();
+  const [{ data: profile }, { data: grants }] = await Promise.all([
+    supabase
+      .from("users")
+      .select("id, email, full_name, is_jags_staff, staff_role")
+      .eq("id", user.id)
+      .single<{
+        id: string;
+        email: string;
+        full_name: string;
+        is_jags_staff: boolean;
+        staff_role: StaffRole;
+      }>(),
+    supabase.from("access_grants").select("scope_type, organization_id, project_id, role").eq("user_id", user.id),
+  ]);
 
   if (!profile) return null;
-
-  const { data: grants } = await supabase
-    .from("access_grants")
-    .select("scope_type, organization_id, project_id, role")
-    .eq("user_id", user.id);
 
   return {
     userId: profile.id,
@@ -62,7 +70,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     staffRole: profile.staff_role,
     grants: grants ?? [],
   };
-}
+});
 
 /** Use in a Server Component/layout that requires a signed-in user; redirects to /login otherwise. */
 export async function requireSession(): Promise<SessionContext> {
