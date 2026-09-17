@@ -11,6 +11,11 @@ const PUBLIC_PATHS = [
   "/api/health",
 ];
 
+// Requires a signed-in user (unlike the fully public paths above) but must itself be reachable
+// *before* AAL2 is reached — otherwise a user who needs the challenge could never reach the page
+// that lets them clear it.
+const MFA_CHALLENGE_PATH = "/mfa/challenge";
+
 /**
  * Refreshes the Supabase session on every request (required by @supabase/ssr) and redirects
  * signed-out users away from anything but the public auth routes. This is a UX convenience, not
@@ -64,6 +69,23 @@ export async function proxy(request: NextRequest) {
 
   if (user && request.nextUrl.pathname === "/login") {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // MFA gate: opt-in, not mandatory (see lib/auth/mfa-actions.ts / app/inspect/organisation/
+  // security) — this only ever fires for an account that has itself enrolled a verified TOTP
+  // factor, which is exactly what flips Supabase's `nextLevel` to aal2. Every other account is
+  // unaffected. `currentLevel` reaches aal2 only after the /mfa/challenge page's
+  // challengeAndVerify() call succeeds for *this* session.
+  if (user && !isPublicPath) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const needsChallenge = aal && aal.nextLevel === "aal2" && aal.currentLevel !== aal.nextLevel;
+
+    if (needsChallenge && request.nextUrl.pathname !== MFA_CHALLENGE_PATH) {
+      return NextResponse.redirect(new URL(MFA_CHALLENGE_PATH, request.url));
+    }
+    if (!needsChallenge && request.nextUrl.pathname === MFA_CHALLENGE_PATH) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
   }
 
   return response;

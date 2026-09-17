@@ -23,6 +23,15 @@ export async function signInAction(_prev: SignInState, formData: FormData): Prom
     return { error: "Invalid email or password." };
   }
 
+  // Password sign-in alone only ever reaches AAL1. An account with a verified TOTP factor
+  // (enrolled at /inspect/organisation/security) needs a second step before it gets a full
+  // session — proxy.ts enforces the same check on every subsequent request, this just avoids an
+  // extra redirect hop right after sign-in.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+    redirect("/mfa/challenge");
+  }
+
   redirect("/");
 }
 
