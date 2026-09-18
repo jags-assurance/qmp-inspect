@@ -107,6 +107,23 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // itp_items.sort_order defaults to 0 in the schema, and this was the only item-creation path that
+  // never set it (the AI-draft and master-template-clone paths both assign sort_order: i on insert —
+  // see ai-draft-actions.ts and itp-master/actions.ts). Every manually-added item was landing at 0,
+  // so once a section had more than one, display order fell back to whatever order Postgrest's
+  // embedded-resource query happened to return — not necessarily the item_number sequence the
+  // inspector actually typed. Appending after the current highest sort_order in this section keeps
+  // manually-added items in the order they were added, matching the other two creation paths.
+  const { data: lastItem } = await supabase
+    .from("itp_items")
+    .select("sort_order")
+    .eq("section_id", sectionId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ sort_order: number }>();
+  const nextSortOrder = (lastItem?.sort_order ?? -1) + 1;
+
   const { error } = await supabase.from("itp_items").insert({
     section_id: sectionId,
     item_number: itemNumber,
@@ -114,6 +131,7 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     acceptance_criteria: acceptanceCriteria || null,
     evidence_type: evidenceType === 2 || evidenceType === 3 ? evidenceType : 1,
     discipline_id: disciplineId || null,
+    sort_order: nextSortOrder,
   });
 
   if (error) {
