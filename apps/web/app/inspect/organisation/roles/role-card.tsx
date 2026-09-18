@@ -1,0 +1,146 @@
+"use client";
+
+import { useActionState } from "react";
+import {
+  deleteCustomRoleAction,
+  toggleRolePermissionAction,
+  assignCustomRoleAction,
+  unassignCustomRoleAction,
+  type RbacActionState,
+  type AssignCustomRoleState,
+} from "@/lib/rbac/actions";
+import { PERMISSION_KEYS, PERMISSION_LABEL, type PermissionKey } from "@/lib/rbac/types";
+import { Button } from "@/components/ui/button";
+
+const deleteInitial: RbacActionState = { error: null };
+const toggleInitial: RbacActionState = { error: null };
+const assignInitial: AssignCustomRoleState = { error: null };
+
+export interface RoleCardData {
+  id: string;
+  name: string;
+  organizationName: string | null;
+  grantedPermissions: Set<PermissionKey>;
+  assignments: { id: string; userName: string; userEmail: string; projectName: string | null }[];
+}
+
+export function RoleCard({
+  role,
+  users,
+  projects,
+}: {
+  role: RoleCardData;
+  users: { id: string; full_name: string; email: string }[];
+  projects: { id: string; name: string }[];
+}) {
+  const [deleteState, deleteAction, deletePending] = useActionState(deleteCustomRoleAction, deleteInitial);
+  const [toggleState, toggleAction] = useActionState(toggleRolePermissionAction, toggleInitial);
+  const [assignState, assignAction, assignPending] = useActionState(assignCustomRoleAction, assignInitial);
+
+  return (
+    <div className="rounded-lg border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium text-ink">{role.name}</p>
+          <p className="text-xs text-muted">{role.organizationName ?? "JAGS-global"}</p>
+        </div>
+        <form action={deleteAction}>
+          <input type="hidden" name="role_id" value={role.id} />
+          <button type="submit" disabled={deletePending} className="text-xs text-danger hover:underline disabled:opacity-50">
+            {deletePending ? "Deleting…" : "Delete role"}
+          </button>
+        </form>
+      </div>
+      {deleteState.error && <p className="mt-1 text-xs text-danger">{deleteState.error}</p>}
+
+      <div className="mt-3">
+        <p className="text-xs font-medium text-muted">Permissions</p>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {PERMISSION_KEYS.map((key) => {
+            const granted = role.grantedPermissions.has(key);
+            return (
+              <form key={key} action={toggleAction}>
+                <input type="hidden" name="role_id" value={role.id} />
+                <input type="hidden" name="permission_key" value={key} />
+                <input type="hidden" name="grant" value={granted ? "" : "on"} />
+                <button
+                  type="submit"
+                  className={
+                    "rounded-full border px-2.5 py-1 text-xs font-medium " +
+                    (granted ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border text-muted hover:bg-off-white")
+                  }
+                >
+                  {PERMISSION_LABEL[key]}
+                </button>
+              </form>
+            );
+          })}
+        </div>
+        {toggleState.error && <p className="mt-1 text-xs text-danger">{toggleState.error}</p>}
+      </div>
+
+      <div className="mt-4 border-t border-border pt-3">
+        <p className="text-xs font-medium text-muted">Assigned to</p>
+        <div className="mt-1 space-y-1">
+          {role.assignments.map((a) => (
+            <AssignmentRow key={a.id} assignmentId={a.id} userName={a.userName} userEmail={a.userEmail} projectName={a.projectName} />
+          ))}
+          {role.assignments.length === 0 && <p className="text-xs text-muted">No one holds this role yet.</p>}
+        </div>
+
+        <form action={assignAction} className="mt-2 flex flex-wrap items-end gap-2">
+          <input type="hidden" name="role_id" value={role.id} />
+          <select name="user_id" required className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy">
+            <option value="">— choose person —</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name} ({u.email})
+              </option>
+            ))}
+          </select>
+          <select name="project_id" className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy">
+            <option value="">Org/platform-wide</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} only
+              </option>
+            ))}
+          </select>
+          <Button type="submit" size="sm" disabled={assignPending}>
+            {assignPending ? "Assigning…" : "Assign"}
+          </Button>
+        </form>
+        {assignState.error && <p className="mt-1 text-xs text-danger">{assignState.error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function AssignmentRow({
+  assignmentId,
+  userName,
+  userEmail,
+  projectName,
+}: {
+  assignmentId: string;
+  userName: string;
+  userEmail: string;
+  projectName: string | null;
+}) {
+  const [state, action, pending] = useActionState(unassignCustomRoleAction, assignInitial);
+
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-ink">
+        {userName} ({userEmail}) {projectName ? `· ${projectName} only` : "· org/platform-wide"}
+      </span>
+      <form action={action}>
+        <input type="hidden" name="assignment_id" value={assignmentId} />
+        <button type="submit" disabled={pending} className="text-muted hover:text-danger hover:underline disabled:opacity-50">
+          {pending ? "Removing…" : "Remove"}
+        </button>
+      </form>
+      {state.error && <span className="ml-2 text-danger">{state.error}</span>}
+    </div>
+  );
+}

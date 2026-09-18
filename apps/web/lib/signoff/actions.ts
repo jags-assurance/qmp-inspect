@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/helpers";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
@@ -479,9 +480,16 @@ export async function reassignSignoffPartyAction(
 
   if (!party) return { error: "Party not found." };
 
-  const allowed = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, party.project_id));
+  // Custom RBAC (CEO ask): a project-scoped or org-wide "reassign_project_party" grant is an
+  // additional allow-path alongside Admin/team-lead — never a replacement (see
+  // lib/rbac/permissions.ts). project_parties_write RLS (20260918020000_custom_rbac.sql) mirrors this
+  // exact check, so a grant here isn't silently rejected at the database layer.
+  const allowed =
+    isAdminStaff(session) ||
+    (await isTeamLeadForProject(supabase, session.userId, party.project_id)) ||
+    (await hasPermission(session.userId, "reassign_project_party", party.project_id));
   if (!allowed) {
-    return { error: "Only a JAGS Admin, or a lead of a team assigned to this project, can reassign a party." };
+    return { error: "Only a JAGS Admin, a lead of a team assigned to this project, or someone granted this permission, can reassign a party." };
   }
 
   const { error } = await supabase

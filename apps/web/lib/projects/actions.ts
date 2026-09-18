@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
+import { hasPermission } from "@/lib/rbac/permissions";
 
 export interface CreateProjectState {
   error: string | null;
@@ -99,9 +100,16 @@ export async function addProjectPartyAction(
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const allowed = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, projectId));
+  // Custom RBAC (CEO ask): a project-scoped or org-wide "add_project_party" grant is an additional
+  // allow-path alongside Admin/team-lead — never a replacement for either (see lib/rbac/permissions.ts).
+  // Lets an Admin hand this one specific capability to a staff member or a client's own user without
+  // making them a team lead or promoting them to Admin.
+  const allowed =
+    isAdminStaff(session) ||
+    (await isTeamLeadForProject(supabase, session.userId, projectId)) ||
+    (await hasPermission(session.userId, "add_project_party", projectId));
   if (!allowed) {
-    return { error: "Only a JAGS Admin, or a lead of a team assigned to this project, can add a project party." };
+    return { error: "Only a JAGS Admin, a lead of a team assigned to this project, or someone granted this permission, can add a project party." };
   }
 
   const { error } = await supabase.from("project_parties").insert({

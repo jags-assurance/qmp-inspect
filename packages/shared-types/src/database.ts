@@ -688,6 +688,10 @@ export interface Database {
       is_jags_staff: { Args: Record<string, never>; Returns: boolean };
       has_org_access: { Args: { target_org_id: string }; Returns: boolean };
       accept_itp: { Args: { target_itp_id: string }; Returns: undefined };
+      has_custom_permission: {
+        Args: { target_user_id: string; target_permission_key: string; target_project_id: string | null };
+        Returns: boolean;
+      };
       insert_checklists_atomic: {
         Args: { templates: unknown };
         Returns: { id: string; itp_item_id: string }[];

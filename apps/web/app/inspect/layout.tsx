@@ -57,6 +57,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Reporting", href: "/inspect/organisation/reporting" },
           { label: "Staff Access", href: "/inspect/organisation/staff-access" },
           { label: "Teams", href: "/inspect/organisation/teams" },
+          { label: "Custom Roles", href: "/inspect/organisation/roles" },
         ]
       : []),
     ...(showTeamsNav && !isAdminStaff(session)
