@@ -251,10 +251,11 @@ export async function advanceItpStatusAction(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const now = new Date().toISOString();
   const update =
     nextStatus === "under_review"
-      ? { status: nextStatus, reviewed_by: user?.id ?? null }
-      : { status: nextStatus, approved_by: user?.id ?? null };
+      ? { status: nextStatus, reviewed_by: user?.id ?? null, reviewed_at: now }
+      : { status: nextStatus, approved_by: user?.id ?? null, approved_at: now };
 
   const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
 

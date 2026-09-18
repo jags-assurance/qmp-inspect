@@ -483,7 +483,7 @@ export async function finalizeAssignmentAction(
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
-    .update({ status: "completed", conclusion })
+    .update({ status: "completed", conclusion, completed_at: new Date().toISOString() })
     .eq("id", assignmentId)
     .eq("status", "draft")
     .select("id, project_id, assignment_number, equipment_description, created_by")

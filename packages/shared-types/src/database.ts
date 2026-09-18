@@ -258,7 +258,9 @@ export interface Database {
           status: "draft" | "under_review" | "approved" | "client_accepted";
           prepared_by: string | null;
           reviewed_by: string | null;
+          reviewed_at: string | null;
           approved_by: string | null;
+          approved_at: string | null;
           client_accepted_by: string | null;
           client_accepted_at: string | null;
           created_at: string;
@@ -275,7 +277,9 @@ export interface Database {
           status?: "draft" | "under_review" | "approved" | "client_accepted";
           prepared_by?: string | null;
           reviewed_by?: string | null;
+          reviewed_at?: string | null;
           approved_by?: string | null;
+          approved_at?: string | null;
           client_accepted_by?: string | null;
           client_accepted_at?: string | null;
           created_at?: string;
@@ -549,6 +553,7 @@ export interface Database {
           conclusion: "pass" | "conditional_pass" | "fail" | null;
           notes: string | null;
           created_by: string | null;
+          completed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -568,6 +573,7 @@ export interface Database {
           conclusion?: "pass" | "conditional_pass" | "fail" | null;
           notes?: string | null;
           created_by?: string | null;
+          completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

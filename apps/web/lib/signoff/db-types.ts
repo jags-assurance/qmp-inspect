@@ -48,6 +48,7 @@ export interface ActivitySignoffProgressRow {
   signed_off_at: string | null;
   signed_off_by: string | null;
   proceeded_reason: string | null;
+  proceeded_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -384,6 +384,7 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
     .update({
       status: "proceeded_no_response",
       proceeded_reason: `Party notified ${progress.notified_at}; no response within notice period; proceeded at originator's discretion.`,
+      proceeded_at: new Date().toISOString(),
     })
     .eq("id", progressId);
 
