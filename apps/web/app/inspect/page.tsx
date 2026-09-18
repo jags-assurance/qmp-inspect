@@ -81,10 +81,25 @@ export default async function InspectDashboardPage() {
     // countersign any party) it's less meaningful, so the panel only renders for a linked party.
     supabase
       .from("project_parties")
-      .select("id, name, party_type, projects(organization_id)")
+      .select("id, name, party_type, project_id, projects(organization_id, name)")
       .eq("user_id", session.userId)
-      .returns<{ id: string; name: string; party_type: string; projects: { organization_id: string } | null }[]>(),
+      .returns<
+        { id: string; name: string; party_type: string; project_id: string; projects: { organization_id: string; name: string } | null }[]
+      >(),
   ]);
+
+  // Round-table finding: an external party's dashboard had no direct path to a project's PDF/Excel
+  // reports, data book or activity timeline — only the stat cards and sign-off queues above. Those
+  // pages already exist and are already RLS-scoped to this party (see the project hub page's own
+  // HubCards), they just weren't surfaced anywhere before the party drilled into a specific project.
+  // Deduplicated by project_id since one party can be linked under more than one project_parties row.
+  const myProjects = [
+    ...new Map(
+      (ownParties ?? [])
+        .filter((p) => p.project_id && p.projects?.name)
+        .map((p) => [p.project_id, { id: p.project_id, name: p.projects!.name }])
+    ).values(),
+  ];
 
   // This party's organisation's configured intervention levels (supabase/migrations/
   // 20260917090000_configurable_intervention_levels.sql) — used below to give ExternalPartyDashboard
@@ -547,6 +562,7 @@ export default async function InspectDashboardPage() {
         activeItps={activeItps ?? 0}
         pendingInspections={pendingInspections ?? 0}
         openNcrs={openNcrs ?? 0}
+        myProjects={myProjects}
         itpsAwaitingAcceptance={itpsAwaitingAcceptance.map((itp) => ({
           id: itp.id,
           itpNumber: itp.itp_number,

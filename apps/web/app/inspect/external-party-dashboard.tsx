@@ -76,6 +76,11 @@ export interface ItpAwaitingAcceptanceRow {
   projectName: string;
 }
 
+export interface MyProjectRow {
+  id: string;
+  name: string;
+}
+
 export interface AssignedNcrRow {
   id: string;
   ncrNumber: string;
@@ -117,6 +122,7 @@ export function ExternalPartyDashboard({
   activeItps,
   pendingInspections,
   openNcrs,
+  myProjects,
   itpsAwaitingAcceptance,
   workAwaitingReview,
   pendingSignoffs,
@@ -131,6 +137,10 @@ export function ExternalPartyDashboard({
   activeItps: number;
   pendingInspections: number;
   openNcrs: number;
+  /** This party's own linked projects — used for the "Your projects" quick-link row below, since
+   *  the PDF/Excel reports, data book and activity timeline for a project were previously only
+   *  reachable by first opening the Projects register and clicking into one. */
+  myProjects: MyProjectRow[];
   itpsAwaitingAcceptance: ItpAwaitingAcceptanceRow[];
   workAwaitingReview: SignoffQueueRow[];
   pendingSignoffs: SignoffQueueRow[];
@@ -164,6 +174,48 @@ export function ExternalPartyDashboard({
             ))}
           </ul>
         </details>
+      )}
+
+      {myProjects.length > 0 && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Your projects — reports &amp; documents</h2>
+          <p className="mt-1 text-sm text-muted">
+            Data books, PDF/Excel report packs and the live activity timeline for each project you have access to.
+          </p>
+          <ul className="mt-4 space-y-3">
+            {myProjects.map((project) => (
+              <li key={project.id} className="rounded-md border border-border p-3">
+                <p className="truncate text-sm font-medium text-ink">{project.name}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                  <Link
+                    href={`/inspect/projects/${project.id}/reports`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Reports &amp; downloads →
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/data-book`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Data book →
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/activity`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Activity →
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/kpis`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    KPIs →
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
