@@ -16,20 +16,27 @@ export default async function ItpsPage({
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
-  // Client-created ITPs (opt-in): show "+ New ITP" to a non-staff user too if their login is an
-  // active client-type party on at least one allow_client_itp_creation project — mirrors the same
-  // eligibility check in itps/new/page.tsx so the button never appears somewhere the page itself
-  // would then redirect away from.
+  // Client-created ITPs (opt-in per project, or org-wide for a Self-Managed/Platform-Only client —
+  // see itps/new/page.tsx's doc comment): show "+ New ITP" to a non-staff user too if either applies
+  // on at least one project — mirrors the same eligibility check there so the button never appears
+  // somewhere the page itself would then redirect away from.
   let canCreateItp = session.isJagsStaff;
   if (!canCreateItp) {
-    const { count: eligibleCount } = await supabase
+    const { data: eligibleParties } = await supabase
       .from("project_parties")
-      .select("project_id, projects!inner(allow_client_itp_creation)", { count: "exact", head: true })
+      .select("project_id, projects!inner(allow_client_itp_creation, organizations(engagement_scope))")
       .eq("party_type", "client")
       .eq("is_active", true)
       .eq("user_id", session.userId)
-      .eq("projects.allow_client_itp_creation", true);
-    canCreateItp = (eligibleCount ?? 0) > 0;
+      .returns<
+        {
+          project_id: string;
+          projects: { allow_client_itp_creation: boolean; organizations: { engagement_scope: string } | null } | null;
+        }[]
+      >();
+    canCreateItp = (eligibleParties ?? []).some(
+      (p) => p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed"
+    );
   }
 
   // Discipline-based routing (Reqs R32): filter the register down to ITPs that have at least one

@@ -12,6 +12,9 @@ export interface Database {
           slug: string;
           is_active: boolean;
           engagement_mode: "jags_led" | "co_branded" | "white_label";
+          // Who does the inspection work, distinct from engagement_mode (branding only) — see
+          // 20260918010000_self_managed_engagement_scope.sql.
+          engagement_scope: "full_service" | "self_managed";
           ai_consent: boolean;
           branding_logo_path: string | null;
           // Per-org display override for the fixed burgundy/gold theme (see
@@ -27,6 +30,7 @@ export interface Database {
           slug: string;
           is_active?: boolean;
           engagement_mode?: "jags_led" | "co_branded" | "white_label";
+          engagement_scope?: "full_service" | "self_managed";
           ai_consent?: boolean;
           branding_logo_path?: string | null;
           brand_primary_color?: string | null;

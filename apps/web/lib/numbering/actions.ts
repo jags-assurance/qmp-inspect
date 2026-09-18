@@ -52,6 +52,50 @@ export async function updateEngagementModeAction(
   return { error: null };
 }
 
+const ENGAGEMENT_SCOPES = ["full_service", "self_managed"] as const;
+type EngagementScope = (typeof ENGAGEMENT_SCOPES)[number];
+
+/**
+ * Self-Managed/Platform-Only client tier (supabase/migrations/
+ * 20260918010000_self_managed_engagement_scope.sql) — a separate axis from engagement_mode
+ * (branding only). 'self_managed' lets that org's client-type parties create and execute ITPs on
+ * EVERY one of their projects without an Admin having to opt each project in individually via
+ * projects.allow_client_execution / allow_client_itp_creation.
+ */
+export async function updateEngagementScopeAction(
+  _prev: NumberingSettingsState,
+  formData: FormData
+): Promise<NumberingSettingsState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change engagement scope." };
+  }
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const engagementScopeInput = String(formData.get("engagement_scope") ?? "").trim();
+
+  if (!organizationId || !engagementScopeInput) {
+    return { error: "Organisation and engagement scope are required." };
+  }
+  if (!(ENGAGEMENT_SCOPES as readonly string[]).includes(engagementScopeInput)) {
+    return { error: "Unrecognised engagement scope." };
+  }
+  const engagementScope = engagementScopeInput as EngagementScope;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("organizations")
+    .update({ engagement_scope: engagementScope })
+    .eq("id", organizationId);
+
+  if (error) {
+    return { error: "Could not update engagement scope. Check you have permission and try again." };
+  }
+
+  revalidatePath("/inspect/organisation/numbering");
+  return { error: null };
+}
+
 export async function upsertNumberingConfigAction(
   _prev: NumberingSettingsState,
   formData: FormData

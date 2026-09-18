@@ -39,10 +39,14 @@ export async function createOrganizationAction(
   const name = String(formData.get("name") ?? "").trim();
   const slugOverride = String(formData.get("slug") ?? "").trim();
   const engagementMode = String(formData.get("engagement_mode") ?? "jags_led").trim();
+  const engagementScope = String(formData.get("engagement_scope") ?? "full_service").trim();
 
   if (!name) return { error: "Organisation name is required." };
   if (!["jags_led", "co_branded", "white_label"].includes(engagementMode)) {
     return { error: "Invalid engagement mode." };
+  }
+  if (!["full_service", "self_managed"].includes(engagementScope)) {
+    return { error: "Invalid engagement scope." };
   }
 
   const slug = slugify(slugOverride || name);
@@ -53,6 +57,7 @@ export async function createOrganizationAction(
     name,
     slug,
     engagement_mode: engagementMode as "jags_led" | "co_branded" | "white_label",
+    engagement_scope: engagementScope as "full_service" | "self_managed",
   });
 
   if (error) {

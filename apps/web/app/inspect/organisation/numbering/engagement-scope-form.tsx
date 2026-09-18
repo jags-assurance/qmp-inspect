@@ -1,0 +1,64 @@
+"use client";
+
+import { useActionState } from "react";
+import { updateEngagementScopeAction, type NumberingSettingsState } from "@/lib/numbering/actions";
+import { Button } from "@/components/ui/button";
+
+const initialState: NumberingSettingsState = { error: null };
+
+const SCOPES: { value: string; label: string; description: string }[] = [
+  {
+    value: "full_service",
+    label: "Full-Managed / End-to-End Execution",
+    description:
+      "JAGS runs the project. Individual projects can still be opted into client execution/ITP-creation via that project's own settings.",
+  },
+  {
+    value: "self_managed",
+    label: "Self-Managed / Platform-Only",
+    description:
+      "This client's own teams create and execute ITPs across every one of their projects — JAGS only provides the platform and standard monitoring. Applies org-wide, no per-project setup needed.",
+  },
+];
+
+export function EngagementScopeForm({
+  organizationId,
+  engagementScope,
+}: {
+  organizationId: string;
+  engagementScope: string;
+}) {
+  const [state, formAction, pending] = useActionState(updateEngagementScopeAction, initialState);
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <input type="hidden" name="organization_id" value={organizationId} />
+      <div className="space-y-2">
+        {SCOPES.map((scope) => (
+          <label
+            key={scope.value}
+            className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 has-[:checked]:border-burgundy"
+          >
+            <input
+              type="radio"
+              name="engagement_scope"
+              value={scope.value}
+              defaultChecked={engagementScope === scope.value}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm font-medium text-ink">{scope.label}</span>
+              <span className="block text-xs text-muted">{scope.description}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+
+      <Button type="submit" disabled={pending}>
+        {pending ? "Saving…" : "Save engagement scope"}
+      </Button>
+    </form>
+  );
+}

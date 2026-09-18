@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NUMBERING_CONFIGS_TABLE, NUMBERING_DOC_TYPES, type NumberingConfigRow } from "@/lib/numbering/types";
 import { listMonthlyReportPacks, listWeeklyReportPacks } from "@/lib/reports/actions";
 import { EngagementModeForm } from "./engagement-mode-form";
+import { EngagementScopeForm } from "./engagement-scope-form";
 import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config-row";
 import { OrgPickerForm } from "./org-picker-form";
 import { MonthlyReportPackForm } from "./monthly-report-pack-form";
@@ -19,6 +20,7 @@ interface OrganizationOption {
   id: string;
   name: string;
   engagement_mode: string;
+  engagement_scope: string;
 }
 
 export default async function NumberingSettingsPage({
@@ -36,7 +38,7 @@ export default async function NumberingSettingsPage({
 
   const { data: organizations } = await supabase
     .from("organizations")
-    .select("id, name, engagement_mode")
+    .select("id, name, engagement_mode, engagement_scope")
     .order("name")
     .returns<OrganizationOption[]>();
 
@@ -76,6 +78,13 @@ export default async function NumberingSettingsPage({
                 organizationId={selectedOrg.id}
                 engagementMode={selectedOrg.engagement_mode}
               />
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-sm font-semibold text-ink">Engagement scope</h2>
+            <div className="mt-3">
+              <EngagementScopeForm organizationId={selectedOrg.id} engagementScope={selectedOrg.engagement_scope} />
             </div>
           </div>
 

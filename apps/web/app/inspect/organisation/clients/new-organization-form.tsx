@@ -70,6 +70,28 @@ export function NewOrganizationForm() {
         </p>
       </div>
 
+      <div>
+        <span className="block text-sm font-medium text-ink">Engagement scope</span>
+        <div className="mt-2 space-y-2">
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name="engagement_scope" value="full_service" defaultChecked className="mt-1" />
+            <span>
+              <span className="font-medium text-ink">Full-Managed / End-to-End Execution</span>
+              <span className="block text-xs text-muted">JAGS runs the project — the default.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name="engagement_scope" value="self_managed" className="mt-1" />
+            <span>
+              <span className="font-medium text-ink">Self-Managed / Platform-Only</span>
+              <span className="block text-xs text-muted">
+                This client&apos;s own teams create and execute ITPs on every project — JAGS only provides the platform.
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
+
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>

@@ -9,6 +9,7 @@ interface OrganizationRow {
   name: string;
   slug: string;
   engagement_mode: string;
+  engagement_scope: string;
   is_active: boolean;
   ai_consent: boolean;
   created_at: string;
@@ -18,6 +19,11 @@ const ENGAGEMENT_MODE_LABEL: Record<string, string> = {
   jags_led: "JAGS-led",
   co_branded: "Co-branded",
   white_label: "White-label",
+};
+
+const ENGAGEMENT_SCOPE_LABEL: Record<string, string> = {
+  full_service: "Full-Managed",
+  self_managed: "Self-Managed",
 };
 
 /**
@@ -35,7 +41,7 @@ export default async function ClientOrganisationsPage() {
   const [{ data: organizations }, { data: projects }] = await Promise.all([
     supabase
       .from("organizations")
-      .select("id, name, slug, engagement_mode, is_active, ai_consent, created_at")
+      .select("id, name, slug, engagement_mode, engagement_scope, is_active, ai_consent, created_at")
       .order("name")
       .returns<OrganizationRow[]>(),
     supabase.from("projects").select("organization_id").returns<{ organization_id: string }[]>(),
@@ -76,6 +82,9 @@ export default async function ClientOrganisationsPage() {
               </div>
               <div className="flex items-center gap-2">
                 {!org.is_active && <Badge tone="neutral">Inactive</Badge>}
+                <Badge tone={org.engagement_scope === "self_managed" ? "gold" : "neutral"}>
+                  {ENGAGEMENT_SCOPE_LABEL[org.engagement_scope] ?? org.engagement_scope}
+                </Badge>
                 <Badge tone={org.ai_consent ? "info" : "neutral"}>
                   {org.ai_consent ? "AI consent given" : "No AI consent"}
                 </Badge>

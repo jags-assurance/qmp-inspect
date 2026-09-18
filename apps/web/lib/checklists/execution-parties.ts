@@ -17,12 +17,19 @@ export async function getExecutingPartyTypes(
 ): Promise<Set<string>> {
   const { data: project } = await supabase
     .from("projects")
-    .select("allow_client_execution")
+    .select("allow_client_execution, organizations(engagement_scope)")
     .eq("id", projectId)
-    .maybeSingle<{ allow_client_execution: boolean }>();
+    .maybeSingle<{ allow_client_execution: boolean; organizations: { engagement_scope: string } | null }>();
 
   const types = new Set(BASE_EXECUTING_PARTY_TYPES);
-  if (project?.allow_client_execution) types.add("client");
+  // Self-Managed/Platform-Only clients (organizations.engagement_scope) run every one of their own
+  // projects end to end — JAGS only provides the platform — so this org-wide flag grants the same
+  // client-execution right as the per-project allow_client_execution toggle, without needing an
+  // Admin to flip it project-by-project. See supabase/migrations/
+  // 20260918010000_self_managed_engagement_scope.sql.
+  if (project?.allow_client_execution || project?.organizations?.engagement_scope === "self_managed") {
+    types.add("client");
+  }
   return types;
 }
 

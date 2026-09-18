@@ -74,7 +74,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   const { data: itp } = await supabase
     .from("itps")
-    .select("*, projects(id, name, organization_id, allow_client_itp_creation, organizations(name))")
+    .select("*, projects(id, name, organization_id, allow_client_itp_creation, organizations(name, engagement_scope))")
     .eq("id", id)
     .maybeSingle<{
       id: string;
@@ -89,7 +89,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         name: string;
         organization_id: string;
         allow_client_itp_creation: boolean;
-        organizations: { name: string } | null;
+        organizations: { name: string; engagement_scope: string } | null;
       } | null;
     }>();
 
@@ -266,15 +266,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     noticeHours[config.intervention] = config.hours;
   }
 
-  // Client-created ITPs (opt-in, supabase/migrations/20260918000000_client_itp_creation.sql): the
-  // originating client party can populate sections/items/the intervention grid on their own ITP
-  // while it's still 'draft' — mirrors is_client_itp_creator() exactly. Submitting for review,
-  // approving, and bulk-notifying stay JAGS-only actions regardless (gated on session.isJagsStaff
-  // directly below, not this flag) — approval authority always stays with JAGS.
+  // Client-created ITPs (opt-in per project, or org-wide for a Self-Managed/Platform-Only client —
+  // supabase/migrations/20260918000000_client_itp_creation.sql and
+  // 20260918010000_self_managed_engagement_scope.sql): the originating client party can populate
+  // sections/items/the intervention grid on their own ITP while it's still 'draft' — mirrors
+  // is_client_itp_creator() exactly. Submitting for review, approving, and bulk-notifying stay
+  // JAGS-only actions regardless (gated on session.isJagsStaff directly below, not this flag) —
+  // approval authority always stays with JAGS even for a Self-Managed client.
   const isEligibleClientCreator =
     !session.isJagsStaff &&
     itp.status === "draft" &&
-    !!itp.projects?.allow_client_itp_creation &&
+    (!!itp.projects?.allow_client_itp_creation || itp.projects?.organizations?.engagement_scope === "self_managed") &&
     (parties ?? []).some((p) => p.party_type === "client" && p.is_active && p.user_id === session.userId);
   const canEditContent = session.isJagsStaff || isEligibleClientCreator;
   // Client acceptance is that specific party's own action — not "any non-staff login," which the
