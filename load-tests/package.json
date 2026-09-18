@@ -1,0 +1,12 @@
+{
+  "name": "jags-load-tests",
+  "private": true,
+  "type": "module",
+  "description": "Standalone load-testing tools (k6 script + Supabase test-user seeder) — deliberately not part of the pnpm workspace, since it's an ops tool run ad hoc against staging, not code the app depends on.",
+  "scripts": {
+    "seed": "node seed-test-users.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0"
+  }
+}
