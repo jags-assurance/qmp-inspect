@@ -11,9 +11,9 @@ import { UnenrollFactorButton } from "./unenroll-factor-button";
  * manage their own factor. It lives under organisation/ anyway to match the existing account-
  * settings navigation grouping rather than inventing a new top-level section for one page.
  *
- * MFA is opt-in for now: enrolling here does not yet make MFA mandatory for anyone (see
- * proxy.ts / lib/auth/actions.ts — the AAL2 challenge only triggers for an account that already
- * has a verified factor). Making it mandatory for all JAGS staff is a follow-up policy decision.
+ * MFA is opt-in for Inspector accounts. For a JAGS Admin it's mandatory — proxy.ts redirects any
+ * Admin with zero verified factors here before letting them reach anywhere else in the app (an
+ * Admin can see every client's data, so "opt-in" isn't good enough for that role specifically).
  */
 export default async function SecuritySettingsPage() {
   const session = await requireSession();
@@ -24,6 +24,7 @@ export default async function SecuritySettingsPage() {
   const totpFactors = factorsData?.totp ?? [];
   const verifiedFactors = totpFactors.filter((f) => f.status === "verified");
   const unverifiedFactors = totpFactors.filter((f) => f.status !== "verified");
+  const isAdmin = session.staffRole !== "inspector";
 
   return (
     <div className="max-w-2xl">
@@ -32,6 +33,13 @@ export default async function SecuritySettingsPage() {
         Add an authenticator app as a second sign-in step for your own account. This is
         particularly important for JAGS Admin accounts, which can see every client&apos;s data.
       </p>
+
+      {isAdmin && verifiedFactors.length === 0 && (
+        <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
+          Two-factor authentication is required for Admin accounts — set it up below before you can
+          use the rest of the app.
+        </p>
+      )}
 
       {verifiedFactors.length > 0 ? (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">

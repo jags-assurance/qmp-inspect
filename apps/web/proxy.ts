@@ -16,6 +16,11 @@ const PUBLIC_PATHS = [
 // that lets them clear it.
 const MFA_CHALLENGE_PATH = "/mfa/challenge";
 
+// Where a JAGS Admin enrolls a TOTP factor — the mandatory-MFA-for-admins gate below redirects here
+// rather than to MFA_CHALLENGE_PATH, since an admin with zero enrolled factors has nothing to
+// challenge yet (Supabase's own AAL only ever asks for a *second* step once a factor already exists).
+const MFA_ENROLL_PATH = "/inspect/organisation/security";
+
 /**
  * Refreshes the Supabase session on every request (required by @supabase/ssr) and redirects
  * signed-out users away from anything but the public auth routes. This is a UX convenience, not
@@ -85,6 +90,33 @@ export async function proxy(request: NextRequest) {
     }
     if (!needsChallenge && request.nextUrl.pathname === MFA_CHALLENGE_PATH) {
       return NextResponse.redirect(new URL("/", request.url));
+    }
+
+    // Mandatory MFA for JAGS Admin accounts (an Admin can see every client's data, so this is the
+    // one role where "opt-in" isn't good enough — CEO ask, "admin as more secure login"). An account
+    // that has never enrolled a factor never reaches aal2's "needsChallenge" branch above at all
+    // (there's nothing to challenge yet), so it would otherwise sail straight into the app with
+    // password-only auth forever. Skipped once the account already has a verified factor (then
+    // needsChallenge/the aal2 flow above is the only gate that applies) and on the enrollment page
+    // itself, to avoid a redirect loop.
+    if (!needsChallenge && request.nextUrl.pathname !== MFA_ENROLL_PATH) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("is_jags_staff, staff_role")
+        .eq("id", user.id)
+        .maybeSingle<{ is_jags_staff: boolean; staff_role: "admin" | "inspector" | null }>();
+
+      // staff_role null = legacy admin-equivalent account (same convention as isAdminStaff in
+      // lib/auth/session.ts) — treated as Admin here too, not as a loophole.
+      const isAdmin = !!profile?.is_jags_staff && profile.staff_role !== "inspector";
+
+      if (isAdmin) {
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const hasVerifiedFactor = (factors?.totp ?? []).some((f) => f.status === "verified");
+        if (!hasVerifiedFactor) {
+          return NextResponse.redirect(new URL(MFA_ENROLL_PATH, request.url));
+        }
+      }
     }
   }
 
