@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
@@ -108,7 +109,10 @@ export default async function NewItpPage() {
   if (clientEligibleProjectIds) {
     return (
       <div className="max-w-xl">
-        <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+        <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
+          ← Back to ITP Register
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold text-ink">New ITP</h1>
         <p className="mt-1 text-sm text-muted">
           Creates a draft ITP with the four standard sections — add, rename or reorder them as
           needed once it&apos;s created. JAGS will review and approve it once you submit it.
@@ -120,7 +124,10 @@ export default async function NewItpPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+      <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
+        ← Back to ITP Register
+      </Link>
+      <h1 className="mt-2 text-2xl font-semibold text-ink">New ITP</h1>
       <p className="mt-1 text-sm text-muted">
         Creates a draft ITP with the four standard sections — add, rename or reorder them as
         needed once it&apos;s created. Or start from a JAGS master template and customize it for

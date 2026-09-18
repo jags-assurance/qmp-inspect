@@ -92,6 +92,12 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
   return (
     <div className="max-w-3xl">
+      <Link
+        href={`/inspect/checklists/${record.checklist_template_id}`}
+        className="text-sm text-burgundy hover:underline"
+      >
+        ← Back to Checklist
+      </Link>
       {/* Certificate-style header band — traceability info at a glance, echoing the IRN layout below. */}
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <div className="flex flex-wrap items-start justify-between gap-4 bg-burgundy px-5 py-4 text-white">

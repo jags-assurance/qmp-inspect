@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import {
   requestPortfolioSummaryPdfAction,
+  getLatestPortfolioSummaryPdf,
   type RequestPortfolioSummaryPdfState,
   type PortfolioSummaryPdfStatus,
 } from "@/lib/reports/actions";
+import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 
 const initialState: RequestPortfolioSummaryPdfState = { error: null };
 
@@ -16,48 +18,67 @@ const STATUS_LABEL: Record<PortfolioSummaryPdfStatus["status"], string> = {
   failed: "Failed",
 };
 
+// getLatestPortfolioSummaryPdf takes no id argument (it's scoped to the current session) —
+// module-level (not an inline arrow inside the component) so it's a stable reference across
+// renders, matching usePdfPolling's requirement that fetchLatest never change identity.
+function fetchLatestPortfolioSummary(): Promise<PortfolioSummaryPdfStatus | null> {
+  return getLatestPortfolioSummaryPdf();
+}
+
 /**
  * Round-table market-readiness finding: an admin had no one-click way to get a single PDF summary
  * of the whole portfolio to send a stakeholder — they'd have to compile per-project reports by
  * hand. Queues the render_portfolio_summary_pdf background job (worker/src/jobs/
- * renderPortfolioSummaryPdf.ts) and shows the latest export's status. Same "no client-side
- * polling, reload to see progress" UX as ItpPdfButton / MonthlyReportPackForm — this app has no
- * polling anywhere else either.
+ * renderPortfolioSummaryPdf.ts) and shows the latest export's status. Same trigger/poll/View+Download
+ * pattern as ItpPdfButton — see lib/reports/use-pdf-polling.ts.
  */
 export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummaryPdfStatus | null }) {
   const [state, formAction, pending] = useActionState(requestPortfolioSummaryPdfAction, initialState);
+  const { liveStatus, polling, beginGenerate, startPolling } = usePdfPolling(latest, fetchLatestPortfolioSummary, null);
+
+  useEffect(() => {
+    if (state.success) startPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startPolling is stable; only re-fire on a new success
+  }, [state.success]);
 
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex gap-2">
-        {latest?.status === "completed" && latest.pdfUrl && (
+        {liveStatus?.status === "completed" && liveStatus.pdfUrl && (
           <a
-            href={latest.pdfUrl}
+            href={liveStatus.pdfUrl}
             target="_blank"
             rel="noreferrer"
             className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
           >
-            Download PDF →
+            View PDF →
+          </a>
+        )}
+        {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
+          <a
+            href={liveStatus.downloadUrl}
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+          >
+            Download ↓
           </a>
         )}
         <form action={formAction}>
           <button
             type="submit"
-            disabled={pending}
+            onClick={beginGenerate}
+            disabled={pending || polling}
             className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
           >
-            {pending ? "Queuing…" : "Export portfolio summary (PDF)"}
+            {pending ? "Queuing…" : polling ? "Rendering…" : "Export portfolio summary (PDF)"}
           </button>
         </form>
       </div>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
-      {!state.error && state.success && (
-        <p className="text-xs text-muted">Queued — reload in a moment to download it.</p>
-      )}
-      {!state.success && latest && latest.status !== "completed" && (
+      {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {STATUS_LABEL[latest.status]}
-          {latest.status === "failed" && latest.errorMessage ? ` — ${latest.errorMessage}` : ""}
+          {STATUS_LABEL[liveStatus.status]}
+          {liveStatus.status === "failed" && liveStatus.errorMessage ? ` — ${liveStatus.errorMessage}` : ""}
         </p>
       )}
     </div>

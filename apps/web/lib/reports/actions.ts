@@ -250,14 +250,19 @@ export interface ItpPdfStatus {
   status: "pending" | "processing" | "completed" | "failed";
   errorMessage: string | null;
   createdAt: string;
+  /** Opens inline in a new tab (no Content-Disposition override) — the "View" option. */
   pdfUrl: string | null;
+  /** Same file, signed with { download: true } so Supabase sets Content-Disposition: attachment —
+   *  the "Download" option. A plain <a download> attribute doesn't reliably force a save-as dialog
+   *  for a cross-origin URL like a Supabase signed URL (browsers ignore it off-origin), so the real
+   *  distinction has to come from the response header, not the anchor tag. */
+  downloadUrl: string | null;
 }
 
 /**
  * The most recent render_itp_pdf job for this ITP (any revision) — enough to show "still
- * rendering" / "ready, here's the link" / "failed" without a dedicated polling endpoint. A user
- * reloads the page to see progress, same UX as listMonthlyReportPacks below (no client-side
- * polling exists anywhere else in this app either).
+ * rendering" / "ready, here are the links" / "failed". The web client polls this via
+ * usePdfPolling (lib/reports/use-pdf-polling.ts) instead of requiring a manual page reload.
  */
 export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | null> {
   const supabase = await createSupabaseServerClient();
@@ -282,11 +287,14 @@ export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | nul
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
-    const { data: signed } = await supabase.storage
-      .from(GENERATED_DOCUMENTS_BUCKET)
-      .createSignedUrl(latest.result_storage_path, 3600);
-    pdfUrl = signed?.signedUrl ?? null;
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
   }
 
   return {
@@ -295,6 +303,7 @@ export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | nul
     errorMessage: latest.error_message,
     createdAt: latest.created_at,
     pdfUrl,
+    downloadUrl,
   };
 }
 
@@ -337,9 +346,14 @@ export interface InspectionReportPdfStatus {
   errorMessage: string | null;
   createdAt: string;
   pdfUrl: string | null;
+  downloadUrl: string | null;
 }
 
-/** The most recent render for this inspection record — same "reload to see progress" pattern as getLatestItpPdf. */
+/**
+ * The most recent render for this inspection record. Polled client-side via usePdfPolling
+ * (lib/reports/use-pdf-polling.ts) — see getLatestItpPdf's doc comment for the View/Download URL
+ * split.
+ */
 export async function getLatestInspectionReportPdf(inspectionRecordId: string): Promise<InspectionReportPdfStatus | null> {
   const supabase = await createSupabaseServerClient();
 
@@ -361,11 +375,14 @@ export async function getLatestInspectionReportPdf(inspectionRecordId: string): 
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
-    const { data: signed } = await supabase.storage
-      .from(GENERATED_DOCUMENTS_BUCKET)
-      .createSignedUrl(latest.result_storage_path, 3600);
-    pdfUrl = signed?.signedUrl ?? null;
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
   }
 
   return {
@@ -374,6 +391,7 @@ export async function getLatestInspectionReportPdf(inspectionRecordId: string): 
     errorMessage: latest.error_message,
     createdAt: latest.created_at,
     pdfUrl,
+    downloadUrl,
   };
 }
 
@@ -414,9 +432,14 @@ export interface FatReportPdfStatus {
   errorMessage: string | null;
   createdAt: string;
   pdfUrl: string | null;
+  downloadUrl: string | null;
 }
 
-/** Most recent render for this assignment — same "reload to see progress" pattern as the others. */
+/**
+ * Most recent render for this assignment. Polled client-side via usePdfPolling
+ * (lib/reports/use-pdf-polling.ts) — see getLatestItpPdf's doc comment for the View/Download URL
+ * split.
+ */
 export async function getLatestFatReportPdf(assignmentId: string): Promise<FatReportPdfStatus | null> {
   const supabase = await createSupabaseServerClient();
 
@@ -438,11 +461,14 @@ export async function getLatestFatReportPdf(assignmentId: string): Promise<FatRe
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
-    const { data: signed } = await supabase.storage
-      .from(GENERATED_DOCUMENTS_BUCKET)
-      .createSignedUrl(latest.result_storage_path, 3600);
-    pdfUrl = signed?.signedUrl ?? null;
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
   }
 
   return {
@@ -451,6 +477,7 @@ export async function getLatestFatReportPdf(assignmentId: string): Promise<FatRe
     errorMessage: latest.error_message,
     createdAt: latest.created_at,
     pdfUrl,
+    downloadUrl,
   };
 }
 
@@ -776,15 +803,16 @@ export interface PortfolioSummaryPdfStatus {
   errorMessage: string | null;
   createdAt: string;
   pdfUrl: string | null;
+  downloadUrl: string | null;
 }
 
 /**
- * The most recent render_portfolio_summary_pdf job requested by THIS user — same "reload to see
- * progress" pattern as getLatestItpPdf, but scoped to the current session's own requests (there's
- * no shared target id like an itp_id to filter by; every admin's own last export is what they care
- * about seeing). RLS (background_jobs_select) also restricts this to jobs either requested by this
- * user or visible under the is_jags_staff() portfolio-summary branch, so a non-admin session simply
- * sees no rows here even if this were ever called for one.
+ * The most recent render_portfolio_summary_pdf job requested by THIS user — polled client-side via
+ * usePdfPolling (lib/reports/use-pdf-polling.ts), same as getLatestItpPdf, but scoped to the current
+ * session's own requests (there's no shared target id like an itp_id to filter by; every admin's own
+ * last export is what they care about seeing). RLS (background_jobs_select) also restricts this to
+ * jobs either requested by this user or visible under the is_jags_staff() portfolio-summary branch,
+ * so a non-admin session simply sees no rows here even if this were ever called for one.
  */
 export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPdfStatus | null> {
   const session = await requireSession();
@@ -810,11 +838,14 @@ export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPd
   if (!latest) return null;
 
   let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
-    const { data: signed } = await supabase.storage
-      .from(GENERATED_DOCUMENTS_BUCKET)
-      .createSignedUrl(latest.result_storage_path, 3600);
-    pdfUrl = signed?.signedUrl ?? null;
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
   }
 
   return {
@@ -823,5 +854,6 @@ export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPd
     errorMessage: latest.error_message,
     createdAt: latest.created_at,
     pdfUrl,
+    downloadUrl,
   };
 }

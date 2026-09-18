@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NewAssignmentForm } from "./new-assignment-form";
@@ -22,7 +23,10 @@ export default async function NewStandaloneAssignmentPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-ink">New assignment</h1>
+      <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
+        ← Back to Assignments
+      </Link>
+      <h1 className="mt-2 text-2xl font-semibold text-ink">New assignment</h1>
       <p className="mt-1 text-sm text-muted">
         Set up a one-off FAT, witness inspection, specific test or pre-shipment check. The
         assignment number is generated automatically once you save.

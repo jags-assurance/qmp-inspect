@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { NewNcrForm } from "./new-ncr-form";
@@ -80,7 +81,10 @@ export default async function NewNcrPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-2xl font-semibold text-ink">Raise NCR / Observation</h1>
+      <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
+        ← Back to NCR Register
+      </Link>
+      <h1 className="mt-2 text-2xl font-semibold text-ink">Raise NCR / Observation</h1>
       <p className="mt-1 text-sm text-muted">
         Record a non-conformance or observation against a project — from a failed inspection, a
         walkdown, or standalone.

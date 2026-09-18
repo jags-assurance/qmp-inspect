@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +57,10 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
 
   return (
     <div>
-      <div className="flex items-center gap-3">
+      <Link href="/inspect/itp-master" className="text-sm text-burgundy hover:underline">
+        ← Back to ITP Master Library
+      </Link>
+      <div className="mt-2 flex items-center gap-3">
         <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
         <Badge tone={template.is_active ? "success" : "neutral"}>{template.is_active ? "Active" : "Inactive"}</Badge>
         <span className="text-sm text-muted">v{template.version}</span>
