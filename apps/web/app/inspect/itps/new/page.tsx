@@ -14,10 +14,28 @@ import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 
 export default async function NewItpPage() {
   const session = await requireSession();
-  if (!session.isJagsStaff) redirect("/inspect/itps");
-
   const supabase = await createSupabaseServerClient();
-  const [{ data: projects }, { data: templates }, { data: disciplines }, { data: vaultDocumentRows }] = await Promise.all([
+
+  // Client-created ITPs (opt-in, supabase/migrations/20260918000000_client_itp_creation.sql): a
+  // non-staff user only gets past this gate if their login is linked to an active client-type
+  // project_party on at least one project that has allow_client_itp_creation on. Mirrors
+  // is_client_itp_creator() exactly so the page and the RLS it relies on never drift apart.
+  let clientEligibleProjectIds: Set<string> | null = null;
+  if (!session.isJagsStaff) {
+    const { data: eligibleParties } = await supabase
+      .from("project_parties")
+      .select("project_id, projects!inner(allow_client_itp_creation)")
+      .eq("party_type", "client")
+      .eq("is_active", true)
+      .eq("user_id", session.userId)
+      .eq("projects.allow_client_itp_creation", true)
+      .returns<{ project_id: string; projects: { allow_client_itp_creation: boolean } | null }[]>();
+
+    clientEligibleProjectIds = new Set((eligibleParties ?? []).map((p) => p.project_id));
+    if (clientEligibleProjectIds.size === 0) redirect("/inspect/itps");
+  }
+
+  const [{ data: allProjects }, { data: templates }, { data: disciplines }, { data: vaultDocumentRows }] = await Promise.all([
     supabase.from("projects").select("id, project_number, name").order("name"),
     supabase
       .from(ITP_MASTER_TEMPLATES_TABLE)
@@ -71,6 +89,26 @@ export default async function NewItpPage() {
       extractionStatus: d.extraction_status,
     }));
 
+  // A client-eligible non-staff user only ever sees their own opted-in project(s), and only the
+  // manual "build from scratch" flow — the master-template and AI-draft flows stay staff-only for
+  // now (bigger surface area, not what this opt-in was scoped to cover).
+  const projects = clientEligibleProjectIds
+    ? (allProjects ?? []).filter((p) => clientEligibleProjectIds!.has(p.id))
+    : (allProjects ?? []);
+
+  if (clientEligibleProjectIds) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+        <p className="mt-1 text-sm text-muted">
+          Creates a draft ITP with the four standard sections — add, rename or reorder them as
+          needed once it&apos;s created. JAGS will review and approve it once you submit it.
+        </p>
+        <NewItpForm projects={projects} />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-xl">
       <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
@@ -80,10 +118,10 @@ export default async function NewItpPage() {
         this project.
       </p>
       <ItpCreationTabs
-        manual={<NewItpForm projects={projects ?? []} />}
-        fromTemplate={<NewItpFromTemplateForm projects={projects ?? []} templates={templates ?? []} />}
+        manual={<NewItpForm projects={projects} />}
+        fromTemplate={<NewItpFromTemplateForm projects={projects} templates={templates ?? []} />}
         fromAi={
-          <NewItpFromAiForm projects={projects ?? []} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
+          <NewItpFromAiForm projects={projects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
         }
       />
     </div>

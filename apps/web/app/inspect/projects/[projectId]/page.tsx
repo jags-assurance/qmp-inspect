@@ -9,6 +9,7 @@ import { OrgBrandScope } from "@/components/domain/org-brand-scope";
 import { AddProjectPartyForm } from "./add-project-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
+import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
@@ -43,6 +44,7 @@ interface ProjectDetail {
   status: string;
   organization_id: string;
   allow_client_execution: boolean;
+  allow_client_itp_creation: boolean;
   responsible_person_id: string | null;
   responsible_person: { full_name: string; email: string } | null;
   organizations: {
@@ -78,7 +80,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
     )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
@@ -293,6 +295,22 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             without changing behaviour on any other project.
           </p>
           <AllowClientExecutionToggle projectId={project.id} allowClientExecution={project.allow_client_execution} />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">ITP creation settings</h2>
+          <p className="mt-1 text-sm text-muted">
+            By default only JAGS staff create ITPs. Turning this on lets an active client-type party
+            on THIS project also create and build out draft ITPs from scratch — JAGS still reviews
+            and approves every ITP regardless of who created it; a client can only edit their own
+            ITPs while they remain in draft.
+          </p>
+          <AllowClientItpCreationToggle
+            projectId={project.id}
+            allowClientItpCreation={project.allow_client_itp_creation}
+          />
         </div>
       )}
     </div>

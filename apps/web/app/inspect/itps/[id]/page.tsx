@@ -74,7 +74,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   const { data: itp } = await supabase
     .from("itps")
-    .select("*, projects(id, name, organization_id, organizations(name))")
+    .select("*, projects(id, name, organization_id, allow_client_itp_creation, organizations(name))")
     .eq("id", id)
     .maybeSingle<{
       id: string;
@@ -84,7 +84,13 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       applicable_standard: string | null;
       revision: number;
       status: "draft" | "under_review" | "approved" | "client_accepted";
-      projects: { id: string; name: string; organization_id: string; organizations: { name: string } | null } | null;
+      projects: {
+        id: string;
+        name: string;
+        organization_id: string;
+        allow_client_itp_creation: boolean;
+        organizations: { name: string } | null;
+      } | null;
     }>();
 
   if (!itp) notFound();
@@ -260,7 +266,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     noticeHours[config.intervention] = config.hours;
   }
 
-  const canEditContent = session.isJagsStaff;
+  // Client-created ITPs (opt-in, supabase/migrations/20260918000000_client_itp_creation.sql): the
+  // originating client party can populate sections/items/the intervention grid on their own ITP
+  // while it's still 'draft' — mirrors is_client_itp_creator() exactly. Submitting for review,
+  // approving, and bulk-notifying stay JAGS-only actions regardless (gated on session.isJagsStaff
+  // directly below, not this flag) — approval authority always stays with JAGS.
+  const isEligibleClientCreator =
+    !session.isJagsStaff &&
+    itp.status === "draft" &&
+    !!itp.projects?.allow_client_itp_creation &&
+    (parties ?? []).some((p) => p.party_type === "client" && p.is_active && p.user_id === session.userId);
+  const canEditContent = session.isJagsStaff || isEligibleClientCreator;
   // Client acceptance is that specific party's own action — not "any non-staff login," which the
   // end-to-end walkthrough flagged as too broad (a subcontractor/main contractor/TPI login could
   // technically have hit the same button). Mirrors accept_itp()'s own check at the database layer.
@@ -337,7 +353,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           >
             Checklists →
           </Link>
-          {canEditContent && itp.status === "draft" && (
+          {session.isJagsStaff && itp.status === "draft" && (
             <form action={advanceItpStatusAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
               <input type="hidden" name="from_status" value="draft" />
@@ -346,7 +362,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
               </button>
             </form>
           )}
-          {canEditContent && itp.status === "under_review" && (
+          {session.isJagsStaff && itp.status === "under_review" && (
             <form action={advanceItpStatusAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
               <input type="hidden" name="from_status" value="under_review" />
@@ -356,9 +372,10 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             </form>
           )}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
-              activity_signoff_progress row for this ITP in one click, matching this page's existing
-              staff-only gating (canEditContent) rather than introducing a new permission check. */}
-          {canEditContent && hasPendingSignoffs && (
+              activity_signoff_progress row for this ITP in one click. Stays staff-only even on a
+              client-created draft ITP, since notifying sign-off parties is a JAGS orchestration
+              action, not part of "build the ITP" content editing (canEditContent). */}
+          {session.isJagsStaff && hasPendingSignoffs && (
             <form action={notifyAllPendingForItpAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
               <button type="submit" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">

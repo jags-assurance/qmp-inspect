@@ -16,6 +16,22 @@ export default async function ItpsPage({
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
+  // Client-created ITPs (opt-in): show "+ New ITP" to a non-staff user too if their login is an
+  // active client-type party on at least one allow_client_itp_creation project — mirrors the same
+  // eligibility check in itps/new/page.tsx so the button never appears somewhere the page itself
+  // would then redirect away from.
+  let canCreateItp = session.isJagsStaff;
+  if (!canCreateItp) {
+    const { count: eligibleCount } = await supabase
+      .from("project_parties")
+      .select("project_id, projects!inner(allow_client_itp_creation)", { count: "exact", head: true })
+      .eq("party_type", "client")
+      .eq("is_active", true)
+      .eq("user_id", session.userId)
+      .eq("projects.allow_client_itp_creation", true);
+    canCreateItp = (eligibleCount ?? 0) > 0;
+  }
+
   // Discipline-based routing (Reqs R32): filter the register down to ITPs that have at least one
   // activity tagged with the selected discipline, rather than filtering activities within an ITP —
   // this is a register-level view, so the useful question is "which ITPs involve this discipline",
@@ -85,7 +101,7 @@ export default async function ItpsPage({
           <h1 className="text-2xl font-semibold text-ink">ITP Register</h1>
           <p className="mt-1 text-sm text-muted">Inspection & Test Plans across your projects.</p>
         </div>
-        {session.isJagsStaff && (
+        {canCreateItp && (
           <Link href="/inspect/itps/new">
             <Button>+ New ITP</Button>
           </Link>

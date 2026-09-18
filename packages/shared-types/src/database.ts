@@ -165,6 +165,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           allow_client_execution: boolean;
+          allow_client_itp_creation: boolean;
           responsible_person_id: string | null;
         };
         Insert: {
@@ -182,6 +183,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           allow_client_execution?: boolean;
+          allow_client_itp_creation?: boolean;
           responsible_person_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["projects"]["Insert"]>;

@@ -156,6 +156,43 @@ export async function setAllowClientExecutionAction(
   return { error: null };
 }
 
+export interface SetAllowClientItpCreationState {
+  error: string | null;
+}
+
+/**
+ * Per-project opt-in that lets a client-type party create and build out an ITP from scratch on this
+ * project — see supabase/migrations/20260918000000_client_itp_creation.sql (is_client_itp_creator())
+ * for the actual RLS this flag drives, and lib/itps/actions.ts / the ITP detail page for the app-side
+ * gating that mirrors it. A client can only ever populate a 'draft' ITP this way; submitting it into
+ * the review pipeline stays a JAGS action regardless of who created it. Admin-only to change, same
+ * boundary as setAllowClientExecutionAction above.
+ */
+export async function setAllowClientItpCreationAction(
+  _prev: SetAllowClientItpCreationState,
+  formData: FormData
+): Promise<SetAllowClientItpCreationState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this setting." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const allow = formData.get("allow_client_itp_creation") === "on";
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ allow_client_itp_creation: allow })
+    .eq("id", projectId);
+
+  if (error) return { error: "Could not update this setting. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
 export interface ProjectPartyActiveState {
   error: string | null;
 }
