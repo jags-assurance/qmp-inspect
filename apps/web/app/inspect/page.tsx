@@ -9,6 +9,7 @@ import {
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
 import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { sortByDynamicPriority } from "@/lib/checklists/priority-routing";
 import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
 import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
@@ -372,8 +373,12 @@ export default async function InspectDashboardPage() {
       else if (!current) priorityByItem.set(row.itp_item_id, "low");
     }
 
-    pendingActions = pendingTemplates
-      .map((t) => {
+    // Dynamic priority routing: sort by real urgency (a Hold-gated activity outranks a Witness one,
+    // which outranks a plain Review/Surveillance one — see priorityByItem above) before truncating to
+    // 8, so what actually surfaces here is the most urgent work, not just whatever was created most
+    // recently. Ties within a priority tier go to whichever's been pending longest.
+    pendingActions = sortByDynamicPriority(
+      pendingTemplates.map((t) => {
         const itp = t.itp_items?.itp_sections?.itps;
         const ageDays = Math.floor((today.getTime() - new Date(t.created_at).getTime()) / 86_400_000);
         return {
@@ -390,7 +395,7 @@ export default async function InspectDashboardPage() {
           ageDays,
         };
       })
-      .slice(0, 8);
+    ).slice(0, 8);
 
     // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
     // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
