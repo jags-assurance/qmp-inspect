@@ -238,6 +238,57 @@ export async function notifyAllPendingForItpAction(formData: FormData): Promise<
   revalidatePath("/inspect");
 }
 
+/**
+ * Every blocking level configured with a lower sort_order than `code` (this activity's own
+ * organisation's intervention_level_types) must already be cleared (signed off or proceeded)
+ * before `code` itself can be signed off — makes sort_order a real hierarchy/sequence rather than
+ * just a display order, so an org that configures more than one blocking level (e.g. a client's own
+ * internal review before JAGS's Hold) gets a genuine ordered chain. A no-op for every org still on
+ * the seeded default (only "H" is_blocking=true there), so this changes nothing for existing data —
+ * it only activates once an org deliberately adds a second blocking level via
+ * addInterventionLevelAction. Returns null when clear to proceed, or the blocking level's label.
+ */
+async function findUnclearedLowerBlockingLevel(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string,
+  code: string
+): Promise<string | null> {
+  const { data: itemContext } = await supabase
+    .from("itp_items")
+    .select("itp_sections(itps(projects(organization_id)))")
+    .eq("id", itpItemId)
+    .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
+  const organizationId = itemContext?.itp_sections?.itps?.projects?.organization_id;
+  if (!organizationId) return null;
+
+  const { data: levels } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("code, label, sort_order, is_blocking")
+    .eq("organization_id", organizationId)
+    .returns<Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[]>();
+
+  const thisLevel = (levels ?? []).find((l) => l.code === code);
+  if (!thisLevel?.is_blocking) return null;
+
+  const lowerBlocking = (levels ?? []).filter((l) => l.is_blocking && l.sort_order < thisLevel.sort_order);
+  if (lowerBlocking.length === 0) return null;
+
+  const { data: priorRows } = await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .select("intervention, status")
+    .eq("itp_item_id", itpItemId)
+    .in(
+      "intervention",
+      lowerBlocking.map((l) => l.code)
+    )
+    .returns<Pick<ActivitySignoffProgressRow, "intervention" | "status">[]>();
+
+  const uncleared = (priorRows ?? []).find((r) => r.status !== "signed_off" && r.status !== "proceeded_no_response");
+  if (!uncleared) return null;
+
+  return lowerBlocking.find((l) => l.code === uncleared.intervention)?.label ?? uncleared.intervention;
+}
+
 /** Records sign-off. Valid for any intervention level, regardless of whether it was ever notified. */
 export async function signOffAction(progressId: string): Promise<SignoffActionResult> {
   if (!progressId) return { error: "Missing sign-off record." };
@@ -249,14 +300,19 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
 
   const { data: progress } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .select("id, itp_item_id, project_party_id")
+    .select("id, itp_item_id, project_party_id, intervention")
     .eq("id", progressId)
-    .maybeSingle<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id">>();
+    .maybeSingle<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention">>();
 
   if (!progress) return { error: "Sign-off record not found." };
 
   if (!(await canSignOffForParty(supabase, progress.project_party_id))) {
     return { error: "You can only sign off on behalf of your own party on this project." };
+  }
+
+  const blockedByLevel = await findUnclearedLowerBlockingLevel(supabase, progress.itp_item_id, progress.intervention);
+  if (blockedByLevel) {
+    return { error: `${blockedByLevel} must be signed off (or proceeded without response) before this level can be.` };
   }
 
   const { error } = await supabase
