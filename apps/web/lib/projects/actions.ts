@@ -151,16 +151,14 @@ export interface ProjectPartyActiveState {
 }
 
 /**
- * Single-party activate/deactivate. Admin-only. NOTE ON WHAT THIS ACTUALLY DOES: project_parties.is_active
- * is a display/record-keeping flag only — it is filtered on in the project detail page's party list
- * query (`.eq("is_active", true)`) but is NOT read by any RLS policy or by canSignOffForParty (see
- * lib/signoff/actions.ts, which gates purely on project_parties.user_id === session.userId) or by any
- * checklist-execution check. Flipping this does not, by itself, revoke a party's linked user's ability
- * to sign off or execute checklists on this project — that ability actually comes from access_grants
- * (platform-level reach) plus project_parties.user_id (which party a login represents). This action
- * still does something real and useful (it's the project's own record of who's currently engaged, and
- * every list/summary that filters on is_active reflects it), but it is not, today, an access-control
- * boundary. See deactivateAllProjectPartiesAction below for the bulk version this backs.
+ * Single-party activate/deactivate. Admin-only. project_parties.is_active is a real access boundary,
+ * not just a display flag: canSignOffForParty (lib/signoff/actions.ts) and canExecuteChecklistForItem
+ * (lib/checklists/actions.ts) both now require is_active alongside the user_id match, so flipping this
+ * off actually revokes that party's linked user's ability to sign off or execute checklists on this
+ * project, in addition to hiding them from lists/summaries that filter on is_active. It does NOT
+ * revoke platform-level access (access_grants) — a deactivated party's user can still be re-activated
+ * or reassigned to another party without a separate invite. See deactivateAllProjectPartiesAction
+ * below for the bulk version this backs.
  */
 async function setProjectPartyActive(
   formData: FormData,

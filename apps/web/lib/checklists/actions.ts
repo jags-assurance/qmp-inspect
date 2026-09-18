@@ -39,6 +39,11 @@ export interface GenerateChecklistsState {
  * lib/checklists/execution-parties.ts) may run its checklist; an independent verifier (TPI/lab) or
  * a client without that opt-in still can't, same rule as the checklist page's own isAssignedParty
  * check (apps/web/app/inspect/checklists/[templateId]/page.tsx), kept in sync via the shared helper.
+ *
+ * project_parties.is_active is checked here too: until now it was only a display filter on list
+ * pages ("Deactivate all parties" etc. hid a party from the UI but never actually revoked anything),
+ * so a deactivated party's linked user could still tap Yes/No/N-A on a live checklist. Requiring
+ * is_active here makes deactivation a real access boundary rather than cosmetic.
  */
 async function canExecuteChecklistForItem(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -49,9 +54,9 @@ async function canExecuteChecklistForItem(
 
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
-    .select("project_parties(user_id, party_type)")
+    .select("project_parties(user_id, party_type, is_active)")
     .eq("itp_item_id", itpItemId)
-    .returns<{ project_parties: { user_id: string | null; party_type: string } | null }[]>();
+    .returns<{ project_parties: { user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
 
   const projectId = await findProjectIdForItpItem(supabase, itpItemId);
   const executingPartyTypes = projectId
@@ -61,6 +66,7 @@ async function canExecuteChecklistForItem(
   return (stakeholderParties ?? []).some(
     (row) =>
       row.project_parties?.user_id === session.userId &&
+      row.project_parties.is_active &&
       executingPartyTypes.has(row.project_parties.party_type)
   );
 }

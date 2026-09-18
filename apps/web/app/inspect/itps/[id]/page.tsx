@@ -132,10 +132,10 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .returns<SectionWithItems[]>(),
       supabase
         .from("project_parties")
-        .select("id, party_type, name, user_id")
+        .select("id, party_type, name, user_id, is_active")
         .eq("project_id", itp.projects?.id ?? "")
         .order("party_type")
-        .returns<{ id: string; party_type: string; name: string; user_id: string | null }[]>(),
+        .returns<{ id: string; party_type: string; name: string; user_id: string | null; is_active: boolean }[]>(),
       supabase
         .from("activity_party_intervention")
         .select("itp_item_id, project_party_id, intervention"),
@@ -269,9 +269,10 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   // Role-based restriction (R66-R81): a party's sign-off is theirs to give, not anyone's on the
   // project — staff can always countersign, an external user only for the party their own login is
-  // linked to via project_parties.user_id (see lib/signoff/actions.ts's canSignOffForParty, the
-  // server-side twin of this check).
-  const canSignOffFor = (partyUserId: string | null) => session.isJagsStaff || (!!partyUserId && partyUserId === session.userId);
+  // linked to via project_parties.user_id, and only while that party is active (see
+  // lib/signoff/actions.ts's canSignOffForParty, the server-side twin of this check).
+  const canSignOffFor = (partyUserId: string | null, partyIsActive: boolean) =>
+    session.isJagsStaff || (partyIsActive && !!partyUserId && partyUserId === session.userId);
 
   return (
     <div>
@@ -421,7 +422,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                   const partyCells = (parties ?? []).map((party) => {
                     const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
                     const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
-                    return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id) };
+                    return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id, party.is_active) };
                   });
                   return (
                     <Fragment key={item.id}>

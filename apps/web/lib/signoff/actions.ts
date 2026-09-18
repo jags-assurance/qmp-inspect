@@ -53,6 +53,13 @@ export interface SignoffActionResult {
  * `project_parties` row their own login is linked to via `project_parties.user_id` — set that link
  * when inviting a party's user, not here. No link yet on a party means nobody but staff can sign it
  * off until one is set.
+ *
+ * is_active is checked here too now: this used to be a display/record-keeping flag only (see the
+ * NOTE in lib/projects/actions.ts's setProjectPartyActive, now out of date), which meant
+ * "deactivating" a party never actually revoked its linked user's ability to sign off — it just hid
+ * them from lists. Reassignment (reassignSignoffPartyAction below) is the real "someone's out, hand
+ * their sign-offs to someone else" path; this is what makes the deactivated party's own login stop
+ * working in the meantime, rather than leaving it silently live.
  */
 async function canSignOffForParty(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -63,11 +70,11 @@ async function canSignOffForParty(
 
   const { data: party } = await supabase
     .from("project_parties")
-    .select("user_id")
+    .select("user_id, is_active")
     .eq("id", projectPartyId)
-    .maybeSingle<{ user_id: string | null }>();
+    .maybeSingle<{ user_id: string | null; is_active: boolean }>();
 
-  return party?.user_id === session.userId;
+  return party?.is_active === true && party?.user_id === session.userId;
 }
 
 /** Looks up the ITP id for a sign-off progress row's activity, to revalidate its detail page. */

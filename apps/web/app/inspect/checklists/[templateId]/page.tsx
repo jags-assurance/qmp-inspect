@@ -85,18 +85,25 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const EXECUTING_PARTY_TYPES = await getExecutingPartyTypes(supabase, project.id);
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
-    .select("project_parties(id, user_id, party_type)")
+    .select("project_parties(id, user_id, party_type, is_active)")
     .eq("itp_item_id", itpItem.id)
-    .returns<{ project_parties: { id: string; user_id: string | null; party_type: string } | null }[]>();
+    .returns<{ project_parties: { id: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
+  // is_active gates this the same way it now gates the server-side action (canExecuteChecklistForItem
+  // in lib/checklists/actions.ts) — a deactivated party shouldn't see live Yes/No/N-A buttons that the
+  // server would reject anyway.
   const isAssignedParty = (stakeholderParties ?? []).some(
     (row) =>
       row.project_parties?.user_id === session.userId &&
+      row.project_parties.is_active &&
       EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
   );
   // Distinguishes "you hold a sign-off point here but don't do field entry" from "your party isn't
   // on this activity at all" — both land on !isAssignedParty, but the guidance differs.
   const isSignoffOnlyParty = (stakeholderParties ?? []).some(
-    (row) => row.project_parties?.user_id === session.userId && !EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
+    (row) =>
+      row.project_parties?.user_id === session.userId &&
+      row.project_parties.is_active &&
+      !EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
   );
   // R92-R100 personnel-cert soft-stop: which project_party's certifications to check. Same
   // resolution as isAssignedParty above — the executing party is whichever subcontractor/main_
@@ -109,6 +116,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     (stakeholderParties ?? []).find(
       (row) =>
         row.project_parties?.user_id === session.userId &&
+        row.project_parties.is_active &&
         EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
     )?.project_parties?.id ?? null;
 
