@@ -8,9 +8,14 @@
   --color-off-white: #f9f7f4;
   --color-ink: #1c1c1e;
 
-  --color-border: #e7e1d8;
+  /* Darkened from the original #e7e1d8 / #8a8378 — those were barely distinguishable from the
+     off-white/white backgrounds behind them, so card edges, input outlines and secondary labels
+     disappeared entirely on a tablet screen in direct sunlight (glare crushes any low-contrast
+     tone toward white first). These keep the same warm/neutral hue but push contrast well past
+     WCAG's 3:1 UI-component and 4.5:1 text minimums so outlines and labels stay legible outdoors. */
+  --color-border: #b3a993;
   --color-surface: #ffffff;
-  --color-muted: #8a8378;
+  --color-muted: #5c5648;
 
   --color-success: #1f7a4d;
   --color-danger: #b3261e;
