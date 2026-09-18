@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { upsertNumberingConfigAction, type NumberingSettingsState } from "@/lib/numbering/actions";
 import type { NumberingDocType } from "@/lib/numbering/types";
+import { formatDocumentNumber } from "@/lib/numbering/format";
 import { Button } from "@/components/ui/button";
 
 const initialState: NumberingSettingsState = { error: null };
@@ -35,6 +36,22 @@ export function NumberingConfigRow({
 }) {
   const [state, formAction, pending] = useActionState(upsertNumberingConfigAction, initialState);
 
+  // Live preview — computed with the exact same formatDocumentNumber logic the server actually
+  // generates a real number with (lib/numbering/format.ts), so what's shown here can never drift
+  // out of sync with what a real document actually gets numbered. Fields default to the same
+  // fallbacks generate.ts itself falls back to when a row is left blank, so an unconfigured type's
+  // sample matches its real default-format output too.
+  const [clientCode, setClientCode] = useState(config?.clientCode ?? "");
+  const [originatorCode, setOriginatorCode] = useState(config?.originatorCode ?? "JAGS");
+  const [separator, setSeparator] = useState(config?.separator ?? "-");
+  const [sequencePadding, setSequencePadding] = useState(config?.sequencePadding ?? 3);
+  const [includeYear, setIncludeYear] = useState(config?.includeYear ?? false);
+
+  const sample = formatDocumentNumber(
+    { clientCode: clientCode || "PROJ-2026-001", originatorCode, docType, seq: 1 },
+    { separator, sequencePadding: sequencePadding || 1, includeYear }
+  );
+
   return (
     <form
       action={formAction}
@@ -50,7 +67,8 @@ export function NumberingConfigRow({
         <input
           name="client_code"
           required
-          defaultValue={config?.clientCode ?? ""}
+          value={clientCode}
+          onChange={(e) => setClientCode(e.target.value)}
           placeholder="e.g. project number"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
@@ -60,7 +78,8 @@ export function NumberingConfigRow({
         <label className="block text-xs text-muted">Originator</label>
         <input
           name="originator_code"
-          defaultValue={config?.originatorCode ?? "JAGS"}
+          value={originatorCode}
+          onChange={(e) => setOriginatorCode(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
       </div>
@@ -69,7 +88,8 @@ export function NumberingConfigRow({
         <label className="block text-xs text-muted">Separator</label>
         <input
           name="separator"
-          defaultValue={config?.separator ?? "-"}
+          value={separator}
+          onChange={(e) => setSeparator(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
       </div>
@@ -81,19 +101,24 @@ export function NumberingConfigRow({
           type="number"
           min={1}
           max={6}
-          defaultValue={config?.sequencePadding ?? 3}
+          value={sequencePadding}
+          onChange={(e) => setSequencePadding(Number(e.target.value))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
       </div>
 
       <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
-        <input type="checkbox" name="include_year" defaultChecked={config?.includeYear ?? false} />
+        <input type="checkbox" name="include_year" checked={includeYear} onChange={(e) => setIncludeYear(e.target.checked)} />
         Year
       </label>
 
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
+
+      <p className="col-span-full text-xs text-muted">
+        Sample: <span className="doc-id font-medium text-ink">{sample}</span>
+      </p>
 
       {state.error && <p className="col-span-full text-sm text-danger">{state.error}</p>}
     </form>

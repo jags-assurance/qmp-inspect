@@ -9,12 +9,6 @@ import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config
 import { OrgPickerForm } from "./org-picker-form";
 import { MonthlyReportPackForm } from "./monthly-report-pack-form";
 import { WeeklyReportPackForm } from "./weekly-report-pack-form";
-import { REPORT_PACK_STATUS_LABEL } from "../../projects/[projectId]/reports/page";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 interface OrganizationOption {
   id: string;
@@ -124,53 +118,12 @@ export default async function NumberingSettingsPage({
             <p className="mt-1 text-xs text-muted">
               Generates a PDF + CSV report pack (R109) covering this organisation&rsquo;s first-time
               pass rate, inspections completed, NCR summary and ITP completion, aggregated across
-              all of their projects for the chosen month. Rendering happens in the background;
-              refresh this page to see it appear below once it completes.
+              all of their projects for the chosen month. Rendering happens in the background — the
+              table below updates automatically once it completes, no reload needed.
             </p>
             <div className="mt-4">
-              <MonthlyReportPackForm organizationId={selectedOrg.id} />
+              <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} />
             </div>
-
-            <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
-              Generated report packs
-            </h3>
-            {reportPacks.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">No report packs generated yet for this organisation.</p>
-            ) : (
-              <table className="mt-2 w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                    <th className="py-2">Period</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">Requested</th>
-                    <th className="py-2">Download</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportPacks.map((pack) => (
-                    <tr key={pack.id} className="border-b border-border last:border-0">
-                      <td className="py-2">{MONTH_NAMES[pack.month - 1]} {pack.year}</td>
-                      <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
-                      <td className="py-2 text-xs text-muted">{new Date(pack.createdAt).toLocaleString()}</td>
-                      <td className="py-2">
-                        {pack.status === "completed" && pack.pdfUrl ? (
-                          <span className="flex gap-3">
-                            <a href={pack.pdfUrl} className="text-burgundy underline">PDF</a>
-                            {pack.csvUrl && (
-                              <a href={pack.csvUrl} className="text-burgundy underline">CSV</a>
-                            )}
-                          </span>
-                        ) : pack.status === "failed" ? (
-                          <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
-                        ) : (
-                          <span className="text-xs text-muted">Rendering…</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
           </div>
 
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
@@ -179,53 +132,12 @@ export default async function NumberingSettingsPage({
               The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month —
               covers first-time pass rate, inspections completed, NCR summary and ITP completion
               for the chosen week, aggregated across all of this organisation&rsquo;s projects.
-              Rendering happens in the background; refresh this page to see it appear below once it
-              completes.
+              Rendering happens in the background — the table below updates automatically once it
+              completes, no reload needed.
             </p>
             <div className="mt-4">
-              <WeeklyReportPackForm organizationId={selectedOrg.id} />
+              <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} />
             </div>
-
-            <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
-              Generated report packs
-            </h3>
-            {weeklyReportPacks.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">No report packs generated yet for this organisation.</p>
-            ) : (
-              <table className="mt-2 w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                    <th className="py-2">Week</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">Requested</th>
-                    <th className="py-2">Download</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weeklyReportPacks.map((pack) => (
-                    <tr key={pack.id} className="border-b border-border last:border-0">
-                      <td className="py-2">Week of {pack.weekStart}</td>
-                      <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
-                      <td className="py-2 text-xs text-muted">{new Date(pack.createdAt).toLocaleString()}</td>
-                      <td className="py-2">
-                        {pack.status === "completed" && pack.pdfUrl ? (
-                          <span className="flex gap-3">
-                            <a href={pack.pdfUrl} className="text-burgundy underline">PDF</a>
-                            {pack.csvUrl && (
-                              <a href={pack.csvUrl} className="text-burgundy underline">CSV</a>
-                            )}
-                          </span>
-                        ) : pack.status === "failed" ? (
-                          <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
-                        ) : (
-                          <span className="text-xs text-muted">Rendering…</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
           </div>
         </>
       )}

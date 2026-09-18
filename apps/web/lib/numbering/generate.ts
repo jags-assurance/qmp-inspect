@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NUMBERING_CONFIGS_TABLE, type NumberingConfigRow, type NumberingDocType } from "@/lib/numbering/types";
+import { formatDocumentNumber } from "@/lib/numbering/format";
 
 export interface GenerateDocumentNumberParams {
   organizationId: string;
@@ -32,10 +33,11 @@ function formatNumber(
   parts: { clientCode: string; originatorCode: string; docType: string; seq: number },
   config: Pick<NumberingConfigRow, "separator" | "sequence_padding" | "include_year">
 ): string {
-  const seq = String(parts.seq).padStart(config.sequence_padding, "0");
-  const segments = [parts.clientCode, parts.originatorCode, parts.docType.toUpperCase(), seq];
-  if (config.include_year) segments.splice(3, 0, String(new Date().getFullYear()));
-  return segments.filter(Boolean).join(config.separator);
+  return formatDocumentNumber(parts, {
+    separator: config.separator,
+    sequencePadding: config.sequence_padding,
+    includeYear: config.include_year,
+  });
 }
 
 /**

@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { listMonthlyReportPacks } from "@/lib/reports/actions";
+import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -22,15 +23,6 @@ const ITP_STATUS_LABEL: Record<string, string> = {
   under_review: "Under review",
   approved: "Approved",
   client_accepted: "Client accepted",
-};
-
-// Exported so other pages rendering the same report-pack status enum (e.g.
-// app/inspect/organisation/numbering/page.tsx) can reuse this instead of duplicating a copy.
-export const REPORT_PACK_STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  processing: "Processing",
-  completed: "Completed",
-  failed: "Failed",
 };
 
 interface ProjectSummary {
