@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { isTeamLeadForProject } from "@/lib/teams/helpers";
 
 export interface CreateProjectState {
   error: string | null;
@@ -59,9 +60,11 @@ type PartyType = (typeof VALID_PARTY_TYPES)[number];
  * Client onboarding gap this closes: previously project_parties could only be populated by hand-
  * written seed data — the project detail page displayed the party list but had no way to add to it,
  * so a brand-new project had no parties at all and its intervention grid (H/W/R/S sign-off chain)
- * had nothing to assign to. RLS (project_parties_staff_write) already allowed any JAGS staff to
- * insert here; this was purely a missing UI, same class of gap as organizations before
- * lib/organizations/actions.ts.
+ * had nothing to assign to. RLS (project_parties_staff_write) still allows any JAGS staff to insert
+ * here, but that's broader than intended: adding/removing who's on a project is the same class of
+ * sensitive capability as reassignSignoffPartyAction (lib/signoff/actions.ts), so this action itself
+ * narrows it to a JAGS Admin, or the lead of a team assigned to this project, rather than "any
+ * inspector with project access" — mirroring that action's own admin/team-lead check exactly.
  *
  * Deliberately does not set project_parties.user_id (the login-link column from
  * supabase/migrations/20260910070000_phase3_project_party_login_link.sql) — linking a party to a
@@ -93,7 +96,14 @@ export async function addProjectPartyAction(
     return { error: "Invalid party type." };
   }
 
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
+
+  const allowed = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, projectId));
+  if (!allowed) {
+    return { error: "Only a JAGS Admin, or a lead of a team assigned to this project, can add a project party." };
+  }
+
   const { error } = await supabase.from("project_parties").insert({
     project_id: projectId,
     party_type: partyType as PartyType,
@@ -215,8 +225,9 @@ export interface BulkProjectPartiesState {
  * in one click (reactivateAllProjectPartiesAction) for exactly that reason: if the project reopens or
  * someone needs access again post-handover, nothing has to be recreated from scratch.
  *
- * See the note on setProjectPartyActive above: this is a project record-keeping switch, not (today) an
- * enforced access boundary — real access still runs through access_grants + project_parties.user_id.
+ * See the note on setProjectPartyActive above: is_active is a real access boundary now (canSignOffForParty
+ * and canExecuteChecklistForItem both require it), so this bulk action actually revokes every deactivated
+ * party's ability to sign off or execute checklists on the project, not just hides them from lists.
  */
 export async function deactivateAllProjectPartiesAction(
   _prev: BulkProjectPartiesState,
