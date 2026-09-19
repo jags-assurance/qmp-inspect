@@ -248,6 +248,29 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["team_project_assignments"]["Insert"]>;
         Relationships: [];
       };
+      client_teams: {
+        Row: { id: string; organization_id: string; name: string; created_at: string };
+        Insert: { id?: string; organization_id: string; name: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["client_teams"]["Insert"]>;
+        Relationships: [];
+      };
+      client_team_members: {
+        Row: { client_team_id: string; user_id: string; is_team_lead: boolean; created_at: string };
+        Insert: {
+          client_team_id: string;
+          user_id: string;
+          is_team_lead?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["client_team_members"]["Insert"]>;
+        Relationships: [];
+      };
+      client_team_project_assignments: {
+        Row: { client_team_id: string; project_id: string; created_at: string };
+        Insert: { client_team_id: string; project_id: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["client_team_project_assignments"]["Insert"]>;
+        Relationships: [];
+      };
       itps: {
         Row: {
           id: string;

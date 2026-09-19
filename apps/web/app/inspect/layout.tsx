@@ -5,13 +5,31 @@ import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
 
   // Teams is visible to a JAGS Admin (manages every team) or any staff account that leads at least
   // one team (manages only their own) — an Inspector with no lead role has no reason to see it.
   // Admin already implies this, so the extra DB round-trip only happens for non-admin staff.
-  const showTeamsNav =
-    session.isJagsStaff &&
-    (isAdminStaff(session) || (await isLeadOfAnyTeam(await createSupabaseServerClient(), session.userId)));
+  const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || (await isLeadOfAnyTeam(supabase, session.userId)));
+
+  // Client Teams (a client org's OWN people grouping — see app/inspect/organisation/client-teams,
+  // supabase/migrations/20260919020000_client_teams.sql) is always visible to staff (an Admin can
+  // browse any org's client teams; an Inspector can at least view them, matching how Teams itself is
+  // gated). A non-staff client user only gets the link if it would actually show them something: their
+  // own org already has at least one client_team, or their org is self_managed (so they can bootstrap
+  // the first one) — avoids dangling an empty/irrelevant nav item in front of, say, a subcontractor or
+  // TPI login that will never have a client team of its own.
+  let showClientTeamsNav = session.isJagsStaff;
+  if (!showClientTeamsNav) {
+    const ownOrgId = session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+    if (ownOrgId) {
+      const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
+        supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
+        supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
+      ]);
+      showClientTeamsNav = (clientTeamCount ?? 0) > 0 || org?.engagement_scope === "self_managed";
+    }
+  }
 
   // Every non-staff role used to get the identical nav, with only the underlying data differing
   // via RLS — no portal actually looked or felt different per party. This is a first, deliberately
@@ -53,11 +71,15 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Reporting", href: "/inspect/organisation/reporting" },
           { label: "Staff Access", href: "/inspect/organisation/staff-access" },
           { label: "Teams", href: "/inspect/organisation/teams" },
+          { label: "Client Teams", href: "/inspect/organisation/client-teams" },
           { label: "Custom Roles", href: "/inspect/organisation/roles" },
         ]
       : []),
     ...(showTeamsNav && !isAdminStaff(session)
       ? [{ label: "Teams", href: "/inspect/organisation/teams" }]
+      : []),
+    ...(showClientTeamsNav && !isAdminStaff(session)
+      ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
       : []),
   ];
 
