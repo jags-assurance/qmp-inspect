@@ -30,10 +30,6 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : []),
     { label: "Dashboard", href: "/inspect" },
     ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
-    // Account security (MFA enrollment) is every staff member's own concern, not an
-    // administrative one — unlike the Admin-only block below, this is available to any JAGS
-    // staff login (Admin or Inspector).
-    ...(session.isJagsStaff ? [{ label: "Security", href: "/inspect/organisation/security" }] : []),
     { label: "Projects", href: "/inspect/projects" },
     { label: "ITPs", href: "/inspect/itps" },
     { label: "NCRs", href: "/inspect/ncrs" },

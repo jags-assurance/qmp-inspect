@@ -11,16 +11,6 @@ const PUBLIC_PATHS = [
   "/api/health",
 ];
 
-// Requires a signed-in user (unlike the fully public paths above) but must itself be reachable
-// *before* AAL2 is reached — otherwise a user who needs the challenge could never reach the page
-// that lets them clear it.
-const MFA_CHALLENGE_PATH = "/mfa/challenge";
-
-// Where a JAGS Admin enrolls a TOTP factor — the mandatory-MFA-for-admins gate below redirects here
-// rather than to MFA_CHALLENGE_PATH, since an admin with zero enrolled factors has nothing to
-// challenge yet (Supabase's own AAL only ever asks for a *second* step once a factor already exists).
-const MFA_ENROLL_PATH = "/inspect/organisation/security";
-
 /**
  * Refreshes the Supabase session on every request (required by @supabase/ssr) and redirects
  * signed-out users away from anything but the public auth routes. This is a UX convenience, not
@@ -74,50 +64,6 @@ export async function proxy(request: NextRequest) {
 
   if (user && request.nextUrl.pathname === "/login") {
     return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  // MFA gate: opt-in, not mandatory (see lib/auth/mfa-actions.ts / app/inspect/organisation/
-  // security) — this only ever fires for an account that has itself enrolled a verified TOTP
-  // factor, which is exactly what flips Supabase's `nextLevel` to aal2. Every other account is
-  // unaffected. `currentLevel` reaches aal2 only after the /mfa/challenge page's
-  // challengeAndVerify() call succeeds for *this* session.
-  if (user && !isPublicPath) {
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    const needsChallenge = aal && aal.nextLevel === "aal2" && aal.currentLevel !== aal.nextLevel;
-
-    if (needsChallenge && request.nextUrl.pathname !== MFA_CHALLENGE_PATH) {
-      return NextResponse.redirect(new URL(MFA_CHALLENGE_PATH, request.url));
-    }
-    if (!needsChallenge && request.nextUrl.pathname === MFA_CHALLENGE_PATH) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-
-    // Mandatory MFA for JAGS Admin accounts (an Admin can see every client's data, so this is the
-    // one role where "opt-in" isn't good enough — CEO ask, "admin as more secure login"). An account
-    // that has never enrolled a factor never reaches aal2's "needsChallenge" branch above at all
-    // (there's nothing to challenge yet), so it would otherwise sail straight into the app with
-    // password-only auth forever. Skipped once the account already has a verified factor (then
-    // needsChallenge/the aal2 flow above is the only gate that applies) and on the enrollment page
-    // itself, to avoid a redirect loop.
-    if (!needsChallenge && request.nextUrl.pathname !== MFA_ENROLL_PATH) {
-      const { data: profile } = await supabase
-        .from("users")
-        .select("is_jags_staff, staff_role")
-        .eq("id", user.id)
-        .maybeSingle<{ is_jags_staff: boolean; staff_role: "admin" | "inspector" | null }>();
-
-      // staff_role null = legacy admin-equivalent account (same convention as isAdminStaff in
-      // lib/auth/session.ts) — treated as Admin here too, not as a loophole.
-      const isAdmin = !!profile?.is_jags_staff && profile.staff_role !== "inspector";
-
-      if (isAdmin) {
-        const { data: factors } = await supabase.auth.mfa.listFactors();
-        const hasVerifiedFactor = (factors?.totp ?? []).some((f) => f.status === "verified");
-        if (!hasVerifiedFactor) {
-          return NextResponse.redirect(new URL(MFA_ENROLL_PATH, request.url));
-        }
-      }
-    }
   }
 
   return response;
