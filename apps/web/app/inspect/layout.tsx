@@ -20,6 +20,12 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // the first one) — avoids dangling an empty/irrelevant nav item in front of, say, a subcontractor or
   // TPI login that will never have a client team of its own.
   let showClientTeamsNav = session.isJagsStaff;
+  // Numbering (numbering-only view), Brand Colors, and Custom Roles are all self-service for a
+  // Self-Managed client's own organization (20260919050000_self_managed_org_settings.sql,
+  // 20260919030000_self_managed_custom_role_management.sql) — "the client manages its own
+  // organization." Computed once here alongside the Client Teams check since they share the same
+  // "is my own org self_managed" lookup.
+  let isSelfManagedOrg = false;
   if (!showClientTeamsNav) {
     const ownOrgId = session.grants.find((g) => g.organization_id)?.organization_id ?? null;
     if (ownOrgId) {
@@ -27,7 +33,8 @@ export default async function InspectLayout({ children }: { children: React.Reac
         supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
         supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
       ]);
-      showClientTeamsNav = (clientTeamCount ?? 0) > 0 || org?.engagement_scope === "self_managed";
+      isSelfManagedOrg = org?.engagement_scope === "self_managed";
+      showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
     }
   }
 
@@ -80,6 +87,13 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : []),
     ...(showClientTeamsNav && !isAdminStaff(session)
       ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
+      : []),
+    ...(isSelfManagedOrg && !isAdminStaff(session)
+      ? [
+          { label: "Numbering", href: "/inspect/organisation/numbering" },
+          { label: "Brand Colors", href: "/inspect/organisation/branding" },
+          { label: "Custom Roles", href: "/inspect/organisation/roles" },
+        ]
       : []),
   ];
 

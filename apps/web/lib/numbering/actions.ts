@@ -96,16 +96,32 @@ export async function updateEngagementScopeAction(
   return { error: null };
 }
 
+/**
+ * Admin-only for a full_service org — but a Self-Managed client can configure its OWN organization's
+ * document numbering format (20260919050000_self_managed_org_settings.sql), matching "the client
+ * manages its own organization." Numbering format is cosmetic/administrative, unlike
+ * engagement_mode/engagement_scope above, which stay JAGS-only (branding arrangement and service
+ * tier are JAGS/commercial decisions, not something a client declares for itself).
+ */
 export async function upsertNumberingConfigAction(
   _prev: NumberingSettingsState,
   formData: FormData
 ): Promise<NumberingSettingsState> {
   const session = await requireSession();
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+
   if (!isAdminStaff(session)) {
-    return { error: "Only a JAGS Admin can change engagement mode or numbering settings." };
+    const supabase = await createSupabaseServerClient();
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("engagement_scope")
+      .eq("id", organizationId)
+      .maybeSingle<{ engagement_scope: string }>();
+    if (org?.engagement_scope !== "self_managed") {
+      return { error: "Only a JAGS Admin can change this organisation's numbering settings." };
+    }
   }
 
-  const organizationId = String(formData.get("organization_id") ?? "").trim();
   const docType = String(formData.get("doc_type") ?? "").trim() as NumberingDocType;
   const clientCode = String(formData.get("client_code") ?? "").trim();
   const originatorCode = String(formData.get("originator_code") ?? "JAGS").trim() || "JAGS";

@@ -23,20 +23,46 @@ export default async function NumberingSettingsPage({
   searchParams: Promise<{ org?: string }>;
 }) {
   const session = await requireSession();
-  // Numbering/engagement-mode configuration is administrative (billing/branding scope) — Admin-only,
-  // not a day-to-day Inspector task.
-  if (!isAdminStaff(session)) redirect("/inspect");
-
-  const { org: orgIdParam } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: organizations } = await supabase
-    .from("organizations")
-    .select("id, name, engagement_mode, engagement_scope")
-    .order("name")
-    .returns<OrganizationOption[]>();
+  // Engagement mode/scope and report-pack generation are administrative (billing/branding/service
+  // tier) — Admin-only, unchanged. But a Self-Managed client can configure its OWN organization's
+  // document numbering format (20260919050000_self_managed_org_settings.sql), matching "the client
+  // manages its own organization" — so a non-staff self-managed user gets this same page scoped to
+  // just their own org, with only the numbering section shown (not engagement mode/scope/report
+  // packs, which stay Admin-only actions regardless of who's viewing).
+  const isStaffAdmin = isAdminStaff(session);
+  let organizations: OrganizationOption[] = [];
+  let numberingOnly = false;
 
-  const selectedOrg = organizations?.find((o) => o.id === orgIdParam) ?? organizations?.[0] ?? null;
+  if (isStaffAdmin) {
+    const { data } = await supabase
+      .from("organizations")
+      .select("id, name, engagement_mode, engagement_scope")
+      .order("name")
+      .returns<OrganizationOption[]>();
+    organizations = data ?? [];
+  } else {
+    const { data: grants } = await supabase
+      .from("access_grants")
+      .select("organizations(id, name, engagement_mode, engagement_scope)")
+      .eq("user_id", session.userId)
+      .returns<{ organizations: OrganizationOption | null }[]>();
+
+    const seen = new Set<string>();
+    for (const g of grants ?? []) {
+      const org = g.organizations;
+      if (org && org.engagement_scope === "self_managed" && !seen.has(org.id)) {
+        seen.add(org.id);
+        organizations.push(org);
+      }
+    }
+    if (organizations.length === 0) redirect("/inspect");
+    numberingOnly = true;
+  }
+
+  const { org: orgIdParam } = await searchParams;
+  const selectedOrg = organizations.find((o) => o.id === orgIdParam) ?? organizations[0] ?? null;
 
   let configsByDocType = new Map<string, NumberingConfigRow>();
   if (selectedOrg) {
@@ -50,37 +76,46 @@ export default async function NumberingSettingsPage({
     configsByDocType = new Map((configs ?? []).map((c) => [c.doc_type, c]));
   }
 
-  const reportPacks = selectedOrg ? await listMonthlyReportPacks(selectedOrg.id) : [];
-  const weeklyReportPacks = selectedOrg ? await listWeeklyReportPacks(selectedOrg.id) : [];
+  const reportPacks = selectedOrg && !numberingOnly ? await listMonthlyReportPacks(selectedOrg.id) : [];
+  const weeklyReportPacks = selectedOrg && !numberingOnly ? await listWeeklyReportPacks(selectedOrg.id) : [];
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Numbering & engagement mode</h1>
+      <h1 className="text-2xl font-semibold text-ink">
+        {numberingOnly ? "Document numbering" : "Numbering & engagement mode"}
+      </h1>
       <p className="mt-1 text-sm text-muted">
-        One org-level engagement mode drives both branding and how every document type is numbered
-        for that client.
+        {numberingOnly
+          ? "Configure how each document type is numbered for your organisation."
+          : "One org-level engagement mode drives both branding and how every document type is numbered for that client."}
       </p>
 
-      <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
+      {!numberingOnly && (
+        <OrgPickerForm organizations={organizations} selectedOrgId={selectedOrg?.id ?? null} />
+      )}
 
       {selectedOrg && (
         <>
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Engagement mode</h2>
-            <div className="mt-3">
-              <EngagementModeForm
-                organizationId={selectedOrg.id}
-                engagementMode={selectedOrg.engagement_mode}
-              />
-            </div>
-          </div>
+          {!numberingOnly && (
+            <>
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-semibold text-ink">Engagement mode</h2>
+                <div className="mt-3">
+                  <EngagementModeForm
+                    organizationId={selectedOrg.id}
+                    engagementMode={selectedOrg.engagement_mode}
+                  />
+                </div>
+              </div>
 
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Engagement scope</h2>
-            <div className="mt-3">
-              <EngagementScopeForm organizationId={selectedOrg.id} engagementScope={selectedOrg.engagement_scope} />
-            </div>
-          </div>
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-semibold text-ink">Engagement scope</h2>
+                <div className="mt-3">
+                  <EngagementScopeForm organizationId={selectedOrg.id} engagementScope={selectedOrg.engagement_scope} />
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink">Document numbering formats</h2>
@@ -113,32 +148,37 @@ export default async function NumberingSettingsPage({
             </div>
           </div>
 
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Monthly client report pack</h2>
-            <p className="mt-1 text-xs text-muted">
-              Generates a PDF + CSV report pack (R109) covering this organisation&rsquo;s first-time
-              pass rate, inspections completed, NCR summary and ITP completion, aggregated across
-              all of their projects for the chosen month. Rendering happens in the background — the
-              table below updates automatically once it completes, no reload needed.
-            </p>
-            <div className="mt-4">
-              <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} />
-            </div>
-          </div>
+          {!numberingOnly && (
+            <>
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-semibold text-ink">Monthly client report pack</h2>
+                <p className="mt-1 text-xs text-muted">
+                  Generates a PDF + CSV report pack (R109) covering this organisation&rsquo;s
+                  first-time pass rate, inspections completed, NCR summary and ITP completion,
+                  aggregated across all of their projects for the chosen month. Rendering happens
+                  in the background — the table below updates automatically once it completes, no
+                  reload needed.
+                </p>
+                <div className="mt-4">
+                  <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} />
+                </div>
+              </div>
 
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Weekly client report pack</h2>
-            <p className="mt-1 text-xs text-muted">
-              The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month —
-              covers first-time pass rate, inspections completed, NCR summary and ITP completion
-              for the chosen week, aggregated across all of this organisation&rsquo;s projects.
-              Rendering happens in the background — the table below updates automatically once it
-              completes, no reload needed.
-            </p>
-            <div className="mt-4">
-              <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} />
-            </div>
-          </div>
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-semibold text-ink">Weekly client report pack</h2>
+                <p className="mt-1 text-xs text-muted">
+                  The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month —
+                  covers first-time pass rate, inspections completed, NCR summary and ITP
+                  completion for the chosen week, aggregated across all of this
+                  organisation&rsquo;s projects. Rendering happens in the background — the table
+                  below updates automatically once it completes, no reload needed.
+                </p>
+                <div className="mt-4">
+                  <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} />
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
