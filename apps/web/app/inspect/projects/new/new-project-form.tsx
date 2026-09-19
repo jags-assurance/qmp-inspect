@@ -7,7 +7,15 @@ import { Button } from "@/components/ui/button";
 
 const initialState: CreateProjectState = { error: null };
 
-export function NewProjectForm({ organizations }: { organizations: { id: string; name: string }[] }) {
+export function NewProjectForm({
+  organizations,
+  allowCreateOrg = true,
+}: {
+  organizations: { id: string; name: string }[];
+  /** Hidden for a Self-Managed client creating their own project — they can't create a new
+   *  organisation, only a project under the one they already belong to. */
+  allowCreateOrg?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
 
   return (
@@ -17,9 +25,11 @@ export function NewProjectForm({ organizations }: { organizations: { id: string;
           <label htmlFor="organization_id" className="block text-sm font-medium text-ink">
             Client organisation
           </label>
-          <Link href="/inspect/organisation/clients" className="text-xs font-medium text-burgundy hover:underline">
-            + New organisation
-          </Link>
+          {allowCreateOrg && (
+            <Link href="/inspect/organisation/clients" className="text-xs font-medium text-burgundy hover:underline">
+              + New organisation
+            </Link>
+          )}
         </div>
         <select
           id="organization_id"

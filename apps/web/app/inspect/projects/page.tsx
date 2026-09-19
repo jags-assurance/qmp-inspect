@@ -9,6 +9,20 @@ export default async function ProjectsPage() {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
+  // Project creation is normally Admin-only, but a Self-Managed/Platform-Only client runs its own
+  // program on the platform (supabase/migrations/20260919010000_self_managed_project_creation.sql)
+  // — mirrors that RLS policy's own check so the button never appears somewhere the create page
+  // would then redirect away from.
+  let canCreateProject = isAdminStaff(session);
+  if (!canCreateProject && !session.isJagsStaff) {
+    const { data: grants } = await supabase
+      .from("access_grants")
+      .select("organizations(engagement_scope)")
+      .eq("user_id", session.userId)
+      .returns<{ organizations: { engagement_scope: string } | null }[]>();
+    canCreateProject = (grants ?? []).some((g) => g.organizations?.engagement_scope === "self_managed");
+  }
+
   const { data: projects } = await supabase
     .from("projects")
     .select("id, project_number, name, site_location, status, organizations(name)")
@@ -70,7 +84,7 @@ export default async function ProjectsPage() {
               : "Projects your organisation is engaged on."}
           </p>
         </div>
-        {isAdminStaff(session) && (
+        {canCreateProject && (
           <Link href="/inspect/projects/new">
             <Button>+ New project</Button>
           </Link>
