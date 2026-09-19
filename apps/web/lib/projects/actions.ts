@@ -201,6 +201,42 @@ export async function setAllowClientItpCreationAction(
   return { error: null };
 }
 
+export interface SetAllowContractorItpCreationState {
+  error: string | null;
+}
+
+/**
+ * Per-project opt-in that lets a subcontractor or main_contractor party create and build out an ITP
+ * from scratch on this project — see supabase/migrations/20260919000000_contractor_itp_creation.sql
+ * (is_client_itp_creator(), which despite its name now also covers this) for the actual RLS this
+ * flag drives. Same shape and same boundaries as setAllowClientItpCreationAction above: draft-only,
+ * Admin-only to change.
+ */
+export async function setAllowContractorItpCreationAction(
+  _prev: SetAllowContractorItpCreationState,
+  formData: FormData
+): Promise<SetAllowContractorItpCreationState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this setting." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const allow = formData.get("allow_contractor_itp_creation") === "on";
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ allow_contractor_itp_creation: allow })
+    .eq("id", projectId);
+
+  if (error) return { error: "Could not update this setting. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
 export interface ProjectPartyActiveState {
   error: string | null;
 }

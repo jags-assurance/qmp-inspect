@@ -10,6 +10,7 @@ import { AddProjectPartyForm } from "./add-project-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
+import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
@@ -45,6 +46,7 @@ interface ProjectDetail {
   organization_id: string;
   allow_client_execution: boolean;
   allow_client_itp_creation: boolean;
+  allow_contractor_itp_creation: boolean;
   responsible_person_id: string | null;
   responsible_person: { full_name: string; email: string } | null;
   organizations: {
@@ -80,7 +82,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
     )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
@@ -310,6 +312,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <AllowClientItpCreationToggle
             projectId={project.id}
             allowClientItpCreation={project.allow_client_itp_creation}
+          />
+          <AllowContractorItpCreationToggle
+            projectId={project.id}
+            allowContractorItpCreation={project.allow_contractor_itp_creation}
           />
         </div>
       )}

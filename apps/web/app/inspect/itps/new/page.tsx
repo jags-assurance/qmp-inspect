@@ -17,29 +17,41 @@ export default async function NewItpPage() {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  // Client-created ITPs (opt-in per project, supabase/migrations/20260918000000_client_itp_creation.sql
-  // — or org-wide for a Self-Managed/Platform-Only client, 20260918010000_self_managed_engagement_scope.sql):
-  // a non-staff user only gets past this gate if their login is linked to an active client-type
-  // project_party on at least one project where either is true. Mirrors is_client_itp_creator()
-  // exactly so the page and the RLS it relies on never drift apart.
+  // Client- or contractor-created ITPs (opt-in per project — client:
+  // supabase/migrations/20260918000000_client_itp_creation.sql, or org-wide for a Self-Managed/
+  // Platform-Only client, 20260918010000_self_managed_engagement_scope.sql; subcontractor/
+  // main_contractor: 20260919000000_contractor_itp_creation.sql): a non-staff user only gets past
+  // this gate if their login is linked to an active, eligible project_party on at least one project.
+  // Mirrors is_client_itp_creator() exactly so the page and the RLS it relies on never drift apart.
   let clientEligibleProjectIds: Set<string> | null = null;
   if (!session.isJagsStaff) {
     const { data: eligibleParties } = await supabase
       .from("project_parties")
-      .select("project_id, projects!inner(allow_client_itp_creation, organizations(engagement_scope))")
-      .eq("party_type", "client")
+      .select(
+        "project_id, party_type, projects!inner(allow_client_itp_creation, allow_contractor_itp_creation, organizations(engagement_scope))"
+      )
+      .in("party_type", ["client", "subcontractor", "main_contractor"])
       .eq("is_active", true)
       .eq("user_id", session.userId)
       .returns<
         {
           project_id: string;
-          projects: { allow_client_itp_creation: boolean; organizations: { engagement_scope: string } | null } | null;
+          party_type: "client" | "subcontractor" | "main_contractor";
+          projects: {
+            allow_client_itp_creation: boolean;
+            allow_contractor_itp_creation: boolean;
+            organizations: { engagement_scope: string } | null;
+          } | null;
         }[]
       >();
 
     clientEligibleProjectIds = new Set(
       (eligibleParties ?? [])
-        .filter((p) => p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed")
+        .filter((p) =>
+          p.party_type === "client"
+            ? p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed"
+            : p.projects?.allow_contractor_itp_creation
+        )
         .map((p) => p.project_id)
     );
     if (clientEligibleProjectIds.size === 0) redirect("/inspect/itps");

@@ -16,26 +16,35 @@ export default async function ItpsPage({
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
-  // Client-created ITPs (opt-in per project, or org-wide for a Self-Managed/Platform-Only client —
-  // see itps/new/page.tsx's doc comment): show "+ New ITP" to a non-staff user too if either applies
-  // on at least one project — mirrors the same eligibility check there so the button never appears
-  // somewhere the page itself would then redirect away from.
+  // Client- or contractor-created ITPs (opt-in per project, or org-wide for a Self-Managed/
+  // Platform-Only client — see itps/new/page.tsx's doc comment): show "+ New ITP" to a non-staff
+  // user too if they're eligible on at least one project — mirrors the same eligibility check there
+  // so the button never appears somewhere the page itself would then redirect away from.
   let canCreateItp = session.isJagsStaff;
   if (!canCreateItp) {
     const { data: eligibleParties } = await supabase
       .from("project_parties")
-      .select("project_id, projects!inner(allow_client_itp_creation, organizations(engagement_scope))")
-      .eq("party_type", "client")
+      .select(
+        "project_id, party_type, projects!inner(allow_client_itp_creation, allow_contractor_itp_creation, organizations(engagement_scope))"
+      )
+      .in("party_type", ["client", "subcontractor", "main_contractor"])
       .eq("is_active", true)
       .eq("user_id", session.userId)
       .returns<
         {
           project_id: string;
-          projects: { allow_client_itp_creation: boolean; organizations: { engagement_scope: string } | null } | null;
+          party_type: "client" | "subcontractor" | "main_contractor";
+          projects: {
+            allow_client_itp_creation: boolean;
+            allow_contractor_itp_creation: boolean;
+            organizations: { engagement_scope: string } | null;
+          } | null;
         }[]
       >();
-    canCreateItp = (eligibleParties ?? []).some(
-      (p) => p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed"
+    canCreateItp = (eligibleParties ?? []).some((p) =>
+      p.party_type === "client"
+        ? p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed"
+        : p.projects?.allow_contractor_itp_creation
     );
   }
 
