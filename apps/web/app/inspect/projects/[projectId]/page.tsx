@@ -7,6 +7,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { OrgBrandScope } from "@/components/domain/org-brand-scope";
 import { AddProjectPartyForm } from "./add-project-party-form";
+import { AddSelfManagedPartyForm } from "./add-self-managed-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
@@ -52,6 +53,7 @@ interface ProjectDetail {
   organizations: {
     name: string;
     engagement_mode: string;
+    engagement_scope: string;
     brand_primary_color: string | null;
     brand_accent_color: string | null;
   } | null;
@@ -82,7 +84,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, brand_primary_color, brand_accent_color)"
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
     )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
@@ -132,6 +134,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   // Admin, or a lead of a team actually assigned to this project. Computed once here so both the
   // party list and the settings toggle below use the identical check the server action re-verifies.
   const canReassign = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, project.id));
+
+  // Self-managed client party onboarding (supabase/migrations/20260919020000_self_managed_project_party_access.sql):
+  // shown instead of the JAGS-only AddProjectPartyForm below, to a non-staff user whose access
+  // already reaches this project (implied by having loaded this page at all — project_parties_select
+  // requires has_org_access) on an org that's opted into engagement_scope = 'self_managed'. JAGS
+  // staff keep using the admin form regardless of the org's scope.
+  const canAddSelfManagedParty = !session.isJagsStaff && project.organizations?.engagement_scope === "self_managed";
 
   // Eligible reassignment targets: anyone whose access already reaches this project's organisation
   // (global/organisation/project-scoped access_grants) or this project specifically — a broader set
@@ -285,6 +294,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           {(parties ?? []).length === 0 && <li className="text-sm text-muted">No parties recorded on this project yet.</li>}
         </ul>
         {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} />}
+        {canAddSelfManagedParty && <AddSelfManagedPartyForm projectId={project.id} />}
       </div>
 
       {isAdminStaff(session) && (

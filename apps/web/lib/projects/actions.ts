@@ -129,6 +129,127 @@ export async function addProjectPartyAction(
   return { error: null };
 }
 
+export interface AddSelfManagedPartyState {
+  error: string | null;
+}
+
+/**
+ * The self-managed-client-side counterpart to addProjectPartyAction above, for the gap closed by
+ * supabase/migrations/20260919020000_self_managed_project_party_access.sql: a Self-Managed/
+ * Platform-Only client (organizations.engagement_scope = 'self_managed') can create its own
+ * projects (20260919010000_self_managed_project_creation.sql) but previously had no way to put
+ * anyone on them — every project_party and access_grants row still required a JAGS Admin.
+ *
+ * Deliberately narrower than addProjectPartyAction in two ways:
+ *   1. No "create a brand-new login" path. The target person must already have a real account
+ *      (a row in public.users, which only exists once a real Supabase Auth user does) — looked up
+ *      by email and confirmed BEFORE either insert is attempted, so a typo or a person who's never
+ *      had an account fails with a clear, honest message rather than a raw FK-violation error from
+ *      access_grants.user_id's not-null foreign key.
+ *   2. It always creates both rows together: the project_parties row (workflow identity) AND a
+ *      matching scope_type='project' access_grants row (actual platform access) — unlike
+ *      addProjectPartyAction, which deliberately leaves user_id/access unset because JAGS staff
+ *      don't need it (see that action's own comment). Here the whole point is giving someone real
+ *      access, so skipping the grant would silently produce a party nobody can act as.
+ *
+ * Cross-organisation onboarding is intentionally allowed — see the migration's header comment for
+ * the full reasoning (short version: the grant is pinned to this one project only, and JAGS staff
+ * already onboard subcontractors/vendors from anywhere the same way).
+ *
+ * RLS (project_parties_self_managed_client_insert, access_grants_self_managed_project_insert) is
+ * the real enforcement; this app-layer check exists only to give a clear error message instead of a
+ * silent/opaque RLS rejection, same relationship every other action in this file has to its policy.
+ */
+export async function addSelfManagedPartyAction(
+  _prev: AddSelfManagedPartyState,
+  formData: FormData
+): Promise<AddSelfManagedPartyState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const partyType = String(formData.get("party_type") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+
+  if (!projectId || !partyType || !name || !email) {
+    return { error: "Party type, organisation name and the person's email are all required." };
+  }
+  if (!VALID_PARTY_TYPES.includes(partyType as PartyType)) {
+    return { error: "Invalid party type." };
+  }
+
+  await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, organization_id, organizations(engagement_scope)")
+    .eq("id", projectId)
+    .maybeSingle<{ id: string; organization_id: string; organizations: { engagement_scope: string } | null }>();
+
+  if (!project) {
+    return { error: "Project not found, or you don't have access to it." };
+  }
+  if (project.organizations?.engagement_scope !== "self_managed") {
+    return { error: "This is only available on projects belonging to a self-managed client organisation." };
+  }
+
+  // Escape ILIKE's own wildcard characters so a literal email is matched, not a pattern — email is
+  // still compared case-insensitively since Supabase Auth normalises emails to lowercase on signup,
+  // but this form shouldn't force whoever's typing to remember that.
+  const escapedEmail = email.replace(/[%_\\]/g, (match) => `\\${match}`);
+  const { data: targetUser } = await supabase
+    .from("users")
+    .select("id, is_active")
+    .ilike("email", escapedEmail)
+    .maybeSingle<{ id: string; is_active: boolean }>();
+
+  if (!targetUser) {
+    return { error: "No JAGS Assurance account exists for that email yet — that person needs an account created first." };
+  }
+  if (!targetUser.is_active) {
+    return { error: "That account has been deactivated and can't be granted access." };
+  }
+
+  const { data: party, error: partyError } = await supabase
+    .from("project_parties")
+    .insert({
+      project_id: projectId,
+      party_type: partyType as PartyType,
+      name,
+      user_id: targetUser.id,
+      onboarded_by: "client",
+    })
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (partyError || !party) {
+    return { error: "Could not add the party. Check you have permission and try again." };
+  }
+
+  const { error: grantError } = await supabase.from("access_grants").insert({
+    user_id: targetUser.id,
+    scope_type: "project",
+    organization_id: project.organization_id,
+    project_id: projectId,
+    role: partyType,
+  });
+
+  if (grantError) {
+    // The project_parties row above already went in — a duplicate/seat-limit failure here still
+    // leaves a real, visible party record (just without a login yet), rather than rolling back
+    // silently, since neither Supabase client transaction spans both inserts.
+    if (grantError.code === "23505") {
+      return { error: "That person already has access to this project (the party was still added)." };
+    }
+    if (grantError.message.includes("seat limit")) {
+      return { error: `${grantError.message} (the party was still added, without platform access.)` };
+    }
+    return { error: "The party was added, but granting platform access failed. Check with a JAGS Admin." };
+  }
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
 export interface SetAllowClientExecutionState {
   error: string | null;
 }
