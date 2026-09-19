@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CUSTOM_ROLES_TABLE, CUSTOM_ROLE_PERMISSIONS_TABLE, CUSTOM_ROLE_ASSIGNMENTS_TABLE, type PermissionKey } from "@/lib/rbac/types";
+import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { CreateRoleForm } from "./create-role-form";
 import { RoleCard, type RoleCardData } from "./role-card";
 
@@ -27,28 +28,69 @@ interface AssignmentRow {
 /**
  * Custom action-level RBAC (CEO ask: "custom role-based access control... team roles and
  * responsibilities evolve constantly, so the platform must easily adapt"). Additive to every
- * existing role/permission check in the app — never a replacement. Role/permission definition is
- * JAGS-Admin-only for this round (see supabase/migrations/20260918020000_custom_rbac.sql's header
- * comment on why); a role can be assigned to a client's own user, just not defined by them yet.
+ * existing role/permission check in the app — never a replacement.
+ *
+ * Role/permission definition used to be JAGS-Admin-only; widened by
+ * supabase/migrations/20260919030000_self_managed_custom_role_management.sql so a Self-Managed
+ * client (organizations.engagement_scope = 'self_managed') can also define, edit and assign roles
+ * SCOPED TO ITS OWN organisation. Unlike the Admin view below (which sees every org's roles and gets
+ * an org picker on the create form), a self-managed client only ever sees its own organisation's
+ * roles — there is no cross-org picker for them, and the create form is pre-scoped to their org.
  */
 export default async function CustomRolesPage() {
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
-
   const supabase = await createSupabaseServerClient();
+  const admin = isAdminStaff(session);
 
-  const [{ data: roles }, { data: permissionRows }, { data: assignmentRows }, { data: organizations }, { data: users }, { data: projects }] =
-    await Promise.all([
-      supabase.from(CUSTOM_ROLES_TABLE).select("id, organization_id, name").order("name").returns<RoleRow[]>(),
-      supabase.from(CUSTOM_ROLE_PERMISSIONS_TABLE).select("role_id, permission_key").returns<PermissionRow[]>(),
-      supabase
-        .from(CUSTOM_ROLE_ASSIGNMENTS_TABLE)
-        .select("id, role_id, project_id, users(full_name, email), projects(name)")
-        .returns<AssignmentRow[]>(),
-      supabase.from("organizations").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
-      supabase.from("users").select("id, full_name, email").order("full_name").returns<{ id: string; full_name: string; email: string }[]>(),
-      supabase.from("projects").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
-    ]);
+  let selfManagedOrgIds: string[] = [];
+  if (!admin) {
+    selfManagedOrgIds = Array.from(await getSelfManagedOrgIdsForUser(supabase, session.userId));
+    if (selfManagedOrgIds.length === 0) redirect("/inspect");
+  }
+
+  const [{ data: roles }, { data: permissionRows }, { data: assignmentRows }, { data: organizations }, { data: projects }] = await Promise.all([
+    admin
+      ? supabase.from(CUSTOM_ROLES_TABLE).select("id, organization_id, name").order("name").returns<RoleRow[]>()
+      : supabase.from(CUSTOM_ROLES_TABLE).select("id, organization_id, name").in("organization_id", selfManagedOrgIds).order("name").returns<RoleRow[]>(),
+    supabase.from(CUSTOM_ROLE_PERMISSIONS_TABLE).select("role_id, permission_key").returns<PermissionRow[]>(),
+    supabase
+      .from(CUSTOM_ROLE_ASSIGNMENTS_TABLE)
+      .select("id, role_id, project_id, users(full_name, email), projects(name)")
+      .returns<AssignmentRow[]>(),
+    admin
+      ? supabase.from("organizations").select("id, name").order("name").returns<{ id: string; name: string }[]>()
+      : supabase.from("organizations").select("id, name").in("id", selfManagedOrgIds).returns<{ id: string; name: string }[]>(),
+    admin
+      ? supabase.from("projects").select("id, name").order("name").returns<{ id: string; name: string }[]>()
+      : supabase.from("projects").select("id, name").in("organization_id", selfManagedOrgIds).order("name").returns<{ id: string; name: string }[]>(),
+  ]);
+
+  // Users the "assign" picker offers: for the Admin view, everyone; for a self-managed client, only
+  // people who actually have access to one of their own orgs (mirrors the
+  // custom_role_assignments_self_managed_write RLS check that the assigned user must have an
+  // access_grants row in that org — no point offering someone the write would reject anyway).
+  let users: { id: string; full_name: string; email: string }[] = [];
+  if (admin) {
+    const { data } = await supabase.from("users").select("id, full_name, email").order("full_name").returns<
+      { id: string; full_name: string; email: string }[]
+    >();
+    users = data ?? [];
+  } else {
+    const { data: grants } = await supabase
+      .from("access_grants")
+      .select("user_id, users(id, full_name, email)")
+      .in("organization_id", selfManagedOrgIds)
+      .returns<{ user_id: string; users: { id: string; full_name: string; email: string } | null }[]>();
+    const seen = new Set<string>();
+    for (const g of grants ?? []) {
+      const u = g.users;
+      if (u && !seen.has(u.id)) {
+        seen.add(u.id);
+        users.push(u);
+      }
+    }
+    users.sort((a, b) => a.full_name.localeCompare(b.full_name));
+  }
 
   const orgNameById = new Map((organizations ?? []).map((o) => [o.id, o.name]));
   const permissionsByRole = new Map<string, Set<PermissionKey>>();
@@ -83,16 +125,17 @@ export default async function CustomRolesPage() {
       <p className="mt-1 text-sm text-muted">
         Grant a specific person a bundle of real permissions without promoting them to Admin or
         inventing a new hardcoded role — additional to whatever access they already have via staff
-        role, team lead, or party type, never a replacement. A JAGS-global role can be assigned to any
-        JAGS staff member; a role scoped to one client organisation can be assigned to that client&apos;s
-        own users too.
+        role, team lead, or party type, never a replacement.
+        {admin
+          ? " A JAGS-global role can be assigned to any JAGS staff member; a role scoped to one client organisation can be assigned to that client's own users too."
+          : " Roles you create here are scoped to your own organisation only — your own people, your own projects."}
       </p>
 
-      <CreateRoleForm organizations={organizations ?? []} />
+      <CreateRoleForm organizations={organizations ?? []} lockedOrganizationId={admin ? null : selfManagedOrgIds[0]} />
 
       <div className="mt-8 space-y-4">
         {roleCards.map((role) => (
-          <RoleCard key={role.id} role={role} users={users ?? []} projects={projects ?? []} />
+          <RoleCard key={role.id} role={role} users={users} projects={projects ?? []} restrictGrantableKeys={!admin} />
         ))}
         {roleCards.length === 0 && <p className="text-sm text-muted">No custom roles yet — create the first one above.</p>}
       </div>

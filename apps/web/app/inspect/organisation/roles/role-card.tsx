@@ -9,7 +9,7 @@ import {
   type RbacActionState,
   type AssignCustomRoleState,
 } from "@/lib/rbac/actions";
-import { PERMISSION_KEYS, PERMISSION_LABEL, type PermissionKey } from "@/lib/rbac/types";
+import { PERMISSION_KEYS, PERMISSION_LABEL, CLIENT_SELF_SERVICE_PERMISSION_KEYS, type PermissionKey } from "@/lib/rbac/types";
 import { Button } from "@/components/ui/button";
 
 const deleteInitial: RbacActionState = { error: null };
@@ -28,10 +28,19 @@ export function RoleCard({
   role,
   users,
   projects,
+  restrictGrantableKeys = false,
 }: {
   role: RoleCardData;
   users: { id: string; full_name: string; email: string }[];
   projects: { id: string; name: string }[];
+  /**
+   * True for a self-managed client (never for the Admin view): disables the toggle for the 3
+   * JAGS-operational-only keys (manage_intervention_levels/issue_irn/close_ncr — see
+   * CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment) UNLESS already granted, in which case it
+   * stays clickable to revoke — mirrors the RLS policy's grant-restricted/revoke-unrestricted split
+   * exactly.
+   */
+  restrictGrantableKeys?: boolean;
 }) {
   const [deleteState, deleteAction, deletePending] = useActionState(deleteCustomRoleAction, deleteInitial);
   const [toggleState, toggleAction] = useActionState(toggleRolePermissionAction, toggleInitial);
@@ -58,6 +67,10 @@ export function RoleCard({
         <div className="mt-1 flex flex-wrap gap-2">
           {PERMISSION_KEYS.map((key) => {
             const granted = role.grantedPermissions.has(key);
+            const clientCanGrant = CLIENT_SELF_SERVICE_PERMISSION_KEYS.includes(key);
+            // Only disable the not-yet-granted (grant) direction — revoking an already-granted
+            // admin-only key must stay clickable, matching the server action/RLS exactly.
+            const disabled = restrictGrantableKeys && !granted && !clientCanGrant;
             return (
               <form key={key} action={toggleAction}>
                 <input type="hidden" name="role_id" value={role.id} />
@@ -65,8 +78,10 @@ export function RoleCard({
                 <input type="hidden" name="grant" value={granted ? "" : "on"} />
                 <button
                   type="submit"
+                  disabled={disabled}
+                  title={disabled ? "Only a JAGS Admin can grant this permission." : undefined}
                   className={
-                    "rounded-full border px-2.5 py-1 text-xs font-medium " +
+                    "rounded-full border px-2.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 " +
                     (granted ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border text-muted hover:bg-off-white")
                   }
                 >
