@@ -314,6 +314,7 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim();
   const result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
   const comment = String(formData.get("comment") ?? "").trim();
+  const calibrationAssetId = String(formData.get("calibration_asset_id") ?? "").trim();
 
   if (!inspectionRecordId || !checklistItemId || !result) {
     return { error: "Missing required fields — could not save your response." };
@@ -339,6 +340,7 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
       checklist_item_id: checklistItemId,
       result,
       comment: comment || null,
+      calibration_asset_id: calibrationAssetId || null,
     },
     { onConflict: "inspection_record_id,checklist_item_id" }
   );

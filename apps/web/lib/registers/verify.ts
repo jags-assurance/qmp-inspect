@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CALIBRATION_REGISTER_TABLE,
   MATERIAL_APPROVAL_STATUS_LABELS,
+  MATERIAL_RECEIPT_STATUS_LABELS,
   MATERIAL_REGISTER_TABLE,
   PERSONNEL_CERTIFICATIONS_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
@@ -23,6 +24,9 @@ export interface RegisterVerificationResult {
    * always allowed through once that reason is given.
    */
   requiresOverrideReason: boolean;
+  /** Lets the UI offer a "which instrument did you use" picker only for a calibration-kind check —
+   *  see checklist-execution-panel.tsx / response-row.tsx. Omitted for welder/material checks. */
+  kind?: "calibration" | "welder" | "material";
 }
 
 /**
@@ -69,6 +73,7 @@ async function checkCalibration(supabase: SupabaseClient, projectId: string): Pr
       tone: "warning",
       message: "Calibration record not found for this project (Calibration Register). This does not block the inspection.",
       requiresOverrideReason: true,
+      kind: "calibration",
     };
   }
 
@@ -77,14 +82,34 @@ async function checkCalibration(supabase: SupabaseClient, projectId: string): Pr
       tone: "warning",
       message: `Calibration expired — ${entry.instrument_name} (cert ${entry.cert_number}) was due ${entry.due_date} (Calibration Register). This does not block the inspection.`,
       requiresOverrideReason: true,
+      kind: "calibration",
     };
   }
 
   return {
     tone: "info",
-    message: `Calibration current — ${entry.instrument_name} (cert ${entry.cert_number}), due ${entry.due_date} (Calibration Register).`,
+    message: `Calibration current — ${entry.instrument_name} (cert ${entry.cert_number}), due ${entry.due_date} (Calibration Register). Record which instrument you actually used below.`,
     requiresOverrideReason: false,
+    kind: "calibration",
   };
+}
+
+/** All calibration-register rows for a project, for the "which instrument did you use" picker shown
+ *  alongside a calibration-kind registerVerification — see checkCalibration above and
+ *  response-row.tsx. A separate query rather than folding into checkCalibration's own result
+ *  because that function intentionally only surfaces the ONE most-relevant row as an assist message,
+ *  while the picker needs every candidate instrument the inspector might have actually used. */
+export async function listCalibrationOptions(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<Pick<CalibrationRegisterRow, "id" | "instrument_name" | "cert_number" | "status">[]> {
+  const { data } = await supabase
+    .from(CALIBRATION_REGISTER_TABLE)
+    .select("id, instrument_name, cert_number, status")
+    .eq("project_id", projectId)
+    .order("instrument_name")
+    .returns<Pick<CalibrationRegisterRow, "id" | "instrument_name" | "cert_number" | "status">[]>();
+  return data ?? [];
 }
 
 async function checkWelder(supabase: SupabaseClient, projectId: string): Promise<RegisterVerificationResult> {
@@ -102,6 +127,7 @@ async function checkWelder(supabase: SupabaseClient, projectId: string): Promise
       tone: "warning",
       message: "Welder qualification record not found for this project (Welder Qualification Register). This does not block the inspection.",
       requiresOverrideReason: true,
+      kind: "welder",
     };
   }
 
@@ -110,6 +136,7 @@ async function checkWelder(supabase: SupabaseClient, projectId: string): Promise
       tone: "warning",
       message: `Welder qualification expired — ${entry.welder_identifier} on ${entry.qualified_wps} expired ${entry.expiry_date} (Welder Qualification Register). This does not block the inspection.`,
       requiresOverrideReason: true,
+      kind: "welder",
     };
   }
 
@@ -117,17 +144,23 @@ async function checkWelder(supabase: SupabaseClient, projectId: string): Promise
     tone: "info",
     message: `Welder qualified — ${entry.welder_identifier} on ${entry.qualified_wps}, expires ${entry.expiry_date} (Welder Qualification Register).`,
     requiresOverrideReason: false,
+    kind: "welder",
   };
 }
 
 async function checkMaterial(supabase: SupabaseClient, projectId: string): Promise<RegisterVerificationResult> {
   const { data } = await supabase
     .from(MATERIAL_REGISTER_TABLE)
-    .select("material_description, submittal_reference, approval_status")
+    .select("material_description, submittal_reference, approval_status, receipt_status, disposition_notes")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .limit(1)
-    .returns<Pick<MaterialRegisterRow, "material_description" | "submittal_reference" | "approval_status">[]>();
+    .returns<
+      Pick<
+        MaterialRegisterRow,
+        "material_description" | "submittal_reference" | "approval_status" | "receipt_status" | "disposition_notes"
+      >[]
+    >();
 
   const entry = data?.[0];
   if (!entry) {
@@ -135,6 +168,7 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
       tone: "warning",
       message: "Material approval record not found for this project (Material Register). This does not block the inspection.",
       requiresOverrideReason: true,
+      kind: "material",
     };
   }
 
@@ -146,6 +180,23 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
       tone: "warning",
       message: `Material not approved for use — ${entry.material_description}${refSuffix}: ${label} (Material Register). This does not block the inspection.`,
       requiresOverrideReason: true,
+      kind: "material",
+    };
+  }
+
+  // Receiving-inspection gate, separate from (and checked in addition to) the design-review
+  // approval above: an approved material can still be sitting quarantined/on hold because it
+  // arrived damaged, unidentified, or without its certificate (material_register.receipt_status,
+  // 20260920010000_material_traceability_and_tool_linkage.sql).
+  if (entry.receipt_status !== "released") {
+    const receiptLabel = MATERIAL_RECEIPT_STATUS_LABELS[entry.receipt_status];
+    return {
+      tone: "warning",
+      message: `Material ${receiptLabel.toLowerCase()} at receiving inspection — ${entry.material_description}${refSuffix}${
+        entry.disposition_notes ? `: ${entry.disposition_notes}` : ""
+      } (Material Register). This does not block the inspection.`,
+      requiresOverrideReason: true,
+      kind: "material",
     };
   }
 
@@ -153,6 +204,7 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
     tone: "info",
     message: `Material approved${refSuffix} — ${entry.material_description}: ${label} (Material Register).`,
     requiresOverrideReason: false,
+    kind: "material",
   };
 }
 

@@ -54,7 +54,9 @@ export default async function RegistersPage({ params }: { params: Promise<{ proj
         .returns<WelderQualificationDisplayRow[]>(),
       supabase
         .from(MATERIAL_REGISTER_TABLE)
-        .select("id, material_description, submittal_reference, approval_status, approved_date, notes")
+        .select(
+          "id, material_description, submittal_reference, approval_status, approved_date, heat_number, batch_number, po_reference, certificate_reference, receipt_status, disposition_notes, notes"
+        )
         .eq("project_id", projectId)
         .order("created_at", { ascending: false })
         .returns<MaterialRegisterDisplayRow[]>(),

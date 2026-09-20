@@ -49,9 +49,11 @@ export function ResponseRow({
   isMandatory,
   initialResult,
   initialComment,
+  initialCalibrationAssetId,
   readOnly,
   registerVerification,
   personnelCertVerification,
+  calibrationOptions,
   onResultChange,
   onSavingChange,
   projectId,
@@ -65,6 +67,9 @@ export function ResponseRow({
   isMandatory: boolean;
   initialResult: ChecklistResponseResult | null;
   initialComment: string;
+  /** The calibration_register row previously recorded as "the instrument used" for this response,
+   *  if any — see calibrationOptions below. */
+  initialCalibrationAssetId: string | null;
   readOnly: boolean;
   /** R92-R100 register-fed auto-verification for this item's activity, or null if not applicable. */
   registerVerification: RegisterVerificationResult | null;
@@ -72,6 +77,9 @@ export function ResponseRow({
    *  this activity — independent of registerVerification above (see registers/verify.ts), or null
    *  when not applicable / the user has no project_party link here. */
   personnelCertVerification: RegisterVerificationResult | null;
+  /** Every calibration_register row for this project — rendered as a "which instrument did you use"
+   *  picker only when registerVerification?.kind === "calibration"; ignored otherwise. */
+  calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[];
   /** Notifies the parent progress header immediately on tap, ahead of the save round trip. */
   onResultChange?: (result: ChecklistResponseResult | null) => void;
   /** Feeds the persistent sync-status indicator in the panel header — one row saving is enough to
@@ -87,8 +95,10 @@ export function ResponseRow({
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
   const [comment, setComment] = useState(initialSplit.comment);
   const [overrideReason, setOverrideReason] = useState(initialSplit.overrideReason);
+  const [calibrationAssetId, setCalibrationAssetId] = useState(initialCalibrationAssetId ?? "");
   const [, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const showCalibrationPicker = registerVerification?.kind === "calibration" && calibrationOptions.length > 0;
 
   // R99: a register mismatch/not-found is a soft-stop — it never blocks recording a response
   // outright, but does require the inspector to type a short reason before the Yes/No/N-A buttons
@@ -101,7 +111,12 @@ export function ResponseRow({
   const needsOverrideReason = registerNeedsOverride || personnelCertNeedsOverride;
   const overrideSatisfied = !needsOverrideReason || overrideReason.trim().length > 0;
 
-  function save(nextResult: ChecklistResponseResult | null, nextComment: string, nextOverrideReason: string) {
+  function save(
+    nextResult: ChecklistResponseResult | null,
+    nextComment: string,
+    nextOverrideReason: string,
+    nextCalibrationAssetId: string
+  ) {
     if (readOnly || !nextResult) return;
     if (needsOverrideReason && !nextOverrideReason.trim()) return;
     const formData = new FormData();
@@ -110,6 +125,7 @@ export function ResponseRow({
     formData.set("checklist_item_id", checklistItemId);
     formData.set("result", nextResult);
     formData.set("comment", combineStoredComment(nextOverrideReason, nextComment));
+    if (nextCalibrationAssetId) formData.set("calibration_asset_id", nextCalibrationAssetId);
 
     setSaveError(null);
     onSavingChange?.(true);
@@ -185,10 +201,35 @@ export function ResponseRow({
               placeholder="Reason to proceed despite the register warning above (required)"
               onBlur={(e) => {
                 setOverrideReason(e.target.value);
-                save(result, comment, e.target.value);
+                save(result, comment, e.target.value, calibrationAssetId);
               }}
               className="w-full rounded-md border border-warning/40 bg-surface px-3 py-2 text-sm outline-none focus:border-warning disabled:opacity-60"
             />
+          </div>
+        )}
+
+        {showCalibrationPicker && (
+          <div>
+            <label htmlFor={`calibration-asset-${checklistItemId}`} className="block text-xs font-medium text-ink">
+              Instrument used for this measurement
+            </label>
+            <select
+              id={`calibration-asset-${checklistItemId}`}
+              disabled={readOnly}
+              value={calibrationAssetId}
+              onChange={(e) => {
+                setCalibrationAssetId(e.target.value);
+                save(result, comment, overrideReason, e.target.value);
+              }}
+              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+            >
+              <option value="">— Not recorded —</option>
+              {calibrationOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.instrument_name} (cert {opt.cert_number}){opt.status === "expired" ? " — EXPIRED" : ""}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -204,7 +245,7 @@ export function ResponseRow({
               onClick={() => {
                 setResult(pill.value);
                 onResultChange?.(pill.value);
-                save(pill.value, comment, overrideReason);
+                save(pill.value, comment, overrideReason, calibrationAssetId);
               }}
               className={cn(
                 "min-w-24 rounded-lg border-2 px-6 py-4 text-base font-bold transition-colors disabled:opacity-60",
@@ -242,7 +283,7 @@ export function ResponseRow({
           placeholder="Comment (optional)"
           onBlur={(e) => {
             setComment(e.target.value);
-            save(result, e.target.value, overrideReason);
+            save(result, e.target.value, overrideReason, calibrationAssetId);
           }}
           className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />

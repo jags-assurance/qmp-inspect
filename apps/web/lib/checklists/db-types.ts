@@ -63,6 +63,10 @@ export interface ChecklistResponseRow {
   checklist_item_id: string;
   result: ChecklistResponseResult;
   comment: string | null;
+  /** Which calibration_register instrument the inspector actually used for this response, if any —
+   *  see supabase/migrations/20260920010000_material_traceability_and_tool_linkage.sql. Only
+   *  meaningful for a calibration-kind registerVerification (registers/verify.ts). */
+  calibration_asset_id: string | null;
   created_at: string;
 }
 

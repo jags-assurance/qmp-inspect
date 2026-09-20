@@ -17,6 +17,7 @@ import {
 import {
   checkPersonnelCertification,
   checkRegisterVerification,
+  listCalibrationOptions,
   type RegisterVerificationResult,
 } from "@/lib/registers/verify";
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
@@ -158,28 +159,37 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     .order("created_at", { ascending: false })
     .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>();
 
-  let responseByItem = new Map<string, { result: "yes" | "no" | "na"; comment: string | null }>();
+  let responseByItem = new Map<
+    string,
+    { result: "yes" | "no" | "na"; comment: string | null; calibrationAssetId: string | null }
+  >();
   // Photos with a null checklist_item_id go to the generic whole-inspection section (unchanged
   // behaviour); photos linked to a specific item are grouped here and handed to that item's row.
   let photos: { id: string; storage_path: string; caption: string | null }[] = [];
   let itemPhotos = new Map<string, { id: string; storage_path: string; caption: string | null }[]>();
   let registerVerification: RegisterVerificationResult | null = null;
   let personnelCertVerification: RegisterVerificationResult | null = null;
+  let calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[] = [];
 
   if (draft) {
     const [{ data: responses }, { data: photoRows }] = await Promise.all([
       supabase
         .from(CHECKLIST_RESPONSES_TABLE)
-        .select("checklist_item_id, result, comment")
+        .select("checklist_item_id, result, comment, calibration_asset_id")
         .eq("inspection_record_id", draft.id)
-        .returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result" | "comment">[]>(),
+        .returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result" | "comment" | "calibration_asset_id">[]>(),
       supabase
         .from(INSPECTION_PHOTOS_TABLE)
         .select("id, storage_path, caption, checklist_item_id")
         .eq("inspection_record_id", draft.id)
         .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>(),
     ]);
-    responseByItem = new Map((responses ?? []).map((r) => [r.checklist_item_id, { result: r.result, comment: r.comment }]));
+    responseByItem = new Map(
+      (responses ?? []).map((r) => [
+        r.checklist_item_id,
+        { result: r.result, comment: r.comment, calibrationAssetId: r.calibration_asset_id },
+      ])
+    );
     photos = (photoRows ?? []).filter((p) => !p.checklist_item_id);
     itemPhotos = new Map();
     for (const p of photoRows ?? []) {
@@ -207,6 +217,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       itpItemReferenceSpec: itpItem.reference_spec,
       itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
     });
+
+    if (registerVerification?.kind === "calibration") {
+      calibrationOptions = await listCalibrationOptions(supabase, project.id);
+    }
   }
 
   // Field execution (starting/answering/completing a checklist) is JAGS staff's job — the actual
@@ -275,6 +289,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             readOnly={!canExecute}
             registerVerification={registerVerification}
             personnelCertVerification={personnelCertVerification}
+            calibrationOptions={calibrationOptions}
             canExecute={canExecute}
             projectId={project.id}
             itemPhotos={itemPhotos}

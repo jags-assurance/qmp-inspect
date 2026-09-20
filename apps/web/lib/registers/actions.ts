@@ -5,10 +5,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CALIBRATION_REGISTER_TABLE,
   MATERIAL_APPROVAL_STATUSES,
+  MATERIAL_RECEIPT_STATUSES,
   MATERIAL_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
   PERSONNEL_CERTIFICATIONS_TABLE,
   type MaterialApprovalStatus,
+  type MaterialReceiptStatus,
 } from "@/lib/registers/types";
 
 export interface AddCalibrationEntryState {
@@ -101,10 +103,22 @@ export async function addMaterialEntryAction(
   const submittalReference = String(formData.get("submittal_reference") ?? "").trim();
   const approvalStatus = String(formData.get("approval_status") ?? "").trim() as MaterialApprovalStatus;
   const approvedDate = String(formData.get("approved_date") ?? "").trim();
+  const heatNumber = String(formData.get("heat_number") ?? "").trim();
+  const batchNumber = String(formData.get("batch_number") ?? "").trim();
+  const poReference = String(formData.get("po_reference") ?? "").trim();
+  const certificateReference = String(formData.get("certificate_reference") ?? "").trim();
+  const receiptStatus = String(formData.get("receipt_status") ?? "released").trim() as MaterialReceiptStatus;
+  const dispositionNotes = String(formData.get("disposition_notes") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!projectId || !materialDescription || !MATERIAL_APPROVAL_STATUSES.includes(approvalStatus)) {
     return { error: "Material description and a valid approval status are required." };
+  }
+  if (!MATERIAL_RECEIPT_STATUSES.includes(receiptStatus)) {
+    return { error: "Unrecognised receipt status." };
+  }
+  if (receiptStatus !== "released" && !dispositionNotes) {
+    return { error: "A quarantined or on-hold material needs a disposition note explaining why." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -114,6 +128,12 @@ export async function addMaterialEntryAction(
     submittal_reference: submittalReference || null,
     approval_status: approvalStatus,
     approved_date: approvedDate || null,
+    heat_number: heatNumber || null,
+    batch_number: batchNumber || null,
+    po_reference: poReference || null,
+    certificate_reference: certificateReference || null,
+    receipt_status: receiptStatus,
+    disposition_notes: dispositionNotes || null,
     notes: notes || null,
   });
 

@@ -26,6 +26,7 @@ export function ChecklistExecutionPanel({
   readOnly,
   registerVerification,
   personnelCertVerification,
+  calibrationOptions,
   canExecute,
   photoSlot,
   completeSlot,
@@ -36,12 +37,15 @@ export function ChecklistExecutionPanel({
   templateId: string;
   inspectionRecordId: string;
   items: ChecklistItem[];
-  initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null }>;
+  initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null }>;
   readOnly: boolean;
   registerVerification: RegisterVerificationResult | null;
   /** R92-R100 personnel-cert soft-stop for the executing party — independent of registerVerification
    *  above, see registers/verify.ts. */
   personnelCertVerification: RegisterVerificationResult | null;
+  /** Every calibration_register row for this project, offered as a "which instrument did you use"
+   *  picker on each row when registerVerification.kind === "calibration". Empty otherwise. */
+  calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[];
   canExecute: boolean;
   /** Rendered between the response rows and the complete/incomplete slot below. */
   photoSlot: ReactNode;
@@ -118,9 +122,11 @@ export function ChecklistExecutionPanel({
             isMandatory={item.is_mandatory}
             initialResult={initialResponses.get(item.id)?.result ?? null}
             initialComment={initialResponses.get(item.id)?.comment ?? ""}
+            initialCalibrationAssetId={initialResponses.get(item.id)?.calibrationAssetId ?? null}
             readOnly={readOnly}
             registerVerification={registerVerification}
             personnelCertVerification={personnelCertVerification}
+            calibrationOptions={calibrationOptions}
             onResultChange={(result) =>
               setAnsweredIds((prev) => {
                 const next = new Set(prev);

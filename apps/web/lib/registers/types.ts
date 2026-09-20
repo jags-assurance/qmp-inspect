@@ -57,6 +57,19 @@ export const MATERIAL_APPROVAL_STATUS_LABELS: Record<MaterialApprovalStatus, str
   D: "Rejected",
 };
 
+// Receiving-inspection state (distinct from approval_status above, which is a design-review
+// concept): a material can be submittal-approved and still arrive damaged, unidentified, or
+// without its certificate — receipt_status tracks that physical-delivery gate separately, per
+// supabase/migrations/20260920010000_material_traceability_and_tool_linkage.sql.
+export const MATERIAL_RECEIPT_STATUSES = ["released", "quarantined_pending_disposition", "on_hold"] as const;
+export type MaterialReceiptStatus = (typeof MATERIAL_RECEIPT_STATUSES)[number];
+
+export const MATERIAL_RECEIPT_STATUS_LABELS: Record<MaterialReceiptStatus, string> = {
+  released: "Released",
+  quarantined_pending_disposition: "Quarantined — pending disposition",
+  on_hold: "On hold",
+};
+
 export interface MaterialRegisterRow {
   id: string;
   project_id: string;
@@ -64,6 +77,14 @@ export interface MaterialRegisterRow {
   submittal_reference: string | null;
   approval_status: MaterialApprovalStatus;
   approved_date: string | null;
+  // Traceability identifiers (PO/batch/heat + CoC/MTC) — nullable since not every material tracks
+  // all of them (e.g. a bulk consumable may have a batch number but no heat number).
+  heat_number: string | null;
+  batch_number: string | null;
+  po_reference: string | null;
+  certificate_reference: string | null;
+  receipt_status: MaterialReceiptStatus;
+  disposition_notes: string | null;
   notes: string | null;
   created_at: string;
 }
