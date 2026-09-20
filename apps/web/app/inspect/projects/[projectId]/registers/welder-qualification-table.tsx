@@ -20,10 +20,12 @@ const STATUS_TONE: Record<WelderQualificationStatus, "success" | "warning" | "da
   expired: "danger",
 };
 
+// Cosmetic-only relabeling to match the enum-style status vocabulary a client's own sample
+// dossier uses — the underlying stored value (WelderQualificationStatus) is unchanged.
 const STATUS_LABEL: Record<WelderQualificationStatus, string> = {
-  valid: "Valid",
-  expiring: "Expiring",
-  expired: "Expired",
+  valid: "QUALIFIED",
+  expiring: "EXPIRING_SOON",
+  expired: "EXPIRED",
 };
 
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —

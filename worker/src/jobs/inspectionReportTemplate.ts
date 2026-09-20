@@ -35,6 +35,12 @@ export interface InspectionReportData {
   notes: string | null;
   /** Human-approved AI-drafted (or hand-written) conclusion text, saved via saveInspectionNarrativeAction. Falls back to buildConclusion()'s factual sentence when null. */
   narrative: string | null;
+  /** The governing ITP item's `reference_spec` (drawing / specification callout), if the record is
+   *  linked to one. Feeds the Traceability table's "Drawing / specification" row; omitted when null. */
+  referenceSpec?: string | null;
+  /** IRN number already issued against this inspection record, if any — drives the FIELD RESULT
+   *  banner's hold-release wording. Null/undefined means no IRN has been issued yet. */
+  irnNumber?: string | null;
   results: InspectionReportResult[];
   photos: InspectionReportPhoto[];
   signoffs: InspectionReportSignoff[];
@@ -87,10 +93,84 @@ function renderResultsTable(results: InspectionReportResult[]): string {
   return `
     <table class="items-table">
       <thead>
-        <tr><th>ITEM</th><th>INSPECTION POINT</th><th>RESULT</th><th>COMMENT / MEASUREMENT</th></tr>
+        <tr><th>No.</th><th>Field-checkable item</th><th>Answer</th><th>Comment/evidence</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+/** A simple label/value table shown near the top of the document so a reader can immediately place
+ *  the record: where it was done, against what drawing/spec, and by whom/when. Rows with no data
+ *  (e.g. no linked reference spec) are omitted rather than shown as "—", to keep the table tight. */
+function renderTraceabilityTable(data: InspectionReportData): string {
+  const inspectorName = data.signoffs[0]?.name ?? null;
+  const dateInspector = [data.inspectionDate, inspectorName].filter(Boolean).join(" / ") || null;
+
+  const rows: [string, string | null][] = [
+    ["Location", data.location],
+    ["Drawing / specification", data.referenceSpec ?? null],
+    ["Inspection date / inspector", dateInspector],
+  ].filter(([, value]) => Boolean(value)) as [string, string | null][];
+
+  if (rows.length === 0) return "";
+
+  const rowsHtml = rows
+    .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${cell(value)}</td></tr>`)
+    .join("");
+
+  return `
+    <table class="traceability-table">
+      <tbody>${rowsHtml}</tbody>
+    </table>`;
+}
+
+/** Builds the excerpt-based reason text for the FIELD RESULT banner directly from the record's own
+ *  data — never invents or parses numeric values out of free text, just quotes what the inspector
+ *  actually recorded. See buildFieldResultBanner(). */
+function buildFieldResultReason(data: InspectionReportData): string {
+  const failures = data.results.filter((r) => r.result === "no");
+
+  if (failures.length > 0) {
+    const excerpts = failures.map((r) => {
+      const label = r.itemNumber ? `Item ${r.itemNumber}` : "Item";
+      const desc = r.description ? ` (${r.description})` : "";
+      const comment = r.comment ? ` recorded No: ${r.comment}` : " recorded No.";
+      return `${label}${desc}${comment}`;
+    });
+    return excerpts.join(" ");
+  }
+
+  if (data.overallResult === "fail") {
+    return "One or more items did not meet the acceptance criteria.";
+  }
+
+  return "All checklist items met the stated acceptance criteria.";
+}
+
+/** The client's expected "FIELD RESULT" callout: a single, unambiguous statement of the outcome,
+ *  whether the associated hold has been released (and by which IRN), and the factual reason —
+ *  built entirely from the record's own data, never invented. */
+function buildFieldResultBanner(data: InspectionReportData): string {
+  const resultWord = data.overallResult === "pass" ? "PASS" : data.overallResult === "fail" ? "FAIL" : "PARTIAL";
+
+  let holdClause = "";
+  if (data.overallResult === "pass") {
+    holdClause = data.irnNumber
+      ? ` / HOLD RELEASED — IRN ${escapeHtml(data.irnNumber)} issued.`
+      : " / hold release pending IRN issuance.";
+  } else if (data.overallResult === "fail") {
+    holdClause = " / HOLD NOT RELEASED. IRN issue is blocked.";
+  } else if (data.overallResult === "partial") {
+    holdClause = " / HOLD NOT RELEASED — inspection incomplete.";
+  }
+
+  const reason = escapeHtml(buildFieldResultReason(data));
+
+  return `
+    <div class="field-result-banner field-result-${data.overallResult ?? ""}">
+      <strong>FIELD RESULT: ${resultWord}${holdClause}</strong>
+      <span class="field-result-reason">${reason}</span>
+    </div>`;
 }
 
 function renderPhotos(photos: InspectionReportPhoto[]): string {
@@ -259,6 +339,27 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
     padding: 8px 10px; font-size: 10px; line-height: 1.4;
   }
 
+  table.traceability-table { width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 10px; }
+  table.traceability-table th, table.traceability-table td {
+    border: 1px solid #e2dcd6; padding: 4px 8px; text-align: left; vertical-align: top;
+  }
+  table.traceability-table th {
+    width: 220px; background: var(--off-white); color: #666; font-size: 8px; font-weight: bold;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  table.traceability-table td { font-weight: bold; }
+
+  .field-result-banner {
+    display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px;
+    border: 1px solid var(--gold); border-left: 5px solid var(--burgundy);
+    background: var(--off-white); border-radius: 3px; padding: 8px 12px; font-size: 11px;
+  }
+  .field-result-banner strong { font-size: 12px; letter-spacing: 0.2px; }
+  .field-result-banner.field-result-pass strong { color: var(--success); }
+  .field-result-banner.field-result-fail strong { color: var(--danger); }
+  .field-result-banner.field-result-partial strong { color: var(--ink); }
+  .field-result-reason { font-size: 9.5px; color: #444; line-height: 1.4; }
+
   .signoff-grid { display: flex; gap: 10px; flex-wrap: wrap; }
   .signoff-card {
     flex: 1 1 0; min-width: 140px; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
@@ -280,7 +381,7 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
+      <div class="wordmark">JAGS ASSURANCE&nbsp;&nbsp;/&nbsp;&nbsp;QMP INSPECT</div>
     </div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>
@@ -293,6 +394,8 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   </div>
 
   <h1>Inspection Report</h1>
+
+  ${renderTraceabilityTable(data)}
 
   <div class="info-grid">
     <div><span class="label">PROJECT</span>${cell(data.projectName)}</div>
@@ -319,6 +422,8 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   </div>
 
   ${renderPhotos(data.photos)}
+
+  ${buildFieldResultBanner(data)}
 
   <div class="section">
     <h2>Conclusion</h2>

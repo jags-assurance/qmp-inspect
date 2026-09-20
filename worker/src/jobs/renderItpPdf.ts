@@ -89,30 +89,58 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
 
   const sectionIds = (sections ?? []).map((s) => s.id);
 
+  // discipline_id/master_disciplines(name) joined the same way renderInspectionReportPdf.ts joins a
+  // single item's discipline — here across every item in the ITP, to derive the document-level
+  // discipline (or "Multi-discipline") for the identity line.
+  type ItpItemWithDiscipline = Pick<
+    ItpItemRow,
+    | "id"
+    | "section_id"
+    | "item_number"
+    | "activity"
+    | "reference_spec"
+    | "acceptance_criteria"
+    | "method"
+    | "frequency"
+    | "evidence_type"
+    | "sort_order"
+  > & { master_disciplines: { name: string } | null };
+
   const { data: items, error: itemsError } =
     sectionIds.length > 0
       ? await supabase
           .from("itp_items")
-          .select("id, section_id, item_number, activity, reference_spec, acceptance_criteria, method, frequency, evidence_type, sort_order")
+          .select(
+            "id, section_id, item_number, activity, reference_spec, acceptance_criteria, method, frequency, evidence_type, sort_order, master_disciplines(name)"
+          )
           .in("section_id", sectionIds)
           .order("sort_order", { ascending: true })
-      : { data: [] as Pick<
-          ItpItemRow,
-          | "id"
-          | "section_id"
-          | "item_number"
-          | "activity"
-          | "reference_spec"
-          | "acceptance_criteria"
-          | "method"
-          | "frequency"
-          | "evidence_type"
-          | "sort_order"
-        >[], error: null };
+          .returns<ItpItemWithDiscipline[]>()
+      : { data: [] as ItpItemWithDiscipline[], error: null };
 
   if (itemsError) {
     throw new Error(`Failed to load ITP items: ${itemsError.message}`);
   }
+
+  const disciplineNames = new Set(
+    (items ?? [])
+      .map((i) => i.master_disciplines?.name)
+      .filter((name): name is string => Boolean(name))
+  );
+  // Zero items / none set -> null; all agreeing -> that name; spanning more than one -> "Multi-discipline"
+  // rather than arbitrarily naming just one of them.
+  const discipline = disciplineNames.size === 0 ? null : disciplineNames.size === 1 ? [...disciplineNames][0] : "Multi-discipline";
+
+  // There's no dedicated "source specification document" column on itps in this schema. Only surface
+  // a sourceSpec when every item that has a reference_spec agrees on the exact same value — anything
+  // less than full agreement is too ambiguous to summarize as a single document reliably, so it's
+  // left null (an optional field on ItpTemplateData) rather than guessing.
+  const distinctReferenceSpecs = new Set(
+    (items ?? [])
+      .map((i) => i.reference_spec)
+      .filter((spec): spec is string => Boolean(spec && spec.trim()))
+  );
+  const sourceSpec = distinctReferenceSpecs.size === 1 ? [...distinctReferenceSpecs][0] : null;
 
   const itemIds = (items ?? []).map((i) => i.id);
 
@@ -203,6 +231,8 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     organizationName: organization.name,
     projectName: project.name,
     projectNumber: project.project_number,
+    discipline,
+    sourceSpec,
     parties: (parties ?? []).map((p) => ({ id: p.id, name: p.name, partyType: p.party_type })),
     sections: (sections ?? []).map((section) => ({
       id: section.id,
@@ -238,13 +268,26 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     pdfBuffer = Buffer.from(
       // Explicit margin so it definitely matches this template's `@page { margin: 15mm }` — Chrome's
       // print-to-PDF doesn't reliably fall back to the CSS value on its own (preferCSSPageSize
-      // mainly governs page *size*, not margin).
+      // mainly governs page *size*, not margin). Bottom margin is taller than the others to leave
+      // room for the footerTemplate page-number band below, so it doesn't overlap page content.
       await page.pdf({
         format: "A4",
         landscape: true,
         printBackground: true,
         preferCSSPageSize: true,
-        margin: { top: "15mm", right: "15mm", bottom: "15mm", left: "15mm" },
+        margin: { top: "15mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        displayHeaderFooter: true,
+        // No header markup — the in-HTML letterhead at the top of the first page already serves as
+        // the header; a Puppeteer headerTemplate would just duplicate/compete with it.
+        headerTemplate: "<div></div>",
+        // Puppeteer footer/header templates render in an isolated context with no access to the
+        // page's own stylesheet, so styling here has to be inline. pageNumber/totalPages are the two
+        // special classes Puppeteer substitutes at render time.
+        footerTemplate:
+          '<div style="width:100%;font-size:8px;font-family:Arial,Helvetica,sans-serif;color:#666;padding:0 15mm;display:flex;justify-content:space-between;">' +
+          "<span>Generated by QMP Inspect &mdash; JAGS Assurance</span>" +
+          '<span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' +
+          "</div>",
       })
     );
   } finally {

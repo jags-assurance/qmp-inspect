@@ -45,6 +45,13 @@ export interface RenderPortfolioSummaryPdfPayload {
   requested_by: string;
 }
 
+/** Payload for "render_ncr_pdf" — the branded A4 dossier page for a single NCR (finding +
+ *  close-out). Same shape as RenderInspectionReportPdfPayload above. */
+export interface RenderNcrPdfPayload {
+  ncr_id: string;
+  requested_by: string;
+}
+
 export interface BackgroundJobRow {
   id: string;
   job_type: string;
@@ -54,7 +61,8 @@ export interface BackgroundJobRow {
     | RenderItpPdfPayload
     | RenderInspectionReportPdfPayload
     | RenderFatReportPdfPayload
-    | RenderPortfolioSummaryPdfPayload;
+    | RenderPortfolioSummaryPdfPayload
+    | RenderNcrPdfPayload;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
   error_message: string | null;

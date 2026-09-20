@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { setNcrStatusAction } from "@/lib/ncrs/actions";
 import { NCRS_TABLE, NCR_PHOTOS_TABLE, type NcrPhotoRow, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
+import { getLatestNcrPdf } from "@/lib/reports/actions";
+import { NcrPdfButton } from "./ncr-pdf-button";
 import { CloseOutForm } from "./close-out-form";
 import { NcrPhotoUpload } from "./ncr-photo-upload";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
@@ -141,6 +143,8 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
 
   if (!ncr) notFound();
 
+  const latestNcrPdf = await getLatestNcrPdf(id);
+
   const { data: photos } = await supabase
     .from(NCR_PHOTOS_TABLE)
     .select("*")
@@ -211,18 +215,21 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
           </p>
         </div>
 
-        {nextStatus && (
-          <form action={setNcrStatusAction}>
-            <input type="hidden" name="ncr_id" value={ncr.id} />
-            <input type="hidden" name="status" value={nextStatus} />
-            <button
-              type="submit"
-              className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-            >
-              {NEXT_STATUS_LABEL[ncr.status]}
-            </button>
-          </form>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          <NcrPdfButton ncrId={ncr.id} latest={latestNcrPdf} />
+          {nextStatus && (
+            <form action={setNcrStatusAction}>
+              <input type="hidden" name="ncr_id" value={ncr.id} />
+              <input type="hidden" name="status" value={nextStatus} />
+              <button
+                type="submit"
+                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+              >
+                {NEXT_STATUS_LABEL[ncr.status]}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">

@@ -7,6 +7,7 @@ import { generateWeeklyReportPack } from "./jobs/generateWeeklyReportPack";
 import { renderInspectionReportPdf } from "./jobs/renderInspectionReportPdf";
 import { renderFatReportPdf } from "./jobs/renderFatReportPdf";
 import { renderPortfolioSummaryPdf } from "./jobs/renderPortfolioSummaryPdf";
+import { renderNcrPdf } from "./jobs/renderNcrPdf";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -15,6 +16,7 @@ import type {
   RenderInspectionReportPdfPayload,
   RenderItpPdfPayload,
   RenderPortfolioSummaryPdfPayload,
+  RenderNcrPdfPayload,
 } from "./jobs/types";
 
 // Round-table SRE finding: a worker crash-loop or stall previously failed silently — logQueueHealth
@@ -169,6 +171,12 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
         const { resultStoragePath } = await renderPortfolioSummaryPdf(
           job.payload as unknown as RenderPortfolioSummaryPdfPayload
         );
+        await markCompleted(job.id, resultStoragePath);
+        console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
+        break;
+      }
+      case "render_ncr_pdf": {
+        const { resultStoragePath } = await renderNcrPdf(job.payload as unknown as RenderNcrPdfPayload);
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
         break;

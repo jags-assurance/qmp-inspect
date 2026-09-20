@@ -20,6 +20,15 @@ const STATUS_TONE: Record<CalibrationStatus, "success" | "warning" | "danger"> =
   expired: "danger",
 };
 
+// Cosmetic-only relabeling to match the enum-style status vocabulary a client's own sample
+// dossier uses (IN_CALIBRATION / DUE_WITHIN_60_DAYS / ...) — the underlying stored value
+// (CalibrationStatus, computed by lib/registers/refresh.ts) is unchanged; this is display text only.
+const STATUS_LABEL: Record<CalibrationStatus, string> = {
+  valid: "IN_CALIBRATION",
+  due_soon: "DUE_WITHIN_60_DAYS",
+  expired: "CALIBRATION_EXPIRED",
+};
+
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // this wrapper exists so the Server Component page only ever passes plain, serializable row data
 // down, same pattern as ProjectsTable/PunchListTable.
@@ -32,7 +41,7 @@ export function CalibrationTable({ rows }: { rows: CalibrationRegisterDisplayRow
     {
       key: "status",
       header: "Status",
-      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{row.status.replace("_", " ")}</Badge>,
+      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>,
     },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];

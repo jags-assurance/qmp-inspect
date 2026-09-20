@@ -19,11 +19,28 @@ const PARTY_TYPE_LABEL: Record<string, string> = {
   subcontractor: "Subcontractor",
   main_contractor: "Main Contractor",
   tpi_lab: "TPI / Lab",
+  vendor: "Vendor",
   jags: "JAGS",
 };
 
 function partyTypeLabel(partyType: string): string {
   return PARTY_TYPE_LABEL[partyType] ?? partyType;
+}
+
+// Short codes used in the compact "Intervention" column notation (e.g. "C:H SC:W JA:R"), matching
+// the client's requested abbreviation scheme — deliberately distinct from PARTY_TYPE_LABEL above,
+// which is for the (no-longer-rendered) full per-party column header.
+const PARTY_TYPE_CODE: Record<string, string> = {
+  client: "CL",
+  main_contractor: "C",
+  subcontractor: "SC",
+  tpi_lab: "TPI",
+  vendor: "V",
+  jags: "JA",
+};
+
+function partyTypeCode(partyType: string): string {
+  return PARTY_TYPE_CODE[partyType] ?? partyType.slice(0, 2).toUpperCase();
 }
 
 export interface ItpTemplateIntervention {
@@ -91,6 +108,13 @@ export interface ItpTemplateData {
   organizationName: string;
   projectName: string;
   projectNumber: string;
+  /** This ITP's discipline, derived from its items' discipline_id (master_disciplines.name).
+   *  "Multi-discipline" when items span more than one, null when there are no items or none set. */
+  discipline?: string | null;
+  /** The source specification document this ITP's items were written against, when the ITP's items
+   *  reliably agree on one (see renderItpPdf.ts) — there's no dedicated column for this, so it's
+   *  best-effort and frequently null. */
+  sourceSpec?: string | null;
   parties: ItpTemplateParty[];
   sections: ItpTemplateSection[];
   interventions: ItpTemplateIntervention[];
@@ -99,12 +123,6 @@ export interface ItpTemplateData {
   levelTypes: ItpTemplateLevelType[];
   generatedAt: Date;
 }
-
-const EVIDENCE_TYPE_LABEL: Record<1 | 2 | 3, string> = {
-  1: "Checklist",
-  2: "Document Upload",
-  3: "Measurement Record",
-};
 
 // Swatch/text colors assigned by POSITION in the organisation's own sorted level list, not by a
 // fixed code — matches apps/web/lib/intervention-levels/types.ts's TONE_PALETTE reasoning (kept in
@@ -159,20 +177,71 @@ const SIGNOFF_NOTIFIED_MARK = "~";
 const SIGNOFF_CHECK_SVG =
   '<svg class="signoff-check" viewBox="0 0 12 12" width="8" height="8"><polyline points="2,6.5 5,9.5 10,3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-function interventionCell(
-  code: string | undefined,
+/**
+ * Compact "{PartyCode}:{LevelCode}" notation for one party's intervention on one item, used inside
+ * the single combined Intervention column (replaces the old one-column-per-party grid). Signed-off
+ * gets a checkmark and bold weight, notified gets the tilde mark, pending/not-yet-started gets
+ * neither — same signoff semantics as the old interventionCell, just packed into one cell's worth of
+ * chips instead of one <td> per party.
+ */
+function interventionToken(
+  party: ItpTemplateParty,
+  code: string,
   status: ItpTemplateSignoffStatus | undefined,
   levelIndexByCode: Map<string, number>,
   levelLabelByCode: Map<string, string>
 ): string {
-  if (!code) return '<td class="intervention-cell intervention-none">&mdash;</td>';
   const effectiveStatus = status ?? "pending";
   const mark =
     effectiveStatus === "signed_off" ? SIGNOFF_CHECK_SVG : effectiveStatus === "notified" ? SIGNOFF_NOTIFIED_MARK : "";
   const label = levelLabelByCode.get(code) ?? code;
-  const title = `${escapeHtml(label)} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
+  const title = `${escapeHtml(party.name)} (${escapeHtml(partyTypeLabel(party.partyType))}) — ${escapeHtml(label)} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
   const { background, color } = colorForLevelIndex(levelIndexByCode.get(code) ?? 0);
-  return `<td class="intervention-cell signoff-${effectiveStatus}" style="background:${background};color:${color}" title="${title}">${escapeHtml(code)}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</td>`;
+  const text = `${escapeHtml(partyTypeCode(party.partyType))}:${escapeHtml(code)}`;
+  return `<span class="iv-token signoff-${effectiveStatus}" style="background:${background};color:${color}" title="${title}">${text}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</span>`;
+}
+
+function interventionColumnCell(
+  item: ItpTemplateItem,
+  parties: ItpTemplateParty[],
+  interventionByItem: Map<string, Map<string, string>>,
+  statusByItem: Map<string, Map<string, ItpTemplateSignoffStatus>>,
+  levelIndexByCode: Map<string, number>,
+  levelLabelByCode: Map<string, string>
+): string {
+  const itemInterventions = interventionByItem.get(item.id);
+  const itemStatuses = statusByItem.get(item.id);
+  const tokens = parties
+    .map((party) => {
+      const code = itemInterventions?.get(party.id);
+      if (!code) return null; // party has no assigned intervention on this item — omit, don't blank-cell it
+      return interventionToken(party, code, itemStatuses?.get(party.id), levelIndexByCode, levelLabelByCode);
+    })
+    .filter((t): t is string => t !== null);
+
+  if (tokens.length === 0) return '<td class="intervention-cell intervention-none">&mdash;</td>';
+  return `<td class="intervention-cell"><div class="iv-tokens">${tokens.join("")}</div></td>`;
+}
+
+/** Item/activity cell: item number and activity text combined per the client's sample format. */
+function itemActivityCell(item: ItpTemplateItem): string {
+  return `<td class="item-activity"><span class="item-number">${cell(item.itemNumber)}</span><div class="activity">${cell(item.activity)}</div></td>`;
+}
+
+/**
+ * Acceptance/method cell: acceptance criteria on its own line, falling back to the literal
+ * "PENDING INPUT" when unset — the client's sample explicitly shows a blocked/unconfigured
+ * acceptance criterion this way rather than as a blank or em-dash cell — followed by a
+ * "{method} / {frequency}" line built from whichever of the two is actually present.
+ */
+function acceptanceMethodCell(item: ItpTemplateItem): string {
+  const hasAcceptance = Boolean(item.acceptanceCriteria && item.acceptanceCriteria.trim());
+  const acceptanceHtml = hasAcceptance
+    ? escapeHtml(item.acceptanceCriteria as string)
+    : '<span class="pending-input">PENDING INPUT</span>';
+  const methodFreqParts = [item.method, item.frequency].filter((v): v is string => Boolean(v && v.trim()));
+  const methodFreqHtml = methodFreqParts.length > 0 ? `<div class="method-freq">${escapeHtml(methodFreqParts.join(" / "))}</div>` : "";
+  return `<td><div class="acceptance">${acceptanceHtml}</div>${methodFreqHtml}</td>`;
 }
 
 function renderSection(
@@ -197,48 +266,27 @@ function renderSection(
 
   const rows = section.items
     .map((item) => {
-      const partyCells = parties
-        .map((party) =>
-          interventionCell(
-            interventionByItem.get(item.id)?.get(party.id),
-            statusByItem.get(item.id)?.get(party.id),
-            levelIndexByCode,
-            levelLabelByCode
-          )
-        )
-        .join("");
       return `
         <tr>
-          <td class="item-number">${cell(item.itemNumber)}</td>
-          <td class="activity">${cell(item.activity)}</td>
+          ${itemActivityCell(item)}
           <td>${cell(item.referenceSpec)}</td>
-          <td>${cell(item.acceptanceCriteria)}</td>
-          <td>${cell(item.method)}</td>
-          <td>${cell(item.frequency)}</td>
-          <td>${escapeHtml(EVIDENCE_TYPE_LABEL[item.evidenceType])}</td>
-          ${partyCells}
+          ${acceptanceMethodCell(item)}
+          ${interventionColumnCell(item, parties, interventionByItem, statusByItem, levelIndexByCode, levelLabelByCode)}
         </tr>`;
     })
     .join("");
 
-  const partyHeaders = parties
-    .map((party) => `<th class="party-header">${escapeHtml(party.name)}<span class="party-type">${escapeHtml(partyTypeLabel(party.partyType))}</span></th>`)
-    .join("");
-
   return `
     <section class="itp-section">
-      <h2>Section ${section.sectionNumber}: ${escapeHtml(section.title)}</h2>
+      <div class="section-eyebrow">Section ${section.sectionNumber}</div>
+      <h2>${escapeHtml(section.title)}</h2>
       <table class="items-table">
         <thead>
           <tr>
-            <th>Item No.</th>
-            <th>Activity</th>
+            <th>Item / activity</th>
             <th>Reference</th>
-            <th>Acceptance Criteria</th>
-            <th>Method</th>
-            <th>Frequency</th>
-            <th>Evidence Type</th>
-            ${partyHeaders}
+            <th>Acceptance / method</th>
+            <th>Intervention</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -260,7 +308,24 @@ function renderLegend(levelTypes: ItpTemplateLevelType[]): string {
     <div class="legend">
       ${items}
       <span class="legend-item legend-signoff">${SIGNOFF_CHECK_SVG} Signed off &nbsp;&nbsp; ${SIGNOFF_NOTIFIED_MARK} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
+    </div>
+    <div class="legend legend-parties">
+      <span class="legend-item">C = Contractor; SC = Subcontractor; TPI = Third Party; JA = Jags; CL = Client; V = Vendor</span>
     </div>`;
+}
+
+/**
+ * "{itpNumber} Rev {revision} | {discipline} | source {sourceSpec}" document-identity line, matching
+ * the client's sample format. discipline/sourceSpec are both optional and best-effort (see
+ * ItpTemplateData), so the line is only shown once at least one of them is present, and built from
+ * whichever parts actually exist — never rendering an empty "| |" gap for a missing one.
+ */
+function renderIdentityLine(data: ItpTemplateData): string {
+  if (!data.discipline && !data.sourceSpec) return "";
+  const parts: string[] = [`${escapeHtml(data.itpNumber)} Rev ${data.revision}`];
+  if (data.discipline) parts.push(escapeHtml(data.discipline));
+  if (data.sourceSpec) parts.push(`source ${escapeHtml(data.sourceSpec)}`);
+  return `<div class="identity-line">${parts.join(" &nbsp;|&nbsp; ")}</div>`;
 }
 
 function renderSignoffs(signoffs: ItpTemplateSignoff[]): string {
@@ -422,6 +487,15 @@ export function buildItpHtml(data: ItpTemplateData): string {
     color: #444;
   }
 
+  .identity-line {
+    font-size: 9px;
+    font-family: "Courier New", monospace;
+    color: var(--burgundy);
+    font-weight: bold;
+    letter-spacing: 0.2px;
+    margin-bottom: 3px;
+  }
+
   .status-badge {
     display: inline-block;
     padding: 2px 10px;
@@ -457,6 +531,14 @@ export function buildItpHtml(data: ItpTemplateData): string {
   .itp-section {
     margin-bottom: 12px;
     break-inside: avoid;
+  }
+
+  .section-eyebrow {
+    font-size: 7.5px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 1px;
   }
 
   .itp-section h2 {
@@ -500,44 +582,73 @@ export function buildItpHtml(data: ItpTemplateData): string {
     background: #efe9e6;
   }
 
-  th.party-header {
-    text-align: center;
-    min-width: 26px;
+  td.item-activity {
+    min-width: 130px;
   }
 
-  th.party-header .party-type {
+  td.item-activity .item-number {
     display: block;
-    font-weight: normal;
-    font-size: 6.5px;
-    opacity: 0.85;
-  }
-
-  td.item-number {
     white-space: nowrap;
     font-weight: bold;
   }
 
-  td.activity {
-    min-width: 90px;
+  td.item-activity .activity {
+    margin-top: 1px;
+  }
+
+  .acceptance {
+    margin-bottom: 2px;
+  }
+
+  .pending-input {
+    display: inline-block;
+    font-weight: bold;
+    font-size: 7.5px;
+    letter-spacing: 0.4px;
+    color: var(--burgundy);
+    background: #f1dede;
+    border: 1px solid var(--burgundy);
+    border-radius: 2px;
+    padding: 1px 5px;
+    text-transform: uppercase;
+  }
+
+  .method-freq {
+    color: #555;
+    font-style: italic;
   }
 
   td.intervention-cell {
-    text-align: center;
-    font-weight: bold;
-    width: 22px;
+    width: 120px;
   }
 
-  /* Per-level background/text color is now set inline per cell (colorForLevelIndex), keyed by that
+  .iv-tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  /* Per-level background/text color is set inline per token (colorForLevelIndex), keyed by that
      level's position in the organisation's own sorted list rather than a fixed H/W/R/S class — a
      custom level gets a color this way too. */
-  .intervention-none { color: #bbb; }
+  .iv-token {
+    display: inline-flex;
+    align-items: center;
+    font-weight: bold;
+    border-radius: 2px;
+    padding: 1px 4px;
+    white-space: nowrap;
+  }
 
-  /* Sign-off completion, layered on top of the intervention color above: a pending cell (holder
-     assigned but not yet notified) is dimmed so it reads as "not started"; a notified cell gets a
-     dashed outline (in progress); a signed-off cell stays full-strength with a check mark. Without
-     this a freshly-approved ITP and a fully-executed one would render an identical-looking grid. */
-  .intervention-cell.signoff-pending { opacity: 0.45; }
-  .intervention-cell.signoff-notified { outline: 1.5px dashed var(--ink); outline-offset: -2px; }
+  .intervention-none { color: #bbb; text-align: center; }
+
+  /* Sign-off completion, layered on top of the intervention color above: a pending token (holder
+     assigned but not yet notified) is dimmed so it reads as "not started"; a notified token gets a
+     dashed outline (in progress); a signed-off token stays full-strength, bold, with a check mark.
+     Without this a freshly-approved ITP and a fully-executed one would render an identical grid. */
+  .iv-token.signoff-pending { opacity: 0.45; }
+  .iv-token.signoff-notified { outline: 1.5px dashed var(--ink); outline-offset: -1px; }
+  .iv-token.signoff-signed_off { outline: 1px solid var(--ink); }
   .signoff-mark {
     display: inline-block;
     margin-left: 2px;
@@ -566,6 +677,11 @@ export function buildItpHtml(data: ItpTemplateData): string {
     color: #555;
     border-left: 1px solid #ccc;
     padding-left: 14px;
+  }
+
+  .legend-parties {
+    margin-top: -8px;
+    color: #555;
   }
 
   .legend-item { display: flex; align-items: center; gap: 4px; }
@@ -651,7 +767,7 @@ export function buildItpHtml(data: ItpTemplateData): string {
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
+      <div class="wordmark">JAGS ASSURANCE&nbsp;&nbsp;/&nbsp;&nbsp;QMP INSPECT</div>
     </div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>
@@ -665,6 +781,7 @@ export function buildItpHtml(data: ItpTemplateData): string {
   </div>
 
   <div class="title-block">
+    ${renderIdentityLine(data)}
     <h1>${escapeHtml(data.title)}<span class="status-badge">${escapeHtml(statusLabel)}</span></h1>
     <div class="subline">${escapeHtml(data.organizationName)} &mdash; ${escapeHtml(data.projectName)} (${escapeHtml(data.projectNumber)})</div>
   </div>

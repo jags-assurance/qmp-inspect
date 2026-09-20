@@ -11,7 +11,8 @@ export interface BackgroundJobRow {
     | "generate_weekly_report_pack"
     | "render_inspection_report_pdf"
     | "render_fat_report_pdf"
-    | "render_portfolio_summary_pdf";
+    | "render_portfolio_summary_pdf"
+    | "render_ncr_pdf";
   payload: Record<string, unknown>;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
@@ -63,5 +64,13 @@ export interface RenderFatReportPdfPayload {
  *  is_jags_staff() admins can queue this job_type at all (see the RLS with-check on
  *  background_jobs_insert in 20260916150000_portfolio_summary_pdf_job.sql). */
 export interface RenderPortfolioSummaryPdfPayload {
+  requested_by: string;
+}
+
+/** Payload for "render_ncr_pdf" — the branded A4 dossier page for a single NCR (finding +
+ *  close-out), matching the client's sample dossier format. Same shape as
+ *  RenderInspectionReportPdfPayload: one target row id plus who asked for it. */
+export interface RenderNcrPdfPayload {
+  ncr_id: string;
   requested_by: string;
 }

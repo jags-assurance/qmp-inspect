@@ -22,6 +22,7 @@ import {
   type RenderInspectionReportPdfPayload,
   type RenderItpPdfPayload,
   type RenderPortfolioSummaryPdfPayload,
+  type RenderNcrPdfPayload,
 } from "./types";
 
 export interface GenerateMonthlyReportPackState {
@@ -465,6 +466,91 @@ export async function getLatestFatReportPdf(assignmentId: string): Promise<FatRe
     .maybeSingle<
       Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
         payload: RenderFatReportPdfPayload;
+        result_storage_path: string | null;
+      }
+    >();
+
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+    downloadUrl,
+  };
+}
+
+export interface RequestNcrPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_ncr_pdf" background job — the branded A4 dossier page for a single NCR (finding
+ * + human close-out), matching the client's sample dossier format. Same insert-a-row pattern as
+ * requestFatReportPdfAction above; RLS on background_jobs already restricts this to users with
+ * access to the NCR's project (20260920020000_ncr_pdf_job.sql).
+ */
+export async function requestNcrPdfAction(_prev: RequestNcrPdfState, formData: FormData): Promise<RequestNcrPdfState> {
+  const session = await requireSession();
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  if (!ncrId) return { error: "Missing NCR." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_ncr_pdf",
+    payload: { ncr_id: ncrId, requested_by: session.userId } satisfies RenderNcrPdfPayload,
+  });
+
+  if (error) {
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the PDF. Check you have permission and try again.") };
+  }
+
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  return { error: null, success: true };
+}
+
+export interface NcrPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+  downloadUrl: string | null;
+}
+
+/**
+ * Most recent render for this NCR. Polled client-side via usePdfPolling
+ * (lib/reports/use-pdf-polling.ts) — see getLatestItpPdf's doc comment for the View/Download URL
+ * split.
+ */
+export async function getLatestNcrPdf(ncrId: string): Promise<NcrPdfStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  // See getLatestItpPdf's comment — same server-side-filter + limit(1) fix.
+  const { data: latest } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_ncr_pdf")
+    .eq("payload->>ncr_id", ncrId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderNcrPdfPayload;
         result_storage_path: string | null;
       }
     >();
