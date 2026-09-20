@@ -15,6 +15,9 @@ interface HandoverRow {
   acknowledged_at: string | null;
   package_storage_path: string | null;
   package_sha256: string | null;
+  is_conditional: boolean;
+  conditional_reason: string | null;
+  conditional_open_items: { id: string; description: string; location: string | null; due_date: string | null; responsible_party_name: string | null }[] | null;
   data_books: {
     book_number: string;
     title: string;
@@ -35,7 +38,7 @@ export default async function HandoverPage() {
   const { data: certificates } = await supabase
     .from(HANDOVER_CERTIFICATES_TABLE)
     .select(
-      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, package_storage_path, package_sha256, data_books(book_number, title, projects(name, project_number, organizations(name)))"
+      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(book_number, title, projects(name, project_number, organizations(name)))"
     )
     .order("issued_date", { ascending: false })
     .returns<HandoverRow[]>();
@@ -67,9 +70,12 @@ export default async function HandoverPage() {
                 <p className="text-xs uppercase tracking-wide text-white/70">Handover Certificate</p>
                 <h2 className="doc-id text-xl font-semibold">{cert.certificate_number}</h2>
               </div>
-              <Badge tone={cert.acknowledged_at ? "success" : "warning"}>
-                {cert.acknowledged_at ? "Acknowledged" : "Awaiting acknowledgment"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {cert.is_conditional && <Badge tone="warning">Conditional</Badge>}
+                <Badge tone={cert.acknowledged_at ? "success" : "warning"}>
+                  {cert.acknowledged_at ? "Acknowledged" : "Awaiting acknowledgment"}
+                </Badge>
+              </div>
             </div>
 
             <div className="px-5 py-4">
@@ -81,6 +87,25 @@ export default async function HandoverPage() {
                 {cert.data_books?.projects?.project_number}) · Issued{" "}
                 {new Date(cert.issued_date).toLocaleDateString()}
               </p>
+              {cert.is_conditional && (
+                <div className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
+                  <p className="font-medium">
+                    Conditional Handover — issued with open items outstanding.
+                  </p>
+                  {cert.conditional_reason && <p className="mt-1 text-xs">{cert.conditional_reason}</p>}
+                  {cert.conditional_open_items && cert.conditional_open_items.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 text-xs">
+                      {cert.conditional_open_items.map((item) => (
+                        <li key={item.id}>
+                          • {item.description}
+                          {item.location ? ` (${item.location})` : ""} — {item.responsible_party_name ?? "unassigned"},
+                          agreed due {item.due_date ? new Date(item.due_date).toLocaleDateString() : "no date set"}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               {packageLinks.has(cert.id) ? (
                 <>
                   <p className="mt-2 text-sm">

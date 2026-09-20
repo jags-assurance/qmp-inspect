@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { DATA_BOOKS_TABLE } from "@/lib/databook/types";
+import { DATA_BOOKS_TABLE, type ConditionalOpenItem } from "@/lib/databook/types";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
 
 export interface CreateDataBookState {
@@ -88,6 +89,27 @@ export async function compileDataBookAction(
     data: { user },
   } = await supabase.auth.getUser();
 
+  // A Conditional Handover is only meaningful with a real record of WHICH items were left open and
+  // their agreed due dates — snapshotted now, at override time, not left as a live join that a
+  // later closure would silently rewrite (see 20260920050000_conditional_handover.sql).
+  let overrideItems: ConditionalOpenItem[] | null = null;
+  if (override) {
+    const { data: openItems } = await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id, description, location, due_date, project_parties(name)")
+      .eq("project_id", projectId)
+      .eq("status", "open")
+      .returns<{ id: string; description: string; location: string | null; due_date: string | null; project_parties: { name: string } | null }[]>();
+
+    overrideItems = (openItems ?? []).map((item) => ({
+      id: item.id,
+      description: item.description,
+      location: item.location,
+      due_date: item.due_date,
+      responsible_party_name: item.project_parties?.name ?? null,
+    }));
+  }
+
   const { data: updated, error } = await supabase
     .from(DATA_BOOKS_TABLE)
     .update({
@@ -97,6 +119,7 @@ export async function compileDataBookAction(
       override_open_punch_items: override,
       override_reason: override ? overrideReason : null,
       override_by: override ? (user?.id ?? null) : null,
+      override_items: overrideItems,
     })
     .eq("id", dataBookId)
     .eq("status", "draft")

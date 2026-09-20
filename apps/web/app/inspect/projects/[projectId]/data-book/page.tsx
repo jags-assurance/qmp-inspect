@@ -4,9 +4,10 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
 import { DATA_BOOKS_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { ReadinessPanel } from "./readiness-panel";
 import { CreateDataBookForm } from "./create-databook-form";
-import { CompileDataBookForm } from "./compile-databook-form";
+import { CompileDataBookForm, type OpenPunchItemPreview } from "./compile-databook-form";
 import { IssueHandoverForm } from "./issue-handover-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
@@ -39,7 +40,7 @@ export default async function DataBookPage({
 
   if (!project) notFound();
 
-  const [readiness, { data: dataBooks }] = await Promise.all([
+  const [readiness, { data: dataBooks }, { data: openPunchItemRows }] = await Promise.all([
     computeDataBookReadiness(projectId),
     supabase
       .from(DATA_BOOKS_TABLE)
@@ -47,7 +48,17 @@ export default async function DataBookPage({
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .returns<DataBookRow[]>(),
+    // Shown inline in the override section of CompileDataBookForm so a Conditional Handover is
+    // reviewed item-by-item before committing to it, not just a blind "I know some are open" tick.
+    supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id, description, location, due_date, project_parties(name)")
+      .eq("project_id", projectId)
+      .eq("status", "open")
+      .returns<OpenPunchItemPreview[]>(),
   ]);
+
+  const openPunchItems: OpenPunchItemPreview[] = openPunchItemRows ?? [];
 
   return (
     <div className="max-w-3xl">
@@ -81,14 +92,33 @@ export default async function DataBookPage({
             </div>
 
             {book.override_reason && (
-              <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
-                Compiled with open items outstanding — override reason: {book.override_reason}
-              </p>
+              <div className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
+                <p>
+                  <span className="font-medium">Conditional — compiled with open items outstanding.</span>{" "}
+                  {book.override_reason}
+                </p>
+                {book.override_items && book.override_items.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5">
+                    {book.override_items.map((item) => (
+                      <li key={item.id}>
+                        • {item.description}
+                        {item.location ? ` (${item.location})` : ""} — {item.responsible_party_name ?? "unassigned"},
+                        due {item.due_date ? new Date(item.due_date).toLocaleDateString() : "no date set"}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
 
             {session.isJagsStaff && book.status === "draft" && (
               <div className="mt-3">
-                <CompileDataBookForm projectId={projectId} dataBookId={book.id} isReady={readiness.isReady} />
+                <CompileDataBookForm
+                  projectId={projectId}
+                  dataBookId={book.id}
+                  isReady={readiness.isReady}
+                  openPunchItems={openPunchItems}
+                />
               </div>
             )}
 

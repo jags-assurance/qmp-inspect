@@ -17,6 +17,17 @@ export const HANDOVER_CERTIFICATES_TABLE = "handover_certificates" as any;
 export const DATA_BOOK_STATUSES = ["draft", "compiled", "issued"] as const;
 export type DataBookStatus = (typeof DATA_BOOK_STATUSES)[number];
 
+/** One open punch-list item, snapshotted at override/issue time — see
+ *  20260920050000_conditional_handover.sql. Frozen at that moment on purpose: closing the item
+ *  later doesn't rewrite what a Conditional Handover certificate said was open when it was issued. */
+export interface ConditionalOpenItem {
+  id: string;
+  description: string;
+  location: string | null;
+  due_date: string | null;
+  responsible_party_name: string | null;
+}
+
 export interface DataBookRow {
   id: string;
   project_id: string;
@@ -28,6 +39,7 @@ export interface DataBookRow {
   override_open_punch_items: boolean;
   override_reason: string | null;
   override_by: string | null;
+  override_items: ConditionalOpenItem[] | null;
   created_at: string;
 }
 
@@ -40,5 +52,10 @@ export interface HandoverCertificateRow {
   received_by_name: string | null;
   received_by_company: string | null;
   acknowledged_at: string | null;
+  package_storage_path: string | null;
+  package_sha256: string | null;
+  is_conditional: boolean;
+  conditional_reason: string | null;
+  conditional_open_items: ConditionalOpenItem[] | null;
   created_at: string;
 }

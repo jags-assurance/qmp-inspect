@@ -46,20 +46,32 @@ export async function issueHandoverAction(
 
   const { data: dataBook } = await supabase
     .from(DATA_BOOKS_TABLE)
-    .select("id, status")
+    .select("id, status, override_open_punch_items, override_reason, override_items")
     .eq("id", dataBookId)
-    .maybeSingle<{ id: string; status: string }>();
+    .maybeSingle<{
+      id: string;
+      status: string;
+      override_open_punch_items: boolean;
+      override_reason: string | null;
+      override_items: unknown;
+    }>();
 
   if (!dataBook || dataBook.status !== "compiled") {
     return { error: "Only a compiled Data Book can be issued for handover." };
   }
 
+  // Carries the open-items-at-override snapshot forward onto the certificate itself, so a
+  // Conditional Handover reads as a self-contained, permanent record of what was open and agreed
+  // at issue time — see 20260920050000_conditional_handover.sql.
   const { error: certError } = await supabase.from(HANDOVER_CERTIFICATES_TABLE).insert({
     data_book_id: dataBookId,
     certificate_number: certificateNumber,
     issued_by: user?.id ?? null,
     package_storage_path: packageStoragePath,
     package_sha256: packageSha256 || null,
+    is_conditional: dataBook.override_open_punch_items,
+    conditional_reason: dataBook.override_open_punch_items ? dataBook.override_reason : null,
+    conditional_open_items: dataBook.override_open_punch_items ? dataBook.override_items : null,
   });
 
   if (certError) {

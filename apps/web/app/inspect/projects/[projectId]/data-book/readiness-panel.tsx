@@ -48,6 +48,10 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
       <div className="mt-4">
         <CategoryRow {...readiness.itps} />
         <CategoryRow {...readiness.inspectionRecords} />
+        <CategoryRow {...readiness.checklists} />
+        <CategoryRow {...readiness.calibrationRegister} />
+        <CategoryRow {...readiness.welderRegister} />
+        <CategoryRow {...readiness.materialRegister} />
         <CategoryRow {...readiness.ncrs} />
         <div className="flex items-center justify-between py-3">
           <span className="text-sm text-ink">Open punch list items</span>
@@ -55,10 +59,22 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
             {readiness.openPunchItems} open
           </Badge>
         </div>
+        <div className="flex items-center justify-between border-t border-border py-3">
+          <span className="text-sm text-muted">Handover certificate issued</span>
+          <span className="text-xs text-muted">
+            {readiness.handoverCertificate.ready}/{readiness.handoverCertificate.total} — the outcome of
+            compiling, not a precondition
+          </span>
+        </div>
       </div>
 
+      <p className="mt-3 text-xs text-muted">
+        Overall % = total items provided ÷ total items required, summed across every category above
+        (handover certificate excluded — it's produced by compiling, not required to compile).
+      </p>
+
       {!readiness.isReady && (
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted">
           Every category must reach 100% and the punch list must have zero open items before a Data Book can
           compile. A staff user can compile anyway with a documented override reason — see below.
         </p>
