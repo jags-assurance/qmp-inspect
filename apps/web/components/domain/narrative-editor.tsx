@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import type { DraftReportNarrativeState, SaveNarrativeState } from "@/lib/reports/actions";
 
-const draftInitialState: DraftReportNarrativeState = { error: null, narrative: null };
+const draftInitialState: DraftReportNarrativeState = { error: null, narrative: null, aiLogId: null };
 const saveInitialState: SaveNarrativeState = { error: null };
 
 /**
@@ -29,11 +29,17 @@ export function NarrativeEditor({
   const [draftState, draftFormAction, draftPending] = useActionState(draftAction, draftInitialState);
   const [saveState, saveFormAction, savePending] = useActionState(saveAction, saveInitialState);
   const [narrative, setNarrative] = useState(initialNarrative ?? "");
+  const [aiLogId, setAiLogId] = useState<string | null>(null);
+  const [aiOriginalNarrative, setAiOriginalNarrative] = useState<string | null>(null);
 
   const [appliedDraftState, setAppliedDraftState] = useState(draftState);
   if (draftState !== appliedDraftState) {
     setAppliedDraftState(draftState);
-    if (draftState.narrative !== null) setNarrative(draftState.narrative);
+    if (draftState.narrative !== null) {
+      setNarrative(draftState.narrative);
+      setAiLogId(draftState.aiLogId);
+      setAiOriginalNarrative(draftState.narrative);
+    }
   }
 
   return (
@@ -59,6 +65,8 @@ export function NarrativeEditor({
 
       <form action={saveFormAction} className="mt-3 space-y-2">
         <input type="hidden" name={recordIdFieldName} value={recordId} />
+        <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
+        <input type="hidden" name="ai_original_narrative" value={aiOriginalNarrative ?? ""} />
         <textarea
           name="narrative"
           value={narrative}

@@ -9,7 +9,7 @@ import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
-import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import type { StandaloneMeasurementSuggestion } from "@/lib/ai/provider";
 import {
   STANDALONE_ASSIGNMENTS,
@@ -290,6 +290,10 @@ export async function suggestStandaloneMeasurementsAction(
       organizationId: project.organization_id,
       userId: user?.id ?? null,
       feature: "standalone_measurement_suggestion",
+      modelId: getGeminiModel("standalone_measurement_suggestion"),
+      promptVersion: PROMPT_VERSIONS.standalone_measurement_suggestion,
+      sourceRef: { assignmentId, assignmentType: assignment.assignment_type },
+      aiResponse: suggestions,
     });
     return { error: null, suggestions };
   } catch (err) {

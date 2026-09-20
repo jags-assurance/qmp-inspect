@@ -12,7 +12,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 const initialState: CreateNcrState = { error: null };
-const initialDraftState: DraftNcrDescriptionState = { error: null, description: null, requirementNotMet: null };
+const initialDraftState: DraftNcrDescriptionState = {
+  error: null,
+  description: null,
+  requirementNotMet: null,
+  aiLogId: null,
+};
 
 const SEVERITY_LABEL: Record<NcrSeverity, string> = {
   observation: "Observation",
@@ -44,6 +49,8 @@ export function NewNcrForm({
   const [notes, setNotes] = useState("");
   const [description, setDescription] = useState("");
   const [requirementNotMet, setRequirementNotMet] = useState("");
+  const [aiLogId, setAiLogId] = useState<string | null>(null);
+  const [aiOriginalDescription, setAiOriginalDescription] = useState<string | null>(null);
 
   // Fills the (still fully editable) description/requirement fields once a fresh draft comes
   // back, derived during render (React's documented "adjust state while rendering" pattern)
@@ -54,11 +61,15 @@ export function NewNcrForm({
     if (draftState.description !== null) {
       setDescription(draftState.description);
       setRequirementNotMet(draftState.requirementNotMet ?? "");
+      setAiLogId(draftState.aiLogId);
+      setAiOriginalDescription(draftState.description);
     }
   }
 
   return (
     <form action={formAction} className="mt-6 space-y-6">
+      <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
+      <input type="hidden" name="ai_original_description" value={aiOriginalDescription ?? ""} />
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Details</h2>
 

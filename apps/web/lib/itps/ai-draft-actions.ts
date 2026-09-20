@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { assertAiAllowed } from "@/lib/ai/gate";
-import { logAiUsage } from "@/lib/ai/log";
-import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
@@ -22,9 +22,10 @@ export interface GenerateItpDraftState {
   error: string | null;
   draft: ItpDraftResult | null;
   projectParties: { id: string; partyType: string; name: string }[];
+  aiLogId: string | null;
 }
 
-const EMPTY_DRAFT_STATE: GenerateItpDraftState = { error: null, draft: null, projectParties: [] };
+const EMPTY_DRAFT_STATE: GenerateItpDraftState = { error: null, draft: null, projectParties: [], aiLogId: null };
 
 export async function generateItpDraftAction(
   _prev: GenerateItpDraftState,
@@ -130,9 +131,17 @@ export async function generateItpDraftAction(
     };
   }
 
-  await logAiUsage(supabase, { organizationId: project.organization_id, userId: user?.id ?? null, feature: "itp_draft" });
+  const logId = await logAiUsage(supabase, {
+    organizationId: project.organization_id,
+    userId: user?.id ?? null,
+    feature: "itp_draft",
+    modelId: getGeminiModel("itp_draft"),
+    promptVersion: PROMPT_VERSIONS.itp_draft,
+    sourceRef: { vaultDocumentIds, additionalInstructions },
+    aiResponse: draft,
+  });
 
-  return { error: null, draft, projectParties };
+  return { error: null, draft, projectParties, aiLogId: logId };
 }
 
 export interface CreateItpFromDraftState {
@@ -154,6 +163,7 @@ export async function createItpFromDraftAction(
   const title = String(formData.get("title") ?? "").trim();
   const applicableStandard = String(formData.get("applicable_standard") ?? "").trim();
   const draftJson = String(formData.get("draft_json") ?? "");
+  const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
 
   if (!projectId || !itpNumber || !title || !draftJson) {
     return { error: "Project, ITP number, title and a generated draft are required." };
@@ -277,6 +287,22 @@ export async function createItpFromDraftAction(
     // Not treated as a hard failure — the intervention grid remains editable afterward from the
     // normal ITP detail page regardless.
     await supabase.from("activity_party_intervention").insert(interventionsToInsert);
+  }
+
+  // Closes out the audit-trail row this draft was logged under (see generateItpDraftAction's
+  // logAiUsage call) now that a human has confirmed it into a real ITP. Always "edited_and_accepted"
+  // rather than trying to detect "user changed nothing" — the draft always passes through an
+  // editable review UI before this point (see new-itp-from-ai-form.tsx), and there's no cheap way to
+  // tell "no changes" apart from "re-typed the exact same text".
+  if (aiLogId && user?.id) {
+    await recordAiReviewDecision(supabase, {
+      logId: aiLogId,
+      reviewedBy: user.id,
+      targetType: "itp",
+      targetId: itp.id,
+      reviewedResponse: draft,
+      decision: "edited_and_accepted",
+    });
   }
 
   // Generate checklists immediately — this ITP's activities came from real, reviewed source

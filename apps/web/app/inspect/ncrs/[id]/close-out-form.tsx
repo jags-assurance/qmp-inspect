@@ -5,7 +5,7 @@ import { updateNcrAction, suggestNcrRootCauseAction, type UpdateNcrState, type S
 import { Button } from "@/components/ui/button";
 
 const initialState: UpdateNcrState = { error: null };
-const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null };
+const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
 
 export function CloseOutForm({
   ncrId,
@@ -36,10 +36,17 @@ export function CloseOutForm({
     verificationNotes: verificationNotes ?? "",
   });
 
+  const [aiLogId, setAiLogId] = useState<string | null>(null);
+  const [aiOriginalRootCause, setAiOriginalRootCause] = useState<string | null>(null);
+
   const [appliedSuggestState, setAppliedSuggestState] = useState(suggestState);
   if (suggestState !== appliedSuggestState) {
     setAppliedSuggestState(suggestState);
-    if (suggestState.rootCause !== null) setFields((f) => ({ ...f, rootCause: suggestState.rootCause! }));
+    if (suggestState.rootCause !== null) {
+      setFields((f) => ({ ...f, rootCause: suggestState.rootCause! }));
+      setAiLogId(suggestState.aiLogId);
+      setAiOriginalRootCause(suggestState.rootCause);
+    }
   }
 
   const canClose = Boolean(fields.rootCause.trim() && fields.correctiveAction.trim() && fields.verificationNotes.trim());
@@ -47,6 +54,8 @@ export function CloseOutForm({
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="ncr_id" value={ncrId} />
+      <input type="hidden" name="root_cause_ai_log_id" value={aiLogId ?? ""} />
+      <input type="hidden" name="root_cause_ai_original" value={aiOriginalRootCause ?? ""} />
 
       <div className="grid grid-cols-2 gap-4">
         <div>

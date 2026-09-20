@@ -30,7 +30,7 @@ const EXTRACTION_LABEL: Record<string, string> = {
 };
 
 const createInitialState: CreateItpFromDraftState = { error: null };
-const genInitialState: GenerateItpDraftState = { error: null, draft: null, projectParties: [] };
+const genInitialState: GenerateItpDraftState = { error: null, draft: null, projectParties: [], aiLogId: null };
 
 type CountMode = "auto" | "concise" | "standard" | "detailed" | "custom";
 
@@ -95,6 +95,7 @@ export function NewItpFromAiForm({
   const [genState, genFormAction, genPending] = useActionState(generateItpDraftAction, genInitialState);
   const [draft, setDraft] = useState<ItpDraftResult | null>(null);
   const [projectParties, setProjectParties] = useState<GenerateItpDraftState["projectParties"]>([]);
+  const [aiLogId, setAiLogId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -125,6 +126,7 @@ export function NewItpFromAiForm({
     if (genState.draft) {
       setDraft(genState.draft);
       setProjectParties(genState.projectParties);
+      setAiLogId(genState.aiLogId);
       setFeedback("");
     }
   }
@@ -400,6 +402,7 @@ export function NewItpFromAiForm({
       <form action={createFormAction} className="space-y-6">
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="draft_json" value={JSON.stringify(draft)} readOnly />
+        <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>

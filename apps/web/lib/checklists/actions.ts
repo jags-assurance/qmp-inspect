@@ -22,8 +22,8 @@ import { getExecutingPartyTypes, findProjectIdForItpItem } from "./execution-par
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
-import { logAiUsage } from "@/lib/ai/log";
-import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
 
@@ -156,8 +156,17 @@ export async function generateChecklistsForItp(
     )
   );
 
+  let aiLogId: string | null = null;
   if (aiUsed && organizationId) {
-    await logAiUsage(supabase, { organizationId, userId, feature: "checklist_generation" });
+    aiLogId = await logAiUsage(supabase, {
+      organizationId,
+      userId,
+      feature: "checklist_generation",
+      modelId: getGeminiModel("checklist_generation"),
+      promptVersion: PROMPT_VERSIONS.checklist_generation,
+      sourceRef: { itpId, itemIds: pending.map((i) => i.id) },
+      aiResponse: Object.fromEntries(itemsByPendingId),
+    });
   }
 
   // Atomic per-ITP counter (race-free even if this action fires twice concurrently, e.g. a
@@ -200,6 +209,17 @@ export async function generateChecklistsForItp(
 
   if (insertError || !inserted) {
     return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
+  }
+
+  if (aiLogId && userId) {
+    await recordAiReviewDecision(supabase, {
+      logId: aiLogId,
+      reviewedBy: userId,
+      targetType: "checklist_batch",
+      targetId: itpId,
+      reviewedResponse: { insertedTemplateIds: inserted.map((t) => t.id) },
+      decision: "accepted_as_is", // generated and persisted in one atomic step, no separate human-edit screen exists for this feature today
+    });
   }
 
   return { error: null, created: inserted.length };
@@ -658,6 +678,10 @@ export async function checkChecklistConsistencyAction(
       organizationId: project.organization_id,
       userId: user?.id ?? null,
       feature: "checklist_consistency_check",
+      modelId: getGeminiModel("checklist_consistency_check"),
+      promptVersion: PROMPT_VERSIONS.checklist_consistency_check,
+      sourceRef: { templateId, inspectionRecordId },
+      aiResponse: flags,
     });
     return { error: null, flags };
   } catch (err) {

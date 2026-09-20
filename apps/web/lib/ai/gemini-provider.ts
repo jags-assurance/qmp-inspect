@@ -12,6 +12,7 @@ import type {
   SuggestRootCauseInput,
   SuggestStandaloneMeasurementsInput,
 } from "@/lib/ai/provider";
+import type { AiFeature } from "@/lib/ai/log";
 
 // Gemini REST API via a raw fetch wrapper — deliberately not the `@google/generative-ai` package.
 // The app makes exactly three narrow, single-turn "send a prompt, get text back" calls; a typed
@@ -29,6 +30,39 @@ function modelFor(tier: GeminiTier): string {
   }
   return model;
 }
+
+// Which tier each feature's prompt actually calls (see the `generateContent("heavy"|"light", ...)`
+// call inside each method below) — exposed so a caller can resolve "which model actually produced
+// this draft" for the audit-trail log (lib/ai/log.ts's logAiUsage) without a network round trip.
+const FEATURE_TIER: Record<AiFeature, GeminiTier> = {
+  itp_draft: "heavy",
+  checklist_generation: "light",
+  ncr_description_draft: "light",
+  checklist_consistency_check: "light",
+  report_narrative_draft: "light",
+  ncr_root_cause_suggestion: "light",
+  standalone_measurement_suggestion: "light",
+};
+
+/** The model id actually in effect for a given feature right now (e.g. "gemini-2.5-pro") — for the
+ *  audit-trail log, not for constructing requests (each method already resolves its own via
+ *  generateContent -> modelFor). */
+export function getGeminiModel(feature: AiFeature): string {
+  return modelFor(FEATURE_TIER[feature]);
+}
+
+// Bumped by hand whenever a feature's prompt wording below changes meaningfully — lets the
+// audit-trail log tell two drafts of the same feature apart if the prompt was later revised, per the
+// client's "store prompt version" requirement. Not tied to package/app versioning.
+export const PROMPT_VERSIONS: Record<AiFeature, string> = {
+  itp_draft: "itp-draft-v1",
+  checklist_generation: "checklist-items-v1",
+  ncr_description_draft: "ncr-description-v1",
+  checklist_consistency_check: "consistency-check-v1",
+  report_narrative_draft: "report-narrative-v1",
+  ncr_root_cause_suggestion: "ncr-root-cause-v1",
+  standalone_measurement_suggestion: "standalone-measurements-v1",
+};
 
 interface GeminiGenerateContentResponse {
   candidates?: { content?: { parts?: { text?: string }[] } }[];

@@ -12,8 +12,9 @@ import {
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { assertAiAllowed } from "@/lib/ai/gate";
-import { logAiUsage } from "@/lib/ai/log";
+import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
@@ -32,6 +33,7 @@ export async function createNcrAction(
   const requirementNotMet = String(formData.get("requirement_not_met") ?? "").trim();
   const assignedTo = String(formData.get("assigned_to") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "").trim();
+  const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
 
   if (!projectId || !severity || !description) {
     return { error: "Project, severity and description are required." };
@@ -99,6 +101,19 @@ export async function createNcrAction(
     return { error: "Could not raise the NCR. Check you have permission and try again." };
   }
 
+  if (aiLogId && user?.id) {
+    await recordAiReviewDecision(supabase, {
+      logId: aiLogId,
+      reviewedBy: user.id,
+      targetType: "ncr",
+      targetId: ncr.id,
+      reviewedResponse: { description, requirementNotMet },
+      decision: description === (formData.get("ai_original_description") ?? "").toString().trim()
+        ? "accepted_as_is"
+        : "edited_and_accepted",
+    });
+  }
+
   // R95-96: every NCR/observation is a project-wide punch list source, since it represents
   // something that must be closed out before handover regardless of severity.
   await createPunchItemFromSource({
@@ -151,6 +166,7 @@ export async function updateNcrAction(
   const preventiveAction = String(formData.get("preventive_action") ?? "").trim();
   const verificationNotes = String(formData.get("verification_notes") ?? "").trim();
   const closeNow = formData.get("close_now") === "true";
+  const aiLogId = String(formData.get("root_cause_ai_log_id") ?? "").trim() || null;
 
   if (!ncrId) {
     return { error: "Missing NCR." };
@@ -207,6 +223,19 @@ export async function updateNcrAction(
     return { error: "Could not update the NCR. Check you have permission and try again." };
   }
 
+  if (aiLogId && user?.id && rootCause) {
+    await recordAiReviewDecision(supabase, {
+      logId: aiLogId,
+      reviewedBy: user.id,
+      targetType: "ncr_root_cause",
+      targetId: ncrId,
+      reviewedResponse: { rootCause },
+      decision: rootCause === (formData.get("root_cause_ai_original") ?? "").toString().trim()
+        ? "accepted_as_is"
+        : "edited_and_accepted",
+    });
+  }
+
   // Closing the NCR also closes the punch list item it fed (R95-96) — the NCR's own close-out
   // fields already satisfy the punch item's closing-evidence requirement, so this reuses them
   // rather than asking for the same evidence twice.
@@ -249,9 +278,15 @@ export interface DraftNcrDescriptionState {
   error: string | null;
   description: string | null;
   requirementNotMet: string | null;
+  aiLogId: string | null;
 }
 
-const EMPTY_DRAFT_NCR_STATE: DraftNcrDescriptionState = { error: null, description: null, requirementNotMet: null };
+const EMPTY_DRAFT_NCR_STATE: DraftNcrDescriptionState = {
+  error: null,
+  description: null,
+  requirementNotMet: null,
+  aiLogId: null,
+};
 
 /**
  * Reqs R82-R84: drafts a description/requirement_not_met pair from the inspector's raw factual
@@ -293,12 +328,21 @@ export async function draftNcrDescriptionAction(
 
   try {
     const result = await geminiProvider.draftNcrDescription({ notes });
-    await logAiUsage(supabase, {
+    const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
       feature: "ncr_description_draft",
+      modelId: getGeminiModel("ncr_description_draft"),
+      promptVersion: PROMPT_VERSIONS.ncr_description_draft,
+      sourceRef: { notes },
+      aiResponse: result,
     });
-    return { error: null, description: result.description, requirementNotMet: result.requirementNotMet };
+    return {
+      error: null,
+      description: result.description,
+      requirementNotMet: result.requirementNotMet,
+      aiLogId: logId,
+    };
   } catch (err) {
     return {
       ...EMPTY_DRAFT_NCR_STATE,
@@ -310,9 +354,10 @@ export async function draftNcrDescriptionAction(
 export interface SuggestRootCauseState {
   error: string | null;
   rootCause: string | null;
+  aiLogId: string | null;
 }
 
-const EMPTY_ROOT_CAUSE_STATE: SuggestRootCauseState = { error: null, rootCause: null };
+const EMPTY_ROOT_CAUSE_STATE: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
 
 /**
  * Reqs R111: "suggest likely root causes for an NCR". Facts come from the NCR's own already-saved
@@ -358,12 +403,16 @@ export async function suggestNcrRootCauseAction(
       requirementNotMet: ncr.requirement_not_met,
       severity: ncr.severity,
     });
-    await logAiUsage(supabase, {
+    const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
       feature: "ncr_root_cause_suggestion",
+      modelId: getGeminiModel("ncr_root_cause_suggestion"),
+      promptVersion: PROMPT_VERSIONS.ncr_root_cause_suggestion,
+      sourceRef: { ncrId, severity: ncr.severity },
+      aiResponse: rootCause,
     });
-    return { error: null, rootCause };
+    return { error: null, rootCause, aiLogId: logId };
   } catch (err) {
     return { ...EMPTY_ROOT_CAUSE_STATE, error: err instanceof Error ? err.message : "Could not suggest a root cause." };
   }

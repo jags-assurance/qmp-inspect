@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { assertAiAllowed } from "@/lib/ai/gate";
-import { logAiUsage } from "@/lib/ai/log";
-import { geminiProvider } from "@/lib/ai/gemini-provider";
+import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import {
   STANDALONE_ASSIGNMENTS,
   STANDALONE_ASSIGNMENT_MEASUREMENTS,
@@ -581,9 +581,10 @@ export async function getLatestNcrPdf(ncrId: string): Promise<NcrPdfStatus | nul
 export interface DraftReportNarrativeState {
   error: string | null;
   narrative: string | null;
+  aiLogId: string | null;
 }
 
-const EMPTY_NARRATIVE_STATE: DraftReportNarrativeState = { error: null, narrative: null };
+const EMPTY_NARRATIVE_STATE: DraftReportNarrativeState = { error: null, narrative: null, aiLogId: null };
 
 /**
  * Drafts the conclusion paragraph for an Inspection Report (R111: "draft inspection narratives...
@@ -652,8 +653,16 @@ export async function draftInspectionNarrativeAction(
       outcome: record.overall_result,
       facts,
     });
-    await logAiUsage(supabase, { organizationId: project.organization_id, userId: user?.id ?? null, feature: "report_narrative_draft" });
-    return { error: null, narrative };
+    const logId = await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "report_narrative_draft",
+      modelId: getGeminiModel("report_narrative_draft"),
+      promptVersion: PROMPT_VERSIONS.report_narrative_draft,
+      sourceRef: { reportType: "inspection", inspectionRecordId, facts },
+      aiResponse: narrative,
+    });
+    return { error: null, narrative, aiLogId: logId };
   } catch (err) {
     return { ...EMPTY_NARRATIVE_STATE, error: err instanceof Error ? err.message : "Could not draft a narrative." };
   }
@@ -670,6 +679,8 @@ export async function saveInspectionNarrativeAction(_prev: SaveNarrativeState, f
 
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   const narrative = String(formData.get("narrative") ?? "").trim();
+  const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
+  const aiOriginalNarrative = String(formData.get("ai_original_narrative") ?? "").trim();
   if (!inspectionRecordId) return { error: "Missing inspection record." };
 
   const supabase = await createSupabaseServerClient();
@@ -679,6 +690,17 @@ export async function saveInspectionNarrativeAction(_prev: SaveNarrativeState, f
     .eq("id", inspectionRecordId);
 
   if (error) return { error: "Could not save the narrative. Check you have permission and try again." };
+
+  if (aiLogId && session.userId) {
+    await recordAiReviewDecision(supabase, {
+      logId: aiLogId,
+      reviewedBy: session.userId,
+      targetType: "inspection_narrative",
+      targetId: inspectionRecordId,
+      reviewedResponse: { narrative },
+      decision: !narrative ? "discarded" : narrative === aiOriginalNarrative ? "accepted_as_is" : "edited_and_accepted",
+    });
+  }
 
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
   return { error: null };
@@ -758,8 +780,16 @@ export async function draftFatNarrativeAction(
       outcome: assignment.conclusion,
       facts,
     });
-    await logAiUsage(supabase, { organizationId: project.organization_id, userId: user?.id ?? null, feature: "report_narrative_draft" });
-    return { error: null, narrative };
+    const logId = await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "report_narrative_draft",
+      modelId: getGeminiModel("report_narrative_draft"),
+      promptVersion: PROMPT_VERSIONS.report_narrative_draft,
+      sourceRef: { reportType: "fat", assignmentId, facts },
+      aiResponse: narrative,
+    });
+    return { error: null, narrative, aiLogId: logId };
   } catch (err) {
     return { ...EMPTY_NARRATIVE_STATE, error: err instanceof Error ? err.message : "Could not draft a narrative." };
   }
@@ -772,6 +802,8 @@ export async function saveFatNarrativeAction(_prev: SaveNarrativeState, formData
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const narrative = String(formData.get("narrative") ?? "").trim();
+  const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
+  const aiOriginalNarrative = String(formData.get("ai_original_narrative") ?? "").trim();
   if (!assignmentId) return { error: "Missing assignment." };
 
   const supabase = await createSupabaseServerClient();
@@ -781,6 +813,17 @@ export async function saveFatNarrativeAction(_prev: SaveNarrativeState, formData
     .eq("id", assignmentId);
 
   if (error) return { error: "Could not save the narrative. Check you have permission and try again." };
+
+  if (aiLogId && session.userId) {
+    await recordAiReviewDecision(supabase, {
+      logId: aiLogId,
+      reviewedBy: session.userId,
+      targetType: "fat_narrative",
+      targetId: assignmentId,
+      reviewedResponse: { narrative },
+      decision: !narrative ? "discarded" : narrative === aiOriginalNarrative ? "accepted_as_is" : "edited_and_accepted",
+    });
+  }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
   return { error: null };
