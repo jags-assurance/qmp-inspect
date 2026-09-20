@@ -15,7 +15,10 @@ export type AiFeature =
   | "checklist_generation"
   | "report_narrative_draft"
   | "ncr_root_cause_suggestion"
-  | "standalone_measurement_suggestion";
+  | "standalone_measurement_suggestion"
+  | "calibration_register_extraction"
+  | "welder_register_extraction"
+  | "material_register_extraction";
 
 export type AiReviewDecision = "accepted_as_is" | "edited_and_accepted" | "discarded";
 

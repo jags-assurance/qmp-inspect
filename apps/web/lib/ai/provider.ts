@@ -123,6 +123,42 @@ export interface StandaloneMeasurementSuggestion {
   unit: string;
 }
 
+export interface ExtractRegisterInput {
+  /** Raw extracted text from one or more vault documents (certificates, WPQs, submittals/CoCs), or
+   *  free-typed text pasted directly — whatever the document controller has on hand. */
+  sourceText: string;
+}
+
+export interface ExtractedCalibrationRow {
+  instrumentName: string;
+  /** Null when the source text doesn't state it — an extraction must never invent a certificate
+   *  number, date, or any other field it can't actually find. */
+  certNumber: string | null;
+  calDate: string | null;
+  dueDate: string | null;
+}
+
+export interface ExtractedWelderRow {
+  welderIdentifier: string;
+  /** Process + position combined (e.g. "GTAW/SMAW, position 6G"), since the register only has one
+   *  free-text field for this — see welder_qualification_register.qualified_wps. Null if neither is
+   *  stated. */
+  qualifiedWps: string | null;
+  /** Qualified range AND continuity status combined into one field, same reasoning — null (never a
+   *  guessed range) when the source text doesn't state a verified range or continuity record. */
+  qualifiedRanges: string | null;
+  expiryDate: string | null;
+}
+
+export interface ExtractedMaterialRow {
+  materialDescription: string;
+  submittalReference: string | null;
+  heatNumber: string | null;
+  batchNumber: string | null;
+  poReference: string | null;
+  certificateReference: string | null;
+}
+
 export interface AiProvider {
   generateItpDraft(input: GenerateItpDraftInput): Promise<ItpDraftResult>;
   generateChecklistItems(input: GenerateChecklistItemsInput): Promise<ChecklistItemDraft[]>;
@@ -131,4 +167,12 @@ export interface AiProvider {
   draftReportNarrative(input: DraftReportNarrativeInput): Promise<string>;
   suggestRootCause(input: SuggestRootCauseInput): Promise<string>;
   suggestStandaloneMeasurements(input: SuggestStandaloneMeasurementsInput): Promise<StandaloneMeasurementSuggestion[]>;
+  /** Reqs from the client's register sample pack: extract calibration/welder/material register rows
+   *  from raw document text, returning null for any field the source doesn't actually state — never
+   *  inferring a certificate number, date, qualification range, heat number, or release status. None
+   *  of these three ever write to the database; the document controller reviews and edits every row
+   *  before the existing manual "add row" action persists it. */
+  extractCalibrationRows(input: ExtractRegisterInput): Promise<ExtractedCalibrationRow[]>;
+  extractWelderRows(input: ExtractRegisterInput): Promise<ExtractedWelderRow[]>;
+  extractMaterialRows(input: ExtractRegisterInput): Promise<ExtractedMaterialRow[]>;
 }

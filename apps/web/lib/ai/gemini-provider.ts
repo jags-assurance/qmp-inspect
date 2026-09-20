@@ -5,6 +5,10 @@ import type {
   DraftNcrDescriptionInput,
   DraftNcrDescriptionResult,
   DraftReportNarrativeInput,
+  ExtractedCalibrationRow,
+  ExtractedMaterialRow,
+  ExtractedWelderRow,
+  ExtractRegisterInput,
   GenerateChecklistItemsInput,
   GenerateItpDraftInput,
   ItpDraftResult,
@@ -42,6 +46,9 @@ const FEATURE_TIER: Record<AiFeature, GeminiTier> = {
   report_narrative_draft: "light",
   ncr_root_cause_suggestion: "light",
   standalone_measurement_suggestion: "light",
+  calibration_register_extraction: "light",
+  welder_register_extraction: "light",
+  material_register_extraction: "light",
 };
 
 /** The model id actually in effect for a given feature right now (e.g. "gemini-2.5-pro") — for the
@@ -62,6 +69,9 @@ export const PROMPT_VERSIONS: Record<AiFeature, string> = {
   report_narrative_draft: "report-narrative-v1",
   ncr_root_cause_suggestion: "ncr-root-cause-v1",
   standalone_measurement_suggestion: "standalone-measurements-v1",
+  calibration_register_extraction: "calibration-extraction-v1",
+  welder_register_extraction: "welder-extraction-v1",
+  material_register_extraction: "material-extraction-v1",
 };
 
 interface GeminiGenerateContentResponse {
@@ -467,6 +477,133 @@ export class GeminiProvider implements AiProvider {
         nominal: String(s.nominal ?? "").trim(),
         tolerance: String(s.tolerance ?? "").trim(),
         unit: String(s.unit ?? "").trim(),
+      }));
+  }
+
+  // Shared "never invent a missing field" rule text for the three register-extraction methods
+  // below — the one non-negotiable behavior the client's register sample pack calls out
+  // explicitly: "An AI extraction must return null for a missing field. It must not infer
+  // certificate numbers, dates, qualification range, heat number or release status."
+  private static readonly EXTRACTION_RULES = [
+    "RULES (non-negotiable):",
+    "- Extract ONLY what the source text actually states. If a field isn't stated, or the text says",
+    "  it's illegible/unreadable/missing, return null for that field — never guess, never infer from",
+    "  a 'normal' interval, never fill in today's date or a plausible-looking value.",
+    "- One row per distinct instrument/welder/material the text describes. Do not merge or split an",
+    "  entry the source presents as one item.",
+    "- Do not compute or state any status, release, or use-allowed judgement — that is a human",
+    "  document-controller decision, never this extraction's job.",
+  ].join("\n");
+
+  async extractCalibrationRows(input: ExtractRegisterInput): Promise<ExtractedCalibrationRow[]> {
+    const prompt = [
+      "You are extracting rows for a CALIBRATION REGISTER from raw certificate/document text.",
+      "For each calibrated instrument described, extract: instrument name/type, certificate number,",
+      "calibration date, and due/next-calibration date.",
+      "",
+      GeminiProvider.EXTRACTION_RULES,
+      "",
+      'Return ONLY a JSON object (no markdown fences): {"rows":[{"instrument_name":string,"cert_number":string|null,"cal_date":string|null,"due_date":string|null}]}',
+      "Dates must be ISO format (YYYY-MM-DD) when stated, or null.",
+      "",
+      "SOURCE TEXT:",
+      input.sourceText.slice(0, 12000),
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, true);
+    const raw = parseJson<{
+      rows: { instrument_name: string; cert_number: string | null; cal_date: string | null; due_date: string | null }[];
+    }>(text, "the calibration register extraction");
+
+    if (!Array.isArray(raw.rows)) return [];
+    return raw.rows
+      .filter((r) => r.instrument_name && String(r.instrument_name).trim())
+      .map((r) => ({
+        instrumentName: String(r.instrument_name).trim(),
+        certNumber: r.cert_number ? String(r.cert_number).trim() : null,
+        calDate: r.cal_date ? String(r.cal_date).trim() : null,
+        dueDate: r.due_date ? String(r.due_date).trim() : null,
+      }));
+  }
+
+  async extractWelderRows(input: ExtractRegisterInput): Promise<ExtractedWelderRow[]> {
+    const prompt = [
+      "You are extracting rows for a WELDER QUALIFICATION REGISTER from raw WPQ (welder performance",
+      "qualification) document text.",
+      "For each welder described, extract: a welder identifier (ID/name as stated), a combined",
+      "process+position summary (e.g. \"GTAW/SMAW, position 6G\"), a combined qualified-range +",
+      "continuity-evidence summary, and an expiry date if one is stated.",
+      "",
+      GeminiProvider.EXTRACTION_RULES,
+      "- If continuity evidence or a verified qualification range is NOT confirmed in the text",
+      "  (e.g. 'continuity log not attached', 'range must be confirmed'), the combined range field",
+      "  must say so explicitly (e.g. \"Range/continuity not confirmed in source\") rather than being",
+      "  left blank or guessed — the reviewer needs to see that this is unresolved, not just missing.",
+      "",
+      'Return ONLY a JSON object (no markdown fences): {"rows":[{"welder_identifier":string,"qualified_wps":string|null,"qualified_ranges":string|null,"expiry_date":string|null}]}',
+      "Dates must be ISO format (YYYY-MM-DD) when stated, or null.",
+      "",
+      "SOURCE TEXT:",
+      input.sourceText.slice(0, 12000),
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, true);
+    const raw = parseJson<{
+      rows: { welder_identifier: string; qualified_wps: string | null; qualified_ranges: string | null; expiry_date: string | null }[];
+    }>(text, "the welder register extraction");
+
+    if (!Array.isArray(raw.rows)) return [];
+    return raw.rows
+      .filter((r) => r.welder_identifier && String(r.welder_identifier).trim())
+      .map((r) => ({
+        welderIdentifier: String(r.welder_identifier).trim(),
+        qualifiedWps: r.qualified_wps ? String(r.qualified_wps).trim() : null,
+        qualifiedRanges: r.qualified_ranges ? String(r.qualified_ranges).trim() : null,
+        expiryDate: r.expiry_date ? String(r.expiry_date).trim() : null,
+      }));
+  }
+
+  async extractMaterialRows(input: ExtractRegisterInput): Promise<ExtractedMaterialRow[]> {
+    const prompt = [
+      "You are extracting rows for a MATERIAL TRACEABILITY REGISTER from raw submittal/certificate",
+      "document text (CoC, MTC, delivery notes, submittal transmittals).",
+      "For each material/delivery described, extract: material description, submittal reference,",
+      "heat number, batch number, purchase-order/delivery-note reference, and certificate reference",
+      "(CoC or MTC number).",
+      "",
+      GeminiProvider.EXTRACTION_RULES,
+      "- If the text explicitly says no certificate was included, or a certificate is missing, that",
+      "  is exactly the case where certificate_reference must be null — do not write \"missing\" or",
+      "  \"none\" as the value; null means null.",
+      "",
+      'Return ONLY a JSON object (no markdown fences): {"rows":[{"material_description":string,"submittal_reference":string|null,"heat_number":string|null,"batch_number":string|null,"po_reference":string|null,"certificate_reference":string|null}]}',
+      "",
+      "SOURCE TEXT:",
+      input.sourceText.slice(0, 12000),
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, true);
+    const raw = parseJson<{
+      rows: {
+        material_description: string;
+        submittal_reference: string | null;
+        heat_number: string | null;
+        batch_number: string | null;
+        po_reference: string | null;
+        certificate_reference: string | null;
+      }[];
+    }>(text, "the material register extraction");
+
+    if (!Array.isArray(raw.rows)) return [];
+    return raw.rows
+      .filter((r) => r.material_description && String(r.material_description).trim())
+      .map((r) => ({
+        materialDescription: String(r.material_description).trim(),
+        submittalReference: r.submittal_reference ? String(r.submittal_reference).trim() : null,
+        heatNumber: r.heat_number ? String(r.heat_number).trim() : null,
+        batchNumber: r.batch_number ? String(r.batch_number).trim() : null,
+        poReference: r.po_reference ? String(r.po_reference).trim() : null,
+        certificateReference: r.certificate_reference ? String(r.certificate_reference).trim() : null,
       }));
   }
 }

@@ -16,6 +16,24 @@ import { CalibrationTable, type CalibrationRegisterDisplayRow } from "./calibrat
 import { WelderQualificationTable, type WelderQualificationDisplayRow } from "./welder-qualification-table";
 import { MaterialTable, type MaterialRegisterDisplayRow } from "./material-table";
 import { PersonnelCertificationTable, type PersonnelCertificationDisplayRow } from "./personnel-certification-table";
+import { ExtractRegisterPanel, type ExtractState, type AddState } from "./extract-register-panel";
+import {
+  extractCalibrationRowsAction,
+  addExtractedCalibrationRowsAction,
+  extractWelderRowsAction,
+  addExtractedWelderRowsAction,
+  extractMaterialRowsAction,
+  addExtractedMaterialRowsAction,
+} from "@/lib/registers/actions";
+
+// The three extract*Action/addExtracted*RowsAction pairs are typed against their own specific row
+// shapes (ExtractedCalibrationRow, etc.) for type safety inside lib/registers/actions.ts, but
+// ExtractRegisterPanel is intentionally generic over a flat Record<string, string | null> row (see
+// its own doc comment) since all three shapes really are just that at the UI-editing layer. The
+// cast here is the one place that gap is bridged — each action's actual runtime behavior already
+// matches (same field names, just typed more loosely on the panel's side).
+type GenericExtractAction = (state: ExtractState, formData: FormData) => Promise<ExtractState>;
+type GenericAddAction = (state: AddState, formData: FormData) => Promise<AddState>;
 
 /**
  * Project-level registers (Reqs R92-R100): calibration, welder qualification, and material
@@ -90,6 +108,20 @@ export default async function RegistersPage({ params }: { params: Promise<{ proj
         <div className="mt-3">
           <AddCalibrationForm projectId={projectId} />
         </div>
+        <ExtractRegisterPanel
+          projectId={projectId}
+          title="Calibration Register"
+          description="Extract instrument, certificate number, calibration date and due date from calibration certificate text."
+          placeholder={"e.g. \"Instrument: Megger MIT430 insulation tester. Certificate CAL-2291. Calibrated 14 Mar 2026. Next due 13 Mar 2027.\""}
+          fields={[
+            { key: "instrumentName", label: "Instrument" },
+            { key: "certNumber", label: "Cert no." },
+            { key: "calDate", label: "Cal. date" },
+            { key: "dueDate", label: "Due date" },
+          ]}
+          extractAction={extractCalibrationRowsAction as unknown as GenericExtractAction}
+          addAction={addExtractedCalibrationRowsAction as unknown as GenericAddAction}
+        />
         <div className="mt-3">
           <CalibrationTable rows={calibrationRows ?? []} />
         </div>
@@ -100,6 +132,20 @@ export default async function RegistersPage({ params }: { params: Promise<{ proj
         <div className="mt-3">
           <AddWelderQualificationForm projectId={projectId} />
         </div>
+        <ExtractRegisterPanel
+          projectId={projectId}
+          title="Welder Qualification Register"
+          description="Extract welder ID, process/position, qualified range and expiry from WPQ (welder performance qualification) text. A range or continuity record not confirmed in the source stays flagged as unconfirmed, never guessed."
+          placeholder={"e.g. \"Welder: M. Rahman. ID W-014. Process GTAW/SMAW. Position 6G. Record WPQ-014. Continuity log not attached.\""}
+          fields={[
+            { key: "welderIdentifier", label: "Welder ID" },
+            { key: "qualifiedWps", label: "Process / position" },
+            { key: "qualifiedRanges", label: "Range / continuity" },
+            { key: "expiryDate", label: "Expiry date" },
+          ]}
+          extractAction={extractWelderRowsAction as unknown as GenericExtractAction}
+          addAction={addExtractedWelderRowsAction as unknown as GenericAddAction}
+        />
         <div className="mt-3">
           <WelderQualificationTable rows={welderRows ?? []} />
         </div>
@@ -110,6 +156,22 @@ export default async function RegistersPage({ params }: { params: Promise<{ proj
         <div className="mt-3">
           <AddMaterialForm projectId={projectId} />
         </div>
+        <ExtractRegisterPanel
+          projectId={projectId}
+          title="Material Register"
+          description="Extract material description, submittal reference, heat/batch number and certificate reference from a submittal or certificate. Added rows land quarantined pending disposition — extraction never sets a release status; that stays a document-controller decision."
+          placeholder={"e.g. \"LV cable 0.6/1 kV, batch CB-084. Certificate of Conformity CoC-1884. Approved submittal MS-071 Rev 2.\""}
+          fields={[
+            { key: "materialDescription", label: "Material" },
+            { key: "submittalReference", label: "Submittal ref." },
+            { key: "heatNumber", label: "Heat no." },
+            { key: "batchNumber", label: "Batch no." },
+            { key: "poReference", label: "PO ref." },
+            { key: "certificateReference", label: "CoC / MTC ref." },
+          ]}
+          extractAction={extractMaterialRowsAction as unknown as GenericExtractAction}
+          addAction={addExtractedMaterialRowsAction as unknown as GenericAddAction}
+        />
         <div className="mt-3">
           <MaterialTable rows={materialRows ?? []} />
         </div>
