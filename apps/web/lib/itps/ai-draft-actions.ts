@@ -85,12 +85,14 @@ export async function generateItpDraftAction(
     // for a project/org this user can't reach simply won't come back, not an error.
     const { data: docs } = await supabase
       .from(VAULT_DOCUMENTS_TABLE)
-      .select("id, title, extracted_text, extraction_status, vault_folders(project_id, name)")
+      .select("id, title, document_reference, revision, extracted_text, extraction_status, vault_folders(project_id, name)")
       .in("id", vaultDocumentIds)
       .returns<
         {
           id: string;
           title: string;
+          document_reference: string | null;
+          revision: string;
           extracted_text: string | null;
           extraction_status: string;
           vault_folders: { project_id: string; name: string } | null;
@@ -112,6 +114,8 @@ export async function generateItpDraftAction(
     sourceDocuments = usable.map((d) => ({
       title: d.title,
       category: d.vault_folders?.name ?? "Document",
+      documentReference: d.document_reference,
+      revision: d.revision,
       text: d.extracted_text ?? "",
     }));
   }

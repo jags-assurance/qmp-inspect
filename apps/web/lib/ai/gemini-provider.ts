@@ -155,6 +155,17 @@ const VALID_INTERVENTIONS = new Set(["H", "W", "R", "S"]);
 // budget so a 5-document multi-discipline generation still fits comfortably.
 const MAX_COMBINED_SOURCE_CHARS = 300_000;
 
+/** Header line for one source-document block: title, its OWN controlled document number/revision
+ *  (when the vault record has one — see ItpSourceDocument's doc comment for why this matters more
+ *  than letting the AI re-derive a document's identity from wherever it happens to restate its own
+ *  number inside its body text), and its vault category — the category drives the ROLE rules in the
+ *  prompt below (a Specification's stated tolerance outranks a Standard's generic one; a Method
+ *  Statement's sequence informs method/frequency and hold points, not acceptance values). */
+function sourceDocumentHeader(doc: GenerateItpDraftInput["sourceDocuments"][number]): string {
+  const ref = [doc.documentReference, doc.revision ? `Rev ${doc.revision}` : null].filter(Boolean).join(" ");
+  return `--- DOC-REF: ${ref || "(no controlled document number on file)"} | TITLE: ${doc.title} | CATEGORY: ${doc.category} ---`;
+}
+
 function buildSourceDocumentsBlock(documents: GenerateItpDraftInput["sourceDocuments"]): string {
   if (documents.length === 0) return "(no source documents attached — draft from the additional instructions alone)";
 
@@ -162,12 +173,12 @@ function buildSourceDocumentsBlock(documents: GenerateItpDraftInput["sourceDocum
   const blocks: string[] = [];
   for (const doc of documents) {
     if (budget <= 0) {
-      blocks.push(`--- ${doc.title} (${doc.category}) --- [omitted: combined source text limit reached]`);
+      blocks.push(`${sourceDocumentHeader(doc)} [omitted: combined source text limit reached]`);
       continue;
     }
     const text = doc.text.length > budget ? doc.text.slice(0, budget) : doc.text;
     budget -= text.length;
-    blocks.push(`--- ${doc.title} (${doc.category}) ---\n${text}`);
+    blocks.push(`${sourceDocumentHeader(doc)}\n${text}`);
   }
   return blocks.join("\n\n");
 }
@@ -188,8 +199,46 @@ export class GeminiProvider implements AiProvider {
       "statements — whatever was attached) and cross-reference the applicable standards they",
       "cite. Produce a CONCISE, field-usable, industry-standard ITP grounded in what those",
       "documents actually require — not a generic template, and not an exhaustive restatement of",
-      "the documents. If the documents cover more than one discipline (e.g. civil AND electrical),",
-      "cover all of them, tagging each activity with the correct discipline.",
+      "the documents. These are REAL project documents, not clean templates written for this tool —",
+      "expect inconsistent numbering, scanned-document noise, page headers/footers repeated inline,",
+      "and gaps in a lettered/numbered sequence (e.g. a list that jumps from C to F) — extract the",
+      "genuine requirement despite the formatting noise; never turn a page header, a signature block,",
+      "or a document-control stamp into an activity.",
+      "",
+      "MULTI-DISCIPLINE / MULTI-DOCUMENT RULES (this is very often a real multi-disciplinary project,",
+      "not a single-trade one — treat this as the normal case, not an edge case):",
+      "- If the documents cover more than one discipline (e.g. civil AND electrical AND mechanical),",
+      "  cover all of them in one ITP, tagging each activity with the discipline it actually belongs",
+      "  to. When a single activity spans a boundary (e.g. an electrical device fixed to a civil",
+      "  structure), tag it with the discipline of the trade actually being INSPECTED at that point,",
+      "  not the discipline of whichever document it happened to come from.",
+      "- Each source document's block below is headed 'DOC-REF: ... | TITLE: ... | CATEGORY: ...'.",
+      "  Every activity's reference_spec MUST cite that document's own DOC-REF (its controlled",
+      "  document number/revision) together with the specific clause/step number inside it — e.g.",
+      "  '25045-C2000-20-3GS-E-049 Rev 00, 2.5.1(9)', never a bare clause number like '2.5.1(9)' on",
+      "  its own. This is required, not optional: with more than one document attached, two",
+      "  documents can easily share the same clause numbering, and a bare clause number would leave",
+      "  it genuinely ambiguous which document it came from.",
+      "- CATEGORY tells you the document's ROLE — weight them accordingly:",
+      "  'Specifications' and 'Method Statements' are the primary source for concrete, project-",
+      "  specific acceptance_criteria (their stated tolerances/values/sequence override a generic",
+      "  code's default).",
+      "  'Standards & Codes' documents (e.g. a national/international code) are supporting",
+      "  reference material, not a substitute for a project-specific value — cite a standard",
+      "  alongside a project document's own stated criterion, but never invent a numeric acceptance",
+      "  value SOLELY from a generic standard when no project-specific spec/method statement in the",
+      "  attached set actually states one for this project; if that happens, say so plainly in",
+      "  acceptance_criteria (e.g. 'Per [standard] — project-specific value not yet confirmed in the",
+      "  attached documents') rather than presenting the standard's generic figure as this project's",
+      "  own accepted value.",
+      "  'Method Statements' additionally drive method/frequency and where the real hold/witness",
+      "  points in the physical sequence are (e.g. before cover-up, before energisation) — use their",
+      "  described work sequence for that, not just their acceptance wording.",
+      "- If two attached documents genuinely conflict (different values or requirements for the same",
+      "  thing — e.g. two revisions of the same spec, or a project spec vs. a general standard that",
+      "  disagrees with it), do not silently pick one and hide the discrepancy: state both in",
+      "  acceptance_criteria and note which should govern if that's determinable (e.g. the more",
+      "  recent revision, or the project-specific document over the generic standard).",
       "",
       "RULES:",
       "- Use these four standard sections, in this order: 1. Submittals & Materials,",
@@ -201,7 +250,8 @@ export class GeminiProvider implements AiProvider {
       "  NOT drop a distinct discipline's requirements just to keep the count low — add activities",
       "  as genuinely needed across disciplines.",
       "- For each activity give: item_number (e.g. \"1.1\"), activity, reference_spec (the spec",
-      "  clause / standard / drawing note it's drawn from), acceptance_criteria (specific,",
+      "  clause / standard / drawing note it's drawn from — see the MULTI-DISCIPLINE rules above for",
+      "  the required document-number + clause format), acceptance_criteria (specific,",
       "  measurable where the source gives a tolerance or value — don't invent numbers the source",
       "  doesn't state), method (how it's checked/tested), frequency (how often/what sample),",
       "  evidence_type (1 = checklist he inspector fills in on site, 2 = document/certificate",

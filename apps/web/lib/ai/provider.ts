@@ -46,6 +46,15 @@ export interface ItpSourceDocument {
   title: string;
   /** Human label of the discipline/category this document belongs to, e.g. "Specifications", "Standards & Codes". */
   category: string;
+  /** The document's own controlled number (e.g. "25045-C2000-20-3GS-E-049"), when the vault record
+   *  has one — this is what a generated activity's reference_spec should actually cite, rather than
+   *  the AI having to re-derive it from wherever the document happens to restate its own number
+   *  inside its body text (real documents don't always do this consistently). Null for an
+   *  uncontrolled/one-off upload with no document_reference. */
+  documentReference: string | null;
+  /** The document's revision (e.g. "00", "B"), when known — cited alongside documentReference so a
+   *  generated ITP references the exact revision the draft was actually grounded in. */
+  revision: string | null;
   text: string;
 }
 
