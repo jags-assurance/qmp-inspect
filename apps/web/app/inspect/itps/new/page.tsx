@@ -111,9 +111,13 @@ export default async function NewItpPage() {
       extractionStatus: d.extraction_status,
     }));
 
-  // A client-eligible non-staff user only ever sees their own opted-in project(s), and only the
-  // manual "build from scratch" flow — the master-template and AI-draft flows stay staff-only for
-  // now (bigger surface area, not what this opt-in was scoped to cover).
+  // A client-eligible non-staff user only ever sees their own opted-in project(s). Both the manual
+  // "build from scratch" flow and the AI-draft-from-vault-documents flow are available to them —
+  // neither generateItpDraftAction nor createItpFromDraftAction (lib/itps/ai-draft-actions.ts) has
+  // any staff-only check; both already rely purely on RLS (is_client_itp_creator, same as the
+  // manual flow), so this was a UI-only gap, not a permissions one. The master-template copy flow
+  // stays staff-only for now — a bigger surface area (org-wide template library curation) that
+  // wasn't part of this specific ask.
   const projects = clientEligibleProjectIds
     ? (allProjects ?? []).filter((p) => clientEligibleProjectIds!.has(p.id))
     : (allProjects ?? []);
@@ -127,9 +131,15 @@ export default async function NewItpPage() {
         <h1 className="mt-2 text-2xl font-semibold text-ink">New ITP</h1>
         <p className="mt-1 text-sm text-muted">
           Creates a draft ITP with the four standard sections — add, rename or reorder them as
-          needed once it&apos;s created. JAGS will review and approve it once you submit it.
+          needed once it&apos;s created. Or generate a first draft from your own vault documents.
+          JAGS will review and approve it once you submit it.
         </p>
-        <NewItpForm projects={projects} />
+        <ItpCreationTabs
+          manual={<NewItpForm projects={projects} />}
+          fromAi={
+            <NewItpFromAiForm projects={projects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
+          }
+        />
       </div>
     );
   }

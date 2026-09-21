@@ -16,7 +16,9 @@ export function ItpCreationTabs({
   fromAi,
 }: {
   manual: ReactNode;
-  fromTemplate: ReactNode;
+  /** Omit to hide this tab entirely — e.g. a self-managed client's own login gets manual + AI-draft
+   * but not the master-template copy flow, which stays staff-only (see itps/new/page.tsx). */
+  fromTemplate?: ReactNode;
   fromAi: ReactNode;
 }) {
   const [tab, setTab] = useState<"manual" | "template" | "ai">("manual");
@@ -31,13 +33,15 @@ export function ItpCreationTabs({
         >
           Build from scratch
         </button>
-        <button
-          type="button"
-          onClick={() => setTab("template")}
-          className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
-        >
-          Start from a master template
-        </button>
+        {fromTemplate && (
+          <button
+            type="button"
+            onClick={() => setTab("template")}
+            className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+          >
+            Start from a master template
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setTab("ai")}
