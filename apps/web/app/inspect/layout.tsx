@@ -90,6 +90,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : []),
     ...(isSelfManagedOrg && !isAdminStaff(session)
       ? [
+          { label: "Manage", href: "/inspect/manage" },
           { label: "Numbering", href: "/inspect/organisation/numbering" },
           { label: "Brand Colors", href: "/inspect/organisation/branding" },
           { label: "Custom Roles", href: "/inspect/organisation/roles" },

@@ -291,6 +291,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       return false;
     });
   const canEditContent = session.isJagsStaff || isEligibleItpCreator;
+  // Submitting for review is a clerical hand-off, not a certification act — unlike Approve (which
+  // stays hardcoded to session.isJagsStaff below and never gets this treatment), the same party
+  // already trusted to build the whole draft can now also hand it to JAGS themselves. Mirrors
+  // itps_client_submit_for_review (20260921000000_self_managed_submit_and_checklist_gen.sql).
+  const canSubmitForReview = (session.isJagsStaff || isEligibleItpCreator) && itp.status === "draft";
   // Client acceptance is that specific party's own action — not "any non-staff login," which the
   // end-to-end walkthrough flagged as too broad (a subcontractor/main contractor/TPI login could
   // technically have hit the same button). Mirrors accept_itp()'s own check at the database layer.
@@ -367,7 +372,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           >
             Checklists →
           </Link>
-          {session.isJagsStaff && itp.status === "draft" && (
+          {canSubmitForReview && (
             <form action={advanceItpStatusAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
               <input type="hidden" name="from_status" value="draft" />

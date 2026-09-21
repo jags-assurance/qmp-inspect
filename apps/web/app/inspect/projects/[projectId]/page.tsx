@@ -12,6 +12,7 @@ import { ReassignPartyForm } from "./reassign-party-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
 import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
+import { EnforceHoldBlocksStartToggle } from "./enforce-hold-blocks-start-toggle";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
@@ -48,6 +49,7 @@ interface ProjectDetail {
   allow_client_execution: boolean;
   allow_client_itp_creation: boolean;
   allow_contractor_itp_creation: boolean;
+  enforce_hold_blocks_start: boolean;
   responsible_person_id: string | null;
   responsible_person: { full_name: string; email: string } | null;
   organizations: {
@@ -84,7 +86,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
     )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
@@ -326,6 +328,23 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <AllowContractorItpCreationToggle
             projectId={project.id}
             allowContractorItpCreation={project.allow_contractor_itp_creation}
+          />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Hold-point enforcement</h2>
+          <p className="mt-1 text-sm text-muted">
+            On by default: an open Hold on an activity stops field work from starting at all, not
+            just from being marked complete (R71 — "a hold point must wait"). Turn this off for
+            THIS project only if its process doesn't need the software to enforce the hold at
+            start time — the assigned party still has to sign off before the inspection can be
+            completed either way.
+          </p>
+          <EnforceHoldBlocksStartToggle
+            projectId={project.id}
+            enforceHoldBlocksStart={project.enforce_hold_blocks_start}
           />
         </div>
       )}

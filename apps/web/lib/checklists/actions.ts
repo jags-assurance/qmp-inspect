@@ -408,6 +408,31 @@ export async function startInspectionAction(
     return { error: "Only JAGS staff or the party assigned to this activity can start a field inspection." };
   }
 
+  // R71: "Hold (H): work is genuinely held for that party until they respond/release. A hold point
+  // must wait." This was previously only enforced at completeInspectionCore — a Hold blocked
+  // filing the paperwork, but the physical work itself (opening the checklist, answering every
+  // item, attaching photos) could already run start-to-finish first. Checking the same gate here,
+  // before an inspection_record even exists, is what actually holds the work per R71, not just the
+  // record of it — every checklist-item save requires an inspection_record_id (see
+  // saveChecklistResponseAction), so blocking creation here blocks the whole downstream chain too.
+  // R72/R73/R74 (Witness/Review/Surveillance) are deliberately unaffected: canCompleteInspection
+  // only looks at is_blocking levels, so a Witness point never holds work, matching "notify-and-
+  // proceed."
+  //
+  // Admin-configurable per project (20260921010000_project_hold_blocks_start_toggle.sql), default
+  // on: not every project's process needs the software to hold the START of work, so a JAGS Admin
+  // can opt a specific project out — the completion-time check right below stays in effect either
+  // way, so a Hold is never entirely unenforced.
+  const { data: projectSettings } = await supabase
+    .from("projects")
+    .select("enforce_hold_blocks_start")
+    .eq("id", projectId)
+    .maybeSingle<{ enforce_hold_blocks_start: boolean }>();
+
+  if (projectSettings?.enforce_hold_blocks_start && !(await canCompleteInspection(itpItemId))) {
+    return { error: "This activity has an open Hold — the assigned party must release it before the inspection can start." };
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();

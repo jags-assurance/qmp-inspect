@@ -38,7 +38,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select(
-      "id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
+      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -46,6 +46,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         InspectionRecordRow,
         | "id"
         | "record_number"
+        | "project_id"
+        | "itp_item_id"
         | "project_name"
         | "itp_number"
         | "activity"
@@ -61,6 +63,15 @@ export default async function InspectionRecordPage({ params }: { params: Promise
     >();
 
   if (!record) notFound();
+
+  // Real FK linkage now that createNcrAction persists it (see lib/ncrs/actions.ts) — surfaces any
+  // NCR raised directly from this record, both ways, instead of relying on someone finding it by
+  // matching free text in the NCR register.
+  const { data: linkedNcrs } = await supabase
+    .from("ncrs")
+    .select("id, ncr_number, severity, status")
+    .eq("inspection_record_id", record.id)
+    .returns<{ id: string; ncr_number: string; severity: string; status: string }[]>();
 
   const latestReportPdf = await getLatestInspectionReportPdf(id);
 
@@ -153,6 +164,46 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           </div>
         )}
       </div>
+
+      {(record.overall_result === "fail" || record.overall_result === "partial" || (linkedNcrs ?? []).length > 0) && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-sm font-medium text-ink">Non-conformance</h2>
+          {(linkedNcrs ?? []).length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {(linkedNcrs ?? []).map((ncr) => (
+                <li key={ncr.id} className="text-sm">
+                  <Link href={`/inspect/ncrs/${ncr.id}`} className="doc-id text-burgundy hover:underline">
+                    {ncr.ncr_number}
+                  </Link>{" "}
+                  <Badge tone={ncr.status === "closed" ? "success" : "warning"}>{ncr.status.replace("_", " ")}</Badge>
+                  {ncr.status === "closed" && (
+                    <span className="ml-2 text-xs text-muted">
+                      Closed — re-inspect this activity to confirm the fix, then issue the IRN from
+                      a passing record.
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-muted">
+                This inspection {record.overall_result === "fail" ? "failed" : "partially passed"} —
+                raise an NCR against the specific activity so the corrective-action trail is linked
+                back to this record.
+              </p>
+              <Link
+                href={`/inspect/ncrs/new?project_id=${record.project_id}&itp_item_id=${record.itp_item_id}&inspection_record_id=${record.id}&description=${encodeURIComponent(
+                  `${record.activity} (${record.record_number}) — see recorded responses/comments below.`
+                )}`}
+                className="mt-3 inline-block rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
+              >
+                Raise NCR →
+              </Link>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="mt-6 rounded-lg border border-border bg-surface">
         <div className="border-b border-border px-4 py-3">

@@ -29,6 +29,7 @@ interface NcrDetail {
   closed_at: string | null;
   created_at: string;
   project_id: string;
+  inspection_record_id: string | null;
   projects: { name: string; project_number: string; organizations: { name: string } | null } | null;
   itp_items: { item_number: string; activity: string } | null;
 }
@@ -134,7 +135,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   const { data: ncr } = await supabase
     .from(NCRS_TABLE)
     .select(
-      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, project_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
+      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -213,6 +214,13 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
             {ncr.projects?.organizations?.name} · {ncr.projects?.name}
             {ncr.itp_items ? ` · ITP item ${ncr.itp_items.item_number}: ${ncr.itp_items.activity}` : ""}
           </p>
+          {ncr.inspection_record_id && (
+            <p className="mt-1 text-sm">
+              <Link href={`/inspect/inspections/${ncr.inspection_record_id}`} className="text-burgundy hover:underline">
+                ← View the inspection record this was raised from
+              </Link>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-2">

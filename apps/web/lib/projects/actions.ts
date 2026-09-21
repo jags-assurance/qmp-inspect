@@ -285,6 +285,44 @@ export async function setAllowClientExecutionAction(
   return { error: null };
 }
 
+export interface SetEnforceHoldBlocksStartState {
+  error: string | null;
+}
+
+/**
+ * Per-project admin toggle for the R71 Hold-blocks-start behaviour (20260921000000_self_managed_
+ * submit_and_checklist_gen.sql's sibling migration, 20260921010000_project_hold_blocks_start_
+ * toggle.sql) — a real written requirement ("a hold point must wait"), but not every project's
+ * process needs the software to enforce it at start time rather than just at completion, so this
+ * is admin-configurable per project rather than a hardwired global rule. Defaults to true (the
+ * stricter, compliant behaviour) — an admin who doesn't need it turns it off here, same
+ * admin-only boundary as setAllowClientExecutionAction above.
+ */
+export async function setEnforceHoldBlocksStartAction(
+  _prev: SetEnforceHoldBlocksStartState,
+  formData: FormData
+): Promise<SetEnforceHoldBlocksStartState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this setting." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const enforce = formData.get("enforce_hold_blocks_start") === "on";
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ enforce_hold_blocks_start: enforce })
+    .eq("id", projectId);
+
+  if (error) return { error: "Could not update this setting. Check you have permission and try again." };
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
 export interface SetAllowClientItpCreationState {
   error: string | null;
 }

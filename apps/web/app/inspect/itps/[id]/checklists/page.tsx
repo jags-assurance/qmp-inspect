@@ -20,14 +20,22 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
 
   const { data: itp } = await supabase
     .from("itps")
-    .select("id, itp_number, title, status, projects(name, organizations(name))")
+    .select(
+      "id, itp_number, title, status, project_id, projects(name, allow_client_itp_creation, allow_contractor_itp_creation, organizations(name, engagement_scope))"
+    )
     .eq("id", id)
     .maybeSingle<{
       id: string;
       itp_number: string;
       title: string;
       status: "draft" | "under_review" | "approved" | "client_accepted";
-      projects: { name: string; organizations: { name: string } | null } | null;
+      project_id: string;
+      projects: {
+        name: string;
+        allow_client_itp_creation: boolean;
+        allow_contractor_itp_creation: boolean;
+        organizations: { name: string; engagement_scope: string } | null;
+      } | null;
     }>();
 
   if (!itp) notFound();
@@ -50,7 +58,32 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
     .returns<Pick<ChecklistTemplateRow, "id" | "itp_item_id" | "checklist_number">[]>();
 
   const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
-  const canGenerate = session.isJagsStaff && itp.status === "approved";
+
+  // Generating checklists is scaffolding on top of already-approved activities, not a
+  // certification act — the same eligible party who can build the ITP draft
+  // (is_client_itp_creator) can now also trigger this themselves once approved, mirrored at the
+  // RLS layer by is_client_checklist_generator (20260921000000_self_managed_submit_and_checklist_
+  // gen.sql). Approve itself stays JAGS-only and is untouched by this.
+  let isEligibleChecklistGenerator = false;
+  if (!session.isJagsStaff && itp.status === "approved") {
+    const { data: myParty } = await supabase
+      .from("project_parties")
+      .select("party_type, is_active")
+      .eq("project_id", itp.project_id)
+      .eq("user_id", session.userId)
+      .maybeSingle<{ party_type: string; is_active: boolean }>();
+
+    if (myParty?.is_active) {
+      if (myParty.party_type === "client") {
+        isEligibleChecklistGenerator =
+          !!itp.projects?.allow_client_itp_creation || itp.projects?.organizations?.engagement_scope === "self_managed";
+      } else if (myParty.party_type === "subcontractor" || myParty.party_type === "main_contractor") {
+        isEligibleChecklistGenerator = !!itp.projects?.allow_contractor_itp_creation;
+      }
+    }
+  }
+
+  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && itp.status === "approved";
 
   return (
     <div>

@@ -397,9 +397,15 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
 }
 
 /**
- * Blocks inspection completion until every blocking-level (Hold-equivalent, per this activity's
- * organisation's own intervention_level_types.is_blocking) row on the activity has been signed off
- * (R66-R81: a non-blocking level never blocks). True when there are no blocking rows at all.
+ * True only when every blocking-level (Hold-equivalent, per this activity's organisation's own
+ * intervention_level_types.is_blocking) row on the activity has been signed off, or there are no
+ * blocking rows at all — false while any is still pending (R71: "a hold point must wait").
+ *
+ * Checked at TWO points, not one: startInspectionAction (lib/checklists/actions.ts) — so the Hold
+ * actually holds the physical work itself, not just the paperwork — and completeInspectionCore, as
+ * a second check in case a Hold got added after the inspection was already started. Non-blocking
+ * levels (Witness/Review/Surveillance, R72-R73) never appear here — they're notify-and-proceed by
+ * definition and never hold anything.
  */
 export async function canCompleteInspection(itpItemId: string): Promise<boolean> {
   const supabase = await createSupabaseServerClient();

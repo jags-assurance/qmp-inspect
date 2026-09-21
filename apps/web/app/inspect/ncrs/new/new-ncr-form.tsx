@@ -35,9 +35,20 @@ const SEVERITY_PILL_CLASS: Record<NcrSeverity, string> = {
 export function NewNcrForm({
   projects,
   peopleByProject,
+  initialProjectId,
+  itpItemId,
+  inspectionRecordId,
+  initialDescription,
 }: {
   projects: { id: string; project_number: string; name: string }[];
   peopleByProject: Record<string, { id: string; name: string }[]>;
+  /** Pre-fill from a failed inspection record's "Raise NCR" link (app/inspect/inspections/[id]) —
+   * itpItemId/inspectionRecordId are the real FK linkage (see createNcrAction); the project/severity/
+   * description fields stay fully editable either way. */
+  initialProjectId?: string;
+  itpItemId?: string;
+  inspectionRecordId?: string;
+  initialDescription?: string;
 }) {
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
   const [draftState, draftFormAction, draftPending] = useActionState(
@@ -45,9 +56,9 @@ export function NewNcrForm({
     initialDraftState
   );
 
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId ?? "");
   const [notes, setNotes] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialDescription ?? "");
   const [requirementNotMet, setRequirementNotMet] = useState("");
   const [aiLogId, setAiLogId] = useState<string | null>(null);
   const [aiOriginalDescription, setAiOriginalDescription] = useState<string | null>(null);
@@ -70,6 +81,8 @@ export function NewNcrForm({
     <form action={formAction} className="mt-6 space-y-6">
       <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
       <input type="hidden" name="ai_original_description" value={aiOriginalDescription ?? ""} />
+      {itpItemId && <input type="hidden" name="itp_item_id" value={itpItemId} />}
+      {inspectionRecordId && <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />}
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Details</h2>
 

@@ -171,6 +171,7 @@ export interface Database {
           allow_client_execution: boolean;
           allow_client_itp_creation: boolean;
           allow_contractor_itp_creation: boolean;
+          enforce_hold_blocks_start: boolean;
           responsible_person_id: string | null;
         };
         Insert: {
@@ -190,6 +191,7 @@ export interface Database {
           allow_client_execution?: boolean;
           allow_client_itp_creation?: boolean;
           allow_contractor_itp_creation?: boolean;
+          enforce_hold_blocks_start?: boolean;
           responsible_person_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["projects"]["Insert"]>;

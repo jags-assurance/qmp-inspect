@@ -82,10 +82,12 @@ assign it to `RFW-2026-001`, and make one Inspector its lead. A team lead can do
 Admin can on their own team's projects (e.g. reassign a signoff party) without a global Admin
 grant.
 
-### 13.7 Mandatory MFA
-
-Sidebar → **Security** — every JAGS staff login (Admin or Inspector) is required to enrol MFA.
-If you haven't already, enrol it here now; the app blocks staff actions until this is done.
+> **Note:** MFA was removed from the app entirely after this guide was first written — if you're
+> reading an older copy that still has a step 13.7 about enrolling it, ignore it. See
+> `docs/CLIENT_PERSPECTIVE_TESTING_GUIDE.md` for the current, up-to-date full walkthrough
+> (covering everything below plus Self-Managed clients, Client Teams, Custom Roles, the AI audit
+> trail, AI register extraction, and Conditional Handover, none of which existed when this guide
+> was written).
 
 ---
 

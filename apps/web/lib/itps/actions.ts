@@ -259,6 +259,65 @@ export async function advanceItpStatusAction(formData: FormData) {
 
   const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
 
+  // Best-effort: a self-managed client's own party can now submit its own draft ITP for review
+  // (itps_client_submit_for_review, 20260921000000_self_managed_submit_and_checklist_gen.sql) —
+  // JAGS still has to Approve, so whichever JAGS staff can reach this org need to actually notice
+  // the new "under_review" ITP is waiting on them, rather than a client-driven submission going
+  // unnoticed until someone happens to check the register. Never fires for a JAGS-staff submission
+  // (nothing for staff to notify themselves about) and never blocks the status change itself.
+  if (!error && nextStatus === "under_review") {
+    try {
+      const { data: submitter } = user
+        ? await supabase.from("users").select("is_jags_staff").eq("id", user.id).maybeSingle<{ is_jags_staff: boolean }>()
+        : { data: null };
+
+      const { data: itp } = submitter?.is_jags_staff
+        ? { data: null }
+        : await supabase
+            .from("itps")
+            .select("itp_number, title, project_id, projects(organization_id)")
+            .eq("id", itpId)
+            .maybeSingle<{
+              itp_number: string;
+              title: string;
+              project_id: string;
+              projects: { organization_id: string } | null;
+            }>();
+
+      const organizationId = itp?.projects?.organization_id;
+      if (organizationId) {
+        const { data: grants } = await supabase
+          .from("access_grants")
+          .select("user_id")
+          .or(`scope_type.eq.global,organization_id.eq.${organizationId},project_id.eq.${itp?.project_id}`)
+          .returns<{ user_id: string }[]>();
+
+        const staffUserIds = new Set((grants ?? []).map((g) => g.user_id));
+        if (staffUserIds.size > 0) {
+          const { data: staffUsers } = await supabase
+            .from("users")
+            .select("id")
+            .in("id", Array.from(staffUserIds))
+            .eq("is_jags_staff", true)
+            .returns<{ id: string }[]>();
+
+          for (const staffUser of staffUsers ?? []) {
+            await createNotification(supabase, {
+              organizationId,
+              projectId: itp?.project_id ?? null,
+              recipientUserId: staffUser.id,
+              title: "ITP submitted for review",
+              body: `${itp?.itp_number} — ${itp?.title}`,
+              link: `/inspect/itps/${itpId}`,
+            });
+          }
+        }
+      }
+    } catch {
+      // Best-effort — see doc comment above.
+    }
+  }
+
   // Best-effort: once Approved, the client's own acceptance is the next real step in the workflow
   // (accept_itp()) — notify their linked user directly rather than relying on them noticing it on
   // their own dashboard. Never blocks the status change itself, which has already succeeded.

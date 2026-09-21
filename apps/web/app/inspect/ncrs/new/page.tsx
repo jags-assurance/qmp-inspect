@@ -28,8 +28,18 @@ interface PartyRow {
   user_id: string | null;
 }
 
-export default async function NewNcrPage() {
+export default async function NewNcrPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    project_id?: string;
+    itp_item_id?: string;
+    inspection_record_id?: string;
+    description?: string;
+  }>;
+}) {
   await requireSession();
+  const params = await searchParams;
 
   const supabase = await createSupabaseServerClient();
 
@@ -89,7 +99,20 @@ export default async function NewNcrPage() {
         Record a non-conformance or observation against a project — from a failed inspection, a
         walkdown, or standalone.
       </p>
-      <NewNcrForm projects={projects ?? []} peopleByProject={peopleByProject} />
+      {params.inspection_record_id && (
+        <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
+          Linked to inspection record — closing this NCR will notify the original inspector that
+          the activity is ready for re-inspection.
+        </p>
+      )}
+      <NewNcrForm
+        projects={projects ?? []}
+        peopleByProject={peopleByProject}
+        initialProjectId={params.project_id}
+        itpItemId={params.itp_item_id}
+        inspectionRecordId={params.inspection_record_id}
+        initialDescription={params.description}
+      />
     </div>
   );
 }

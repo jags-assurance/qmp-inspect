@@ -28,6 +28,7 @@ import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
+import { canCompleteInspection } from "@/lib/signoff/actions";
 
 /**
  * Field execution surface for one checklist: shows any in-progress inspection to keep filling in,
@@ -42,7 +43,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const { data: template } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
     .select(
-      "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, projects(id, name, organizations(name)))))"
+      "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, projects(id, name, enforce_hold_blocks_start, organizations(name)))))"
     )
     .eq("id", templateId)
     .maybeSingle<{
@@ -59,7 +60,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           itps: {
             id: string;
             itp_number: string;
-            projects: { id: string; name: string; organizations: { name: string } | null } | null;
+            projects: { id: string; name: string; enforce_hold_blocks_start: boolean; organizations: { name: string } | null } | null;
           } | null;
         } | null;
       } | null;
@@ -230,6 +231,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // Everyone with project access can still VIEW the checklist and its past results.
   const canExecute = session.isJagsStaff || isAssignedParty;
 
+  // R71: "a hold point must wait" — a still-open Hold on this activity holds the physical work
+  // itself, not just its paperwork, so the "Start inspection" prompt is replaced with an explicit
+  // explanation rather than letting the field officer start filling in items that startInspectionAction
+  // (lib/checklists/actions.ts) will refuse to persist anyway once they hit "Start". Only computed
+  // when it would actually matter (no draft yet, otherwise-executable) to avoid the extra query on
+  // every page view.
+  const holdOpen =
+    !draft && canExecute && project.enforce_hold_blocks_start ? !(await canCompleteInspection(itpItem.id)) : false;
+
   const RESULT_TONE: Record<string, "success" | "danger" | "warning"> = { pass: "success", fail: "danger", partial: "warning" };
 
   return (
@@ -251,7 +261,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         {itpItem.item_number}. {itpItem.activity}
       </p>
 
-      {!draft && canExecute && (
+      {!draft && canExecute && holdOpen && (
+        <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
+          This activity has an open <Badge tone="danger">Hold</Badge> — the assigned party must
+          release it on the <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>{" "}
+          before the inspection can start.
+        </p>
+      )}
+
+      {!draft && canExecute && !holdOpen && (
         <div className="mt-6">
           <StartInspectionForm
             templateId={template.id}

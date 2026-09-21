@@ -11,6 +11,7 @@ import {
 } from "@/lib/ncrs/types";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
@@ -34,6 +35,12 @@ export async function createNcrAction(
   const assignedTo = String(formData.get("assigned_to") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "").trim();
   const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
+  // Real FK linkage (ncrs.itp_item_id / ncrs.inspection_record_id already existed in the schema but
+  // were never populated by this action) — set only when the NCR was raised FROM a specific failed
+  // inspection record (app/inspect/inspections/[id]/page.tsx's "Raise NCR" link), never guessed at.
+  // A standalone/walkdown NCR with no specific activity behind it still raises fine with both null.
+  const itpItemId = String(formData.get("itp_item_id") ?? "").trim() || null;
+  const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim() || null;
 
   if (!projectId || !severity || !description) {
     return { error: "Project, severity and description are required." };
@@ -84,6 +91,8 @@ export async function createNcrAction(
       assigned_to: assignedTo || null,
       due_date: dueDate || null,
       raised_by: user?.id ?? null,
+      itp_item_id: itpItemId,
+      inspection_record_id: inspectionRecordId,
     })
     .select("id")
     .single<{ id: string }>();
@@ -204,12 +213,16 @@ export async function updateNcrAction(
     .from(NCRS_TABLE)
     .update(update)
     .eq("id", ncrId)
-    .select("id, ncr_number, project_id, raised_by, projects(organization_id)")
+    .select(
+      "id, ncr_number, project_id, raised_by, itp_item_id, inspection_record_id, projects(organization_id)"
+    )
     .maybeSingle<{
       id: string;
       ncr_number: string;
       project_id: string;
       raised_by: string | null;
+      itp_item_id: string | null;
+      inspection_record_id: string | null;
       projects: { organization_id: string } | null;
     }>();
 
@@ -267,8 +280,42 @@ export async function updateNcrAction(
         // Notification delivery is best-effort — see comment above.
       }
     }
+
+    // Deliberately NOT auto-completing anything on the linked ITP item or inspection record —
+    // closing an NCR's paperwork (root cause + corrective action + verification notes) is not the
+    // same as physically re-verifying the fix, and this codebase's established rule (see the R71
+    // Hold-blocks-start work and the assurance-critical permission set) is that real QA verification
+    // is never skipped by a paperwork close-out. What this DOES automate: the person who ran the
+    // original failed inspection gets told the corrective action is confirmed and the activity is
+    // ready to be re-inspected — same "Start inspection" flow as any fresh attempt, just prompted
+    // instead of left for someone to notice on their own.
+    if (updatedNcr?.inspection_record_id && updatedNcr.projects?.organization_id) {
+      try {
+        const { data: originalRecord } = await supabase
+          .from(INSPECTION_RECORDS_TABLE)
+          .select("inspector_id, checklist_template_id, activity")
+          .eq("id", updatedNcr.inspection_record_id)
+          .maybeSingle<{ inspector_id: string | null; checklist_template_id: string | null; activity: string }>();
+
+        if (originalRecord?.inspector_id && originalRecord.checklist_template_id) {
+          await createNotification(supabase, {
+            organizationId: updatedNcr.projects.organization_id,
+            projectId: updatedNcr.project_id,
+            recipientUserId: originalRecord.inspector_id,
+            title: "Linked NCR closed — ready to re-inspect",
+            body: `${updatedNcr.ncr_number} — ${originalRecord.activity}. Re-inspect to confirm the fix.`,
+            link: `/inspect/checklists/${originalRecord.checklist_template_id}`,
+          });
+        }
+      } catch {
+        // Notification delivery is best-effort — see comment above.
+      }
+    }
   }
 
+  if (updatedNcr?.inspection_record_id) {
+    revalidatePath(`/inspect/inspections/${updatedNcr.inspection_record_id}`);
+  }
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");
   return { error: null };
