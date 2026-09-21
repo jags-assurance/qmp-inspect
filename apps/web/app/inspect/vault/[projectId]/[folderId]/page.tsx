@@ -44,14 +44,23 @@ export default async function VaultFolderPage({
 
   if (!folder) notFound();
 
-  const { data: documents } = await supabase
+  // Disambiguated FK hint (users!uploaded_by) is now required, not optional — vault_documents grew
+  // a second foreign key to users (approved_by, 20260921020000_vault_document_approval.sql), so the
+  // previously-unambiguous "users(full_name)" embed now fails at the PostgREST layer ("more than
+  // one relationship found"). That error was silently swallowed by `data ?? []` below, which is
+  // exactly why every document vanished from this list the moment that migration landed.
+  const { data: documents, error: documentsError } = await supabase
     .from(VAULT_DOCUMENTS_TABLE)
     .select(
-      "id, title, document_number, document_reference, revision, document_date, status, created_at, users(full_name)"
+      "id, title, document_number, document_reference, revision, document_date, status, created_at, users!uploaded_by(full_name)"
     )
     .eq("folder_id", folderId)
     .order("created_at", { ascending: false })
     .returns<DocumentWithUploader[]>();
+
+  if (documentsError) {
+    console.error("Failed to load vault documents", documentsError);
+  }
 
   const rows: VaultDocumentTableRow[] = (documents ?? []).map((d) => ({
     id: d.id,
