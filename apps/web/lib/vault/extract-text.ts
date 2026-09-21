@@ -29,7 +29,27 @@ function normalize(text: string): string {
   return trimmed.length > MAX_EXTRACTED_CHARS ? trimmed.slice(0, MAX_EXTRACTED_CHARS) : trimmed;
 }
 
+// pdf-parse (v2+) wraps pdfjs-dist, which references DOMMatrix — a browser Canvas API — even on the
+// pure-text extraction path, to compose each page's coordinate-space transform. Node has no
+// DOMMatrix at all, so every PDF failed extraction with "DOMMatrix is not defined" (real bug this
+// session found live: any uploaded PDF's extraction_status was stuck at 'failed', silently making
+// it ineligible as AI-draft source material with no indication why beyond that one error string).
+// `dommatrix` is a small, pure-JS, spec-compliant 2D-matrix polyfill — no native/canvas build step,
+// safe for a serverless runtime — good enough for pdfjs's transform math even though we never touch
+// real rendering. Installed once, globally, before the first PDF parse.
+let domMatrixPolyfilled = false;
+async function ensureDomMatrixPolyfill(): Promise<void> {
+  if (domMatrixPolyfilled || typeof globalThis.DOMMatrix !== "undefined") {
+    domMatrixPolyfilled = true;
+    return;
+  }
+  const { default: DOMMatrix } = await import("dommatrix");
+  (globalThis as unknown as { DOMMatrix: unknown }).DOMMatrix = DOMMatrix;
+  domMatrixPolyfilled = true;
+}
+
 async function extractPdf(buffer: Buffer): Promise<string> {
+  await ensureDomMatrixPolyfill();
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
