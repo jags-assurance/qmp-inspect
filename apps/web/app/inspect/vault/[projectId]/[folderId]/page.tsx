@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documents-table";
 import { VaultUploadForm } from "./upload-form";
@@ -24,9 +25,14 @@ export default async function VaultFolderPage({
 }: {
   params: Promise<{ projectId: string; folderId: string }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
   const { projectId, folderId } = await params;
   const supabase = await createSupabaseServerClient();
+
+  // High authority by default (JAGS Admin), delegatable per person via the approve_vault_document
+  // custom-role permission — see approveVaultDocumentAction's own doc comment for why this stays
+  // out of a self-managed client's own grantable subset.
+  const canApprove = isAdminStaff(session) || (await hasPermission(session.userId, "approve_vault_document", projectId));
 
   const { data: folder } = await supabase
     .from(VAULT_FOLDERS_TABLE)
@@ -50,6 +56,7 @@ export default async function VaultFolderPage({
   const rows: VaultDocumentTableRow[] = (documents ?? []).map((d) => ({
     id: d.id,
     project_id: projectId,
+    folder_id: folderId,
     title: d.title,
     document_number: d.document_number,
     document_reference: d.document_reference,
@@ -74,7 +81,7 @@ export default async function VaultFolderPage({
       </p>
 
       <div className="mt-6">
-        <VaultDocumentsTable rows={rows} />
+        <VaultDocumentsTable rows={rows} canApprove={canApprove} />
       </div>
 
       <VaultUploadForm projectId={projectId} folderId={folderId} folderKey={folder.folder_key} />

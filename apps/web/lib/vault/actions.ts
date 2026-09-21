@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { extractTextFromFile } from "@/lib/vault/extract-text";
@@ -154,6 +156,48 @@ export async function uploadVaultDocumentAction(
   revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
   revalidatePath("/inspect/vault");
   return { error: null, documentNumber, internalReference };
+}
+
+export interface ApproveVaultDocumentState {
+  error: string | null;
+}
+
+/**
+ * The missing piece: vault_documents.status could always be 'approved' (schema/check constraint),
+ * but no action anywhere ever set it there — every upload was stuck at 'for_review' forever. Gated
+ * "high authority by default, delegatable per person" — the same model as issue_irn/close_ncr:
+ * JAGS Admin always can; anyone else needs the approve_vault_document custom-role permission
+ * (deliberately NOT grantable by a self-managed client to its own role — see
+ * CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment — since a vault document can become the
+ * controlled baseline an ITP is later drafted against, the same self-certification concern as an
+ * NCR close-out or an IRN release).
+ */
+export async function approveVaultDocumentAction(
+  _prev: ApproveVaultDocumentState,
+  formData: FormData
+): Promise<ApproveVaultDocumentState> {
+  const documentId = String(formData.get("document_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const folderId = String(formData.get("folder_id") ?? "").trim();
+  if (!documentId) return { error: "Missing document." };
+
+  const session = await requireSession();
+  const allowed = isAdminStaff(session) || (await hasPermission(session.userId, "approve_vault_document", projectId || undefined));
+  if (!allowed) {
+    return { error: "Only a JAGS Admin, or someone granted this permission, can approve a document." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from(VAULT_DOCUMENTS_TABLE)
+    .update({ status: "approved", approved_by: session.userId, approved_at: new Date().toISOString() })
+    .eq("id", documentId)
+    .eq("status", "for_review");
+
+  if (error) return { error: "Could not approve the document. Check you have permission and try again." };
+
+  if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
+  return { error: null };
 }
 
 export type { VaultDocumentRow };

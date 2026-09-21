@@ -499,12 +499,43 @@ export async function reassignSignoffPartyAction(
     return { error: "Only a JAGS Admin, a lead of a team assigned to this project, or someone granted this permission, can reassign a party." };
   }
 
+  const { data: partyWithType, error: fetchTypeError } = await supabase
+    .from("project_parties")
+    .select("party_type, projects(organization_id)")
+    .eq("id", projectPartyId)
+    .maybeSingle<{ party_type: string; projects: { organization_id: string } | null }>();
+
   const { error } = await supabase
     .from("project_parties")
     .update({ user_id: newUserId })
     .eq("id", projectPartyId);
 
   if (error) return { error: "Could not reassign the party. Check you have permission and try again." };
+
+  // Real bug fix: linking a login here (project_parties.user_id) was never actually granting that
+  // login any platform access — has_org_access()/has_project_access() (the RLS gate on nearly every
+  // table, including who shows up as an eligible Client Team member) only ever look at
+  // access_grants, never at project_parties.user_id. addSelfManagedPartyAction already creates both
+  // rows together for exactly this reason; this was the one path that linked a login without ever
+  // granting the access that link implies. Best-effort + ignore-duplicate: a user who already has a
+  // broader (global/organisation) grant just gets a harmless redundant project-scoped row, and a
+  // second reassignment to the same user hits the unique partial index
+  // (access_grants_one_per_project_per_user) rather than erroring the whole action.
+  if (!fetchTypeError && partyWithType?.projects?.organization_id) {
+    const { error: grantError } = await supabase.from("access_grants").insert({
+      user_id: newUserId,
+      scope_type: "project",
+      organization_id: partyWithType.projects.organization_id,
+      project_id: party.project_id,
+      role: partyWithType.party_type,
+    });
+    if (grantError && grantError.code !== "23505") {
+      return {
+        error:
+          "The party was reassigned, but granting platform access to the new login failed — check with a JAGS Admin.",
+      };
+    }
+  }
 
   revalidatePath(`/inspect/projects/${party.project_id}`);
   return { error: null };

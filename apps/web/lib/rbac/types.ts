@@ -20,17 +20,21 @@ export const PERMISSION_KEYS = [
   "issue_irn",
   "close_ncr",
   "view_org_reports",
+  "approve_vault_document",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
-// Which of the 6 keys a Self-Managed client can attach to a role SCOPED TO ITS OWN org (never a
+// Which of the 7 keys a Self-Managed client can attach to a role SCOPED TO ITS OWN org (never a
 // JAGS-global role) — mirrors the RLS check in custom_role_permissions_self_managed_write
 // (supabase/migrations/20260919030000_self_managed_custom_role_management.sql), where the full
 // reasoning lives. Short version: these 3 are client-operational (deciding how the client's own
-// people split up work on the client's own projects); the other 3
-// (manage_intervention_levels/issue_irn/close_ncr) touch the platform's independent-assurance
-// controls and stay JAGS-Admin-grantable-only even for a self-managed org's own role. A JAGS Admin
-// is never limited by this list — only the self-managed client's own write path is.
+// people split up work on the client's own projects); the other 4
+// (manage_intervention_levels/issue_irn/close_ncr/approve_vault_document) touch the platform's
+// independent-assurance controls and stay JAGS-Admin-grantable-only even for a self-managed org's
+// own role — approving a vault document is the same self-certification concern as the other three
+// (it can become the controlled baseline an ITP is drafted against), so it belongs in this bucket,
+// not the client-operational one. A JAGS Admin is never limited by this list — only the
+// self-managed client's own write path is.
 export const CLIENT_SELF_SERVICE_PERMISSION_KEYS: readonly PermissionKey[] = [
   "add_project_party",
   "reassign_project_party",
@@ -44,6 +48,7 @@ export const PERMISSION_LABEL: Record<PermissionKey, string> = {
   issue_irn: "Issue an Inspection Release Notice",
   close_ncr: "Close out an NCR",
   view_org_reports: "View organisation reports & report packs",
+  approve_vault_document: "Approve a vault document",
 };
 
 export interface CustomRoleRow {
