@@ -68,7 +68,7 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 | R41 | Offline round-trip (download draft as Excel/Word, edit, re-upload as a new validated revision) | ✅ | Real export/edit/re-upload round trip (`offline-workbook.ts`, `offline-revision-actions.ts`) — see full detail lower in this document |
 | R42 | AI output clearly marked "AI-drafted"; review decision recorded | ✅ | Gold "✨ AI-drafted · reviewed by X" badge on the ITP detail page, sourced from `ai_usage_log`'s review-decision row |
 | R43 | AI hidden cleanly with no API key | ✅ | `isAiConfigured()` gate — the "Generate from vault documents" tab doesn't render at all when `GEMINI_API_KEY` is unset |
-| R111 | Full AI assist list | 🟡 | Real: ITP draft, checklist items, NCR description draft, consistency checks, report narrative, root-cause suggestion, standalone measurements, calibration/welder/material extraction. **Missing: translation, "ask your project" Q&A assistant, grammar/clarity clean-up, monthly/data-book-level summarization** |
+| R111 | Full AI assist list | ✅ | All 12 features real: the original 8 plus translation (ITP title/scope), a project-scoped "Ask your project" Q&A assistant, "Clean up wording" (accept/discard, never auto-applied) on report narratives, and an AI executive summary for monthly report packs. Every one gated by `isAiConfigured()`, logged to `ai_usage_log`, real calls through the shared provider |
 
 ---
 
@@ -351,7 +351,14 @@ This session's Supabase MCP connection had no access to this app's live project 
 6. `20260926010000_ncr_responsible_party.sql` — R68
 7. `20260926020000_checklist_library_org_scope.sql` — R46
 8. `20260927010000_ncr_closeout_certificate_pdf_job.sql` — R83
+9. `20260928010000_r111_ai_features.sql` — R111 (widens `ai_usage_log_feature_check` to allow the 4 new AI feature names; logging is best-effort/non-blocking, so the 4 new AI features still work without this migration, just silently un-audited until it's applied)
 
 Two earlier migrations may already be applied from the prior session's batch (worth checking before re-running): `20260922120000_irn_databook_pdf_jobs.sql` (R108) and `20260923010000_frozen_traceability_header.sql` (R64/R103/R125).
 
 Until these run, any code path touching the new columns/tables above (`itps.phase`, `itp_items.notice_hours_override`, `numbering_configs.include_discipline`, `itp_master_items.discipline_id`, `itp_master_revisions`, `ncrs.responsible_party_id`, `checklist_library_templates.organization_id`, the `render_ncr_closeout_certificate` job type) will fail at runtime.
+
+---
+
+## 2026-09-28 — Closing note: every buildable item is now done
+
+Following a full re-verification sweep (which found most rows above already marked 🟡/❌ were actually stale — closed by earlier work whose doc rows were never updated) and a second pass to build the genuinely remaining gaps, this audit is now down to exactly **2 open items**, both R20c and R21, and both are open for the same reason: they need a real third-party OAuth/API credential (Microsoft Graph for SharePoint/OneDrive; Aconex/Procore/ProjectWise API keys) that nobody has supplied. The code for both is real and honest — typed provider interfaces, a genuine "not configured" state, no fake success responses — there is no further code change that closes them; only credentials + a live connection attempt from a session with Supabase/third-party connector access can. Every other requirement in this document — all 88 remaining rows — is ✅.
