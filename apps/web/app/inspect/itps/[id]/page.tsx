@@ -1,10 +1,10 @@
-import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
-import { ActivitySignoffCard } from "./activity-signoff-card";
+import { ActivitySignoffGrid } from "./activity-signoff-grid";
+import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { advanceItpStatusAction, acceptItpAction } from "@/lib/itps/actions";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
@@ -454,6 +454,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
+          organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S
+          list, so a custom level an admin adds shows up here too. */}
+      <InterventionLegend levels={levels} />
+
       <RevisionHistoryPanel revisions={revisions ?? []} />
 
       {/* Jump-to-section nav: purely a scanning aid for long ITPs (several sections, each a wide
@@ -485,38 +490,48 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 {section.section_number}. {section.title}
               </h2>
             </div>
-            {/* Sign-off chain: one card per activity, with each party's H/W/R/S level + sign-off
-                status laid out as a horizontal chain of chips (see ActivitySignoffCard) instead of a
-                dense wide table — reads clearly at any viewport, including 375px phone width, with
-                no horizontal scrolling needed. */}
-            <div>
-              {[...(section.itp_items ?? [])]
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map((item) => {
-                  const partyCells = (parties ?? []).map((party) => {
-                    const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
-                    const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
-                    return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id, party.is_active) };
-                  });
-                  return (
-                    <Fragment key={item.id}>
-                      <ActivitySignoffCard
-                        itpId={itp.id}
-                        itemId={item.id}
-                        itemNumber={item.item_number}
-                        activity={item.activity}
-                        acceptanceCriteria={item.acceptance_criteria}
-                        evidenceLabel={EVIDENCE_LABEL[item.evidence_type]}
-                        disciplineCode={item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null}
-                        partyCells={partyCells}
-                        canEditContent={canEditContent}
-                        isJagsStaff={session.isJagsStaff}
-                        noticeHours={noticeHours}
-                        levels={levels}
-                        blockingCodes={blockingCodes}
-                      />
-                      {/* R54-R56: expected -> received third-party test record tracking per activity. */}
-                      <div className="border-b border-border px-4 py-3 last:border-0 bg-off-white/40">
+            {/* R26-29: per-party H/W/R/S sign-off grid — rows = this section's activities, columns =
+                every project_party on the ITP, one real <table> instead of the previous per-activity
+                chain-of-chips card layout (see ActivitySignoffGrid). Deliberately wide/scrollable
+                (overflow-x-auto lives inside the grid component), matching how real client ITP
+                reference documents lay this out. */}
+            {(() => {
+              const sortedItems = [...(section.itp_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+              const gridRows = sortedItems.map((item) => ({
+                itemId: item.id,
+                itemNumber: item.item_number,
+                activity: item.activity,
+                acceptanceCriteria: item.acceptance_criteria,
+                evidenceLabel: EVIDENCE_LABEL[item.evidence_type],
+                disciplineCode: item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null,
+                partyCells: (parties ?? []).map((party) => {
+                  const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
+                  const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
+                  return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id, party.is_active) };
+                }),
+              }));
+              return (
+                <>
+                  <ActivitySignoffGrid
+                    itpId={itp.id}
+                    rows={gridRows}
+                    parties={(parties ?? []).map((p) => ({ id: p.id, name: p.name }))}
+                    canEditContent={canEditContent}
+                    isJagsStaff={session.isJagsStaff}
+                    noticeHours={noticeHours}
+                    levels={levels}
+                    blockingCodes={blockingCodes}
+                  />
+                  {/* R54-R56: expected -> received third-party test record tracking per activity —
+                      kept as its own per-activity block below the grid, since it isn't part of the
+                      per-party intervention/sign-off grid itself. */}
+                  <div>
+                    {sortedItems.map((item) => (
+                      <div key={item.id} className="border-b border-border px-4 py-3 last:border-0 bg-off-white/40">
+                        <p className="mb-1.5 text-xs font-medium text-muted">
+                          <span className="doc-id mr-1">{item.item_number}</span>
+                          {item.activity}
+                        </p>
                         <ExpectedRecordsSection
                           itpItemId={item.id}
                           records={expectedRecordsByItem.get(item.id) ?? []}
@@ -526,13 +541,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                           vaultDocuments={vaultDocuments}
                         />
                       </div>
-                    </Fragment>
-                  );
-                })}
-              {(section.itp_items ?? []).length === 0 && (
-                <p className="px-3 py-6 text-center text-muted">No activities in this section yet.</p>
-              )}
-            </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
             {canEditContent && (
               <AddItemForm
                 itpId={itp.id}
