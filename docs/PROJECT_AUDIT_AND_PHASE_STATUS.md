@@ -36,10 +36,10 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | R23 | Three-phase structure (Development/Execution/Handover) | ✅ | Real, trigger-derived `itps.phase` column (migration `20260923020000`) — not user-editable, computed from status + blocking sign-off completion |
-| R24 | Fully editable sections (add/delete/rename/reorder, not fixed) | 🟡 | Schema supports it; only `createItpAction` (4 defaults) and `addItpItemAction` exist. **No add/rename/delete/reorder-section actions found anywhere** |
+| R24 | Fully editable sections (add/delete/rename/reorder, not fixed) | ✅ | Verified live in `lib/itps/sections.ts`: `addItpSectionAction`/`renameItpSectionAction`/`deleteItpSectionAction`/`moveSectionUpAction`/`moveSectionDownAction` all exist and funnel through `bumpRevisionIfIssued` |
 | R25 | Activity fields incl. per-activity notification period | ✅ | `itp_items.notice_hours_override` (migration `20260924010000`) takes precedence over the project/org/level default in `getNoticePeriodHours()` |
-| R26-28 | Per-party intervention grid, shown as a grid | 🟡 | Data model is correct and fully configurable; **the UI deliberately renders cards, not a grid** (explicit code comment), and the PDF also collapsed to a compact chip column, not one-column-per-party |
-| R29 | H/W/R/S legend on every ITP | 🟡 | Present in the PDF; **not found in the web UI page** |
+| R26-28 | Per-party intervention grid, shown as a grid | ✅ | Real `<table>` grid (`activity-signoff-grid.tsx`), one column per party; the PDF was brought back in line with the web UI's full grid (2026-09-27) after a brief divergence |
+| R29 | H/W/R/S legend on every ITP | ✅ | `InterventionLegend` component present on the web ITP page; already existed in the PDF |
 | R30 | Landscape A4 print | ✅ | `worker/src/jobs/itpTemplate.ts` |
 | R33 | Repeatable activities (many instances per location) | ✅ | `inspection_records.itp_item_id` is a plain (non-unique) FK |
 
@@ -47,14 +47,14 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | R63 | Results + photos + real signature capture | ✅ | Canvas-based signature pad, real photo table |
-| R64 | Frozen traceability header | 🟡 | Project/ITP/activity/location/date/inspector frozen as literal columns; **client name, drawing revision, spec/standard are NOT frozen** |
+| R64 | Frozen traceability header | ✅ | Migration `20260923010000` froze `client_name`, `applicable_standard`, `governing_drawing_reference`, `governing_drawing_revision` on `inspection_records`, rendered on both the web page and the Inspection Report PDF |
 | R65 | IRN generation on pass | ✅ | Real `irns` table + issue flow |
 
 ### PDF Reports
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | R106 | A4, repeating header/footer, no forced page breaks | ✅ | `thead` repetition + `break-inside: avoid` only on small blocks, Puppeteer native footer |
-| R108 | Branded PDFs (ITP, inspection, IRN, data book) | 🟡 | ITP and Inspection Report generators are real; **no dedicated IRN certificate PDF or data-book PDF generator found** |
+| R108 | Branded PDFs (ITP, inspection, IRN, data book) | ✅ | `irnTemplate.ts`/`renderIrnPdf.ts` and `dataBookTemplate.ts`/`renderDataBookPdf.ts` now exist alongside the ITP/Inspection Report generators, all branding-aware |
 
 **Core is functional end-to-end but has real gaps**: no ITP phase concept, section editing is display-only past creation, the per-party grid isn't actually a grid in the UI, and two PDF types (IRN, data book) don't have their own generator.
 
@@ -65,9 +65,9 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | R34-40 | Spec-to-ITP AI drafting, grounded in vault docs, per-party suggestions with reasons | ✅ | Confirmed working (this session's own earlier work + re-verified) |
-| R41 | Offline round-trip (download draft as Excel/Word, edit, re-upload as a new validated revision) | ❌ | No xlsx/docx export of a draft anywhere; documents are only ever an AI **input**, never an editable offline output |
-| R42 | AI output clearly marked "AI-drafted"; review decision recorded | 🟡 | Backend audit trail is real (`ai_usage_log.reviewed_by/decision`, `recordAiReviewDecision` — confirmed populated at ITP creation); **no visible "AI-drafted" badge anywhere in the UI** |
-| R43 | AI hidden cleanly with no API key | 🟡 | Server-side gate (`assertAiAllowed`) fails gracefully; **the "Generate from AI" tab always renders regardless of key presence** — user only finds out after submitting |
+| R41 | Offline round-trip (download draft as Excel/Word, edit, re-upload as a new validated revision) | ✅ | Real export/edit/re-upload round trip (`offline-workbook.ts`, `offline-revision-actions.ts`) — see full detail lower in this document |
+| R42 | AI output clearly marked "AI-drafted"; review decision recorded | ✅ | Gold "✨ AI-drafted · reviewed by X" badge on the ITP detail page, sourced from `ai_usage_log`'s review-decision row |
+| R43 | AI hidden cleanly with no API key | ✅ | `isAiConfigured()` gate — the "Generate from vault documents" tab doesn't render at all when `GEMINI_API_KEY` is unset |
 | R111 | Full AI assist list | 🟡 | Real: ITP draft, checklist items, NCR description draft, consistency checks, report narrative, root-cause suggestion, standalone measurements, calibration/welder/material extraction. **Missing: translation, "ask your project" Q&A assistant, grammar/clarity clean-up, monthly/data-book-level summarization** |
 
 ---
@@ -79,9 +79,9 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 |---|---|---|---|
 | R19 | Shared vault with the 10 named folder categories | ✅ | Exact match + 1 extra ("Test Reports") |
 | R20a | Bulk/multi-file upload | ✅ | Built this session |
-| R20b | Email-to-vault | ❌ | No inbound email integration anywhere |
-| R20c | Cloud folder sync (SharePoint/OneDrive) | ❌ | Not present |
-| R21 | Connector stubs (Aconex/Procore/ProjectWise) | ❌ | No connector interface or stub files exist |
+| R20b | Email-to-vault | ✅ | Shared-secret-authenticated webhook (`app/api/vault/email-inbound/route.ts`) reuses the refactored vault upload core |
+| R20c | Cloud folder sync (SharePoint/OneDrive) | 🟡 | Real config storage + honest "not configured" gate; no live Graph API sync yet (no OAuth credentials available) — see `lib/cloud-sync/gate.ts` |
+| R21 | Connector stubs (Aconex/Procore/ProjectWise) | 🟡 | Typed stub interfaces exist (`lib/connectors/{aconex,procore,projectwise,registry}.ts`); all honestly report `isConfigured() === false`, no live integration |
 | R22 | Document control metadata (revision, date, source) | ✅ | Full `vault_documents` schema |
 
 ### Numbering
@@ -89,7 +89,7 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 |---|---|---|---|
 | R104 | Configurable numbering (client code, originator, doc type, **discipline**, sequence, revision, year, separator) | ✅ | `numbering_configs.include_discipline` (migration `20260924020000`) threaded through the shared formatter, live preview, and real generator |
 | R105 | Document traceability view (any number → full lineage) | ✅ | New Admin-only lookup page (`/inspect/organisation/traceability`) — search any ITP/NCR/inspection number, see revisions, audit trail, and real-FK-backed related records |
-| R107 | PDF (controlled) + Word + Excel (watermarked "UNCONTROLLED COPY") downloads | 🟡 | PDF real. **Word: doesn't exist. Excel: doesn't exist — the "Excel" export that does exist is actually CSV.** No watermarking logic anywhere |
+| R107 | PDF (controlled) + Word + Excel (watermarked "UNCONTROLLED COPY") downloads | 🟡 | PDF real. Excel is now real `.xlsx` (`api/itps/[id]/export-xlsx`, built from R41's offline-workbook code) but **not watermarked** "UNCONTROLLED COPY" — the watermark helper (`xlsxUncontrolledCopy.ts`) exists and is used by report packs, just not wired into this route. **Word (.docx) export of the ITP document still doesn't exist at all** |
 
 ---
 
@@ -97,10 +97,10 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
-| R44 | In-app checklist/form builder | ❌ | No standalone builder — checklists only auto-generate from ITP activities or get items added one at a time |
-| R45 | Yes/No/N-A + comment; "No" **offers** to raise NCR right there | 🟡 | Static text hint only ("consider raising an NCR"), no actual link/button at that moment; comment isn't even required on "No" |
+| R44 | In-app checklist/form builder | ✅ | Standalone checklist template library (`lib/checklist-library/*`) with full UI tree, attach-to-ITP-activity flow |
+| R45 | Yes/No/N-A + comment; "No" **offers** to raise NCR right there | ✅ | `saveChecklistResponseAction` rejects a "No" with no comment; a real "Raise NCR for this item →" link (pre-filled) appears once a comment is entered |
 | R46 | Pre-linked, **per-client** checklist sets | ✅ | `checklist_library_templates.organization_id` (migration `20260926020000`, nullable = global) scopes a template to one client org, RLS-enforced, filtered into the ITP-attach flow |
-| R47 | Excel template download/import with preview-and-validate | ❌ | No xlsx dependency, no import UI, no preview step anywhere |
+| R47 | Excel template download/import with preview-and-validate | ✅ | Real `.xlsx` export via exceljs (`lib/checklist-library/xlsx.ts`) plus a genuine preview-validate-then-import step |
 | R33 | Repeatable activities | ✅ | (listed above, Core) |
 
 **This is one of the weakest areas.** The client's own requirement doc explicitly calls out "Excel import/export (ITP and checklist templates)" as a defined integration — it's entirely absent.
@@ -128,9 +128,9 @@ Home screen / orbit hub — not explicitly audited this pass (lower risk area); 
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
-| R112 | Per-client module licensing (home screen shows only licensed modules) | ❌ | **No licensing/module-gating concept exists at all.** Only `organization_plans` (plan tier + seat count) — every module is available to every org regardless of plan |
-| R113 | Configurable branding: co-brand/Jags-only/white-label, on header/login/portal/reports | 🟡 | Only brand **colors** are configurable (`brand_primary_color`/`brand_accent_color`); no logo swap, no "Powered by Jags Assurance" string, no white-label visual mode anywhere. A `branding_logo_path` column exists but is **never read or rendered** |
-| R114-118 | Engagement mode drives BOTH branding AND numbering together | 🟡 | Drives numbering correctly (including hidden `internal_reference` for white-label — confirmed populated). **Not wired to branding at all** — the two systems are disconnected, contradicting "drives both together" |
+| R112 | Per-client module licensing (home screen shows only licensed modules) | ✅ | Fail-open module licensing (`lib/module-licensing/access.ts`), real nav-level and page-level gating, admin toggle UI |
+| R113 | Configurable branding: co-brand/Jags-only/white-label, on header/login/portal/reports | ✅ | Logo upload/swap, "Powered by JAGS Assurance" white-label string, and mode-driven letterhead now render on the app chrome and every generated PDF |
+| R114-118 | Engagement mode drives BOTH branding AND numbering together | ✅ | `engagement_mode` now drives both — `orgBranding` lookup wired into `app/inspect/layout.tsx` alongside the existing numbering logic |
 | R31 | Two-tier master library, propose-back-to-master with version history | ✅ | New `itp_master_revisions` table (migration `20260925020000`) freezes a JSON snapshot per version, same pattern as R101's ITP revisions, browsable in a new panel |
 | R32 | Discipline tag travels through master→client copy | ✅ | Real bug was that `itp_master_items` never had a `discipline_id` column at all — added (migration `20260925010000`) and wired into both copy directions |
 
@@ -144,13 +144,13 @@ Home screen / orbit hub — not explicitly audited this pass (lower risk area); 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | R66 | All required disciplines must verify before hold release | ✅ | `canCompleteInspection` genuinely requires every blocking level `signed_off` |
-| R67 | Configurable **strict vs. flexible** party sequencing per activity | ❌ | No sequencing concept exists — any party can sign in any order regardless of point type |
+| R67 | Configurable **strict vs. flexible** party sequencing per activity | ✅ | Real enforcement in `signOffAction`, non-regressive default (flexible = old behavior byte-for-byte), 9/9 tests pass, admin UI to switch modes |
 | R69-71 | ITP formal approval chain; Hold blocks start+completion | ✅ | Confirmed (Hold enforcement is this session's own earlier fix) |
 | R72-74 | Witness notify-and-proceed with recorded non-attendance | ✅ | `"proceeded_no_response"` status, gated on elapsed notice period |
 | R76 | Explicit "request inspection / notify parties" action | ✅ | Real `notifyPartyAction`/`notifyAllPendingForItpAction` |
 | R77-78 | Configurable notice period **with a visible countdown** | 🟡 | Fully configurable and enforced server-side; **no countdown timer UI anywhere** — only a static status badge |
-| R79 | Configurable approval workflow per client (who prepares/reviews/approves) | ❌ | Fixed hardcoded chain (`prepared_by/reviewed_by/approved_by/client_accepted_by`) — not client-configurable |
-| R80 | External approval reference recording (client approves in their own system, ref recorded back) | ❌ | Not present anywhere |
+| R79 | Configurable approval workflow per client (who prepares/reviews/approves) | ✅ | `itp_approval_workflow_configs` — pin required reviewer/approver per org, or leave "Unrestricted" for today's behaviour |
+| R80 | External approval reference recording (client approves in their own system, ref recorded back) | ✅ | `itps.external_approval_reference/_recorded_by/_recorded_at`, server-side guard enforcing internal approval must come first |
 
 ### NCRs & Observations
 | # | Requirement | Status | Evidence |
@@ -174,8 +174,8 @@ See Core section (R26-29).
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
-| R91 | Exportable ITP Register (PDF **and** Excel) | ❌ | No export controls on the register/list page at all — no PDF, no Excel button |
-| R109 | Monthly client report pack (PDF + Excel) | 🟡 | PDF real and working (weekly sibling too); **"Excel" is actually CSV**, not a real `.xlsx` |
+| R91 | Exportable ITP Register (PDF **and** Excel) | 🟡 | PDF genuinely covered (`itps/print/page.tsx`, browser "Save as PDF" — a deliberate design choice, documented in-file). **"Excel" (`api/itps/export/route.ts`) is honestly-labeled CSV, not a real `.xlsx`** — inconsistent with the real xlsx used elsewhere (report packs, checklist library, ITP's own single-document export) |
+| R109 | Monthly client report pack (PDF + Excel) | ✅ | PDF real and working (weekly sibling too); "Excel" is now a real `.xlsx` via exceljs (`generateMonthlyReportPack.ts`/`generateWeeklyReportPack.ts`), watermarked "UNCONTROLLED COPY" |
 | R110 | Secure read-only Power BI views | ✅ | Real `vw_powerbi_*` views + dedicated read-only role — genuinely implemented, not just documented |
 
 ---
@@ -193,15 +193,15 @@ See Core section (R26-29).
 ### Revisions, Audit Log, Traceability (R101-105) — a real weak point
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
-| R101 | ITP revisions (Rev A/0/1…), frozen on issue, visible history table | ❌ | `revision` is a plain int, **never incremented anywhere**. An approved ITP can be edited in place with zero history preserved |
+| R101 | ITP revisions (Rev A/0/1…), frozen on issue, visible history table | ✅ | Real snapshot-and-bump on every post-issue content edit (items, section actions, offline revision upload) — `itp_revisions` table, visible history panel |
 | R102 | General audit log (every create/edit/approval/status-change) | ✅ | `audit_log` table + `recordAuditEvent()` now wired into 26 action files (67+ call sites) — every governed-entity mutation across ITPs, NCRs, sign-offs, projects, teams, RBAC, registers, punch-list, vault, master library, checklist library, data book, handover, and org settings |
-| R103 | Full chain incl. governing drawing revision | 🟡 | Every link is real except "governing drawing revision" — no drawing-revision entity exists; `drawing_markups` is just pin annotations with no DB FK |
+| R103 | Full chain incl. governing drawing revision | ✅ | `governing_drawing_reference`/`governing_drawing_revision` frozen on `inspection_records` (migration `20260923010000`), plus an optional governing-drawing link on ITP activities scoped to the vault's Drawings folder |
 
 ### Standalone Assignment / FAT (R10-16)
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | R10-15 | Assignment creation, checklist attach, conduct, NCR, deliverable report, numbering/traceability | ✅ | Confirmed working (this session's own earlier audit + signature-before-finalize fix) |
-| R16 | Conditional pass keeps assignment "open" until punch list closes, then a clearance/close-out is issued | ❌ | **Contradicted by actual behavior**: `conditional_pass` finalize sets `status = "completed"` immediately, identically to a clean pass — nothing stays open, no clearance/close-out artifact exists, and the linked punch item's closure never flows back to the assignment |
+| R16 | Conditional pass keeps assignment "open" until punch list closes, then a clearance/close-out is issued | ✅ | New `conditional_open` status + `issueClearanceAction` — verified live: finalized conditional_open → blocked while punch item open → item closed → clearance unlocked → status flips to completed with clearance stamped |
 
 ### Non-Negotiable Rules (Section 6)
 | # | Rule | Status |
@@ -209,8 +209,8 @@ See Core section (R26-29).
 | R122 | AI drafts only, human confirms | ✅ |
 | R123 | Never implies engineering/design services | ✅ |
 | R124 | Document numbers unique, never reused, frozen | ✅ (atomic sequence RPC) |
-| R125 | Governing revisions frozen at inspection time | 🟡 (frozen for most fields — see R64/R103 gaps above) |
-| R126 | Secrets in env vars; audit logging | 🟡 (secrets: yes; general audit log: no — see R102) |
+| R125 | Governing revisions frozen at inspection time | ✅ | Governing drawing reference/revision now frozen alongside the rest of the R64 header |
+| R126 | Secrets in env vars; audit logging | ✅ | Secrets: yes. General audit log: `recordAuditEvent()` now wired into 26 action files (67+ call sites), see R102 |
 
 ---
 
