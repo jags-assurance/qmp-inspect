@@ -25,7 +25,9 @@ import {
   type RenderNcrPdfPayload,
   type RenderIrnPdfPayload,
   type RenderDataBookPdfPayload,
+  type RenderNcrCloseoutCertificatePayload,
 } from "./types";
+import { NCRS_TABLE } from "@/lib/ncrs/types";
 
 export interface GenerateMonthlyReportPackState {
   error: string | null;
@@ -720,6 +722,108 @@ export async function getLatestDataBookPdf(dataBookId: string): Promise<DataBook
     .maybeSingle<
       Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
         payload: RenderDataBookPdfPayload;
+        result_storage_path: string | null;
+      }
+    >();
+
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+    downloadUrl,
+  };
+}
+
+export interface RequestNcrCloseoutCertificateState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * R83: queues a "render_ncr_closeout_certificate" background job — the branded A4 close-out
+ * certificate for an NCR that has actually been closed. Distinct from requestNcrPdfAction's
+ * "render_ncr_pdf" (a finding+close-out dossier available at any status): closing an NCR previously
+ * just flipped status fields with no document produced, which is the gap this closes. Refuses to
+ * queue for anything that isn't already closed with its CAPA fields filled in — the same real
+ * authority-boundary check the worker (renderNcrCloseoutPdf.ts) repeats server-side, since a status
+ * flag on the button alone isn't an authority boundary, same convention as updateNcrAction's own
+ * closure gating.
+ */
+export async function requestNcrCloseoutCertificateAction(
+  _prev: RequestNcrCloseoutCertificateState,
+  formData: FormData
+): Promise<RequestNcrCloseoutCertificateState> {
+  const session = await requireSession();
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  if (!ncrId) return { error: "Missing NCR." };
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: ncr } = await supabase
+    .from(NCRS_TABLE)
+    .select("status, root_cause, corrective_action, verification_notes")
+    .eq("id", ncrId)
+    .maybeSingle<{ status: string; root_cause: string | null; corrective_action: string | null; verification_notes: string | null }>();
+
+  if (!ncr || ncr.status !== "closed" || !ncr.root_cause || !ncr.corrective_action || !ncr.verification_notes) {
+    return { error: "This NCR must be closed, with root cause, corrective action and verification recorded, before a close-out certificate can be generated." };
+  }
+
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_ncr_closeout_certificate",
+    payload: { ncr_id: ncrId, requested_by: session.userId } satisfies RenderNcrCloseoutCertificatePayload,
+  });
+
+  if (error) {
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the certificate. Check you have permission and try again.") };
+  }
+
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  return { error: null, success: true };
+}
+
+export interface NcrCloseoutCertificateStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+  downloadUrl: string | null;
+}
+
+/**
+ * Most recent close-out certificate render for this NCR. Polled client-side via usePdfPolling
+ * (lib/reports/use-pdf-polling.ts) — see getLatestItpPdf's doc comment for the View/Download URL
+ * split.
+ */
+export async function getLatestNcrCloseoutCertificate(ncrId: string): Promise<NcrCloseoutCertificateStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: latest } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_ncr_closeout_certificate")
+    .eq("payload->>ncr_id", ncrId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderNcrCloseoutCertificatePayload;
         result_storage_path: string | null;
       }
     >();

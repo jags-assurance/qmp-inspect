@@ -14,7 +14,8 @@ export interface BackgroundJobRow {
     | "render_portfolio_summary_pdf"
     | "render_ncr_pdf"
     | "render_irn_pdf"
-    | "render_data_book_pdf";
+    | "render_data_book_pdf"
+    | "render_ncr_closeout_certificate";
   payload: Record<string, unknown>;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
@@ -88,5 +89,14 @@ export interface RenderIrnPdfPayload {
  *  data_books row. Same shape as RenderNcrPdfPayload. */
 export interface RenderDataBookPdfPayload {
   data_book_id: string;
+  requested_by: string;
+}
+
+/** Payload for "render_ncr_closeout_certificate" (R83) — the branded A4 close-out certificate for an
+ *  NCR that has actually been closed (root cause, corrective action, who closed it and when), distinct
+ *  from render_ncr_pdf's finding+close-out dossier which renders at any status. Same shape as
+ *  RenderNcrPdfPayload: one target row id plus who asked for it. */
+export interface RenderNcrCloseoutCertificatePayload {
+  ncr_id: string;
   requested_by: string;
 }
