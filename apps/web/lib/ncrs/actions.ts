@@ -71,6 +71,21 @@ export async function createNcrAction(
     return { error: "Project not found, or you don't have access to it." };
   }
 
+  // R104: an NCR raised against a specific itp_item (see the FK comment above) can resolve that
+  // item's own discipline — the only discipline an NCR is ever able to genuinely carry, since ncrs
+  // has no discipline_id of its own. A standalone/walkdown NCR (itpItemId null) has nothing to
+  // resolve, so this stays null and generateDocumentNumber simply omits the segment even if the
+  // org's numbering config has include_discipline on — never a fabricated placeholder.
+  let disciplineCode: string | null = null;
+  if (itpItemId) {
+    const { data: itemWithDiscipline } = await supabase
+      .from("itp_items")
+      .select("master_disciplines(code)")
+      .eq("id", itpItemId)
+      .maybeSingle<{ master_disciplines: { code: string } | null }>();
+    disciplineCode = itemWithDiscipline?.master_disciplines?.code ?? null;
+  }
+
   // Routed through the shared numbering engine (Phase 2) rather than an inline per-project count —
   // NCR numbering is a clean fit for it (one sequence per project, no sub-type prefix to preserve,
   // unlike e.g. standalone assignments' FAT/WIT/... prefixes, which stay on their own local scheme).
@@ -79,6 +94,7 @@ export async function createNcrAction(
     projectId,
     docType: "ncr",
     projectNumber: project.project_number,
+    disciplineCode,
   });
 
   const { data: ncr, error } = await supabase

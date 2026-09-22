@@ -28,6 +28,8 @@ export interface NumberingConfigRow {
   separator: string;
   sequence_padding: number;
   include_year: boolean;
+  /** R104: opt-in discipline segment — see lib/numbering/format.ts's formatDocumentNumber. */
+  include_discipline: boolean;
   created_at: string;
   updated_at: string;
 }

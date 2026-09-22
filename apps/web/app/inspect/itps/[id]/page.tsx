@@ -144,6 +144,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       evidence_type: 1 | 2 | 3;
       sort_order: number;
       discipline_id: string | null;
+      notice_hours_override: number | null;
     }[];
   }
 
@@ -170,7 +171,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       supabase
         .from("itp_sections")
         .select(
-          "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, sort_order, discipline_id)"
+          "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, sort_order, discipline_id, notice_hours_override)"
         )
         .eq("itp_id", id)
         .order("section_number")
@@ -577,6 +578,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 acceptanceCriteria: item.acceptance_criteria,
                 evidenceLabel: EVIDENCE_LABEL[item.evidence_type],
                 disciplineCode: item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null,
+                // R25: per-activity override, checked before the level-keyed noticeHours map below.
+                noticeHoursOverride: item.notice_hours_override,
                 partyCells: (parties ?? []).map((party) => {
                   const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
                   const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;

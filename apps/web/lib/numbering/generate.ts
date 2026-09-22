@@ -8,6 +8,14 @@ export interface GenerateDocumentNumberParams {
   docType: NumberingDocType;
   /** The project's own project_number, used by the hardcoded fallback format. */
   projectNumber: string;
+  /** R104: this document's discipline code (master_disciplines.code), when one is resolvable at
+   *  the point of generation — e.g. an NCR raised against a specific itp_item that has a discipline
+   *  set. Only spliced into the number when the resolved config's include_discipline is true; when
+   *  the config wants it but this is null (nothing resolvable for this document), the segment is
+   *  simply omitted rather than inserting a placeholder. Omit this param entirely for a doc type
+   *  that never has a discipline of its own to resolve (e.g. an ITP at creation time, before it has
+   *  any items).*/
+  disciplineCode?: string | null;
 }
 
 export interface GeneratedDocumentNumber {
@@ -21,22 +29,24 @@ export interface GeneratedDocumentNumber {
 
 const DEFAULT_CONFIG: Pick<
   NumberingConfigRow,
-  "originator_code" | "separator" | "sequence_padding" | "include_year"
+  "originator_code" | "separator" | "sequence_padding" | "include_year" | "include_discipline"
 > = {
   originator_code: "JAGS",
   separator: "-",
   sequence_padding: 3,
   include_year: false,
+  include_discipline: false,
 };
 
 function formatNumber(
-  parts: { clientCode: string; originatorCode: string; docType: string; seq: number },
-  config: Pick<NumberingConfigRow, "separator" | "sequence_padding" | "include_year">
+  parts: { clientCode: string; originatorCode: string; docType: string; seq: number; disciplineCode?: string | null },
+  config: Pick<NumberingConfigRow, "separator" | "sequence_padding" | "include_year" | "include_discipline">
 ): string {
   return formatDocumentNumber(parts, {
     separator: config.separator,
     sequencePadding: config.sequence_padding,
     includeYear: config.include_year,
+    includeDiscipline: config.include_discipline,
   });
 }
 
@@ -53,7 +63,7 @@ function formatNumber(
  */
 export async function generateDocumentNumber(
   supabase: SupabaseClient,
-  { organizationId, projectId, docType, projectNumber }: GenerateDocumentNumberParams
+  { organizationId, projectId, docType, projectNumber, disciplineCode = null }: GenerateDocumentNumberParams
 ): Promise<GeneratedDocumentNumber> {
   const { data: configs } = await supabase
     .from(NUMBERING_CONFIGS_TABLE)
@@ -81,6 +91,7 @@ export async function generateDocumentNumber(
     separator: config?.separator ?? DEFAULT_CONFIG.separator,
     sequence_padding: config?.sequence_padding ?? DEFAULT_CONFIG.sequence_padding,
     include_year: config?.include_year ?? DEFAULT_CONFIG.include_year,
+    include_discipline: config?.include_discipline ?? DEFAULT_CONFIG.include_discipline,
   };
 
   const { data: seqValue, error: seqError } = await supabase.rpc("next_document_sequence", {
@@ -108,7 +119,7 @@ export async function generateDocumentNumber(
   }
 
   const documentNumber = formatNumber(
-    { clientCode, originatorCode, docType, seq: seqValue },
+    { clientCode, originatorCode, docType, seq: seqValue, disciplineCode },
     formatOpts
   );
 
@@ -128,7 +139,7 @@ export async function generateDocumentNumber(
     if (typeof internalSeqValue === "number") {
       internalReference = formatNumber(
         { clientCode: "JAGS", originatorCode: "", docType, seq: internalSeqValue },
-        { separator: "-", sequence_padding: 3, include_year: false }
+        { separator: "-", sequence_padding: 3, include_year: false, include_discipline: false }
       );
     }
   }

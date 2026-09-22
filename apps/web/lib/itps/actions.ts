@@ -119,6 +119,18 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
   const governingDrawingDocumentId = String(formData.get("governing_drawing_document_id") ?? "").trim();
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  // R25: optional per-activity override of the notice-period hours otherwise resolved from the
+  // project/org/built-in fallback chain — see getNoticePeriodHours in lib/signoff/actions.ts. Blank
+  // (the common case) leaves it unset so that existing resolution is unaffected.
+  const noticeHoursOverrideRaw = String(formData.get("notice_hours_override") ?? "").trim();
+  let noticeHoursOverride: number | null = null;
+  if (noticeHoursOverrideRaw) {
+    const parsed = Number.parseInt(noticeHoursOverrideRaw, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      return { error: "Notice hours override must be a non-negative whole number, or left blank." };
+    }
+    noticeHoursOverride = parsed;
+  }
 
   if (!sectionId || !itemNumber || !activity) {
     return { error: "Item number and activity are required." };
@@ -181,6 +193,7 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     // onto inspection_records at inspection start (see startInspectionAction). Not enforced to
     // actually be in the drawings folder here; the picker only offers those (add-item-form.tsx).
     governing_drawing_document_id: governingDrawingDocumentId || null,
+    notice_hours_override: noticeHoursOverride,
     sort_order: nextSortOrder,
   });
 

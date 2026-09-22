@@ -184,6 +184,7 @@ export default async function NumberingSettingsPage({
                             separator: config.separator,
                             sequencePadding: config.sequence_padding,
                             includeYear: config.include_year,
+                            includeDiscipline: config.include_discipline,
                           }
                         : null
                     }
