@@ -47,6 +47,9 @@ import { SectionControls } from "./section-controls";
 // re-upload the edited file to create a new validated revision. See offline-revision-form.tsx and
 // lib/itps/offline-revision-actions.ts.
 import { OfflineRevisionForm } from "./offline-revision-form";
+// R23: three-phase ITP lifecycle badge (Development/Execution/Handover) — a real, derived column
+// distinct from the status stepper below (see lib/itps/phase.ts's doc comment).
+import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -100,6 +103,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       applicable_standard: string | null;
       revision: number;
       status: "draft" | "under_review" | "approved" | "client_accepted";
+      phase: string;
       external_approval_reference: string | null;
       external_approval_recorded_by: string | null;
       external_approval_recorded_at: string | null;
@@ -394,6 +398,9 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           <div className="flex items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{itp.itp_number}</h1>
             <Badge tone={STATUS_TONE[itp.status]}>{STATUS_LABEL[itp.status]}</Badge>
+            {/* R23: real lifecycle phase, derived from status + sign-off completion — never set
+                directly by this page or any action (see lib/itps/phase.ts). */}
+            <Badge tone={ITP_PHASE_TONE[normalizeItpPhase(itp.phase)]}>{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</Badge>
             <span className="text-sm text-muted">Rev {itp.revision}</span>
             {aiDraftReview && (
               <span

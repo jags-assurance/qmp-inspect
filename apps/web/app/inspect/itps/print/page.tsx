@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PrintButton } from "./print-button";
+import { ITP_PHASES, ITP_PHASE_LABEL, normalizeItpPhase } from "@/lib/itps/phase";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
@@ -20,10 +21,11 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function ItpRegisterPrintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; q?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string }>;
 }) {
   await requireSession();
-  const { discipline: disciplineId, project: projectId, q } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q } = await searchParams;
+  const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
   const supabase = await createSupabaseServerClient();
 
   let itpIdFilter: string[] | null = null;
@@ -38,12 +40,13 @@ export default async function ItpRegisterPrintPage({
 
   let query = supabase
     .from("itps")
-    .select("itp_number, title, status, revision, applicable_standard, projects(name, organizations(name))");
+    .select("itp_number, title, status, revision, phase, applicable_standard, projects(name, organizations(name))");
 
   if (itpIdFilter) {
     query = itpIdFilter.length === 0 ? query.eq("id", "00000000-0000-0000-0000-000000000000") : query.in("id", itpIdFilter);
   }
   if (projectId) query = query.eq("project_id", projectId);
+  if (phase) query = query.eq("phase", phase);
   if (q) query = query.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
 
   const { data: itps } = await query
@@ -54,6 +57,7 @@ export default async function ItpRegisterPrintPage({
         title: string;
         status: string;
         revision: number;
+        phase: string;
         applicable_standard: string | null;
         projects: { name: string; organizations: { name: string } | null } | null;
       }[]
@@ -79,6 +83,7 @@ export default async function ItpRegisterPrintPage({
               <th className="py-2 pr-3">Client</th>
               <th className="py-2 pr-3">Project</th>
               <th className="py-2 pr-3">Status</th>
+              <th className="py-2 pr-3">Phase</th>
               <th className="py-2 pr-3">Rev</th>
               <th className="py-2 pr-3">Applicable Standard</th>
             </tr>
@@ -91,13 +96,14 @@ export default async function ItpRegisterPrintPage({
                 <td className="py-2 pr-3">{itp.projects?.organizations?.name ?? ""}</td>
                 <td className="py-2 pr-3">{itp.projects?.name ?? ""}</td>
                 <td className="py-2 pr-3">{STATUS_LABEL[itp.status] ?? itp.status}</td>
+                <td className="py-2 pr-3">{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</td>
                 <td className="py-2 pr-3">{itp.revision}</td>
                 <td className="py-2 pr-3">{itp.applicable_standard ?? ""}</td>
               </tr>
             ))}
             {(itps ?? []).length === 0 && (
               <tr>
-                <td colSpan={7} className="py-4 text-center text-muted">
+                <td colSpan={8} className="py-4 text-center text-muted">
                   No ITPs match the current filters.
                 </td>
               </tr>
