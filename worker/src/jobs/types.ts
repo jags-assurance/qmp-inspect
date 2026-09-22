@@ -12,7 +12,9 @@ export interface BackgroundJobRow {
     | "render_inspection_report_pdf"
     | "render_fat_report_pdf"
     | "render_portfolio_summary_pdf"
-    | "render_ncr_pdf";
+    | "render_ncr_pdf"
+    | "render_irn_pdf"
+    | "render_data_book_pdf";
   payload: Record<string, unknown>;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
@@ -72,5 +74,19 @@ export interface RenderPortfolioSummaryPdfPayload {
  *  RenderInspectionReportPdfPayload: one target row id plus who asked for it. */
 export interface RenderNcrPdfPayload {
   ncr_id: string;
+  requested_by: string;
+}
+
+/** Payload for "render_irn_pdf" — the branded A4 IRN (Inspection Release Note) certificate. Same
+ *  shape as RenderNcrPdfPayload: one target row id plus who asked for it. */
+export interface RenderIrnPdfPayload {
+  irn_id: string;
+  requested_by: string;
+}
+
+/** Payload for "render_data_book_pdf" — the cover-page-plus-summary Data Book PDF for one project's
+ *  data_books row. Same shape as RenderNcrPdfPayload. */
+export interface RenderDataBookPdfPayload {
+  data_book_id: string;
   requested_by: string;
 }
