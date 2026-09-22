@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { listMonthlyReportPacks } from "@/lib/reports/actions";
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
+import { isModuleLicensed } from "@/lib/module-licensing/access";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -52,7 +53,7 @@ interface ItpSummary {
  */
 export default async function ProjectReportsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
   const { data: project } = await supabase
@@ -62,6 +63,14 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
     .maybeSingle<ProjectSummary>();
 
   if (!project) notFound();
+
+  // R112 module licensing (page-level, not layout-level): this page's organisation is the
+  // PROJECT's org, not necessarily whichever org happens to be this session's own grant — a
+  // subcontractor/TPI can view reports across several client orgs' projects, so there's no single
+  // org to gate at app/inspect/layout.tsx. JAGS staff always bypass (support needs full visibility).
+  if (!session.isJagsStaff && !(await isModuleLicensed(supabase, project.organization_id, "reporting"))) {
+    redirect(`/inspect/projects/${projectId}`);
+  }
 
   const [reportPacks, { data: itps }] = await Promise.all([
     listMonthlyReportPacks(project.organization_id),

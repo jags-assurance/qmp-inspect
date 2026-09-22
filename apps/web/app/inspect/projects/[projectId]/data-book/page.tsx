@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { Badge } from "@/components/ui/badge";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
 import { DATA_BOOKS_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
@@ -34,11 +35,17 @@ export default async function DataBookPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, project_number, organizations(name)")
+    .select("id, name, project_number, organization_id, organizations(name)")
     .eq("id", projectId)
-    .maybeSingle<{ id: string; name: string; project_number: string; organizations: { name: string } | null }>();
+    .maybeSingle<{ id: string; name: string; project_number: string; organization_id: string; organizations: { name: string } | null }>();
 
   if (!project) notFound();
+
+  // R112 module licensing (page-level — see reports/page.tsx's doc comment for why: no single org
+  // to gate at the shared /inspect layout). JAGS staff always bypass.
+  if (!session.isJagsStaff && !(await isModuleLicensed(supabase, project.organization_id, "data_book"))) {
+    redirect(`/inspect/projects/${projectId}`);
+  }
 
   const [readiness, { data: dataBooks }, { data: openPunchItemRows }] = await Promise.all([
     computeDataBookReadiness(projectId),
