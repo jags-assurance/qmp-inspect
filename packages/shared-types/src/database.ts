@@ -357,6 +357,7 @@ export interface Database {
           sort_order: number;
           created_at: string;
           discipline_id: string | null;
+          governing_drawing_document_id: string | null;
         };
         Insert: {
           id?: string;
@@ -371,6 +372,7 @@ export interface Database {
           sort_order?: number;
           created_at?: string;
           discipline_id?: string | null;
+          governing_drawing_document_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["itp_items"]["Insert"]>;
         Relationships: [];

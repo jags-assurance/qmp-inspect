@@ -446,9 +446,25 @@ export async function startInspectionAction(
 
   const { data: project } = await supabase
     .from("projects")
-    .select("organization_id")
+    .select("organization_id, organizations(name)")
     .eq("id", projectId)
-    .maybeSingle<{ organization_id: string }>();
+    .maybeSingle<{ organization_id: string; organizations: { name: string } | null }>();
+
+  // R64/R103/R125: freeze client name, applicable standard, and the governing drawing (if this
+  // activity has one linked — see itp_items.governing_drawing_document_id) onto the record at
+  // creation, same as project_name/itp_number/activity above — best-effort, all nullable, never
+  // blocks starting the inspection.
+  const { data: itpItemForHeader } = await supabase
+    .from("itp_items")
+    .select(
+      "governing_drawing_document_id, itp_sections(itps(applicable_standard)), governing_drawing:vault_documents!governing_drawing_document_id(title, document_reference, revision)"
+    )
+    .eq("id", itpItemId)
+    .maybeSingle<{
+      governing_drawing_document_id: string | null;
+      itp_sections: { itps: { applicable_standard: string | null } | null } | null;
+      governing_drawing: { title: string; document_reference: string | null; revision: string } | null;
+    }>();
 
   // Atomic per-ITP counter, same reasoning as checklist_number above — a plain count-then-insert
   // would let two inspectors starting a field inspection at the same moment collide on the same
@@ -469,6 +485,12 @@ export async function startInspectionAction(
     activity,
     location: location || null,
     inspector_id: user?.id ?? null,
+    client_name: project?.organizations?.name ?? null,
+    applicable_standard: itpItemForHeader?.itp_sections?.itps?.applicable_standard ?? null,
+    governing_drawing_reference: itpItemForHeader?.governing_drawing
+      ? itpItemForHeader.governing_drawing.document_reference ?? itpItemForHeader.governing_drawing.title
+      : null,
+    governing_drawing_revision: itpItemForHeader?.governing_drawing?.revision ?? null,
   });
 
   if (error) {

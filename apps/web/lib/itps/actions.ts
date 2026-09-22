@@ -117,6 +117,7 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   const acceptanceCriteria = String(formData.get("acceptance_criteria") ?? "").trim();
   const evidenceType = Number(formData.get("evidence_type") ?? 1);
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
+  const governingDrawingDocumentId = String(formData.get("governing_drawing_document_id") ?? "").trim();
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
 
   if (!sectionId || !itemNumber || !activity) {
@@ -176,6 +177,10 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     acceptance_criteria: acceptanceCriteria || null,
     evidence_type: evidenceType === 2 || evidenceType === 3 ? evidenceType : 1,
     discipline_id: disciplineId || null,
+    // R103: optional link to the vault "Drawings" document that governs this activity — frozen
+    // onto inspection_records at inspection start (see startInspectionAction). Not enforced to
+    // actually be in the drawings folder here; the picker only offers those (add-item-form.tsx).
+    governing_drawing_document_id: governingDrawingDocumentId || null,
     sort_order: nextSortOrder,
   });
 

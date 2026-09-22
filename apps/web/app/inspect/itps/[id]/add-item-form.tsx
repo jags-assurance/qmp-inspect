@@ -10,6 +10,7 @@ export function AddItemForm({
   sectionId,
   disciplines,
   isIssued,
+  drawingDocuments,
 }: {
   itpId: string;
   sectionId: string;
@@ -18,6 +19,9 @@ export function AddItemForm({
    *  activity at this point is an edit-after-issue (R101) and requires a reason, since it bumps a
    *  new revision and freezes the pre-edit content into history rather than editing silently. */
   isIssued: boolean;
+  /** Vault documents from this project's "Drawings" folder — optional governing-drawing picker
+   *  (R103/R125). Empty when the project has no drawings uploaded yet. */
+  drawingDocuments: { id: string; title: string; revision: string }[];
 }) {
   const [state, formAction, pending] = useActionState(addItpItemAction, initialState);
 
@@ -77,6 +81,23 @@ export function AddItemForm({
           ))}
         </select>
       </div>
+      {drawingDocuments.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-muted">Governing drawing</label>
+          <select
+            name="governing_drawing_document_id"
+            defaultValue=""
+            className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
+          >
+            <option value="">— None —</option>
+            {drawingDocuments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.title} (Rev {d.revision})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {isIssued && (
         <div className="min-w-64 flex-1">
           <label className="block text-xs font-medium text-danger">Reason for revision (required — this ITP is already issued)</label>
