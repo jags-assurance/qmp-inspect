@@ -148,7 +148,7 @@ Home screen / orbit hub — not explicitly audited this pass (lower risk area); 
 | R69-71 | ITP formal approval chain; Hold blocks start+completion | ✅ | Confirmed (Hold enforcement is this session's own earlier fix) |
 | R72-74 | Witness notify-and-proceed with recorded non-attendance | ✅ | `"proceeded_no_response"` status, gated on elapsed notice period |
 | R76 | Explicit "request inspection / notify parties" action | ✅ | Real `notifyPartyAction`/`notifyAllPendingForItpAction` |
-| R77-78 | Configurable notice period **with a visible countdown** | 🟡 | Fully configurable and enforced server-side; **no countdown timer UI anywhere** — only a static status badge |
+| R77-78 | Configurable notice period **with a visible countdown** | ✅ | Real ticking countdown ("2h 14m left" / "Notice period elapsed") in `signoff-cell.tsx`, computed client-side from the server's own notified_at + notice-hours, updates every 30s |
 | R79 | Configurable approval workflow per client (who prepares/reviews/approves) | ✅ | `itp_approval_workflow_configs` — pin required reviewer/approver per org, or leave "Unrestricted" for today's behaviour |
 | R80 | External approval reference recording (client approves in their own system, ref recorded back) | ✅ | `itps.external_approval_reference/_recorded_by/_recorded_at`, server-side guard enforcing internal approval must come first |
 
