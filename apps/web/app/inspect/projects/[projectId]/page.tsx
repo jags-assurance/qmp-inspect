@@ -223,6 +223,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <HubCard href={`/inspect/projects/${projectId}/kpis`} title="Client KPIs" description="First-time pass rate, hold-point turnaround and more." />
           <HubCard href={`/inspect/projects/${projectId}/activity`} title="Activity" description="A live timeline of inspections, sign-offs and NCRs on this project." />
           <HubCard href={`/inspect/projects/${projectId}/reports`} title="Reports & Downloads" description="Monthly report packs and ITP documents for your organisation." />
+          {session.isJagsStaff && (
+            <HubCard href={`/inspect/projects/${projectId}/audit-log`} title="Audit Log" description="Who did what and when, across ITPs, NCRs, sign-offs and inspections." />
+          )}
         </div>
       </div>
 

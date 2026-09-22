@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
@@ -85,6 +86,18 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   if (sectionsError) {
     return { error: "ITP created, but default sections could not be added." };
   }
+
+  // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+  // creation above — see lib/audit/log.ts's doc comment.
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "itp",
+    entityId: itp.id,
+    action: "created",
+    actorId: user?.id ?? null,
+    summary: `ITP ${itpNumber} created`,
+  });
 
   redirect(`/inspect/itps/${itp.id}`);
 }
@@ -259,10 +272,7 @@ export async function advanceItpStatusAction(formData: FormData) {
 
   const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
 
-  // Best-effort: once Approved, the client's own acceptance is the next real step in the workflow
-  // (accept_itp()) — notify their linked user directly rather than relying on them noticing it on
-  // their own dashboard. Never blocks the status change itself, which has already succeeded.
-  if (!error && nextStatus === "approved") {
+  if (!error) {
     try {
       const { data: itp } = await supabase
         .from("itps")
@@ -276,24 +286,42 @@ export async function advanceItpStatusAction(formData: FormData) {
         }>();
 
       if (itp?.projects?.organization_id) {
-        const { data: clientParty } = await supabase
-          .from("project_parties")
-          .select("user_id")
-          .eq("project_id", itp.project_id)
-          .eq("party_type", "client")
-          .not("user_id", "is", null)
-          .returns<{ user_id: string | null }[]>();
+        // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+        // status change above — see lib/audit/log.ts's doc comment.
+        await recordAuditEvent(supabase, {
+          organizationId: itp.projects.organization_id,
+          projectId: itp.project_id,
+          entityType: "itp",
+          entityId: itpId,
+          action: "status_changed",
+          actorId: user?.id ?? null,
+          summary: `ITP ${itp.itp_number} moved to ${nextStatus}`,
+        });
 
-        for (const party of clientParty ?? []) {
-          if (!party.user_id) continue;
-          await createNotification(supabase, {
-            organizationId: itp.projects.organization_id,
-            projectId: itp.project_id,
-            recipientUserId: party.user_id,
-            title: "ITP ready for your acceptance",
-            body: `${itp.itp_number} — ${itp.title}`,
-            link: `/inspect/itps/${itpId}`,
-          });
+        // Best-effort: once Approved, the client's own acceptance is the next real step in the
+        // workflow (accept_itp()) — notify their linked user directly rather than relying on them
+        // noticing it on their own dashboard. Never blocks the status change itself, which has
+        // already succeeded.
+        if (nextStatus === "approved") {
+          const { data: clientParty } = await supabase
+            .from("project_parties")
+            .select("user_id")
+            .eq("project_id", itp.project_id)
+            .eq("party_type", "client")
+            .not("user_id", "is", null)
+            .returns<{ user_id: string | null }[]>();
+
+          for (const party of clientParty ?? []) {
+            if (!party.user_id) continue;
+            await createNotification(supabase, {
+              organizationId: itp.projects.organization_id,
+              projectId: itp.project_id,
+              recipientUserId: party.user_id,
+              title: "ITP ready for your acceptance",
+              body: `${itp.itp_number} — ${itp.title}`,
+              link: `/inspect/itps/${itpId}`,
+            });
+          }
         }
       }
     } catch {
@@ -307,6 +335,41 @@ export async function advanceItpStatusAction(formData: FormData) {
 export async function acceptItpAction(formData: FormData) {
   const itpId = String(formData.get("itp_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   await supabase.rpc("accept_itp", { target_itp_id: itpId });
+
+  // Best-effort: confirm the RPC actually landed (status is now client_accepted) before recording
+  // it, rather than assuming success — the audit trail is a convenience layer on top of the real
+  // mutation, never a source of truth of its own. Never blocks the caller either way.
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("itp_number, status, project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{
+        itp_number: string;
+        status: string;
+        project_id: string;
+        projects: { organization_id: string } | null;
+      }>();
+
+    if (itp?.status === "client_accepted" && itp.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "accepted",
+        actorId: user?.id ?? null,
+        summary: `ITP ${itp.itp_number} accepted by client`,
+      });
+    }
+  } catch {
+    // Best-effort — see doc comment above.
+  }
+
   revalidatePath(`/inspect/itps/${itpId}`);
 }
