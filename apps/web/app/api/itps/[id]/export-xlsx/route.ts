@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { buildItpWorkbook, type OfflineWorkbookSourceSection } from "@/lib/itps/offline-workbook";
+import { buildItpWorkbook, OFFLINE_WORKBOOK_HEADERS, type OfflineWorkbookSourceSection } from "@/lib/itps/offline-workbook";
+import { stampUncontrolledCopyBanner } from "@/lib/itps/xlsx-uncontrolled-copy";
 
 /**
  * R41 — "download an AI-drafted ITP... edit it offline... re-upload as a new validated revision."
@@ -80,6 +81,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     { itpNumber: itp.itp_number, title: itp.title, revision: itp.revision },
     sourceSections
   );
+
+  // R107 — this downloadable working copy of a controlled ITP is not itself the controlled record
+  // (see lib/itps/xlsx-uncontrolled-copy.ts's doc comment); insert a banner row above the existing
+  // title/instructions rows rather than overwriting them, so the re-upload parser (which locates
+  // the header row by its text, not a fixed row number) keeps working unchanged.
+  const sheet = workbook.worksheets[0];
+  sheet.spliceRows(1, 0, []);
+  stampUncontrolledCopyBanner(sheet, OFFLINE_WORKBOOK_HEADERS.length);
+
   const buffer = await workbook.xlsx.writeBuffer();
 
   return new NextResponse(Buffer.from(buffer), {

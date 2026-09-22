@@ -1,15 +1,17 @@
+import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_PHASES, ITP_PHASE_LABEL, normalizeItpPhase } from "@/lib/itps/phase";
 
 /**
  * R91 — "exportable ITP Register... filterable and exportable to PDF and Excel." This is the
- * Excel half: a real CSV download (same "Excel via CSV" pattern already used by the monthly report
- * pack, worker/src/jobs/generateMonthlyReportPack.ts) of every row matching the register's CURRENT
- * filters — not just the current page, since a register export exists precisely so someone can take
- * the full filtered list off-platform. Mirrors the exact filter logic in app/inspect/itps/page.tsx
- * so "what you see is what you export." RLS on `itps` applies identically to this query, so a user
- * can never export more than the register itself would show them.
+ * Excel half: a real .xlsx workbook (via exceljs, the same library every other export in this
+ * codebase already uses — see lib/checklist-library/xlsx.ts and
+ * app/api/itps/[id]/export-xlsx/route.ts) of every row matching the register's CURRENT filters —
+ * not just the current page, since a register export exists precisely so someone can take the full
+ * filtered list off-platform. Mirrors the exact filter logic in app/inspect/itps/page.tsx so "what
+ * you see is what you export." RLS on `itps` applies identically to this query, so a user can never
+ * export more than the register itself would show them.
  */
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -73,28 +75,49 @@ export async function GET(request: Request) {
     client_accepted: "Client accepted",
   };
 
-  const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
   const header = ["ITP Number", "Title", "Client", "Project", "Status", "Phase", "Revision", "Applicable Standard"];
-  const rows = (itps ?? []).map((itp) =>
-    [
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "JAGS QMP";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet("ITP Register");
+  const headerRow = sheet.addRow(header);
+  headerRow.font = { bold: true };
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE5E5E5" } };
+  });
+
+  for (const itp of itps ?? []) {
+    sheet.addRow([
       itp.itp_number,
       itp.title,
       itp.projects?.organizations?.name ?? "",
       itp.projects?.name ?? "",
       STATUS_LABEL[itp.status] ?? itp.status,
       ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)],
-      String(itp.revision),
+      itp.revision,
       itp.applicable_standard ?? "",
-    ]
-      .map(escapeCsv)
-      .join(",")
-  );
-  const csv = [header.map(escapeCsv).join(","), ...rows].join("\r\n");
+    ]);
+  }
 
-  return new NextResponse(csv, {
+  sheet.columns = [
+    { width: 16 },
+    { width: 40 },
+    { width: 24 },
+    { width: 28 },
+    { width: 16 },
+    { width: 14 },
+    { width: 10 },
+    { width: 24 },
+  ];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  return new NextResponse(Buffer.from(buffer), {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="itp-register-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="itp-register-${new Date().toISOString().slice(0, 10)}.xlsx"`,
     },
   });
 }

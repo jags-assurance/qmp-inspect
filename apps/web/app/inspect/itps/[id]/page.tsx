@@ -462,6 +462,15 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           >
             Download for offline editing
           </a>
+          {/* R107: a plain Word copy of the controlled ITP (sections/items + intervention grid),
+              stamped "UNCONTROLLED COPY" — see app/api/itps/[id]/export-docx/route.ts. Available to
+              anyone who can view the ITP, same as the PDF/.xlsx buttons above. */}
+          <a
+            href={`/api/itps/${itp.id}/export-docx`}
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+          >
+            Word
+          </a>
           {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
           <Link
             href={`/inspect/itps/${itp.id}/checklists`}
