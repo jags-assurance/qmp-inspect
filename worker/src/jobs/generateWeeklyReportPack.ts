@@ -1,7 +1,9 @@
 import puppeteer from "puppeteer";
+import ExcelJS from "exceljs";
 import { supabase } from "../supabase";
 import { buildWeeklyReportHtml, type WeeklyReportTemplateData } from "./weeklyReportTemplate";
 import { aggregateReportPackData } from "./reportPackAggregation";
+import { stampUncontrolledCopyBanner } from "./xlsxUncontrolledCopy";
 import type { GenerateWeeklyReportPackPayload } from "./types";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -37,39 +39,52 @@ function weekRange(weekStart: string): { startIso: string; endIso: string; start
   return { startIso: start.toISOString(), endIso: end.toISOString(), startDate: start, endDate: lastDay };
 }
 
-function csvEscape(value: string | number): string {
-  const str = String(value);
-  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
-  return str;
-}
+/**
+ * Builds the real .xlsx workbook for the weekly report pack. Weekly sibling of buildXlsx in
+ * generateMonthlyReportPack.ts — same columns the old CSV export carried, same three-sheet split,
+ * and the same R107 "UNCONTROLLED COPY" banner (see that file's buildXlsx doc comment and
+ * xlsxUncontrolledCopy.ts for the reasoning — a weekly pack is exactly as ad-hoc as a monthly one).
+ */
+async function buildXlsx(data: WeeklyReportTemplateData): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "JAGS QMP";
+  workbook.created = data.generatedAt;
 
-function buildCsv(data: WeeklyReportTemplateData): string {
-  const lines: string[] = [];
-  lines.push(`Weekly Report Pack,${csvEscape(data.organizationName)},${csvEscape(data.weekLabel)}`);
-  lines.push("");
-  lines.push("KPI,Value");
-  lines.push(`First-Time Pass Rate %,${data.firstTimePassRate ?? ""}`);
-  lines.push(`First Attempts,${data.firstTimePassCounts.firstAttempts}`);
-  lines.push(`First-Time Passes,${data.firstTimePassCounts.firstTimePasses}`);
-  lines.push(`Inspections Completed,${data.inspectionsCompleted}`);
-  lines.push(`ITP Completion %,${data.itpCompletionRate ?? ""}`);
-  lines.push(`ITPs Client-Accepted,${data.itpCompletionCounts.clientAccepted}`);
-  lines.push(`ITPs Total,${data.itpCompletionCounts.total}`);
-  lines.push(`NCRs Opened This Week,${data.ncrsOpenedInWeek}`);
-  lines.push(`NCRs Closed This Week,${data.ncrsClosedInWeek}`);
-  lines.push("");
-  lines.push("NCR Summary by Severity,Opened,Closed");
+  const summarySheet = workbook.addWorksheet("Summary");
+  stampUncontrolledCopyBanner(summarySheet, 2);
+  summarySheet.addRow([`Weekly Report Pack — ${data.organizationName} — ${data.weekLabel}`]);
+  summarySheet.addRow([]);
+  summarySheet.addRow(["KPI", "Value"]).font = { bold: true };
+  summarySheet.addRow(["First-Time Pass Rate %", data.firstTimePassRate ?? ""]);
+  summarySheet.addRow(["First Attempts", data.firstTimePassCounts.firstAttempts]);
+  summarySheet.addRow(["First-Time Passes", data.firstTimePassCounts.firstTimePasses]);
+  summarySheet.addRow(["Inspections Completed", data.inspectionsCompleted]);
+  summarySheet.addRow(["ITP Completion %", data.itpCompletionRate ?? ""]);
+  summarySheet.addRow(["ITPs Client-Accepted", data.itpCompletionCounts.clientAccepted]);
+  summarySheet.addRow(["ITPs Total", data.itpCompletionCounts.total]);
+  summarySheet.addRow(["NCRs Opened This Week", data.ncrsOpenedInWeek]);
+  summarySheet.addRow(["NCRs Closed This Week", data.ncrsClosedInWeek]);
+  summarySheet.columns = [{ width: 28 }, { width: 20 }];
+
+  const ncrSheet = workbook.addWorksheet("NCRs by Severity");
+  stampUncontrolledCopyBanner(ncrSheet, 3);
+  ncrSheet.addRow(["Severity", "Opened", "Closed"]).font = { bold: true };
   for (const row of data.ncrsBySeverity) {
-    lines.push(`${csvEscape(row.severity)},${row.opened},${row.closed}`);
+    ncrSheet.addRow([row.severity, row.opened, row.closed]);
   }
-  lines.push("");
-  lines.push("Project,Project Number,Inspections Completed,NCRs Opened,NCRs Closed");
+  ncrSheet.columns = [{ width: 22 }, { width: 12 }, { width: 12 }];
+
+  const projectSheet = workbook.addWorksheet("Per Project");
+  stampUncontrolledCopyBanner(projectSheet, 5);
+  projectSheet.addRow(["Project", "Project Number", "Inspections Completed", "NCRs Opened", "NCRs Closed"]).font = {
+    bold: true,
+  };
   for (const row of data.perProject) {
-    lines.push(
-      `${csvEscape(row.projectName)},${csvEscape(row.projectNumber)},${row.inspectionsCompleted},${row.ncrsOpened},${row.ncrsClosed}`
-    );
+    projectSheet.addRow([row.projectName, row.projectNumber, row.inspectionsCompleted, row.ncrsOpened, row.ncrsClosed]);
   }
-  return lines.join("\n");
+  projectSheet.columns = [{ width: 28 }, { width: 18 }, { width: 22 }, { width: 14 }, { width: 14 }];
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 /**
@@ -77,8 +92,6 @@ function buildCsv(data: WeeklyReportTemplateData): string {
  * of that organisation's projects. The weekly sibling of generateMonthlyReportPack.ts (R109) —
  * same fetch -> template -> Puppeteer PDF -> Storage upload pattern, and the same fetch/aggregation
  * logic (shared via reportPackAggregation.ts), just scoped to a week instead of a calendar month.
- * See that file's own header comment for the Excel-vs-CSV substitution note, which applies here
- * identically.
  */
 export async function generateWeeklyReportPack(
   payload: GenerateWeeklyReportPackPayload
@@ -108,7 +121,7 @@ export async function generateWeeklyReportPack(
   };
 
   const html = buildWeeklyReportHtml(templateData);
-  const csv = buildCsv(templateData);
+  const xlsxBuffer = await buildXlsx(templateData);
 
   // Same executablePath override note as generateMonthlyReportPack.ts.
   const browser = await puppeteer.launch({
@@ -135,7 +148,7 @@ export async function generateWeeklyReportPack(
 
   const basePath = `weekly-reports/${organizationId}/${weekStart}`;
   const pdfPath = `${basePath}/report-pack.pdf`;
-  const csvPath = `${basePath}/report-pack.csv`;
+  const xlsxPath = `${basePath}/report-pack.xlsx`;
 
   const { error: pdfUploadError } = await supabase.storage
     .from(GENERATED_DOCUMENTS_BUCKET)
@@ -145,15 +158,18 @@ export async function generateWeeklyReportPack(
     throw new Error(`Failed to upload weekly report PDF: ${pdfUploadError.message}`);
   }
 
-  const { error: csvUploadError } = await supabase.storage
+  const { error: xlsxUploadError } = await supabase.storage
     .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(csvPath, Buffer.from(csv, "utf-8"), { contentType: "text/csv", upsert: true });
+    .upload(xlsxPath, xlsxBuffer, {
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      upsert: true,
+    });
 
-  if (csvUploadError) {
-    throw new Error(`Failed to upload weekly report CSV: ${csvUploadError.message}`);
+  if (xlsxUploadError) {
+    throw new Error(`Failed to upload weekly report Excel workbook: ${xlsxUploadError.message}`);
   }
 
   // result_storage_path stores the PDF path, same convention as generateMonthlyReportPack.ts — the
-  // web app derives the CSV path by convention (csvPathFromPdfPath) instead of a second DB column.
+  // web app derives the .xlsx path by convention (xlsxPathFromPdfPath) instead of a second DB column.
   return { resultStoragePath: pdfPath };
 }

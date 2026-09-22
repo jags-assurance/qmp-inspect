@@ -86,9 +86,9 @@ export function WeeklyReportPackForm({ organizationId, initialPacks }: { organiz
                           Download PDF
                         </a>
                       )}
-                      {pack.csvDownloadUrl && (
-                        <a href={pack.csvDownloadUrl} className="text-burgundy underline">
-                          Download CSV
+                      {pack.xlsxDownloadUrl && (
+                        <a href={pack.xlsxDownloadUrl} className="text-burgundy underline">
+                          Download Excel
                         </a>
                       )}
                     </span>

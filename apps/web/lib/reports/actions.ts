@@ -14,7 +14,7 @@ import {
 import {
   BACKGROUND_JOBS_TABLE,
   GENERATED_DOCUMENTS_BUCKET,
-  csvPathFromPdfPath,
+  xlsxPathFromPdfPath,
   type BackgroundJobRow,
   type MonthlyReportPackPayload,
   type WeeklyReportPackPayload,
@@ -154,8 +154,8 @@ export interface WeeklyReportPackListItem {
   completedAt: string | null;
   pdfUrl: string | null;
   pdfDownloadUrl: string | null;
-  csvUrl: string | null;
-  csvDownloadUrl: string | null;
+  xlsxUrl: string | null;
+  xlsxDownloadUrl: string | null;
 }
 
 /**
@@ -185,21 +185,21 @@ export async function listWeeklyReportPacks(organizationId: string): Promise<Wee
   for (const job of orgJobs) {
     let pdfUrl: string | null = null;
     let pdfDownloadUrl: string | null = null;
-    let csvUrl: string | null = null;
-    let csvDownloadUrl: string | null = null;
+    let xlsxUrl: string | null = null;
+    let xlsxDownloadUrl: string | null = null;
 
     if (job.status === "completed" && job.result_storage_path) {
-      const csvPath = csvPathFromPdfPath(job.result_storage_path);
-      const [{ data: pdfSigned }, { data: pdfDownloadSigned }, { data: csvSigned }, { data: csvDownloadSigned }] = await Promise.all([
+      const xlsxPath = xlsxPathFromPdfPath(job.result_storage_path);
+      const [{ data: pdfSigned }, { data: pdfDownloadSigned }, { data: xlsxSigned }, { data: xlsxDownloadSigned }] = await Promise.all([
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600),
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600, { download: true }),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(csvPath, 3600),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(csvPath, 3600, { download: true }),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600, { download: true }),
       ]);
       pdfUrl = pdfSigned?.signedUrl ?? null;
       pdfDownloadUrl = pdfDownloadSigned?.signedUrl ?? null;
-      csvUrl = csvSigned?.signedUrl ?? null;
-      csvDownloadUrl = csvDownloadSigned?.signedUrl ?? null;
+      xlsxUrl = xlsxSigned?.signedUrl ?? null;
+      xlsxDownloadUrl = xlsxDownloadSigned?.signedUrl ?? null;
     }
 
     items.push({
@@ -211,8 +211,8 @@ export async function listWeeklyReportPacks(organizationId: string): Promise<Wee
       completedAt: job.completed_at,
       pdfUrl,
       pdfDownloadUrl,
-      csvUrl,
-      csvDownloadUrl,
+      xlsxUrl,
+      xlsxDownloadUrl,
     });
   }
 
@@ -710,8 +710,8 @@ export interface ReportPackListItem {
   completedAt: string | null;
   pdfUrl: string | null;
   pdfDownloadUrl: string | null;
-  csvUrl: string | null;
-  csvDownloadUrl: string | null;
+  xlsxUrl: string | null;
+  xlsxDownloadUrl: string | null;
 }
 
 /**
@@ -746,21 +746,21 @@ export async function listMonthlyReportPacks(organizationId: string): Promise<Re
   for (const job of orgJobs) {
     let pdfUrl: string | null = null;
     let pdfDownloadUrl: string | null = null;
-    let csvUrl: string | null = null;
-    let csvDownloadUrl: string | null = null;
+    let xlsxUrl: string | null = null;
+    let xlsxDownloadUrl: string | null = null;
 
     if (job.status === "completed" && job.result_storage_path) {
-      const csvPath = csvPathFromPdfPath(job.result_storage_path);
-      const [{ data: pdfSigned }, { data: pdfDownloadSigned }, { data: csvSigned }, { data: csvDownloadSigned }] = await Promise.all([
+      const xlsxPath = xlsxPathFromPdfPath(job.result_storage_path);
+      const [{ data: pdfSigned }, { data: pdfDownloadSigned }, { data: xlsxSigned }, { data: xlsxDownloadSigned }] = await Promise.all([
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600),
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600, { download: true }),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(csvPath, 3600),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(csvPath, 3600, { download: true }),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600, { download: true }),
       ]);
       pdfUrl = pdfSigned?.signedUrl ?? null;
       pdfDownloadUrl = pdfDownloadSigned?.signedUrl ?? null;
-      csvUrl = csvSigned?.signedUrl ?? null;
-      csvDownloadUrl = csvDownloadSigned?.signedUrl ?? null;
+      xlsxUrl = xlsxSigned?.signedUrl ?? null;
+      xlsxDownloadUrl = xlsxDownloadSigned?.signedUrl ?? null;
     }
 
     items.push({
@@ -773,8 +773,8 @@ export async function listMonthlyReportPacks(organizationId: string): Promise<Re
       completedAt: job.completed_at,
       pdfUrl,
       pdfDownloadUrl,
-      csvUrl,
-      csvDownloadUrl,
+      xlsxUrl,
+      xlsxDownloadUrl,
     });
   }
 
