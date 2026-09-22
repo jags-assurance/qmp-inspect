@@ -54,6 +54,7 @@ export interface ItpMasterItemRow {
   method: string | null;
   frequency: string | null;
   evidence_type: 1 | 2 | 3;
+  discipline_id: string | null;
   sort_order: number;
 }
 

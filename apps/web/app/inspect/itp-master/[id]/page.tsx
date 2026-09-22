@@ -8,6 +8,8 @@ import {
   ITP_MASTER_SECTIONS_TABLE,
   type ItpMasterTemplateRow,
 } from "@/lib/itp-master/types";
+import { ITP_MASTER_REVISIONS_TABLE, type ItpMasterRevisionRow } from "@/lib/itp-master/revision-types";
+import { VersionHistoryPanel } from "./version-history-panel";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -54,6 +56,17 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
     .eq("template_id", id)
     .order("section_number")
     .returns<SectionWithItems[]>();
+
+  // R31 version history — frozen snapshots of past master template versions, newest first. See
+  // lib/itp-master/revisions.ts for what writes these rows.
+  const { data: revisions } = await supabase
+    .from(ITP_MASTER_REVISIONS_TABLE)
+    .select(
+      "id, template_id, version, title, industry, applicable_standard, sections_snapshot, reason, created_by, created_at, users(full_name)"
+    )
+    .eq("template_id", id)
+    .order("version", { ascending: false })
+    .returns<(ItpMasterRevisionRow & { users: { full_name: string } | null })[]>();
 
   return (
     <div>
@@ -113,6 +126,8 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
         ))}
         {(sections ?? []).length === 0 && <p className="text-sm text-muted">No sections in this template.</p>}
       </div>
+
+      <VersionHistoryPanel revisions={revisions ?? []} />
     </div>
   );
 }
