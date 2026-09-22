@@ -9,10 +9,15 @@ export function AddItemForm({
   itpId,
   sectionId,
   disciplines,
+  isIssued,
 }: {
   itpId: string;
   sectionId: string;
   disciplines: { id: string; code: string; name: string }[];
+  /** True once the ITP has left draft/under_review (approved or client_accepted) — adding an
+   *  activity at this point is an edit-after-issue (R101) and requires a reason, since it bumps a
+   *  new revision and freezes the pre-edit content into history rather than editing silently. */
+  isIssued: boolean;
 }) {
   const [state, formAction, pending] = useActionState(addItpItemAction, initialState);
 
@@ -72,13 +77,29 @@ export function AddItemForm({
           ))}
         </select>
       </div>
+      {isIssued && (
+        <div className="min-w-64 flex-1">
+          <label className="block text-xs font-medium text-danger">Reason for revision (required — this ITP is already issued)</label>
+          <input
+            name="revision_reason"
+            required
+            placeholder="Why this activity is being added after issue"
+            className="mt-1 w-full rounded-md border border-danger/40 bg-surface px-2.5 py-2 text-sm outline-none focus:border-danger"
+          />
+        </div>
+      )}
       <button
         type="submit"
         disabled={pending}
         className="rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-medium hover:bg-off-white disabled:opacity-50"
       >
-        {pending ? "Adding…" : "+ Add activity"}
+        {pending ? "Adding…" : isIssued ? "+ Add activity (new revision)" : "+ Add activity"}
       </button>
+      {isIssued && (
+        <p className="w-full text-xs text-warning">
+          This ITP has already been issued — adding an activity will record a new revision and freeze the current content into history.
+        </p>
+      )}
       {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );

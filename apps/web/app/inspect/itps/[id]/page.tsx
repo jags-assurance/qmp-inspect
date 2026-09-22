@@ -34,6 +34,8 @@ import {
   type InterventionLevelTypeRow,
 } from "@/lib/intervention-levels/types";
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
+import { ITP_REVISIONS_TABLE, type ItpRevisionRow } from "@/lib/itps/revision-types";
+import { RevisionHistoryPanel } from "./revision-history-panel";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -128,6 +130,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     { data: rawVaultDocuments },
     { data: levelTypes },
     { data: aiDraftReview },
+    { data: revisions },
   ] = await Promise.all([
       // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
       // everything else below, so it runs concurrently instead of blocking the rest of the page
@@ -208,6 +211,14 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .eq("target_type", "itp")
         .eq("target_id", itp.id)
         .maybeSingle<{ reviewed_by: string | null; reviewed_at: string | null; users: { full_name: string } | null }>(),
+      // R101 revision history — frozen snapshots of past revisions, newest first. See
+      // lib/itps/revisions.ts for what writes these rows.
+      supabase
+        .from(ITP_REVISIONS_TABLE)
+        .select("id, itp_id, revision, title, scope, applicable_standard, sections_snapshot, reason, created_by, created_at, users(full_name)")
+        .eq("itp_id", itp.id)
+        .order("revision", { ascending: false })
+        .returns<(ItpRevisionRow & { users: { full_name: string } | null })[]>(),
     ]);
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
@@ -443,6 +454,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      <RevisionHistoryPanel revisions={revisions ?? []} />
+
       {/* Jump-to-section nav: purely a scanning aid for long ITPs (several sections, each a wide
           H/W/R/S table) — no data is hidden or removed, this just anchors to each section's
           existing heading. Only worth showing once there's more than one section to jump between. */}
@@ -521,7 +534,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
               )}
             </div>
             {canEditContent && (
-              <AddItemForm itpId={itp.id} sectionId={section.id} disciplines={disciplines ?? []} />
+              <AddItemForm
+                itpId={itp.id}
+                sectionId={section.id}
+                disciplines={disciplines ?? []}
+                isIssued={itp.status === "approved" || itp.status === "client_accepted"}
+              />
             )}
           </div>
         ))}

@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
+import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -101,12 +102,41 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   const acceptanceCriteria = String(formData.get("acceptance_criteria") ?? "").trim();
   const evidenceType = Number(formData.get("evidence_type") ?? 1);
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
 
   if (!sectionId || !itemNumber || !activity) {
     return { error: "Item number and activity are required." };
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // R101: itp_items_write RLS lets JAGS staff add an item to an ITP at any status (a client's own
+  // is_client_itp_creator path is draft-only, so this is the only edit reachable after issue). Adding
+  // an item to an already-approved/client-accepted ITP is exactly the "edit after issue" this
+  // requirement targets — freeze the pre-edit content as history and bump the revision counter before
+  // applying it, rather than letting an issued document change silently with no record.
+  const { data: itpForRevisionCheck } = await supabase
+    .from("itps")
+    .select("status")
+    .eq("id", itpId)
+    .maybeSingle<{ status: string }>();
+  const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
+
+  if (isIssued) {
+    if (!revisionReason) {
+      return { error: "This ITP has already been issued — a reason is required to add an activity and create a new revision." };
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error: revisionError } = await bumpRevisionIfIssued(
+      supabase,
+      itpId,
+      `Added activity ${itemNumber}: ${activity} — ${revisionReason}`,
+      user?.id ?? null
+    );
+    if (revisionError) return { error: revisionError };
+  }
 
   // itp_items.sort_order defaults to 0 in the schema, and this was the only item-creation path that
   // never set it (the AI-draft and master-template-clone paths both assign sort_order: i on insert —
@@ -315,6 +345,17 @@ export async function advanceItpStatusAction(formData: FormData) {
       }
     } catch {
       // Best-effort — see doc comment above.
+    }
+  }
+
+  // R101: revision 0's baseline snapshot is written the moment the document is first genuinely
+  // "issued" — this is that moment. Best-effort (never blocks the status change itself, which has
+  // already succeeded): a failed snapshot here is a missing history row, not a broken approval.
+  if (!error && nextStatus === "approved") {
+    try {
+      await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
+    } catch {
+      // Best-effort — see comment above.
     }
   }
 
