@@ -13,6 +13,20 @@ export interface DataBookPdfCategory {
   percentage: number;
 }
 
+/** R88 — one row of the "Breakdown by service / discipline" table, mirroring
+ *  apps/web/lib/databook/discipline-breakdown.ts's DataBookDisciplineRow exactly (the worker can't
+ *  import that file directly — same reason renderDataBookPdf.ts re-derives readiness.ts instead of
+ *  importing it, see that file's header comment). */
+export interface DataBookPdfDisciplineRow {
+  disciplineCode: string;
+  disciplineName: string;
+  itpCount: number;
+  ncrCount: number;
+  firstAttempts: number;
+  firstTimePasses: number;
+  firstTimePassRate: number | null;
+}
+
 export interface DataBookPdfData {
   bookNumber: string;
   title: string;
@@ -27,6 +41,9 @@ export interface DataBookPdfData {
   categories: DataBookPdfCategory[];
   /** Informational only, same as readiness.ts's handoverCertificate — excluded from overallPercentage. */
   handoverCertificate: DataBookPdfCategory;
+  /** R88 — per-discipline subtotals, in display order. Empty when nothing on the project is
+   *  discipline-tagged yet (see discipline-breakdown.ts's honesty rule). */
+  disciplineBreakdown: DataBookPdfDisciplineRow[];
   openPunchItems: number;
   overallPercentage: number;
   isReady: boolean;
@@ -86,6 +103,45 @@ function renderCategoryTable(title: string, categories: DataBookPdfCategory[]): 
           <tr><th>Category</th><th>Provided / Required</th><th>Complete</th></tr>
         </thead>
         <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderDisciplineRow(row: DataBookPdfDisciplineRow): string {
+  const rateLabel = row.firstTimePassRate === null ? "&mdash;" : `${row.firstTimePassRate}%`;
+  const rateToneClass =
+    row.firstTimePassRate === null
+      ? ""
+      : row.firstTimePassRate === 100
+        ? "cat-ready"
+        : row.firstTimePassRate >= 80
+          ? "cat-partial"
+          : "cat-empty";
+  return `
+    <tr>
+      <td>${escapeHtml(row.disciplineName)} <span class="discipline-code">${escapeHtml(row.disciplineCode)}</span></td>
+      <td class="cat-count">${row.itpCount}</td>
+      <td class="cat-count">${row.ncrCount}</td>
+      <td class="cat-pct ${rateToneClass}">${rateLabel}${row.firstAttempts > 0 ? ` <span class="discipline-code">(${row.firstTimePasses}/${row.firstAttempts})</span>` : ""}</td>
+    </tr>`;
+}
+
+function renderDisciplineBreakdownTable(rows: DataBookPdfDisciplineRow[]): string {
+  if (rows.length === 0) {
+    return `
+    <div class="section">
+      <h2>Breakdown by service / discipline</h2>
+      <p class="discipline-empty">No ITP activities on this project are tagged with a discipline yet.</p>
+    </div>`;
+  }
+  return `
+    <div class="section">
+      <h2>Breakdown by service / discipline</h2>
+      <table class="category-table">
+        <thead>
+          <tr><th>Discipline</th><th>ITPs</th><th>NCRs</th><th>First-time pass rate</th></tr>
+        </thead>
+        <tbody>${rows.map(renderDisciplineRow).join("")}</tbody>
       </table>
     </div>`;
 }
@@ -233,6 +289,8 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   td.cat-pct.cat-ready { color: var(--success); }
   td.cat-pct.cat-partial { color: #b8860b; }
   td.cat-pct.cat-empty { color: var(--danger); }
+  .discipline-code { color: #888; font-size: 8px; }
+  .discipline-empty { font-size: 9.5px; color: #666; }
 
   .overall-stat-bar {
     display: flex; align-items: center; gap: 18px; margin-bottom: 14px;
@@ -291,6 +349,8 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   ${data.overrideReason ? `<div class="section"><h2>Conditional handover</h2><p>${escapeHtml(data.overrideReason)}</p></div>` : ""}
 
   ${renderCategoryTable("Readiness by category", data.categories)}
+
+  ${renderDisciplineBreakdownTable(data.disciplineBreakdown)}
 
   ${renderCategoryTable("Handover", [data.handoverCertificate])}
 

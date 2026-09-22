@@ -4,10 +4,12 @@ import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { Badge } from "@/components/ui/badge";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
+import { computeDataBookDisciplineBreakdown } from "@/lib/databook/discipline-breakdown";
 import { DATA_BOOKS_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { getLatestDataBookPdf } from "@/lib/reports/actions";
 import { ReadinessPanel } from "./readiness-panel";
+import { DisciplineBreakdownPanel } from "./discipline-breakdown-panel";
 import { CreateDataBookForm } from "./create-databook-form";
 import { CompileDataBookForm, type OpenPunchItemPreview } from "./compile-databook-form";
 import { IssueHandoverForm } from "./issue-handover-form";
@@ -49,8 +51,9 @@ export default async function DataBookPage({
     redirect(`/inspect/projects/${projectId}`);
   }
 
-  const [readiness, { data: dataBooks }, { data: openPunchItemRows }] = await Promise.all([
+  const [readiness, disciplineBreakdown, { data: dataBooks }, { data: openPunchItemRows }] = await Promise.all([
     computeDataBookReadiness(projectId),
+    computeDataBookDisciplineBreakdown(projectId),
     supabase
       .from(DATA_BOOKS_TABLE)
       .select("*")
@@ -85,6 +88,10 @@ export default async function DataBookPage({
 
       <div className="mt-6">
         <ReadinessPanel readiness={readiness} />
+      </div>
+
+      <div className="mt-6">
+        <DisciplineBreakdownPanel rows={disciplineBreakdown} />
       </div>
 
       {session.isJagsStaff && (
