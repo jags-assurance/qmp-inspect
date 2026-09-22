@@ -43,6 +43,10 @@ import { RevisionHistoryPanel } from "./revision-history-panel";
 // isIssued/section-count values passed into them.
 import { AddSectionForm } from "./add-section-form";
 import { SectionControls } from "./section-controls";
+// R41 — AI offline round-trip: download the ITP's current content as an editable .xlsx, then
+// re-upload the edited file to create a new validated revision. See offline-revision-form.tsx and
+// lib/itps/offline-revision-actions.ts.
+import { OfflineRevisionForm } from "./offline-revision-form";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -428,6 +432,15 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="flex flex-wrap gap-2">
           <ItpPdfButton itpId={itp.id} latest={latestPdf} />
+          {/* R41: export the ITP's current content as an editable .xlsx — offline-revision-form.tsx
+              below is the matching re-upload half of this round trip. Available to anyone who can
+              view the ITP, same as the PDF button; the re-upload side is staff-only. */}
+          <a
+            href={`/api/itps/${itp.id}/export-xlsx`}
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+          >
+            Download for offline editing
+          </a>
           {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
           <Link
             href={`/inspect/itps/${itp.id}/checklists`}
@@ -482,6 +495,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       <RevisionHistoryPanel revisions={revisions ?? []} />
+
+      {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
+          validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on
+          this page) once the reviewer confirms the previewed diff. */}
+      {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
 
       {/* Jump-to-section nav: purely a scanning aid for long ITPs (several sections, each a wide
           H/W/R/S table) — no data is hidden or removed, this just anchors to each section's
