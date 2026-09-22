@@ -17,6 +17,8 @@ import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
 import { ResponsiblePersonPicker } from "./responsible-person-picker";
+import { isAiConfigured } from "@/lib/ai/gate";
+import { AskProjectPanel } from "./ask-project-panel";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -241,6 +243,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
       </div>
+
+      {isAiConfigured() && <AskProjectPanel projectId={project.id} />}
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">

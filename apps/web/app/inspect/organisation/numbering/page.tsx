@@ -15,6 +15,7 @@ import { OrgPickerForm } from "./org-picker-form";
 import { MonthlyReportPackForm } from "./monthly-report-pack-form";
 import { WeeklyReportPackForm } from "./weekly-report-pack-form";
 import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
+import { isAiConfigured } from "@/lib/ai/gate";
 
 interface OrganizationOption {
   id: string;
@@ -225,7 +226,7 @@ export default async function NumberingSettingsPage({
                   reload needed.
                 </p>
                 <div className="mt-4">
-                  <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} />
+                  <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={isAiConfigured()} />
                 </div>
               </div>
 

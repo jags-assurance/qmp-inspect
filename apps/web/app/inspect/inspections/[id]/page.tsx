@@ -24,6 +24,7 @@ import {
 import { InspectionReportPdfButton } from "./inspection-report-pdf-button";
 import { IrnPdfButton } from "./irn-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
+import { isAiConfigured } from "@/lib/ai/gate";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -259,6 +260,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           <NarrativeEditor
             recordIdFieldName="inspection_record_id"
             recordId={record.id}
+            projectId={record.project_id}
+            aiConfigured={isAiConfigured()}
             initialNarrative={record.narrative}
             draftAction={draftInspectionNarrativeAction}
             saveAction={saveInspectionNarrativeAction}

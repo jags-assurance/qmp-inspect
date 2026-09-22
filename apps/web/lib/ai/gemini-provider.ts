@@ -1,7 +1,9 @@
 import type {
   AiProvider,
+  AskProjectQuestionInput,
   ChecklistItemDraft,
   CheckConsistencyInput,
+  CleanUpTextInput,
   DraftNcrDescriptionInput,
   DraftNcrDescriptionResult,
   DraftReportNarrativeInput,
@@ -15,6 +17,8 @@ import type {
   StandaloneMeasurementSuggestion,
   SuggestRootCauseInput,
   SuggestStandaloneMeasurementsInput,
+  SummarizeReportPackInput,
+  TranslateTextInput,
 } from "@/lib/ai/provider";
 import type { AiFeature } from "@/lib/ai/log";
 
@@ -49,6 +53,10 @@ const FEATURE_TIER: Record<AiFeature, GeminiTier> = {
   calibration_register_extraction: "light",
   welder_register_extraction: "light",
   material_register_extraction: "light",
+  content_translation: "light",
+  project_qa: "light",
+  text_cleanup: "light",
+  report_pack_summary: "light",
 };
 
 /** The model id actually in effect for a given feature right now (e.g. "gemini-2.5-pro") — for the
@@ -72,6 +80,10 @@ export const PROMPT_VERSIONS: Record<AiFeature, string> = {
   calibration_register_extraction: "calibration-extraction-v1",
   welder_register_extraction: "welder-extraction-v1",
   material_register_extraction: "material-extraction-v1",
+  content_translation: "content-translation-v1",
+  project_qa: "project-qa-v1",
+  text_cleanup: "text-cleanup-v1",
+  report_pack_summary: "report-pack-summary-v1",
 };
 
 interface GeminiGenerateContentResponse {
@@ -670,6 +682,105 @@ export class GeminiProvider implements AiProvider {
         poReference: r.po_reference ? String(r.po_reference).trim() : null,
         certificateReference: r.certificate_reference ? String(r.certificate_reference).trim() : null,
       }));
+  }
+
+  /** R111 (1/4) — translates one piece of real content (an ITP title/scope, an NCR description, a
+   *  report narrative, etc.) into another language, for display alongside the original. Plain text
+   *  only: no markdown, no commentary, no re-statement of the source language — just the
+   *  translation, exactly as the model actually produces it for whatever language was picked. */
+  async translateText(input: TranslateTextInput): Promise<string> {
+    const prompt = [
+      `Translate the following text into ${input.targetLanguage}.`,
+      "Preserve the original meaning and register (this is real project/QA documentation content,",
+      "not casual writing) and keep any technical terms, standard references, or reference numbers",
+      "intact where a translation would lose or garble their meaning.",
+      "Return ONLY the translated text — no explanation, no quotation marks, no restating the",
+      "source text, no markdown.",
+      "",
+      "TEXT TO TRANSLATE:",
+      input.text,
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, false);
+    return text.trim();
+  }
+
+  /** R111 (2/4) — answers a free-text question about one project, grounded ONLY in the real project
+   *  context the caller assembled (see lib/projects/qa-context.ts). If that context genuinely
+   *  doesn't contain an answer, the model saying so plainly is the correct, honest outcome — this
+   *  method does nothing to prevent or paper over that. */
+  async askProjectQuestion(input: AskProjectQuestionInput): Promise<string> {
+    const prompt = [
+      "You are answering a question about ONE specific construction/industrial QA project, for a",
+      "person already working on it. Base your answer ONLY on the PROJECT CONTEXT given below —",
+      "real data pulled from this project's ITPs, NCRs and recent inspection records. Never invent a",
+      "fact, a number, a name, or a status that isn't in the context given. If the context genuinely",
+      "doesn't contain enough information to answer, say so plainly instead of guessing.",
+      "",
+      "Answer concisely and factually, in plain text (no markdown), as you would speak to a",
+      "colleague who already knows the project.",
+      "",
+      "PROJECT CONTEXT:",
+      input.projectContext,
+      "",
+      `QUESTION: ${input.question}`,
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, false);
+    return text.trim();
+  }
+
+  /** R111 (3/4) — returns a grammar/clarity-cleaned rewrite of a free-text draft the user is already
+   *  typing (an NCR description, a report narrative, etc.), for them to explicitly accept or
+   *  discard — this never gets applied on its own. Fixes wording only: it must never add, remove or
+   *  change a fact, a number, a name, or a finding the original text didn't already state. */
+  async cleanUpText(input: CleanUpTextInput): Promise<string> {
+    const prompt = [
+      "You are cleaning up the wording of a short piece of real QA/QC documentation text — fix",
+      "grammar, clarity, and professional tone ONLY. Do not add, remove, or change any fact, number,",
+      "name, finding, or meaning the original text doesn't already contain. Do not make it longer",
+      "or more elaborate than the original intent — this is a clean-up pass, not a rewrite.",
+      "If the text is already clear and correctly worded, return it unchanged.",
+      "",
+      "Return ONLY the cleaned-up text — no explanation, no quotation marks, no markdown.",
+      "",
+      "TEXT:",
+      input.text,
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, false);
+    return text.trim();
+  }
+
+  /** R111 (4/4) — a few sentences of prose summarising one organisation's already-aggregated report-
+   *  pack numbers (the same numbers the PDF/xlsx itself renders — see worker/src/jobs/
+   *  reportPackAggregation.ts). Every number is passed in, never invented here; a null rate (not yet
+   *  computable, e.g. no inspections yet) is reported as such, not filled in with a guess. */
+  async summarizeReportPack(input: SummarizeReportPackInput): Promise<string> {
+    const prompt = [
+      "You are writing the executive-summary paragraph at the top of a QA/QC client report pack —",
+      "the standard a report reader (a client PM, not a QA engineer) would actually read first.",
+      "Summarise the real, already-computed numbers below in 3-5 plain-English sentences: overall",
+      "quality performance this period, the NCR picture (opened vs. closed — note if the backlog",
+      "grew or shrank), and ITP completion progress. Use ONLY the numbers given — never invent a",
+      "rate, count, or trend the numbers below don't support, and never speculate about causes you",
+      "aren't given evidence for. If a rate is null, say plainly that it isn't yet computable for",
+      "this period (e.g. no inspections recorded) rather than omitting or guessing it.",
+      "",
+      "Return plain text only — no markdown, no headings, no quotation marks.",
+      "",
+      `Organisation: ${input.organizationName}`,
+      `Period: ${input.periodLabel}`,
+      `Projects covered: ${input.projectCount}`,
+      `First-time pass rate: ${input.firstTimePassRate === null ? "not yet computable" : `${input.firstTimePassRate}%`}`,
+      `Inspections completed: ${input.inspectionsCompleted}`,
+      `NCRs opened this period: ${input.ncrsOpened}`,
+      `NCRs closed this period: ${input.ncrsClosed}`,
+      `ITP completion rate: ${input.itpCompletionRate === null ? "not yet computable" : `${input.itpCompletionRate}%`}`,
+    ].join("\n");
+
+    const text = await generateContent("light", prompt, false);
+    return text.trim();
   }
 }
 

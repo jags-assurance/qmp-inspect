@@ -50,6 +50,9 @@ import { OfflineRevisionForm } from "./offline-revision-form";
 // R23: three-phase ITP lifecycle badge (Development/Execution/Handover) — a real, derived column
 // distinct from the status stepper below (see lib/itps/phase.ts's doc comment).
 import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
+// R111: honest "AI not configured" gate (R43's pattern) for the translate-content panel below.
+import { isAiConfigured } from "@/lib/ai/gate";
+import { TranslateContentPanel } from "./translate-content-panel";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -421,6 +424,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             {itp.projects?.organizations?.name} · {itp.projects?.name}
             {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
           </p>
+          {isAiConfigured() && <TranslateContentPanel itpId={itp.id} />}
           {signoffTotal > 0 && (
             <p className="mt-1 text-sm text-muted">
               {signoffComplete} of {signoffTotal} sign-off points complete

@@ -7,6 +7,10 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { assertAiAllowed } from "@/lib/ai/gate";
+import { logAiUsage } from "@/lib/ai/log";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { NCRS_TABLE } from "@/lib/ncrs/types";
 
 export interface CreateProjectState {
   error: string | null;
@@ -688,4 +692,128 @@ export async function setResponsiblePersonAction(
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
+}
+
+export interface AskProjectQuestionState {
+  error: string | null;
+  answer: string | null;
+  question: string | null;
+}
+
+const EMPTY_ASK_STATE: AskProjectQuestionState = { error: null, answer: null, question: null };
+
+// Caps how much of each list feeds the context block, so one very large/old project can't blow the
+// prompt budget — same reasoning as MAX_COMBINED_SOURCE_CHARS in gemini-provider.ts, just simpler
+// since this context is short structured lines, not full document text.
+const QA_CONTEXT_ITP_LIMIT = 40;
+const QA_CONTEXT_NCR_LIMIT = 20;
+const QA_CONTEXT_RECORD_LIMIT = 15;
+
+/**
+ * R111: "Ask your project" — a project-scoped Q&A assistant. Assembles a plain-text context block
+ * from this project's OWN real data (ITP titles/statuses, open NCRs, recent inspection records) —
+ * never any other project's — and passes it to the AI provider together with the question. No
+ * fabricated grounding: if this context genuinely doesn't contain an answer, the model saying so is
+ * the correct, honest outcome, not something this action tries to prevent. Nothing here writes
+ * anything; it only returns text for display in the chat box.
+ */
+export async function askProjectQuestionAction(
+  _prev: AskProjectQuestionState,
+  formData: FormData
+): Promise<AskProjectQuestionState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const question = String(formData.get("question") ?? "").trim();
+
+  if (!projectId || !question) {
+    return { ...EMPTY_ASK_STATE, error: "Type a question first." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, project_number, organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ name: string; project_number: string; organization_id: string }>();
+
+  if (!project) return { ...EMPTY_ASK_STATE, error: "Project not found." };
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) return { ...EMPTY_ASK_STATE, error: gate.reason };
+
+  const [{ data: itps }, { data: openNcrs }, { data: records }] = await Promise.all([
+    supabase
+      .from("itps")
+      .select("itp_number, title, status")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(QA_CONTEXT_ITP_LIMIT)
+      .returns<{ itp_number: string; title: string; status: string }[]>(),
+    supabase
+      .from(NCRS_TABLE)
+      .select("ncr_number, severity, status, description")
+      .eq("project_id", projectId)
+      .neq("status", "closed")
+      .order("created_at", { ascending: false })
+      .limit(QA_CONTEXT_NCR_LIMIT)
+      .returns<{ ncr_number: string; severity: string; status: string; description: string }[]>(),
+    supabase
+      .from("inspection_records")
+      .select("activity, overall_result, created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(QA_CONTEXT_RECORD_LIMIT)
+      .returns<{ activity: string; overall_result: string | null; created_at: string }[]>(),
+  ]);
+
+  const itpLines =
+    (itps ?? []).length > 0
+      ? (itps ?? []).map((i) => `- ITP ${i.itp_number}: "${i.title}" — status: ${i.status}`).join("\n")
+      : "(no ITPs recorded on this project yet)";
+
+  const ncrLines =
+    (openNcrs ?? []).length > 0
+      ? (openNcrs ?? [])
+          .map((n) => `- NCR ${n.ncr_number} (${n.severity}, ${n.status}): ${n.description.slice(0, 200)}`)
+          .join("\n")
+      : "(no open NCRs on this project)";
+
+  const recordLines =
+    (records ?? []).length > 0
+      ? (records ?? [])
+          .map((r) => `- ${new Date(r.created_at).toLocaleDateString()}: "${r.activity}" — result: ${r.overall_result ?? "pending"}`)
+          .join("\n")
+      : "(no inspection records yet)";
+
+  const projectContext = [
+    `Project: ${project.project_number} — ${project.name}`,
+    "",
+    "ITPs (most recent first):",
+    itpLines,
+    "",
+    "Open NCRs (most recent first):",
+    ncrLines,
+    "",
+    "Recent inspection records (most recent first):",
+    recordLines,
+  ].join("\n");
+
+  try {
+    const answer = await geminiProvider.askProjectQuestion({ question, projectContext });
+    await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "project_qa",
+      modelId: getGeminiModel("project_qa"),
+      promptVersion: PROMPT_VERSIONS.project_qa,
+      sourceRef: { projectId, question },
+      aiResponse: answer,
+    });
+    return { error: null, answer, question };
+  } catch (err) {
+    return { ...EMPTY_ASK_STATE, error: err instanceof Error ? err.message : "Could not get an answer right now." };
+  }
 }
