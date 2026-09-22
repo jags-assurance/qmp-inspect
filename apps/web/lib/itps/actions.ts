@@ -8,6 +8,8 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -283,16 +285,72 @@ const NEXT_STATUS = {
   under_review: "approved",
 } as const;
 
-export async function advanceItpStatusAction(formData: FormData) {
+export interface AdvanceItpStatusState {
+  error: string | null;
+}
+
+/**
+ * R79: configurable required reviewer/approver. Changed from a plain `(formData) => void` action to
+ * the AddItemState-style `(prevState, formData) => State` shape (see AddItemState above) so a
+ * restriction failure has somewhere to surface — a silent no-op here would be a worse UX regression
+ * than the gap this closes (a staffer clicking "Approve" and nothing happening, with no explanation,
+ * is strictly worse than today's unrestricted behaviour). The caller in
+ * app/inspect/itps/[id]/page.tsx now uses useActionState instead of a plain `<form action={...}>`.
+ */
+export async function advanceItpStatusAction(
+  _prev: AdvanceItpStatusState,
+  formData: FormData
+): Promise<AdvanceItpStatusState> {
   const itpId = String(formData.get("itp_id") ?? "").trim();
   const fromStatus = String(formData.get("from_status") ?? "").trim() as keyof typeof NEXT_STATUS;
   const nextStatus = NEXT_STATUS[fromStatus];
-  if (!nextStatus) return;
+  if (!nextStatus) return { error: null };
 
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Look up this org's approval-workflow config (if any) before writing the status change — a
+  // missing row (the common case: no org has configured this) means "unrestricted", identical to
+  // today's behaviour, exactly like intervention levels' three-tier notice-hours fallback pattern
+  // elsewhere in this file. An Admin can always override a configured restriction (this app's
+  // existing "Admin can do anything a more specific role can" convention — see isAdminStaff's own
+  // doc comment).
+  if (!isAdminStaff(session)) {
+    const { data: itpOrg } = await supabase
+      .from("itps")
+      .select("projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ projects: { organization_id: string } | null }>();
+    const organizationId = itpOrg?.projects?.organization_id;
+
+    if (organizationId) {
+      const { data: workflowConfig } = await supabase
+        .from(ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE)
+        .select("required_reviewer_user_id, required_approver_user_id")
+        .eq("organization_id", organizationId)
+        .maybeSingle<ItpApprovalWorkflowConfigRow>();
+
+      const requiredUserId =
+        nextStatus === "under_review"
+          ? workflowConfig?.required_reviewer_user_id
+          : workflowConfig?.required_approver_user_id;
+
+      if (requiredUserId && requiredUserId !== session.userId) {
+        const { data: requiredUser } = await supabase
+          .from("users")
+          .select("full_name")
+          .eq("id", requiredUserId)
+          .maybeSingle<{ full_name: string }>();
+        const step = nextStatus === "under_review" ? "submitted for review" : "approved";
+        return {
+          error: `This ITP can only be ${step} by ${requiredUser?.full_name ?? "a specific reviewer"} (or a JAGS Admin), per this organisation's configured approval workflow.`,
+        };
+      }
+    }
+  }
 
   const now = new Date().toISOString();
   const update =
@@ -302,9 +360,14 @@ export async function advanceItpStatusAction(formData: FormData) {
 
   const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
 
-  // Best-effort: fetched once and reused by every best-effort side-effect below (audit trail,
-  // submit-for-review staff notification, initial-issue revision snapshot, client-acceptance
-  // notification) — none of these block the status change itself, which has already succeeded.
+  if (error) {
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: "Could not update the ITP status. Check you have permission and try again." };
+  }
+
+  // Best-effort: fetched once and reused by every side-effect below (audit trail, submit-for-review
+  // staff notification, initial-issue revision snapshot, client-acceptance notification) — none of
+  // these block the status change itself, which has already succeeded (error was already checked above).
   if (!error) {
     try {
       const { data: itp } = await supabase
@@ -411,6 +474,7 @@ export async function advanceItpStatusAction(formData: FormData) {
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
 }
 
 export async function acceptItpAction(formData: FormData) {
@@ -453,4 +517,51 @@ export async function acceptItpAction(formData: FormData) {
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+}
+
+export interface RecordExternalApprovalState {
+  error: string | null;
+}
+
+/**
+ * R80: records that a client approved this ITP in their OWN external system (e.g. a document
+ * control platform) rather than by clicking Accept in this app — a reference number/date from that
+ * system, so the paper trail still lands somewhere even when the client's real sign-off never
+ * touches this UI. Staff-only (mirrors every other staff-gated write in this file, e.g.
+ * addItpItemAction relies on RLS + canEditContent; here there's no equivalent non-staff path at all,
+ * so the check is explicit) — not editable inline by anyone else, but re-submittable by staff to
+ * correct a typo'd reference without a separate edit-lock flow.
+ */
+export async function recordExternalApprovalAction(
+  _prev: RecordExternalApprovalState,
+  formData: FormData
+): Promise<RecordExternalApprovalState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) {
+    return { error: "Only JAGS staff can record an external approval reference." };
+  }
+
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const reference = String(formData.get("reference") ?? "").trim();
+
+  if (!itpId || !reference) {
+    return { error: "A reference is required." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("itps")
+    .update({
+      external_approval_reference: reference,
+      external_approval_recorded_by: session.userId,
+      external_approval_recorded_at: new Date().toISOString(),
+    })
+    .eq("id", itpId);
+
+  if (error) {
+    return { error: "Could not save the external approval reference. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
 }

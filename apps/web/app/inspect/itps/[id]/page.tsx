@@ -5,7 +5,9 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ActivitySignoffGrid } from "./activity-signoff-grid";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
-import { advanceItpStatusAction, acceptItpAction } from "@/lib/itps/actions";
+import { acceptItpAction } from "@/lib/itps/actions";
+import { AdvanceStatusForm } from "./advance-status-form";
+import { ExternalApprovalForm } from "./external-approval-form";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
 import type { InterventionLevel } from "@jags/shared-types";
@@ -94,6 +96,9 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       applicable_standard: string | null;
       revision: number;
       status: "draft" | "under_review" | "approved" | "client_accepted";
+      external_approval_reference: string | null;
+      external_approval_recorded_by: string | null;
+      external_approval_recorded_at: string | null;
       projects: {
         id: string;
         name: string;
@@ -105,6 +110,19 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     }>();
 
   if (!itp) notFound();
+
+  // R80: only fetched once the field is actually set (or the viewer can write it) — a bare name
+  // lookup for display, not gated by RLS beyond the normal users_select policy every staff login
+  // already has.
+  const canRecordExternalApproval =
+    session.isJagsStaff && (itp.status === "approved" || itp.status === "client_accepted");
+  const { data: externalApprovalRecordedByUser } = itp.external_approval_recorded_by
+    ? await supabase
+        .from("users")
+        .select("full_name")
+        .eq("id", itp.external_approval_recorded_by)
+        .maybeSingle<{ full_name: string }>()
+    : { data: null };
 
   interface SectionWithItems {
     id: string;
@@ -417,23 +435,9 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           >
             Checklists →
           </Link>
-          {canSubmitForReview && (
-            <form action={advanceItpStatusAction}>
-              <input type="hidden" name="itp_id" value={itp.id} />
-              <input type="hidden" name="from_status" value="draft" />
-              <button type="submit" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
-                Submit for review
-              </button>
-            </form>
-          )}
+          {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
           {session.isJagsStaff && itp.status === "under_review" && (
-            <form action={advanceItpStatusAction}>
-              <input type="hidden" name="itp_id" value={itp.id} />
-              <input type="hidden" name="from_status" value="under_review" />
-              <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">
-                Approve
-              </button>
-            </form>
+            <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" />
           )}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
               activity_signoff_progress row for this ITP in one click. Stays staff-only even on a
@@ -467,6 +471,15 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S
           list, so a custom level an admin adds shows up here too. */}
       <InterventionLegend levels={levels} />
+
+      {canRecordExternalApproval && (
+        <ExternalApprovalForm
+          itpId={itp.id}
+          reference={itp.external_approval_reference}
+          recordedByName={externalApprovalRecordedByUser?.full_name ?? null}
+          recordedAt={itp.external_approval_recorded_at}
+        />
+      )}
 
       <RevisionHistoryPanel revisions={revisions ?? []} />
 

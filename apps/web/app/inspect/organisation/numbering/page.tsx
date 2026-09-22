@@ -3,12 +3,17 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NUMBERING_CONFIGS_TABLE, NUMBERING_DOC_TYPES, type NumberingConfigRow } from "@/lib/numbering/types";
 import { listMonthlyReportPacks, listWeeklyReportPacks } from "@/lib/reports/actions";
+import {
+  ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE,
+  type ItpApprovalWorkflowConfigRow,
+} from "@/lib/itp-approval-workflow/types";
 import { EngagementModeForm } from "./engagement-mode-form";
 import { EngagementScopeForm } from "./engagement-scope-form";
 import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config-row";
 import { OrgPickerForm } from "./org-picker-form";
 import { MonthlyReportPackForm } from "./monthly-report-pack-form";
 import { WeeklyReportPackForm } from "./weekly-report-pack-form";
+import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
 
 interface OrganizationOption {
   id: string;
@@ -78,6 +83,30 @@ export default async function NumberingSettingsPage({
 
   const reportPacks = selectedOrg && !numberingOnly ? await listMonthlyReportPacks(selectedOrg.id) : [];
   const weeklyReportPacks = selectedOrg && !numberingOnly ? await listWeeklyReportPacks(selectedOrg.id) : [];
+
+  // R79 configurable ITP approval workflow: staff pool to pick a required reviewer/approver from —
+  // JAGS staff aren't org-scoped (any staff login can be granted access to any org via access_grants,
+  // same as the Staff Access screen), so this is the same global "every JAGS staff account" query
+  // staff-access/page.tsx already uses, not filtered to this one org.
+  let itpApprovalWorkflowConfig: ItpApprovalWorkflowConfigRow | null = null;
+  let staffOptions: StaffOption[] = [];
+  if (selectedOrg) {
+    const [{ data: config }, { data: staff }] = await Promise.all([
+      supabase
+        .from(ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE)
+        .select("*")
+        .eq("organization_id", selectedOrg.id)
+        .maybeSingle<ItpApprovalWorkflowConfigRow>(),
+      supabase
+        .from("users")
+        .select("id, full_name, email")
+        .eq("is_jags_staff", true)
+        .order("full_name")
+        .returns<StaffOption[]>(),
+    ]);
+    itpApprovalWorkflowConfig = config ?? null;
+    staffOptions = staff ?? [];
+  }
 
   return (
     <div className="max-w-4xl">
@@ -150,6 +179,25 @@ export default async function NumberingSettingsPage({
 
           {!numberingOnly && (
             <>
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-semibold text-ink">ITP approval workflow</h2>
+                <p className="mt-1 text-xs text-muted">
+                  By default, any JAGS staff login can submit an ITP for review or approve it once
+                  under review (R79). Pin either step to one specific person if this
+                  client&rsquo;s process requires a named reviewer or approver — leave a slot on
+                  &ldquo;Unrestricted&rdquo; to keep today&rsquo;s behaviour. A JAGS Admin can always
+                  act regardless of this setting.
+                </p>
+                <div className="mt-4">
+                  <ItpApprovalWorkflowForm
+                    organizationId={selectedOrg.id}
+                    staff={staffOptions}
+                    requiredReviewerUserId={itpApprovalWorkflowConfig?.required_reviewer_user_id ?? null}
+                    requiredApproverUserId={itpApprovalWorkflowConfig?.required_approver_user_id ?? null}
+                  />
+                </div>
+              </div>
+
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-semibold text-ink">Monthly client report pack</h2>
                 <p className="mt-1 text-xs text-muted">
