@@ -549,6 +549,16 @@ export async function recordExternalApprovalAction(
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // R80: "QMP internal approval is completed -> ... -> record the EXTERNAL APPROVAL REFERENCE" —
+  // this was previously only enforced by the page not rendering the form before internal approval,
+  // which a direct POST to this action could bypass. Re-checked here so the rule holds regardless
+  // of caller.
+  const { data: itp } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
+  if (!itp || !["approved", "client_accepted"].includes(itp.status)) {
+    return { error: "This ITP must be internally approved before recording an external approval reference." };
+  }
+
   const { error } = await supabase
     .from("itps")
     .update({

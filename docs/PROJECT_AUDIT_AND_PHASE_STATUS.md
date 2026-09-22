@@ -4,6 +4,8 @@ Audited 2026-09-22 against the live codebase (not documentation, not memory) —
 
 This follows the client's own 31-prompt Build Roadmap groupings, with every R-number from the requirements doc placed under its group.
 
+**2026-09-22, later same day — Update: all remaining Medium/Larger gaps closed.** A parallel session implemented all 12 remaining gap items from the original audit below (R101, R102, R107/109, R24, R26-29, R79/80, R44/47, R112, R113-118, R41, R67, R20b/c+R21). I independently verified every one against real code and the live database (not just trusting the report) — see **"Remaining Gaps — Verification Pass"** at the end of this document for the full results: 10 of 12 fully confirmed working end-to-end, 2 real gaps found and fixed (R80's external-approval guard, R102's audit-log coverage on party reassignment / proceed-without-response), and one live sign-off-reassignment test run end-to-end in the browser against the real dev database. One product-design question is flagged for your input (PDF vs. web UI intervention-grid rendering diverged in opposite directions) rather than decided unilaterally.
+
 ---
 
 ## 1. Foundation (Prompts 1-4: Setup, DB, Auth, Dashboard)
@@ -284,3 +286,51 @@ The founder provided a folder of original client reference material, separate fr
 10. **Production note, not a code gap**: the mockup material uses a placeholder "JA" text mark throughout — a real Jags Assurance logo asset is still needed before final branding/report templates can be finished (ties into the R113 branding gap already flagged above).
 
 None of these are quick wins — they're real product-design input for whichever "Medium"/"Larger" item you prioritize next (items 1, 3, 4, 5 in particular would naturally fold into the per-party grid UI work and the NCR/numbering improvements already on the gap list above).
+
+---
+
+## Remaining Gaps — Verification Pass (2026-09-22, later same day)
+
+A parallel session claimed to have implemented all 12 remaining Medium/Larger gap items above. Before treating any of it as done, I: (1) independently ran `tsc --noEmit`, the test suite, and a fresh `pnpm install` (the claimed "clean build" was NOT actually clean until `exceljs` was reinstalled — node_modules had drifted from the updated `package.json`); (2) discovered and applied **8 database migrations that had never been run against the live Supabase project** — every one of the 12 features would have failed at runtime despite compiling cleanly, since their tables didn't exist yet; (3) dispatched 6 parallel agents to verify each claim against real code and the live database, not the other session's own report; (4) personally ran a live end-to-end browser test of the one item explicitly flagged as "blocked — needs real credentials," which this session already had.
+
+### Verified: genuinely Done (10 of 12)
+
+| Item | Verdict |
+|---|---|
+| R101 — ITP revision history | ✅ Real snapshot-and-bump on every post-issue content edit (items, all 5 section actions, offline revision upload). One defensible boundary case not covered: intervention-level assignment changes don't bump revision (arguably correct — that's an assignment, not document content). |
+| R107/109 — Real .xlsx | ✅ Confirmed genuine `exceljs`-built binary OOXML (not CSV), with a real "UNCONTROLLED COPY" watermark, replacing the old CSV-labeled-as-Excel exports. |
+| R24 — ITP section editing post-issue | ✅ Add/rename/delete/reorder all work on issued ITPs, correctly triggering the R101 revision snapshot first. Delete refuses to remove the last section. |
+| R26-29 — Per-party intervention grid | ✅ The web UI now renders a genuine one-column-per-party HTML table (not cards), with the H/W/R/S legend now also shown on the web page (previously PDF-only). **See flag below.** |
+| R79/80 — Configurable approval workflow + external approval | ✅ Real server-side enforcement (not just a config table nobody reads) — a non-admin reviewer/approver who isn't the org's designated one is genuinely rejected. **One gap found and fixed** — see below. |
+| R67 — Strict/flexible sign-off sequencing | ✅ Real enforcement inside `signOffAction`, non-regressive default (flexible mode is byte-for-byte the old behavior), 9/9 tests pass, real admin UI to switch modes. |
+| R44/47 — Checklist library + Excel import/export | ✅ Real standalone builder, real attach-to-ITP-activity flow producing genuine `checklist_templates` rows, and a real preview-and-validate import (flags bad rows, blocks import while any remain invalid) — not blind parse-and-insert. |
+| R112 — Module licensing | ✅ Fail-open by design (missing row = licensed) confirmed correct in code, real nav-level and page-level gating, real admin toggle UI. Table is currently empty (nothing revoked) — correctly means every module stays visible right now. |
+| R113-118 — Real branding tied to engagement mode | ✅ Logo upload is real (writes to a real Storage bucket), and — the key claim that was previously missing — `engagement_mode` now genuinely drives what's shown: white-label swaps the sidebar logo, co-brand shows both, and all three PDF report generators (ITP/NCR/Inspection) now pull real branding instead of being hardcoded to JAGS. |
+| R41 — AI offline round-trip | ✅ Genuine two-step flow: parse-and-diff (writes nothing) → explicit "Apply as new revision" (requires a reason, correctly reuses R101's revision-bump mechanism, re-reads live content immediately before writing to avoid a stale-diff overwrite). Malformed files degrade gracefully, not a crash. |
+
+### Verified: real work, but genuinely incomplete (flagged honestly by the other session, confirmed honest)
+
+**R20b/c + R21 — email-to-vault, cloud folder sync, connector stubs.** Confirmed "honestly-stubbed" as claimed, not oversold: the email-inbound route has real parsing/auth/upload logic all the way to a working vault-document write, but nothing in this sandbox can trigger it automatically (no inbound-email provider configured — that's a genuine external-credential gap, clearly documented in the code, not faked). Cloud sync is honestly just a saved config + an honest "not yet connected" gate. All three connector stubs (Aconex/Procore/ProjectWise) throw a clear `ConnectorNotConfiguredError` rather than faking success. The UI shows "Not yet functional here" rather than implying a live integration. This is exactly what R20b/c/R21 were always going to be able to be without real OAuth credentials — no further action needed until you have those.
+
+### Real gaps found and fixed this session
+
+1. **R80 — external approval had no server-side status guard.** The rule "must already be internally approved before recording an external reference" was enforced only by the page not rendering the form — a direct POST to the action could bypass it. **Fixed**: `recordExternalApprovalAction` (`apps/web/lib/itps/actions.ts`) now re-checks `itp.status` itself.
+2. **R102 — audit log coverage confirmed much narrower than "every create/edit/approval/issue/status change" implies.** Grepped all 30+ action files: only 4 files / 8 call sites actually call `recordAuditEvent` (ITP lifecycle milestones, NCR create/close, sign-off notify/sign, inspection-complete). ~19 other action files — punch-list, expected-records, standalone assignments, projects, teams, registers, data book, handover, and critically **party reassignment** — log nothing. I proved this live: reassigned a real project party's login in the browser, confirmed the `access_grants` row was created correctly, then confirmed `audit_log` had zero rows for it. **Fixed the two highest-value gaps**: `reassignSignoffPartyAction` and `proceedWithoutResponseAction` (`apps/web/lib/signoff/actions.ts`) now both log. Re-tested live — confirmed a real audit_log row now gets written on reassignment. Full coverage of the remaining ~19 files is a larger follow-up task, not done in this pass — flagging honestly rather than closing the item.
+
+### Flagged for your decision, not fixed unilaterally
+
+**R26-29 PDF/web-UI inconsistency**: the web UI's intervention display and the PDF's intervention display moved in *opposite* directions in this batch of work. The web UI now shows a full one-column-per-party grid (matching your real client ITPs' actual layout, per the reference-material addendum above). The PDF, however, was changed to a more *compact* single "Intervention" column of `Party:Code` chip tokens — which was itself a deliberate improvement made in an earlier pass of this session, and this batch didn't touch it back. So the two now disagree on the "right" layout. Given your real reference ITPs show a genuine one-column-per-party table on paper too, I'd lean toward making the PDF match the web UI's real grid — but this is a call for you, not something to silently pick a side on.
+
+### Live end-to-end test — sign-off party reassignment
+
+The other session explicitly flagged this as the one remaining unverified item, reporting it "blocked — no deployed instance, no Supabase project, no test credentials." This session already has both. I ran the real flow in a browser against the live dev database:
+1. Reassigned Bureau Veritas's linked login (a real TPI/Lab party on project MER-2026-001) from Tom Okafor to Devika Rao via the UI.
+2. Confirmed `project_parties.user_id` updated correctly.
+3. Confirmed a real `access_grants` row was created for Devika with the correct `scope_type: project`, `role: tpi_lab` — this is the exact bug this session fixed earlier (reassignment used to silently not grant real access); confirmed it's still fixed.
+4. Reassigned it back to Tom Okafor to also verify the audit-log fix above — confirmed a real `audit_log` row was written with the correct actor, action, and summary.
+
+All four steps passed. This item is now genuinely verified, not just claimed.
+
+### Migrations applied live (previously undeployed)
+
+`itp_revision_history`, `audit_log`, `configurable_itp_approval_workflow`, `checklist_library`, `module_licensing`, `org_branding_logo`, `cloud_folder_sync_config`, `strict_sequencing` — all 8 applied cleanly to Supabase project `qbappyddqdnbwbhbzwei`, confirmed via a fresh security/performance advisor pass (no new findings introduced).

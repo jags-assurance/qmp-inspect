@@ -472,6 +472,39 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
   revalidatePath("/inspect");
+
+  // R102: a party being skipped past (even legitimately, per R72-74's own "record it clearly" rule)
+  // is exactly the kind of event this trail exists for — best-effort, never blocks the already-
+  // succeeded proceed above.
+  try {
+    const { data: context } = await supabase
+      .from("itp_items")
+      .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
+      .eq("id", progress.itp_item_id)
+      .maybeSingle<{
+        activity: string;
+        itp_sections: { itps: { itp_number: string; project_id: string; projects: { organization_id: string } | null } | null } | null;
+      }>();
+    const itp = context?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+    if (itp && organizationId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "signoff",
+        entityId: progressId,
+        action: "proceeded_no_response",
+        actorId: user?.id ?? null,
+        summary: `Proceeded without response on ${itp.itp_number} — ${context?.activity ?? "an activity"}`,
+      });
+    }
+  } catch {
+    // Best-effort — see doc comment above.
+  }
+
   return { error: null };
 }
 
@@ -613,6 +646,23 @@ export async function reassignSignoffPartyAction(
         error:
           "The party was reassigned, but granting platform access to the new login failed — check with a JAGS Admin.",
       };
+    }
+
+    // R102: who now signs off on a party's behalf is exactly the kind of access-relevant change an
+    // audit trail exists for — best-effort, never blocks the reassignment that already succeeded.
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: partyWithType.projects.organization_id,
+        projectId: party.project_id,
+        entityType: "project_party",
+        entityId: projectPartyId,
+        action: "reassigned",
+        actorId: session.userId,
+        summary: `Reassigned party ${projectPartyId} to a new linked login`,
+        changes: { new_user_id: newUserId },
+      });
+    } catch {
+      // Best-effort — see recordAuditEvent's own doc comment.
     }
   }
 
