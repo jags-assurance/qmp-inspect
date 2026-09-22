@@ -26,15 +26,37 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // organization." Computed once here alongside the Client Teams check since they share the same
   // "is my own org self_managed" lookup.
   let isSelfManagedOrg = false;
-  if (!showClientTeamsNav) {
-    const ownOrgId = session.grants.find((g) => g.organization_id)?.organization_id ?? null;
-    if (ownOrgId) {
-      const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
-        supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
-        supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
-      ]);
-      isSelfManagedOrg = org?.engagement_scope === "self_managed";
-      showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
+  const ownOrgId = session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+  if (!showClientTeamsNav && ownOrgId) {
+    const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
+      supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
+      supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
+    ]);
+    isSelfManagedOrg = org?.engagement_scope === "self_managed";
+    showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
+  }
+
+  // Reqs R113-R118: engagement_mode already drives document numbering (lib/numbering/generate.ts's
+  // internalReference) — this is the same signal driving visual branding in the app chrome. Only
+  // looked up for a user with a definite own-org context (a client login); JAGS staff move across
+  // every organisation's data, so their chrome always stays JAGS-only, same as today.
+  let orgBranding: { engagementMode: string; logoUrl: string | null } | null = null;
+  if (ownOrgId) {
+    const { data: brandOrg } = await supabase
+      .from("organizations")
+      .select("engagement_mode, branding_logo_path")
+      .eq("id", ownOrgId)
+      .maybeSingle<{ engagement_mode: string; branding_logo_path: string | null }>();
+
+    if (brandOrg) {
+      let logoUrl: string | null = null;
+      if (brandOrg.engagement_mode !== "jags_led" && brandOrg.branding_logo_path) {
+        const { data: signed } = await supabase.storage
+          .from("org-branding")
+          .createSignedUrl(brandOrg.branding_logo_path, 3600);
+        logoUrl = signed?.signedUrl ?? null;
+      }
+      orgBranding = { engagementMode: brandOrg.engagement_mode, logoUrl };
     }
   }
 
@@ -112,6 +134,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       userName={session.fullName}
       userRole={userRole}
       breadcrumb="QMP Inspect"
+      orgBranding={orgBranding}
     >
       {children}
     </AppShell>

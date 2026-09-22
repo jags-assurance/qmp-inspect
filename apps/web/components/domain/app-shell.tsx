@@ -14,6 +14,14 @@ export interface NavItem {
   href: string;
 }
 
+export interface OrgBrandingInfo {
+  engagementMode: string;
+  /** Signed URL for the current user's own org's uploaded logo, or null when there's none to show
+   *  (no logo uploaded, or engagement_mode is jags_led). See sidebar-shell.tsx for how this is
+   *  rendered — Reqs R113-R118. */
+  logoUrl: string | null;
+}
+
 /**
  * The persistent burgundy sidebar + white top bar shell used across every screen (Platform Home
  * and every QMP Inspect page) — established as the site-wide navigation pattern in the client's
@@ -25,6 +33,7 @@ export async function AppShell({
   userName,
   userRole,
   breadcrumb,
+  orgBranding = null,
   children,
 }: {
   navItems: NavItem[];
@@ -32,6 +41,7 @@ export async function AppShell({
   userName: string;
   userRole: string;
   breadcrumb: string;
+  orgBranding?: OrgBrandingInfo | null;
   children: ReactNode;
 }) {
   const supabase = await createSupabaseServerClient();
@@ -41,7 +51,13 @@ export async function AppShell({
     <SidebarMobileProvider>
       <IdleTimeout />
       <div className="flex min-h-screen">
-        <SidebarShell navItems={navItems} userName={userName} userRole={userRole} signOutAction={signOutAction} />
+        <SidebarShell
+          navItems={navItems}
+          userName={userName}
+          userRole={userRole}
+          signOutAction={signOutAction}
+          orgBranding={orgBranding}
+        />
         <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
           <div className="flex items-center gap-3">

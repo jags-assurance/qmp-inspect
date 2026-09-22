@@ -11,6 +11,7 @@ import {
   type ItpTemplateSignoffStatus,
 } from "./itpTemplate";
 import type { RenderItpPdfPayload } from "./types";
+import { getOrgBranding } from "./orgBranding";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -256,6 +257,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
       (lt): ItpTemplateLevelType => ({ code: lt.code, label: lt.label, sortOrder: lt.sort_order })
     ),
     generatedAt: new Date(),
+    branding: await getOrgBranding(supabase, organization.id),
   };
 
   const html = buildItpHtml(templateData);

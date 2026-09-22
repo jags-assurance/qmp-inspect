@@ -69,3 +69,85 @@ export async function updateOrgBrandColorsAction(
   revalidatePath(BRANDING_PATH);
   return { error: null };
 }
+
+export interface LogoUploadState {
+  error: string | null;
+}
+
+const ORG_BRANDING_BUCKET = "org-branding";
+
+/**
+ * Records the storage path of a logo the browser has already uploaded straight to the (private)
+ * "org-branding" bucket — same browser-uploads-then-action-records-the-row split as
+ * uploadVaultDocumentAction (lib/vault/actions.ts). Reqs R113-R118: this is the missing write side
+ * of organizations.branding_logo_path, a column that existed since day one but nothing ever wrote
+ * to. Same admin-or-self-managed-own-org boundary as updateOrgBrandColorsAction above — logos are
+ * cosmetic branding, not a commercial/assurance-integrity decision, so a self-managed client sets
+ * its own exactly like it already sets its own brand colors.
+ */
+export async function updateOrgLogoAction(
+  _prev: LogoUploadState,
+  formData: FormData
+): Promise<LogoUploadState> {
+  const supabase = await createSupabaseServerClient();
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const storagePath = String(formData.get("storage_path") ?? "").trim();
+  if (!organizationId || !storagePath) {
+    return { error: "Missing organisation or uploaded file." };
+  }
+
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("engagement_scope")
+      .eq("id", organizationId)
+      .maybeSingle<{ engagement_scope: string }>();
+    if (org?.engagement_scope !== "self_managed") {
+      return { error: "Only a JAGS Admin can change this organisation's logo." };
+    }
+  }
+
+  // Path must actually belong to this org (matches the Storage RLS policy's own folder check) —
+  // an honest error here rather than letting a mismatched path silently record the wrong logo.
+  if (!storagePath.startsWith(`${organizationId}/`)) {
+    return { error: "Uploaded file does not belong to this organisation." };
+  }
+
+  const { data: org, error: fetchError } = await supabase
+    .from("organizations")
+    .select("branding_logo_path")
+    .eq("id", organizationId)
+    .maybeSingle<{ branding_logo_path: string | null }>();
+
+  const { error } = await supabase
+    .from("organizations")
+    .update({ branding_logo_path: storagePath })
+    .eq("id", organizationId);
+
+  if (error) {
+    return { error: "Could not save the logo. Check you have permission and try again." };
+  }
+
+  // Best-effort cleanup of the previous file — never fails the upload if it doesn't work.
+  if (!fetchError && org?.branding_logo_path && org.branding_logo_path !== storagePath) {
+    await supabase.storage.from(ORG_BRANDING_BUCKET).remove([org.branding_logo_path]);
+  }
+
+  revalidatePath(BRANDING_PATH);
+  return { error: null };
+}
+
+/**
+ * A short-lived signed URL for the org's current logo, for the branding page's own live preview —
+ * the bucket is private, so there is no public URL to just construct. Returns null when there's no
+ * logo set, or the signing call fails (never throws — a broken preview must not break the page).
+ */
+export async function getOrgLogoPreviewUrl(logoPath: string | null): Promise<string | null> {
+  if (!logoPath) return null;
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.storage.from(ORG_BRANDING_BUCKET).createSignedUrl(logoPath, 3600);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}

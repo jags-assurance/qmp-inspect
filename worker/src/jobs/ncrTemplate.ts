@@ -32,6 +32,16 @@ export interface NcrPdfData {
   closedAt: string | null;
 
   generatedAt: Date;
+  /**
+   * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
+   * orgBranding.ts. Optional/undefined renders exactly as jags_led (today's unchanged branding).
+   */
+  branding?: NcrPdfBranding;
+}
+
+export interface NcrPdfBranding {
+  engagementMode: "jags_led" | "co_branded" | "white_label";
+  logoUrl: string | null;
 }
 
 const SEVERITY_LABEL: Record<NcrPdfSeverity, string> = {
@@ -82,6 +92,27 @@ function buildHoldRelease(closedByName: string | null, closedAt: string | null):
 
 function buildInitialHoldState(status: NcrPdfStatus): string {
   return status === "open" ? "NOT_RELEASED" : status.toUpperCase();
+}
+
+const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+
+/** See itpTemplate.ts's renderBrandBlock — identical semantics, duplicated rather than shared since
+ *  the two templates don't share a lib (same convention as elsewhere in this file). */
+function renderBrandBlock(data: NcrPdfData): string {
+  const mode = data.branding?.engagementMode ?? "jags_led";
+  const logoUrl = data.branding?.logoUrl ?? null;
+  if (!logoUrl) return JAGS_BRAND_BLOCK;
+
+  const orgLogo = `<img class="org-logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(data.organizationName || "Client")} logo" />`;
+  if (mode === "white_label") return orgLogo;
+  if (mode === "co_branded") return `${JAGS_BRAND_BLOCK}<img class="org-logo org-logo-co-branded" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(data.organizationName || "Client")} logo" />`;
+  return JAGS_BRAND_BLOCK;
+}
+
+/** The literal R113 requirement — small print in white_label mode only. */
+function renderPoweredByFooter(data: NcrPdfData): string {
+  if ((data.branding?.engagementMode ?? "jags_led") !== "white_label") return "";
+  return '<div class="powered-by">Powered by JAGS Assurance</div>';
 }
 
 export function buildNcrPdfHtml(data: NcrPdfData): string {
@@ -161,6 +192,11 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
     color: var(--gold); letter-spacing: 1.5px; text-transform: uppercase;
   }
 
+  /* Client org logo (Reqs R113-R118) — see renderBrandBlock. */
+  .org-logo { max-height: 34px; max-width: 160px; object-fit: contain; }
+  .org-logo-co-branded { padding-left: 10px; border-left: 1px solid rgba(255, 255, 255, 0.3); }
+  .powered-by { margin-top: 4px; font-size: 7px; color: #999; text-align: right; }
+
   .doc-control {
     background: var(--off-white); border: 1px solid var(--gold); border-radius: 3px; min-width: 190px;
   }
@@ -201,8 +237,7 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
 <body>
   <div class="letterhead">
     <div class="brand">
-      <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>
+      ${renderBrandBlock(data)}
     </div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>
@@ -225,6 +260,7 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
     <span>Doc No. ${escapeHtml(data.ncrNumber)} &middot; Uncontrolled when printed &middot; jagsassurance.com</span>
     <span>Generated ${escapeHtml(generatedAtLabel)}</span>
   </div>
+  ${renderPoweredByFooter(data)}
 </body>
 </html>`;
 }
