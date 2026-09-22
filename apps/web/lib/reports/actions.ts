@@ -28,6 +28,7 @@ import {
   type RenderNcrCloseoutCertificatePayload,
 } from "./types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { aggregateReportSummaryData } from "@/lib/reports/report-summary";
 
 export interface GenerateMonthlyReportPackState {
   error: string | null;
@@ -1238,6 +1239,140 @@ export interface PortfolioSummaryPdfStatus {
  * jobs either requested by this user or visible under the is_jags_staff() portfolio-summary branch,
  * so a non-admin session simply sees no rows here even if this were ever called for one.
  */
+export interface GenerateReportSummaryState {
+  error: string | null;
+  summary: string | null;
+}
+
+const EMPTY_REPORT_SUMMARY_STATE: GenerateReportSummaryState = { error: null, summary: null };
+
+/**
+ * R111 (4/4): the monthly report pack's AI executive summary — see lib/reports/report-summary.ts's
+ * doc comment for why this runs web-side rather than in the worker. Same admin-only gate as
+ * generateMonthlyReportPackAction (this is administrative/reporting work, on the same screen);
+ * computes the real aggregated numbers itself rather than trusting anything from the client, then
+ * summarises them. Never written anywhere — it's a display-only paragraph the admin can read
+ * alongside the queued PDF/xlsx, not embedded into either.
+ */
+export async function generateReportPackSummaryAction(
+  _prev: GenerateReportSummaryState,
+  formData: FormData
+): Promise<GenerateReportSummaryState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { ...EMPTY_REPORT_SUMMARY_STATE, error: "Only a JAGS Admin can generate an AI summary." };
+  }
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const year = Number.parseInt(String(formData.get("year") ?? ""), 10);
+  const month = Number.parseInt(String(formData.get("month") ?? ""), 10);
+
+  if (!organizationId || Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) {
+    return { ...EMPTY_REPORT_SUMMARY_STATE, error: "Organisation, a valid year and a valid month (1-12) are required." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const gate = await assertAiAllowed(supabase, organizationId);
+  if (!gate.allowed) return { ...EMPTY_REPORT_SUMMARY_STATE, error: gate.reason };
+
+  const MONTH_NAMES_FULL = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const end = new Date(Date.UTC(month === 12 ? year + 1 : year, month === 12 ? 0 : month, 1, 0, 0, 0));
+  const periodLabel = `${MONTH_NAMES_FULL[month - 1]} ${year}`;
+
+  try {
+    const agg = await aggregateReportSummaryData(supabase, organizationId, start.toISOString(), end.toISOString());
+    const summary = await geminiProvider.summarizeReportPack({
+      organizationName: agg.organizationName,
+      periodLabel,
+      firstTimePassRate: agg.firstTimePassRate,
+      inspectionsCompleted: agg.inspectionsCompleted,
+      ncrsOpened: agg.ncrsOpened,
+      ncrsClosed: agg.ncrsClosed,
+      itpCompletionRate: agg.itpCompletionRate,
+      projectCount: agg.projectCount,
+    });
+    await logAiUsage(supabase, {
+      organizationId,
+      userId: user?.id ?? null,
+      feature: "report_pack_summary",
+      modelId: getGeminiModel("report_pack_summary"),
+      promptVersion: PROMPT_VERSIONS.report_pack_summary,
+      sourceRef: { organizationId, year, month },
+      aiResponse: summary,
+    });
+    return { error: null, summary };
+  } catch (err) {
+    return { ...EMPTY_REPORT_SUMMARY_STATE, error: err instanceof Error ? err.message : "Could not generate a summary." };
+  }
+}
+
+export interface CleanUpNarrativeState {
+  error: string | null;
+  cleaned: string | null;
+  aiLogId: string | null;
+}
+
+const EMPTY_CLEANUP_STATE: CleanUpNarrativeState = { error: null, cleaned: null, aiLogId: null };
+
+/**
+ * R111: grammar/clarity clean-up for the report narrative textarea (shared by NarrativeEditor for
+ * both the Inspection Report and the FAT Report). Sends exactly the text currently typed into the
+ * textarea — never a previously-saved narrative re-fetched server-side — and returns a suggestion
+ * only; the person reviews it and either edits/saves it via the existing save action or discards it
+ * by simply not using it. Nothing here ever writes to inspection_records/standalone_assignments.
+ */
+export async function cleanUpNarrativeAction(
+  _prev: CleanUpNarrativeState,
+  formData: FormData
+): Promise<CleanUpNarrativeState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { ...EMPTY_CLEANUP_STATE, error: "Only JAGS staff can use the clean-up assist." };
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const text = String(formData.get("text") ?? "").trim();
+  if (!projectId || !text) return { ...EMPTY_CLEANUP_STATE, error: "Nothing to clean up yet — type some text first." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (!project) return { ...EMPTY_CLEANUP_STATE, error: "Project not found." };
+
+  const gate = await assertAiAllowed(supabase, project.organization_id);
+  if (!gate.allowed) return { ...EMPTY_CLEANUP_STATE, error: gate.reason };
+
+  try {
+    const cleaned = await geminiProvider.cleanUpText({ text });
+    const logId = await logAiUsage(supabase, {
+      organizationId: project.organization_id,
+      userId: user?.id ?? null,
+      feature: "text_cleanup",
+      modelId: getGeminiModel("text_cleanup"),
+      promptVersion: PROMPT_VERSIONS.text_cleanup,
+      sourceRef: { projectId },
+      aiResponse: cleaned,
+    });
+    return { error: null, cleaned, aiLogId: logId };
+  } catch (err) {
+    return { ...EMPTY_CLEANUP_STATE, error: err instanceof Error ? err.message : "Could not clean up this text." };
+  }
+}
+
 export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPdfStatus | null> {
   const session = await requireSession();
   if (!isAdminStaff(session)) return null;

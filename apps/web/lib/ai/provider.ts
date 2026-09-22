@@ -175,6 +175,43 @@ export interface ExtractedMaterialRow {
   certificateReference: string | null;
 }
 
+export interface TranslateTextInput {
+  /** The real content being translated — an ITP's title/scope, an NCR description, etc. Plain text,
+   *  never HTML/markdown. */
+  text: string;
+  /** Human-readable target language name (e.g. "Spanish", "Arabic") as picked from the UI's
+   *  language dropdown — passed straight through to the model, never mapped through a fixed
+   *  "supported languages" list this app doesn't actually enforce. */
+  targetLanguage: string;
+}
+
+export interface AskProjectQuestionInput {
+  question: string;
+  /** Plain-text project context assembled by the caller from real project data (ITP titles/
+   *  statuses, open NCR summaries, recent inspection records) — see
+   *  apps/web/lib/projects/qa-context.ts. Never fabricated; if the assembled context genuinely
+   *  doesn't answer the question, the model's own "I don't have that information" response is the
+   *  correct outcome, not something this input tries to prevent. */
+  projectContext: string;
+}
+
+export interface CleanUpTextInput {
+  /** The user's own in-progress draft text (an NCR description, a report narrative, etc.) —
+   *  exactly as currently typed, never previously-cleaned text re-submitted silently. */
+  text: string;
+}
+
+export interface SummarizeReportPackInput {
+  organizationName: string;
+  periodLabel: string;
+  firstTimePassRate: number | null;
+  inspectionsCompleted: number;
+  ncrsOpened: number;
+  ncrsClosed: number;
+  itpCompletionRate: number | null;
+  projectCount: number;
+}
+
 export interface AiProvider {
   generateItpDraft(input: GenerateItpDraftInput): Promise<ItpDraftResult>;
   generateChecklistItems(input: GenerateChecklistItemsInput): Promise<ChecklistItemDraft[]>;
@@ -191,4 +228,16 @@ export interface AiProvider {
   extractCalibrationRows(input: ExtractRegisterInput): Promise<ExtractedCalibrationRow[]>;
   extractWelderRows(input: ExtractRegisterInput): Promise<ExtractedWelderRow[]>;
   extractMaterialRows(input: ExtractRegisterInput): Promise<ExtractedMaterialRow[]>;
+  /** R111 (1/4): translates one piece of real content into another language for display alongside
+   *  the original — never replaces it. */
+  translateText(input: TranslateTextInput): Promise<string>;
+  /** R111 (2/4): answers a free-text question grounded in one project's real, assembled context. */
+  askProjectQuestion(input: AskProjectQuestionInput): Promise<string>;
+  /** R111 (3/4): returns a grammar/clarity-cleaned suggestion for a free-text draft, for the user to
+   *  accept or discard — never applied automatically. */
+  cleanUpText(input: CleanUpTextInput): Promise<string>;
+  /** R111 (4/4): a few sentences of prose summarising one organisation's real, already-aggregated
+   *  monthly/weekly report-pack numbers — computed web-side (see apps/web/lib/reports/
+   *  report-summary.ts) since the worker has no AI provider access of its own. */
+  summarizeReportPack(input: SummarizeReportPackInput): Promise<string>;
 }

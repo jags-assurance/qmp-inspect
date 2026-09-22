@@ -17,6 +17,7 @@ import { getLatestFatReportPdf, draftFatNarrativeAction, saveFatNarrativeAction 
 import { FatReportPdfButton } from "./fat-report-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { isAiConfigured } from "@/lib/ai/gate";
 
 interface AssignmentDetail {
   id: string;
@@ -147,6 +148,8 @@ export default async function StandaloneAssignmentDetailPage({
           <NarrativeEditor
             recordIdFieldName="assignment_id"
             recordId={assignment.id}
+            projectId={assignment.project_id}
+            aiConfigured={isAiConfigured()}
             initialNarrative={assignment.narrative}
             draftAction={draftFatNarrativeAction}
             saveAction={saveFatNarrativeAction}

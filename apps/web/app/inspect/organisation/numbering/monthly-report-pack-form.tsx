@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   generateMonthlyReportPackAction,
+  generateReportPackSummaryAction,
   listMonthlyReportPacks,
   type GenerateMonthlyReportPackState,
+  type GenerateReportSummaryState,
   type ReportPackListItem,
 } from "@/lib/reports/actions";
 import { useReportPackListPolling } from "@/lib/reports/use-report-pack-polling";
@@ -12,6 +14,7 @@ import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { Button } from "@/components/ui/button";
 
 const initialState: GenerateMonthlyReportPackState = { error: null };
+const summaryInitialState: GenerateReportSummaryState = { error: null, summary: null };
 
 const MONTH_OPTIONS = [
   "January", "February", "March", "April", "May", "June",
@@ -27,10 +30,23 @@ const MONTH_NAMES = MONTH_OPTIONS.map((m) => m.label);
  * listMonthlyReportPacks (via the shared list-polling hook) until the new pack's row updates itself
  * with real View + Download links.
  */
-export function MonthlyReportPackForm({ organizationId, initialPacks }: { organizationId: string; initialPacks: ReportPackListItem[] }) {
+export function MonthlyReportPackForm({
+  organizationId,
+  initialPacks,
+  aiConfigured,
+}: {
+  organizationId: string;
+  initialPacks: ReportPackListItem[];
+  /** R111: honest "AI not configured" gate (R43's pattern) for the AI executive-summary button
+   *  below — see isAiConfigured() in lib/ai/gate.ts. */
+  aiConfigured?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(generateMonthlyReportPackAction, initialState);
+  const [summaryState, summaryFormAction, summaryPending] = useActionState(generateReportPackSummaryAction, summaryInitialState);
   const { items: reportPacks, polling, startPolling } = useReportPackListPolling(initialPacks, listMonthlyReportPacks, organizationId);
   const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -41,12 +57,14 @@ export function MonthlyReportPackForm({ organizationId, initialPacks }: { organi
     <div>
       <form action={formAction} className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="organization_id" value={organizationId} />
+        <input type="hidden" name="month" value={month} />
+        <input type="hidden" name="year" value={year} />
 
         <div>
           <label className="block text-xs text-muted">Month</label>
           <select
-            name="month"
-            defaultValue={now.getMonth() + 1}
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
             className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           >
             {MONTH_OPTIONS.map((m) => (
@@ -60,11 +78,11 @@ export function MonthlyReportPackForm({ organizationId, initialPacks }: { organi
         <div>
           <label className="block text-xs text-muted">Year</label>
           <input
-            name="year"
             type="number"
             min={2020}
             max={2100}
-            defaultValue={now.getFullYear()}
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
             className="mt-1 w-28 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
         </div>
@@ -73,9 +91,40 @@ export function MonthlyReportPackForm({ organizationId, initialPacks }: { organi
           {pending ? "Queuing…" : polling ? "Rendering…" : "Generate monthly report pack"}
         </Button>
 
+        {aiConfigured && (
+          <button
+            type="button"
+            disabled={summaryPending}
+            onClick={() => {
+              const fd = new FormData();
+              fd.set("organization_id", organizationId);
+              fd.set("month", String(month));
+              fd.set("year", String(year));
+              summaryFormAction(fd);
+            }}
+            className="rounded-md border border-border bg-off-white px-3 py-2 text-sm font-medium hover:bg-surface disabled:opacity-50"
+          >
+            {summaryPending ? "Summarising…" : "Generate AI summary"}
+          </button>
+        )}
+
         {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
         {polling && <p className="w-full text-sm text-muted">Rendering — the table below updates automatically when ready…</p>}
       </form>
+
+      {aiConfigured && (
+        <>
+          {summaryState.error && <p className="mt-2 text-sm text-danger">{summaryState.error}</p>}
+          {summaryState.summary && (
+            <div className="mt-3 rounded-md border border-border bg-off-white p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                AI executive summary — {MONTH_NAMES[month - 1]} {year} (display only, not embedded in the PDF)
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{summaryState.summary}</p>
+            </div>
+          )}
+        </>
+      )}
 
       <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted">Generated report packs</h3>
       {reportPacks.length === 0 ? (

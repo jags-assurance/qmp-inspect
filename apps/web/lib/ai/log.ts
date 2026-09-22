@@ -18,7 +18,11 @@ export type AiFeature =
   | "standalone_measurement_suggestion"
   | "calibration_register_extraction"
   | "welder_register_extraction"
-  | "material_register_extraction";
+  | "material_register_extraction"
+  | "content_translation"
+  | "project_qa"
+  | "text_cleanup"
+  | "report_pack_summary";
 
 export type AiReviewDecision = "accepted_as_is" | "edited_and_accepted" | "discarded";
 

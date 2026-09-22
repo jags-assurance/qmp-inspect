@@ -10,6 +10,9 @@ import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types"
 import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
+import { assertAiAllowed } from "@/lib/ai/gate";
+import { logAiUsage } from "@/lib/ai/log";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -592,4 +595,70 @@ export async function recordExternalApprovalAction(
 
   revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
+}
+
+export interface TranslateItpContentState {
+  error: string | null;
+  translated: string | null;
+  targetLanguage: string | null;
+}
+
+const EMPTY_TRANSLATE_STATE: TranslateItpContentState = { error: null, translated: null, targetLanguage: null };
+
+/**
+ * R111: translates this ITP's own title + scope (whatever it actually has recorded — never any
+ * other project's data) into a language the user picks from the UI dropdown, for display alongside
+ * the original. This is a pure display aid: nothing here is ever written back to the itp row, and
+ * translating never touches title/scope/applicable_standard themselves — only
+ * generateItpDraftAction/createItpFromDraftAction and the section/item editors do that.
+ */
+export async function translateItpContentAction(
+  _prev: TranslateItpContentState,
+  formData: FormData
+): Promise<TranslateItpContentState> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const targetLanguage = String(formData.get("target_language") ?? "").trim();
+
+  if (!itpId || !targetLanguage) {
+    return { ...EMPTY_TRANSLATE_STATE, error: "Missing ITP or target language." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("title, scope, project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{ title: string; scope: string | null; project_id: string; projects: { organization_id: string } | null }>();
+
+  if (!itp || !itp.projects) {
+    return { ...EMPTY_TRANSLATE_STATE, error: "ITP not found." };
+  }
+
+  const gate = await assertAiAllowed(supabase, itp.projects.organization_id);
+  if (!gate.allowed) return { ...EMPTY_TRANSLATE_STATE, error: gate.reason };
+
+  const sourceText = [itp.title, itp.scope].filter(Boolean).join("\n\n");
+  if (!sourceText.trim()) {
+    return { ...EMPTY_TRANSLATE_STATE, error: "This ITP has no title or scope text to translate yet." };
+  }
+
+  try {
+    const translated = await geminiProvider.translateText({ text: sourceText, targetLanguage });
+    await logAiUsage(supabase, {
+      organizationId: itp.projects.organization_id,
+      userId: user?.id ?? null,
+      feature: "content_translation",
+      modelId: getGeminiModel("content_translation"),
+      promptVersion: PROMPT_VERSIONS.content_translation,
+      sourceRef: { itpId, targetLanguage },
+      aiResponse: translated,
+    });
+    return { error: null, translated, targetLanguage };
+  } catch (err) {
+    return { ...EMPTY_TRANSLATE_STATE, error: err instanceof Error ? err.message : "Could not translate this ITP's content." };
+  }
 }
