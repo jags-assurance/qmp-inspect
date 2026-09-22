@@ -89,7 +89,7 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 |---|---|---|---|
 | R104 | Configurable numbering (client code, originator, doc type, **discipline**, sequence, revision, year, separator) | ✅ | `numbering_configs.include_discipline` (migration `20260924020000`) threaded through the shared formatter, live preview, and real generator |
 | R105 | Document traceability view (any number → full lineage) | ✅ | New Admin-only lookup page (`/inspect/organisation/traceability`) — search any ITP/NCR/inspection number, see revisions, audit trail, and real-FK-backed related records |
-| R107 | PDF (controlled) + Word + Excel (watermarked "UNCONTROLLED COPY") downloads | 🟡 | PDF real. Excel is now real `.xlsx` (`api/itps/[id]/export-xlsx`, built from R41's offline-workbook code) but **not watermarked** "UNCONTROLLED COPY" — the watermark helper (`xlsxUncontrolledCopy.ts`) exists and is used by report packs, just not wired into this route. **Word (.docx) export of the ITP document still doesn't exist at all** |
+| R107 | PDF (controlled) + Word + Excel (watermarked "UNCONTROLLED COPY") downloads | ✅ | PDF real. Excel export now watermarked "UNCONTROLLED COPY" (`lib/itps/xlsx-uncontrolled-copy.ts`). Real Word (`.docx`) export added (`lib/itps/docx.ts`, `api/itps/[id]/export-docx`) — sections/items/intervention grid, same watermark |
 
 ---
 
@@ -174,7 +174,7 @@ See Core section (R26-29).
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
-| R91 | Exportable ITP Register (PDF **and** Excel) | 🟡 | PDF genuinely covered (`itps/print/page.tsx`, browser "Save as PDF" — a deliberate design choice, documented in-file). **"Excel" (`api/itps/export/route.ts`) is honestly-labeled CSV, not a real `.xlsx`** — inconsistent with the real xlsx used elsewhere (report packs, checklist library, ITP's own single-document export) |
+| R91 | Exportable ITP Register (PDF **and** Excel) | ✅ | PDF via `itps/print/page.tsx`'s browser "Save as PDF" (documented deliberate choice). "Excel" (`api/itps/export/route.ts`) is now a real `.xlsx` via exceljs, same pattern as every other export in this codebase |
 | R109 | Monthly client report pack (PDF + Excel) | ✅ | PDF real and working (weekly sibling too); "Excel" is now a real `.xlsx` via exceljs (`generateMonthlyReportPack.ts`/`generateWeeklyReportPack.ts`), watermarked "UNCONTROLLED COPY" |
 | R110 | Secure read-only Power BI views | ✅ | Real `vw_powerbi_*` views + dedicated read-only role — genuinely implemented, not just documented |
 
