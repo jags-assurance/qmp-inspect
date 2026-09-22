@@ -51,6 +51,12 @@ export interface InspectionRecordRow {
   itp_number: string;
   activity: string;
   location: string | null;
+  /** R64/R103/R125 frozen traceability fields — see 20260923010000_frozen_traceability_header.sql.
+   *  All nullable: best-effort, populated only when the source data existed at inspection start. */
+  client_name: string | null;
+  applicable_standard: string | null;
+  governing_drawing_reference: string | null;
+  governing_drawing_revision: string | null;
   inspection_date: string;
   inspector_id: string | null;
   inspector_signature: string | null;

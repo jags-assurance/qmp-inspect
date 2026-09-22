@@ -247,7 +247,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
         acceptanceCriteria: item.acceptance_criteria,
         method: item.method,
         frequency: item.frequency,
-        evidenceType: item.evidence_type,
+        evidenceType: item.evidence_type as 1 | 2 | 3,
       })),
     })),
     interventions,

@@ -21,7 +21,7 @@ export async function hasPermission(
   const { data } = await supabase.rpc("has_custom_permission", {
     target_user_id: userId,
     target_permission_key: permissionKey,
-    target_project_id: projectId ?? null,
+    target_project_id: projectId,
   });
   return data === true;
 }

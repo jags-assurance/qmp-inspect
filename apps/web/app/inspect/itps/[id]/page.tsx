@@ -212,11 +212,18 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       // always re-uploading the same file a second time. Joined to the folder for a readable label.
       supabase
         .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, title, document_reference, storage_path, vault_folders!inner(project_id, name)")
+        .select("id, title, document_reference, revision, storage_path, vault_folders!inner(project_id, name, folder_key)")
         .eq("vault_folders.project_id", itp.projects?.id ?? "")
         .order("title")
         .returns<
-          { id: string; title: string; document_reference: string | null; storage_path: string; vault_folders: { name: string } | null }[]
+          {
+            id: string;
+            title: string;
+            document_reference: string | null;
+            revision: string;
+            storage_path: string;
+            vault_folders: { name: string; folder_key: string } | null;
+          }[]
         >(),
       // This organisation's configured intervention levels (supabase/migrations/
       // 20260917090000_configurable_intervention_levels.sql) — replaces the old hardcoded H/W/R/S
@@ -274,6 +281,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     storagePath: d.storage_path,
     folderName: d.vault_folders?.name ?? "Document Vault",
   }));
+
+  // R103/R125: governing-drawing picker on AddItemForm only offers documents actually filed under
+  // the "Drawings" vault folder, not the whole vault.
+  const drawingDocuments = (rawVaultDocuments ?? [])
+    .filter((d) => d.vault_folders?.folder_key === "drawings")
+    .map((d) => ({ id: d.id, title: d.title, revision: d.revision }));
 
   // A party can mark their own provider's record received if their login is linked to a
   // project_parties row of that party_type (mirrors canSignOffForParty) — staff always can. Computed
@@ -605,6 +618,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 sectionId={section.id}
                 disciplines={disciplines ?? []}
                 isIssued={isIssued}
+                drawingDocuments={drawingDocuments}
               />
             )}
           </div>

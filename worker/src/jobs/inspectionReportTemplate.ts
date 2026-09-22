@@ -40,6 +40,13 @@ export interface InspectionReportData {
   /** The governing ITP item's `reference_spec` (drawing / specification callout), if the record is
    *  linked to one. Feeds the Traceability table's "Drawing / specification" row; omitted when null. */
   referenceSpec?: string | null;
+  /** R64/R103/R125 frozen traceability header fields — read directly off inspection_records
+   *  (never live-joined), so the PDF reflects exactly what was in force at inspection time even if
+   *  the source project/ITP/drawing has since changed. All optional/best-effort. */
+  clientName?: string | null;
+  applicableStandard?: string | null;
+  governingDrawingReference?: string | null;
+  governingDrawingRevision?: string | null;
   /** IRN number already issued against this inspection record, if any — drives the FIELD RESULT
    *  banner's hold-release wording. Null/undefined means no IRN has been issued yet. */
   irnNumber?: string | null;
@@ -118,8 +125,15 @@ function renderTraceabilityTable(data: InspectionReportData): string {
   const inspectorName = data.signoffs[0]?.name ?? null;
   const dateInspector = [data.inspectionDate, inspectorName].filter(Boolean).join(" / ") || null;
 
+  const governingDrawing = data.governingDrawingReference
+    ? `${data.governingDrawingReference}${data.governingDrawingRevision ? ` (Rev ${data.governingDrawingRevision})` : ""}`
+    : null;
+
   const rows: [string, string | null][] = [
+    ["Client", data.clientName ?? null],
     ["Location", data.location],
+    ["Applicable standard", data.applicableStandard ?? null],
+    ["Governing drawing", governingDrawing],
     ["Drawing / specification", data.referenceSpec ?? null],
     ["Inspection date / inspector", dateInspector],
   ].filter(([, value]) => Boolean(value)) as [string, string | null][];

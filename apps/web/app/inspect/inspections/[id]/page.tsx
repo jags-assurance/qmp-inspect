@@ -40,7 +40,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select(
-      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
+      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -54,6 +54,10 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         | "itp_number"
         | "activity"
         | "location"
+        | "client_name"
+        | "applicable_standard"
+        | "governing_drawing_reference"
+        | "governing_drawing_revision"
         | "inspection_date"
         | "overall_result"
         | "notes"
@@ -156,6 +160,27 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <p className="text-xs text-muted">Inspector</p>
             <p className="mt-0.5 text-ink">{record.users?.full_name ?? "—"}</p>
           </div>
+          {record.client_name && (
+            <div>
+              <p className="text-xs text-muted">Client</p>
+              <p className="mt-0.5 text-ink">{record.client_name}</p>
+            </div>
+          )}
+          {record.applicable_standard && (
+            <div>
+              <p className="text-xs text-muted">Applicable standard</p>
+              <p className="mt-0.5 text-ink">{record.applicable_standard}</p>
+            </div>
+          )}
+          {record.governing_drawing_reference && (
+            <div>
+              <p className="text-xs text-muted">Governing drawing</p>
+              <p className="doc-id mt-0.5 text-ink">
+                {record.governing_drawing_reference}
+                {record.governing_drawing_revision ? ` (Rev ${record.governing_drawing_revision})` : ""}
+              </p>
+            </div>
+          )}
         </div>
         {record.checklist_template_id && (
           <div className="border-t border-border px-5 py-3">
