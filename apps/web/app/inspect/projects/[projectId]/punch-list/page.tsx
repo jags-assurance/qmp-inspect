@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AddPunchItemForm } from "./add-punch-item-form";
+import { RecordWalkdownForm } from "./record-walkdown-form";
 import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
@@ -51,8 +52,9 @@ export default async function PunchListPage({
         </p>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap items-start gap-3">
         <AddPunchItemForm projectId={projectId} projectParties={projectParties ?? []} />
+        <RecordWalkdownForm projectId={projectId} projectParties={projectParties ?? []} />
       </div>
 
       <div className="mt-6">

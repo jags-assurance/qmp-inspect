@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { setNcrStatusAction } from "@/lib/ncrs/actions";
 import { NCRS_TABLE, NCR_PHOTOS_TABLE, type NcrPhotoRow, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
-import { getLatestNcrPdf } from "@/lib/reports/actions";
+import { getLatestNcrPdf, getLatestNcrCloseoutCertificate } from "@/lib/reports/actions";
 import { NcrPdfButton } from "./ncr-pdf-button";
+import { NcrCloseoutCertificateButton } from "./ncr-closeout-certificate-button";
 import { CloseOutForm } from "./close-out-form";
 import { NcrPhotoUpload } from "./ncr-photo-upload";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
@@ -146,6 +147,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   if (!ncr) notFound();
 
   const latestNcrPdf = await getLatestNcrPdf(id);
+  const latestCloseoutCertificate = ncr.status === "closed" ? await getLatestNcrCloseoutCertificate(id) : null;
 
   const { data: photos } = await supabase
     .from(NCR_PHOTOS_TABLE)
@@ -235,6 +237,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="flex flex-col items-end gap-2">
           <NcrPdfButton ncrId={ncr.id} latest={latestNcrPdf} />
+          {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={latestCloseoutCertificate} />}
           {nextStatus && (
             <form action={setNcrStatusAction}>
               <input type="hidden" name="ncr_id" value={ncr.id} />

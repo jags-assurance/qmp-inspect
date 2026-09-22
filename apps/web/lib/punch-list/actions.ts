@@ -97,11 +97,81 @@ export async function closePunchItemAction(
   return { error: null };
 }
 
+export interface RecordWalkdownState {
+  error: string | null;
+  addedCount?: number;
+}
+
+/**
+ * R95: records a final walk-down and logs one or more punch-list items directly from it, source
+ * correctly tagged 'walkdown' — the flow the audit found missing (the enum value existed with an
+ * explicit "no such flow yet" comment; see the doc comment above createPunchItemFromSource).
+ *
+ * Scoping matches the existing sources' pattern: each of the other three sources ties its punch
+ * item back to the specific record it came from via a dedicated source_*_id FK (inspection_failure ->
+ * source_inspection_record_id, fat_conditional_pass -> source_standalone_assignment_id, ncr ->
+ * source_ncr_id). A walk-down has no equivalent record of its own in this schema — it isn't backed by
+ * an inspection_record, a standalone_assignment or an NCR, and inventing a whole new "walk-down
+ * inspection record" entity just to hang an FK off it would be exactly the over-building this task
+ * warned against. So a walkdown item is scoped the same way a 'manual' item is: to the project
+ * (source_inspection_record_id / source_standalone_assignment_id / source_ncr_id all stay null),
+ * differing from 'manual' only in the source tag itself — which is the real, honest signal: "raised
+ * while walking the project down", not "added ad hoc". A free-text `location` field (already on the
+ * table) is how the inspector notes which ITP/area/section an item came from, same as every other
+ * source here does — none of the three wired sources link to a specific ITP or section either.
+ *
+ * One submit can log several items at once (a walk-down routinely turns up more than one thing) —
+ * the form repeats `description`/`location`/`responsible_party_id`/`due_date` per row and this
+ * action zips them back together by position via FormData.getAll, then inserts every row with a
+ * non-empty description in one batch insert.
+ */
+export async function recordWalkdownAction(
+  _prev: RecordWalkdownState,
+  formData: FormData
+): Promise<RecordWalkdownState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) {
+    return { error: "Missing project." };
+  }
+
+  const descriptions = formData.getAll("description").map((v) => String(v).trim());
+  const locations = formData.getAll("location").map((v) => String(v).trim());
+  const responsibleParties = formData.getAll("responsible_party_id").map((v) => String(v).trim());
+  const dueDates = formData.getAll("due_date").map((v) => String(v).trim());
+
+  const rows = descriptions
+    .map((description, i) => ({
+      project_id: projectId,
+      description,
+      source: "walkdown" as const,
+      location: locations[i] || null,
+      responsible_party_id: responsibleParties[i] || null,
+      due_date: dueDates[i] || null,
+    }))
+    .filter((row) => row.description.length > 0);
+
+  if (rows.length === 0) {
+    return { error: "Add at least one item found during the walk-down before recording it." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(rows);
+
+  if (error) {
+    if (error.code === "23503") {
+      return { error: "A responsible party doesn't match a known project party." };
+    }
+    return { error: "Could not record the walk-down. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/projects/${projectId}/punch-list`);
+  revalidatePath(`/inspect/projects/${projectId}/data-book`);
+  return { error: null, addedCount: rows.length };
+}
+
 /**
  * Reusable helper for other features to auto-create a project-wide punch item off one of the
- * defined sources, instead of hand-rolling the insert. Deliberately NOT wired into any completion
- * flow by this module — see the integration-point notes in the final report for exactly where each
- * caller should invoke this:
+ * defined sources, instead of hand-rolling the insert. Wired into:
  *
  *  - checklist completion (apps/web/lib/checklists/actions.ts, when an inspection_record is
  *    completed with a 'no' response on a mandatory checklist_items row): source: 'inspection_failure',
@@ -110,9 +180,13 @@ export async function closePunchItemAction(
  *    conclusion = 'conditional_pass'): source: 'fat_conditional_pass', sourceStandaloneAssignmentId.
  *  - NCR raise (apps/web/lib/ncrs/actions.ts createNcrAction): source: 'ncr', sourceNcrId.
  *
- * Manual walkdown entries go through addPunchItemAction above (source: 'manual'), and don't need
- * this helper — 'walkdown' as a distinct source exists for whenever a dedicated walkdown flow is
- * built; there is no such flow yet, so nothing currently produces it.
+ * Manual, undifferentiated entries go through addPunchItemAction above (source: 'manual').
+ * 'walkdown'-sourced items are produced by recordWalkdownAction below (R95): a final walk-down is a
+ * distinct event from an ad hoc manual entry — one inspector/client sweep of the project that can
+ * surface several items at once, tagged so the register can tell "raised during the walk-down" apart
+ * from "someone added this later". recordWalkdownAction inserts directly (it needs to insert several
+ * rows from one submit) rather than looping this helper, but tags every row source: 'walkdown' the
+ * same way this helper would.
  */
 export async function createPunchItemFromSource(params: {
   projectId: string;
