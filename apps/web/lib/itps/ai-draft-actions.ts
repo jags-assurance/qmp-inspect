@@ -8,6 +8,7 @@ import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini
 import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
+import { generateDocumentNumber } from "@/lib/numbering/generate";
 
 // Reqs R34-R43: spec-to-ITP draft generation, grounded in the project's own vault documents (the
 // actual attached specs/standards/method statements) rather than a free-typed description alone.
@@ -23,9 +24,23 @@ export interface GenerateItpDraftState {
   draft: ItpDraftResult | null;
   projectParties: { id: string; partyType: string; name: string }[];
   aiLogId: string | null;
+  /** An auto-generated ITP number from the org's numbering scheme, offered as a starting value in
+   *  the (still freely editable) ITP number field. Drawn from the same atomic sequence used for
+   *  real ITPs, so an abandoned draft can leave a gap in the sequence — same as a voided document
+   *  number in any real document-control scheme, not a correctness issue. Only generated once per
+   *  draft (the "regenerate with feedback" flow reuses it, see generateItpDraftAction) so repeated
+   *  regeneration doesn't burn a fresh number each time. Null if numbering couldn't be generated,
+   *  in which case the field just starts blank as before. */
+  suggestedItpNumber: string | null;
 }
 
-const EMPTY_DRAFT_STATE: GenerateItpDraftState = { error: null, draft: null, projectParties: [], aiLogId: null };
+const EMPTY_DRAFT_STATE: GenerateItpDraftState = {
+  error: null,
+  draft: null,
+  projectParties: [],
+  aiLogId: null,
+  suggestedItpNumber: null,
+};
 
 export async function generateItpDraftAction(
   _prev: GenerateItpDraftState,
@@ -34,6 +49,7 @@ export async function generateItpDraftAction(
   const projectId = String(formData.get("project_id") ?? "").trim();
   const additionalInstructions = String(formData.get("additional_instructions") ?? "").trim();
   const vaultDocumentIds = formData.getAll("vault_document_ids").map(String).filter(Boolean);
+  const existingSuggestedItpNumber = String(formData.get("existing_suggested_itp_number") ?? "").trim() || null;
 
   if (!projectId || (vaultDocumentIds.length === 0 && !additionalInstructions)) {
     return {
@@ -49,9 +65,9 @@ export async function generateItpDraftAction(
 
   const { data: project } = await supabase
     .from("projects")
-    .select("organization_id")
+    .select("organization_id, project_number")
     .eq("id", projectId)
-    .maybeSingle<{ organization_id: string }>();
+    .maybeSingle<{ organization_id: string; project_number: string }>();
 
   if (!project) {
     return { ...EMPTY_DRAFT_STATE, error: "Project not found, or you don't have access to it." };
@@ -145,7 +161,25 @@ export async function generateItpDraftAction(
     aiResponse: draft,
   });
 
-  return { error: null, draft, projectParties, aiLogId: logId };
+  // Reuse the same suggested number across a "regenerate with feedback" cycle rather than drawing a
+  // fresh one from the sequence each time — see the field's doc comment on GenerateItpDraftState.
+  let suggestedItpNumber = existingSuggestedItpNumber;
+  if (!suggestedItpNumber) {
+    try {
+      const generated = await generateDocumentNumber(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        docType: "itp",
+        projectNumber: project.project_number,
+      });
+      suggestedItpNumber = generated.documentNumber;
+    } catch (err) {
+      // Best-effort suggestion only — the field stays editable and required either way.
+      console.error("[itp-draft] Could not auto-suggest an ITP number:", err);
+    }
+  }
+
+  return { error: null, draft, projectParties, aiLogId: logId, suggestedItpNumber };
 }
 
 export interface CreateItpFromDraftState {

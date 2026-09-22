@@ -76,6 +76,7 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
       ) : (
         <Badge tone={row.conclusion ? CONCLUSION_TONE[row.conclusion] : "neutral"}>
           {row.conclusion ? CONCLUSION_LABEL[row.conclusion] : "Completed"}
+          {row.status === "conditional_open" ? " — awaiting clearance" : ""}
         </Badge>
       ),
   },

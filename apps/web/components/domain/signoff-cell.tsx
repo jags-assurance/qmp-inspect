@@ -1,8 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { notifyPartyAction, proceedWithoutResponseAction, signOffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
+
+/** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
+ *  the same notified_at + noticeHours the server already enforces (proceedWithoutResponseAction),
+ *  so this can never show a countdown the backend doesn't actually agree with. */
+function formatCountdown(deadlineMs: number, nowMs: number): string {
+  const remainingMs = deadlineMs - nowMs;
+  if (remainingMs <= 0) return "Notice period elapsed";
+  const totalMinutes = Math.ceil(remainingMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m left`;
+  return `${minutes}m left`;
+}
 
 const STATUS_LABEL: Record<SignoffStatus, string> = {
   pending: "Pending",
@@ -50,10 +63,23 @@ export function SignoffCell({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const noticeElapsed =
+  const deadlineMs =
     status === "notified" && notifiedAt && noticeHours != null
-      ? Date.now() >= new Date(notifiedAt).getTime() + noticeHours * 60 * 60 * 1000
-      : false;
+      ? new Date(notifiedAt).getTime() + noticeHours * 60 * 60 * 1000
+      : null;
+
+  // Ticking countdown: starts at Date.now() (client-only, so this never mismatches the server
+  // render) and re-renders every 30s — a per-activity notice period is measured in hours, so a
+  // faster tick would just churn the DOM for no visible benefit.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (deadlineMs == null) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [deadlineMs]);
+
+  const noticeElapsed = deadlineMs != null && now != null ? now >= deadlineMs : false;
 
   const canNotify = status === "pending";
   const canSignOff = (status === "pending" || status === "notified") && canSignOffForThisParty;
@@ -72,6 +98,14 @@ export function SignoffCell({
       <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[status]}`}>
         {STATUS_LABEL[status]}
       </span>
+      {deadlineMs != null && now != null && (
+        <span
+          className={`text-[10px] ${noticeElapsed ? (isBlocking ? "text-danger" : "text-info") : "text-muted"}`}
+          title={isBlocking ? "A Hold always waits for release regardless of elapsed time (R77)" : undefined}
+        >
+          {noticeElapsed && isBlocking ? "Elapsed — still waiting for release" : formatCountdown(deadlineMs, now)}
+        </span>
+      )}
       <div className="flex gap-1">
         {canNotify && (
           <button

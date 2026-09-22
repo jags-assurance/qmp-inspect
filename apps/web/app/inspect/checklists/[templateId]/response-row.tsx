@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { saveChecklistResponseAction } from "@/lib/checklists/actions";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
@@ -57,6 +58,7 @@ export function ResponseRow({
   onResultChange,
   onSavingChange,
   projectId,
+  itpItemId,
   photos,
 }: {
   templateId: string;
@@ -64,6 +66,9 @@ export function ResponseRow({
   checklistItemId: string;
   itemNumber: string;
   description: string;
+  /** The parent ITP activity — needed to pre-fill a real "Raise NCR" link right at the point of
+   *  failure (R45), rather than just hinting that one could be raised later. */
+  itpItemId: string;
   isMandatory: boolean;
   initialResult: ChecklistResponseResult | null;
   initialComment: string;
@@ -119,6 +124,10 @@ export function ResponseRow({
   ) {
     if (readOnly || !nextResult) return;
     if (needsOverrideReason && !nextOverrideReason.trim()) return;
+    // R45: "a No requires a comment" — the pill click itself can't carry a comment yet, so this
+    // simply defers the save until the comment field's onBlur re-calls save() with real text; the
+    // "No" selection still shows locally (setResult already ran) so the inspector sees it's pending.
+    if (nextResult === "no" && !nextComment.trim()) return;
     const formData = new FormData();
     formData.set("template_id", templateId);
     formData.set("inspection_record_id", inspectionRecordId);
@@ -258,9 +267,20 @@ export function ResponseRow({
           ))}
         </div>
 
-        {result === "no" && (
+        {result === "no" && !comment.trim() && (
           <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
-            Marked as No — consider raising an NCR against this activity once the inspection is complete.
+            Marked as No — add a comment below to save this response (required).
+          </p>
+        )}
+        {result === "no" && comment.trim() && (
+          <p className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
+            <span>Marked as No.</span>
+            <Link
+              href={`/inspect/ncrs/new?project_id=${projectId}&itp_item_id=${itpItemId}&inspection_record_id=${inspectionRecordId}&description=${encodeURIComponent(`${itemNumber} ${description}: ${comment.trim()}`)}`}
+              className="font-medium underline hover:no-underline"
+            >
+              Raise NCR for this item →
+            </Link>
           </p>
         )}
 

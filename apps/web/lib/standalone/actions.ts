@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
@@ -22,7 +23,10 @@ import {
 const STAFF_ONLY_ERROR = "Only JAGS staff can run a standalone assignment.";
 
 export type AssignmentType = "fat" | "witness_inspection" | "specific_test" | "pre_shipment";
-export type AssignmentStatus = "draft" | "completed";
+// R16: a conditional pass leaves the assignment genuinely open ("conditional_open") until its
+// linked punch item(s) are closed and a clearance is issued — only then does it become "completed",
+// same as a clean pass/fail does immediately on finalize.
+export type AssignmentStatus = "draft" | "conditional_open" | "completed";
 export type AssignmentConclusion = "pass" | "conditional_pass" | "fail";
 export type MeasurementResult = "pass" | "fail";
 export type PunchItemStatus = "open" | "closed";
@@ -485,9 +489,35 @@ export async function finalizeAssignmentAction(
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // A FAT/witness/pre-shipment record's signatures are the actual evidence the test was witnessed —
+  // finalizing (which locks the record) without at least one captured signature would produce a
+  // "complete" report with no proof anyone was there. Require at least one before allowing the
+  // otherwise-irreversible status change below.
+  const { count: signatureCount, error: signatureCountError } = await supabase
+    .from(STANDALONE_ASSIGNMENT_SIGNATURES)
+    .select("id", { count: "exact", head: true })
+    .eq("assignment_id", assignmentId);
+
+  if (signatureCountError) {
+    return { error: "Could not verify signatures. Check you have permission and try again." };
+  }
+  if (!signatureCount) {
+    return { error: "Capture at least one signature (e.g. the witness or vendor representative) before finalizing." };
+  }
+
+  // R16: a clean pass or fail is done the moment it's finalized. A conditional pass is NOT —
+  // it stays genuinely open ("conditional_open") until its punch item is closed and clearance is
+  // issued via issueClearanceAction below; only then does it reach "completed".
+  const finalizedStatus: AssignmentStatus = conclusion === "conditional_pass" ? "conditional_open" : "completed";
+
   const { data, error } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
-    .update({ status: "completed", conclusion, completed_at: new Date().toISOString() })
+    .update({
+      status: finalizedStatus,
+      conclusion,
+      completed_at: finalizedStatus === "completed" ? new Date().toISOString() : null,
+    })
     .eq("id", assignmentId)
     .eq("status", "draft")
     .select("id, project_id, assignment_number, equipment_description, created_by")
@@ -539,6 +569,65 @@ export async function finalizeAssignmentAction(
     } catch {
       // Notification delivery is best-effort — see comment above.
     }
+  }
+
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+  return { error: null };
+}
+
+export interface IssueClearanceState {
+  error: string | null;
+}
+
+/**
+ * R16's other half: closes out a "conditional_open" assignment once its punch item(s) are actually
+ * cleared — the "clearance/close-out" the spec describes, distinct from the original finalize.
+ * Deliberately re-checks the punch list itself (not just trusting the caller) so this can never be
+ * used to skip past open items still sitting on the project's shared punch-list register.
+ */
+export async function issueClearanceAction(
+  _prev: IssueClearanceState,
+  formData: FormData
+): Promise<IssueClearanceState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  if (!assignmentId) return { error: "Missing assignment." };
+
+  const supabase = await createSupabaseServerClient();
+
+  const { count: openCount, error: openCountError } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("source_standalone_assignment_id", assignmentId)
+    .eq("status", "open");
+
+  if (openCountError) {
+    return { error: "Could not check the linked punch item(s). Try again." };
+  }
+  if (openCount) {
+    return { error: `${openCount} linked punch item(s) still open — close them before issuing clearance.` };
+  }
+
+  const { error, data } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      cleared_by: session.userId,
+      cleared_at: new Date().toISOString(),
+    })
+    .eq("id", assignmentId)
+    .eq("status", "conditional_open")
+    .select("id")
+    .returns<{ id: string }[]>();
+
+  if (error) {
+    return { error: "Could not issue clearance. Check you have permission and try again." };
+  }
+  if (!data || data.length === 0) {
+    return { error: "This assignment isn't awaiting clearance (already cleared, or not conditionally passed)." };
   }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);

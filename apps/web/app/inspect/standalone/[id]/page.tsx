@@ -70,7 +70,7 @@ export default async function StandaloneAssignmentDetailPage({
 
   const latestReportPdf = await getLatestFatReportPdf(id);
 
-  const [{ data: measurements }, { data: photos }, { data: punchItems }, { data: signatures }] =
+  const [{ data: measurements }, { data: photos }, { data: punchItems }, { data: signatures }, { count: linkedOpenPunchCount }] =
     await Promise.all([
       supabase
         .from("standalone_assignment_measurements" as any)
@@ -96,6 +96,17 @@ export default async function StandaloneAssignmentDetailPage({
         .eq("assignment_id", id)
         .order("signed_at")
         .returns<StandaloneAssignmentSignatureRow[]>(),
+      // R16 clearance gate: the REAL blocker is the project-wide punch_list_items row(s) this
+      // assignment's conditional-pass created (createPunchItemFromSource, source:
+      // "fat_conditional_pass") — a separate table from standalone_assignment_punch_items (the
+      // assignment's own internal punch tab). issueClearanceAction checks this same table server-
+      // side; querying it here too so the UI's "ready to clear" hint can never say something the
+      // server would actually reject.
+      supabase
+        .from("punch_list_items" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("source_standalone_assignment_id", id)
+        .eq("status", "open"),
     ]);
 
   return (
@@ -126,6 +137,7 @@ export default async function StandaloneAssignmentDetailPage({
           photos={photos ?? []}
           punchItems={punchItems ?? []}
           signatures={signatures ?? []}
+          linkedOpenPunchCount={linkedOpenPunchCount ?? 0}
           isJagsStaff={session.isJagsStaff}
         />
       </div>

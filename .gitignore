@@ -24,3 +24,7 @@ coverage/
 # OS cruft
 Thumbs.db
 desktop.ini
+
+# Client-provided reference material (original samples/prototypes/output examples) — for local
+# analysis only, never pushed to GitHub.
+/1_Orginal_Samleples_Sep16/

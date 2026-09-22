@@ -340,6 +340,12 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     return { error: "Missing required fields — could not save your response." };
   }
 
+  // R45: "a 'No' requires a comment" — enforced server-side, not just as a UI nudge, since this is
+  // the record an auditor/NCR relies on later for why the item failed.
+  if (result === "no" && !comment) {
+    return { error: "A comment is required when marking an item as No." };
+  }
+
   const supabase = await createSupabaseServerClient();
 
   // Field execution is JAGS staff's job, or (R76) the party assigned to this specific activity

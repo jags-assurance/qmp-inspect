@@ -12,6 +12,7 @@ import { NewItpFromTemplateForm } from "./new-itp-from-template-form";
 import { NewItpFromAiForm, type VaultDocumentOption } from "./new-itp-from-ai-form";
 import { ItpCreationTabs } from "./itp-creation-tabs";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
+import { isAiConfigured } from "@/lib/ai/gate";
 
 export default async function NewItpPage() {
   const session = await requireSession();
@@ -122,30 +123,33 @@ export default async function NewItpPage() {
     ? (allProjects ?? []).filter((p) => clientEligibleProjectIds!.has(p.id))
     : (allProjects ?? []);
 
+  // R43 — hide the AI entry point entirely when this deployment has no AI provider key configured,
+  // rather than showing a tab that can only ever fail after submit.
+  const aiConfigured = isAiConfigured();
+  const fromAi = aiConfigured ? (
+    <NewItpFromAiForm projects={projects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
+  ) : undefined;
+
   if (clientEligibleProjectIds) {
     return (
-      <div className="max-w-xl">
+      <div className="max-w-3xl">
         <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
           ← Back to ITP Register
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-ink">New ITP</h1>
         <p className="mt-1 text-sm text-muted">
           Creates a draft ITP with the four standard sections — add, rename or reorder them as
-          needed once it&apos;s created. Or generate a first draft from your own vault documents.
-          JAGS will review and approve it once you submit it.
+          needed once it&apos;s created.
+          {aiConfigured ? " Or generate a first draft from your own vault documents." : ""} JAGS will
+          review and approve it once you submit it.
         </p>
-        <ItpCreationTabs
-          manual={<NewItpForm projects={projects} />}
-          fromAi={
-            <NewItpFromAiForm projects={projects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
-          }
-        />
+        <ItpCreationTabs manual={<NewItpForm projects={projects} />} fromAi={fromAi} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-xl">
+    <div className="max-w-3xl">
       <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
         ← Back to ITP Register
       </Link>
@@ -158,9 +162,7 @@ export default async function NewItpPage() {
       <ItpCreationTabs
         manual={<NewItpForm projects={projects} />}
         fromTemplate={<NewItpFromTemplateForm projects={projects} templates={templates ?? []} />}
-        fromAi={
-          <NewItpFromAiForm projects={projects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
-        }
+        fromAi={fromAi}
       />
     </div>
   );

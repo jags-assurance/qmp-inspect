@@ -310,6 +310,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             calibrationOptions={calibrationOptions}
             canExecute={canExecute}
             projectId={project.id}
+            itpItemId={itpItem.id}
             itemPhotos={itemPhotos}
             photoSlot={
               <div className="rounded-lg border border-border bg-surface p-4">

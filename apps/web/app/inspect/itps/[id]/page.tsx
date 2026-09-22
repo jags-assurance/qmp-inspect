@@ -33,6 +33,7 @@ import {
   sortLevels,
   type InterventionLevelTypeRow,
 } from "@/lib/intervention-levels/types";
+import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -126,6 +127,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     { data: disciplines },
     { data: rawVaultDocuments },
     { data: levelTypes },
+    { data: aiDraftReview },
   ] = await Promise.all([
       // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
       // everything else below, so it runs concurrently instead of blocking the rest of the page
@@ -195,6 +197,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .select("id, organization_id, code, label, sort_order, is_blocking, default_notice_hours, created_at")
         .eq("organization_id", itp.projects?.organization_id ?? "")
         .returns<InterventionLevelTypeRow[]>(),
+      // R42 — was this ITP created from an AI draft? logAiUsage/recordAiReviewDecision (lib/ai/log.ts)
+      // stamp target_type="itp"/target_id=<this itp> once createItpFromDraftAction confirms the draft,
+      // so a matching row is exactly "this ITP came from an AI draft, reviewed by X on Y" — no new
+      // column needed on itps itself.
+      supabase
+        .from(AI_USAGE_LOG_TABLE)
+        .select("reviewed_by, reviewed_at, users!reviewed_by(full_name)")
+        .eq("feature", "itp_draft")
+        .eq("target_type", "itp")
+        .eq("target_id", itp.id)
+        .maybeSingle<{ reviewed_by: string | null; reviewed_at: string | null; users: { full_name: string } | null }>(),
     ]);
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
@@ -327,6 +340,18 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             <h1 className="doc-id text-2xl font-semibold text-ink">{itp.itp_number}</h1>
             <Badge tone={STATUS_TONE[itp.status]}>{STATUS_LABEL[itp.status]}</Badge>
             <span className="text-sm text-muted">Rev {itp.revision}</span>
+            {aiDraftReview && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-xs font-medium text-[color:var(--color-burgundy-dark)]"
+                title={
+                  aiDraftReview.reviewed_at
+                    ? `Reviewed by ${aiDraftReview.users?.full_name ?? "a reviewer"} on ${new Date(aiDraftReview.reviewed_at).toLocaleDateString()}`
+                    : undefined
+                }
+              >
+                ✨ AI-drafted{aiDraftReview.users?.full_name ? ` · reviewed by ${aiDraftReview.users.full_name}` : ""}
+              </span>
+            )}
           </div>
           <p className="mt-1 text-lg text-ink">{itp.title}</p>
           <p className="mt-1 text-sm text-muted">

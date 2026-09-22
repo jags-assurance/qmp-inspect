@@ -110,6 +110,14 @@ export default async function ItpsPage({
       .returns<ItpRow[]>(),
   ]);
 
+  // R91 — export the register (current filters, every matching row, not just this page) to Excel
+  // (CSV) and PDF (a print view). Built from the same filter params as the register itself.
+  const exportParams = new URLSearchParams();
+  if (disciplineId) exportParams.set("discipline", disciplineId);
+  if (projectId) exportParams.set("project", projectId);
+  if (q) exportParams.set("q", q);
+  const exportQuery = exportParams.toString();
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -117,11 +125,19 @@ export default async function ItpsPage({
           <h1 className="text-2xl font-semibold text-ink">ITP Register</h1>
           <p className="mt-1 text-sm text-muted">Inspection & Test Plans across your projects.</p>
         </div>
-        {canCreateItp && (
-          <Link href="/inspect/itps/new">
-            <Button>+ New ITP</Button>
+        <div className="flex items-center gap-2">
+          <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`}>
+            <Button variant="outline">PDF</Button>
           </Link>
-        )}
+          <a href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`}>
+            <Button variant="outline">Excel</Button>
+          </a>
+          {canCreateItp && (
+            <Link href="/inspect/itps/new">
+              <Button>+ New ITP</Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {projectId && (

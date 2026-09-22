@@ -29,7 +29,7 @@ const CONCLUSION_OPTIONS: {
   },
 ];
 
-export function FinalizeForm({ assignmentId }: { assignmentId: string }) {
+export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: string; hasSignature: boolean }) {
   const [state, formAction, pending] = useActionState(finalizeAssignmentAction, initialState);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -62,8 +62,13 @@ export function FinalizeForm({ assignmentId }: { assignmentId: string }) {
           ))}
         </div>
       </div>
+      {!hasSignature && (
+        <p className="text-xs text-muted">
+          Capture at least one signature under Witness Signatures before this can be finalized.
+        </p>
+      )}
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || !hasSignature} title={!hasSignature ? "Add a signature first" : undefined}>
         {pending ? "Finalizing…" : "Finalize assignment"}
       </Button>
     </form>

@@ -30,7 +30,13 @@ const EXTRACTION_LABEL: Record<string, string> = {
 };
 
 const createInitialState: CreateItpFromDraftState = { error: null };
-const genInitialState: GenerateItpDraftState = { error: null, draft: null, projectParties: [], aiLogId: null };
+const genInitialState: GenerateItpDraftState = {
+  error: null,
+  draft: null,
+  projectParties: [],
+  aiLogId: null,
+  suggestedItpNumber: null,
+};
 
 type CountMode = "auto" | "concise" | "standard" | "detailed" | "custom";
 
@@ -102,6 +108,9 @@ export function NewItpFromAiForm({
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [countMode, setCountMode] = useState<CountMode>("auto");
   const [customCount, setCustomCount] = useState("4");
+  const [itpNumber, setItpNumber] = useState("");
+  const [title, setTitle] = useState("");
+  const [applicableStandard, setApplicableStandard] = useState("");
 
   const projectVaultDocuments = vaultDocuments.filter((d) => d.projectId === projectId);
   const disciplineNameByCode = new Map(disciplines.map((d) => [d.code, d.name]));
@@ -128,6 +137,11 @@ export function NewItpFromAiForm({
       setProjectParties(genState.projectParties);
       setAiLogId(genState.aiLogId);
       setFeedback("");
+      // Auto-fill from the AI's suggestions, but never clobber something the user already typed —
+      // a "regenerate with feedback" cycle keeps whatever the reviewer already customized.
+      setItpNumber((prev) => prev || genState.suggestedItpNumber || "");
+      setTitle((prev) => prev || genState.draft?.suggestedTitle || "");
+      setApplicableStandard((prev) => prev || genState.draft?.suggestedApplicableStandard || "");
     }
   }
 
@@ -297,7 +311,7 @@ export function NewItpFromAiForm({
     setDraft((d) => {
       if (!d) return d;
       const sections = d.sections.map((s, i) => (i === sectionIdx ? { ...s, title } : s));
-      return { sections };
+      return { ...d, sections };
     });
   }
 
@@ -312,7 +326,7 @@ export function NewItpFromAiForm({
         if (si !== sectionIdx) return s;
         return { ...s, items: s.items.map((it, ii) => (ii === itemIdx ? { ...it, ...patch } : it)) };
       });
-      return { sections };
+      return { ...d, sections };
     });
   }
 
@@ -323,7 +337,7 @@ export function NewItpFromAiForm({
         if (si !== sectionIdx) return s;
         return { ...s, items: s.items.filter((_, ii) => ii !== itemIdx) };
       });
-      return { sections };
+      return { ...d, sections };
     });
   }
 
@@ -354,7 +368,7 @@ export function NewItpFromAiForm({
           ],
         };
       });
-      return { sections };
+      return { ...d, sections };
     });
   }
 
@@ -379,6 +393,9 @@ export function NewItpFromAiForm({
             <input key={id} type="hidden" name="vault_document_ids" value={id} />
           ))}
           <input type="hidden" name="additional_instructions" value={combinedInstructions(feedback ? `Feedback on the previous draft — apply this: ${feedback}` : undefined)} />
+          {/* Keeps the already-suggested ITP number stable across regeneration instead of drawing a
+              fresh one from the org's sequence on every "Regenerate with this feedback" click. */}
+          <input type="hidden" name="existing_suggested_itp_number" value={itpNumber} />
           <textarea
             rows={2}
             value={feedback}
@@ -404,43 +421,55 @@ export function NewItpFromAiForm({
         <input type="hidden" name="draft_json" value={JSON.stringify(draft)} readOnly />
         <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label htmlFor="ai_itp_number" className="block text-sm font-semibold text-ink">
-              ITP number
-            </label>
-            <input
-              id="ai_itp_number"
-              name="itp_number"
-              required
-              placeholder="e.g. MER-JAGS-ITP-002"
-              className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy doc-id"
-            />
-          </div>
+        <div className="rounded-lg border border-border bg-off-white p-4">
+          <p className="text-xs font-medium text-muted">
+            Auto-suggested from the org&apos;s numbering scheme and the source documents — review and edit
+            before creating.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div>
+              <label htmlFor="ai_itp_number" className="block text-sm font-semibold text-ink">
+                ITP number
+              </label>
+              <input
+                id="ai_itp_number"
+                name="itp_number"
+                required
+                value={itpNumber}
+                onChange={(e) => setItpNumber(e.target.value)}
+                placeholder="e.g. MER-JAGS-ITP-002"
+                className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy doc-id"
+              />
+            </div>
 
-          <div className="sm:col-span-2">
-            <label htmlFor="ai_title" className="block text-sm font-semibold text-ink">
-              Title
-            </label>
-            <input
-              id="ai_title"
-              name="title"
-              required
-              className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
-            />
-          </div>
-        </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="ai_title" className="block text-sm font-semibold text-ink">
+                Title
+              </label>
+              <input
+                id="ai_title"
+                name="title"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+              />
+            </div>
 
-        <div>
-          <label htmlFor="ai_applicable_standard" className="block text-sm font-semibold text-ink">
-            Applicable standard <span className="font-normal text-muted">(optional)</span>
-          </label>
-          <input
-            id="ai_applicable_standard"
-            name="applicable_standard"
-            placeholder="e.g. IEC 61439"
-            className="mt-1.5 w-full max-w-sm rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
-          />
+            <div>
+              <label htmlFor="ai_applicable_standard" className="block text-sm font-semibold text-ink">
+                Applicable standard <span className="font-normal text-muted">(optional)</span>
+              </label>
+              <input
+                id="ai_applicable_standard"
+                name="applicable_standard"
+                value={applicableStandard}
+                onChange={(e) => setApplicableStandard(e.target.value)}
+                placeholder="e.g. IEC 61439"
+                className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="space-y-5">
@@ -508,8 +537,8 @@ export function NewItpFromAiForm({
                       />
                     </div>
 
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="lg:col-span-2">
                         <label className="block text-xs font-medium text-muted">Reference (spec clause / standard)</label>
                         <input
                           value={item.referenceSpec}
@@ -532,6 +561,18 @@ export function NewItpFromAiForm({
                           ))}
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted">Evidence type</label>
+                        <select
+                          value={item.evidenceType}
+                          onChange={(e) => updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })}
+                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                        >
+                          <option value={1}>Checklist</option>
+                          <option value={2}>Document upload</option>
+                          <option value={3}>Measurement record</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -551,19 +592,6 @@ export function NewItpFromAiForm({
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         />
                       </div>
-                    </div>
-
-                    <div className="mt-3">
-                      <label className="block text-xs font-medium text-muted">Evidence type</label>
-                      <select
-                        value={item.evidenceType}
-                        onChange={(e) => updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })}
-                        className="mt-1 w-full max-w-xs rounded border border-border bg-surface px-2 py-1.5 text-xs"
-                      >
-                        <option value={1}>Checklist</option>
-                        <option value={2}>Document upload</option>
-                        <option value={3}>Measurement record</option>
-                      </select>
                     </div>
 
                     {item.suggestedInterventions.length > 0 && (

@@ -32,6 +32,7 @@ export function ChecklistExecutionPanel({
   completeSlot,
   incompleteSlot,
   projectId,
+  itpItemId,
   itemPhotos,
 }: {
   templateId: string;
@@ -55,6 +56,8 @@ export function ChecklistExecutionPanel({
   incompleteSlot: ReactNode;
   /** Needed to build each item-linked photo's storage path. */
   projectId: string;
+  /** The parent ITP activity — threaded down to ResponseRow's "Raise NCR" link (R45). */
+  itpItemId: string;
   /** Each checklist item's own evidence photos (checklist_item_id === that item's id), keyed by
    *  checklist_item_id, for the compact per-row "+ photo" affordance. */
   itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null }[]>;
@@ -137,6 +140,7 @@ export function ChecklistExecutionPanel({
             }
             onSavingChange={(saving) => setSavingCount((prev) => Math.max(0, prev + (saving ? 1 : -1)))}
             projectId={projectId}
+            itpItemId={itpItemId}
             photos={itemPhotos.get(item.id) ?? []}
           />
         ))}

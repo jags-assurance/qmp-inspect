@@ -23,6 +23,7 @@ import { PhotoUpload } from "./photo-upload";
 import { SignaturePad } from "./signature-pad";
 import { NotesForm } from "./notes-form";
 import { FinalizeForm } from "./finalize-form";
+import { IssueClearanceForm } from "./issue-clearance-form";
 
 interface Assignment {
   id: string;
@@ -76,6 +77,7 @@ export function AssignmentWorkspace({
   photos,
   punchItems,
   signatures,
+  linkedOpenPunchCount,
   isJagsStaff,
 }: {
   assignment: Assignment;
@@ -83,6 +85,10 @@ export function AssignmentWorkspace({
   photos: StandaloneAssignmentPhotoRow[];
   punchItems: StandaloneAssignmentPunchItemRow[];
   signatures: StandaloneAssignmentSignatureRow[];
+  /** Open count on the project-wide punch_list_items row(s) this assignment's conditional-pass
+   *  created — the real R16 clearance gate, distinct from `punchItems` above (the assignment's own
+   *  internal punch tab, a separate table with no bearing on clearance). */
+  linkedOpenPunchCount: number;
   /** Every mutating control below (add measurement/punch item/photo/signature, finalize) is
    * staff-only server-side — every action in lib/standalone/actions.ts rejects a non-staff call.
    * Without this, the controls still rendered for any logged-in party (client, subcontractor,
@@ -92,6 +98,7 @@ export function AssignmentWorkspace({
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("measurements");
   const isDraft = assignment.status === "draft";
+  const isConditionalOpen = assignment.status === "conditional_open";
   // Distinct from isDraft: isDraft is about the assignment's actual state (still correct to show
   // as "Draft" to anyone), canEdit is about whether THIS viewer may mutate it. Every action this
   // gates is staff-only server-side (lib/standalone/actions.ts) — this just stops the controls
@@ -118,6 +125,14 @@ export function AssignmentWorkspace({
           }
         />
       </div>
+
+      {isConditionalOpen && (
+        <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
+          {linkedOpenPunchCount > 0
+            ? `Conditionally passed — ${linkedOpenPunchCount} linked punch item(s) still open on the project punch list. This stays open until they're closed and clearance is issued.`
+            : "Conditionally passed — the linked punch item(s) are closed. Ready to issue clearance below."}
+        </p>
+      )}
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
@@ -296,15 +311,25 @@ export function AssignmentWorkspace({
         )}
       </div>
 
-      {canEdit && (
+      {isDraft && canEdit && (
         <div className="mt-6">
-          <FinalizeForm assignmentId={assignment.id} />
+          <FinalizeForm assignmentId={assignment.id} hasSignature={signatures.length > 0} />
         </div>
       )}
       {isDraft && !canEdit && (
         <p className="mt-6 text-sm text-muted">This assignment is still in progress — a JAGS inspector will finalize it.</p>
       )}
-      {!isDraft && (
+      {isConditionalOpen && isJagsStaff && (
+        <div className="mt-6">
+          <IssueClearanceForm assignmentId={assignment.id} canClear={linkedOpenPunchCount === 0} />
+        </div>
+      )}
+      {isConditionalOpen && !isJagsStaff && (
+        <p className="mt-6 text-sm text-muted">
+          Conditionally passed — a JAGS inspector will issue clearance once the linked punch item(s) are closed.
+        </p>
+      )}
+      {assignment.status === "completed" && (
         <p className="mt-6 text-sm text-muted">
           This assignment is finalized and read-only. Its conclusion was recorded as{" "}
           <span className="font-medium text-ink">

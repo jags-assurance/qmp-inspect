@@ -57,3 +57,26 @@ body {
   font-family: var(--font-mono-ui), ui-monospace, monospace;
   letter-spacing: 0.01em;
 }
+
+/* R91/R106-style "print this register/page as a PDF via the browser" pattern: a page opts in by
+   wrapping its printable content in .print-area — everything else (sidebar, header, nav) is hidden
+   for that print job regardless of where in the app shell it sits, so a new print view never needs
+   to fight the persistent AppShell layout to hide itself. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

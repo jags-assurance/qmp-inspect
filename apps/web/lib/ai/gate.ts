@@ -26,6 +26,18 @@ export interface AiGateResult {
   reason: string | null;
 }
 
+/**
+ * R43 — "AI features are hidden cleanly if no AI API key is configured." This is deliberately
+ * separate from assertAiAllowed: that gate is about whether THIS organisation may use AI right now
+ * (tier + consent + rate limit) and is meant to be called from a server action, returning a friendly
+ * error after the user has already tried to submit. This one is for deciding, at render time in a
+ * server component, whether to show an AI entry point (a tab, a button) at all — so a deployment
+ * with no key configured never shows a control that can only ever fail.
+ */
+export function isAiConfigured(): boolean {
+  return Boolean(process.env.GEMINI_API_KEY);
+}
+
 export async function assertAiAllowed(
   supabase: SupabaseClient,
   organizationId: string

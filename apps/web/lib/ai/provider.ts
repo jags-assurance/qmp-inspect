@@ -39,6 +39,13 @@ export interface ItpDraftSection {
 
 export interface ItpDraftResult {
   sections: ItpDraftSection[];
+  /** A plausible ITP title drawn from the source documents' own scope/subject (e.g. "Electrical
+   *  Installation & Testing — Substation MER-2026-001"), for the reviewer to accept or edit —
+   *  never written anywhere until the user confirms it via the title field. */
+  suggestedTitle: string | null;
+  /** The primary standard the source documents themselves cite most, if any (e.g. "IEC 61439") —
+   *  same accept-or-edit treatment as suggestedTitle. */
+  suggestedApplicableStandard: string | null;
 }
 
 /** One vault document's extracted text, feeding an ITP generation call as real source material. */

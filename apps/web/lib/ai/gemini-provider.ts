@@ -144,6 +144,8 @@ interface RawItpDraftSection {
   items: RawItpDraftItem[];
 }
 interface RawItpDraft {
+  suggested_title?: string | null;
+  suggested_applicable_standard?: string | null;
   sections: RawItpDraftSection[];
 }
 
@@ -267,8 +269,16 @@ export class GeminiProvider implements AiProvider {
       "  inspections, energisation, load tests), reserved for maybe 10-20% of activities; most",
       "  activities should carry Witness/Review/Surveillance or nothing at all for a given party.",
       "",
+      "Also suggest a title and an applicable standard for the ITP as a whole, drawn from what the",
+      "source documents actually cover — suggested_title should read like a real controlled-document",
+      "title (e.g. \"Electrical Installation & Testing\" or \"Civil Works — Foundations & Structural",
+      "Concrete\"), not a restatement of a filename. suggested_applicable_standard should be the single",
+      "standard the documents cite most centrally (e.g. \"IEC 61439\"), or null if none is clearly",
+      "dominant — never invent one that isn't actually referenced in the source documents.",
+      "",
       "Return ONLY a JSON object (no markdown fences, no commentary) with this exact shape:",
-      `{"sections":[{"section_number":number,"title":string,"items":[{"item_number":string,`,
+      `{"suggested_title":string|null,"suggested_applicable_standard":string|null,`,
+      `"sections":[{"section_number":number,"title":string,"items":[{"item_number":string,`,
       `"activity":string,"reference_spec":string,"acceptance_criteria":string,"method":string,`,
       `"frequency":string,"evidence_type":1|2|3,"discipline_code":string|null,`,
       `"suggested_interventions":[{"project_party_id":string,"intervention":"H"|"W"|"R"|"S","reason":string}]}]}]}`,
@@ -294,6 +304,11 @@ export class GeminiProvider implements AiProvider {
     const validDisciplineCodes = new Set(input.disciplines.map((d) => d.code));
 
     return {
+      suggestedTitle: typeof raw.suggested_title === "string" && raw.suggested_title.trim() ? raw.suggested_title.trim() : null,
+      suggestedApplicableStandard:
+        typeof raw.suggested_applicable_standard === "string" && raw.suggested_applicable_standard.trim()
+          ? raw.suggested_applicable_standard.trim()
+          : null,
       sections: raw.sections.map((s) => ({
         sectionNumber: Number(s.section_number) || 0,
         title: String(s.title ?? "Untitled section"),

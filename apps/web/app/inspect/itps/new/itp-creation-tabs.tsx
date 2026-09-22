@@ -19,7 +19,10 @@ export function ItpCreationTabs({
   /** Omit to hide this tab entirely — e.g. a self-managed client's own login gets manual + AI-draft
    * but not the master-template copy flow, which stays staff-only (see itps/new/page.tsx). */
   fromTemplate?: ReactNode;
-  fromAi: ReactNode;
+  /** Omit to hide this tab entirely — R43: the AI entry point must be hidden cleanly, not just fail
+   * after submit, when no AI provider key is configured for this deployment (see itps/new/page.tsx's
+   * isAiConfigured() check). */
+  fromAi?: ReactNode;
 }) {
   const [tab, setTab] = useState<"manual" | "template" | "ai">("manual");
 
@@ -42,13 +45,15 @@ export function ItpCreationTabs({
             Start from a master template
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setTab("ai")}
-          className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
-        >
-          Generate from vault documents
-        </button>
+        {fromAi && (
+          <button
+            type="button"
+            onClick={() => setTab("ai")}
+            className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+          >
+            Generate from vault documents
+          </button>
+        )}
       </div>
 
       {tab === "manual" ? manual : tab === "template" ? fromTemplate : fromAi}
