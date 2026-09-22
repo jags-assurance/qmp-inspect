@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
 
@@ -86,6 +87,18 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   if (sectionsError) {
     return { error: "ITP created, but default sections could not be added." };
   }
+
+  // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+  // creation above — see lib/audit/log.ts's doc comment.
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "itp",
+    entityId: itp.id,
+    action: "created",
+    actorId: user?.id ?? null,
+    summary: `ITP ${itpNumber} created`,
+  });
 
   redirect(`/inspect/itps/${itp.id}`);
 }
@@ -289,80 +302,10 @@ export async function advanceItpStatusAction(formData: FormData) {
 
   const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
 
-  // Best-effort: a self-managed client's own party can now submit its own draft ITP for review
-  // (itps_client_submit_for_review, 20260921000000_self_managed_submit_and_checklist_gen.sql) —
-  // JAGS still has to Approve, so whichever JAGS staff can reach this org need to actually notice
-  // the new "under_review" ITP is waiting on them, rather than a client-driven submission going
-  // unnoticed until someone happens to check the register. Never fires for a JAGS-staff submission
-  // (nothing for staff to notify themselves about) and never blocks the status change itself.
-  if (!error && nextStatus === "under_review") {
-    try {
-      const { data: submitter } = user
-        ? await supabase.from("users").select("is_jags_staff").eq("id", user.id).maybeSingle<{ is_jags_staff: boolean }>()
-        : { data: null };
-
-      const { data: itp } = submitter?.is_jags_staff
-        ? { data: null }
-        : await supabase
-            .from("itps")
-            .select("itp_number, title, project_id, projects(organization_id)")
-            .eq("id", itpId)
-            .maybeSingle<{
-              itp_number: string;
-              title: string;
-              project_id: string;
-              projects: { organization_id: string } | null;
-            }>();
-
-      const organizationId = itp?.projects?.organization_id;
-      if (organizationId) {
-        const { data: grants } = await supabase
-          .from("access_grants")
-          .select("user_id")
-          .or(`scope_type.eq.global,organization_id.eq.${organizationId},project_id.eq.${itp?.project_id}`)
-          .returns<{ user_id: string }[]>();
-
-        const staffUserIds = new Set((grants ?? []).map((g) => g.user_id));
-        if (staffUserIds.size > 0) {
-          const { data: staffUsers } = await supabase
-            .from("users")
-            .select("id")
-            .in("id", Array.from(staffUserIds))
-            .eq("is_jags_staff", true)
-            .returns<{ id: string }[]>();
-
-          for (const staffUser of staffUsers ?? []) {
-            await createNotification(supabase, {
-              organizationId,
-              projectId: itp?.project_id ?? null,
-              recipientUserId: staffUser.id,
-              title: "ITP submitted for review",
-              body: `${itp?.itp_number} — ${itp?.title}`,
-              link: `/inspect/itps/${itpId}`,
-            });
-          }
-        }
-      }
-    } catch {
-      // Best-effort — see doc comment above.
-    }
-  }
-
-  // R101: revision 0's baseline snapshot is written the moment the document is first genuinely
-  // "issued" — this is that moment. Best-effort (never blocks the status change itself, which has
-  // already succeeded): a failed snapshot here is a missing history row, not a broken approval.
-  if (!error && nextStatus === "approved") {
-    try {
-      await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
-    } catch {
-      // Best-effort — see comment above.
-    }
-  }
-
-  // Best-effort: once Approved, the client's own acceptance is the next real step in the workflow
-  // (accept_itp()) — notify their linked user directly rather than relying on them noticing it on
-  // their own dashboard. Never blocks the status change itself, which has already succeeded.
-  if (!error && nextStatus === "approved") {
+  // Best-effort: fetched once and reused by every best-effort side-effect below (audit trail,
+  // submit-for-review staff notification, initial-issue revision snapshot, client-acceptance
+  // notification) — none of these block the status change itself, which has already succeeded.
+  if (!error) {
     try {
       const { data: itp } = await supabase
         .from("itps")
@@ -375,29 +318,95 @@ export async function advanceItpStatusAction(formData: FormData) {
           projects: { organization_id: string } | null;
         }>();
 
-      if (itp?.projects?.organization_id) {
-        const { data: clientParty } = await supabase
-          .from("project_parties")
-          .select("user_id")
-          .eq("project_id", itp.project_id)
-          .eq("party_type", "client")
-          .not("user_id", "is", null)
-          .returns<{ user_id: string | null }[]>();
+      const organizationId = itp?.projects?.organization_id;
 
-        for (const party of clientParty ?? []) {
-          if (!party.user_id) continue;
-          await createNotification(supabase, {
-            organizationId: itp.projects.organization_id,
-            projectId: itp.project_id,
-            recipientUserId: party.user_id,
-            title: "ITP ready for your acceptance",
-            body: `${itp.itp_number} — ${itp.title}`,
-            link: `/inspect/itps/${itpId}`,
-          });
+      if (organizationId) {
+        // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+        // status change above — see lib/audit/log.ts's doc comment.
+        await recordAuditEvent(supabase, {
+          organizationId,
+          projectId: itp.project_id,
+          entityType: "itp",
+          entityId: itpId,
+          action: "status_changed",
+          actorId: user?.id ?? null,
+          summary: `ITP ${itp.itp_number} moved to ${nextStatus}`,
+        });
+      }
+
+      // Best-effort: a self-managed client's own party can now submit its own draft ITP for review
+      // (itps_client_submit_for_review, 20260921000000_self_managed_submit_and_checklist_gen.sql) —
+      // JAGS still has to Approve, so whichever JAGS staff can reach this org need to actually notice
+      // the new "under_review" ITP is waiting on them, rather than a client-driven submission going
+      // unnoticed until someone happens to check the register. Never fires for a JAGS-staff submission
+      // (nothing for staff to notify themselves about).
+      if (nextStatus === "under_review" && organizationId) {
+        const { data: submitter } = user
+          ? await supabase.from("users").select("is_jags_staff").eq("id", user.id).maybeSingle<{ is_jags_staff: boolean }>()
+          : { data: null };
+
+        if (!submitter?.is_jags_staff) {
+          const { data: grants } = await supabase
+            .from("access_grants")
+            .select("user_id")
+            .or(`scope_type.eq.global,organization_id.eq.${organizationId},project_id.eq.${itp?.project_id}`)
+            .returns<{ user_id: string }[]>();
+
+          const staffUserIds = new Set((grants ?? []).map((g) => g.user_id));
+          if (staffUserIds.size > 0) {
+            const { data: staffUsers } = await supabase
+              .from("users")
+              .select("id")
+              .in("id", Array.from(staffUserIds))
+              .eq("is_jags_staff", true)
+              .returns<{ id: string }[]>();
+
+            for (const staffUser of staffUsers ?? []) {
+              await createNotification(supabase, {
+                organizationId,
+                projectId: itp?.project_id ?? null,
+                recipientUserId: staffUser.id,
+                title: "ITP submitted for review",
+                body: `${itp?.itp_number} — ${itp?.title}`,
+                link: `/inspect/itps/${itpId}`,
+              });
+            }
+          }
+        }
+      }
+
+      if (nextStatus === "approved") {
+        // R101: revision 0's baseline snapshot is written the moment the document is first
+        // genuinely "issued" — this is that moment.
+        await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
+
+        // Once Approved, the client's own acceptance is the next real step in the workflow
+        // (accept_itp()) — notify their linked user directly rather than relying on them noticing
+        // it on their own dashboard.
+        if (itp && organizationId) {
+          const { data: clientParty } = await supabase
+            .from("project_parties")
+            .select("user_id")
+            .eq("project_id", itp.project_id)
+            .eq("party_type", "client")
+            .not("user_id", "is", null)
+            .returns<{ user_id: string | null }[]>();
+
+          for (const party of clientParty ?? []) {
+            if (!party.user_id) continue;
+            await createNotification(supabase, {
+              organizationId,
+              projectId: itp.project_id,
+              recipientUserId: party.user_id,
+              title: "ITP ready for your acceptance",
+              body: `${itp.itp_number} — ${itp.title}`,
+              link: `/inspect/itps/${itpId}`,
+            });
+          }
         }
       }
     } catch {
-      // Best-effort — see doc comment above.
+      // Best-effort — see comment above.
     }
   }
 
@@ -407,6 +416,41 @@ export async function advanceItpStatusAction(formData: FormData) {
 export async function acceptItpAction(formData: FormData) {
   const itpId = String(formData.get("itp_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   await supabase.rpc("accept_itp", { target_itp_id: itpId });
+
+  // Best-effort: confirm the RPC actually landed (status is now client_accepted) before recording
+  // it, rather than assuming success — the audit trail is a convenience layer on top of the real
+  // mutation, never a source of truth of its own. Never blocks the caller either way.
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("itp_number, status, project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{
+        itp_number: string;
+        status: string;
+        project_id: string;
+        projects: { organization_id: string } | null;
+      }>();
+
+    if (itp?.status === "client_accepted" && itp.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "accepted",
+        actorId: user?.id ?? null,
+        summary: `ITP ${itp.itp_number} accepted by client`,
+      });
+    }
+  } catch {
+    // Best-effort — see doc comment above.
+  }
+
   revalidatePath(`/inspect/itps/${itpId}`);
 }

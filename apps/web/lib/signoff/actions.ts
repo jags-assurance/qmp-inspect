@@ -6,6 +6,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/helpers";
+import { recordAuditEvent } from "@/lib/audit/log";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
   DEFAULT_NOTICE_PERIOD_HOURS,
@@ -142,21 +143,45 @@ async function notifySignoffRow(
     const itp = context?.itp_sections?.itps;
     const organizationId = itp?.projects?.organization_id;
 
-    if (party?.user_id && itp && organizationId) {
+    let levelLabel: string | null = null;
+    if (organizationId) {
       const { data: levelType } = await supabase
         .from(INTERVENTION_LEVEL_TYPES_TABLE)
         .select("label")
         .eq("organization_id", organizationId)
         .eq("code", progress.intervention)
         .maybeSingle<{ label: string }>();
+      levelLabel = levelType?.label ?? null;
+    }
 
+    if (party?.user_id && itp && organizationId) {
       await createNotification(supabase, {
         organizationId,
         projectId: itp.project_id,
         recipientUserId: party.user_id,
-        title: `${levelType?.label ?? progress.intervention} sign-off needed`,
+        title: `${levelLabel ?? progress.intervention} sign-off needed`,
         body: `${itp.itp_number} — ${context?.activity ?? "an activity"}`,
         link: itpId ? `/inspect/itps/${itpId}` : null,
+      });
+    }
+
+    // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+    // status update above — see lib/audit/log.ts's doc comment. Recorded regardless of whether the
+    // party has a linked user (unlike the notification above), since the notify event itself
+    // happened either way.
+    if (itp && organizationId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "signoff",
+        entityId: progress.id,
+        action: "notified",
+        actorId: user?.id ?? null,
+        summary: `${party?.name ?? "Party"} notified of ${levelLabel ?? progress.intervention} sign-off on ${itp.itp_number}`,
       });
     }
   } catch {
@@ -330,6 +355,54 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
   revalidatePath("/inspect");
+
+  // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+  // sign-off above — see lib/audit/log.ts's doc comment.
+  try {
+    const { data: context } = await supabase
+      .from("itp_items")
+      .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
+      .eq("id", progress.itp_item_id)
+      .maybeSingle<{
+        activity: string;
+        itp_sections: {
+          itps: {
+            itp_number: string;
+            project_id: string;
+            projects: { organization_id: string } | null;
+          } | null;
+        } | null;
+      }>();
+
+    const itp = context?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+
+    let levelLabel: string | null = null;
+    if (organizationId) {
+      const { data: levelType } = await supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("label")
+        .eq("organization_id", organizationId)
+        .eq("code", progress.intervention)
+        .maybeSingle<{ label: string }>();
+      levelLabel = levelType?.label ?? null;
+    }
+
+    if (itp && organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "signoff",
+        entityId: progressId,
+        action: "signed_off",
+        actorId: user?.id ?? null,
+        summary: `${levelLabel ?? progress.intervention} sign-off recorded on ${itp.itp_number} — ${context?.activity ?? "an activity"}`,
+      });
+    }
+  } catch {
+    // Best-effort — see doc comment above.
+  }
+
   return { error: null };
 }
 

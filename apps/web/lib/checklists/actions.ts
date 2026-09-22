@@ -21,6 +21,7 @@ import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getExecutingPartyTypes, findProjectIdForItpItem } from "./execution-parties";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
@@ -566,6 +567,39 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
 
   if (error) {
     return { error: "Could not complete the inspection. Check you have permission and try again." };
+  }
+
+  // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+  // completion above — see lib/audit/log.ts's doc comment.
+  if (recordForHoldCheck) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { data: context } = await supabase
+        .from("itp_items")
+        .select("itp_sections(itps(projects(organization_id)))")
+        .eq("id", recordForHoldCheck.itp_item_id)
+        .maybeSingle<{
+          itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null;
+        }>();
+
+      const organizationId = context?.itp_sections?.itps?.projects?.organization_id;
+      if (organizationId) {
+        await recordAuditEvent(supabase, {
+          organizationId,
+          projectId: recordForHoldCheck.project_id,
+          entityType: "inspection_record",
+          entityId: inspectionRecordId,
+          action: "inspection_completed",
+          actorId: user?.id ?? null,
+          summary: `Inspection ${recordForHoldCheck.record_number} (${recordForHoldCheck.activity}) completed — ${overallResult}`,
+        });
+      }
+    } catch {
+      // Best-effort — see doc comment above.
+    }
   }
 
   // R92-R96: a failed inspection feeds the project-wide punch list, not just the NCR the inspector

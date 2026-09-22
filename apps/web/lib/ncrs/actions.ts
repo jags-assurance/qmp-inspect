@@ -18,6 +18,7 @@ import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
 
 export interface CreateNcrState {
@@ -150,6 +151,18 @@ export async function createNcrAction(
     }
   }
 
+  // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+  // creation above — see lib/audit/log.ts's doc comment.
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "ncr",
+    entityId: ncr.id,
+    action: "created",
+    actorId: user?.id ?? null,
+    summary: `NCR ${ncrNumber} raised`,
+  });
+
   redirect(`/inspect/ncrs/${ncr.id}`);
 }
 
@@ -279,6 +292,20 @@ export async function updateNcrAction(
       } catch {
         // Notification delivery is best-effort — see comment above.
       }
+    }
+
+    // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
+    // close above — see lib/audit/log.ts's doc comment.
+    if (updatedNcr?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: updatedNcr.projects.organization_id,
+        projectId: updatedNcr.project_id,
+        entityType: "ncr",
+        entityId: ncrId,
+        action: "closed",
+        actorId: user?.id ?? null,
+        summary: `NCR ${updatedNcr.ncr_number} closed`,
+      });
     }
 
     // Deliberately NOT auto-completing anything on the linked ITP item or inspection record —
