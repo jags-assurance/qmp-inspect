@@ -1,6 +1,11 @@
 import puppeteer from "puppeteer";
 import { supabase } from "../supabase";
-import { buildDataBookPdfHtml, type DataBookPdfCategory, type DataBookPdfData } from "./dataBookTemplate";
+import {
+  buildDataBookPdfHtml,
+  type DataBookPdfCategory,
+  type DataBookPdfData,
+  type DataBookPdfDisciplineRow,
+} from "./dataBookTemplate";
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 
@@ -164,6 +169,120 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
 }
 
 /**
+ * Re-derives apps/web/lib/databook/discipline-breakdown.ts's computeDataBookDisciplineBreakdown for
+ * this worker process (R88) — same reason and same convention as
+ * computeDataBookReadinessForWorker above: the worker has no access to createSupabaseServerClient,
+ * so the same aggregation over the same tables is re-derived here rather than imported. An
+ * itp_item with no discipline_id, or an ncr with no itp_item_id, is excluded from every discipline
+ * bucket — never guessed at or dumped into a fake "Unassigned" row.
+ */
+async function computeDataBookDisciplineBreakdownForWorker(projectId: string): Promise<DataBookPdfDisciplineRow[]> {
+  const { data: itps } = await supabase.from("itps").select("id").eq("project_id", projectId).returns<{ id: string }[]>();
+  const itpIds = (itps ?? []).map((itp) => itp.id);
+  if (itpIds.length === 0) return [];
+
+  const { data: sections } = await supabase
+    .from("itp_sections")
+    .select("id, itp_id")
+    .in("itp_id", itpIds)
+    .returns<{ id: string; itp_id: string }[]>();
+  const sectionIds = (sections ?? []).map((s) => s.id);
+  const sectionToItp = new Map((sections ?? []).map((s) => [s.id, s.itp_id]));
+  if (sectionIds.length === 0) return [];
+
+  const { data: items } = await supabase
+    .from("itp_items")
+    .select("id, section_id, discipline_id")
+    .in("section_id", sectionIds)
+    .not("discipline_id", "is", null)
+    .returns<{ id: string; section_id: string; discipline_id: string }[]>();
+  const itemIds = (items ?? []).map((i) => i.id);
+  if (itemIds.length === 0) return [];
+
+  const disciplineByItem = new Map(items!.map((i) => [i.id, i.discipline_id]));
+  const itpByItem = new Map(items!.map((i) => [i.id, sectionToItp.get(i.section_id) ?? null]));
+
+  const { data: records } = await supabase
+    .from("inspection_records")
+    .select("itp_item_id, overall_result, created_at")
+    .in("itp_item_id", itemIds)
+    .order("created_at", { ascending: true })
+    .returns<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null; created_at: string }[]>();
+
+  const { data: ncrsRaw } = await supabase
+    .from("ncrs" as never)
+    .select("id, itp_item_id")
+    .eq("project_id", projectId)
+    .returns<{ id: string; itp_item_id: string | null }[]>();
+  const ncrs = (ncrsRaw ?? []).filter((n): n is { id: string; itp_item_id: string } => n.itp_item_id !== null);
+
+  const firstAttemptByItem = new Map<string, { overall_result: "pass" | "fail" | "partial" | null }>();
+  for (const record of records ?? []) {
+    if (!firstAttemptByItem.has(record.itp_item_id)) firstAttemptByItem.set(record.itp_item_id, record);
+  }
+
+  interface DisciplineAgg {
+    itpIds: Set<string>;
+    ncrCount: number;
+    firstAttempts: number;
+    firstTimePasses: number;
+  }
+  const byDiscipline = new Map<string, DisciplineAgg>();
+  function agg(disciplineId: string): DisciplineAgg {
+    let entry = byDiscipline.get(disciplineId);
+    if (!entry) {
+      entry = { itpIds: new Set(), ncrCount: 0, firstAttempts: 0, firstTimePasses: 0 };
+      byDiscipline.set(disciplineId, entry);
+    }
+    return entry;
+  }
+
+  for (const item of items ?? []) {
+    const itpId = itpByItem.get(item.id);
+    if (itpId) agg(item.discipline_id).itpIds.add(itpId);
+  }
+
+  for (const [itemId, record] of firstAttemptByItem) {
+    if (record.overall_result === null) continue;
+    const disciplineId = disciplineByItem.get(itemId);
+    if (!disciplineId) continue;
+    const entry = agg(disciplineId);
+    entry.firstAttempts += 1;
+    if (record.overall_result === "pass") entry.firstTimePasses += 1;
+  }
+
+  for (const ncr of ncrs) {
+    const disciplineId = disciplineByItem.get(ncr.itp_item_id);
+    if (!disciplineId) continue;
+    agg(disciplineId).ncrCount += 1;
+  }
+
+  if (byDiscipline.size === 0) return [];
+
+  const { data: disciplines } = await supabase
+    .from("master_disciplines")
+    .select("id, code, name")
+    .in("id", [...byDiscipline.keys()])
+    .returns<{ id: string; code: string; name: string }[]>();
+  const disciplineById = new Map((disciplines ?? []).map((d) => [d.id, d]));
+
+  return [...byDiscipline.entries()]
+    .map(([disciplineId, entry]) => {
+      const discipline = disciplineById.get(disciplineId);
+      return {
+        disciplineCode: discipline?.code ?? "—",
+        disciplineName: discipline?.name ?? "Unknown discipline",
+        itpCount: entry.itpIds.size,
+        ncrCount: entry.ncrCount,
+        firstAttempts: entry.firstAttempts,
+        firstTimePasses: entry.firstTimePasses,
+        firstTimePassRate: entry.firstAttempts > 0 ? Math.round((entry.firstTimePasses / entry.firstAttempts) * 100) : null,
+      };
+    })
+    .sort((a, b) => a.disciplineCode.localeCompare(b.disciplineCode));
+}
+
+/**
  * Fetches everything needed for the branded, cover-page-plus-summary Data Book PDF (R86, R108),
  * renders it via Puppeteer, uploads the result to Storage, and returns the path the caller records
  * on the job row. Mirrors renderNcrPdf.ts's structure exactly, for Data Book data instead of NCR
@@ -180,7 +299,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
     throw new Error(`Data book ${payload.data_book_id} not found: ${dataBookError?.message ?? "no row"}`);
   }
 
-  const [{ data: project }, readiness] = await Promise.all([
+  const [{ data: project }, readiness, disciplineBreakdown] = await Promise.all([
     supabase
       .from("projects")
       .select("organization_id, project_number, name, organizations(name)")
@@ -192,6 +311,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
         organizations: { name: string } | null;
       }>(),
     computeDataBookReadinessForWorker(dataBook.project_id),
+    computeDataBookDisciplineBreakdownForWorker(dataBook.project_id),
   ]);
 
   const templateData: DataBookPdfData = {
@@ -203,6 +323,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
     organizationName: project?.organizations?.name ?? null,
     categories: readiness.categories,
     handoverCertificate: readiness.handoverCertificate,
+    disciplineBreakdown,
     openPunchItems: readiness.openPunchItems,
     overallPercentage: readiness.overallPercentage,
     isReady: readiness.isReady,
