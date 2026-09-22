@@ -671,12 +671,13 @@ export async function reassignSignoffPartyAction(
 }
 
 /**
- * Precedence, highest first: a project-level notice_period_configs override, then this
- * organisation's own configured default_notice_hours for that level (intervention_level_types),
- * then the original hardcoded spec fallback (Hold=48h/Witness=24h, DEFAULT_NOTICE_PERIOD_HOURS) for
- * the two levels that ever had one. Same three-tier fallback the app always had, just no longer
+ * Precedence, highest first: R25's per-activity notice_hours_override on the item itself, then a
+ * project-level notice_period_configs override, then this organisation's own configured
+ * default_notice_hours for that level (intervention_level_types), then the original hardcoded spec
+ * fallback (Hold=48h/Witness=24h, DEFAULT_NOTICE_PERIOD_HOURS) for the two levels that ever had one.
+ * Same fallback chain the app always had, just with the new item-level tier on top and no longer
  * restricted to literal "H"/"W" codes — a custom level with its own default_notice_hours now
- * participates in the middle tier too.
+ * participates in the level tier too.
  */
 async function getNoticePeriodHours(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -684,6 +685,13 @@ async function getNoticePeriodHours(
   itpItemId: string,
   intervention: string
 ): Promise<number> {
+  const { data: item } = await supabase
+    .from("itp_items")
+    .select("notice_hours_override")
+    .eq("id", itpItemId)
+    .maybeSingle<{ notice_hours_override: number | null }>();
+  if (item?.notice_hours_override != null) return item.notice_hours_override;
+
   if (projectId) {
     const { data: config } = await supabase
       .from(NOTICE_PERIOD_CONFIGS_TABLE)

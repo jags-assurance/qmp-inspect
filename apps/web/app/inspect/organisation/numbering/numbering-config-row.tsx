@@ -23,6 +23,8 @@ export interface NumberingConfigFormValues {
   separator: string;
   sequencePadding: number;
   includeYear: boolean;
+  /** R104: opt-in discipline segment, inserted right after the doc-type segment. */
+  includeDiscipline: boolean;
 }
 
 export function NumberingConfigRow({
@@ -46,16 +48,20 @@ export function NumberingConfigRow({
   const [separator, setSeparator] = useState(config?.separator ?? "-");
   const [sequencePadding, setSequencePadding] = useState(config?.sequencePadding ?? 3);
   const [includeYear, setIncludeYear] = useState(config?.includeYear ?? false);
+  const [includeDiscipline, setIncludeDiscipline] = useState(config?.includeDiscipline ?? false);
 
+  // "MEC" is a placeholder for the preview only, same spirit as the "PROJ-2026-001" clientCode
+  // fallback above — a real document's discipline segment always comes from that document's own
+  // resolved master_disciplines.code (lib/ncrs/actions.ts), never a fabricated value.
   const sample = formatDocumentNumber(
-    { clientCode: clientCode || "PROJ-2026-001", originatorCode, docType, seq: 1 },
-    { separator, sequencePadding: sequencePadding || 1, includeYear }
+    { clientCode: clientCode || "PROJ-2026-001", originatorCode, docType, seq: 1, disciplineCode: "MEC" },
+    { separator, sequencePadding: sequencePadding || 1, includeYear, includeDiscipline }
   );
 
   return (
     <form
       action={formAction}
-      className="grid grid-cols-[120px_1fr_100px_80px_90px_90px_auto] items-end gap-2 border-b border-border py-3 last:border-0"
+      className="grid grid-cols-[120px_1fr_100px_80px_90px_90px_100px_auto] items-end gap-2 border-b border-border py-3 last:border-0"
     >
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="doc_type" value={docType} />
@@ -110,6 +116,19 @@ export function NumberingConfigRow({
       <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
         <input type="checkbox" name="include_year" checked={includeYear} onChange={(e) => setIncludeYear(e.target.checked)} />
         Year
+      </label>
+
+      <label
+        className="flex items-center gap-1.5 pb-2 text-xs text-muted"
+        title="Inserts this document's discipline code right after the doc-type segment, when one is resolvable — omitted otherwise, never a blank placeholder."
+      >
+        <input
+          type="checkbox"
+          name="include_discipline"
+          checked={includeDiscipline}
+          onChange={(e) => setIncludeDiscipline(e.target.checked)}
+        />
+        Discipline
       </label>
 
       <Button type="submit" disabled={pending}>

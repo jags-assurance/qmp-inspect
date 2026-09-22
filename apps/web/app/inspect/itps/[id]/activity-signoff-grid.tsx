@@ -20,6 +20,9 @@ export interface GridRow {
   acceptanceCriteria: string | null;
   evidenceLabel: string;
   disciplineCode: string | null;
+  /** R25: this activity's own notice-period override (itp_items.notice_hours_override), if set —
+   *  takes precedence over the level-keyed `noticeHours` map below for every cell in this row. */
+  noticeHoursOverride: number | null;
   /** One cell per project_party involved in this ITP, in the same order as `parties` below —
    *  same per-activity computation the previous card layout used (partyCells), just consumed as a
    *  table row instead of a chip chain. */
@@ -109,6 +112,9 @@ export function ActivitySignoffGrid({
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <Badge tone="neutral">{row.evidenceLabel}</Badge>
                   {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}
+                  {row.noticeHoursOverride != null && (
+                    <Badge tone="neutral">Notice: {row.noticeHoursOverride}h</Badge>
+                  )}
                 </div>
               </td>
               {row.partyCells.map(({ party, intervention, signoff, canSignOff }) => (
@@ -134,7 +140,7 @@ export function ActivitySignoffGrid({
                         isBlocking={blockingCodes.has(intervention)}
                         status={signoff.status}
                         notifiedAt={signoff.notified_at}
-                        noticeHours={noticeHours[intervention] ?? null}
+                        noticeHours={row.noticeHoursOverride ?? noticeHours[intervention] ?? null}
                         canSignOff={canSignOff}
                         isJagsStaff={isJagsStaff}
                       />

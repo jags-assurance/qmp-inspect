@@ -81,6 +81,17 @@ export function AddItemForm({
           ))}
         </select>
       </div>
+      <div>
+        <label className="block text-xs font-medium text-muted">Notice hours (override)</label>
+        <input
+          name="notice_hours_override"
+          type="number"
+          min={0}
+          placeholder="Default"
+          title="R25: optional per-activity notice period, in hours. Leave blank to use the project/organisation default for the level assigned on each cell."
+          className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
       {drawingDocuments.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-muted">Governing drawing</label>

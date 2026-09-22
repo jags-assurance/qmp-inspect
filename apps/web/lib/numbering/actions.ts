@@ -128,6 +128,7 @@ export async function upsertNumberingConfigAction(
   const separator = String(formData.get("separator") ?? "-").trim() || "-";
   const sequencePaddingRaw = String(formData.get("sequence_padding") ?? "3").trim();
   const includeYear = formData.get("include_year") === "on";
+  const includeDiscipline = formData.get("include_discipline") === "on";
 
   const sequencePadding = Number.parseInt(sequencePaddingRaw, 10);
 
@@ -148,6 +149,7 @@ export async function upsertNumberingConfigAction(
       separator,
       sequence_padding: sequencePadding,
       include_year: includeYear,
+      include_discipline: includeDiscipline,
     },
     { onConflict: "organization_id,project_id,doc_type" }
   );
