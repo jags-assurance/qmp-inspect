@@ -5,14 +5,19 @@ import { Button } from "@/components/ui/button";
 import { ItpsTable, type ItpRow } from "./itps-table";
 import { ITP_TABLE_PAGE_SIZE } from "./constants";
 import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
+import { PhaseFilterForm } from "./phase-filter-form";
+import { ITP_PHASES, normalizeItpPhase } from "@/lib/itps/phase";
 
 export default async function ItpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, q, page: pageParam } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam } = await searchParams;
+  // R23: optional phase filter — only a recognised phase value is honoured, anything else is
+  // treated as "no filter" rather than silently matching zero rows.
+  const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
@@ -85,7 +90,7 @@ export default async function ItpsPage({
   // an accurate count alongside a silently empty data array once embedded-resource joins were
   // involved. This register has no stat cards, so there's no need for a third "light stats" query.
   let countQuery = supabase.from("itps").select("id", { count: "exact", head: true });
-  let tableQuery = supabase.from("itps").select("id, itp_number, title, status, revision, projects(name)");
+  let tableQuery = supabase.from("itps").select("id, itp_number, title, status, revision, phase, projects(name)");
 
   if (itpIdFilter) {
     const noMatch = itpIdFilter.length === 0;
@@ -95,6 +100,10 @@ export default async function ItpsPage({
   if (projectId) {
     countQuery = countQuery.eq("project_id", projectId);
     tableQuery = tableQuery.eq("project_id", projectId);
+  }
+  if (phase) {
+    countQuery = countQuery.eq("phase", phase);
+    tableQuery = tableQuery.eq("phase", phase);
   }
   if (q) {
     countQuery = countQuery.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
@@ -115,6 +124,7 @@ export default async function ItpsPage({
   const exportParams = new URLSearchParams();
   if (disciplineId) exportParams.set("discipline", disciplineId);
   if (projectId) exportParams.set("project", projectId);
+  if (phase) exportParams.set("phase", phase);
   if (q) exportParams.set("q", q);
   const exportQuery = exportParams.toString();
 
@@ -149,8 +159,9 @@ export default async function ItpsPage({
         </p>
       )}
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap gap-4">
         <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+        <PhaseFilterForm selectedPhase={phase} />
       </div>
 
       <div className="mt-6">

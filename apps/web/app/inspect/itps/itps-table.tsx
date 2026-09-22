@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import { ITP_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
+import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
 
 export interface ItpRow {
   id: string;
@@ -12,6 +13,7 @@ export interface ItpRow {
   title: string;
   status: string;
   revision: number;
+  phase: string;
   projects: { name: string } | null;
 }
 
@@ -58,6 +60,16 @@ const COLUMNS: DataTableColumn<ItpRow>[] = [
     key: "status",
     header: "Status",
     render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
+  },
+  {
+    key: "phase",
+    header: "Phase",
+    // R23: real lifecycle phase (Development/Execution/Handover), distinct from the approval-
+    // workflow status column above — see lib/itps/phase.ts.
+    render: (row) => {
+      const phase = normalizeItpPhase(row.phase);
+      return <Badge tone={ITP_PHASE_TONE[phase]}>{ITP_PHASE_LABEL[phase]}</Badge>;
+    },
   },
 ];
 

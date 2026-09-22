@@ -2100,6 +2100,7 @@ export type Database = {
           external_approval_reference: string | null
           id: string
           itp_number: string
+          phase: string
           prepared_by: string | null
           project_id: string
           reviewed_at: string | null
@@ -2122,6 +2123,7 @@ export type Database = {
           external_approval_reference?: string | null
           id?: string
           itp_number: string
+          phase?: string
           prepared_by?: string | null
           project_id: string
           reviewed_at?: string | null
@@ -2144,6 +2146,7 @@ export type Database = {
           external_approval_reference?: string | null
           id?: string
           itp_number?: string
+          phase?: string
           prepared_by?: string | null
           project_id?: string
           reviewed_at?: string | null
