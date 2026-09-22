@@ -23,7 +23,7 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
   const { data: itp } = await supabase
     .from("itps")
     .select(
-      "id, itp_number, title, status, project_id, projects(name, allow_client_itp_creation, allow_contractor_itp_creation, organizations(name, engagement_scope))"
+      "id, itp_number, title, status, project_id, projects(name, organization_id, allow_client_itp_creation, allow_contractor_itp_creation, organizations(name, engagement_scope))"
     )
     .eq("id", id)
     .maybeSingle<{
@@ -34,6 +34,7 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
       project_id: string;
       projects: {
         name: string;
+        organization_id: string;
         allow_client_itp_creation: boolean;
         allow_contractor_itp_creation: boolean;
         organizations: { name: string; engagement_scope: string } | null;
@@ -65,9 +66,19 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
   // template instead of the blank auto-generate path — see lib/checklist-library/actions.ts's
   // attachLibraryTemplateToActivityAction. The library itself is staff-only (RLS), so this option
   // only ever needs to be offered to staff.
-  const { data: libraryTemplates } = session.isJagsStaff
-    ? await supabase.from(CHECKLIST_LIBRARY_TEMPLATES_TABLE).select("id, title").order("title").returns<{ id: string; title: string }[]>()
+  // R46: only offer templates that are global (organization_id null) or scoped to this ITP's own
+  // project's organisation — a template built for one client should never show up as an attach
+  // option on a different client's ITP, even though staff can browse the whole library elsewhere.
+  const { data: rawLibraryTemplates } = session.isJagsStaff
+    ? await supabase
+        .from(CHECKLIST_LIBRARY_TEMPLATES_TABLE)
+        .select("id, title, organization_id")
+        .order("title")
+        .returns<{ id: string; title: string; organization_id: string | null }[]>()
     : { data: null };
+  const libraryTemplates = (rawLibraryTemplates ?? []).filter(
+    (t) => t.organization_id === null || t.organization_id === itp.projects?.organization_id
+  );
 
   // Generating checklists is scaffolding on top of already-approved activities, not a
   // certification act — the same eligible party who can build the ITP draft
@@ -151,7 +162,6 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
                       </Link>
                     ) : (
                       session.isJagsStaff &&
-                      libraryTemplates &&
                       libraryTemplates.length > 0 && (
                         <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
                       )

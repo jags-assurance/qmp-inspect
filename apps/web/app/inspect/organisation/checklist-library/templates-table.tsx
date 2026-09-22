@@ -8,7 +8,10 @@ export interface LibraryTemplateRow {
   title: string;
   description: string | null;
   discipline_id: string | null;
+  /** R46: null = global/shared, a set value scopes this template to one client organisation. */
+  organization_id: string | null;
   master_disciplines: { name: string } | null;
+  organizations: { name: string } | null;
   checklist_library_items: { count: number }[];
 }
 
@@ -23,6 +26,11 @@ const COLUMNS: DataTableColumn<LibraryTemplateRow>[] = [
     ),
   },
   { key: "discipline", header: "Discipline", render: (row) => row.master_disciplines?.name ?? "—" },
+  {
+    key: "client",
+    header: "Client",
+    render: (row) => row.organizations?.name ?? <span className="text-muted">Global</span>,
+  },
   { key: "description", header: "Description", render: (row) => row.description ?? "—" },
   {
     key: "items",

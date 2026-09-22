@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
@@ -7,25 +6,35 @@ import { CreateTemplateForm } from "./create-template-form";
 
 /**
  * R44/R47: standalone checklist/form template builder — a reusable library of check-item sets,
- * independent of any specific ITP activity. Staff-only (RLS-enforced on every checklist_library_*
- * table; this redirect is a UX nicety, same as ItpMasterLibraryPage). A template built here gets
- * attached to a real ITP activity from that activity's checklist page
- * (app/inspect/itps/[id]/checklists/page.tsx), which copies its items into a fresh, project-scoped
- * checklist — the same template can be attached across many different clients' ITPs, each getting
- * its own independent, editable copy.
+ * independent of any specific ITP activity. A template built here gets attached to a real ITP
+ * activity from that activity's checklist page (app/inspect/itps/[id]/checklists/page.tsx), which
+ * copies its items into a fresh, project-scoped checklist — the same GLOBAL template can be
+ * attached across many different clients' ITPs, each getting its own independent, editable copy.
+ *
+ * R46: building/editing templates (and seeing the whole library) stays staff-only, but a template
+ * can now optionally be scoped to one client organisation instead of always being global/shared.
+ * The list query itself is what enforces "global + this org's own" for a non-staff client user —
+ * the RLS policies added in 20260926020000_checklist_library_org_scope.sql already return exactly
+ * that set (a global row, or one whose organization_id the viewer has org access to), and staff's
+ * separate is_jags_staff() policy returns everything on top. Nothing here needs to re-filter by
+ * hand; a non-staff viewer just gets a read-only list with no create form.
  */
 export default async function ChecklistLibraryPage() {
   const session = await requireSession();
-  if (!session.isJagsStaff) redirect("/inspect/itps");
 
   const supabase = await createSupabaseServerClient();
-  const [{ data: templates }, { data: disciplines }] = await Promise.all([
+  const [{ data: templates }, { data: disciplines }, { data: organizations }] = await Promise.all([
     supabase
       .from(CHECKLIST_LIBRARY_TEMPLATES_TABLE)
-      .select("id, title, description, discipline_id, master_disciplines(name), checklist_library_items(count)")
+      .select("id, title, description, discipline_id, organization_id, master_disciplines(name), organizations(name), checklist_library_items(count)")
       .order("title")
       .returns<LibraryTemplateRow[]>(),
-    supabase.from("master_disciplines").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
+    session.isJagsStaff
+      ? supabase.from("master_disciplines").select("id, name").order("name").returns<{ id: string; name: string }[]>()
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    session.isJagsStaff
+      ? supabase.from("organizations").select("id, name").order("name").returns<{ id: string; name: string }[]>()
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
   ]);
 
   return (
@@ -33,15 +42,17 @@ export default async function ChecklistLibraryPage() {
       <div>
         <h1 className="text-2xl font-semibold text-ink">Checklist / Form Template Library</h1>
         <p className="mt-1 text-sm text-muted">
-          JAGS-internal, reusable checklist and form templates, built independently of any specific
-          project. Attach one to a checklist-type ITP activity to start that activity&apos;s checklist
-          from a proven set of check items instead of a blank one — never visible to clients.
+          {session.isJagsStaff
+            ? "JAGS-internal, reusable checklist and form templates, built independently of any specific project. Attach one to a checklist-type ITP activity to start that activity’s checklist from a proven set of check items instead of a blank one. Global templates are shared with every client; a template can also be scoped to one client so per-client variants never collide."
+            : "Checklist and form templates JAGS can start a checklist-type ITP activity from — global templates plus any built specifically for your organisation."}
         </p>
       </div>
 
-      <div className="mt-6">
-        <CreateTemplateForm disciplines={disciplines ?? []} />
-      </div>
+      {session.isJagsStaff && (
+        <div className="mt-6">
+          <CreateTemplateForm disciplines={disciplines ?? []} organizations={organizations ?? []} />
+        </div>
+      )}
 
       <div className="mt-6">
         <TemplatesTable rows={templates ?? []} />

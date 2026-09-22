@@ -39,6 +39,9 @@ export async function createLibraryTemplateAction(
   const title = String(formData.get("title") ?? "").trim();
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  // R46: optional per-client scope — left blank, the template stays global/shared (today's
+  // default behavior).
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
 
   if (!title) return { error: "A title is required." };
 
@@ -49,6 +52,7 @@ export async function createLibraryTemplateAction(
       title,
       discipline_id: disciplineId || null,
       description: description || null,
+      organization_id: organizationId || null,
       created_by: session.userId,
     })
     .select("id")
@@ -73,13 +77,19 @@ export async function updateLibraryTemplateAction(
   const title = String(formData.get("title") ?? "").trim();
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
 
   if (!templateId || !title) return { error: "A title is required." };
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from(CHECKLIST_LIBRARY_TEMPLATES_TABLE)
-    .update({ title, discipline_id: disciplineId || null, description: description || null })
+    .update({
+      title,
+      discipline_id: disciplineId || null,
+      description: description || null,
+      organization_id: organizationId || null,
+    })
     .eq("id", templateId);
 
   if (error) return { error: "Could not save the changes." };
@@ -316,10 +326,17 @@ export async function attachLibraryTemplateToActivityAction(
 
   const { data: libraryTemplate } = await supabase
     .from(CHECKLIST_LIBRARY_TEMPLATES_TABLE)
-    .select("id, title")
+    .select("id, title, organization_id")
     .eq("id", libraryTemplateId)
-    .maybeSingle<{ id: string; title: string }>();
+    .maybeSingle<{ id: string; title: string; organization_id: string | null }>();
   if (!libraryTemplate) return { error: "Library template not found." };
+
+  // R46: server-side guard mirroring the checklists page's own filtering (which templates it
+  // offers in the first place) — a template scoped to one client organisation can never be
+  // attached to a different client's ITP, even via a directly-crafted request.
+  if (libraryTemplate.organization_id && libraryTemplate.organization_id !== itp.projects?.organization_id) {
+    return { error: "That library template is scoped to a different client and can't be attached here." };
+  }
 
   const { data: libraryItems } = await supabase
     .from(CHECKLIST_LIBRARY_ITEMS_TABLE)

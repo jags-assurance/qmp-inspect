@@ -28,6 +28,13 @@ interface PartyRow {
   user_id: string | null;
 }
 
+interface ResponsiblePartyRow {
+  id: string;
+  project_id: string;
+  name: string;
+  party_type: string;
+}
+
 export default async function NewNcrPage({
   searchParams,
 }: {
@@ -49,7 +56,7 @@ export default async function NewNcrPage({
   // staff scopes, see app/inspect/organisation/staff-access/page.tsx) plus project_parties rows
   // linked to a login (see project_parties.user_id, itps/[id]/page.tsx) — rather than inventing a
   // new notion of "project membership".
-  const [{ data: projects }, { data: users }, { data: grants }, { data: parties }] = await Promise.all([
+  const [{ data: projects }, { data: users }, { data: grants }, { data: parties }, { data: responsibleParties }] = await Promise.all([
     supabase.from("projects").select("id, project_number, name, organization_id").order("name").returns<ProjectRow[]>(),
     supabase.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<UserRow[]>(),
     supabase.from("access_grants").select("user_id, scope_type, organization_id, project_id").returns<GrantRow[]>(),
@@ -59,6 +66,15 @@ export default async function NewNcrPage({
       .eq("is_active", true)
       .not("user_id", "is", null)
       .returns<PartyRow[]>(),
+    // R68: the project's own active parties, for the (optional) "responsible party" picker — same
+    // project_parties table/is_active scoping as the assignee list above, just the party row
+    // itself rather than the login it's linked to.
+    supabase
+      .from("project_parties")
+      .select("id, project_id, name, party_type")
+      .eq("is_active", true)
+      .order("name")
+      .returns<ResponsiblePartyRow[]>(),
   ]);
 
   const userById = new Map((users ?? []).map((u) => [u.id, u]));
@@ -89,6 +105,13 @@ export default async function NewNcrPage({
   }
   for (const list of Object.values(peopleByProject)) list.sort((a, b) => a.name.localeCompare(b.name));
 
+  const partiesByProject: Record<string, { id: string; name: string; party_type: string }[]> = {};
+  for (const p of projects ?? []) partiesByProject[p.id] = [];
+  for (const party of responsibleParties ?? []) {
+    const list = partiesByProject[party.project_id];
+    if (list) list.push({ id: party.id, name: party.name, party_type: party.party_type });
+  }
+
   return (
     <div className="max-w-xl">
       <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
@@ -108,6 +131,7 @@ export default async function NewNcrPage({
       <NewNcrForm
         projects={projects ?? []}
         peopleByProject={peopleByProject}
+        partiesByProject={partiesByProject}
         initialProjectId={params.project_id}
         itpItemId={params.itp_item_id}
         inspectionRecordId={params.inspection_record_id}

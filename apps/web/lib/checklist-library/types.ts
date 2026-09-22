@@ -16,6 +16,10 @@ export interface ChecklistLibraryTemplateRow {
   title: string;
   discipline_id: string | null;
   description: string | null;
+  /** R46: null = global/shared across every client (the original, still-default behavior); a set
+   *  value scopes this template to one client organisation, so JAGS can keep distinct checklist
+   *  variants per client without them colliding in the shared library. */
+  organization_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

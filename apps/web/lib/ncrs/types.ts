@@ -24,6 +24,10 @@ export interface NcrRow {
   project_id: string;
   itp_item_id: string | null;
   inspection_record_id: string | null;
+  /** R68: which project_parties row (vendor/subcontractor/etc.) this NCR is raised against, if
+   *  any -- optional, set on the create/edit form; never guessed at. Powers the per-vendor NCR
+   *  count rollup in lib/kpis/compute.ts. */
+  responsible_party_id: string | null;
   ncr_number: string;
   severity: NcrSeverity;
   description: string;

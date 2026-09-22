@@ -35,6 +35,7 @@ const SEVERITY_PILL_CLASS: Record<NcrSeverity, string> = {
 export function NewNcrForm({
   projects,
   peopleByProject,
+  partiesByProject,
   initialProjectId,
   itpItemId,
   inspectionRecordId,
@@ -42,6 +43,8 @@ export function NewNcrForm({
 }: {
   projects: { id: string; project_number: string; name: string }[];
   peopleByProject: Record<string, { id: string; name: string }[]>;
+  /** R68: this project's active parties, for the optional "responsible party" picker. */
+  partiesByProject: Record<string, { id: string; name: string; party_type: string }[]>;
   /** Pre-fill from a failed inspection record's "Raise NCR" link (app/inspect/inspections/[id]) —
    * itpItemId/inspectionRecordId are the real FK linkage (see createNcrAction); the project/severity/
    * description fields stay fully editable either way. */
@@ -236,6 +239,27 @@ export function NewNcrForm({
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="responsible_party_id" className="block text-sm font-medium text-ink">
+            Responsible party <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <select
+            id="responsible_party_id"
+            name="responsible_party_id"
+            defaultValue=""
+            disabled={!projectId}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+          >
+            <option value="">Not specified</option>
+            {(partiesByProject[projectId] ?? []).map((party) => (
+              <option key={party.id} value={party.id}>
+                {party.name} ({party.party_type})
+              </option>
+            ))}
+          </select>
+          {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
         </div>
       </section>
 

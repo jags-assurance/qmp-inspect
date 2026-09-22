@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button";
 
 const initialState: LibraryTemplateFormState = { error: null };
 
-export function CreateTemplateForm({ disciplines }: { disciplines: { id: string; name: string }[] }) {
+export function CreateTemplateForm({
+  disciplines,
+  organizations,
+}: {
+  disciplines: { id: string; name: string }[];
+  /** R46: client organisations this template can optionally be scoped to — left unset (the
+   *  default), the template stays global/shared across every client. */
+  organizations: { id: string; name: string }[];
+}) {
   const [state, formAction, pending] = useActionState(createLibraryTemplateAction, initialState);
 
   return (
@@ -36,6 +44,23 @@ export function CreateTemplateForm({ disciplines }: { disciplines: { id: string;
           {disciplines.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="new_template_organization" className="block text-sm font-medium text-ink">
+          Client <span className="font-normal text-muted">(optional)</span>
+        </label>
+        <select
+          id="new_template_organization"
+          name="organization_id"
+          className="mt-1 w-48 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        >
+          <option value="">Global — shared with every client</option>
+          {organizations.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
             </option>
           ))}
         </select>

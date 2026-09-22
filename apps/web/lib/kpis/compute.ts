@@ -80,53 +80,81 @@ export interface ProjectKpis {
 
 export interface QualityByPartyRow {
   partyName: string;
-  percentage: number;
+  /** null when this party has no activity_signoff_progress rows on this project at all (e.g. it
+   *  only ever shows up here via an NCR raised against it) — never fabricated as 0/0 = 0%. */
+  percentage: number | null;
+  /** R68: NCRs raised on this project with ncrs.responsible_party_id = this party, via the FK
+   *  added by 20260926010000_ncr_responsible_party.sql. 0 is a real, shown count (contrast with
+   *  the sign-off percentage's "omit if no rows" rule above — a party with a percentage but zero
+   *  NCRs against it genuinely has zero, which is worth showing, not hiding). */
+  ncrCount: number;
 }
 
 /**
  * Ranks each project party by their sign-off completion rate: signed-off activity_signoff_progress
  * rows / total rows for that party, scoped to this project via
  * activity_signoff_progress -> itp_items -> itp_sections -> itps (itps.project_id = projectId).
- * Parties with zero rows for this project are omitted entirely (never shown as 0/0 = 0%).
+ * Also rolls up each party's NCR count on this project (R68) via ncrs.responsible_party_id, so a
+ * party shows up here — with ncrCount but no percentage — even if it has no sign-off rows at all.
+ * A party with neither sign-off rows nor any NCRs against it is omitted entirely (never shown as
+ * 0/0 = 0%, and never shown as an all-zero row with nothing real behind it).
  */
 export async function computeQualityByParty(supabase: SupabaseClient, projectId: string): Promise<QualityByPartyRow[]> {
   const { data: itps } = await supabase.from("itps").select("id").eq("project_id", projectId).returns<{ id: string }[]>();
   const itpIds = (itps ?? []).map((itp) => itp.id);
-  if (itpIds.length === 0) return [];
 
-  const { data: sections } = await supabase
-    .from("itp_sections")
-    .select("id")
-    .in("itp_id", itpIds)
-    .returns<{ id: string }[]>();
-  const sectionIds = (sections ?? []).map((s) => s.id);
-  if (sectionIds.length === 0) return [];
+  let sectionIds: string[] = [];
+  if (itpIds.length > 0) {
+    const { data: sections } = await supabase
+      .from("itp_sections")
+      .select("id")
+      .in("itp_id", itpIds)
+      .returns<{ id: string }[]>();
+    sectionIds = (sections ?? []).map((s) => s.id);
+  }
 
-  const { data: items } = await supabase
-    .from("itp_items")
-    .select("id")
-    .in("section_id", sectionIds)
-    .returns<{ id: string }[]>();
-  const itemIds = (items ?? []).map((i) => i.id);
-  if (itemIds.length === 0) return [];
+  let itemIds: string[] = [];
+  if (sectionIds.length > 0) {
+    const { data: items } = await supabase
+      .from("itp_items")
+      .select("id")
+      .in("section_id", sectionIds)
+      .returns<{ id: string }[]>();
+    itemIds = (items ?? []).map((i) => i.id);
+  }
 
-  const { data: signoffs } = await supabase
-    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .select("project_party_id, status")
-    .in("itp_item_id", itemIds)
-    .returns<{ project_party_id: string; status: SignoffStatus }[]>();
-  const rows = signoffs ?? [];
-  if (rows.length === 0) return [];
+  const [signoffsResult, ncrsForRollupResult] = await Promise.all([
+    itemIds.length > 0
+      ? supabase
+          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+          .select("project_party_id, status")
+          .in("itp_item_id", itemIds)
+          .returns<{ project_party_id: string; status: SignoffStatus }[]>()
+      : Promise.resolve({ data: [] as { project_party_id: string; status: SignoffStatus }[] }),
+    supabase
+      .from(NCRS_TABLE)
+      .select("responsible_party_id")
+      .eq("project_id", projectId)
+      .not("responsible_party_id", "is", null)
+      .returns<{ responsible_party_id: string }[]>(),
+  ]);
 
   const totalsByParty = new Map<string, { total: number; signedOff: number }>();
-  for (const row of rows) {
+  for (const row of signoffsResult.data ?? []) {
     const entry = totalsByParty.get(row.project_party_id) ?? { total: 0, signedOff: 0 };
     entry.total += 1;
     if (row.status === "signed_off") entry.signedOff += 1;
     totalsByParty.set(row.project_party_id, entry);
   }
 
-  const partyIds = [...totalsByParty.keys()];
+  const ncrCountByParty = new Map<string, number>();
+  for (const row of ncrsForRollupResult.data ?? []) {
+    ncrCountByParty.set(row.responsible_party_id, (ncrCountByParty.get(row.responsible_party_id) ?? 0) + 1);
+  }
+
+  const partyIds = [...new Set([...totalsByParty.keys(), ...ncrCountByParty.keys()])];
+  if (partyIds.length === 0) return [];
+
   const { data: parties } = await supabase
     .from("project_parties")
     .select("id, name")
@@ -135,11 +163,15 @@ export async function computeQualityByParty(supabase: SupabaseClient, projectId:
   const nameById = new Map((parties ?? []).map((p) => [p.id, p.name]));
 
   return partyIds
-    .map((partyId) => ({
-      partyName: nameById.get(partyId) ?? "Unknown party",
-      percentage: Math.round((totalsByParty.get(partyId)!.signedOff / totalsByParty.get(partyId)!.total) * 100),
-    }))
-    .sort((a, b) => b.percentage - a.percentage);
+    .map((partyId) => {
+      const signoff = totalsByParty.get(partyId);
+      return {
+        partyName: nameById.get(partyId) ?? "Unknown party",
+        percentage: signoff ? Math.round((signoff.signedOff / signoff.total) * 100) : null,
+        ncrCount: ncrCountByParty.get(partyId) ?? 0,
+      };
+    })
+    .sort((a, b) => (b.percentage ?? -1) - (a.percentage ?? -1));
 }
 
 export interface DisciplinePassRateRow {

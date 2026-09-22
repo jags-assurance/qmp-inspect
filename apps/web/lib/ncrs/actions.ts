@@ -42,6 +42,9 @@ export async function createNcrAction(
   // A standalone/walkdown NCR with no specific activity behind it still raises fine with both null.
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim() || null;
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim() || null;
+  // R68: optional vendor/party FK — see the CreateNcrForm's party picker (scoped to this project's
+  // active parties). Left null for a standalone/walkdown NCR with no specific vendor behind it.
+  const responsiblePartyId = String(formData.get("responsible_party_id") ?? "").trim() || null;
 
   if (!projectId || !severity || !description) {
     return { error: "Project, severity and description are required." };
@@ -110,6 +113,7 @@ export async function createNcrAction(
       raised_by: user?.id ?? null,
       itp_item_id: itpItemId,
       inspection_record_id: inspectionRecordId,
+      responsible_party_id: responsiblePartyId,
     })
     .select("id")
     .single<{ id: string }>();
@@ -119,10 +123,10 @@ export async function createNcrAction(
       return { error: "An NCR with that number already exists for this project." };
     }
     if (error?.code === "23503") {
-      return { error: "The assigned-to user ID doesn't match a known user." };
+      return { error: "The assigned-to user or responsible party doesn't match a known record." };
     }
     if (error?.code === "22P02") {
-      return { error: "Assigned-to must be a valid user ID (UUID)." };
+      return { error: "Assigned-to and responsible party must be valid IDs (UUID)." };
     }
     return { error: "Could not raise the NCR. Check you have permission and try again." };
   }
@@ -199,6 +203,8 @@ export async function updateNcrAction(
   const ncrId = String(formData.get("ncr_id") ?? "").trim();
   const assignedTo = String(formData.get("assigned_to") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "").trim();
+  // R68: optional vendor/party FK, editable here same as assigned_to/due_date.
+  const responsiblePartyId = String(formData.get("responsible_party_id") ?? "").trim();
   const rootCause = String(formData.get("root_cause") ?? "").trim();
   const correctiveAction = String(formData.get("corrective_action") ?? "").trim();
   const preventiveAction = String(formData.get("preventive_action") ?? "").trim();
@@ -224,6 +230,7 @@ export async function updateNcrAction(
   const update: Record<string, unknown> = {
     assigned_to: assignedTo || null,
     due_date: dueDate || null,
+    responsible_party_id: responsiblePartyId || null,
     root_cause: rootCause || null,
     corrective_action: correctiveAction || null,
     preventive_action: preventiveAction || null,
@@ -257,10 +264,10 @@ export async function updateNcrAction(
 
   if (error) {
     if (error.code === "23503") {
-      return { error: "The assigned-to user ID doesn't match a known user." };
+      return { error: "The assigned-to user or responsible party doesn't match a known record." };
     }
     if (error.code === "22P02") {
-      return { error: "Assigned-to must be a valid user ID (UUID)." };
+      return { error: "Assigned-to and responsible party must be valid IDs (UUID)." };
     }
     return { error: "Could not update the NCR. Check you have permission and try again." };
   }
