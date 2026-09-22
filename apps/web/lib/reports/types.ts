@@ -70,8 +70,9 @@ export interface BackgroundJobRow {
   completed_at: string | null;
 }
 
-/** Derives the CSV path the worker uploads alongside the PDF, from the PDF's result_storage_path.
- *  See generateMonthlyReportPack.ts in the worker — both files share the same base path. */
-export function csvPathFromPdfPath(pdfPath: string): string {
-  return pdfPath.replace(/report-pack\.pdf$/, "report-pack.csv");
+/** Derives the .xlsx path the worker uploads alongside the PDF, from the PDF's result_storage_path.
+ *  See generateMonthlyReportPack.ts in the worker — both files share the same base path. The worker
+ *  writes a real Excel workbook here (R107/R109), not a CSV. */
+export function xlsxPathFromPdfPath(pdfPath: string): string {
+  return pdfPath.replace(/report-pack\.pdf$/, "report-pack.xlsx");
 }

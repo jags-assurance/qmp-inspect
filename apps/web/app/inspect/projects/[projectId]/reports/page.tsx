@@ -115,8 +115,8 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
                     {pack.status === "completed" && pack.pdfUrl ? (
                       <span className="flex gap-3">
                         <a href={pack.pdfUrl} className="text-burgundy underline">PDF</a>
-                        {pack.csvUrl && (
-                          <a href={pack.csvUrl} className="text-burgundy underline">Excel</a>
+                        {pack.xlsxUrl && (
+                          <a href={pack.xlsxUrl} className="text-burgundy underline">Excel</a>
                         )}
                       </span>
                     ) : pack.status === "failed" ? (
