@@ -31,13 +31,34 @@ async function toDataUri(storagePath: string): Promise<string | null> {
 export async function renderInspectionReportPdf(
   payload: RenderInspectionReportPdfPayload
 ): Promise<{ resultStoragePath: string }> {
-  const { data: record, error: recordError } = await supabase
+  const { data: rawRecord, error: recordError } = await supabase
     .from("inspection_records")
     .select(
       "id, record_number, project_id, project_name, itp_number, itp_item_id, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, inspector_id"
     )
     .eq("id", payload.inspection_record_id)
     .single();
+
+  const record = rawRecord as {
+    id: string;
+    record_number: string;
+    project_id: string;
+    project_name: string;
+    itp_number: string;
+    itp_item_id: string | null;
+    activity: string;
+    location: string | null;
+    client_name: string | null;
+    applicable_standard: string | null;
+    governing_drawing_reference: string | null;
+    governing_drawing_revision: string | null;
+    inspection_date: string | null;
+    overall_result: "pass" | "fail" | "partial" | null;
+    notes: string | null;
+    narrative: string | null;
+    inspector_signature: string | null;
+    inspector_id: string | null;
+  } | null;
 
   if (recordError || !record) {
     throw new Error(`Inspection record ${payload.inspection_record_id} not found: ${recordError?.message ?? "no row"}`);
@@ -102,7 +123,7 @@ export async function renderInspectionReportPdf(
     organizationName: project?.organizations?.name ?? null,
     itpNumber: record.itp_number,
     location: record.location,
-    inspectionDate: record.inspection_date,
+    inspectionDate: record.inspection_date ?? "",
     overallResult: record.overall_result,
     discipline: itpItem?.master_disciplines?.name ?? null,
     notes: record.notes,

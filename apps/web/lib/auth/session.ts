@@ -57,7 +57,11 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
         is_jags_staff: boolean;
         staff_role: StaffRole;
       }>(),
-    supabase.from("access_grants").select("scope_type, organization_id, project_id, role").eq("user_id", user.id),
+    supabase
+      .from("access_grants")
+      .select("scope_type, organization_id, project_id, role")
+      .eq("user_id", user.id)
+      .returns<AccessGrant[]>(),
   ]);
 
   if (!profile) return null;
