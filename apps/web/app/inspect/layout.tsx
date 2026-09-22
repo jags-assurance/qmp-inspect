@@ -2,6 +2,8 @@ import { requireSession, canSeePlatformHome, isAdminStaff } from "@/lib/auth/ses
 import { AppShell, type NavItem } from "@/components/domain/app-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
+import { isModuleLicensed } from "@/lib/module-licensing/access";
+import type { ModuleKey } from "@/lib/module-licensing/types";
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -11,6 +13,12 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // one team (manages only their own) — an Inspector with no lead role has no reason to see it.
   // Admin already implies this, so the extra DB round-trip only happens for non-admin staff.
   const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || (await isLeadOfAnyTeam(supabase, session.userId)));
+
+  // R112 module licensing: "own org" for a non-staff login, same lookup used everywhere else in
+  // this file/app (client-teams/page.tsx, manage/page.tsx) — a non-staff user's access_grants are
+  // in practice all scoped to the one org they belong to, so the first organization_id-bearing grant
+  // is that org. Computed once here, hoisted above the Client Teams block below since both need it.
+  const ownOrgId = session.isJagsStaff ? null : session.grants.find((g) => g.organization_id)?.organization_id ?? null;
 
   // Client Teams (a client org's OWN people grouping — see app/inspect/organisation/client-teams,
   // supabase/migrations/20260919020000_client_teams.sql) is always visible to staff (an Admin can
@@ -26,17 +34,40 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // organization." Computed once here alongside the Client Teams check since they share the same
   // "is my own org self_managed" lookup.
   let isSelfManagedOrg = false;
-  if (!showClientTeamsNav) {
-    const ownOrgId = session.grants.find((g) => g.organization_id)?.organization_id ?? null;
-    if (ownOrgId) {
-      const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
-        supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
-        supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
-      ]);
-      isSelfManagedOrg = org?.engagement_scope === "self_managed";
-      showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
-    }
+  if (!showClientTeamsNav && ownOrgId) {
+    const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
+      supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
+      supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
+    ]);
+    isSelfManagedOrg = org?.engagement_scope === "self_managed";
+    showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
   }
+
+  // R112 module licensing (layout-level): every nav item below that corresponds directly to a real
+  // module_key is checked against `ownOrgId`'s licenses and dropped from the nav when explicitly
+  // unlicensed. This is layout-level (rather than per-page redirects, like the project-scoped
+  // Registers/Data Book/Reports pages use — see those pages' own doc comments) because every one of
+  // these items is a TOP-LEVEL nav destination for a single, unambiguous org: a non-staff login's
+  // own org, resolved once via ownOrgId above. JAGS staff always bypass entirely (isModuleLicensed
+  // is only even called for a non-staff session with a resolvable own org) — they need to see every
+  // module to support any client. Fails open (see lib/module-licensing/access.ts) so a query error
+  // never hides a nav item nobody explicitly unlicensed.
+  const licensedModules = new Map<ModuleKey, boolean>();
+  if (ownOrgId) {
+    const keysToCheck: ModuleKey[] = [
+      "itps",
+      "ncrs",
+      "observations",
+      "vault",
+      "standalone_assignments",
+      "handover",
+      "client_teams",
+      "custom_roles",
+    ];
+    const results = await Promise.all(keysToCheck.map((key) => isModuleLicensed(supabase, ownOrgId, key)));
+    keysToCheck.forEach((key, i) => licensedModules.set(key, results[i]));
+  }
+  const isLicensed = (key: ModuleKey) => licensedModules.get(key) ?? true;
 
   // Every non-staff role used to get the identical nav, with only the underlying data differing
   // via RLS — no portal actually looked or felt different per party. This is a first, deliberately
@@ -56,12 +87,16 @@ export default async function InspectLayout({ children }: { children: React.Reac
     { label: "Dashboard", href: "/inspect" },
     ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
     { label: "Projects", href: "/inspect/projects" },
-    { label: "ITPs", href: "/inspect/itps" },
-    { label: "NCRs", href: "/inspect/ncrs" },
-    { label: "Observations", href: "/inspect/observations" },
-    ...(!isClientRole ? [{ label: "Standalone Assignments", href: "/inspect/standalone" }] : []),
-    { label: "Document Vault", href: "/inspect/vault" },
-    ...(session.isJagsStaff || isClientRole ? [{ label: "Handover", href: "/inspect/handover" }] : []),
+    ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps" }] : []),
+    ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs" }] : []),
+    ...(isLicensed("observations") ? [{ label: "Observations", href: "/inspect/observations" }] : []),
+    ...(!isClientRole && isLicensed("standalone_assignments")
+      ? [{ label: "Standalone Assignments", href: "/inspect/standalone" }]
+      : []),
+    ...(isLicensed("vault") ? [{ label: "Document Vault", href: "/inspect/vault" }] : []),
+    ...((session.isJagsStaff || isClientRole) && isLicensed("handover")
+      ? [{ label: "Handover", href: "/inspect/handover" }]
+      : []),
     // Master library review and numbering/engagement settings are the Admin's job — an Inspector
     // gets the same operational nav a client sees, plus staff-wide screens (Projects/ITPs/etc.
     // above already show every organisation to any JAGS staff login, admin or inspector alike).
@@ -80,12 +115,13 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Teams", href: "/inspect/organisation/teams" },
           { label: "Client Teams", href: "/inspect/organisation/client-teams" },
           { label: "Custom Roles", href: "/inspect/organisation/roles" },
+          { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
         ]
       : []),
     ...(showTeamsNav && !isAdminStaff(session)
       ? [{ label: "Teams", href: "/inspect/organisation/teams" }]
       : []),
-    ...(showClientTeamsNav && !isAdminStaff(session)
+    ...(showClientTeamsNav && !isAdminStaff(session) && isLicensed("client_teams")
       ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
       : []),
     ...(isSelfManagedOrg && !isAdminStaff(session)
@@ -93,7 +129,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Manage", href: "/inspect/manage" },
           { label: "Numbering", href: "/inspect/organisation/numbering" },
           { label: "Brand Colors", href: "/inspect/organisation/branding" },
-          { label: "Custom Roles", href: "/inspect/organisation/roles" },
+          ...(isLicensed("custom_roles") ? [{ label: "Custom Roles", href: "/inspect/organisation/roles" }] : []),
         ]
       : []),
   ];
