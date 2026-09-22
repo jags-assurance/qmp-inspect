@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { ProjectPickerForm, type ProjectOption } from "./project-picker-form";
+import { ConnectorsPanel } from "./connectors-panel";
 
 export default async function VaultPage({
   searchParams,
@@ -84,6 +85,8 @@ export default async function VaultPage({
           ))}
         </div>
       )}
+
+      <ConnectorsPanel />
     </div>
   );
 }

@@ -72,6 +72,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Numbering", href: "/inspect/organisation/numbering" },
           { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
           { label: "Brand Colors", href: "/inspect/organisation/branding" },
+          { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
           { label: "Plans & Seats", href: "/inspect/organisation/plans" },
           { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
           { label: "Usage & Cost", href: "/inspect/organisation/usage" },
