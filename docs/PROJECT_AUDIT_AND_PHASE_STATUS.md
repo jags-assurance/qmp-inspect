@@ -16,7 +16,7 @@ This follows the client's own 31-prompt Build Roadmap groupings, with every R-nu
 |---|---|---|---|
 | R1 | Secure login, role-based access | ✅ | Supabase Auth + `access_grants` (global/org/project scope) + `has_org_access()`/`is_jags_staff()` used in every RLS policy |
 | R2 | Per-client RLS isolation | ✅ | Spot-checked `itps`, `ncrs`, `vault_documents` — all gate via `has_org_access(organization_id)` |
-| R121 | Isolation absolute (final check) | 🟡 | Core tables confirmed; a full sweep of all ~50 tables wasn't exhaustively completed in this pass — recommend one dedicated pass before a client audit |
+| R121 | Isolation absolute (final check) | ✅ | Full sweep completed (2026-09-27): all 64 tables have RLS enabled with ≥1 policy; all 431 policies gate on a real access-control function (org/project/team scope, staff check, or `auth.uid()`) except `master_disciplines`' SELECT — a shared reference/lookup table (discipline names), correctly open-read with staff-gated writes, not tenant data |
 | Dashboard | Inspector/Client dashboards | ✅ | Real computed KPI queries (see Quality section), not stubs |
 
 **Foundation is solid.** No open items here beyond a full RLS sweep as due diligence.
