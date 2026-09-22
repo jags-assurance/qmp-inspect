@@ -17,10 +17,12 @@ import { PhotoGallery } from "./photo-gallery";
 import { IssueIrnForm } from "./issue-irn-form";
 import {
   getLatestInspectionReportPdf,
+  getLatestIrnPdf,
   draftInspectionNarrativeAction,
   saveInspectionNarrativeAction,
 } from "@/lib/reports/actions";
 import { InspectionReportPdfButton } from "./inspection-report-pdf-button";
+import { IrnPdfButton } from "./irn-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
@@ -96,10 +98,12 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption">[]>(),
     supabase
       .from(IRNS_TABLE)
-      .select("irn_number, release_date")
+      .select("id, irn_number, release_date")
       .eq("inspection_record_id", id)
-      .maybeSingle<Pick<IrnRow, "irn_number" | "release_date">>(),
+      .maybeSingle<Pick<IrnRow, "id" | "irn_number" | "release_date">>(),
   ]);
+
+  const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
 
   const sortedResponses = [...(responses ?? [])].sort((a, b) =>
     (a.checklist_items?.item_number ?? "").localeCompare(b.checklist_items?.item_number ?? "", undefined, { numeric: true })
@@ -292,9 +296,14 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-sm font-medium text-ink">Inspection Release Note</h2>
         {irn ? (
-          <p className="mt-2 text-sm text-ink">
-            <span className="doc-id">{irn.irn_number}</span> · Released {irn.release_date}
-          </p>
+          <div className="mt-2">
+            <p className="text-sm text-ink">
+              <span className="doc-id">{irn.irn_number}</span> · Released {irn.release_date}
+            </p>
+            <div className="mt-2">
+              <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} />
+            </div>
+          </div>
         ) : record.overall_result === "pass" ? (
           <div className="mt-2">
             <IssueIrnForm inspectionRecordId={record.id} />

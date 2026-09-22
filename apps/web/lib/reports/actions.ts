@@ -23,6 +23,8 @@ import {
   type RenderItpPdfPayload,
   type RenderPortfolioSummaryPdfPayload,
   type RenderNcrPdfPayload,
+  type RenderIrnPdfPayload,
+  type RenderDataBookPdfPayload,
 } from "./types";
 
 export interface GenerateMonthlyReportPackState {
@@ -551,6 +553,173 @@ export async function getLatestNcrPdf(ncrId: string): Promise<NcrPdfStatus | nul
     .maybeSingle<
       Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
         payload: RenderNcrPdfPayload;
+        result_storage_path: string | null;
+      }
+    >();
+
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+    downloadUrl,
+  };
+}
+
+export interface RequestIrnPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_irn_pdf" background job — the branded A4 IRN (Inspection Release Note)
+ * certificate for a single issued IRN. Same insert-a-row pattern as requestNcrPdfAction above; RLS
+ * on background_jobs restricts this to users with access to the IRN's inspection record's project
+ * (see the render_irn_pdf branches added alongside render_ncr_pdf's own migration).
+ */
+export async function requestIrnPdfAction(_prev: RequestIrnPdfState, formData: FormData): Promise<RequestIrnPdfState> {
+  const session = await requireSession();
+  const irnId = String(formData.get("irn_id") ?? "").trim();
+  if (!irnId) return { error: "Missing IRN." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_irn_pdf",
+    payload: { irn_id: irnId, requested_by: session.userId } satisfies RenderIrnPdfPayload,
+  });
+
+  if (error) {
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the PDF. Check you have permission and try again.") };
+  }
+
+  revalidatePath(`/inspect/inspections`);
+  return { error: null, success: true };
+}
+
+export interface IrnPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+  downloadUrl: string | null;
+}
+
+/**
+ * Most recent render for this IRN. Polled client-side via usePdfPolling (lib/reports/use-pdf-polling.ts)
+ * — see getLatestItpPdf's doc comment for the View/Download URL split.
+ */
+export async function getLatestIrnPdf(irnId: string): Promise<IrnPdfStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: latest } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_irn_pdf")
+    .eq("payload->>irn_id", irnId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderIrnPdfPayload;
+        result_storage_path: string | null;
+      }
+    >();
+
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
+  }
+
+  return {
+    id: latest.id,
+    status: latest.status,
+    errorMessage: latest.error_message,
+    createdAt: latest.created_at,
+    pdfUrl,
+    downloadUrl,
+  };
+}
+
+export interface RequestDataBookPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_data_book_pdf" background job — the cover-page-plus-compiled-summary PDF for a
+ * project's data_books row (R86, R108). Same insert-a-row pattern as requestNcrPdfAction above; RLS
+ * on background_jobs restricts this to users with access to the data book's project.
+ */
+export async function requestDataBookPdfAction(_prev: RequestDataBookPdfState, formData: FormData): Promise<RequestDataBookPdfState> {
+  const session = await requireSession();
+  const dataBookId = String(formData.get("data_book_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!dataBookId) return { error: "Missing data book." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_data_book_pdf",
+    payload: { data_book_id: dataBookId, requested_by: session.userId } satisfies RenderDataBookPdfPayload,
+  });
+
+  if (error) {
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the PDF. Check you have permission and try again.") };
+  }
+
+  if (projectId) revalidatePath(`/inspect/projects/${projectId}/data-book`);
+  return { error: null, success: true };
+}
+
+export interface DataBookPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+  downloadUrl: string | null;
+}
+
+/**
+ * Most recent render for this data book. Polled client-side via usePdfPolling
+ * (lib/reports/use-pdf-polling.ts) — see getLatestItpPdf's doc comment for the View/Download URL
+ * split.
+ */
+export async function getLatestDataBookPdf(dataBookId: string): Promise<DataBookPdfStatus | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: latest } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_data_book_pdf")
+    .eq("payload->>data_book_id", dataBookId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<
+      Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at"> & {
+        payload: RenderDataBookPdfPayload;
         result_storage_path: string | null;
       }
     >();

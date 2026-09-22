@@ -52,6 +52,20 @@ export interface RenderNcrPdfPayload {
   requested_by: string;
 }
 
+/** Payload for "render_irn_pdf" — the branded A4 IRN (Inspection Release Note) certificate. Same
+ *  shape as RenderNcrPdfPayload above. */
+export interface RenderIrnPdfPayload {
+  irn_id: string;
+  requested_by: string;
+}
+
+/** Payload for "render_data_book_pdf" — the cover-page-plus-summary Data Book PDF for one project's
+ *  data_books row. Same shape as RenderNcrPdfPayload above. */
+export interface RenderDataBookPdfPayload {
+  data_book_id: string;
+  requested_by: string;
+}
+
 export interface BackgroundJobRow {
   id: string;
   job_type: string;
@@ -62,7 +76,9 @@ export interface BackgroundJobRow {
     | RenderInspectionReportPdfPayload
     | RenderFatReportPdfPayload
     | RenderPortfolioSummaryPdfPayload
-    | RenderNcrPdfPayload;
+    | RenderNcrPdfPayload
+    | RenderIrnPdfPayload
+    | RenderDataBookPdfPayload;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
   error_message: string | null;
