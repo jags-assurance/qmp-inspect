@@ -324,165 +324,14 @@ export default async function InspectDashboardPage() {
         } | null;
       } | null;
     }
-    const { data: templates } = await supabase
-      .from(CHECKLIST_TEMPLATES_TABLE)
-      .select(
-        "id, itp_item_id, checklist_number, created_at, itp_items(activity, discipline_id, master_disciplines(code), itp_sections(itps(id, itp_number, projects(name, organization_id))))"
-      )
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .returns<TemplateRow[]>();
-
-    const templateIds = (templates ?? []).map((t) => t.id);
-    const { data: records } = await supabase
-      .from(INSPECTION_RECORDS_TABLE)
-      .select("checklist_template_id, overall_result")
-      .in("checklist_template_id", templateIds.length > 0 ? templateIds : ["00000000-0000-0000-0000-000000000000"])
-      .returns<{ checklist_template_id: string | null; overall_result: string | null }[]>();
-
-    const hasCompleted = new Set((records ?? []).filter((r) => r.overall_result !== null).map((r) => r.checklist_template_id));
-    const hasDraft = new Set((records ?? []).filter((r) => r.overall_result === null).map((r) => r.checklist_template_id));
-
-    const pendingTemplates = (templates ?? []).filter((t) => !hasCompleted.has(t.id));
-
-    // Priority isn't a stored field anywhere in the schema — inventing an arbitrary High/Medium/Low
-    // would be fabricated data. Instead it's derived, transparently, from the real intervention
-    // levels already configured on the activity, resolved through each activity's OWN organisation's
-    // configured intervention_level_types (no longer a hardcoded "H"/"W" check): a blocking level
-    // anywhere on it makes the activity High priority (work is blocked on it), a non-blocking level
-    // that still carries a notice period (the old Witness's defining trait) makes it Medium, anything
-    // else (e.g. Review/Surveillance, or a custom level with neither) is Low.
-    const itemIds = [...new Set(pendingTemplates.map((t) => t.itp_item_id).filter(Boolean))];
-    const { data: interventions } = itemIds.length
-      ? await supabase
-          .from("activity_party_intervention")
-          .select("itp_item_id, intervention")
-          .in("itp_item_id", itemIds)
-          .returns<{ itp_item_id: string; intervention: string }[]>()
-      : { data: [] as { itp_item_id: string; intervention: string }[] };
-
-    const itemOrgById = new Map<string, string>();
-    for (const t of pendingTemplates) {
-      const orgId = t.itp_items?.itp_sections?.itps?.projects?.organization_id;
-      if (orgId) itemOrgById.set(t.itp_item_id, orgId);
+    // Perf: these three top-level fetches don't depend on each other at all (notifiedRows and
+    // standaloneAssignments never touch checklist templates), so run them together instead of one
+    // at a time — was previously the first 3 of 8 fully sequential round-trips on this page.
+    interface NotifiedRow {
+      intervention: string;
+      notified_at: string | null;
+      itp_items: { itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null } | null;
     }
-    const orgIdsForPriority = [...new Set(itemOrgById.values())];
-    const { data: levelTypesForPriority } = orgIdsForPriority.length
-      ? await supabase
-          .from(INTERVENTION_LEVEL_TYPES_TABLE)
-          .select("organization_id, code, is_blocking, default_notice_hours")
-          .in("organization_id", orgIdsForPriority)
-          .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
-      : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
-    const levelTypeByOrgCode = new Map(
-      (levelTypesForPriority ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
-    );
-
-    const priorityByItem = new Map<string, "high" | "medium" | "low">();
-    for (const row of interventions ?? []) {
-      const orgId = itemOrgById.get(row.itp_item_id);
-      const levelType = orgId ? levelTypeByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
-      const current = priorityByItem.get(row.itp_item_id);
-      if (levelType?.is_blocking) priorityByItem.set(row.itp_item_id, "high");
-      else if (levelType?.default_notice_hours != null && current !== "high") priorityByItem.set(row.itp_item_id, "medium");
-      else if (!current) priorityByItem.set(row.itp_item_id, "low");
-    }
-
-    // Dynamic priority routing: sort by real urgency (a Hold-gated activity outranks a Witness one,
-    // which outranks a plain Review/Surveillance one — see priorityByItem above) before truncating to
-    // 8, so what actually surfaces here is the most urgent work, not just whatever was created most
-    // recently. Ties within a priority tier go to whichever's been pending longest.
-    pendingActions = sortByDynamicPriority(
-      pendingTemplates.map((t) => {
-        const itp = t.itp_items?.itp_sections?.itps;
-        const ageDays = Math.floor((today.getTime() - new Date(t.created_at).getTime()) / 86_400_000);
-        return {
-          templateId: t.id,
-          checklistNumber: t.checklist_number,
-          activity: t.itp_items?.activity ?? "Untitled activity",
-          discipline: t.itp_items?.master_disciplines?.code ?? null,
-          priority: priorityByItem.get(t.itp_item_id) ?? "low",
-          itpId: itp?.id ?? "",
-          itpNumber: itp?.itp_number ?? "",
-          projectName: itp?.projects?.name ?? "",
-          status: (hasDraft.has(t.id) ? "in_progress" : "not_started") as "in_progress" | "not_started",
-          createdAt: t.created_at,
-          ageDays,
-        };
-      })
-    ).slice(0, 8);
-
-    // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
-    // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
-    // been notified but not yet signed off, past its project's notice period (falling back to that
-    // organisation's configured default, then the original hardcoded 48h, same three-tier precedence
-    // lib/signoff/actions.ts uses to gate everything else Hold-related).
-    const { data: notifiedRows } = await supabase
-      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select("intervention, notified_at, itp_items(itp_sections(itps(project_id, projects(organization_id))))")
-      .eq("status", "notified")
-      .returns<
-        {
-          intervention: string;
-          notified_at: string | null;
-          itp_items: { itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null } | null;
-        }[]
-      >();
-
-    const orgIdsForOverdue = [
-      ...new Set(
-        (notifiedRows ?? [])
-          .map((r) => r.itp_items?.itp_sections?.itps?.projects?.organization_id)
-          .filter((id): id is string => !!id)
-      ),
-    ];
-    const { data: levelTypesForOverdue } = orgIdsForOverdue.length
-      ? await supabase
-          .from(INTERVENTION_LEVEL_TYPES_TABLE)
-          .select("organization_id, code, is_blocking, default_notice_hours")
-          .in("organization_id", orgIdsForOverdue)
-          .eq("is_blocking", true)
-          .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
-      : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
-    const blockingLevelByOrgCode = new Map(
-      (levelTypesForOverdue ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
-    );
-
-    const notifiedHolds = (notifiedRows ?? []).filter((row) => {
-      const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-      return orgId && blockingLevelByOrgCode.has(`${orgId}:${row.intervention}`);
-    });
-
-    const projectIds = [
-      ...new Set((notifiedHolds ?? []).map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
-    ];
-    const { data: noticeConfigs } = projectIds.length
-      ? await supabase
-          .from(NOTICE_PERIOD_CONFIGS_TABLE)
-          .select("project_id, intervention, hours")
-          .in("intervention", ["H", ...[...blockingLevelByOrgCode.values()].map((l) => l.code)])
-          .in("project_id", projectIds)
-          .returns<{ project_id: string; intervention: string; hours: number }[]>()
-      : { data: [] as { project_id: string; intervention: string; hours: number }[] };
-    const hoursByProjectIntervention = new Map((noticeConfigs ?? []).map((c) => [`${c.project_id}:${c.intervention}`, c.hours]));
-
-    const overdueAgeDays: number[] = [];
-    for (const row of notifiedHolds ?? []) {
-      if (!row.notified_at) continue;
-      const projectId = row.itp_items?.itp_sections?.itps?.project_id;
-      const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-      const levelType = orgId ? blockingLevelByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
-      const noticeHours =
-        (projectId ? hoursByProjectIntervention.get(`${projectId}:${row.intervention}`) : undefined) ??
-        levelType?.default_notice_hours ??
-        DEFAULT_NOTICE_PERIOD_HOURS[row.intervention] ??
-        48;
-      const ageMs = today.getTime() - new Date(row.notified_at).getTime();
-      if (ageMs > noticeHours * 60 * 60 * 1000) overdueAgeDays.push(Math.floor(ageMs / 86_400_000));
-    }
-    overdueHoldPoints = overdueAgeDays.length;
-    oldestHoldPointDays = overdueAgeDays.length > 0 ? Math.max(...overdueAgeDays) : 0;
-
     interface StandaloneAssignmentRow {
       id: string;
       assignment_number: string;
@@ -492,14 +341,193 @@ export default async function InspectDashboardPage() {
       updated_at: string;
       projects: { name: string } | null;
     }
-    const { data: standaloneAssignments } = await supabase
-      .from(STANDALONE_ASSIGNMENTS)
-      .select("id, assignment_number, assignment_type, equipment_description, status, updated_at, projects(name)")
-      .neq("status", "completed")
-      .order("updated_at", { ascending: false })
-      .limit(8)
-      .returns<StandaloneAssignmentRow[]>();
+    const [{ data: templates }, { data: notifiedRows }, { data: standaloneAssignments }] = await Promise.all([
+      supabase
+        .from(CHECKLIST_TEMPLATES_TABLE)
+        .select(
+          "id, itp_item_id, checklist_number, created_at, itp_items(activity, discipline_id, master_disciplines(code), itp_sections(itps(id, itp_number, projects(name, organization_id))))"
+        )
+        .order("created_at", { ascending: false })
+        .limit(20)
+        .returns<TemplateRow[]>(),
+      // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
+      // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
+      // been notified but not yet signed off, past its project's notice period (falling back to that
+      // organisation's configured default, then the original hardcoded 48h, same three-tier precedence
+      // lib/signoff/actions.ts uses to gate everything else Hold-related).
+      supabase
+        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+        .select("intervention, notified_at, itp_items(itp_sections(itps(project_id, projects(organization_id))))")
+        .eq("status", "notified")
+        .returns<NotifiedRow[]>(),
+      supabase
+        .from(STANDALONE_ASSIGNMENTS)
+        .select("id, assignment_number, assignment_type, equipment_description, status, updated_at, projects(name)")
+        .neq("status", "completed")
+        .order("updated_at", { ascending: false })
+        .limit(8)
+        .returns<StandaloneAssignmentRow[]>(),
+    ]);
 
+    // Perf: these two chains share no data dependency (one starts from `templates`, the other from
+    // `notifiedRows`, both already fetched above) — run them concurrently as two async closures
+    // instead of one long sequential chain. Was previously 4 more sequential round-trips after the
+    // first 3; now the whole page's critical path is 3 round-trips deep instead of 8.
+    const computePendingActions = async (): Promise<PendingActionRow[]> => {
+      const templateIds = (templates ?? []).map((t) => t.id);
+      const { data: records } = await supabase
+        .from(INSPECTION_RECORDS_TABLE)
+        .select("checklist_template_id, overall_result")
+        .in("checklist_template_id", templateIds.length > 0 ? templateIds : ["00000000-0000-0000-0000-000000000000"])
+        .returns<{ checklist_template_id: string | null; overall_result: string | null }[]>();
+
+      const hasCompleted = new Set((records ?? []).filter((r) => r.overall_result !== null).map((r) => r.checklist_template_id));
+      const hasDraft = new Set((records ?? []).filter((r) => r.overall_result === null).map((r) => r.checklist_template_id));
+
+      const pendingTemplates = (templates ?? []).filter((t) => !hasCompleted.has(t.id));
+
+      // Priority isn't a stored field anywhere in the schema — inventing an arbitrary High/Medium/Low
+      // would be fabricated data. Instead it's derived, transparently, from the real intervention
+      // levels already configured on the activity, resolved through each activity's OWN organisation's
+      // configured intervention_level_types (no longer a hardcoded "H"/"W" check): a blocking level
+      // anywhere on it makes the activity High priority (work is blocked on it), a non-blocking level
+      // that still carries a notice period (the old Witness's defining trait) makes it Medium, anything
+      // else (e.g. Review/Surveillance, or a custom level with neither) is Low.
+      const itemIds = [...new Set(pendingTemplates.map((t) => t.itp_item_id).filter(Boolean))];
+      const itemOrgById = new Map<string, string>();
+      for (const t of pendingTemplates) {
+        const orgId = t.itp_items?.itp_sections?.itps?.projects?.organization_id;
+        if (orgId) itemOrgById.set(t.itp_item_id, orgId);
+      }
+      const orgIdsForPriority = [...new Set(itemOrgById.values())];
+
+      const [{ data: interventions }, { data: levelTypesForPriority }] = await Promise.all([
+        itemIds.length
+          ? supabase
+              .from("activity_party_intervention")
+              .select("itp_item_id, intervention")
+              .in("itp_item_id", itemIds)
+              .returns<{ itp_item_id: string; intervention: string }[]>()
+          : Promise.resolve({ data: [] as { itp_item_id: string; intervention: string }[] }),
+        orgIdsForPriority.length
+          ? supabase
+              .from(INTERVENTION_LEVEL_TYPES_TABLE)
+              .select("organization_id, code, is_blocking, default_notice_hours")
+              .in("organization_id", orgIdsForPriority)
+              .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
+          : Promise.resolve({ data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] }),
+      ]);
+      const levelTypeByOrgCode = new Map(
+        (levelTypesForPriority ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
+      );
+
+      const priorityByItem = new Map<string, "high" | "medium" | "low">();
+      for (const row of interventions ?? []) {
+        const orgId = itemOrgById.get(row.itp_item_id);
+        const levelType = orgId ? levelTypeByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
+        const current = priorityByItem.get(row.itp_item_id);
+        if (levelType?.is_blocking) priorityByItem.set(row.itp_item_id, "high");
+        else if (levelType?.default_notice_hours != null && current !== "high") priorityByItem.set(row.itp_item_id, "medium");
+        else if (!current) priorityByItem.set(row.itp_item_id, "low");
+      }
+
+      // Dynamic priority routing: sort by real urgency (a Hold-gated activity outranks a Witness one,
+      // which outranks a plain Review/Surveillance one — see priorityByItem above) before truncating to
+      // 8, so what actually surfaces here is the most urgent work, not just whatever was created most
+      // recently. Ties within a priority tier go to whichever's been pending longest.
+      return sortByDynamicPriority(
+        pendingTemplates.map((t) => {
+          const itp = t.itp_items?.itp_sections?.itps;
+          const ageDays = Math.floor((today.getTime() - new Date(t.created_at).getTime()) / 86_400_000);
+          return {
+            templateId: t.id,
+            checklistNumber: t.checklist_number,
+            activity: t.itp_items?.activity ?? "Untitled activity",
+            discipline: t.itp_items?.master_disciplines?.code ?? null,
+            priority: priorityByItem.get(t.itp_item_id) ?? "low",
+            itpId: itp?.id ?? "",
+            itpNumber: itp?.itp_number ?? "",
+            projectName: itp?.projects?.name ?? "",
+            status: (hasDraft.has(t.id) ? "in_progress" : "not_started") as "in_progress" | "not_started",
+            createdAt: t.created_at,
+            ageDays,
+          };
+        })
+      ).slice(0, 8);
+    };
+
+    // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
+    // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
+    // been notified but not yet signed off, past its project's notice period (falling back to that
+    // organisation's configured default, then the original hardcoded 48h, same three-tier precedence
+    // lib/signoff/actions.ts uses to gate everything else Hold-related).
+    const computeOverdueHoldPoints = async (): Promise<{ overdueHoldPoints: number; oldestHoldPointDays: number }> => {
+      const orgIdsForOverdue = [
+        ...new Set(
+          (notifiedRows ?? [])
+            .map((r) => r.itp_items?.itp_sections?.itps?.projects?.organization_id)
+            .filter((id): id is string => !!id)
+        ),
+      ];
+      const { data: levelTypesForOverdue } = orgIdsForOverdue.length
+        ? await supabase
+            .from(INTERVENTION_LEVEL_TYPES_TABLE)
+            .select("organization_id, code, is_blocking, default_notice_hours")
+            .in("organization_id", orgIdsForOverdue)
+            .eq("is_blocking", true)
+            .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
+        : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
+      const blockingLevelByOrgCode = new Map(
+        (levelTypesForOverdue ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
+      );
+
+      const notifiedHolds = (notifiedRows ?? []).filter((row) => {
+        const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
+        return orgId && blockingLevelByOrgCode.has(`${orgId}:${row.intervention}`);
+      });
+
+      const projectIds = [
+        ...new Set((notifiedHolds ?? []).map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
+      ];
+      const { data: noticeConfigs } = projectIds.length
+        ? await supabase
+            .from(NOTICE_PERIOD_CONFIGS_TABLE)
+            .select("project_id, intervention, hours")
+            .in("intervention", ["H", ...[...blockingLevelByOrgCode.values()].map((l) => l.code)])
+            .in("project_id", projectIds)
+            .returns<{ project_id: string; intervention: string; hours: number }[]>()
+        : { data: [] as { project_id: string; intervention: string; hours: number }[] };
+      const hoursByProjectIntervention = new Map((noticeConfigs ?? []).map((c) => [`${c.project_id}:${c.intervention}`, c.hours]));
+
+      const overdueAgeDays: number[] = [];
+      for (const row of notifiedHolds ?? []) {
+        if (!row.notified_at) continue;
+        const projectId = row.itp_items?.itp_sections?.itps?.project_id;
+        const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
+        const levelType = orgId ? blockingLevelByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
+        const noticeHours =
+          (projectId ? hoursByProjectIntervention.get(`${projectId}:${row.intervention}`) : undefined) ??
+          levelType?.default_notice_hours ??
+          DEFAULT_NOTICE_PERIOD_HOURS[row.intervention] ??
+          48;
+        const ageMs = today.getTime() - new Date(row.notified_at).getTime();
+        if (ageMs > noticeHours * 60 * 60 * 1000) overdueAgeDays.push(Math.floor(ageMs / 86_400_000));
+      }
+      return {
+        overdueHoldPoints: overdueAgeDays.length,
+        oldestHoldPointDays: overdueAgeDays.length > 0 ? Math.max(...overdueAgeDays) : 0,
+      };
+    };
+
+    const [computedPendingActions, overdueResult] = await Promise.all([
+      computePendingActions(),
+      computeOverdueHoldPoints(),
+    ]);
+    pendingActions = computedPendingActions;
+    overdueHoldPoints = overdueResult.overdueHoldPoints;
+    oldestHoldPointDays = overdueResult.oldestHoldPointDays;
+
+    // standaloneAssignments was already fetched in the top-level Promise.all above.
     pendingStandaloneAssignments = (standaloneAssignments ?? []).map((a) => ({
       id: a.id,
       assignmentNumber: a.assignment_number,
