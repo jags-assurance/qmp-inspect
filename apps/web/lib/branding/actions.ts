@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface BrandingSettingsState {
   error: string | null;
@@ -65,6 +66,16 @@ export async function updateOrgBrandColorsAction(
   if (error) {
     return { error: "Could not save the brand colors. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "organization_branding",
+    entityId: organizationId,
+    action: "colors_updated",
+    actorId: session.userId,
+    summary: "Organisation brand colors updated",
+    changes: { brand_primary_color: primaryRaw || null, brand_accent_color: accentRaw || null },
+  });
 
   revalidatePath(BRANDING_PATH);
   return { error: null };
@@ -129,6 +140,15 @@ export async function updateOrgLogoAction(
   if (error) {
     return { error: "Could not save the logo. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "organization_branding",
+    entityId: organizationId,
+    action: "logo_updated",
+    actorId: session.userId,
+    summary: "Organisation logo updated",
+  });
 
   // Best-effort cleanup of the previous file — never fails the upload if it doesn't work.
   if (!fetchError && org?.branding_logo_path && org.branding_logo_path !== storagePath) {

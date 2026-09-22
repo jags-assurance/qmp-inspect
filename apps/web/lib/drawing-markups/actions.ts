@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { DRAWING_MARKUPS_TABLE, DRAWING_MARKUP_TYPES, type DrawingMarkupType } from "@/lib/drawing-markups/types";
 
 export interface CreateDrawingMarkupState {
@@ -42,19 +43,44 @@ export async function createDrawingMarkupAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from(DRAWING_MARKUPS_TABLE).insert({
-    project_id: projectId,
-    vault_document_id: vaultDocumentId,
-    x,
-    y,
-    markup_type: markupType,
-    linked_entity_id: linkedEntityId || null,
-    label,
-    created_by: user?.id ?? null,
-  });
+  const { data: markup, error } = await supabase
+    .from(DRAWING_MARKUPS_TABLE)
+    .insert({
+      project_id: projectId,
+      vault_document_id: vaultDocumentId,
+      x,
+      y,
+      markup_type: markupType,
+      linked_entity_id: linkedEntityId || null,
+      label,
+      created_by: user?.id ?? null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !markup) {
     return { error: "Could not save the pin. Check you have permission and try again." };
+  }
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .single();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "drawing_markup",
+        entityId: markup.id,
+        action: "created",
+        actorId: user?.id ?? null,
+        summary: `Drawing pin "${label}" dropped (${markupType})`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/vault/${projectId}/document/${vaultDocumentId}`);

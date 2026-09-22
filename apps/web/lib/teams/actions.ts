@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { isTeamLeadOf } from "./helpers";
 
 export interface TeamActionState {
@@ -123,6 +124,28 @@ export async function assignTeamToProjectAction(_prev: TeamActionState, formData
     };
   }
 
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      const session = await requireSession();
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "team_project_assignment",
+        entityId: teamId,
+        action: "assigned",
+        actorId: session.userId,
+        summary: "JAGS staff team assigned to project",
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   revalidatePath(TEAMS_PATH);
   return { error: null };
 }
@@ -143,6 +166,28 @@ export async function unassignTeamFromProjectAction(_prev: TeamActionState, form
     .eq("project_id", projectId);
 
   if (error) return { error: "Could not unassign the project." };
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      const session = await requireSession();
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "team_project_assignment",
+        entityId: teamId,
+        action: "unassigned",
+        actorId: session.userId,
+        summary: "JAGS staff team unassigned from project",
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(TEAMS_PATH);
   return { error: null };

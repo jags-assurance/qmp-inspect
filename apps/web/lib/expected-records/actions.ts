@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import {
   ACTIVITY_EXPECTED_RECORDS_TABLE,
   EXPECTED_RECORD_PROVIDERS,
@@ -32,6 +33,19 @@ async function findItpIdForItem(
   return data?.itp_sections?.itp_id ?? null;
 }
 
+async function findOrgAndProjectForItp(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpId: string
+): Promise<{ organizationId: string; projectId: string } | null> {
+  const { data } = await supabase
+    .from("itps")
+    .select("project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+  if (!data?.projects?.organization_id) return null;
+  return { organizationId: data.projects.organization_id, projectId: data.project_id };
+}
+
 /**
  * Staff-only creation of a pending expected record (R56: "At ITP creation the record is listed
  * with its provider and the number left BLANK"). Not restricted to ITP-creation time specifically —
@@ -59,16 +73,38 @@ export async function createExpectedRecordAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(ACTIVITY_EXPECTED_RECORDS_TABLE).insert({
-    itp_item_id: itpItemId,
-    provider,
-    record_type: recordType,
-  });
+  const { data: record, error } = await supabase
+    .from(ACTIVITY_EXPECTED_RECORDS_TABLE)
+    .insert({
+      itp_item_id: itpItemId,
+      provider,
+      record_type: recordType,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) return { error: "Could not add the expected record. Check you have permission and try again." };
+  if (error || !record) return { error: "Could not add the expected record. Check you have permission and try again." };
 
   const itpId = await findItpIdForItem(supabase, itpItemId);
-  if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  if (itpId) {
+    try {
+      const orgAndProject = await findOrgAndProjectForItp(supabase, itpId);
+      if (orgAndProject) {
+        await recordAuditEvent(supabase, {
+          organizationId: orgAndProject.organizationId,
+          projectId: orgAndProject.projectId,
+          entityType: "expected_record",
+          entityId: record.id,
+          action: "created",
+          actorId: session.userId,
+          summary: `Expected record "${recordType}" added (${provider})`,
+        });
+      }
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+    revalidatePath(`/inspect/itps/${itpId}`);
+  }
   return { error: null };
 }
 
@@ -139,6 +175,24 @@ export async function markExpectedRecordReceivedAction(
   if (error) return { error: "Could not mark the record received. Check you have permission and try again." };
 
   const itpId = await findItpIdForItem(supabase, record.itp_item_id);
-  if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  if (itpId) {
+    try {
+      const orgAndProject = await findOrgAndProjectForItp(supabase, itpId);
+      if (orgAndProject) {
+        await recordAuditEvent(supabase, {
+          organizationId: orgAndProject.organizationId,
+          projectId: orgAndProject.projectId,
+          entityType: "expected_record",
+          entityId: record.id,
+          action: "received",
+          actorId: session.userId,
+          summary: `Expected record marked received — document ${documentNumber}`,
+        });
+      }
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+    revalidatePath(`/inspect/itps/${itpId}`);
+  }
   return { error: null };
 }

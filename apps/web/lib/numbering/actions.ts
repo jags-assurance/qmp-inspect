@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { ENGAGEMENT_MODES, type EngagementMode } from "@jags/shared-types";
 import { NUMBERING_CONFIGS_TABLE } from "./types";
 import type { NumberingDocType } from "./types";
@@ -48,6 +49,16 @@ export async function updateEngagementModeAction(
     return { error: "Could not update the engagement mode. Check you have permission and try again." };
   }
 
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "organization",
+    entityId: organizationId,
+    action: "engagement_mode_updated",
+    actorId: session.userId,
+    summary: `Engagement mode set to ${engagementMode}`,
+    changes: { engagement_mode: engagementMode },
+  });
+
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
 }
@@ -91,6 +102,16 @@ export async function updateEngagementScopeAction(
   if (error) {
     return { error: "Could not update engagement scope. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "organization",
+    entityId: organizationId,
+    action: "engagement_scope_updated",
+    actorId: session.userId,
+    summary: `Engagement scope set to ${engagementScope}`,
+    changes: { engagement_scope: engagementScope },
+  });
 
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
@@ -139,23 +160,39 @@ export async function upsertNumberingConfigAction(
   const supabase = await createSupabaseServerClient();
   // Org-level config only (project_id null) — per-project overrides aren't exposed in this
   // settings screen, only the org-wide default per doc type.
-  const { error } = await supabase.from(NUMBERING_CONFIGS_TABLE).upsert(
-    {
-      organization_id: organizationId,
-      project_id: null,
-      doc_type: docType,
-      client_code: clientCode,
-      originator_code: originatorCode,
-      separator,
-      sequence_padding: sequencePadding,
-      include_year: includeYear,
-      include_discipline: includeDiscipline,
-    },
-    { onConflict: "organization_id,project_id,doc_type" }
-  );
+  const { data: config, error } = await supabase
+    .from(NUMBERING_CONFIGS_TABLE)
+    .upsert(
+      {
+        organization_id: organizationId,
+        project_id: null,
+        doc_type: docType,
+        client_code: clientCode,
+        originator_code: originatorCode,
+        separator,
+        sequence_padding: sequencePadding,
+        include_year: includeYear,
+        include_discipline: includeDiscipline,
+      },
+      { onConflict: "organization_id,project_id,doc_type" }
+    )
+    .select("id")
+    .single<{ id: string }>();
 
   if (error) {
     return { error: "Could not save the numbering config. Check you have permission and try again." };
+  }
+
+  if (config?.id) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "numbering_config",
+      entityId: config.id,
+      action: "updated",
+      actorId: session.userId,
+      summary: `Numbering config for ${docType} updated`,
+      changes: { doc_type: docType, client_code: clientCode, originator_code: originatorCode },
+    });
   }
 
   revalidatePath("/inspect/organisation/numbering");

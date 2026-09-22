@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { extractTextFromFile } from "@/lib/vault/extract-text";
@@ -132,6 +133,16 @@ export async function uploadVaultDocumentCore(
       .eq("id", previousLatest.id);
   }
 
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "vault_document",
+    entityId: document.id,
+    action: "uploaded",
+    actorId: uploadedBy,
+    summary: `Document "${title}" uploaded (${documentNumber})${previousLatest ? " — supersedes a prior revision" : ""}`,
+  });
+
   // Best-effort: this is what makes the document usable as AI generation input later (see
   // lib/itps/ai-draft-actions.ts) but is never allowed to fail the upload itself — a document
   // stuck at extraction_status 'pending'/'failed' still uploads and displays fine, it just can't
@@ -251,6 +262,31 @@ export async function approveVaultDocumentAction(
     .eq("status", "for_review");
 
   if (error) return { error: "Could not approve the document. Check you have permission and try again." };
+
+  try {
+    const { data: document } = await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select("title, vault_folders(project_id, projects(organization_id))")
+      .eq("id", documentId)
+      .maybeSingle<{
+        title: string;
+        vault_folders: { project_id: string; projects: { organization_id: string } | null } | null;
+      }>();
+    const organizationId = document?.vault_folders?.projects?.organization_id;
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: document?.vault_folders?.project_id ?? projectId ?? null,
+        entityType: "vault_document",
+        entityId: documentId,
+        action: "approved",
+        actorId: session.userId,
+        summary: `Document "${document?.title ?? documentId}" approved`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
   return { error: null };

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { recordAuditEvent } from "@/lib/audit/log";
 import {
   CALIBRATION_REGISTER_TABLE,
   MATERIAL_APPROVAL_STATUSES,
@@ -16,6 +17,34 @@ import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import type { ExtractedCalibrationRow, ExtractedMaterialRow, ExtractedWelderRow } from "@/lib/ai/provider";
+
+async function auditRegisterEntry(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  params: { projectId: string; entityType: string; entityId: string; action: string; summary: string }
+): Promise<void> {
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", params.projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (!project?.organization_id) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await recordAuditEvent(supabase, {
+      organizationId: project.organization_id,
+      projectId: params.projectId,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      action: params.action,
+      actorId: user?.id ?? null,
+      summary: params.summary,
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+}
 
 export interface AddCalibrationEntryState {
   error: string | null;
@@ -38,18 +67,30 @@ export async function addCalibrationEntryAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(CALIBRATION_REGISTER_TABLE).insert({
-    project_id: projectId,
-    instrument_name: instrumentName,
-    cert_number: certNumber,
-    cal_date: calDate || null,
-    due_date: dueDate,
-    notes: notes || null,
-  });
+  const { data: entry, error } = await supabase
+    .from(CALIBRATION_REGISTER_TABLE)
+    .insert({
+      project_id: projectId,
+      instrument_name: instrumentName,
+      cert_number: certNumber,
+      cal_date: calDate || null,
+      due_date: dueDate,
+      notes: notes || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !entry) {
     return { error: "Could not add the calibration entry. Check you have permission and try again." };
   }
+
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "calibration_register_entry",
+    entityId: entry.id,
+    action: "created",
+    summary: `Calibration entry added: ${instrumentName} (${certNumber})`,
+  });
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return { error: null };
@@ -76,18 +117,30 @@ export async function addWelderQualificationEntryAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).insert({
-    project_id: projectId,
-    welder_identifier: welderIdentifier,
-    qualified_wps: qualifiedWps,
-    qualified_ranges: qualifiedRanges || null,
-    expiry_date: expiryDate,
-    notes: notes || null,
-  });
+  const { data: entry, error } = await supabase
+    .from(WELDER_QUALIFICATION_REGISTER_TABLE)
+    .insert({
+      project_id: projectId,
+      welder_identifier: welderIdentifier,
+      qualified_wps: qualifiedWps,
+      qualified_ranges: qualifiedRanges || null,
+      expiry_date: expiryDate,
+      notes: notes || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !entry) {
     return { error: "Could not add the welder qualification entry. Check you have permission and try again." };
   }
+
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "welder_qualification_entry",
+    entityId: entry.id,
+    action: "created",
+    summary: `Welder qualification entry added: ${welderIdentifier}`,
+  });
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return { error: null };
@@ -126,24 +179,36 @@ export async function addMaterialEntryAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(MATERIAL_REGISTER_TABLE).insert({
-    project_id: projectId,
-    material_description: materialDescription,
-    submittal_reference: submittalReference || null,
-    approval_status: approvalStatus,
-    approved_date: approvedDate || null,
-    heat_number: heatNumber || null,
-    batch_number: batchNumber || null,
-    po_reference: poReference || null,
-    certificate_reference: certificateReference || null,
-    receipt_status: receiptStatus,
-    disposition_notes: dispositionNotes || null,
-    notes: notes || null,
-  });
+  const { data: entry, error } = await supabase
+    .from(MATERIAL_REGISTER_TABLE)
+    .insert({
+      project_id: projectId,
+      material_description: materialDescription,
+      submittal_reference: submittalReference || null,
+      approval_status: approvalStatus,
+      approved_date: approvedDate || null,
+      heat_number: heatNumber || null,
+      batch_number: batchNumber || null,
+      po_reference: poReference || null,
+      certificate_reference: certificateReference || null,
+      receipt_status: receiptStatus,
+      disposition_notes: dispositionNotes || null,
+      notes: notes || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !entry) {
     return { error: "Could not add the material entry. Check you have permission and try again." };
   }
+
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "material_register_entry",
+    entityId: entry.id,
+    action: "created",
+    summary: `Material entry added: ${materialDescription} (${approvalStatus}/${receiptStatus})`,
+  });
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return { error: null };
@@ -171,19 +236,31 @@ export async function addPersonnelCertificationEntryAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(PERSONNEL_CERTIFICATIONS_TABLE).insert({
-    project_id: projectId,
-    project_party_id: projectPartyId,
-    certification_type: certificationType,
-    cert_number: certNumber || null,
-    issued_date: issuedDate || null,
-    expiry_date: expiryDate,
-    notes: notes || null,
-  });
+  const { data: entry, error } = await supabase
+    .from(PERSONNEL_CERTIFICATIONS_TABLE)
+    .insert({
+      project_id: projectId,
+      project_party_id: projectPartyId,
+      certification_type: certificationType,
+      cert_number: certNumber || null,
+      issued_date: issuedDate || null,
+      expiry_date: expiryDate,
+      notes: notes || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !entry) {
     return { error: "Could not add the certification entry. Check you have permission and try again." };
   }
+
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "personnel_certification_entry",
+    entityId: entry.id,
+    action: "created",
+    summary: `Personnel certification added: ${certificationType}`,
+  });
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return { error: null };
@@ -320,6 +397,14 @@ export async function addExtractedCalibrationRowsAction(
     return { ...EMPTY_ADD_EXTRACTED_STATE, error: "Could not add the extracted rows. Check you have permission and try again." };
   }
 
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "calibration_register_entry",
+    entityId: projectId,
+    action: "ai_extracted_batch_added",
+    summary: `${inserted.length} AI-extracted calibration entries added${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+  });
+
   if (aiLogId && user?.id) {
     await recordAiReviewDecision(supabase, {
       logId: aiLogId,
@@ -447,6 +532,14 @@ export async function addExtractedWelderRowsAction(
   if (error || !inserted) {
     return { ...EMPTY_ADD_EXTRACTED_STATE, error: "Could not add the extracted rows. Check you have permission and try again." };
   }
+
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "welder_qualification_entry",
+    entityId: projectId,
+    action: "ai_extracted_batch_added",
+    summary: `${inserted.length} AI-extracted welder qualification entries added${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+  });
 
   if (aiLogId && user?.id) {
     await recordAiReviewDecision(supabase, {
@@ -576,6 +669,14 @@ export async function addExtractedMaterialRowsAction(
   if (error || !inserted) {
     return { ...EMPTY_ADD_EXTRACTED_STATE, error: "Could not add the extracted rows. Check you have permission and try again." };
   }
+
+  await auditRegisterEntry(supabase, {
+    projectId,
+    entityType: "material_register_entry",
+    entityId: projectId,
+    action: "ai_extracted_batch_added",
+    summary: `${inserted.length} AI-extracted material entries added${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
+  });
 
   if (aiLogId && user?.id) {
     await recordAiReviewDecision(supabase, {

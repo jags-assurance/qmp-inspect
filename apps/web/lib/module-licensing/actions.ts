@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { ORGANIZATION_MODULE_LICENSES_TABLE, MODULE_KEYS, type ModuleKey } from "./types";
 
 export interface ModuleLicenseState {
@@ -38,15 +39,29 @@ export async function setModuleLicenseAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: license, error } = await supabase
     .from(ORGANIZATION_MODULE_LICENSES_TABLE)
     .upsert(
       { organization_id: organizationId, module_key: moduleKey, is_licensed: isLicensed },
       { onConflict: "organization_id,module_key" }
-    );
+    )
+    .select("id")
+    .single<{ id: string }>();
 
   if (error) {
     return { error: "Could not update module licensing. Check you have permission and try again." };
+  }
+
+  if (license?.id) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "module_license",
+      entityId: license.id,
+      action: isLicensed ? "licensed" : "unlicensed",
+      actorId: session.userId,
+      summary: `Module "${moduleKey}" ${isLicensed ? "licensed" : "unlicensed"}`,
+      changes: { module_key: moduleKey, is_licensed: isLicensed },
+    });
   }
 
   revalidatePath(SETTINGS_PATH);

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { isClientTeamLeadOf } from "./helpers";
 
 export interface ClientTeamActionState {
@@ -10,6 +11,18 @@ export interface ClientTeamActionState {
 }
 
 const CLIENT_TEAMS_PATH = "/inspect/organisation/client-teams";
+
+async function findOrgForClientTeam(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  clientTeamId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("client_teams")
+    .select("organization_id")
+    .eq("id", clientTeamId)
+    .maybeSingle<{ organization_id: string }>();
+  return data?.organization_id ?? null;
+}
 
 /**
  * Creates the client's own team row. Allowed for a JAGS Admin (onboarding on the client's behalf),
@@ -26,14 +39,28 @@ export async function createClientTeamAction(
   const name = String(formData.get("name") ?? "").trim();
   if (!organizationId || !name) return { error: "Organisation and team name are required." };
 
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("client_teams").insert({ organization_id: organizationId, name });
+  const { data: team, error } = await supabase
+    .from("client_teams")
+    .insert({ organization_id: organizationId, name })
+    .select("id")
+    .single();
 
-  if (error) {
+  if (error || !team) {
     return {
       error: "Could not create the team. Either you don't have permission, or this organisation already has a team (only a JAGS Admin or an existing team lead can add another).",
     };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "client_team",
+    entityId: team.id,
+    action: "created",
+    actorId: session.userId,
+    summary: `Client team "${name}" created`,
+  });
 
   revalidatePath(CLIENT_TEAMS_PATH);
   return { error: null };
@@ -92,6 +119,19 @@ export async function addClientTeamMemberAction(
     };
   }
 
+  const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "client_team_member",
+      entityId: clientTeamId,
+      action: "added",
+      actorId: session.userId,
+      summary: `Member added to client team${isTeamLead ? " as lead" : ""}`,
+      changes: { client_team_id: clientTeamId, user_id: userId, is_team_lead: isTeamLead },
+    });
+  }
+
   revalidatePath(CLIENT_TEAMS_PATH);
   return { error: null };
 }
@@ -115,6 +155,19 @@ export async function removeClientTeamMemberAction(
     .eq("client_team_id", clientTeamId)
     .eq("user_id", userId);
   if (error) return { error: "Could not remove the member." };
+
+  const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "client_team_member",
+      entityId: clientTeamId,
+      action: "removed",
+      actorId: session.userId,
+      summary: "Member removed from client team",
+      changes: { client_team_id: clientTeamId, user_id: userId },
+    });
+  }
 
   revalidatePath(CLIENT_TEAMS_PATH);
   return { error: null };
@@ -141,6 +194,18 @@ export async function setClientTeamLeadAction(
     .eq("client_team_id", clientTeamId)
     .eq("user_id", userId);
   if (error) return { error: "Could not update the lead flag." };
+
+  const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "client_team_member",
+      entityId: clientTeamId,
+      action: isTeamLead ? "promoted_to_lead" : "demoted_from_lead",
+      actorId: session.userId,
+      summary: `Member ${isTeamLead ? "promoted to" : "demoted from"} team lead`,
+    });
+  }
 
   revalidatePath(CLIENT_TEAMS_PATH);
   return { error: null };
@@ -172,6 +237,19 @@ export async function assignClientTeamToProjectAction(
     };
   }
 
+  const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      projectId,
+      entityType: "client_team_project_assignment",
+      entityId: clientTeamId,
+      action: "assigned",
+      actorId: session.userId,
+      summary: "Client team assigned to project",
+    });
+  }
+
   revalidatePath(CLIENT_TEAMS_PATH);
   return { error: null };
 }
@@ -195,6 +273,19 @@ export async function unassignClientTeamFromProjectAction(
     .eq("client_team_id", clientTeamId)
     .eq("project_id", projectId);
   if (error) return { error: "Could not unassign the project." };
+
+  const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      projectId,
+      entityType: "client_team_project_assignment",
+      entityId: clientTeamId,
+      action: "unassigned",
+      actorId: session.userId,
+      summary: "Client team unassigned from project",
+    });
+  }
 
   revalidatePath(CLIENT_TEAMS_PATH);
   return { error: null };

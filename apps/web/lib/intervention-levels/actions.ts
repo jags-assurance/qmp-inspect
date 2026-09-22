@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "./types";
 
 export interface InterventionLevelState {
@@ -60,21 +61,34 @@ export async function addInterventionLevelAction(
     sortOrder = ((existing ?? [])[0]?.sort_order ?? 0) + 1;
   }
 
-  const { error } = await supabase.from(INTERVENTION_LEVEL_TYPES_TABLE).insert({
-    organization_id: organizationId,
-    code: codeInput,
-    label,
-    is_blocking: isBlocking,
-    default_notice_hours: defaultNoticeHours,
-    sort_order: sortOrder,
-  });
+  const { data: level, error } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .insert({
+      organization_id: organizationId,
+      code: codeInput,
+      label,
+      is_blocking: isBlocking,
+      default_notice_hours: defaultNoticeHours,
+      sort_order: sortOrder,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
-    if (error.code === "23505") {
+  if (error || !level) {
+    if (error?.code === "23505") {
       return { error: `A level with code "${codeInput}" already exists for this organisation.` };
     }
     return { error: "Could not add the intervention level. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "intervention_level_type",
+    entityId: level.id,
+    action: "created",
+    actorId: session.userId,
+    summary: `Intervention level "${label}" (${codeInput}) added`,
+  });
 
   revalidatePath(SETTINGS_PATH);
   return { error: null };
@@ -121,6 +135,16 @@ export async function updateItpSequencingModeAction(
     return { error: "Could not update sequencing mode. Check you have permission and try again." };
   }
 
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "organization",
+    entityId: organizationId,
+    action: "itp_sequencing_mode_updated",
+    actorId: session.userId,
+    summary: `ITP sequencing mode set to ${itpSequencingMode}`,
+    changes: { itp_sequencing_mode: itpSequencingMode },
+  });
+
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
 }
@@ -162,6 +186,12 @@ export async function updateInterventionLevelAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("organization_id")
+    .eq("id", id)
+    .maybeSingle<{ organization_id: string }>();
+
   const { error } = await supabase
     .from(INTERVENTION_LEVEL_TYPES_TABLE)
     .update({ label, is_blocking: isBlocking, default_notice_hours: defaultNoticeHours, sort_order: sortOrder })
@@ -169,6 +199,18 @@ export async function updateInterventionLevelAction(
 
   if (error) {
     return { error: "Could not update the intervention level. Check you have permission and try again." };
+  }
+
+  if (existing?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: existing.organization_id,
+      entityType: "intervention_level_type",
+      entityId: id,
+      action: "updated",
+      actorId: session.userId,
+      summary: `Intervention level "${label}" updated`,
+      changes: { label, is_blocking: isBlocking, default_notice_hours: defaultNoticeHours, sort_order: sortOrder },
+    });
   }
 
   revalidatePath(SETTINGS_PATH);
@@ -194,6 +236,12 @@ export async function deleteInterventionLevelAction(
   if (!id) return { error: "Missing level." };
 
   const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from(INTERVENTION_LEVEL_TYPES_TABLE)
+    .select("organization_id, label")
+    .eq("id", id)
+    .maybeSingle<{ organization_id: string; label: string }>();
+
   const { error } = await supabase.from(INTERVENTION_LEVEL_TYPES_TABLE).delete().eq("id", id);
 
   if (error) {
@@ -201,6 +249,17 @@ export async function deleteInterventionLevelAction(
       return { error: "This level is in use on at least one activity and cannot be removed." };
     }
     return { error: "Could not remove the intervention level. Check you have permission and try again." };
+  }
+
+  if (existing?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: existing.organization_id,
+      entityType: "intervention_level_type",
+      entityId: id,
+      action: "deleted",
+      actorId: session.userId,
+      summary: `Intervention level "${existing.label}" removed`,
+    });
   }
 
   revalidatePath(SETTINGS_PATH);
