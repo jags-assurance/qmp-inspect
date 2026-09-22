@@ -142,6 +142,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           { label: "Client Teams", href: "/inspect/organisation/client-teams" },
           { label: "Custom Roles", href: "/inspect/organisation/roles" },
           { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
+          { label: "Document Traceability", href: "/inspect/organisation/traceability" },
         ]
       : []),
     ...(showTeamsNav && !isAdminStaff(session)
