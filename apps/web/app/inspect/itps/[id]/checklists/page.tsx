@@ -4,7 +4,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
+import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
 import { GenerateChecklistsButton } from "./generate-button";
+import { AttachLibraryTemplateForm } from "./attach-library-template-form";
 import { ITP_STATUS_LABEL } from "../../itps-table";
 
 /**
@@ -58,6 +60,14 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
     .returns<Pick<ChecklistTemplateRow, "id" | "itp_item_id" | "checklist_number">[]>();
 
   const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
+
+  // R44/R47: staff can start a checklist-type activity's checklist from a reusable library
+  // template instead of the blank auto-generate path — see lib/checklist-library/actions.ts's
+  // attachLibraryTemplateToActivityAction. The library itself is staff-only (RLS), so this option
+  // only ever needs to be offered to staff.
+  const { data: libraryTemplates } = session.isJagsStaff
+    ? await supabase.from(CHECKLIST_LIBRARY_TEMPLATES_TABLE).select("id, title").order("title").returns<{ id: string; title: string }[]>()
+    : { data: null };
 
   // Generating checklists is scaffolding on top of already-approved activities, not a
   // certification act — the same eligible party who can build the ITP draft
@@ -135,10 +145,16 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {template && (
+                    {template ? (
                       <Link href={`/inspect/checklists/${template.id}`} className="font-medium text-burgundy hover:underline">
                         Open →
                       </Link>
+                    ) : (
+                      session.isJagsStaff &&
+                      libraryTemplates &&
+                      libraryTemplates.length > 0 && (
+                        <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
+                      )
                     )}
                   </td>
                 </tr>

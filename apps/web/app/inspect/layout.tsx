@@ -104,6 +104,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       ? [
           { label: "Client Organisations", href: "/inspect/organisation/clients" },
           { label: "Master ITP Library", href: "/inspect/itp-master" },
+          { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
           { label: "Numbering", href: "/inspect/organisation/numbering" },
           { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
           { label: "Brand Colors", href: "/inspect/organisation/branding" },
