@@ -36,6 +36,11 @@ import {
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
 import { ITP_REVISIONS_TABLE, type ItpRevisionRow } from "@/lib/itps/revision-types";
 import { RevisionHistoryPanel } from "./revision-history-panel";
+// R24: sections are fully editable (add/rename/delete/reorder), not fixed to the 4 defaults
+// createItpAction seeds — no other change to this file beyond the two components below and the
+// isIssued/section-count values passed into them.
+import { AddSectionForm } from "./add-section-form";
+import { SectionControls } from "./section-controls";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -315,6 +320,10 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       return false;
     });
   const canEditContent = session.isJagsStaff || isEligibleItpCreator;
+  // R24/R101: any section add/rename/delete/reorder past this point is an edit-after-issue once
+  // the ITP has left draft/under_review — reused by AddSectionForm and SectionControls below,
+  // same condition AddItemForm already keys its own "isIssued" prop off of.
+  const isIssued = itp.status === "approved" || itp.status === "client_accepted";
   // Submitting for review is a clerical hand-off, not a certification act — unlike Approve (which
   // stays hardcoded to session.isJagsStaff below and never gets this treatment), the same party
   // already trusted to build the whole draft can now also hand it to JAGS themselves. Mirrors
@@ -478,12 +487,25 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       <div className="mt-8 space-y-8">
-        {(sections ?? []).map((section) => (
+        {(sections ?? []).map((section, sectionIndex) => (
           <div key={section.id} id={`section-${section.section_number}`} className="rounded-lg border border-border bg-surface scroll-mt-20">
             <div className="border-b border-border px-4 py-3">
-              <h2 className="font-medium text-ink">
-                {section.section_number}. {section.title}
-              </h2>
+              {canEditContent ? (
+                <SectionControls
+                  itpId={itp.id}
+                  sectionId={section.id}
+                  sectionNumber={section.section_number}
+                  title={section.title}
+                  isIssued={isIssued}
+                  isFirst={sectionIndex === 0}
+                  isLast={sectionIndex === (sections ?? []).length - 1}
+                  isOnlySection={(sections ?? []).length <= 1}
+                />
+              ) : (
+                <h2 className="font-medium text-ink">
+                  {section.section_number}. {section.title}
+                </h2>
+              )}
             </div>
             {/* Sign-off chain: one card per activity, with each party's H/W/R/S level + sign-off
                 status laid out as a horizontal chain of chips (see ActivitySignoffCard) instead of a
@@ -538,12 +560,14 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 itpId={itp.id}
                 sectionId={section.id}
                 disciplines={disciplines ?? []}
-                isIssued={itp.status === "approved" || itp.status === "client_accepted"}
+                isIssued={isIssued}
               />
             )}
           </div>
         ))}
       </div>
+
+      {canEditContent && <AddSectionForm itpId={itp.id} isIssued={isIssued} />}
     </div>
   );
 }
