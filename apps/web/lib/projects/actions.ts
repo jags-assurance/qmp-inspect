@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface CreateProjectState {
   error: string | null;
@@ -29,23 +30,37 @@ export async function createProjectAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from("projects").insert({
-    organization_id: organizationId,
-    project_number: projectNumber,
-    name,
-    site_location: siteLocation || null,
-    created_by: user?.id ?? null,
-  });
+  const { data: project, error } = await supabase
+    .from("projects")
+    .insert({
+      organization_id: organizationId,
+      project_number: projectNumber,
+      name,
+      site_location: siteLocation || null,
+      created_by: user?.id ?? null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !project) {
     // A unique-constraint violation on (organization_id, project_number) is the one case worth a
     // specific message — everything else (including "not JAGS staff", caught by RLS) is a plain
     // permission/validation failure with no extra detail to leak.
-    if (error.code === "23505") {
+    if (error?.code === "23505") {
       return { error: "A project with that number already exists for this organisation." };
     }
     return { error: "Could not create the project. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    projectId: project.id,
+    entityType: "project",
+    entityId: project.id,
+    action: "created",
+    actorId: user?.id ?? null,
+    summary: `Project ${projectNumber} "${name}" created`,
+  });
 
   redirect("/inspect/projects");
 }
@@ -112,17 +127,42 @@ export async function addProjectPartyAction(
     return { error: "Only a JAGS Admin, a lead of a team assigned to this project, or someone granted this permission, can add a project party." };
   }
 
-  const { error } = await supabase.from("project_parties").insert({
-    project_id: projectId,
-    party_type: partyType as PartyType,
-    name,
-    contact_name: contactName || null,
-    contact_email: contactEmail || null,
-    onboarded_by: onboardedBy,
-  });
+  const { data: party, error } = await supabase
+    .from("project_parties")
+    .insert({
+      project_id: projectId,
+      party_type: partyType as PartyType,
+      name,
+      contact_name: contactName || null,
+      contact_email: contactEmail || null,
+      onboarded_by: onboardedBy,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !party) {
     return { error: "Could not add the party. Check you have permission and try again." };
+  }
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "project_party",
+        entityId: party.id,
+        action: "created",
+        actorId: session.userId,
+        summary: `Party "${name}" (${partyType}) added to project`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}`);
@@ -176,7 +216,7 @@ export async function addSelfManagedPartyAction(
     return { error: "Invalid party type." };
   }
 
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
   const { data: project } = await supabase
@@ -246,8 +286,47 @@ export async function addSelfManagedPartyAction(
     return { error: "The party was added, but granting platform access failed. Check with a JAGS Admin." };
   }
 
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "project_party",
+    entityId: party.id,
+    action: "created_self_managed",
+    actorId: session.userId,
+    summary: `Party "${name}" (${partyType}) self-added and granted access to ${email}`,
+  });
+
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
+}
+
+async function auditProjectSetting(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  actorId: string | null,
+  settingKey: string,
+  value: boolean
+): Promise<void> {
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (!project?.organization_id) return;
+    await recordAuditEvent(supabase, {
+      organizationId: project.organization_id,
+      projectId,
+      entityType: "project",
+      entityId: projectId,
+      action: "setting_updated",
+      actorId,
+      summary: `Project setting "${settingKey}" set to ${value}`,
+      changes: { [settingKey]: value },
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 }
 
 export interface SetAllowClientExecutionState {
@@ -280,6 +359,8 @@ export async function setAllowClientExecutionAction(
     .eq("id", projectId);
 
   if (error) return { error: "Could not update this setting. Check you have permission and try again." };
+
+  await auditProjectSetting(supabase, projectId, session.userId, "allow_client_execution", allow);
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
@@ -319,6 +400,8 @@ export async function setEnforceHoldBlocksStartAction(
 
   if (error) return { error: "Could not update this setting. Check you have permission and try again." };
 
+  await auditProjectSetting(supabase, projectId, session.userId, "enforce_hold_blocks_start", enforce);
+
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
 }
@@ -356,6 +439,8 @@ export async function setAllowClientItpCreationAction(
 
   if (error) return { error: "Could not update this setting. Check you have permission and try again." };
 
+  await auditProjectSetting(supabase, projectId, session.userId, "allow_client_itp_creation", allow);
+
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
 }
@@ -391,6 +476,8 @@ export async function setAllowContractorItpCreationAction(
     .eq("id", projectId);
 
   if (error) return { error: "Could not update this setting. Check you have permission and try again." };
+
+  await auditProjectSetting(supabase, projectId, session.userId, "allow_contractor_itp_creation", allow);
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
@@ -430,6 +517,27 @@ async function setProjectPartyActive(
     .eq("id", projectPartyId);
 
   if (error) return { error: "Could not update this party. Check you have permission and try again." };
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "project_party",
+        entityId: projectPartyId,
+        action: active ? "reactivated" : "deactivated",
+        actorId: session.userId,
+        summary: `Party ${active ? "reactivated" : "deactivated"}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
@@ -490,6 +598,8 @@ export async function deactivateAllProjectPartiesAction(
 
   if (error) return { error: "Could not deactivate project parties. Check you have permission and try again." };
 
+  await auditProjectSetting(supabase, projectId, session.userId, "all_parties_deactivated", true);
+
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
 }
@@ -514,6 +624,8 @@ export async function reactivateAllProjectPartiesAction(
     .eq("is_active", false);
 
   if (error) return { error: "Could not reactivate project parties. Check you have permission and try again." };
+
+  await auditProjectSetting(supabase, projectId, session.userId, "all_parties_deactivated", false);
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
@@ -551,6 +663,28 @@ export async function setResponsiblePersonAction(
     .eq("id", projectId);
 
   if (error) return { error: "Could not update the responsible person. Check you have permission and try again." };
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "project",
+        entityId: projectId,
+        action: "responsible_person_updated",
+        actorId: session.userId,
+        summary: "Responsible person updated",
+        changes: { responsible_person_id: responsiblePersonId || null },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };

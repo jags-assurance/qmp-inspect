@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface StaffAccessState {
   error: string | null;
@@ -61,25 +62,41 @@ export async function addStaffGrantAction(
 
   // Matches the DB's access_grants_scope_shape check constraint exactly, so a mismatched shape
   // fails with this clear message rather than a raw constraint-violation error.
-  const { error } = await supabase.from("access_grants").insert({
-    user_id: staffUserId,
-    scope_type: scopeType as "global" | "organization" | "project",
-    organization_id: scopeType === "global" ? null : organizationId,
-    project_id: scopeType === "project" ? projectId : null,
-    role,
-  });
+  const { data: grant, error } = await supabase
+    .from("access_grants")
+    .insert({
+      user_id: staffUserId,
+      scope_type: scopeType as "global" | "organization" | "project",
+      organization_id: scopeType === "global" ? null : organizationId,
+      project_id: scopeType === "project" ? projectId : null,
+      role,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    if (error.code === "23505") {
+  if (error || !grant) {
+    if (error?.code === "23505") {
       return { error: "This staff member already has a grant at that same scope." };
     }
     // Surfaces the access_grants_org_seat_limit trigger's own message (see
     // 20260917070000_org_plans_and_seat_limit.sql) rather than a generic failure, same pattern as
     // the background_jobs org rate-limit trigger in lib/reports/actions.ts.
-    if (error.message.includes("seat limit")) {
+    if (error?.message.includes("seat limit")) {
       return { error: error.message };
     }
     return { error: "Could not add the grant. Check you have permission and try again." };
+  }
+
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "staff_access_grant",
+      entityId: grant.id,
+      action: "granted",
+      actorId: session.userId,
+      summary: `Staff access (${scopeType}, role "${role}") granted to ${staffUserId}`,
+      changes: { staff_user_id: staffUserId, scope_type: scopeType, project_id: projectId || null, role },
+    });
   }
 
   revalidatePath(STAFF_ACCESS_PATH);
@@ -101,10 +118,27 @@ export async function removeStaffGrantAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: grant } = await supabase
+    .from("access_grants")
+    .select("user_id, organization_id, scope_type, role")
+    .eq("id", grantId)
+    .maybeSingle<{ user_id: string; organization_id: string | null; scope_type: string; role: string }>();
+
   const { error } = await supabase.from("access_grants").delete().eq("id", grantId);
 
   if (error) {
     return { error: "Could not remove the grant. Check you have permission and try again." };
+  }
+
+  if (grant?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: grant.organization_id,
+      entityType: "staff_access_grant",
+      entityId: grantId,
+      action: "revoked",
+      actorId: session.userId,
+      summary: `Staff access (${grant.scope_type}, role "${grant.role}") revoked from ${grant.user_id}`,
+    });
   }
 
   revalidatePath(STAFF_ACCESS_PATH);

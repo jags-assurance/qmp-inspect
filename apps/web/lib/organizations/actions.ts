@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface CreateOrganizationState {
   error: string | null;
@@ -53,19 +54,32 @@ export async function createOrganizationAction(
   if (!slug) return { error: "Could not derive a URL-safe slug from that name — try a different name or set one explicitly." };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("organizations").insert({
-    name,
-    slug,
-    engagement_mode: engagementMode as "jags_led" | "co_branded" | "white_label",
-    engagement_scope: engagementScope as "full_service" | "self_managed",
-  });
+  const { data: organization, error } = await supabase
+    .from("organizations")
+    .insert({
+      name,
+      slug,
+      engagement_mode: engagementMode as "jags_led" | "co_branded" | "white_label",
+      engagement_scope: engagementScope as "full_service" | "self_managed",
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    if (error.code === "23505") {
+  if (error || !organization) {
+    if (error?.code === "23505") {
       return { error: `An organisation with the slug "${slug}" already exists — choose a different name or set a custom slug.` };
     }
     return { error: "Could not create the organisation. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId: organization.id,
+    entityType: "organization",
+    entityId: organization.id,
+    action: "created",
+    actorId: session.userId,
+    summary: `Organisation "${name}" created`,
+  });
 
   revalidatePath("/inspect/organisation/clients");
   revalidatePath("/inspect/projects/new");

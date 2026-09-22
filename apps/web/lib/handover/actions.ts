@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 
 export interface IssueHandoverState {
@@ -63,19 +64,23 @@ export async function issueHandoverAction(
   // Carries the open-items-at-override snapshot forward onto the certificate itself, so a
   // Conditional Handover reads as a self-contained, permanent record of what was open and agreed
   // at issue time — see 20260920050000_conditional_handover.sql.
-  const { error: certError } = await supabase.from(HANDOVER_CERTIFICATES_TABLE).insert({
-    data_book_id: dataBookId,
-    certificate_number: certificateNumber,
-    issued_by: user?.id ?? null,
-    package_storage_path: packageStoragePath,
-    package_sha256: packageSha256 || null,
-    is_conditional: dataBook.override_open_punch_items,
-    conditional_reason: dataBook.override_open_punch_items ? dataBook.override_reason : null,
-    conditional_open_items: dataBook.override_open_punch_items ? dataBook.override_items : null,
-  });
+  const { data: certificate, error: certError } = await supabase
+    .from(HANDOVER_CERTIFICATES_TABLE)
+    .insert({
+      data_book_id: dataBookId,
+      certificate_number: certificateNumber,
+      issued_by: user?.id ?? null,
+      package_storage_path: packageStoragePath,
+      package_sha256: packageSha256 || null,
+      is_conditional: dataBook.override_open_punch_items,
+      conditional_reason: dataBook.override_open_punch_items ? dataBook.override_reason : null,
+      conditional_open_items: dataBook.override_open_punch_items ? dataBook.override_items : null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (certError) {
-    if (certError.code === "23505") {
+  if (certError || !certificate) {
+    if (certError?.code === "23505") {
       return { error: "A handover certificate already exists for this Data Book." };
     }
     return { error: "Could not issue the handover certificate. Check you have permission and try again." };
@@ -88,6 +93,27 @@ export async function issueHandoverAction(
 
   if (updateError) {
     return { error: "Certificate issued, but the Data Book status could not be updated." };
+  }
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .single();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "handover_certificate",
+        entityId: certificate.id,
+        action: "issued",
+        actorId: user?.id ?? null,
+        summary: `Handover certificate ${certificateNumber} issued${dataBook.override_open_punch_items ? " (conditional)" : ""}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
@@ -129,6 +155,31 @@ export async function acknowledgeHandoverAction(
 
   if (error) {
     return { error: "Could not record acknowledgement. It may already be acknowledged." };
+  }
+
+  try {
+    const { data: cert } = await supabase
+      .from(HANDOVER_CERTIFICATES_TABLE)
+      .select("id, data_books(project_id, projects(id, organization_id))")
+      .eq("id", certificateId)
+      .maybeSingle<{
+        id: string;
+        data_books: { project_id: string; projects: { id: string; organization_id: string } | null } | null;
+      }>();
+    const organizationId = cert?.data_books?.projects?.organization_id;
+    const projectId = cert?.data_books?.project_id;
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: projectId ?? null,
+        entityType: "handover_certificate",
+        entityId: certificateId,
+        action: "acknowledged",
+        summary: `Handover certificate acknowledged by ${receivedByName}${receivedByCompany ? ` (${receivedByCompany})` : ""}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath("/inspect/handover");

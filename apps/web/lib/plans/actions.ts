@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface PlanSettingsState {
   error: string | null;
@@ -61,6 +62,16 @@ export async function updateOrgPlanAction(
   if (error) {
     return { error: "Could not save the plan. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "organization_plan",
+    entityId: organizationId,
+    action: "updated",
+    actorId: session.userId,
+    summary: `Plan set to ${planTier}${seatLimit !== null ? ` (seat limit ${seatLimit})` : ""}`,
+    changes: { plan_tier: planTier, seat_limit: seatLimit },
+  });
 
   revalidatePath(PLANS_PATH);
   return { error: null };

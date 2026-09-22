@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import {
   CUSTOM_ROLES_TABLE,
   CUSTOM_ROLE_PERMISSIONS_TABLE,
@@ -42,15 +43,30 @@ export async function createCustomRoleAction(_prev: RbacActionState, formData: F
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(CUSTOM_ROLES_TABLE).insert({
-    name,
-    organization_id: organizationId || null,
-  });
+  const { data: role, error } = await supabase
+    .from(CUSTOM_ROLES_TABLE)
+    .insert({
+      name,
+      organization_id: organizationId || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !role) {
     return {
-      error: error.code === "23505" ? "A role with that name already exists in this scope." : "Could not create the role.",
+      error: error?.code === "23505" ? "A role with that name already exists in this scope." : "Could not create the role.",
     };
+  }
+
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "custom_role",
+      entityId: role.id,
+      action: "created",
+      actorId: session.userId,
+      summary: `Custom role "${name}" created`,
+    });
   }
 
   revalidatePath(ROLES_PATH);
@@ -71,8 +87,25 @@ export async function deleteCustomRoleAction(_prev: RbacActionState, formData: F
     if (!selfManagedOrgIds.has(roleOrgId)) return { error: "You can only delete roles scoped to your own organisation." };
   }
 
+  const { data: role } = await supabase
+    .from(CUSTOM_ROLES_TABLE)
+    .select("organization_id, name")
+    .eq("id", roleId)
+    .maybeSingle<{ organization_id: string | null; name: string }>();
+
   const { error } = await supabase.from(CUSTOM_ROLES_TABLE).delete().eq("id", roleId);
   if (error) return { error: "Could not delete the role." };
+
+  if (role?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: role.organization_id,
+      entityType: "custom_role",
+      entityId: roleId,
+      action: "deleted",
+      actorId: session.userId,
+      summary: `Custom role "${role.name}" deleted`,
+    });
+  }
 
   revalidatePath(ROLES_PATH);
   return { error: null };
@@ -116,6 +149,23 @@ export async function toggleRolePermissionAction(
 
   if (error && error.code !== "23505") {
     return { error: "Could not update the role's permissions." };
+  }
+
+  const { data: role } = await supabase
+    .from(CUSTOM_ROLES_TABLE)
+    .select("organization_id")
+    .eq("id", roleId)
+    .maybeSingle<{ organization_id: string | null }>();
+  if (role?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: role.organization_id,
+      entityType: "custom_role",
+      entityId: roleId,
+      action: grant ? "permission_granted" : "permission_revoked",
+      actorId: session.userId,
+      summary: `Permission "${permissionKey}" ${grant ? "granted to" : "revoked from"} role`,
+      changes: { permission_key: permissionKey },
+    });
   }
 
   revalidatePath(ROLES_PATH);
@@ -168,16 +218,37 @@ export async function assignCustomRoleAction(
     }
   }
 
-  const { error } = await supabase.from(CUSTOM_ROLE_ASSIGNMENTS_TABLE).insert({
-    role_id: roleId,
-    user_id: userId,
-    project_id: projectId || null,
-  });
+  const { data: assignment, error } = await supabase
+    .from(CUSTOM_ROLE_ASSIGNMENTS_TABLE)
+    .insert({
+      role_id: roleId,
+      user_id: userId,
+      project_id: projectId || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !assignment) {
     return {
-      error: error.code === "23505" ? "That person already holds this role in this scope." : "Could not assign the role.",
+      error: error?.code === "23505" ? "That person already holds this role in this scope." : "Could not assign the role.",
     };
+  }
+
+  const { data: role } = await supabase
+    .from(CUSTOM_ROLES_TABLE)
+    .select("organization_id, name")
+    .eq("id", roleId)
+    .maybeSingle<{ organization_id: string | null; name: string }>();
+  if (role?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: role.organization_id,
+      projectId: projectId || null,
+      entityType: "custom_role_assignment",
+      entityId: assignment.id,
+      action: "assigned",
+      actorId: session.userId,
+      summary: `Role "${role.name}" assigned to ${userId}`,
+    });
   }
 
   revalidatePath(ROLES_PATH);
@@ -207,8 +278,25 @@ export async function unassignCustomRoleAction(
     if (!selfManagedOrgIds.has(roleOrgId)) return { error: "You can only remove assignments on roles scoped to your own organisation." };
   }
 
+  const { data: assignmentRow } = await supabase
+    .from(CUSTOM_ROLE_ASSIGNMENTS_TABLE)
+    .select("role_id, custom_roles(organization_id, name)")
+    .eq("id", assignmentId)
+    .maybeSingle<{ role_id: string; custom_roles: { organization_id: string | null; name: string } | null }>();
+
   const { error } = await supabase.from(CUSTOM_ROLE_ASSIGNMENTS_TABLE).delete().eq("id", assignmentId);
   if (error) return { error: "Could not remove the assignment." };
+
+  if (assignmentRow?.custom_roles?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: assignmentRow.custom_roles.organization_id,
+      entityType: "custom_role_assignment",
+      entityId: assignmentId,
+      action: "unassigned",
+      actorId: session.userId,
+      summary: `Role "${assignmentRow.custom_roles.name}" assignment removed`,
+    });
+  }
 
   revalidatePath(ROLES_PATH);
   return { error: null };

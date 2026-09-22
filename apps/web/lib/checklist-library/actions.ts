@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import {
   CHECKLIST_LIBRARY_TEMPLATES_TABLE,
   CHECKLIST_LIBRARY_ITEMS_TABLE,
@@ -60,6 +61,17 @@ export async function createLibraryTemplateAction(
 
   if (error || !template) {
     return { error: "Could not create the template. Check you have permission and try again." };
+  }
+
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "checklist_library_template",
+      entityId: template.id,
+      action: "created",
+      actorId: session.userId,
+      summary: `Checklist library template "${title}" created`,
+    });
   }
 
   revalidatePath("/inspect/organisation/checklist-library");
@@ -388,6 +400,18 @@ export async function attachLibraryTemplateToActivityAction(
 
   if (itemsError) {
     return { error: "Checklist created, but its items could not be copied from the library template." };
+  }
+
+  if (itp.projects?.organization_id) {
+    await recordAuditEvent(supabase, {
+      organizationId: itp.projects.organization_id,
+      projectId: itp.project_id,
+      entityType: "checklist_template",
+      entityId: newTemplate.id,
+      action: "attached_from_library",
+      actorId: session.userId,
+      summary: `Checklist "${libraryTemplate.title}" attached to activity "${itpItem.activity}"`,
+    });
   }
 
   revalidatePath(`/inspect/itps/${itpId}/checklists`);

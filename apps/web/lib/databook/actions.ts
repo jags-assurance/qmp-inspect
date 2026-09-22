@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { DATA_BOOKS_TABLE, type ConditionalOpenItem } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
@@ -25,17 +26,45 @@ export async function createDataBookAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(DATA_BOOKS_TABLE).insert({
-    project_id: projectId,
-    book_number: bookNumber,
-    title,
-  });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: dataBook, error } = await supabase
+    .from(DATA_BOOKS_TABLE)
+    .insert({
+      project_id: projectId,
+      book_number: bookNumber,
+      title,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
-    if (error.code === "23505") {
+  if (error || !dataBook) {
+    if (error?.code === "23505") {
       return { error: "A Data Book with that number already exists for this project." };
     }
     return { error: "Could not create the Data Book. Check you have permission and try again." };
+  }
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .single();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "data_book",
+        entityId: dataBook.id,
+        action: "created",
+        actorId: user?.id ?? null,
+        summary: `Data Book ${bookNumber} created`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
@@ -131,6 +160,29 @@ export async function compileDataBookAction(
   }
   if (!updated) {
     return { error: "This Data Book has already been compiled or issued." };
+  }
+
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .single();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "data_book",
+        entityId: dataBookId,
+        action: "compiled",
+        actorId: user?.id ?? null,
+        summary: override
+          ? `Data Book compiled with override (${overrideReason})`
+          : "Data Book compiled",
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/data-book`);

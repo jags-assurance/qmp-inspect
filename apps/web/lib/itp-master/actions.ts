@@ -16,6 +16,7 @@ import {
 } from "@/lib/itp-master/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { snapshotInitialVersion, snapshotBeforeUpdate } from "@/lib/itp-master/revisions";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface CopyMasterTemplateState {
   error: string | null;
@@ -150,6 +151,15 @@ export async function copyMasterTemplateToItpAction(
       organizationId: projectForChecklists.organization_id,
       userId: user?.id ?? null,
     });
+    await recordAuditEvent(supabase, {
+      organizationId: projectForChecklists.organization_id,
+      projectId,
+      entityType: "itp",
+      entityId: itp.id,
+      action: "created_from_master_template",
+      actorId: user?.id ?? null,
+      summary: `ITP ${itpNumber} created from master template`,
+    });
   }
 
   redirect(`/inspect/itps/${itp.id}`);
@@ -189,17 +199,42 @@ export async function proposeItpToMasterAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(ITP_MASTER_PROPOSALS_TABLE).insert({
-    source_itp_id: sourceItpId,
-    proposed_action: proposedAction,
-    target_template_id: proposedAction === "update_existing" ? targetTemplateId : null,
-    proposed_title: proposedTitle || null,
-    proposal_notes: proposalNotes || null,
-    proposed_by: session.userId,
-  });
+  const { data: proposal, error } = await supabase
+    .from(ITP_MASTER_PROPOSALS_TABLE)
+    .insert({
+      source_itp_id: sourceItpId,
+      proposed_action: proposedAction,
+      target_template_id: proposedAction === "update_existing" ? targetTemplateId : null,
+      proposed_title: proposedTitle || null,
+      proposal_notes: proposalNotes || null,
+      proposed_by: session.userId,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !proposal) {
     return { error: "Could not submit the proposal. Check you have permission and try again.", success: false };
+  }
+
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("project_id, projects(organization_id)")
+      .eq("id", sourceItpId)
+      .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+    if (itp?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp_master_proposal",
+        entityId: proposal.id,
+        action: "proposed",
+        actorId: session.userId,
+        summary: `ITP proposed to master library (${proposedAction})`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/itps/${sourceItpId}`);
@@ -279,6 +314,27 @@ export async function reviewProposalAction(
         review_notes: reviewNotes || null,
       })
       .eq("id", proposalId);
+
+    try {
+      const { data: itp } = await supabase
+        .from("itps")
+        .select("project_id, projects(organization_id)")
+        .eq("id", proposal.source_itp_id)
+        .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+      if (itp?.projects?.organization_id) {
+        await recordAuditEvent(supabase, {
+          organizationId: itp.projects.organization_id,
+          projectId: itp.project_id,
+          entityType: "itp_master_proposal",
+          entityId: proposalId,
+          action: "rejected",
+          actorId: session.userId,
+          summary: `Master library proposal rejected: ${reviewNotes}`,
+        });
+      }
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
 
     revalidatePath("/inspect/itp-master/proposals");
     return { error: null };
@@ -455,6 +511,27 @@ export async function reviewProposalAction(
       review_notes: reviewNotes || null,
     })
     .eq("id", proposalId);
+
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("project_id, projects(organization_id)")
+      .eq("id", proposal.source_itp_id)
+      .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+    if (itp?.projects?.organization_id && targetTemplateId) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp_master_template",
+        entityId: targetTemplateId,
+        action: "approved_from_proposal",
+        actorId: session.userId,
+        summary: `Master library proposal approved (${proposal.proposed_action})`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath("/inspect/itp-master");
   revalidatePath("/inspect/itp-master/proposals");

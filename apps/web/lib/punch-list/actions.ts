@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { recordAuditEvent } from "@/lib/audit/log";
 import {
   PUNCH_LIST_ITEMS_TABLE,
   PUNCH_LIST_SOURCES,
@@ -10,6 +11,18 @@ import {
 
 export interface AddPunchItemState {
   error: string | null;
+}
+
+async function findOrgForProject(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+  return data?.organization_id ?? null;
 }
 
 /** Manual "add punch item" form on the project's punch list register. */
@@ -28,20 +41,44 @@ export async function addPunchItemAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert({
-    project_id: projectId,
-    description,
-    source: "manual",
-    location: location || null,
-    responsible_party_id: responsiblePartyId || null,
-    due_date: dueDate || null,
-  });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: item, error } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .insert({
+      project_id: projectId,
+      description,
+      source: "manual",
+      location: location || null,
+      responsible_party_id: responsiblePartyId || null,
+      due_date: dueDate || null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
-    if (error.code === "23503") {
+  if (error || !item) {
+    if (error?.code === "23503") {
       return { error: "The responsible party doesn't match a known project party." };
     }
     return { error: "Could not add the punch item. Check you have permission and try again." };
+  }
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: item.id,
+        action: "created",
+        actorId: user?.id ?? null,
+        summary: `Punch item added: ${description}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
@@ -90,6 +127,24 @@ export async function closePunchItemAction(
 
   if (error) {
     return { error: "Could not close the punch item. Check you have permission and try again." };
+  }
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: punchItemId,
+        action: "closed",
+        actorId: user?.id ?? null,
+        summary: "Punch item closed",
+        changes: { closing_evidence: closingEvidence },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
@@ -155,6 +210,9 @@ export async function recordWalkdownAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(rows);
 
   if (error) {
@@ -162,6 +220,23 @@ export async function recordWalkdownAction(
       return { error: "A responsible party doesn't match a known project party." };
     }
     return { error: "Could not record the walk-down. Check you have permission and try again." };
+  }
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: projectId,
+        action: "walkdown_recorded",
+        actorId: user?.id ?? null,
+        summary: `Walk-down recorded — ${rows.length} punch item(s) added`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
@@ -204,20 +279,44 @@ export async function createPunchItemFromSource(params: {
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert({
-    project_id: params.projectId,
-    description: params.description,
-    source: params.source,
-    source_inspection_record_id: params.sourceInspectionRecordId ?? null,
-    source_standalone_assignment_id: params.sourceStandaloneAssignmentId ?? null,
-    source_ncr_id: params.sourceNcrId ?? null,
-    location: params.location ?? null,
-    responsible_party_id: params.responsiblePartyId ?? null,
-    due_date: params.dueDate ?? null,
-  });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: item, error } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .insert({
+      project_id: params.projectId,
+      description: params.description,
+      source: params.source,
+      source_inspection_record_id: params.sourceInspectionRecordId ?? null,
+      source_standalone_assignment_id: params.sourceStandaloneAssignmentId ?? null,
+      source_ncr_id: params.sourceNcrId ?? null,
+      location: params.location ?? null,
+      responsible_party_id: params.responsiblePartyId ?? null,
+      due_date: params.dueDate ?? null,
+    })
+    .select("id")
+    .single<{ id: string }>();
 
-  if (error) {
+  if (error || !item) {
     return { error: "Could not create the punch item." };
+  }
+
+  try {
+    const organizationId = await findOrgForProject(supabase, params.projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: params.projectId,
+        entityType: "punch_list_item",
+        entityId: item.id,
+        action: "created",
+        actorId: user?.id ?? null,
+        summary: `Punch item auto-created (${params.source}): ${params.description}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${params.projectId}/punch-list`);

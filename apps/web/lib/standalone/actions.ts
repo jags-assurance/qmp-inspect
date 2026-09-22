@@ -8,6 +8,7 @@ import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
@@ -177,6 +178,16 @@ export async function createAssignmentAction(
     }
     return { error: "Could not create the assignment. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "standalone_assignment",
+    entityId: assignment.id,
+    action: "created",
+    actorId: user?.id ?? null,
+    summary: `Standalone assignment ${assignmentNumber} created`,
+  });
 
   redirect(`/inspect/standalone/${assignment.id}`);
 }
@@ -535,6 +546,27 @@ export async function finalizeAssignmentAction(
 
   const assignment = data[0];
 
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", assignment.project_id)
+      .maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId: assignment.project_id,
+        entityType: "standalone_assignment",
+        entityId: assignmentId,
+        action: "finalized",
+        actorId: session.userId,
+        summary: `Assignment ${assignment.assignment_number} finalized — ${conclusion}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   // R95-96: a conditional pass on a FAT/witness/etc. always leaves something to close out before
   // handover — feed the project-wide punch list, same as a failed ITP-driven inspection does.
   if (conclusion === "conditional_pass") {
@@ -628,6 +660,27 @@ export async function issueClearanceAction(
   }
   if (!data || data.length === 0) {
     return { error: "This assignment isn't awaiting clearance (already cleared, or not conditionally passed)." };
+  }
+
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment",
+        entityId: assignmentId,
+        action: "clearance_issued",
+        actorId: session.userId,
+        summary: `Clearance issued for assignment ${assignmentRow.assignment_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);

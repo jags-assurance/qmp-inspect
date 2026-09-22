@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { CLOUD_FOLDER_SYNC_CONFIGS_TABLE, CLOUD_SYNC_PROVIDERS, type CloudSyncProvider } from "@/lib/cloud-sync/types";
 
 export interface CloudFolderSyncConfigState {
@@ -55,6 +56,16 @@ export async function saveCloudFolderSyncConfigAction(
     return { error: "Could not save the cloud folder sync configuration. Check you have permission and try again." };
   }
 
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "cloud_folder_sync_config",
+    entityId: organizationId,
+    action: "configured",
+    actorId: session.userId,
+    summary: `Cloud folder sync configured (${provider})`,
+    changes: { provider, folder_reference: folderReference },
+  });
+
   revalidatePath(CLOUD_SYNC_PATH);
   return { error: null };
 }
@@ -79,6 +90,15 @@ export async function clearCloudFolderSyncConfigAction(
   if (error) {
     return { error: "Could not clear the cloud folder sync configuration. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "cloud_folder_sync_config",
+    entityId: organizationId,
+    action: "cleared",
+    actorId: session.userId,
+    summary: "Cloud folder sync configuration cleared",
+  });
 
   revalidatePath(CLOUD_SYNC_PATH);
   return { error: null };

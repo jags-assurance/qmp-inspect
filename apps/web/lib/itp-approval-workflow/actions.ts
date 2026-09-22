@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit/log";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE } from "./types";
 
 export interface ItpApprovalWorkflowState {
@@ -49,6 +50,19 @@ export async function updateItpApprovalWorkflowAction(
   if (error) {
     return { error: "Could not save the ITP approval workflow. Check you have permission and try again." };
   }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "itp_approval_workflow_config",
+    entityId: organizationId,
+    action: "updated",
+    actorId: session.userId,
+    summary: "ITP approval workflow (required reviewer/approver) updated",
+    changes: {
+      required_reviewer_user_id: requiredReviewerUserId || null,
+      required_approver_user_id: requiredApproverUserId || null,
+    },
+  });
 
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
