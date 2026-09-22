@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import { supabase } from "../supabase";
 import { buildNcrPdfHtml, type NcrPdfData, type NcrPdfSeverity, type NcrPdfStatus } from "./ncrTemplate";
 import type { RenderNcrPdfPayload } from "./types";
+import { getOrgBranding } from "./orgBranding";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -57,9 +58,14 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
       .returns<{ caption: string | null; storage_path: string }[]>(),
     supabase
       .from("projects")
-      .select("project_number, name, organizations(name)")
+      .select("organization_id, project_number, name, organizations(name)")
       .eq("id", ncr.project_id)
-      .maybeSingle<{ project_number: string; name: string; organizations: { name: string } | null }>(),
+      .maybeSingle<{
+        organization_id: string;
+        project_number: string;
+        name: string;
+        organizations: { name: string } | null;
+      }>(),
   ]);
 
   const evidenceItems = (photoRows ?? []).map((p) => p.caption || p.storage_path.split("/").pop() || p.storage_path);
@@ -85,6 +91,7 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     closedByName: closer?.full_name ?? null,
     closedAt: ncr.closed_at,
     generatedAt: new Date(),
+    branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
   const html = buildNcrPdfHtml(templateData);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { NavItem } from "./app-shell";
+import type { NavItem, OrgBrandingInfo } from "./app-shell";
 import { SidebarNav } from "./sidebar-nav";
 import { useSidebarMobile } from "./sidebar-mobile-context";
 
@@ -19,12 +19,23 @@ export function SidebarShell({
   userName,
   userRole,
   signOutAction,
+  orgBranding = null,
 }: {
   navItems: NavItem[];
   userName: string;
   userRole: string;
   signOutAction: (formData: FormData) => void | Promise<void>;
+  orgBranding?: OrgBrandingInfo | null;
 }) {
+  // Reqs R113-R118: engagement_mode drives visual branding the same way it already drives document
+  // numbering (lib/numbering/generate.ts's internalReference) — jags_led (or no logo uploaded)
+  // renders exactly as before; co_branded shows the org's logo alongside JAGS's own mark; white_label
+  // replaces JAGS's mark with the org's logo and adds the "Powered by JAGS Assurance" small print
+  // this session's requirement literally asks for.
+  const engagementMode = orgBranding?.engagementMode ?? "jags_led";
+  const logoUrl = orgBranding?.logoUrl ?? null;
+  const isWhiteLabel = engagementMode === "white_label" && Boolean(logoUrl);
+  const isCoBranded = engagementMode === "co_branded" && Boolean(logoUrl);
   // Starts expanded on the server and on first client paint (matches SSR markup, no hydration
   // mismatch — the same discipline as offline-banner.tsx elsewhere in this app), then reads the
   // real stored preference in an effect once mounted.
@@ -99,10 +110,25 @@ export function SidebarShell({
         }
       >
       <div className={"flex items-center gap-2 px-4 py-5 " + (effectiveCollapsed ? "justify-center px-2" : "")}>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold text-sm font-semibold">
-          JA
-        </div>
-        {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide">JAGS Assurance</span>}
+        {isWhiteLabel ? (
+          // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
+          <img
+            src={logoUrl!}
+            alt="Organisation logo"
+            className={effectiveCollapsed ? "h-9 max-w-9 object-contain" : "h-9 max-w-[9.5rem] object-contain"}
+          />
+        ) : (
+          <>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold text-sm font-semibold">
+              JA
+            </div>
+            {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide">JAGS Assurance</span>}
+          </>
+        )}
+        {isCoBranded && !effectiveCollapsed && (
+          // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
+          <img src={logoUrl!} alt="Organisation logo" className="ml-2 h-8 max-w-[6.5rem] border-l border-white/25 pl-2 object-contain" />
+        )}
       </div>
 
       <SidebarNav items={navItems} collapsed={effectiveCollapsed} />
@@ -178,6 +204,9 @@ export function SidebarShell({
             )}
           </button>
         </form>
+        {isWhiteLabel && !effectiveCollapsed && (
+          <div className="mt-3 text-[10px] text-white/50">Powered by JAGS Assurance</div>
+        )}
       </div>
       </aside>
     </>

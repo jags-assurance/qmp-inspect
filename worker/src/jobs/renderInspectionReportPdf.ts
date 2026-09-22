@@ -7,6 +7,7 @@ import {
   type InspectionReportResult,
 } from "./inspectionReportTemplate";
 import type { RenderInspectionReportPdfPayload } from "./types";
+import { getOrgBranding } from "./orgBranding";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
@@ -42,7 +43,7 @@ export async function renderInspectionReportPdf(
     throw new Error(`Inspection record ${payload.inspection_record_id} not found: ${recordError?.message ?? "no row"}`);
   }
 
-  const [{ data: inspector }, { data: itpItem }, { data: responses }, { data: photoRows }, { data: irn }] =
+  const [{ data: inspector }, { data: itpItem }, { data: responses }, { data: photoRows }, { data: irn }, { data: project }] =
     await Promise.all([
       record.inspector_id
         ? supabase.from("users").select("full_name").eq("id", record.inspector_id).maybeSingle()
@@ -71,6 +72,13 @@ export async function renderInspectionReportPdf(
         .eq("inspection_record_id", record.id)
         .returns<{ storage_path: string; caption: string | null }[]>(),
       supabase.from("irns").select("irn_number").eq("inspection_record_id", record.id).maybeSingle(),
+      // organization_id/name for branding (Reqs R113-R118) — record.project_name is a denormalised
+      // string, not a join, so the org has to be looked up separately via project_id.
+      supabase
+        .from("projects")
+        .select("organization_id, organizations(name)")
+        .eq("id", record.project_id)
+        .maybeSingle<{ organization_id: string; organizations: { name: string } | null }>(),
     ]);
 
   const results: InspectionReportResult[] = (responses ?? [])
@@ -91,6 +99,7 @@ export async function renderInspectionReportPdf(
     recordNumber: record.record_number,
     activity: record.activity,
     projectName: record.project_name,
+    organizationName: project?.organizations?.name ?? null,
     itpNumber: record.itp_number,
     location: record.location,
     inspectionDate: record.inspection_date,
@@ -108,6 +117,7 @@ export async function renderInspectionReportPdf(
       { label: "CLIENT REPRESENTATIVE", name: null, date: null },
     ],
     generatedAt: new Date(),
+    branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
   const html = buildInspectionReportHtml(templateData);
