@@ -120,7 +120,8 @@ export default async function ItpsPage({
   ]);
 
   // R91 — export the register (current filters, every matching row, not just this page) to Excel
-  // (CSV) and PDF (a print view). Built from the same filter params as the register itself.
+  // (a real .xlsx workbook, see app/api/itps/export/route.ts) and PDF (a print view). Built from
+  // the same filter params as the register itself.
   const exportParams = new URLSearchParams();
   if (disciplineId) exportParams.set("discipline", disciplineId);
   if (projectId) exportParams.set("project", projectId);
