@@ -21,6 +21,10 @@ coverage/
 # Machine-local Claude Code settings — permissions/allowlist is per-developer, not shared
 .claude/settings.local.json
 
+# Isolated git worktrees Claude Code creates for background subagents — local runtime state, never
+# project source.
+.claude/worktrees/
+
 # OS cruft
 Thumbs.db
 desktop.ini
