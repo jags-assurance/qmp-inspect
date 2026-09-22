@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
 import { DATA_BOOKS_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { getLatestDataBookPdf } from "@/lib/reports/actions";
 import { ReadinessPanel } from "./readiness-panel";
 import { CreateDataBookForm } from "./create-databook-form";
 import { CompileDataBookForm, type OpenPunchItemPreview } from "./compile-databook-form";
 import { IssueHandoverForm } from "./issue-handover-form";
+import { DataBookPdfButton } from "./data-book-pdf-button";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
@@ -67,6 +69,10 @@ export default async function DataBookPage({
 
   const openPunchItems: OpenPunchItemPreview[] = openPunchItemRows ?? [];
 
+  const dataBookPdfStatuses = await Promise.all(
+    (dataBooks ?? []).map((book) => getLatestDataBookPdf(book.id))
+  );
+
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="data_books" filter={`project_id=eq.${projectId}`} />
@@ -88,7 +94,7 @@ export default async function DataBookPage({
       )}
 
       <div className="mt-6 space-y-4">
-        {(dataBooks ?? []).map((book) => (
+        {(dataBooks ?? []).map((book, index) => (
           <div key={book.id} className="rounded-lg border border-border bg-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -96,6 +102,10 @@ export default async function DataBookPage({
                 <span className="ml-2 text-sm text-ink">{book.title}</span>
               </div>
               <Badge tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
+            </div>
+
+            <div className="mt-3">
+              <DataBookPdfButton dataBookId={book.id} projectId={projectId} latest={dataBookPdfStatuses[index]} />
             </div>
 
             {book.override_reason && (
