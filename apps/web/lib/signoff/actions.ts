@@ -15,6 +15,7 @@ import {
   type NoticePeriodConfigRow,
 } from "./db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
+import { resolveUnclearedLowerLevel } from "./sequencing";
 
 /** Looks up a level's label/is_blocking, resolving this activity's organisation via
  *  itp_item -> itp_section -> itp -> project -> organization — replaces the old hardcoded
@@ -273,6 +274,17 @@ export async function notifyAllPendingForItpAction(formData: FormData): Promise<
  * the seeded default (only "H" is_blocking=true there), so this changes nothing for existing data —
  * it only activates once an org deliberately adds a second blocking level via
  * addInterventionLevelAction. Returns null when clear to proceed, or the blocking level's label.
+ *
+ * R67 (strict vs. flexible sequencing, organizations.itp_sequencing_mode): the above is exactly
+ * today's default 'flexible' behaviour — only blocking levels enforce order among themselves,
+ * non-blocking levels (Witness/Review/Surveillance) are free-for-all. When an org has switched to
+ * 'strict', EVERY level with a lower sort_order (blocking or not) must clear first, not just
+ * blocking ones — so a non-blocking Witness at sort_order 0 must be signed off before a non-blocking
+ * Review at sort_order 1 can be, exactly as if both were blocking. Kept as one function (rather than
+ * splitting it) since the two modes differ only in which levels count as "must clear first" — the
+ * "is anything uncleared" logic below is identical either way. Deliberately not renamed: its
+ * call site in signOffAction stays untouched, and the name still reads fine for the common
+ * (flexible/blocking-only) case.
  */
 async function findUnclearedLowerBlockingLevel(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -287,32 +299,26 @@ async function findUnclearedLowerBlockingLevel(
   const organizationId = itemContext?.itp_sections?.itps?.projects?.organization_id;
   if (!organizationId) return null;
 
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("itp_sequencing_mode")
+    .eq("id", organizationId)
+    .maybeSingle<{ itp_sequencing_mode: string }>();
+  const strictMode = org?.itp_sequencing_mode === "strict";
+
   const { data: levels } = await supabase
     .from(INTERVENTION_LEVEL_TYPES_TABLE)
     .select("code, label, sort_order, is_blocking")
     .eq("organization_id", organizationId)
     .returns<Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[]>();
 
-  const thisLevel = (levels ?? []).find((l) => l.code === code);
-  if (!thisLevel?.is_blocking) return null;
-
-  const lowerBlocking = (levels ?? []).filter((l) => l.is_blocking && l.sort_order < thisLevel.sort_order);
-  if (lowerBlocking.length === 0) return null;
-
   const { data: priorRows } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
     .select("intervention, status")
     .eq("itp_item_id", itpItemId)
-    .in(
-      "intervention",
-      lowerBlocking.map((l) => l.code)
-    )
     .returns<Pick<ActivitySignoffProgressRow, "intervention" | "status">[]>();
 
-  const uncleared = (priorRows ?? []).find((r) => r.status !== "signed_off" && r.status !== "proceeded_no_response");
-  if (!uncleared) return null;
-
-  return lowerBlocking.find((l) => l.code === uncleared.intervention)?.label ?? uncleared.intervention;
+  return resolveUnclearedLowerLevel(levels ?? [], code, strictMode, priorRows ?? []);
 }
 
 /** Records sign-off. Valid for any intervention level, regardless of whether it was ever notified. */
