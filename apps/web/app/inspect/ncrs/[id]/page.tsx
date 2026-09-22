@@ -22,6 +22,7 @@ interface NcrDetail {
   status: NcrStatus;
   assigned_to: string | null;
   due_date: string | null;
+  responsible_party_id: string | null;
   root_cause: string | null;
   corrective_action: string | null;
   preventive_action: string | null;
@@ -135,7 +136,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   const { data: ncr } = await supabase
     .from(NCRS_TABLE)
     .select(
-      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
+      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -157,7 +158,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   // app/inspect/ncrs/new/page.tsx) — access_grants (global/organization/project staff scopes) plus
   // project_parties rows linked to a login — just scoped to this NCR's one already-known project.
   const organizationId = ncr.projects?.organization_id ?? null;
-  const [{ data: users }, { data: grants }, { data: parties }] = await Promise.all([
+  const [{ data: users }, { data: grants }, { data: parties }, { data: responsibleParties }] = await Promise.all([
     supabase.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<
       { id: string; full_name: string; email: string }[]
     >(),
@@ -172,6 +173,15 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
       .eq("is_active", true)
       .not("user_id", "is", null)
       .returns<{ user_id: string | null }[]>(),
+    // R68: this NCR's project's own active parties, for the (optional) "responsible party" picker
+    // on the close-out form.
+    supabase
+      .from("project_parties")
+      .select("id, name, party_type")
+      .eq("project_id", ncr.project_id)
+      .eq("is_active", true)
+      .order("name")
+      .returns<{ id: string; name: string; party_type: string }[]>(),
   ]);
 
   const userById = new Map((users ?? []).map((u) => [u.id, u]));
@@ -283,6 +293,8 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
             ncrId={ncr.id}
             assignedTo={ncr.assigned_to}
             people={people}
+            responsiblePartyId={ncr.responsible_party_id}
+            parties={responsibleParties ?? []}
             dueDate={ncr.due_date}
             rootCause={ncr.root_cause}
             correctiveAction={ncr.corrective_action}

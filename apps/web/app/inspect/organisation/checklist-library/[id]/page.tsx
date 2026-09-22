@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -12,19 +12,26 @@ import { AddItemForm } from "./add-item-form";
 import { ItemsTable } from "./items-table";
 import { ImportPanel } from "./import-panel";
 import { ExportButton } from "./export-button";
+import { EditTemplateForm } from "./edit-template-form";
 
+/**
+ * R46: staff get the full builder (edit details incl. client scope, add/import/export items).
+ * A non-staff viewer only ever reaches a template row that RLS already resolved as visible to them
+ * (global, or scoped to their own organisation — see 20260926020000_checklist_library_org_scope.sql)
+ * — .maybeSingle() naturally 404s on anything else, no app-layer redirect needed. They get a
+ * read-only view: no edit form, no add/import/export actions.
+ */
 export default async function ChecklistLibraryTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await requireSession();
-  if (!session.isJagsStaff) redirect("/inspect/itps");
 
   const supabase = await createSupabaseServerClient();
 
   const { data: template } = await supabase
     .from(CHECKLIST_LIBRARY_TEMPLATES_TABLE)
-    .select("id, title, description, discipline_id, master_disciplines(name)")
+    .select("id, title, description, discipline_id, organization_id, master_disciplines(name), organizations(name)")
     .eq("id", id)
-    .maybeSingle<ChecklistLibraryTemplateRow & { master_disciplines: { name: string } | null }>();
+    .maybeSingle<ChecklistLibraryTemplateRow & { master_disciplines: { name: string } | null; organizations: { name: string } | null }>();
 
   if (!template) notFound();
 
@@ -34,6 +41,13 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
     .eq("library_template_id", id)
     .order("sort_order")
     .returns<ChecklistLibraryItemRow[]>();
+
+  const [{ data: disciplines }, { data: organizations }] = session.isJagsStaff
+    ? await Promise.all([
+        supabase.from("master_disciplines").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
+        supabase.from("organizations").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
+      ])
+    : [{ data: [] as { id: string; name: string }[] }, { data: [] as { id: string; name: string }[] }];
 
   return (
     <div>
@@ -46,29 +60,47 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
           <p className="mt-1 text-sm text-muted">
             {template.master_disciplines?.name ?? "No discipline set"}
             {template.description ? ` · ${template.description}` : ""}
+            {" · "}
+            {template.organizations?.name ?? "Global — shared with every client"}
           </p>
         </div>
-        <ExportButton templateId={template.id} />
+        {session.isJagsStaff && <ExportButton templateId={template.id} />}
       </div>
+
+      {session.isJagsStaff && (
+        <div className="mt-6">
+          <EditTemplateForm
+            templateId={template.id}
+            title={template.title}
+            description={template.description}
+            disciplineId={template.discipline_id}
+            organizationId={template.organization_id}
+            disciplines={disciplines ?? []}
+            organizations={organizations ?? []}
+          />
+        </div>
+      )}
 
       <div className="mt-6">
-        <ItemsTable templateId={template.id} items={items ?? []} />
+        <ItemsTable templateId={template.id} items={items ?? []} editable={session.isJagsStaff} />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div>
-          <h2 className="text-sm font-semibold text-ink">Add an item</h2>
-          <div className="mt-2">
-            <AddItemForm templateId={template.id} />
+      {session.isJagsStaff && (
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Add an item</h2>
+            <div className="mt-2">
+              <AddItemForm templateId={template.id} />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Import from Excel</h2>
+            <div className="mt-2">
+              <ImportPanel templateId={template.id} />
+            </div>
           </div>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold text-ink">Import from Excel</h2>
-          <div className="mt-2">
-            <ImportPanel templateId={template.id} />
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

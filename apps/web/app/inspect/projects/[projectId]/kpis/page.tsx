@@ -313,16 +313,23 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       {qualityByParty.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink">Quality by party</h2>
-          <p className="mt-1 text-sm text-muted">Sign-off completion rate per project party, ranked highest to lowest.</p>
+          <p className="mt-1 text-sm text-muted">
+            Sign-off completion rate and NCR count per project party, ranked by sign-off rate highest to lowest.
+          </p>
           <ol className="mt-4 space-y-3">
             {qualityByParty.map((row, index) => (
               <li key={row.partyName} className="flex items-center gap-3">
                 <span className="w-5 shrink-0 text-sm text-muted">{index + 1}</span>
                 <span className="w-36 shrink-0 truncate text-sm text-ink">{row.partyName}</span>
                 <div className="h-2 flex-1 rounded-full bg-border">
-                  <div className="h-2 rounded-full bg-burgundy" style={{ width: `${row.percentage}%` }} />
+                  <div className="h-2 rounded-full bg-burgundy" style={{ width: `${row.percentage ?? 0}%` }} />
                 </div>
-                <span className="w-12 shrink-0 text-right text-sm font-medium text-ink">{row.percentage}%</span>
+                <span className="w-12 shrink-0 text-right text-sm font-medium text-ink">
+                  {row.percentage === null ? "—" : `${row.percentage}%`}
+                </span>
+                <span className="w-20 shrink-0 text-right text-xs text-muted">
+                  {row.ncrCount} NCR{row.ncrCount === 1 ? "" : "s"}
+                </span>
               </li>
             ))}
           </ol>

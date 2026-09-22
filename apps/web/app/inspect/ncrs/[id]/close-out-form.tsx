@@ -11,6 +11,8 @@ export function CloseOutForm({
   ncrId,
   assignedTo,
   people,
+  responsiblePartyId,
+  parties,
   dueDate,
   rootCause,
   correctiveAction,
@@ -21,6 +23,10 @@ export function CloseOutForm({
   ncrId: string;
   assignedTo: string | null;
   people: { id: string; name: string }[];
+  /** R68: the NCR's currently-set vendor/party FK, if any, and the project's active parties to
+   *  choose from — optional, editable up to closure. */
+  responsiblePartyId: string | null;
+  parties: { id: string; name: string; party_type: string }[];
   dueDate: string | null;
   rootCause: string | null;
   correctiveAction: string | null;
@@ -91,6 +97,26 @@ export function CloseOutForm({
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="responsible_party_id" className="block text-sm font-medium text-ink">
+          Responsible party <span className="font-normal text-muted">(optional)</span>
+        </label>
+        <select
+          id="responsible_party_id"
+          name="responsible_party_id"
+          defaultValue={responsiblePartyId ?? ""}
+          disabled={isClosed}
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+        >
+          <option value="">Not specified</option>
+          {parties.map((party) => (
+            <option key={party.id} value={party.id}>
+              {party.name} ({party.party_type})
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
