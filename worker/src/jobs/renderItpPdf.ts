@@ -60,9 +60,9 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   // same "as any" cast used elsewhere in this file for activity_signoff_progress below.
   const { data: levelTypeRows, error: levelTypesError } = await supabase
     .from("intervention_level_types" as any)
-    .select("code, label, sort_order")
+    .select("code, label, sort_order, is_blocking")
     .eq("organization_id", organization.id)
-    .returns<{ code: string; label: string; sort_order: number }[]>();
+    .returns<{ code: string; label: string; sort_order: number; is_blocking: boolean }[]>();
 
   if (levelTypesError) {
     throw new Error(`Failed to load intervention level types: ${levelTypesError.message}`);
@@ -254,7 +254,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     signoffStatuses,
     signoffs,
     levelTypes: (levelTypeRows ?? []).map(
-      (lt): ItpTemplateLevelType => ({ code: lt.code, label: lt.label, sortOrder: lt.sort_order })
+      (lt): ItpTemplateLevelType => ({ code: lt.code, label: lt.label, sortOrder: lt.sort_order, isBlocking: lt.is_blocking })
     ),
     generatedAt: new Date(),
     branding: await getOrgBranding(supabase, organization.id),

@@ -27,22 +27,6 @@ function partyTypeLabel(partyType: string): string {
   return PARTY_TYPE_LABEL[partyType] ?? partyType;
 }
 
-// Short codes used in the compact "Intervention" column notation (e.g. "C:H SC:W JA:R"), matching
-// the client's requested abbreviation scheme — deliberately distinct from PARTY_TYPE_LABEL above,
-// which is for the (no-longer-rendered) full per-party column header.
-const PARTY_TYPE_CODE: Record<string, string> = {
-  client: "CL",
-  main_contractor: "C",
-  subcontractor: "SC",
-  tpi_lab: "TPI",
-  vendor: "V",
-  jags: "JA",
-};
-
-function partyTypeCode(partyType: string): string {
-  return PARTY_TYPE_CODE[partyType] ?? partyType.slice(0, 2).toUpperCase();
-}
-
 export interface ItpTemplateIntervention {
   itpItemId: string;
   projectPartyId: string;
@@ -59,6 +43,10 @@ export interface ItpTemplateLevelType {
   code: string;
   label: string;
   sortOrder: number;
+  /** Whether this level blocks progress outright (Hold-equivalent) — drives the tinted cell
+   *  background in the per-party grid below, matching apps/web/app/inspect/itps/[id]/
+   *  activity-signoff-grid.tsx's cellToneClass. */
+  isBlocking: boolean;
 }
 
 /**
@@ -190,11 +178,9 @@ const SIGNOFF_CHECK_SVG =
   '<svg class="signoff-check" viewBox="0 0 12 12" width="8" height="8"><polyline points="2,6.5 5,9.5 10,3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /**
- * Compact "{PartyCode}:{LevelCode}" notation for one party's intervention on one item, used inside
- * the single combined Intervention column (replaces the old one-column-per-party grid). Signed-off
- * gets a checkmark and bold weight, notified gets the tilde mark, pending/not-yet-started gets
- * neither — same signoff semantics as the old interventionCell, just packed into one cell's worth of
- * chips instead of one <td> per party.
+ * One party's intervention token for one item — a colored chip carrying the level code, plus a
+ * signoff-status mark (checkmark/tilde/none). The party itself is identified by the column header
+ * (see renderSection's per-party <th>s), so the chip only needs to carry the level, not the party.
  */
 function interventionToken(
   party: ItpTemplateParty,
@@ -209,30 +195,32 @@ function interventionToken(
   const label = levelLabelByCode.get(code) ?? code;
   const title = `${escapeHtml(party.name)} (${escapeHtml(partyTypeLabel(party.partyType))}) — ${escapeHtml(label)} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
   const { background, color } = colorForLevelIndex(levelIndexByCode.get(code) ?? 0);
-  const text = `${escapeHtml(partyTypeCode(party.partyType))}:${escapeHtml(code)}`;
-  return `<span class="iv-token signoff-${effectiveStatus}" style="background:${background};color:${color}" title="${title}">${text}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</span>`;
+  return `<span class="iv-token signoff-${effectiveStatus}" style="background:${background};color:${color}" title="${title}">${escapeHtml(code)}${mark ? `<span class="signoff-mark">${mark}</span>` : ""}</span>`;
 }
 
-function interventionColumnCell(
+/**
+ * One <td> per project party (matching apps/web/app/inspect/itps/[id]/activity-signoff-grid.tsx's
+ * table layout — rows = activities, columns = parties, one column per project_party in the same
+ * order the web grid uses). A party with no intervention on this item gets a plain, subdued em-dash
+ * cell (not omitted — the column still exists, it's just empty for this row); a blocking level
+ * (Hold-equivalent, per this org's own intervention_level_types.is_blocking) gets a tinted cell
+ * background, same as cellToneClass on the web side.
+ */
+function partyInterventionCell(
+  party: ItpTemplateParty,
   item: ItpTemplateItem,
-  parties: ItpTemplateParty[],
   interventionByItem: Map<string, Map<string, string>>,
   statusByItem: Map<string, Map<string, ItpTemplateSignoffStatus>>,
   levelIndexByCode: Map<string, number>,
-  levelLabelByCode: Map<string, string>
+  levelLabelByCode: Map<string, string>,
+  blockingCodes: Set<string>
 ): string {
-  const itemInterventions = interventionByItem.get(item.id);
-  const itemStatuses = statusByItem.get(item.id);
-  const tokens = parties
-    .map((party) => {
-      const code = itemInterventions?.get(party.id);
-      if (!code) return null; // party has no assigned intervention on this item — omit, don't blank-cell it
-      return interventionToken(party, code, itemStatuses?.get(party.id), levelIndexByCode, levelLabelByCode);
-    })
-    .filter((t): t is string => t !== null);
-
-  if (tokens.length === 0) return '<td class="intervention-cell intervention-none">&mdash;</td>';
-  return `<td class="intervention-cell"><div class="iv-tokens">${tokens.join("")}</div></td>`;
+  const code = interventionByItem.get(item.id)?.get(party.id);
+  if (!code) return '<td class="party-cell intervention-none">&mdash;</td>';
+  const status = statusByItem.get(item.id)?.get(party.id);
+  const toneClass = blockingCodes.has(code) ? "party-cell-blocking" : "party-cell-set";
+  const token = interventionToken(party, code, status, levelIndexByCode, levelLabelByCode);
+  return `<td class="party-cell ${toneClass}">${token}</td>`;
 }
 
 /** Item/activity cell: item number and activity text combined per the client's sample format. */
@@ -262,7 +250,8 @@ function renderSection(
   interventions: ItpTemplateIntervention[],
   signoffStatuses: ItpTemplateSignoffCell[],
   levelIndexByCode: Map<string, number>,
-  levelLabelByCode: Map<string, string>
+  levelLabelByCode: Map<string, string>,
+  blockingCodes: Set<string>
 ): string {
   const interventionByItem = new Map<string, Map<string, string>>();
   for (const iv of interventions) {
@@ -276,14 +265,23 @@ function renderSection(
     statusByItem.get(s.itpItemId)!.set(s.projectPartyId, s.status);
   }
 
+  const partyHeaders = parties
+    .map((party) => `<th class="party-header" title="${escapeHtml(party.name)}">${escapeHtml(party.name)}</th>`)
+    .join("");
+
   const rows = section.items
     .map((item) => {
+      const partyCells = parties
+        .map((party) =>
+          partyInterventionCell(party, item, interventionByItem, statusByItem, levelIndexByCode, levelLabelByCode, blockingCodes)
+        )
+        .join("");
       return `
         <tr>
           ${itemActivityCell(item)}
           <td>${cell(item.referenceSpec)}</td>
           ${acceptanceMethodCell(item)}
-          ${interventionColumnCell(item, parties, interventionByItem, statusByItem, levelIndexByCode, levelLabelByCode)}
+          ${partyCells}
         </tr>`;
     })
     .join("");
@@ -298,7 +296,7 @@ function renderSection(
             <th>Item / activity</th>
             <th>Reference</th>
             <th>Acceptance / method</th>
-            <th>Intervention</th>
+            ${partyHeaders}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -320,9 +318,6 @@ function renderLegend(levelTypes: ItpTemplateLevelType[]): string {
     <div class="legend">
       ${items}
       <span class="legend-item legend-signoff">${SIGNOFF_CHECK_SVG} Signed off &nbsp;&nbsp; ${SIGNOFF_NOTIFIED_MARK} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
-    </div>
-    <div class="legend legend-parties">
-      <span class="legend-item">C = Contractor; SC = Subcontractor; TPI = Third Party; JA = Jags; CL = Client; V = Vendor</span>
     </div>`;
 }
 
@@ -392,8 +387,11 @@ export function buildItpHtml(data: ItpTemplateData): string {
   const sortedLevelTypes = [...data.levelTypes].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
   const levelIndexByCode = new Map(sortedLevelTypes.map((lt, i) => [lt.code, i]));
   const levelLabelByCode = new Map(sortedLevelTypes.map((lt) => [lt.code, lt.label]));
+  const blockingCodes = new Set(sortedLevelTypes.filter((lt) => lt.isBlocking).map((lt) => lt.code));
   const sectionsHtml = data.sections
-    .map((s) => renderSection(s, data.parties, data.interventions, data.signoffStatuses, levelIndexByCode, levelLabelByCode))
+    .map((s) =>
+      renderSection(s, data.parties, data.interventions, data.signoffStatuses, levelIndexByCode, levelLabelByCode, blockingCodes)
+    )
     .join("");
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 19) + " UTC";
 
@@ -682,14 +680,25 @@ export function buildItpHtml(data: ItpTemplateData): string {
     font-style: italic;
   }
 
-  td.intervention-cell {
-    width: 120px;
+  /* One column per project party (matches activity-signoff-grid.tsx's table layout) — narrow and
+     centered, since each cell holds at most one chip. */
+  th.party-header {
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
   }
 
-  .iv-tokens {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
+  td.party-cell {
+    width: 60px;
+    text-align: center;
+  }
+
+  /* Matches apps/web/app/inspect/itps/[id]/activity-signoff-grid.tsx's cellToneClass: a blocking
+     level (Hold-equivalent) gets a tinted background, a non-blocking one stays plain. */
+  td.party-cell-blocking {
+    background: #f6e9ea;
   }
 
   /* Per-level background/text color is set inline per token (colorForLevelIndex), keyed by that
@@ -700,7 +709,7 @@ export function buildItpHtml(data: ItpTemplateData): string {
     align-items: center;
     font-weight: bold;
     border-radius: 2px;
-    padding: 1px 4px;
+    padding: 1px 5px;
     white-space: nowrap;
   }
 
@@ -741,11 +750,6 @@ export function buildItpHtml(data: ItpTemplateData): string {
     color: #555;
     border-left: 1px solid #ccc;
     padding-left: 14px;
-  }
-
-  .legend-parties {
-    margin-top: -8px;
-    color: #555;
   }
 
   .legend-item { display: flex; align-items: center; gap: 4px; }
