@@ -80,6 +80,51 @@ export async function addInterventionLevelAction(
   return { error: null };
 }
 
+const ITP_SEQUENCING_MODES = ["flexible", "strict"] as const;
+
+/**
+ * R67: org-wide toggle between 'flexible' (today's default — only BLOCKING intervention levels
+ * enforce sort_order among themselves; see findUnclearedLowerBlockingLevel in
+ * lib/signoff/actions.ts) and 'strict' (every level, blocking or not, must clear in sort_order
+ * order). Lives here rather than in lib/numbering/actions.ts because it's intervention-sequencing
+ * config, same domain as the level types this file already manages — but is surfaced on the
+ * Numbering settings page (revalidated below) alongside engagement mode/scope, its natural home in
+ * the UI. Admin-only, same gating as every other write in this file.
+ */
+export async function updateItpSequencingModeAction(
+  _prev: InterventionLevelState,
+  formData: FormData
+): Promise<InterventionLevelState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change sequencing mode." };
+  }
+
+  const organizationId = String(formData.get("organization_id") ?? "").trim();
+  const modeInput = String(formData.get("itp_sequencing_mode") ?? "").trim();
+
+  if (!organizationId || !modeInput) {
+    return { error: "Organisation and sequencing mode are required." };
+  }
+  if (!(ITP_SEQUENCING_MODES as readonly string[]).includes(modeInput)) {
+    return { error: "Unrecognised sequencing mode." };
+  }
+  const itpSequencingMode = modeInput as (typeof ITP_SEQUENCING_MODES)[number];
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("organizations")
+    .update({ itp_sequencing_mode: itpSequencingMode })
+    .eq("id", organizationId);
+
+  if (error) {
+    return { error: "Could not update sequencing mode. Check you have permission and try again." };
+  }
+
+  revalidatePath("/inspect/organisation/numbering");
+  return { error: null };
+}
+
 /**
  * Renames/reorders/reclassifies an existing level (label, sort_order, is_blocking,
  * default_notice_hours). Deliberately does not accept a new `code` — the DB guards a code change on

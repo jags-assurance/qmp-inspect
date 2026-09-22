@@ -9,6 +9,7 @@ import {
 } from "@/lib/itp-approval-workflow/types";
 import { EngagementModeForm } from "./engagement-mode-form";
 import { EngagementScopeForm } from "./engagement-scope-form";
+import { ItpSequencingModeForm } from "./itp-sequencing-mode-form";
 import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config-row";
 import { OrgPickerForm } from "./org-picker-form";
 import { MonthlyReportPackForm } from "./monthly-report-pack-form";
@@ -20,6 +21,7 @@ interface OrganizationOption {
   name: string;
   engagement_mode: string;
   engagement_scope: string;
+  itp_sequencing_mode: string;
 }
 
 export default async function NumberingSettingsPage({
@@ -43,14 +45,14 @@ export default async function NumberingSettingsPage({
   if (isStaffAdmin) {
     const { data } = await supabase
       .from("organizations")
-      .select("id, name, engagement_mode, engagement_scope")
+      .select("id, name, engagement_mode, engagement_scope, itp_sequencing_mode")
       .order("name")
       .returns<OrganizationOption[]>();
     organizations = data ?? [];
   } else {
     const { data: grants } = await supabase
       .from("access_grants")
-      .select("organizations(id, name, engagement_mode, engagement_scope)")
+      .select("organizations(id, name, engagement_mode, engagement_scope, itp_sequencing_mode)")
       .eq("user_id", session.userId)
       .returns<{ organizations: OrganizationOption | null }[]>();
 
@@ -141,6 +143,20 @@ export default async function NumberingSettingsPage({
                 <h2 className="text-sm font-semibold text-ink">Engagement scope</h2>
                 <div className="mt-3">
                   <EngagementScopeForm organizationId={selectedOrg.id} engagementScope={selectedOrg.engagement_scope} />
+                </div>
+              </div>
+
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+                <h2 className="text-sm font-semibold text-ink">Party sign-off sequencing (R67)</h2>
+                <p className="mt-1 text-xs text-muted">
+                  Controls whether non-blocking intervention levels (e.g. Witness, Review) must also
+                  clear in sort_order, the same way blocking levels like Hold already do.
+                </p>
+                <div className="mt-4">
+                  <ItpSequencingModeForm
+                    organizationId={selectedOrg.id}
+                    itpSequencingMode={selectedOrg.itp_sequencing_mode}
+                  />
                 </div>
               </div>
             </>

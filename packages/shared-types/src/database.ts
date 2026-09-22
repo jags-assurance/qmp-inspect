@@ -15,6 +15,9 @@ export interface Database {
           // Who does the inspection work, distinct from engagement_mode (branding only) — see
           // 20260918010000_self_managed_engagement_scope.sql.
           engagement_scope: "full_service" | "self_managed";
+          // R67: 'flexible' (default) only enforces sort_order among blocking levels (e.g. Hold);
+          // 'strict' enforces it across every level. See 20260922110000_strict_sequencing.sql.
+          itp_sequencing_mode: "flexible" | "strict";
           ai_consent: boolean;
           branding_logo_path: string | null;
           // Per-org display override for the fixed burgundy/gold theme (see
@@ -31,6 +34,7 @@ export interface Database {
           is_active?: boolean;
           engagement_mode?: "jags_led" | "co_branded" | "white_label";
           engagement_scope?: "full_service" | "self_managed";
+          itp_sequencing_mode?: "flexible" | "strict";
           ai_consent?: boolean;
           branding_logo_path?: string | null;
           brand_primary_color?: string | null;
