@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
@@ -14,11 +15,30 @@ export interface UploadVaultDocumentState {
   internalReference?: string | null;
 }
 
+export interface UploadVaultDocumentCoreParams {
+  folderId: string;
+  projectId: string;
+  title: string;
+  documentReference: string;
+  revision: string;
+  documentDate: string;
+  notes: string;
+  storagePath: string;
+  fileSize: string;
+  /** null for a caller with no user session (e.g. the email-inbound webhook, R20b) — the row's
+   *  uploaded_by column then stays null rather than being force-fit to some placeholder user. */
+  uploadedBy: string | null;
+}
+
 /**
- * Records a vault document after the browser has already uploaded the file straight to Storage
- * (see the upload client component) — this action never sees the file bytes, only where they
- * landed. Mirrors the standalone-assignment photo-upload split (browser -> Storage, then a Server
- * Action call to persist the metadata row).
+ * The actual record-and-supersede-and-extract logic, split out from uploadVaultDocumentAction so a
+ * second, non-session caller can reuse it verbatim instead of re-implementing the storage
+ * bucket/table/numbering logic — same split as completeInspectionCore in lib/checklists/actions.ts
+ * (see app/api/offline-sync/route.ts's own comment for the precedent). The email-inbound webhook
+ * (app/api/vault/email-inbound/route.ts, R20b) is the other caller: it has no user session to build
+ * a normal createSupabaseServerClient() from, so it passes in a service-role client instead — this
+ * function itself is agnostic to which kind of client it's given, it just uses whatever `supabase`
+ * it's handed for every query.
  *
  * Revision handling: when `document_reference` matches an existing, still-current (non-superseded)
  * document in the same folder, that prior row is flipped to 'superseded' (with `superseded_by` set
@@ -33,28 +53,24 @@ export interface UploadVaultDocumentState {
  * and the module report for how ITP/NCR/checklist/standalone numbering (currently generated inline,
  * each in its own actions.ts) should migrate onto it later.
  */
-export async function uploadVaultDocumentAction(
-  _prev: UploadVaultDocumentState,
-  formData: FormData
+export async function uploadVaultDocumentCore(
+  supabase: SupabaseClient,
+  {
+    folderId,
+    projectId,
+    title,
+    documentReference,
+    revision,
+    documentDate,
+    notes,
+    storagePath,
+    fileSize,
+    uploadedBy,
+  }: UploadVaultDocumentCoreParams
 ): Promise<UploadVaultDocumentState> {
-  const folderId = String(formData.get("folder_id") ?? "").trim();
-  const projectId = String(formData.get("project_id") ?? "").trim();
-  const title = String(formData.get("title") ?? "").trim();
-  const documentReference = String(formData.get("document_reference") ?? "").trim();
-  const revision = String(formData.get("revision") ?? "").trim();
-  const documentDate = String(formData.get("document_date") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
-  const storagePath = String(formData.get("storage_path") ?? "").trim();
-  const fileSize = String(formData.get("file_size") ?? "").trim();
-
   if (!folderId || !projectId || !title || !storagePath) {
     return { error: "Upload failed — a title and file are required." };
   }
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: project } = await supabase
     .from("projects")
@@ -100,7 +116,7 @@ export async function uploadVaultDocumentAction(
       notes: notes || null,
       document_number: documentNumber,
       internal_reference: internalReference,
-      uploaded_by: user?.id ?? null,
+      uploaded_by: uploadedBy,
     })
     .select("id")
     .single<{ id: string }>();
@@ -153,9 +169,49 @@ export async function uploadVaultDocumentAction(
       .eq("id", document.id);
   }
 
-  revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
-  revalidatePath("/inspect/vault");
   return { error: null, documentNumber, internalReference };
+}
+
+/**
+ * Records a vault document after the browser has already uploaded the file straight to Storage
+ * (see the upload client component) — this action never sees the file bytes, only where they
+ * landed. Mirrors the standalone-assignment photo-upload split (browser -> Storage, then a Server
+ * Action call to persist the metadata row). Thin wrapper around uploadVaultDocumentCore: this is
+ * the session-bound entry point (a real signed-in user, via the normal RLS-scoped server client),
+ * used by every in-app upload path (VaultUploadForm). The email-inbound webhook uses the core
+ * function directly with a service-role client instead — see that function's own doc comment.
+ */
+export async function uploadVaultDocumentAction(
+  _prev: UploadVaultDocumentState,
+  formData: FormData
+): Promise<UploadVaultDocumentState> {
+  const folderId = String(formData.get("folder_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const result = await uploadVaultDocumentCore(supabase, {
+    folderId,
+    projectId,
+    title: String(formData.get("title") ?? "").trim(),
+    documentReference: String(formData.get("document_reference") ?? "").trim(),
+    revision: String(formData.get("revision") ?? "").trim(),
+    documentDate: String(formData.get("document_date") ?? "").trim(),
+    notes: String(formData.get("notes") ?? "").trim(),
+    storagePath: String(formData.get("storage_path") ?? "").trim(),
+    fileSize: String(formData.get("file_size") ?? "").trim(),
+    uploadedBy: user?.id ?? null,
+  });
+
+  if (!result.error) {
+    revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
+    revalidatePath("/inspect/vault");
+  }
+
+  return result;
 }
 
 export interface ApproveVaultDocumentState {
