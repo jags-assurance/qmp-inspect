@@ -15,6 +15,7 @@ import {
   type ItpMasterItemRow,
 } from "@/lib/itp-master/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
+import { snapshotInitialVersion, snapshotBeforeUpdate } from "@/lib/itp-master/revisions";
 
 export interface CopyMasterTemplateState {
   error: string | null;
@@ -61,7 +62,7 @@ export async function copyMasterTemplateToItpAction(
   const { data: masterItems } = await supabase
     .from(ITP_MASTER_ITEMS_TABLE)
     .select(
-      "id, section_id, item_number, activity, reference_spec, acceptance_criteria, method, frequency, evidence_type, sort_order"
+      "id, section_id, item_number, activity, reference_spec, acceptance_criteria, method, frequency, evidence_type, discipline_id, sort_order"
     )
     .in(
       "section_id",
@@ -119,6 +120,7 @@ export async function copyMasterTemplateToItpAction(
         method: item.method,
         frequency: item.frequency,
         evidence_type: item.evidence_type,
+        discipline_id: item.discipline_id,
         sort_order: item.sort_order,
       },
     ];
@@ -219,8 +221,9 @@ export interface ReviewProposalState {
  *   for traceability.
  * - Approve + update_existing: bumps the target template's version by 1 and REPLACES its
  *   sections/items with the source ITP's current ones (delete-then-reinsert, not a surgical diff —
- *   simplest correct option for this phase; version history is just the incrementing `version` int,
- *   not a full audit-trail table, which is a deliberate scope boundary for this phase).
+ *   simplest correct option for this phase). The pre-update content is frozen into
+ *   itp_master_revisions before the delete (R31 — see lib/itp-master/revisions.ts), so prior
+ *   versions stay browsable even though the live tables only ever hold the current one.
  */
 export async function reviewProposalAction(
   _prev: ReviewProposalState,
@@ -298,6 +301,7 @@ export async function reviewProposalAction(
     method: string | null;
     frequency: string | null;
     evidence_type: 1 | 2 | 3;
+    discipline_id: string | null;
     sort_order: number;
   }
 
@@ -321,7 +325,7 @@ export async function reviewProposalAction(
   const { data: sourceItems } = await supabase
     .from("itp_items")
     .select(
-      "id, section_id, item_number, activity, reference_spec, acceptance_criteria, method, frequency, evidence_type, sort_order"
+      "id, section_id, item_number, activity, reference_spec, acceptance_criteria, method, frequency, evidence_type, discipline_id, sort_order"
     )
     .in(
       "section_id",
@@ -365,6 +369,19 @@ export async function reviewProposalAction(
     }
     bumpedVersion = existingTemplate.version + 1;
 
+    // R31: freeze the template's current (pre-update) content as a itp_master_revisions row before
+    // it's replaced below — must run before the delete, since it reads the live
+    // itp_master_sections/itp_master_items tables. See lib/itp-master/revisions.ts.
+    const { error: snapshotError } = await snapshotBeforeUpdate(
+      supabase,
+      targetTemplateId,
+      reviewNotes || "Updated from proposal",
+      session.userId
+    );
+    if (snapshotError) {
+      return { error: snapshotError };
+    }
+
     // Replace (delete-then-reinsert) rather than a surgical diff — simplest correct option for
     // this phase; cascades to itp_master_items via the FK's `on delete cascade`.
     await supabase.from(ITP_MASTER_SECTIONS_TABLE).delete().eq("template_id", targetTemplateId);
@@ -402,6 +419,7 @@ export async function reviewProposalAction(
         method: item.method,
         frequency: item.frequency,
         evidence_type: item.evidence_type,
+        discipline_id: item.discipline_id,
         sort_order: item.sort_order,
       },
     ];
@@ -412,6 +430,12 @@ export async function reviewProposalAction(
     if (masterItemsError) {
       return { error: "Sections copied, but activities could not be copied into the master library." };
     }
+  }
+
+  if (proposal.proposed_action === "new_template" && targetTemplateId) {
+    // R31: version 1's baseline snapshot, now that the new template's sections/items exist to
+    // capture. See lib/itp-master/revisions.ts.
+    await snapshotInitialVersion(supabase, targetTemplateId, session.userId);
   }
 
   if (bumpedVersion !== null) {
