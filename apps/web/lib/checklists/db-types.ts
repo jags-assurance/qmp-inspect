@@ -32,6 +32,11 @@ export interface ChecklistItemRow {
   is_mandatory: boolean;
   sort_order: number;
   created_at: string;
+  /** Populated when this item was copied in by attachLibraryTemplateToActivityAction
+   *  (lib/checklist-library/actions.ts, see 20260922070000_checklist_library.sql); null for an
+   *  item created by the pre-existing auto-generate or add-one-at-a-time paths. */
+  acceptance_criteria?: string | null;
+  evidence_type?: string | null;
 }
 
 export type OverallResult = "pass" | "fail" | "partial";
