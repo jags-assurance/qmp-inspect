@@ -263,6 +263,9 @@ export interface Database {
           approved_at: string | null;
           client_accepted_by: string | null;
           client_accepted_at: string | null;
+          external_approval_reference: string | null;
+          external_approval_recorded_by: string | null;
+          external_approval_recorded_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -282,6 +285,9 @@ export interface Database {
           approved_at?: string | null;
           client_accepted_by?: string | null;
           client_accepted_at?: string | null;
+          external_approval_reference?: string | null;
+          external_approval_recorded_by?: string | null;
+          external_approval_recorded_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
