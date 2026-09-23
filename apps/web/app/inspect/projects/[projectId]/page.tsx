@@ -9,6 +9,7 @@ import { OrgBrandScope } from "@/components/domain/org-brand-scope";
 import { AddProjectPartyForm } from "./add-project-party-form";
 import { AddSelfManagedPartyForm } from "./add-self-managed-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
+import { ProvisionPartyLoginForm } from "./provision-party-login-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
 import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
@@ -104,7 +105,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   ] = await Promise.all([
     supabase
       .from("project_parties")
-      .select("id, name, party_type, is_active, onboarded_by, user_id, users(full_name, email)")
+      .select("id, name, party_type, is_active, onboarded_by, user_id, contact_email, users(full_name, email)")
       .eq("project_id", projectId)
       .order("is_active", { ascending: false })
       .order("party_type")
@@ -116,6 +117,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           is_active: boolean;
           onboarded_by: "jags" | "client";
           user_id: string | null;
+          contact_email: string | null;
           users: { full_name: string; email: string } | null;
         }[]
       >(),
@@ -283,6 +285,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <div className="mt-1 flex items-center justify-between text-xs text-muted">
                 <span>{party.users ? `${party.users.full_name} (${party.users.email})` : "No linked login yet"}</span>
                 <span className="flex items-center gap-2">
+                  {isAdminStaff(session) && !party.user_id && party.is_active && (
+                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} />
+                  )}
                   {canReassign && party.is_active && (
                     <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />
                   )}

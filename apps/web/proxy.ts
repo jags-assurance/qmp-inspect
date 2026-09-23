@@ -66,6 +66,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // Forced first-login password change: a party login provisioned with a temporary password
+  // (lib/projects/party-provisioning.ts) must set a real one before reaching anywhere else — this
+  // is the actual enforcement point, not just a UI nudge (see guard_must_change_password,
+  // 20260929010000_party_login_provisioning.sql, for why the flag itself can't just be cleared by
+  // the client). A public path already lets a signed-in user reach /reset-password itself; every
+  // other route redirects there first. One extra query per request for a signed-in user, same cost
+  // class as the auth.getUser() call already made above.
+  if (user && !isPublicPath) {
+    const { data: profile } = await supabase.from("users").select("must_change_password").eq("id", user.id).maybeSingle();
+    if (profile?.must_change_password) {
+      return NextResponse.redirect(new URL("/reset-password?forced=1", request.url));
+    }
+  }
+
   return response;
 }
 

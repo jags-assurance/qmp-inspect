@@ -3834,6 +3834,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_jags_staff: boolean
+          must_change_password: boolean
           staff_role: string | null
           updated_at: string
         }
@@ -3844,6 +3845,7 @@ export type Database = {
           id: string
           is_active?: boolean
           is_jags_staff?: boolean
+          must_change_password?: boolean
           staff_role?: string | null
           updated_at?: string
         }
@@ -3854,6 +3856,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_jags_staff?: boolean
+          must_change_password?: boolean
           staff_role?: string | null
           updated_at?: string
         }

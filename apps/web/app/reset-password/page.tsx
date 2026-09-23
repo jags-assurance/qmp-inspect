@@ -1,16 +1,20 @@
-"use client";
+import { ResetPasswordForm } from "./reset-password-form";
 
-import { useActionState, useState } from "react";
-import { updatePasswordAction, type UpdatePasswordState } from "@/lib/auth/actions";
-import { Button } from "@/components/ui/button";
-import { PasswordField } from "@/components/domain/password-field";
-
-const initialState: UpdatePasswordState = { error: null };
-
-export default function ResetPasswordPage() {
-  const [state, formAction, pending] = useActionState(updatePasswordAction, initialState);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+/**
+ * Server component wrapper only, so `forced` can be read from `searchParams` (server-only prop —
+ * useSearchParams() in a client component would need its own Suspense boundary; this app has no
+ * existing precedent for that, so this follows the plain-server-component pattern already used
+ * elsewhere, e.g. app/inspect/ncrs/new/page.tsx). Set by proxy.ts when a signed-in user with
+ * must_change_password still set gets redirected here from any other route — same page and action
+ * as the "forgot password" recovery flow (lib/auth/actions.ts's updatePasswordAction), just
+ * different copy for why they're here.
+ */
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ forced?: string }>;
+}) {
+  const { forced } = await searchParams;
 
   return (
     <div className="flex min-h-screen">
@@ -24,33 +28,7 @@ export default function ResetPasswordPage() {
         </p>
       </div>
       <div className="flex w-full flex-col justify-center px-8 md:w-1/2 md:px-20">
-        <h2 className="text-2xl font-semibold text-ink">Set a new password</h2>
-        <p className="mt-1 text-sm text-muted">Choose a new password for your account.</p>
-
-        <form action={formAction} className="mt-8 space-y-4">
-          <PasswordField
-            id="password"
-            name="password"
-            label="New password"
-            autoComplete="new-password"
-            value={password}
-            onChange={setPassword}
-          />
-          <PasswordField
-            id="confirm_password"
-            name="confirm_password"
-            label="Confirm new password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-          />
-
-          {state.error && <p className="text-sm text-danger">{state.error}</p>}
-
-          <Button type="submit" disabled={pending} className="w-full">
-            {pending ? "Updating…" : "Update password"}
-          </Button>
-        </form>
+        <ResetPasswordForm isForced={forced === "1"} />
       </div>
     </div>
   );
