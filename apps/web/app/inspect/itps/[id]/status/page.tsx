@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
+import { ACTIVITY_EXPECTED_RECORDS_TABLE, type ActivityExpectedRecordRow } from "@/lib/expected-records/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
 
 const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
@@ -49,7 +50,7 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
   const { data: sections } = await supabase
     .from("itp_sections")
     .select(
-      "id, section_number, title, itp_items(id, item_number, activity, evidence_type, sort_order)"
+      "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, method, frequency, evidence_type, sort_order, discipline_id, master_disciplines(code))"
     )
     .eq("itp_id", id)
     .order("section_number")
@@ -58,7 +59,18 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
         id: string;
         section_number: number;
         title: string;
-        itp_items: { id: string; item_number: string; activity: string; evidence_type: 1 | 2 | 3; sort_order: number }[];
+        itp_items: {
+          id: string;
+          item_number: string;
+          activity: string;
+          acceptance_criteria: string | null;
+          method: string | null;
+          frequency: string | null;
+          evidence_type: 1 | 2 | 3;
+          sort_order: number;
+          discipline_id: string | null;
+          master_disciplines: { code: string } | null;
+        }[];
       }[]
     >();
 
@@ -109,6 +121,22 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
       .select("code, label, is_blocking")
       .returns<{ code: string; label: string; is_blocking: boolean }[]>(),
   ]);
+
+  const { data: expectedRecords } =
+    itemIds.length > 0
+      ? await supabase
+          .from(ACTIVITY_EXPECTED_RECORDS_TABLE)
+          .select("id, itp_item_id, provider, record_type, received_at")
+          .in("itp_item_id", itemIds)
+          .returns<Pick<ActivityExpectedRecordRow, "id" | "itp_item_id" | "provider" | "record_type" | "received_at">[]>()
+      : { data: [] as Pick<ActivityExpectedRecordRow, "id" | "itp_item_id" | "provider" | "record_type" | "received_at">[] };
+
+  const expectedRecordsByItem = (expectedRecords ?? []).reduce<Map<string, typeof expectedRecords>>((map, row) => {
+    const list = map.get(row.itp_item_id) ?? [];
+    list.push(row);
+    map.set(row.itp_item_id, list);
+    return map;
+  }, new Map());
 
   const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
   const templateIds = (templates ?? []).map((t) => t.id);
@@ -210,6 +238,29 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
               ? "Blocked — open Hold"
               : "Pending";
 
+          const expected = expectedRecordsByItem.get(item.id) ?? [];
+          const expectedReceived = expected.filter((r) => r.received_at != null).length;
+          const template = templateByItem.get(item.id);
+          const missing: string[] = [];
+          if (!evidence.done) {
+            missing.push(
+              item.evidence_type === 1
+                ? evidence.label === "Checklist not generated"
+                  ? "checklist hasn't been generated yet"
+                  : evidence.label === "Not started"
+                    ? "field inspection hasn't been run yet"
+                    : evidence.label === "In progress"
+                      ? "field inspection started but not completed"
+                      : "last inspection did not pass"
+                : "no field-execution flow exists for this evidence type yet"
+            );
+          }
+          if (blockingOpen.length > 0) missing.push(`${blockingOpen.length} open Hold${blockingOpen.length === 1 ? "" : "s"}`);
+          else if (required - signedOff > 0) missing.push(`${required - signedOff} sign-off${required - signedOff === 1 ? "" : "s"} still pending`);
+          if (expected.length > 0 && expectedReceived < expected.length) {
+            missing.push(`${expected.length - expectedReceived} expected record${expected.length - expectedReceived === 1 ? "" : "s"} not yet received`);
+          }
+
           return (
             <div key={item.id} className="rounded-lg border border-border bg-surface p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -218,15 +269,47 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                     <span className="doc-id mr-1.5 text-muted">{item.item_number}</span>
                     {item.activity}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted">{item.sectionTitle}</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {item.sectionTitle}
+                    {item.master_disciplines?.code && ` · ${item.master_disciplines.code}`}
+                  </p>
                 </div>
                 <Badge tone={overallTone}>{overallLabel}</Badge>
               </div>
+
+              {item.acceptance_criteria && (
+                <p className="mt-2 text-xs text-muted">
+                  <span className="font-medium text-ink">Acceptance criteria: </span>
+                  {item.acceptance_criteria}
+                </p>
+              )}
+              {(item.method || item.frequency) && (
+                <p className="mt-1 text-xs text-muted">
+                  {item.method && (
+                    <>
+                      <span className="font-medium text-ink">Method: </span>
+                      {item.method}
+                    </>
+                  )}
+                  {item.method && item.frequency && " · "}
+                  {item.frequency && (
+                    <>
+                      <span className="font-medium text-ink">Frequency: </span>
+                      {item.frequency}
+                    </>
+                  )}
+                </p>
+              )}
 
               <div className="mt-3 flex flex-wrap gap-4 text-xs">
                 <div>
                   <span className="text-muted">Evidence ({EVIDENCE_LABEL[item.evidence_type]}): </span>
                   <Badge tone={evidence.tone}>{evidence.label}</Badge>
+                  {template && (
+                    <Link href={`/inspect/checklists/${template.id}`} className="ml-2 font-medium text-burgundy hover:underline">
+                      Open checklist →
+                    </Link>
+                  )}
                 </div>
                 <div>
                   <span className="text-muted">Sign-off: </span>
@@ -234,6 +317,14 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                     {signedOff} of {required} complete
                   </span>
                 </div>
+                {expected.length > 0 && (
+                  <div>
+                    <span className="text-muted">Expected records: </span>
+                    <span className="font-medium text-ink">
+                      {expectedReceived} of {expected.length} received
+                    </span>
+                  </div>
+                )}
               </div>
 
               {pendingParties.length > 0 && (
@@ -242,6 +333,13 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                   {pendingParties
                     .map((p) => `${p.name} (${p.level}${p.isBlocking ? ", blocking" : ""} — ${p.status})`)
                     .join("; ")}
+                </p>
+              )}
+
+              {!overallDone && missing.length > 0 && (
+                <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-2 py-1.5 text-xs text-warning">
+                  <span className="font-medium">Still needed: </span>
+                  {missing.join("; ")}.
                 </p>
               )}
             </div>

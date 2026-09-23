@@ -313,6 +313,27 @@ export default async function ProjectGuidePage({ params }: { params: Promise<{ p
         </div>
       </section>
 
+      <section className="mt-4 rounded-lg border border-border bg-surface p-5">
+        <h2 className="font-medium text-ink">Reports &amp; documents</h2>
+        <p className="mt-1 text-sm text-muted">
+          Data books, PDF/Excel report packs, and the live activity timeline for this project.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm">
+          <Link href={`/inspect/projects/${projectId}/reports`} className="font-medium text-burgundy hover:underline">
+            Reports &amp; downloads →
+          </Link>
+          <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
+            Data book →
+          </Link>
+          <Link href={`/inspect/projects/${projectId}/activity`} className="font-medium text-burgundy hover:underline">
+            Activity →
+          </Link>
+          <Link href={`/inspect/projects/${projectId}/kpis`} className="font-medium text-burgundy hover:underline">
+            KPIs →
+          </Link>
+        </div>
+      </section>
+
       <section className="mt-4 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">Everyone on this project</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
