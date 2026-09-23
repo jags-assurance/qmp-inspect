@@ -102,13 +102,16 @@ export default async function ClientTeamsPage({
   const relevantMembers = (memberRows ?? []).filter((r) => teamIds.has(r.client_team_id));
   const relevantAssignments = (assignmentRows ?? []).filter((r) => teamIds.has(r.client_team_id));
 
-  // Eligible members: anyone whose access already reaches this organisation (global/organisation/
-  // project-scoped access_grants) — same eligible-user set the JAGS-side "reassign party" and
-  // "responsible person" pickers already use (see reassign-party-form.tsx / responsible-person-
-  // picker.tsx / app/inspect/projects/[projectId]/page.tsx's own eligibleUsers query).
+  // Eligible members: anyone whose access already reaches this organisation or its own projects
+  // (organisation/project-scoped access_grants). Deliberately NOT the same "OR global scope" set the
+  // JAGS-side reassign/responsible-person pickers use — this page's own header text says "a client
+  // team only ever contains this organisation's own people", and a `global` access_grants row is
+  // exclusively how JAGS staff reach every tenant (see lib/auth/session.ts / phase0_tenancy_schema.
+  // sql), so including it here was a real bug: a JAGS inspector's own scoped/global grant could show
+  // up as an "addable" client team member. Also filters out is_jags_staff directly (not just by
+  // grant scope), in case a staff account additionally holds an org/project-scoped grant too.
   const orgProjectIds = (orgProjects ?? []).map((p) => p.id);
   const orFilter = [
-    "scope_type.eq.global",
     `organization_id.eq.${organizationId}`,
     ...(orgProjectIds.length > 0 ? [`project_id.in.(${orgProjectIds.join(",")})`] : []),
   ].join(",");
@@ -118,10 +121,11 @@ export default async function ClientTeamsPage({
   if (userIds.length > 0) {
     const { data: users } = await supabase
       .from("users")
-      .select("id, full_name, email")
+      .select("id, full_name, email, is_jags_staff")
       .in("id", userIds)
+      .eq("is_jags_staff", false)
       .order("full_name")
-      .returns<UserOption[]>();
+      .returns<(UserOption & { is_jags_staff: boolean })[]>();
     eligibleUsers = users ?? [];
   }
 

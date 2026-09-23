@@ -305,10 +305,20 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                 <div>
                   <span className="text-muted">Evidence ({EVIDENCE_LABEL[item.evidence_type]}): </span>
                   <Badge tone={evidence.tone}>{evidence.label}</Badge>
-                  {template && (
+                  {template ? (
                     <Link href={`/inspect/checklists/${template.id}`} className="ml-2 font-medium text-burgundy hover:underline">
-                      Open checklist →
+                      {evidence.label === "Not started" ? "Start inspection →" : "Open checklist →"}
                     </Link>
+                  ) : (
+                    item.evidence_type === 1 && (
+                      // Previously a dead end: "Checklist not generated" with no way forward from
+                      // this page — the only place to actually generate one is the ITP's own
+                      // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
+                      // ITP is approved). Points there instead of leaving it unclickable.
+                      <Link href={`/inspect/itps/${itp.id}/checklists`} className="ml-2 font-medium text-burgundy hover:underline">
+                        Generate checklist →
+                      </Link>
+                    )
                   )}
                 </div>
                 <div>

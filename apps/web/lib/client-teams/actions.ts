@@ -136,6 +136,91 @@ export async function addClientTeamMemberAction(
   return { error: null };
 }
 
+/**
+ * Fallback for when the person isn't already in the "eligible members" dropdown (client-teams/
+ * page.tsx's own eligibleUsers query, scoped to whoever already holds an org/project-scoped
+ * access_grants row reaching this organisation) — the real gap this closes: a client team could
+ * previously only ever add someone who ALREADY had platform access here, so a genuinely new
+ * colleague at a self-managed client (a real JAGS Assurance login, but never yet put on a project)
+ * had no way onto their own team at all.
+ *
+ * Looks the person up by email (same case-insensitive lookup addSelfManagedPartyAction uses in
+ * lib/projects/actions.ts), and — best-effort, ignore-duplicate, same tolerance that action has —
+ * grants them a baseline organisation-scoped access_grants row alongside adding them to the team,
+ * so being on a client team actually means something (some real platform access into their own
+ * org), not membership with nothing to show for it. A person who already holds broader access
+ * (global/organisation/project) just gets a harmless redundant row if this one doesn't collide with
+ * the existing unique-per-org partial index.
+ */
+export async function addClientTeamMemberByEmailAction(
+  _prev: ClientTeamActionState,
+  formData: FormData
+): Promise<ClientTeamActionState> {
+  const clientTeamId = String(formData.get("client_team_id") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const isTeamLead = formData.get("is_team_lead") === "on";
+  if (!clientTeamId || !email) return { error: "Team and email are required." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const authError = await requireClientTeamWriteAccess(supabase, session.userId, clientTeamId);
+  if (authError) return { error: authError };
+
+  const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+  if (!organizationId) return { error: "Team not found." };
+
+  // Escape ILIKE's own wildcard characters so a literal email is matched, not a pattern — mirrors
+  // addSelfManagedPartyAction's identical lookup exactly.
+  const escapedEmail = email.replace(/[%_\\]/g, (match) => `\\${match}`);
+  const { data: targetUser } = await supabase
+    .from("users")
+    .select("id, is_active, is_jags_staff")
+    .ilike("email", escapedEmail)
+    .maybeSingle<{ id: string; is_active: boolean; is_jags_staff: boolean }>();
+
+  if (!targetUser) {
+    return { error: "No JAGS Assurance account exists for that email yet — that person needs an account created first." };
+  }
+  if (targetUser.is_jags_staff) {
+    return { error: "That's a JAGS staff account — a client team only ever contains this organisation's own people." };
+  }
+  if (!targetUser.is_active) {
+    return { error: "That account has been deactivated and can't be added." };
+  }
+
+  const { error: memberError } = await supabase
+    .from("client_team_members")
+    .insert({ client_team_id: clientTeamId, user_id: targetUser.id, is_team_lead: isTeamLead });
+  if (memberError) {
+    return {
+      error: memberError.code === "23505" ? "That person is already on this team." : "Could not add the member.",
+    };
+  }
+
+  const { error: grantError } = await supabase
+    .from("access_grants")
+    .insert({ user_id: targetUser.id, scope_type: "organization", organization_id: organizationId, role: "member" });
+  let grantWarning: string | null = null;
+  if (grantError && grantError.code !== "23505") {
+    grantWarning = grantError.message.includes("seat limit")
+      ? `${grantError.message} (the person was still added to the team.)`
+      : "Added to the team, but granting platform access failed — check with a JAGS Admin.";
+  }
+
+  await recordAuditEvent(supabase, {
+    organizationId,
+    entityType: "client_team_member",
+    entityId: clientTeamId,
+    action: "added_by_email",
+    actorId: session.userId,
+    summary: `Member added to client team by email (${email})${isTeamLead ? " as lead" : ""}`,
+    changes: { client_team_id: clientTeamId, user_id: targetUser.id, is_team_lead: isTeamLead },
+  });
+
+  revalidatePath(CLIENT_TEAMS_PATH);
+  return { error: grantWarning };
+}
+
 export async function removeClientTeamMemberAction(
   _prev: ClientTeamActionState,
   formData: FormData

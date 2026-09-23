@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   addClientTeamMemberAction,
+  addClientTeamMemberByEmailAction,
   removeClientTeamMemberAction,
   setClientTeamLeadAction,
   assignClientTeamToProjectAction,
@@ -63,9 +64,7 @@ export function ClientTeamCard({
           ))}
           {team.members.length === 0 && <li className="text-sm text-muted">No members yet.</li>}
         </ul>
-        {team.canManage && availableUsers.length > 0 && (
-          <AddMemberForm clientTeamId={team.id} users={availableUsers} />
-        )}
+        {team.canManage && <AddMemberForm clientTeamId={team.id} users={availableUsers} />}
       </div>
 
       <div className="mt-4">
@@ -130,30 +129,75 @@ function MemberRow({
   );
 }
 
+/**
+ * Two ways to add someone, since "pick from the dropdown" only ever offered people who already had
+ * platform access reaching this organisation — a genuinely new colleague (a real login, never yet
+ * put on a project here) had no way onto their own team at all. Starts on the dropdown when there's
+ * anyone eligible to pick from (the common case — reassigning/re-organising existing people), with
+ * "Add by email instead" always available as the other path.
+ */
 function AddMemberForm({ clientTeamId, users }: { clientTeamId: string; users: UserOption[] }) {
-  const [state, formAction, pending] = useActionState(addClientTeamMemberAction, initialState);
+  const [mode, setMode] = useState<"pick" | "email">(users.length > 0 ? "pick" : "email");
+  const [pickState, pickAction, pickPending] = useActionState(addClientTeamMemberAction, initialState);
+  const [emailState, emailAction, emailPending] = useActionState(addClientTeamMemberByEmailAction, initialState);
+
+  if (mode === "pick") {
+    return (
+      <form action={pickAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
+        <input type="hidden" name="client_team_id" value={clientTeamId} />
+        {users.length > 0 ? (
+          <select
+            name="user_id"
+            required
+            className="rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-burgundy"
+          >
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name} ({u.email})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-xs text-muted">No one else with access here yet to pick from.</p>
+        )}
+        <label className="flex items-center gap-1 text-xs text-ink">
+          <input type="checkbox" name="is_team_lead" /> Team lead
+        </label>
+        {users.length > 0 && (
+          <Button type="submit" size="sm" disabled={pickPending}>
+            {pickPending ? "Adding…" : "+ Add member"}
+          </Button>
+        )}
+        <button type="button" onClick={() => setMode("email")} className="text-xs text-burgundy hover:underline">
+          Add by email instead
+        </button>
+        {pickState.error && <span className="w-full text-xs text-danger">{pickState.error}</span>}
+      </form>
+    );
+  }
 
   return (
-    <form action={formAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
+    <form action={emailAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
       <input type="hidden" name="client_team_id" value={clientTeamId} />
-      <select
-        name="user_id"
+      <input
+        name="email"
+        type="email"
         required
+        placeholder="person@company.com"
         className="rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-burgundy"
-      >
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.full_name} ({u.email})
-          </option>
-        ))}
-      </select>
+      />
       <label className="flex items-center gap-1 text-xs text-ink">
         <input type="checkbox" name="is_team_lead" /> Team lead
       </label>
-      <Button type="submit" size="sm" disabled={pending}>
-        {pending ? "Adding…" : "+ Add member"}
+      <Button type="submit" size="sm" disabled={emailPending}>
+        {emailPending ? "Adding…" : "+ Add member"}
       </Button>
-      {state.error && <span className="text-xs text-danger">{state.error}</span>}
+      {users.length > 0 && (
+        <button type="button" onClick={() => setMode("pick")} className="text-xs text-burgundy hover:underline">
+          Pick from existing instead
+        </button>
+      )}
+      {emailState.error && <span className="w-full text-xs text-danger">{emailState.error}</span>}
     </form>
   );
 }
