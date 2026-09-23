@@ -25,6 +25,16 @@ import {
   type ExpectedRecordProvider,
 } from "@/lib/expected-records/db-types";
 import { ExpectedRecordsSection } from "./expected-record-form";
+// evidence_type=2/3 field-execution (measurement records, document-upload evidence) — previously
+// missing entirely, see status/page.tsx's own "No execution flow yet" comment.
+import {
+  ITP_ITEM_MEASUREMENTS_TABLE,
+  ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE,
+  type ItpItemMeasurementRow,
+  type ItpItemEvidenceDocumentRow,
+} from "@/lib/itps/evidence-actions";
+import { ItpItemMeasurementsSection, ItpItemEvidenceDocumentsSection } from "./itp-item-evidence-section";
+import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 import { getLatestItpPdf } from "@/lib/reports/actions";
 import { ItpPdfButton } from "./itp-pdf-button";
 import { ItpStalePdfToast } from "./itp-stale-pdf-toast";
@@ -286,6 +296,42 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     expectedRecordsByItem.set(record.itp_item_id, list);
   }
 
+  // evidence_type=3 ("Measurement record") / evidence_type=2 ("Document upload") field-execution —
+  // see lib/itps/evidence-actions.ts. Fetched the same way as expectedRecords above (needs
+  // allItemIds first).
+  const [{ data: measurements }, { data: evidenceDocuments }] = allItemIds.length
+    ? await Promise.all([
+        supabase
+          .from(ITP_ITEM_MEASUREMENTS_TABLE)
+          .select("id, itp_item_id, description, nominal_value, tolerance, actual_value, unit, result, sort_order, recorded_by, created_at")
+          .in("itp_item_id", allItemIds)
+          .order("sort_order")
+          .returns<ItpItemMeasurementRow[]>(),
+        supabase
+          .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
+          .select("id, itp_item_id, vault_document_id, linked_by, created_at, vault_documents(title, document_reference)")
+          .in("itp_item_id", allItemIds)
+          .order("created_at")
+          .returns<(ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null } | null })[]>(),
+      ])
+    : [{ data: [] as ItpItemMeasurementRow[] }, { data: [] as (ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null } | null })[] }];
+
+  const measurementsByItem = new Map<string, ItpItemMeasurementRow[]>();
+  for (const row of measurements ?? []) {
+    const list = measurementsByItem.get(row.itp_item_id) ?? [];
+    list.push(row);
+    measurementsByItem.set(row.itp_item_id, list);
+  }
+
+  const evidenceDocumentsByItem = new Map<string, (ItpItemEvidenceDocumentRow & { title: string; documentReference: string | null })[]>();
+  for (const row of evidenceDocuments ?? []) {
+    const list = evidenceDocumentsByItem.get(row.itp_item_id) ?? [];
+    list.push({ ...row, title: row.vault_documents?.title ?? "Untitled document", documentReference: row.vault_documents?.document_reference ?? null });
+    evidenceDocumentsByItem.set(row.itp_item_id, list);
+  }
+
+  const executingPartyTypes = await getExecutingPartyTypes(supabase, itp.projects?.id ?? "");
+
   const vaultDocuments: VaultDocumentOption[] = (rawVaultDocuments ?? []).map((d) => ({
     id: d.id,
     title: d.title,
@@ -310,6 +356,20 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     tpi: session.isJagsStaff || PROVIDER_TO_PARTY_TYPES.tpi.some((pt) => ownPartyTypes.has(pt)),
     contractor: session.isJagsStaff || PROVIDER_TO_PARTY_TYPES.contractor.some((pt) => ownPartyTypes.has(pt)),
   };
+
+  // Same "which party may execute this activity" rule canExecuteItpItem (lib/checklists/
+  // execution-parties.ts) enforces server-side for the evidence_type=2/3 actions — computed here
+  // from data already fetched above (interventions/parties/executingPartyTypes) instead of one
+  // query per item.
+  const ownExecutingPartyIds = new Set(
+    (parties ?? [])
+      .filter((p) => p.user_id === session.userId && p.is_active && executingPartyTypes.has(p.party_type))
+      .map((p) => p.id)
+  );
+  const itemsWithOwnExecutingIntervention = new Set(
+    (interventions ?? []).filter((row) => ownExecutingPartyIds.has(row.project_party_id)).map((row) => row.itp_item_id)
+  );
+  const canExecuteItemEvidence = (itemId: string) => session.isJagsStaff || itemsWithOwnExecutingIntervention.has(itemId);
 
   const disciplineByid = new Map((disciplines ?? []).map((d) => [d.id, d.code]));
 
@@ -675,6 +735,21 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                           projectId={itp.projects?.id ?? ""}
                           vaultDocuments={vaultDocuments}
                         />
+                        {item.evidence_type === 3 && (
+                          <ItpItemMeasurementsSection
+                            itpItemId={item.id}
+                            measurements={measurementsByItem.get(item.id) ?? []}
+                            canRecord={canExecuteItemEvidence(item.id)}
+                          />
+                        )}
+                        {item.evidence_type === 2 && (
+                          <ItpItemEvidenceDocumentsSection
+                            itpItemId={item.id}
+                            documents={evidenceDocumentsByItem.get(item.id) ?? []}
+                            vaultDocuments={vaultDocuments}
+                            canLink={canExecuteItemEvidence(item.id)}
+                          />
+                        )}
                       </div>
                     ))}
                   </div>

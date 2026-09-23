@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession } from "@/lib/auth/session";
 
 /**
  * R76: "the originator (typically the subcontractor/contractor) raises the inspection request" —
@@ -45,4 +46,40 @@ export async function findProjectIdForItpItem(
     .eq("id", itpItemId)
     .maybeSingle<{ itp_sections: { itps: { project_id: string } | null } | null }>();
   return data?.itp_sections?.itps?.project_id ?? null;
+}
+
+/**
+ * Whether the current session may execute (record evidence for) a given ITP item — staff always
+ * can; otherwise only a party that (a) is actually a stakeholder on this specific activity
+ * (activity_party_intervention), (b) is active, and (c) is an executing party type for this project
+ * (BASE_EXECUTING_PARTY_TYPES, plus client when opted in — see getExecutingPartyTypes above).
+ *
+ * Originally private to lib/checklists/actions.ts as canExecuteChecklistForItem, generalized here
+ * (same logic, same name minus "Checklist") once evidence_type=2/3 items (document upload,
+ * measurement record — lib/itps/evidence-actions.ts) needed the identical rule: which party may
+ * execute an activity doesn't depend on what KIND of evidence that activity produces, so this was a
+ * duplication waiting to drift, not a checklist-specific concern.
+ */
+export async function canExecuteItpItem(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string
+): Promise<boolean> {
+  const session = await requireSession();
+  if (session.isJagsStaff) return true;
+
+  const { data: stakeholderParties } = await supabase
+    .from("activity_party_intervention")
+    .select("project_parties(user_id, party_type, is_active)")
+    .eq("itp_item_id", itpItemId)
+    .returns<{ project_parties: { user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
+
+  const projectId = await findProjectIdForItpItem(supabase, itpItemId);
+  const executingPartyTypes = projectId ? await getExecutingPartyTypes(supabase, projectId) : new Set<string>();
+
+  return (stakeholderParties ?? []).some(
+    (row) =>
+      row.project_parties?.user_id === session.userId &&
+      row.project_parties.is_active &&
+      executingPartyTypes.has(row.project_parties.party_type)
+  );
 }

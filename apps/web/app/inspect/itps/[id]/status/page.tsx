@@ -7,6 +7,7 @@ import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { ACTIVITY_EXPECTED_RECORDS_TABLE, type ActivityExpectedRecordRow } from "@/lib/expected-records/db-types";
+import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE, type ItpItemMeasurementRow } from "@/lib/itps/evidence-actions";
 import type { InterventionLevel } from "@jags/shared-types";
 
 const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
@@ -21,11 +22,11 @@ const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
  * covers the H/W/R/S grid, and the Checklists sub-page only covers evidence for Checklist-type
  * items. This combines both, per activity, across every item on the ITP.
  *
- * Deliberately honest about a real product gap found while building this: only evidence_type = 1
- * (Checklist) items have any real field-execution mechanism today (a generated checklist_templates
- * row + inspection_records). Document-upload and Measurement-record items (evidence_type 2/3) are
- * currently just a label on the grid — nothing in the app records that evidence yet — so this shows
- * that plainly rather than fabricating a fake "complete"/"pending" for something never tracked.
+ * All three evidence types now have a real completion signal (see lib/itps/evidence-actions.ts for
+ * the document-upload/measurement mechanisms this page reads from):
+ *   evidence_type=1 (Checklist): a checklist_templates row + an inspection_records overall_result.
+ *   evidence_type=2 (Document upload): at least one linked itp_item_evidence_documents row.
+ *   evidence_type=3 (Measurement record): every itp_item_measurements row has a result, none failed.
  */
 export default async function ItpStatusPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -138,6 +139,36 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
     return map;
   }, new Map());
 
+  const [{ data: measurements }, { data: evidenceDocuments }] =
+    itemIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from(ITP_ITEM_MEASUREMENTS_TABLE)
+            .select("itp_item_id, result")
+            .in("itp_item_id", itemIds)
+            .returns<Pick<ItpItemMeasurementRow, "itp_item_id" | "result">[]>(),
+          supabase
+            .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
+            .select("itp_item_id")
+            .in("itp_item_id", itemIds)
+            .returns<{ itp_item_id: string }[]>(),
+        ])
+      : [{ data: [] as Pick<ItpItemMeasurementRow, "itp_item_id" | "result">[] }, { data: [] as { itp_item_id: string }[] }];
+
+  const measurementsByItem = (measurements ?? []).reduce<Map<string, Pick<ItpItemMeasurementRow, "itp_item_id" | "result">[]>>(
+    (map, row) => {
+      const list = map.get(row.itp_item_id) ?? [];
+      list.push(row);
+      map.set(row.itp_item_id, list);
+      return map;
+    },
+    new Map()
+  );
+  const evidenceDocumentCountByItem = (evidenceDocuments ?? []).reduce<Map<string, number>>((map, row) => {
+    map.set(row.itp_item_id, (map.get(row.itp_item_id) ?? 0) + 1);
+    return map;
+  }, new Map());
+
   const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
   const templateIds = (templates ?? []).map((t) => t.id);
 
@@ -168,8 +199,24 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
   };
 
   function evidenceStatusFor(item: (typeof items)[number]): { label: string; tone: "success" | "danger" | "warning" | "neutral"; done: boolean } {
-    if (item.evidence_type !== 1) {
-      return { label: "No execution flow yet", tone: "neutral", done: false };
+    if (item.evidence_type === 2) {
+      // See lib/itps/evidence-actions.ts's linkItpItemEvidenceDocumentAction — existence of at
+      // least one linked vault document IS the completion signal for this evidence type; there's
+      // no pass/fail concept for "is this the right document," only "has one been provided."
+      const count = evidenceDocumentCountByItem.get(item.id) ?? 0;
+      return count > 0
+        ? { label: `${count} document${count === 1 ? "" : "s"} linked`, tone: "success", done: true }
+        : { label: "No evidence yet", tone: "neutral", done: false };
+    }
+    if (item.evidence_type === 3) {
+      const rows = measurementsByItem.get(item.id) ?? [];
+      if (rows.length === 0) return { label: "Not started", tone: "neutral", done: false };
+      const recorded = rows.filter((r) => r.result != null);
+      if (recorded.length < rows.length) return { label: "In progress", tone: "warning", done: false };
+      const anyFail = rows.some((r) => r.result === "fail");
+      return anyFail
+        ? { label: "Fail", tone: "danger", done: false }
+        : { label: "Pass", tone: "success", done: true };
     }
     const template = templateByItem.get(item.id);
     if (!template) return { label: "Checklist not generated", tone: "neutral", done: false };
@@ -202,9 +249,10 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
       </div>
 
       <p className="mt-4 rounded-md border border-info/60 bg-info/10 px-3 py-2 text-xs text-info">
-        Only Checklist-type activities have a real field-execution flow today — Document-upload and
-        Measurement-record activities show as "No execution flow yet" until that's built, rather than
-        a fabricated status.
+        Document-upload activities are done once at least one evidence document is linked;
+        Measurement-record activities are done once every recorded measurement has a result and none
+        have failed. Both are recorded per-activity on the ITP page itself (&ldquo;Manage evidence
+        →&rdquo; below) — this page only summarises where each activity stands.
       </p>
 
       <div className="mt-6 space-y-3">
@@ -252,7 +300,13 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                     : evidence.label === "In progress"
                       ? "field inspection started but not completed"
                       : "last inspection did not pass"
-                : "no field-execution flow exists for this evidence type yet"
+                : item.evidence_type === 2
+                  ? "no evidence document linked yet"
+                  : evidence.label === "Not started"
+                    ? "no measurements recorded yet"
+                    : evidence.label === "In progress"
+                      ? "not every measurement has a result yet"
+                      : "a measurement failed"
             );
           }
           if (blockingOpen.length > 0) missing.push(`${blockingOpen.length} open Hold${blockingOpen.length === 1 ? "" : "s"}`);
@@ -309,16 +363,23 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                     <Link href={`/inspect/checklists/${template.id}`} className="ml-2 font-medium text-burgundy hover:underline">
                       {evidence.label === "Not started" ? "Start inspection →" : "Open checklist →"}
                     </Link>
+                  ) : item.evidence_type === 1 ? (
+                    // Previously a dead end: "Checklist not generated" with no way forward from
+                    // this page — the only place to actually generate one is the ITP's own
+                    // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
+                    // ITP is approved). Points there instead of leaving it unclickable.
+                    <Link href={`/inspect/itps/${itp.id}/checklists`} className="ml-2 font-medium text-burgundy hover:underline">
+                      Generate checklist →
+                    </Link>
                   ) : (
-                    item.evidence_type === 1 && (
-                      // Previously a dead end: "Checklist not generated" with no way forward from
-                      // this page — the only place to actually generate one is the ITP's own
-                      // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
-                      // ITP is approved). Points there instead of leaving it unclickable.
-                      <Link href={`/inspect/itps/${itp.id}/checklists`} className="ml-2 font-medium text-burgundy hover:underline">
-                        Generate checklist →
-                      </Link>
-                    )
+                    // evidence_type 2/3: recording measurements or linking evidence documents
+                    // happens per-activity on the ITP detail page itself (see
+                    // ItpItemMeasurementsSection/ItpItemEvidenceDocumentsSection there), not on
+                    // this roadmap page — same "roadmap links out, doesn't duplicate the form"
+                    // pattern the Checklist link above already follows.
+                    <Link href={`/inspect/itps/${itp.id}`} className="ml-2 font-medium text-burgundy hover:underline">
+                      Manage evidence →
+                    </Link>
                   )}
                 </div>
                 <div>

@@ -1813,6 +1813,95 @@ export type Database = {
           },
         ]
       }
+      itp_item_evidence_documents: {
+        Row: {
+          created_at: string
+          id: string
+          itp_item_id: string
+          linked_by: string | null
+          vault_document_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          itp_item_id: string
+          linked_by?: string | null
+          vault_document_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          itp_item_id?: string
+          linked_by?: string | null
+          vault_document_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itp_item_evidence_documents_itp_item_id_fkey"
+            columns: ["itp_item_id"]
+            isOneToOne: false
+            referencedRelation: "itp_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itp_item_evidence_documents_vault_document_id_fkey"
+            columns: ["vault_document_id"]
+            isOneToOne: false
+            referencedRelation: "vault_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      itp_item_measurements: {
+        Row: {
+          actual_value: string | null
+          created_at: string
+          description: string
+          id: string
+          itp_item_id: string
+          nominal_value: string | null
+          recorded_by: string | null
+          result: string | null
+          sort_order: number
+          tolerance: string | null
+          unit: string | null
+        }
+        Insert: {
+          actual_value?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          itp_item_id: string
+          nominal_value?: string | null
+          recorded_by?: string | null
+          result?: string | null
+          sort_order?: number
+          tolerance?: string | null
+          unit?: string | null
+        }
+        Update: {
+          actual_value?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          itp_item_id?: string
+          nominal_value?: string | null
+          recorded_by?: string | null
+          result?: string | null
+          sort_order?: number
+          tolerance?: string | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itp_item_measurements_itp_item_id_fkey"
+            columns: ["itp_item_id"]
+            isOneToOne: false
+            referencedRelation: "itp_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       itp_master_items: {
         Row: {
           acceptance_criteria: string | null

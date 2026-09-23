@@ -16,9 +16,8 @@ import {
   type InspectionRecordRow,
   type OverallResult,
 } from "./db-types";
-import { requireSession } from "@/lib/auth/session";
 import { canCompleteInspection } from "@/lib/signoff/actions";
-import { getExecutingPartyTypes, findProjectIdForItpItem } from "./execution-parties";
+import { getExecutingPartyTypes, findProjectIdForItpItem, canExecuteItpItem } from "./execution-parties";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -34,45 +33,10 @@ export interface GenerateChecklistsState {
   error: string | null;
 }
 
-/**
- * R76: self-inspection is the assigned party's own spec'd role, not JAGS staff's alone — a party
- * holding an intervention level (H/W/R/S) on this specific activity is a legitimate stakeholder, but
- * only one whose party_type is actually an executing type (subcontractor/main_contractor, plus
- * client when the project has opted into projects.allow_client_execution — see
- * lib/checklists/execution-parties.ts) may run its checklist; an independent verifier (TPI/lab) or
- * a client without that opt-in still can't, same rule as the checklist page's own isAssignedParty
- * check (apps/web/app/inspect/checklists/[templateId]/page.tsx), kept in sync via the shared helper.
- *
- * project_parties.is_active is checked here too: until now it was only a display filter on list
- * pages ("Deactivate all parties" etc. hid a party from the UI but never actually revoked anything),
- * so a deactivated party's linked user could still tap Yes/No/N-A on a live checklist. Requiring
- * is_active here makes deactivation a real access boundary rather than cosmetic.
- */
-async function canExecuteChecklistForItem(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  itpItemId: string
-): Promise<boolean> {
-  const session = await requireSession();
-  if (session.isJagsStaff) return true;
-
-  const { data: stakeholderParties } = await supabase
-    .from("activity_party_intervention")
-    .select("project_parties(user_id, party_type, is_active)")
-    .eq("itp_item_id", itpItemId)
-    .returns<{ project_parties: { user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
-
-  const projectId = await findProjectIdForItpItem(supabase, itpItemId);
-  const executingPartyTypes = projectId
-    ? await getExecutingPartyTypes(supabase, projectId)
-    : new Set<string>();
-
-  return (stakeholderParties ?? []).some(
-    (row) =>
-      row.project_parties?.user_id === session.userId &&
-      row.project_parties.is_active &&
-      executingPartyTypes.has(row.project_parties.party_type)
-  );
-}
+// canExecuteChecklistForItem moved to lib/checklists/execution-parties.ts as the generalized
+// canExecuteItpItem — evidence_type=2/3 items (lib/itps/evidence-actions.ts) needed the exact same
+// "which party may execute this activity" rule, which doesn't depend on what kind of evidence the
+// activity produces. See that file's doc comment for the full R76 rationale (unchanged).
 
 export interface GenerateChecklistsResult {
   error: string | null;
@@ -381,7 +345,7 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     .select("itp_item_id")
     .eq("id", inspectionRecordId)
     .maybeSingle<Pick<InspectionRecordRow, "itp_item_id">>();
-  if (!record || !(await canExecuteChecklistForItem(supabase, record.itp_item_id))) {
+  if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
     return { error: "Could not save — you don't have permission to record a response for this activity." };
   }
 
@@ -435,7 +399,7 @@ export async function startInspectionAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  if (!(await canExecuteChecklistForItem(supabase, itpItemId))) {
+  if (!(await canExecuteItpItem(supabase, itpItemId))) {
     return { error: "Only JAGS staff or the party assigned to this activity can start a field inspection." };
   }
 
@@ -559,7 +523,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     .select("itp_item_id")
     .eq("id", inspectionRecordId)
     .maybeSingle<Pick<InspectionRecordRow, "itp_item_id">>();
-  if (!recordForAuth || !(await canExecuteChecklistForItem(supabase, recordForAuth.itp_item_id))) {
+  if (!recordForAuth || !(await canExecuteItpItem(supabase, recordForAuth.itp_item_id))) {
     return { error: "Only JAGS staff or the party assigned to this activity can complete the inspection." };
   }
 
