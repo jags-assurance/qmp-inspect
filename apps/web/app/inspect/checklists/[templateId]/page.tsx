@@ -84,12 +84,17 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // projects.allow_client_execution (piece 4 of the teams/delegation work — see
   // lib/checklists/execution-parties.ts, also used by lib/checklists/actions.ts so the UI and the
   // actual server-side gate can never drift apart), in which case client joins the executing set too.
-  const EXECUTING_PARTY_TYPES = await getExecutingPartyTypes(supabase, project.id);
-  const { data: stakeholderParties } = await supabase
-    .from("activity_party_intervention")
-    .select("project_parties(id, user_id, party_type, is_active)")
-    .eq("itp_item_id", itpItem.id)
-    .returns<{ project_parties: { id: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
+  // Perf: neither query depends on the other's result — both only need project.id/itpItem.id,
+  // already in hand — so run them together instead of two sequential round trips on this page,
+  // the single most-visited one in the app (every checklist fill hits it).
+  const [EXECUTING_PARTY_TYPES, { data: stakeholderParties }] = await Promise.all([
+    getExecutingPartyTypes(supabase, project.id),
+    supabase
+      .from("activity_party_intervention")
+      .select("project_parties(id, user_id, party_type, is_active)")
+      .eq("itp_item_id", itpItem.id)
+      .returns<{ project_parties: { id: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>(),
+  ]);
   // is_active gates this the same way it now gates the server-side action (canExecuteChecklistForItem
   // in lib/checklists/actions.ts) — a deactivated party shouldn't see live Yes/No/N-A buttons that the
   // server would reject anyway.
@@ -125,40 +130,41 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // Whether the viewer is linked to SOME project party at all — used to tell "you're a project
   // party, just not this activity's" apart from "you have no party link on this project," since the
   // former reads as a dead end otherwise (see the not-canExecute message below).
-  const { data: ownPartyLink } = session.isJagsStaff
-    ? { data: null }
-    : await supabase
-        .from("project_parties")
-        .select("id")
-        .eq("project_id", project.id)
-        .eq("user_id", session.userId)
-        .maybeSingle<{ id: string }>();
-
-  const { data: items } = await supabase
-    .from(CHECKLIST_ITEMS_TABLE)
-    .select("id, item_number, description, is_mandatory, sort_order")
-    .eq("template_id", templateId)
-    .order("sort_order")
-    .returns<Pick<ChecklistItemRow, "id" | "item_number" | "description" | "is_mandatory" | "sort_order">[]>();
-
-  const { data: draftRecords } = await supabase
-    .from(INSPECTION_RECORDS_TABLE)
-    .select("id, location, inspection_date, created_at")
-    .eq("checklist_template_id", templateId)
-    .is("overall_result", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .returns<Pick<InspectionRecordRow, "id" | "location" | "inspection_date" | "created_at">[]>();
+  // Perf: none of these four filters only by templateId/project.id/session.userId — nothing here
+  // depends on another's result — so batch them instead of four sequential round trips.
+  const [{ data: ownPartyLink }, { data: items }, { data: draftRecords }, { data: pastRecords }] = await Promise.all([
+    session.isJagsStaff
+      ? Promise.resolve({ data: null as { id: string } | null })
+      : supabase
+          .from("project_parties")
+          .select("id")
+          .eq("project_id", project.id)
+          .eq("user_id", session.userId)
+          .maybeSingle<{ id: string }>(),
+    supabase
+      .from(CHECKLIST_ITEMS_TABLE)
+      .select("id, item_number, description, is_mandatory, sort_order")
+      .eq("template_id", templateId)
+      .order("sort_order")
+      .returns<Pick<ChecklistItemRow, "id" | "item_number" | "description" | "is_mandatory" | "sort_order">[]>(),
+    supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, location, inspection_date, created_at")
+      .eq("checklist_template_id", templateId)
+      .is("overall_result", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .returns<Pick<InspectionRecordRow, "id" | "location" | "inspection_date" | "created_at">[]>(),
+    supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, record_number, overall_result, inspection_date")
+      .eq("checklist_template_id", templateId)
+      .not("overall_result", "is", null)
+      .order("created_at", { ascending: false })
+      .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>(),
+  ]);
 
   const draft = draftRecords?.[0] ?? null;
-
-  const { data: pastRecords } = await supabase
-    .from(INSPECTION_RECORDS_TABLE)
-    .select("id, record_number, overall_result, inspection_date")
-    .eq("checklist_template_id", templateId)
-    .not("overall_result", "is", null)
-    .order("created_at", { ascending: false })
-    .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>();
 
   let responseByItem = new Map<
     string,
@@ -202,22 +208,21 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
     // R92-R100: register-fed auto-verification — a soft-stop assist, not a hard block. Computed
     // once per checklist (the same itp_items row backs every checklist_items row here), then shown
-    // inline on every response row below.
-    registerVerification = await checkRegisterVerification(supabase, {
-      projectId: project.id,
-      itpItemReferenceSpec: itpItem.reference_spec,
-      itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
-    });
-
-    // Parallel soft-stop, not a replacement for the check above — that one asks "does a register
-    // entry of the right kind exist for this project," this one asks "does the person about to
-    // answer hold a current cert of the right kind." Both can fire independently on the same item.
-    personnelCertVerification = await checkPersonnelCertification(supabase, {
-      projectId: project.id,
-      executingProjectPartyId,
-      itpItemReferenceSpec: itpItem.reference_spec,
-      itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
-    });
+    // inline on every response row below. Genuinely parallel (not just labeled that way): neither
+    // check consumes the other's result, so run them together.
+    [registerVerification, personnelCertVerification] = await Promise.all([
+      checkRegisterVerification(supabase, {
+        projectId: project.id,
+        itpItemReferenceSpec: itpItem.reference_spec,
+        itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+      }),
+      checkPersonnelCertification(supabase, {
+        projectId: project.id,
+        executingProjectPartyId,
+        itpItemReferenceSpec: itpItem.reference_spec,
+        itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+      }),
+    ]);
 
     if (registerVerification?.kind === "calibration") {
       calibrationOptions = await listCalibrationOptions(supabase, project.id);

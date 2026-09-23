@@ -13,6 +13,7 @@ import { NewItpFromAiForm, type VaultDocumentOption } from "./new-itp-from-ai-fo
 import { ItpCreationTabs } from "./itp-creation-tabs";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 export default async function NewItpPage() {
   const session = await requireSession();
@@ -58,7 +59,7 @@ export default async function NewItpPage() {
     if (clientEligibleProjectIds.size === 0) redirect("/inspect/itps");
   }
 
-  const [{ data: allProjects }, { data: templates }, { data: disciplines }, { data: vaultDocumentRows }] = await Promise.all([
+  const [{ data: allProjects }, { data: templates }, disciplines, { data: vaultDocumentRows }] = await Promise.all([
     supabase.from("projects").select("id, project_number, name").order("name"),
     supabase
       .from(ITP_MASTER_TEMPLATES_TABLE)
@@ -66,12 +67,7 @@ export default async function NewItpPage() {
       .eq("is_active", true)
       .order("title")
       .returns<{ id: string; title: string; industry: string; version: number }[]>(),
-    supabase
-      .from("master_disciplines")
-      .select("code, name")
-      .eq("is_active", true)
-      .order("sort_order")
-      .returns<{ code: string; name: string }[]>(),
+    getActiveMasterDisciplines(),
     // For the "generate from vault documents" tab's document picker — the real source material an
     // ITP draft is grounded in (see new-itp-from-ai-form.tsx). Scoped by RLS to projects this user
     // has access to; fetched unconditionally here (not per-project) since the project picker lives

@@ -8,7 +8,8 @@ import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "../ncrs/ncrs-table";
 import { NCR_TABLE_PAGE_SIZE } from "../ncrs/constants";
 import { isOverdue } from "../ncrs/is-overdue";
-import { DisciplineFilterForm, type DisciplineOption } from "../ncrs/discipline-filter-form";
+import { DisciplineFilterForm } from "../ncrs/discipline-filter-form";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -28,12 +29,7 @@ export default async function ObservationsPage({
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
-  const { data: disciplines } = await supabase
-    .from("master_disciplines")
-    .select("id, code, name")
-    .eq("is_active", true)
-    .order("sort_order")
-    .returns<DisciplineOption[]>();
+  const disciplines = await getActiveMasterDisciplines();
 
   // Same shape as apps/web/app/inspect/ncrs/page.tsx: observations reuse the ncrs table (graded
   // by severity), so they reach a discipline the same indirect way — via the optional itp_item_id

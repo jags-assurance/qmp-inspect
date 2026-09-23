@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildFatReportHtml, type FatReportData, type FatReportPhoto } from "./fatReportTemplate";
 import type { RenderFatReportPdfPayload } from "./types";
@@ -148,10 +148,10 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
 
   const html = buildFatReportHtml(templateData);
 
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
@@ -165,7 +165,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const storagePath = `fat-reports/${a.id}/${a.assignment_number}.pdf`;

@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
   buildPortfolioSummaryHtml,
@@ -188,16 +188,10 @@ export async function renderPortfolioSummaryPdf(
 
   const html = buildPortfolioSummaryHtml(templateData);
 
-  // Same Puppeteer launch/print options as generateMonthlyReportPack.ts — see that file's comment
-  // for why executablePath is opt-in-only via env var.
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}),
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
@@ -209,7 +203,7 @@ export async function renderPortfolioSummaryPdf(
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   // Path keyed by requester + timestamp rather than an organization_id/project_id segment — this

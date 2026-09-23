@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildNcrCloseoutPdfHtml, type NcrCloseoutPdfData, type NcrCloseoutSeverity } from "./ncrCloseoutTemplate";
 import type { RenderNcrCloseoutCertificatePayload } from "./types";
@@ -96,10 +96,10 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
 
   const html = buildNcrCloseoutPdfHtml(templateData);
 
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
@@ -118,7 +118,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const storagePath = `ncr-closeouts/${ncr.id}/${ncr.ncr_number}-closeout.pdf`;

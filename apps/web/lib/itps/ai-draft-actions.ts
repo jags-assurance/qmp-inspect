@@ -9,6 +9,7 @@ import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 // Reqs R34-R43: spec-to-ITP draft generation, grounded in the project's own vault documents (the
 // actual attached specs/standards/method statements) rather than a free-typed description alone.
@@ -78,19 +79,14 @@ export async function generateItpDraftAction(
     return { ...EMPTY_DRAFT_STATE, error: gate.reason };
   }
 
-  const [{ data: parties }, { data: disciplines }] = await Promise.all([
+  const [{ data: parties }, disciplines] = await Promise.all([
     supabase
       .from("project_parties")
       .select("id, party_type, name")
       .eq("project_id", projectId)
       .eq("is_active", true)
       .returns<{ id: string; party_type: string; name: string }[]>(),
-    supabase
-      .from("master_disciplines")
-      .select("code, name")
-      .eq("is_active", true)
-      .order("sort_order")
-      .returns<{ code: string; name: string }[]>(),
+    getActiveMasterDisciplines(),
   ]);
 
   const projectParties = (parties ?? []).map((p) => ({ id: p.id, partyType: p.party_type, name: p.name }));

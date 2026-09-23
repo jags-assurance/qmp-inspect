@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildIrnPdfHtml, type IrnPdfData } from "./irnTemplate";
 import type { RenderIrnPdfPayload } from "./types";
@@ -94,10 +94,10 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
 
   const html = buildIrnPdfHtml(templateData);
 
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
@@ -116,7 +116,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const storagePath = `irns/${irn.id}/${irn.irn_number}.pdf`;

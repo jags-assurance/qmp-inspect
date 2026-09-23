@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import type { Database } from "@jags/shared-types";
 import { supabase } from "../supabase";
 import {
@@ -262,10 +262,10 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
 
   const html = buildItpHtml(templateData);
 
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       // Explicit margin so it definitely matches this template's `@page { margin: 15mm }` — Chrome's
@@ -293,7 +293,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const storagePath = `itps/${itp.id}/${itp.itp_number}-rev${itp.revision}.pdf`;

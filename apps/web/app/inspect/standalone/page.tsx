@@ -4,7 +4,8 @@ import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
 import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
-import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
+import { DisciplineFilterForm } from "./discipline-filter-form";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
@@ -16,12 +17,7 @@ export default async function StandaloneAssignmentsPage({
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
-  const { data: disciplines } = await supabase
-    .from("master_disciplines")
-    .select("id, code, name")
-    .eq("is_active", true)
-    .order("sort_order")
-    .returns<DisciplineOption[]>();
+  const disciplines = await getActiveMasterDisciplines();
 
   // Round-table performance finding (same pattern as apps/web/app/inspect/ncrs/page.tsx): this
   // register used to fetch every matching assignment at once and filter/paginate it client-side.

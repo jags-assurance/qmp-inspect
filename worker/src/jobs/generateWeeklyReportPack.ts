@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
 import { supabase } from "../supabase";
 import { buildWeeklyReportHtml, type WeeklyReportTemplateData } from "./weeklyReportTemplate";
@@ -123,15 +123,10 @@ export async function generateWeeklyReportPack(
   const html = buildWeeklyReportHtml(templateData);
   const xlsxBuffer = await buildXlsx(templateData);
 
-  // Same executablePath override note as generateMonthlyReportPack.ts.
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}),
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
@@ -143,7 +138,7 @@ export async function generateWeeklyReportPack(
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const basePath = `weekly-reports/${organizationId}/${weekStart}`;

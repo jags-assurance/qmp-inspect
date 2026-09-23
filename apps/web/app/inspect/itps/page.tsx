@@ -7,6 +7,7 @@ import { ITP_TABLE_PAGE_SIZE } from "./constants";
 import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
 import { PhaseFilterForm } from "./phase-filter-form";
 import { ITP_PHASES, normalizeItpPhase } from "@/lib/itps/phase";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 export default async function ItpsPage({
   searchParams,
@@ -61,13 +62,8 @@ export default async function ItpsPage({
   // `disciplines` (for the filter dropdown) and `taggedItems` (for the id filter) don't depend on
   // each other's results — only the later ITP queries depend on taggedItems — so they're fetched
   // together instead of waterfalled.
-  const [{ data: disciplines }, { data: taggedItems }] = await Promise.all([
-    supabase
-      .from("master_disciplines")
-      .select("id, code, name")
-      .eq("is_active", true)
-      .order("sort_order")
-      .returns<DisciplineOption[]>(),
+  const [disciplines, { data: taggedItems }] = await Promise.all([
+    getActiveMasterDisciplines(),
     disciplineId
       ? supabase
           .from("itp_items")

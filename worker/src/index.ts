@@ -11,6 +11,7 @@ import { renderNcrPdf } from "./jobs/renderNcrPdf";
 import { renderIrnPdf } from "./jobs/renderIrnPdf";
 import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
+import { closeSharedBrowser } from "./browserPool";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -337,5 +338,18 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 }
+
+// Railway sends SIGTERM on redeploy/restart. The shared Puppeteer browser (browserPool.ts) is the
+// one long-lived resource this process holds outside the poll loop itself — close it explicitly so
+// a redeploy doesn't leave an orphaned Chromium process behind, then exit. Best-effort: a job
+// mid-render at shutdown is already covered by reclaimOrphanedJobs() on the next worker startup.
+async function shutdown(signal: string): Promise<void> {
+  console.log(`[worker] Received ${signal}, shutting down.`);
+  await closeSharedBrowser();
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 main();

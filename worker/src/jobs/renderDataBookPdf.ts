@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
   buildDataBookPdfHtml,
@@ -335,10 +335,10 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
 
   const html = buildDataBookPdfHtml(templateData);
 
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
@@ -357,7 +357,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const storagePath = `databooks/${dataBook.id}/${dataBook.book_number}.pdf`;

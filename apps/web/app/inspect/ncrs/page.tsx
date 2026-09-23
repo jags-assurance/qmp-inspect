@@ -9,7 +9,8 @@ import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { NCR_TABLE_PAGE_SIZE } from "./constants";
 import { isOverdue } from "./is-overdue";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
-import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
+import { DisciplineFilterForm } from "./discipline-filter-form";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 export default async function NcrsPage({
   searchParams,
@@ -21,12 +22,7 @@ export default async function NcrsPage({
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
-  const { data: disciplines } = await supabase
-    .from("master_disciplines")
-    .select("id, code, name")
-    .eq("is_active", true)
-    .order("sort_order")
-    .returns<DisciplineOption[]>();
+  const disciplines = await getActiveMasterDisciplines();
 
   // NCRs don't carry a discipline_id column of their own — they only reach one through the
   // (optional, nullable) itp_item_id link to itp_items.discipline_id. So the filter is applied as

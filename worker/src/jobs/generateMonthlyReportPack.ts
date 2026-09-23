@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
 import { supabase } from "../supabase";
 import { buildMonthlyReportHtml, type MonthlyReportTemplateData } from "./monthlyReportTemplate";
@@ -110,20 +110,10 @@ export async function generateMonthlyReportPack(
   const html = buildMonthlyReportHtml(templateData);
   const xlsxBuffer = await buildXlsx(templateData);
 
-  // executablePath override is opt-in via env var only — Railway's deployment gets Puppeteer's own
-  // downloaded Chrome (root package.json's pnpm.onlyBuiltDependencies lets its postinstall script
-  // actually run; pnpm 10 silently skips it otherwise) plus the shared libraries Chrome needs to
-  // launch on Linux at all (root nixpacks.toml's aptPkgs) and needs no override; this exists purely
-  // so local dev on a machine without a working Puppeteer Chrome install can still exercise the
-  // pipeline by pointing at a system Chrome/Chromium instead.
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}),
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
@@ -137,7 +127,7 @@ export async function generateMonthlyReportPack(
       })
     );
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   const monthTag = String(month).padStart(2, "0");

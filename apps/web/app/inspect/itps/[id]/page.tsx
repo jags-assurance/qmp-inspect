@@ -53,6 +53,7 @@ import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/p
 // R111: honest "AI not configured" gate (R43's pattern) for the translate-content panel below.
 import { isAiConfigured } from "@/lib/ai/gate";
 import { TranslateContentPanel } from "./translate-content-panel";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -161,7 +162,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     { data: signoffs },
     { data: noticeConfigs },
     { data: masterTemplates },
-    { data: disciplines },
+    disciplines,
     { data: rawVaultDocuments },
     { data: levelTypes },
     { data: aiDraftReview },
@@ -209,12 +210,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             .order("title")
             .returns<{ id: string; title: string }[]>()
         : Promise.resolve({ data: [] as { id: string; title: string }[] }),
-      supabase
-        .from("master_disciplines")
-        .select("id, code, name")
-        .eq("is_active", true)
-        .order("sort_order")
-        .returns<{ id: string; code: string; name: string }[]>(),
+      getActiveMasterDisciplines(),
       // R54-R56 "attach from vault" — lets an expected record (e.g. a calibration cert already on
       // file before the test runs) be satisfied by picking an existing vault document instead of
       // always re-uploading the same file a second time. Joined to the folder for a readable label.

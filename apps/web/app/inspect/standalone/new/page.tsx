@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NewAssignmentForm } from "./new-assignment-form";
+import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 
 export default async function NewStandaloneAssignmentPage() {
   const session = await requireSession();
@@ -15,11 +16,7 @@ export default async function NewStandaloneAssignmentPage() {
     .from("projects")
     .select("id, project_number, name")
     .order("name");
-  const { data: disciplines } = await supabase
-    .from("master_disciplines")
-    .select("id, code, name")
-    .eq("is_active", true)
-    .order("sort_order");
+  const disciplines = await getActiveMasterDisciplines();
 
   return (
     <div className="max-w-2xl">
