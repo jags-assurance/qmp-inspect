@@ -96,7 +96,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       .eq("itp_item_id", itpItem.id)
       .returns<{ project_parties: { id: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>(),
   ]);
-  // is_active gates this the same way it now gates the server-side action (canExecuteChecklistForItem
+  // is_active gates this the same way it now gates the server-side action (canExecuteItpItem
   // in lib/checklists/actions.ts) — a deactivated party shouldn't see live Yes/No/N-A buttons that the
   // server would reject anyway.
   const isAssignedParty = (stakeholderParties ?? []).some(

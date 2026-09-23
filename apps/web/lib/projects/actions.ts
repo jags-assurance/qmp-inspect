@@ -494,7 +494,7 @@ export interface ProjectPartyActiveState {
 
 /**
  * Single-party activate/deactivate. Admin-only. project_parties.is_active is a real access boundary,
- * not just a display flag: canSignOffForParty (lib/signoff/actions.ts) and canExecuteChecklistForItem
+ * not just a display flag: canSignOffForParty (lib/signoff/actions.ts) and canExecuteItpItem
  * (lib/checklists/actions.ts) both now require is_active alongside the user_id match, so flipping this
  * off actually revokes that party's linked user's ability to sign off or execute checklists on this
  * project, in addition to hiding them from lists/summaries that filter on is_active. It does NOT
@@ -579,7 +579,7 @@ export interface BulkProjectPartiesState {
  * someone needs access again post-handover, nothing has to be recreated from scratch.
  *
  * See the note on setProjectPartyActive above: is_active is a real access boundary now (canSignOffForParty
- * and canExecuteChecklistForItem both require it), so this bulk action actually revokes every deactivated
+ * and canExecuteItpItem both require it), so this bulk action actually revokes every deactivated
  * party's ability to sign off or execute checklists on the project, not just hides them from lists.
  */
 export async function deactivateAllProjectPartiesAction(
