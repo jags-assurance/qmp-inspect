@@ -14,4 +14,8 @@ export const STANDALONE_ASSIGNMENT_MEASUREMENTS = "standalone_assignment_measure
 export const STANDALONE_ASSIGNMENT_PHOTOS = "standalone_assignment_photos" as any;
 export const STANDALONE_ASSIGNMENT_PUNCH_ITEMS = "standalone_assignment_punch_items" as any;
 export const STANDALONE_ASSIGNMENT_SIGNATURES = "standalone_assignment_signatures" as any;
+// Evidence-document links (20260929050000_standalone_assignment_evidence_documents.sql) — mirrors
+// the same "link an existing vault document as evidence" mechanism just built for ITP items
+// (itp_item_evidence_documents), not a second upload path.
+export const STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS = "standalone_assignment_evidence_documents" as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */

@@ -20,6 +20,7 @@ import {
   STANDALONE_ASSIGNMENT_PHOTOS,
   STANDALONE_ASSIGNMENT_PUNCH_ITEMS,
   STANDALONE_ASSIGNMENT_SIGNATURES,
+  STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS,
 } from "./types";
 
 const STAFF_ONLY_ERROR = "Only JAGS staff can run a standalone assignment.";
@@ -91,6 +92,14 @@ export interface StandaloneAssignmentSignatureRow {
   signatory_name: string;
   signature_data: string;
   signed_at: string;
+}
+
+export interface StandaloneAssignmentEvidenceDocumentRow {
+  id: string;
+  assignment_id: string;
+  vault_document_id: string;
+  linked_by: string | null;
+  created_at: string;
 }
 
 const ASSIGNMENT_TYPE_PREFIX: Record<AssignmentType, string> = {
@@ -700,4 +709,78 @@ export async function issueClearanceAction(
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
   return { error: null };
+}
+
+export interface LinkEvidenceDocumentState {
+  error: string | null;
+}
+
+/**
+ * Links an existing vault document as this standalone assignment's own evidence — the gap flagged
+ * live: only photos (raw Storage uploads, no vault linkage) and signatures existed, with no way to
+ * attach a controlled document (a spec sheet, a client-supplied drawing, a prior cert). Mirrors
+ * linkItpItemEvidenceDocumentAction (lib/itps/evidence-actions.ts) exactly — upload to the
+ * project's Vault first, link it here — rather than a second upload UI/storage path.
+ */
+export async function linkAssignmentEvidenceDocumentAction(
+  _prev: LinkEvidenceDocumentState,
+  formData: FormData
+): Promise<LinkEvidenceDocumentState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const vaultDocumentId = String(formData.get("vault_document_id") ?? "").trim();
+  if (!assignmentId || !vaultDocumentId) return { error: "Choose a document to link." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS)
+    .insert({ assignment_id: assignmentId, vault_document_id: vaultDocumentId, linked_by: session.userId });
+
+  if (error) {
+    return {
+      error: error.code === "23505" ? "That document is already linked as evidence for this assignment." : "Could not link the document.",
+    };
+  }
+
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment_evidence_document",
+        entityId: assignmentId,
+        action: "linked",
+        actorId: session.userId,
+        summary: `Evidence document linked to assignment ${assignmentRow.assignment_number}`,
+        changes: { vault_document_id: vaultDocumentId },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+  return { error: null };
+}
+
+/** Removes the link (never deletes the underlying vault document — it may be referenced elsewhere). */
+export async function unlinkAssignmentEvidenceDocumentAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return;
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const linkId = String(formData.get("link_id") ?? "").trim();
+  if (!assignmentId || !linkId) return;
+
+  const supabase = await createSupabaseServerClient();
+  await supabase.from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS).delete().eq("id", linkId);
+
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
 }

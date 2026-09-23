@@ -24,6 +24,8 @@ import { SignaturePad } from "./signature-pad";
 import { NotesForm } from "./notes-form";
 import { FinalizeForm } from "./finalize-form";
 import { IssueClearanceForm } from "./issue-clearance-form";
+import { AssignmentEvidenceDocuments, type VaultDocumentOption } from "./assignment-evidence-documents";
+import type { StandaloneAssignmentEvidenceDocumentRow } from "@/lib/standalone/actions";
 
 interface Assignment {
   id: string;
@@ -42,6 +44,7 @@ interface Assignment {
 const TABS = [
   { key: "measurements", label: "Measurements" },
   { key: "photos", label: "Photos" },
+  { key: "evidence_documents", label: "Evidence Documents" },
   { key: "punch_list", label: "Punch List" },
   { key: "signatures", label: "Witness Signatures" },
   { key: "notes", label: "Notes" },
@@ -75,6 +78,8 @@ export function AssignmentWorkspace({
   assignment,
   measurements,
   photos,
+  evidenceDocuments,
+  vaultDocuments,
   punchItems,
   signatures,
   linkedOpenPunchCount,
@@ -83,6 +88,8 @@ export function AssignmentWorkspace({
   assignment: Assignment;
   measurements: StandaloneAssignmentMeasurementRow[];
   photos: StandaloneAssignmentPhotoRow[];
+  evidenceDocuments: (StandaloneAssignmentEvidenceDocumentRow & { title: string; documentReference: string | null })[];
+  vaultDocuments: VaultDocumentOption[];
   punchItems: StandaloneAssignmentPunchItemRow[];
   signatures: StandaloneAssignmentSignatureRow[];
   /** Open count on the project-wide punch_list_items row(s) this assignment's conditional-pass
@@ -232,6 +239,15 @@ export function AssignmentWorkspace({
             </div>
             {canEdit && <PhotoUpload assignmentId={assignment.id} />}
           </div>
+        )}
+
+        {activeTab === "evidence_documents" && (
+          <AssignmentEvidenceDocuments
+            assignmentId={assignment.id}
+            documents={evidenceDocuments}
+            vaultDocuments={vaultDocuments}
+            canEdit={canEdit}
+          />
         )}
 
         {activeTab === "punch_list" && (

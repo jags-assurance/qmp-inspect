@@ -11,8 +11,12 @@ import type {
   StandaloneAssignmentPhotoRow,
   StandaloneAssignmentPunchItemRow,
   StandaloneAssignmentSignatureRow,
+  StandaloneAssignmentEvidenceDocumentRow,
 } from "@/lib/standalone/actions";
+import { STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS } from "@/lib/standalone/types";
 import { AssignmentWorkspace } from "./assignment-workspace";
+import type { VaultDocumentOption } from "./assignment-evidence-documents";
+import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { getLatestFatReportPdf, draftFatNarrativeAction, saveFatNarrativeAction } from "@/lib/reports/actions";
 import { FatReportPdfButton } from "./fat-report-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
@@ -71,8 +75,15 @@ export default async function StandaloneAssignmentDetailPage({
 
   const latestReportPdf = await getLatestFatReportPdf(id);
 
-  const [{ data: measurements }, { data: photos }, { data: punchItems }, { data: signatures }, { count: linkedOpenPunchCount }] =
-    await Promise.all([
+  const [
+    { data: measurements },
+    { data: photos },
+    { data: rawEvidenceDocuments },
+    { data: rawVaultDocuments },
+    { data: punchItems },
+    { data: signatures },
+    { count: linkedOpenPunchCount },
+  ] = await Promise.all([
       supabase
         .from("standalone_assignment_measurements" as any)
         .select("*")
@@ -85,6 +96,18 @@ export default async function StandaloneAssignmentDetailPage({
         .eq("assignment_id", id)
         .order("created_at")
         .returns<StandaloneAssignmentPhotoRow[]>(),
+      supabase
+        .from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS)
+        .select("id, assignment_id, vault_document_id, linked_by, created_at, vault_documents(title, document_reference)")
+        .eq("assignment_id", id)
+        .order("created_at")
+        .returns<(StandaloneAssignmentEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null } | null })[]>(),
+      supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .select("id, title, document_reference, vault_folders!inner(project_id, name)")
+        .eq("vault_folders.project_id", assignment.project_id)
+        .order("title")
+        .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
       supabase
         .from("standalone_assignment_punch_items" as any)
         .select("*")
@@ -136,6 +159,19 @@ export default async function StandaloneAssignmentDetailPage({
           assignment={assignment}
           measurements={measurements ?? []}
           photos={photos ?? []}
+          evidenceDocuments={(rawEvidenceDocuments ?? []).map((d) => ({
+            ...d,
+            title: d.vault_documents?.title ?? "Untitled document",
+            documentReference: d.vault_documents?.document_reference ?? null,
+          }))}
+          vaultDocuments={(rawVaultDocuments ?? []).map(
+            (d): VaultDocumentOption => ({
+              id: d.id,
+              title: d.title,
+              documentReference: d.document_reference,
+              folderName: d.vault_folders?.name ?? "Document Vault",
+            })
+          )}
           punchItems={punchItems ?? []}
           signatures={signatures ?? []}
           linkedOpenPunchCount={linkedOpenPunchCount ?? 0}
