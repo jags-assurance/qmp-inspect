@@ -81,7 +81,11 @@ export function SignoffCell({
 
   const noticeElapsed = deadlineMs != null && now != null ? now >= deadlineMs : false;
 
-  const canNotify = status === "pending";
+  // R66-R81: Notify is that party's own step to trigger (or JAGS staff's) — not any other party's
+  // on the project. Previously ungated (shown to every viewer on every pending cell); now uses the
+  // same canSignOffForThisParty check Sign off already used, mirrored server-side in
+  // notifyPartyAction.
+  const canNotify = status === "pending" && canSignOffForThisParty;
   const canSignOff = (status === "pending" || status === "notified") && canSignOffForThisParty;
   const canProceed = !isBlocking && status === "notified" && noticeElapsed && isJagsStaff;
 

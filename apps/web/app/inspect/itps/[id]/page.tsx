@@ -625,6 +625,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 activity: item.activity,
                 acceptanceCriteria: item.acceptance_criteria,
                 evidenceLabel: EVIDENCE_LABEL[item.evidence_type],
+                evidenceType: item.evidence_type,
+                disciplineId: item.discipline_id,
                 disciplineCode: item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null,
                 // R25: per-activity override, checked before the level-keyed noticeHours map below.
                 noticeHoursOverride: item.notice_hours_override,
@@ -645,6 +647,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                     noticeHours={noticeHours}
                     levels={levels}
                     blockingCodes={blockingCodes}
+                    disciplines={disciplines ?? []}
+                    isIssued={isIssued}
                   />
                   {/* R54-R56: expected -> received third-party test record tracking per activity —
                       kept as its own per-activity block below the grid, since it isn't part of the

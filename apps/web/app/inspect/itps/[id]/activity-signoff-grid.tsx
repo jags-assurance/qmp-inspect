@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { InterventionSelect, type InterventionLevelOption } from "@/components/domain/intervention-select";
 import { SignoffCell } from "@/components/domain/signoff-cell";
+import { ItemControls } from "./item-controls";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { cn } from "@/lib/cn";
@@ -19,6 +20,10 @@ export interface GridRow {
   activity: string;
   acceptanceCriteria: string | null;
   evidenceLabel: string;
+  /** Raw evidence_type (1/2/3) and discipline_id, alongside their display-only evidenceLabel/
+   *  disciplineCode above — ItemControls' edit form needs the raw values to pre-fill its selects. */
+  evidenceType: number;
+  disciplineId: string | null;
   disciplineCode: string | null;
   /** R25: this activity's own notice-period override (itp_items.notice_hours_override), if set —
    *  takes precedence over the level-keyed `noticeHours` map below for every cell in this row. */
@@ -61,6 +66,8 @@ export function ActivitySignoffGrid({
   noticeHours,
   levels,
   blockingCodes,
+  disciplines,
+  isIssued,
 }: {
   itpId: string;
   rows: GridRow[];
@@ -76,6 +83,10 @@ export function ActivitySignoffGrid({
   levels: InterventionLevelOption[];
   /** Codes configured as is_blocking=true for this organisation. */
   blockingCodes: Set<string>;
+  /** For ItemControls' edit form's discipline picker — same list AddItemForm already receives. */
+  disciplines: { id: string; code: string; name: string }[];
+  /** R101: whether an item edit/delete here needs a revision reason (ItemControls). */
+  isIssued: boolean;
 }) {
   if (rows.length === 0) {
     return <p className="px-3 py-6 text-center text-muted">No activities in this section yet.</p>;
@@ -104,11 +115,26 @@ export function ActivitySignoffGrid({
           {rows.map((row) => (
             <tr key={row.itemId} className="border-b border-border align-top last:border-0">
               <td className="sticky left-0 z-10 bg-surface px-4 py-3">
-                <p className="text-sm text-ink">
-                  <span className="doc-id mr-1.5 text-muted">{row.itemNumber}</span>
-                  {row.activity}
-                </p>
-                {row.acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{row.acceptanceCriteria}</p>}
+                {canEditContent ? (
+                  <ItemControls
+                    itpId={itpId}
+                    itemId={row.itemId}
+                    itemNumber={row.itemNumber}
+                    activity={row.activity}
+                    acceptanceCriteria={row.acceptanceCriteria}
+                    evidenceType={row.evidenceType}
+                    disciplineId={row.disciplineId}
+                    noticeHoursOverride={row.noticeHoursOverride}
+                    disciplines={disciplines}
+                    isIssued={isIssued}
+                  />
+                ) : (
+                  <p className="text-sm text-ink">
+                    <span className="doc-id mr-1.5 text-muted">{row.itemNumber}</span>
+                    {row.activity}
+                  </p>
+                )}
+                {!canEditContent && row.acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{row.acceptanceCriteria}</p>}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <Badge tone="neutral">{row.evidenceLabel}</Badge>
                   {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}

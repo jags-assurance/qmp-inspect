@@ -212,6 +212,13 @@ export async function notifyPartyAction(progressId: string): Promise<SignoffActi
 
   if (!progress) return { error: "Sign-off record not found." };
 
+  // R66-R81: notifying a party of a pending sign-off is that party's own step to trigger (or
+  // JAGS staff's, who run the overall process) — not any other party's on the project. Previously
+  // ungated, so any logged-in viewer with project access could click Notify on any other party's
+  // cell. Mirrors canSignOffForParty's exact rule, reused here rather than duplicated.
+  const canNotify = await canSignOffForParty(supabase, progress.project_party_id);
+  if (!canNotify) return { error: "Only this party's own login (or JAGS staff) can notify them." };
+
   const result = await notifySignoffRow(supabase, progress);
   if (result.error) return result;
 

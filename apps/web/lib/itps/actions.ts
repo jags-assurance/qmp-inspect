@@ -208,6 +208,129 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   return { error: null };
 }
 
+export interface EditItemState {
+  error: string | null;
+}
+
+/**
+ * Edit an existing ITP item — previously the grid only supported Add, with no way to fix a typo or
+ * change an activity's details short of the staff-only offline .xlsx re-upload (see
+ * lib/itps/offline-revision-actions.ts). Mirrors addItpItemAction's R101 edit-after-issue pattern
+ * exactly (revision reason required once issued, pre-edit content frozen into history first) —
+ * itp_items_write_u RLS already allowed this; only the app action and UI button were missing.
+ */
+export async function editItpItemAction(_prev: EditItemState, formData: FormData): Promise<EditItemState> {
+  const itemId = String(formData.get("item_id") ?? "").trim();
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const itemNumber = String(formData.get("item_number") ?? "").trim();
+  const activity = String(formData.get("activity") ?? "").trim();
+  const acceptanceCriteria = String(formData.get("acceptance_criteria") ?? "").trim();
+  const evidenceType = Number(formData.get("evidence_type") ?? 1);
+  const disciplineId = String(formData.get("discipline_id") ?? "").trim();
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  const noticeHoursOverrideRaw = String(formData.get("notice_hours_override") ?? "").trim();
+  let noticeHoursOverride: number | null = null;
+  if (noticeHoursOverrideRaw) {
+    const parsed = Number.parseInt(noticeHoursOverrideRaw, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      return { error: "Notice hours override must be a non-negative whole number, or left blank." };
+    }
+    noticeHoursOverride = parsed;
+  }
+
+  if (!itemId || !itpId || !itemNumber || !activity) {
+    return { error: "Item number and activity are required." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: itpForRevisionCheck } = await supabase
+    .from("itps")
+    .select("status")
+    .eq("id", itpId)
+    .maybeSingle<{ status: string }>();
+  const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
+
+  if (isIssued) {
+    if (!revisionReason) {
+      return { error: "This ITP has already been issued — a reason is required to edit an activity and create a new revision." };
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error: revisionError } = await bumpRevisionIfIssued(
+      supabase,
+      itpId,
+      `Edited activity ${itemNumber}: ${activity} — ${revisionReason}`,
+      user?.id ?? null
+    );
+    if (revisionError) return { error: revisionError };
+  }
+
+  const { error } = await supabase
+    .from("itp_items")
+    .update({
+      item_number: itemNumber,
+      activity,
+      acceptance_criteria: acceptanceCriteria || null,
+      evidence_type: evidenceType === 2 || evidenceType === 3 ? evidenceType : 1,
+      discipline_id: disciplineId || null,
+      notice_hours_override: noticeHoursOverride,
+    })
+    .eq("id", itemId);
+
+  if (error) {
+    return { error: "Could not update the activity. Check you have permission and try again." };
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
+/**
+ * Delete an ITP item — cascades to activity_party_intervention and activity_signoff_progress
+ * (ON DELETE CASCADE on itp_item_id, supabase/migrations/20260909230000_phase1_itp_core.sql /
+ * 20260910000000_phase1_signoff_chain.sql), so any sign-off state on this activity goes with it.
+ * Same R101 edit-after-issue gate as deleteItpSectionAction — fire-and-forget void action, same
+ * shape as that function, since there's no persistent form to surface an error message in beyond
+ * the confirm()/prompt() the caller already runs.
+ */
+export async function deleteItpItemAction(formData: FormData) {
+  const itemId = String(formData.get("item_id") ?? "").trim();
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+
+  if (!itemId || !itpId) return;
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: itpForRevisionCheck } = await supabase
+    .from("itps")
+    .select("status")
+    .eq("id", itpId)
+    .maybeSingle<{ status: string }>();
+  const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
+
+  if (isIssued) {
+    if (!revisionReason) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return;
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error: revisionError } = await bumpRevisionIfIssued(supabase, itpId, `Deleted an activity — ${revisionReason}`, user?.id ?? null);
+    if (revisionError) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return;
+    }
+  }
+
+  await supabase.from("itp_items").delete().eq("id", itemId);
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+}
+
 export async function setInterventionAction(formData: FormData) {
   const itpId = String(formData.get("itp_id") ?? "").trim();
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
