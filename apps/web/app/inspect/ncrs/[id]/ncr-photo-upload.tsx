@@ -10,7 +10,7 @@ import { compressImageFile } from "@/lib/media/compress-image";
  * once that succeeds, addNcrPhotoAction is called directly (Server Actions can be invoked like any
  * async function from a Client Component, not only via a <form>) to record where it landed.
  */
-export function NcrPhotoUpload({ ncrId }: { ncrId: string }) {
+export function NcrPhotoUpload({ ncrId, projectId }: { ncrId: string; projectId: string }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -20,7 +20,13 @@ export function NcrPhotoUpload({ ncrId }: { ncrId: string }) {
 
     const supabase = createSupabaseBrowserClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `ncrs/${ncrId}/${Date.now()}-${safeName}`;
+    // Real bug found live: this used to write to `ncrs/{ncrId}/...` — a path prefix no
+    // storage.objects RLS policy on this bucket recognizes at all (the recognized ones are the
+    // project id itself as the first segment, or one of 'standalone'/'vault'/'expected-records').
+    // Every NCR photo upload was therefore silently blocked by RLS, surfacing as this generic
+    // "Upload failed" message. Using {project_id}/ncrs/{ncrId}/... matches the existing general
+    // project-path policy (inspection_evidence_insert) instead of needing a new migration.
+    const path = `${projectId}/ncrs/${ncrId}/${Date.now()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
     if (uploadError) return "Upload failed. Check your connection and try again.";

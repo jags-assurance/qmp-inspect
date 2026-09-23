@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -44,12 +45,20 @@ export default async function PunchListPage({
   return (
     <div>
       <RealtimeRefresh table="punch_list_items" filter={`project_id=eq.${projectId}`} />
-      <div>
-        <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Punch List</h1>
-        <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · {project.name}. {openCount} open item{openCount === 1 ? "" : "s"}{" "}
-          outstanding before this project's Data Book can compile without an override.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Punch List</h1>
+          <p className="mt-1 text-sm text-muted">
+            {project.organizations?.name} · {project.name}. {openCount} open item{openCount === 1 ? "" : "s"}{" "}
+            outstanding before this project's Data Book can compile without an override.
+          </p>
+        </div>
+        <Link
+          href={`/inspect/projects/${projectId}/guide`}
+          className="shrink-0 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-off-white"
+        >
+          ? Project Guide
+        </Link>
       </div>
 
       <div className="mt-6 flex flex-wrap items-start gap-3">

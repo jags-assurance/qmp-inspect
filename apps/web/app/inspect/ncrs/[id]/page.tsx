@@ -286,7 +286,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
             <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>
           )}
         </div>
-        {!isClosed && <NcrPhotoUpload ncrId={ncr.id} />}
+        {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} />}
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">

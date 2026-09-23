@@ -221,6 +221,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <h2 className="font-medium text-ink">Project sections</h2>
         <p className="mt-1 text-sm text-muted">Everything scoped to this project.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <HubCard href={`/inspect/projects/${projectId}/guide`} title="Project Guide" description="Who's on this project, your role, and where things actually stand." />
           <HubCard href={`/inspect/itps?project=${projectId}`} title="ITPs" description="Inspection & Test Plans for this project." />
           <HubCard href={`/inspect/ncrs?project=${projectId}`} title="NCRs" description="Minor and major non-conformances." />
           <HubCard href={`/inspect/observations?project=${projectId}`} title="Observations" description="Lighter findings, gradeable up to an NCR." />

@@ -416,9 +416,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           several itp_item_ids with no single column to filter on cheaply). */}
       <RealtimeRefresh table="activity_signoff_progress" />
       <RealtimeRefresh table="itps" filter={`id=eq.${id}`} />
-      <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-        ← Back to ITP Register
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
+          ← Back to ITP Register
+        </Link>
+        <Link
+          href={`/inspect/projects/${itp.projects?.id}/guide`}
+          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-off-white"
+        >
+          ? Project Guide
+        </Link>
+      </div>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">

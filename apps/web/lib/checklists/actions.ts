@@ -654,15 +654,38 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       const itp = context?.itp_sections?.itps;
       const organizationId = itp?.projects?.organization_id;
 
-      if (itp?.prepared_by && organizationId) {
-        await createNotification(supabase, {
-          organizationId,
-          projectId: recordForHoldCheck.project_id,
-          recipientUserId: itp.prepared_by,
-          title: "Inspection failed",
-          body: `${recordForHoldCheck.activity} (${recordForHoldCheck.record_number})`,
-          link: `/inspect/inspections/${inspectionRecordId}`,
-        });
+      if (organizationId) {
+        // Real gap found live: this used to only notify the ITP's preparer — the actual party
+        // responsible for redoing the failed work (whoever holds an intervention level on this
+        // exact item, e.g. the executing contractor) never heard about it unless they happened to
+        // check the register themselves. Notifying every party with a stake in this item (deduped
+        // against the preparer so they don't get it twice) closes that gap without new schema —
+        // activity_party_intervention already links each item to its parties, and project_parties
+        // already links a party to its logged-in user, where one exists.
+        const recipientIds = new Set<string>();
+        if (itp?.prepared_by) recipientIds.add(itp.prepared_by);
+
+        const { data: stakeholderParties } = await supabase
+          .from("activity_party_intervention")
+          .select("project_parties(user_id)")
+          .eq("itp_item_id", recordForHoldCheck.itp_item_id)
+          .returns<{ project_parties: { user_id: string | null } | null }[]>();
+        for (const row of stakeholderParties ?? []) {
+          if (row.project_parties?.user_id) recipientIds.add(row.project_parties.user_id);
+        }
+
+        await Promise.all(
+          [...recipientIds].map((recipientUserId) =>
+            createNotification(supabase, {
+              organizationId,
+              projectId: recordForHoldCheck.project_id,
+              recipientUserId,
+              title: "Inspection failed",
+              body: `${recordForHoldCheck.activity} (${recordForHoldCheck.record_number})`,
+              link: `/inspect/inspections/${inspectionRecordId}`,
+            })
+          )
+        );
       }
     } catch {
       // Notification delivery is best-effort — see doc comment above.

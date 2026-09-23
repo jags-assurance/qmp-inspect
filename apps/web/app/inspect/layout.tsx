@@ -109,6 +109,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       ? [{ label: "← JAGS Assurance", href: "/platform" }]
       : []),
     { label: "Dashboard", href: "/inspect" },
+    { label: "Guide", href: "/inspect/guide" },
     ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
     { label: "Projects", href: "/inspect/projects" },
     ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps" }] : []),
