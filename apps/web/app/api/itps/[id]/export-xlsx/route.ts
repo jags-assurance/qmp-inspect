@@ -86,8 +86,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // (see lib/itps/xlsx-uncontrolled-copy.ts's doc comment); insert a banner row above the existing
   // title/instructions rows rather than overwriting them, so the re-upload parser (which locates
   // the header row by its text, not a fixed row number) keeps working unchanged.
+  //
+  // Real bug found live: this always threw "Cannot merge already merged cells" for every ITP, not
+  // just this one — buildItpWorkbook merges A1:G1 (title) and A2:G2 (instructions), and ExcelJS's
+  // spliceRows shifts cell VALUES down but does not shift merge definitions with them. So after
+  // splicing, the sheet still has stale merges registered at A1:G1/A2:G2 even though that content is
+  // now visually on rows 2-3 — the banner's own mergeCells("A1:...") then collides with the still-
+  // registered (now-stale) A1:G1 merge. Un-merging the known ranges first, splicing, then
+  // re-merging them at their new (shifted) positions keeps everything consistent.
   const sheet = workbook.worksheets[0];
+  const lastCol = String.fromCharCode("A".charCodeAt(0) + Math.max(OFFLINE_WORKBOOK_HEADERS.length, 1) - 1);
+  sheet.unMergeCells(`A1:${lastCol}1`);
+  sheet.unMergeCells(`A2:${lastCol}2`);
   sheet.spliceRows(1, 0, []);
+  sheet.mergeCells(`A2:${lastCol}2`);
+  sheet.mergeCells(`A3:${lastCol}3`);
   stampUncontrolledCopyBanner(sheet, OFFLINE_WORKBOOK_HEADERS.length);
 
   const buffer = await workbook.xlsx.writeBuffer();
