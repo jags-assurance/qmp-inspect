@@ -310,6 +310,16 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
+      {draft && !canExecute && (
+        <p className="mt-6 rounded-md border border-info/40 bg-info/10 p-4 text-sm text-info">
+          {isSignoffOnlyParty
+            ? "This inspection is in progress. You hold an independent sign-off point on this activity, not the field-entry role — the responses below are read-only for you; you'll be notified to sign off once it's complete."
+            : ownPartyLink
+              ? "This inspection is in progress. Your organisation doesn't hold a role on this specific activity, so the responses below are read-only — a JAGS inspector or the assigned party is running it."
+              : "This inspection is in progress, run by a JAGS inspector or the party assigned to this activity — the responses below are read-only for your login."}
+        </p>
+      )}
+
       {draft && (
         <div className="mt-6 space-y-6">
           <ChecklistExecutionPanel
