@@ -7,6 +7,9 @@ import {
   computeQualityByParty,
   computeFirstTimePassRateByDiscipline,
   computeMonthlyTrends,
+  computeOverdueItems,
+  computePunchListBySource,
+  computeOpenHolds,
   type MonthlyTrendPoint,
 } from "@/lib/kpis/compute";
 import { NCRS_TABLE, NCR_SEVERITIES, type NcrSeverity } from "@/lib/ncrs/types";
@@ -191,7 +194,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
 
   if (!project) notFound();
 
-  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itpsResult, ncrSeverityResult] = await Promise.all([
+  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itpsResult, ncrSeverityResult, overdueItems, punchBySource, openHolds] = await Promise.all([
     computeProjectKpis(supabase, projectId),
     computeQualityByParty(supabase, projectId),
     computeFirstTimePassRateByDiscipline(supabase, projectId),
@@ -202,6 +205,9 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       .eq("project_id", projectId)
       .returns<{ id: string; itp_number: string; title: string; status: string }[]>(),
     supabase.from(NCRS_TABLE).select("severity").eq("project_id", projectId).returns<{ severity: NcrSeverity }[]>(),
+    computeOverdueItems(supabase, projectId),
+    computePunchListBySource(supabase, projectId),
+    computeOpenHolds(supabase, projectId),
   ]);
 
   // Real per-ITP inspection-completion chart data — same "evidence-type-1 item has a recorded
@@ -309,6 +315,79 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
           value={formatPercent(kpis.itpCompletionRate)}
         />
       </div>
+
+      {overdueItems.length > 0 && (
+        <div className="mt-8 rounded-lg border border-danger/40 bg-danger/5 p-4">
+          <h2 className="font-medium text-danger">Overdue — past due date</h2>
+          <p className="mt-1 text-sm text-muted">
+            {overdueItems.length} open item{overdueItems.length === 1 ? "" : "s"} (NCRs and punch list) past their due date.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {overdueItems.map((item) => (
+              <li key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-danger/30 bg-surface px-3 py-2 text-sm">
+                <span>
+                  <span className="mr-2 rounded bg-danger/10 px-1.5 py-0.5 text-xs font-medium uppercase text-danger">
+                    {item.kind === "ncr" ? "NCR" : "Punch"}
+                  </span>
+                  <span className="doc-id text-ink">{item.reference}</span>
+                  <span className="ml-2 text-muted">{item.description}</span>
+                </span>
+                <span className="tabular-nums text-xs font-semibold text-danger">
+                  {item.daysOverdue} day{item.daysOverdue === 1 ? "" : "s"} overdue
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {openHolds.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <h2 className="font-medium text-ink">Open Holds — how long work has actually been stopped</h2>
+          <p className="mt-1 text-sm text-muted">
+            Every currently open blocking sign-off, ranked longest-waiting first — distinct from the average
+            hold-point turnaround above, which only reflects Holds that have already closed.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {openHolds.map((hold) => (
+              <li key={`${hold.itpItemId}-${hold.partyName}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-2 text-sm last:border-0">
+                <span>
+                  <span className="doc-id text-muted">{hold.itpNumber}</span>
+                  <span className="ml-2 text-ink">{hold.activity}</span>
+                  <span className="ml-2 text-xs text-muted">— waiting on {hold.partyName}</span>
+                </span>
+                <span className="tabular-nums text-xs font-semibold text-ink">
+                  {hold.hoursOpen === null ? "—" : formatHours(hold.hoursOpen)} open
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {punchBySource.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <h2 className="font-medium text-ink">Punch list by source</h2>
+          <p className="mt-1 text-sm text-muted">Where every punch list item actually came from — open vs. closed, by origin.</p>
+          <ol className="mt-4 space-y-3">
+            {punchBySource.map((row) => {
+              const total = row.openCount + row.closedCount;
+              const openPct = total > 0 ? (row.openCount / total) * 100 : 0;
+              return (
+                <li key={row.source} className="flex items-center gap-3">
+                  <span className="w-40 shrink-0 truncate text-sm text-ink">{row.label}</span>
+                  <div className="h-2 flex-1 rounded-full bg-border">
+                    <div className="h-2 rounded-full bg-danger" style={{ width: `${openPct}%` }} />
+                  </div>
+                  <span className="w-28 shrink-0 text-right text-xs text-muted tabular-nums">
+                    {row.openCount} open / {row.closedCount} closed
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
 
       {qualityByParty.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">

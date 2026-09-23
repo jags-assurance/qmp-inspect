@@ -556,3 +556,163 @@ export async function computeProjectKpis(
     openItems,
   };
 }
+
+export interface OverdueItem {
+  kind: "ncr" | "punch";
+  id: string;
+  reference: string;
+  description: string;
+  dueDate: string;
+  daysOverdue: number;
+}
+
+/**
+ * Real SLA/overdue tracking — an open NCR or punch item whose due_date has already passed. Both
+ * tables already carry a due_date column (ncrs: required at raise time; punch_list_items:
+ * optional), so this is a plain "still open AND due_date < today" filter, nothing computed or
+ * estimated. Sorted worst-first (most days overdue) since that's what a project manager actually
+ * wants to see first — the industry-standard "SLA breach" view most QA dashboards surface
+ * separately from a plain open-items list.
+ */
+export async function computeOverdueItems(supabase: SupabaseClient, projectId: string): Promise<OverdueItem[]> {
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const [ncrsResult, punchResult] = await Promise.all([
+    supabase
+      .from(NCRS_TABLE)
+      .select("id, ncr_number, description, due_date, status")
+      .eq("project_id", projectId)
+      .neq("status", "closed")
+      .not("due_date", "is", null)
+      .lt("due_date", todayIso)
+      .returns<{ id: string; ncr_number: string; description: string; due_date: string; status: string }[]>(),
+    supabase
+      .from("punch_list_items")
+      .select("id, description, due_date, status")
+      .eq("project_id", projectId)
+      .eq("status", "open")
+      .not("due_date", "is", null)
+      .lt("due_date", todayIso)
+      .returns<{ id: string; description: string; due_date: string; status: string }[]>(),
+  ]);
+
+  const now = Date.now();
+  const daysSince = (dateStr: string) => Math.floor((now - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+
+  const overdueNcrs: OverdueItem[] = (ncrsResult.data ?? []).map((n) => ({
+    kind: "ncr" as const,
+    id: n.id,
+    reference: n.ncr_number,
+    description: n.description,
+    dueDate: n.due_date,
+    daysOverdue: daysSince(n.due_date),
+  }));
+  const overduePunch: OverdueItem[] = (punchResult.data ?? []).map((p) => ({
+    kind: "punch" as const,
+    id: p.id,
+    reference: p.id.slice(0, 8),
+    description: p.description,
+    dueDate: p.due_date,
+    daysOverdue: daysSince(p.due_date),
+  }));
+
+  return [...overdueNcrs, ...overduePunch].sort((a, b) => b.daysOverdue - a.daysOverdue);
+}
+
+export const PUNCH_LIST_SOURCE_LABEL: Record<string, string> = {
+  inspection_failure: "Failed inspection",
+  fat_conditional_pass: "FAT conditional pass",
+  ncr: "NCR",
+  walkdown: "Walkdown",
+  manual: "Manual",
+};
+
+/**
+ * Real Pareto-style breakdown of where every punch list item actually came from — the standard
+ * "what's really driving our defects" cut a QA dashboard needs, computed from the plain `source`
+ * column already stamped on every row at creation (lib/punch-list/actions.ts), never inferred.
+ */
+export async function computePunchListBySource(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<{ source: string; label: string; openCount: number; closedCount: number }[]> {
+  const { data } = await supabase
+    .from("punch_list_items")
+    .select("source, status")
+    .eq("project_id", projectId)
+    .returns<{ source: string; status: string }[]>();
+
+  const bySource = new Map<string, { openCount: number; closedCount: number }>();
+  for (const row of data ?? []) {
+    const entry = bySource.get(row.source) ?? { openCount: 0, closedCount: 0 };
+    if (row.status === "open") entry.openCount += 1;
+    else entry.closedCount += 1;
+    bySource.set(row.source, entry);
+  }
+
+  return [...bySource.entries()]
+    .map(([source, counts]) => ({ source, label: PUNCH_LIST_SOURCE_LABEL[source] ?? source, ...counts }))
+    .sort((a, b) => b.openCount + b.closedCount - (a.openCount + a.closedCount));
+}
+
+export interface OpenHoldItem {
+  itpItemId: string;
+  activity: string;
+  itpNumber: string;
+  partyName: string;
+  status: SignoffStatus;
+  notifiedAt: string | null;
+  hoursOpen: number | null;
+}
+
+/**
+ * Every currently-open Hold-level sign-off (blocking, per the org's own intervention_level_types —
+ * never hardcoded to the literal code 'H', same rule the rest of the sign-off system already
+ * follows), with how long it's been sitting since it was notified. This is the real "what's
+ * physically stopping work right now, and for how long" view — distinct from the aggregate
+ * hold-point-turnaround average already on this dashboard, which only reflects CLOSED holds.
+ */
+export async function computeOpenHolds(supabase: SupabaseClient, projectId: string): Promise<OpenHoldItem[]> {
+  const { data: itemRows } = await supabase
+    .from("itp_items")
+    .select("id, activity, itp_sections(itps(itp_number, project_id))")
+    .returns<
+      { id: string; activity: string; itp_sections: { itps: { itp_number: string; project_id: string } | null } | null }[]
+    >();
+
+  const itemsForProject = (itemRows ?? []).filter((row) => row.itp_sections?.itps?.project_id === projectId);
+  const itemIds = itemsForProject.map((row) => row.id);
+  if (itemIds.length === 0) return [];
+
+  const [{ data: signoffs }, { data: levelTypes }, { data: parties }] = await Promise.all([
+    supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .select("itp_item_id, project_party_id, intervention, status, notified_at")
+      .in("itp_item_id", itemIds)
+      .in("status", ["pending", "notified"])
+      .returns<{ itp_item_id: string; project_party_id: string; intervention: string; status: SignoffStatus; notified_at: string | null }[]>(),
+    supabase.from(INTERVENTION_LEVEL_TYPES_TABLE).select("code, is_blocking").returns<{ code: string; is_blocking: boolean }[]>(),
+    supabase.from("project_parties").select("id, name").eq("project_id", projectId).returns<{ id: string; name: string }[]>(),
+  ]);
+
+  const blockingCodes = new Set((levelTypes ?? []).filter((l) => l.is_blocking).map((l) => l.code));
+  const itemById = new Map(itemsForProject.map((row) => [row.id, row]));
+  const partyNameById = new Map((parties ?? []).map((p) => [p.id, p.name]));
+  const now = Date.now();
+
+  return (signoffs ?? [])
+    .filter((row) => blockingCodes.has(row.intervention))
+    .map((row) => {
+      const item = itemById.get(row.itp_item_id);
+      return {
+        itpItemId: row.itp_item_id,
+        activity: item?.activity ?? "Unknown activity",
+        itpNumber: item?.itp_sections?.itps?.itp_number ?? "—",
+        partyName: partyNameById.get(row.project_party_id) ?? "Unknown party",
+        status: row.status,
+        notifiedAt: row.notified_at,
+        hoursOpen: row.notified_at ? (now - new Date(row.notified_at).getTime()) / (1000 * 60 * 60) : null,
+      };
+    })
+    .sort((a, b) => (b.hoursOpen ?? 0) - (a.hoursOpen ?? 0));
+}
