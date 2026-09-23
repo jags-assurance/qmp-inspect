@@ -45,6 +45,13 @@ export interface LogAiUsageParams {
    *  This is what makes it possible to answer "what did the AI actually suggest" after a human has
    *  since edited it into something else. */
   aiResponse: unknown;
+  /** sha256 of this call's normalized grounding input — see lib/ai/cache.ts. Null for a feature that
+   *  hasn't been wired into caching yet; never required. */
+  inputHash?: string | null;
+  /** Whether aiResponse above was reused from a prior identical call rather than freshly generated
+   *  this time — see lib/ai/cache.ts's findCachedAiResponse. Defaults false (an ordinary fresh
+   *  call). */
+  servedFromCache?: boolean;
 }
 
 /**
@@ -65,6 +72,8 @@ export async function logAiUsage(supabase: SupabaseClient, params: LogAiUsagePar
       prompt_version: params.promptVersion ?? null,
       source_ref: params.sourceRef ?? null,
       ai_response: params.aiResponse ?? null,
+      input_hash: params.inputHash ?? null,
+      served_from_cache: params.servedFromCache ?? false,
     })
     .select("id")
     .single<{ id: string }>();

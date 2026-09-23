@@ -14,6 +14,7 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
@@ -451,8 +452,15 @@ export async function draftNcrDescriptionAction(
     return { ...EMPTY_DRAFT_NCR_STATE, error: gate.reason };
   }
 
+  const inputHash = hashAiCacheInput(notes);
   try {
-    const result = await geminiProvider.draftNcrDescription({ notes });
+    const cached = await findCachedAiResponse<{ description: string; requirementNotMet: string }>(supabase, {
+      organizationId: project.organization_id,
+      feature: "ncr_description_draft",
+      promptVersion: PROMPT_VERSIONS.ncr_description_draft,
+      inputHash,
+    });
+    const result = cached ?? (await geminiProvider.draftNcrDescription({ notes }));
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -461,6 +469,8 @@ export async function draftNcrDescriptionAction(
       promptVersion: PROMPT_VERSIONS.ncr_description_draft,
       sourceRef: { notes },
       aiResponse: result,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return {
       error: null,
@@ -522,12 +532,25 @@ export async function suggestNcrRootCauseAction(
   const gate = await assertAiAllowed(supabase, project.organization_id);
   if (!gate.allowed) return { ...EMPTY_ROOT_CAUSE_STATE, error: gate.reason };
 
+  const inputHash = hashAiCacheInput({
+    description: ncr.description,
+    requirementNotMet: ncr.requirement_not_met,
+    severity: ncr.severity,
+  });
   try {
-    const rootCause = await geminiProvider.suggestRootCause({
-      description: ncr.description,
-      requirementNotMet: ncr.requirement_not_met,
-      severity: ncr.severity,
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId: project.organization_id,
+      feature: "ncr_root_cause_suggestion",
+      promptVersion: PROMPT_VERSIONS.ncr_root_cause_suggestion,
+      inputHash,
     });
+    const rootCause =
+      cached ??
+      (await geminiProvider.suggestRootCause({
+        description: ncr.description,
+        requirementNotMet: ncr.requirement_not_met,
+        severity: ncr.severity,
+      }));
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -536,6 +559,8 @@ export async function suggestNcrRootCauseAction(
       promptVersion: PROMPT_VERSIONS.ncr_root_cause_suggestion,
       sourceRef: { ncrId, severity: ncr.severity },
       aiResponse: rootCause,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, rootCause, aiLogId: logId };
   } catch (err) {

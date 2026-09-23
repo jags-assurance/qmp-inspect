@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import {
   STANDALONE_ASSIGNMENTS,
@@ -924,13 +925,21 @@ export async function draftInspectionNarrativeAction(
   ];
 
   try {
-    const narrative = await geminiProvider.draftReportNarrative({
-      reportType: "inspection",
+    const cacheInput = {
+      reportType: "inspection" as const,
       subject: record.activity,
       projectName: record.project_name,
       outcome: record.overall_result,
       facts,
+    };
+    const inputHash = hashAiCacheInput(cacheInput);
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId: project.organization_id,
+      feature: "report_narrative_draft",
+      promptVersion: PROMPT_VERSIONS.report_narrative_draft,
+      inputHash,
     });
+    const narrative = cached ?? (await geminiProvider.draftReportNarrative(cacheInput));
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -939,6 +948,8 @@ export async function draftInspectionNarrativeAction(
       promptVersion: PROMPT_VERSIONS.report_narrative_draft,
       sourceRef: { reportType: "inspection", inspectionRecordId, facts },
       aiResponse: narrative,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, narrative, aiLogId: logId };
   } catch (err) {
@@ -1051,13 +1062,21 @@ export async function draftFatNarrativeAction(
   ];
 
   try {
-    const narrative = await geminiProvider.draftReportNarrative({
-      reportType: "fat",
+    const cacheInput = {
+      reportType: "fat" as const,
       subject: assignment.equipment_description,
       projectName: assignment.projects?.name ?? "",
       outcome: assignment.conclusion,
       facts,
+    };
+    const inputHash = hashAiCacheInput(cacheInput);
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId: project.organization_id,
+      feature: "report_narrative_draft",
+      promptVersion: PROMPT_VERSIONS.report_narrative_draft,
+      inputHash,
     });
+    const narrative = cached ?? (await geminiProvider.draftReportNarrative(cacheInput));
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -1066,6 +1085,8 @@ export async function draftFatNarrativeAction(
       promptVersion: PROMPT_VERSIONS.report_narrative_draft,
       sourceRef: { reportType: "fat", assignmentId, facts },
       aiResponse: narrative,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, narrative, aiLogId: logId };
   } catch (err) {
@@ -1293,8 +1314,10 @@ export async function generateReportPackSummaryAction(
 
   try {
     const agg = await aggregateReportSummaryData(supabase, organizationId, start.toISOString(), end.toISOString());
-    const summary = await geminiProvider.summarizeReportPack({
-      organizationName: agg.organizationName,
+    // Re-clicking "generate AI summary" for the same period before the underlying numbers have
+    // changed (a real pattern — nothing here auto-runs it, and the admin may just be re-reading it
+    // alongside the queued PDF) reuses the prior summary instead of a fresh call.
+    const cacheInput = {
       periodLabel,
       firstTimePassRate: agg.firstTimePassRate,
       inspectionsCompleted: agg.inspectionsCompleted,
@@ -1302,7 +1325,20 @@ export async function generateReportPackSummaryAction(
       ncrsClosed: agg.ncrsClosed,
       itpCompletionRate: agg.itpCompletionRate,
       projectCount: agg.projectCount,
+    };
+    const inputHash = hashAiCacheInput(cacheInput);
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId,
+      feature: "report_pack_summary",
+      promptVersion: PROMPT_VERSIONS.report_pack_summary,
+      inputHash,
     });
+    const summary =
+      cached ??
+      (await geminiProvider.summarizeReportPack({
+        organizationName: agg.organizationName,
+        ...cacheInput,
+      }));
     await logAiUsage(supabase, {
       organizationId,
       userId: user?.id ?? null,
@@ -1311,6 +1347,8 @@ export async function generateReportPackSummaryAction(
       promptVersion: PROMPT_VERSIONS.report_pack_summary,
       sourceRef: { organizationId, year, month },
       aiResponse: summary,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, summary };
   } catch (err) {
@@ -1361,7 +1399,14 @@ export async function cleanUpNarrativeAction(
   if (!gate.allowed) return { ...EMPTY_CLEANUP_STATE, error: gate.reason };
 
   try {
-    const cleaned = await geminiProvider.cleanUpText({ text });
+    const inputHash = hashAiCacheInput(text);
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId: project.organization_id,
+      feature: "text_cleanup",
+      promptVersion: PROMPT_VERSIONS.text_cleanup,
+      inputHash,
+    });
+    const cleaned = cached ?? (await geminiProvider.cleanUpText({ text }));
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -1370,6 +1415,8 @@ export async function cleanUpNarrativeAction(
       promptVersion: PROMPT_VERSIONS.text_cleanup,
       sourceRef: { projectId },
       aiResponse: cleaned,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, cleaned, aiLogId: logId };
   } catch (err) {

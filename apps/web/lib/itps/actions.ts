@@ -12,6 +12,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
@@ -786,7 +787,17 @@ export async function translateItpContentAction(
   }
 
   try {
-    const translated = await geminiProvider.translateText({ text: sourceText, targetLanguage });
+    // The strongest repeat-input candidate in the app: re-picking the same target language for an
+    // ITP's title/scope (which rarely change) is the normal way this feature gets used more than
+    // once on the same ITP.
+    const inputHash = hashAiCacheInput({ text: sourceText, targetLanguage });
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId: itp.projects.organization_id,
+      feature: "content_translation",
+      promptVersion: PROMPT_VERSIONS.content_translation,
+      inputHash,
+    });
+    const translated = cached ?? (await geminiProvider.translateText({ text: sourceText, targetLanguage }));
     await logAiUsage(supabase, {
       organizationId: itp.projects.organization_id,
       userId: user?.id ?? null,
@@ -795,6 +806,8 @@ export async function translateItpContentAction(
       promptVersion: PROMPT_VERSIONS.content_translation,
       sourceRef: { itpId, targetLanguage },
       aiResponse: translated,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, translated, targetLanguage };
   } catch (err) {

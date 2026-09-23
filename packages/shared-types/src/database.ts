@@ -252,12 +252,14 @@ export type Database = {
           decision: string | null
           feature: string
           id: string
+          input_hash: string | null
           model_id: string | null
           organization_id: string
           prompt_version: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           reviewed_response: Json | null
+          served_from_cache: boolean
           source_ref: Json | null
           target_id: string | null
           target_type: string | null
@@ -269,12 +271,14 @@ export type Database = {
           decision?: string | null
           feature: string
           id?: string
+          input_hash?: string | null
           model_id?: string | null
           organization_id: string
           prompt_version?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           reviewed_response?: Json | null
+          served_from_cache?: boolean
           source_ref?: Json | null
           target_id?: string | null
           target_type?: string | null
@@ -286,12 +290,14 @@ export type Database = {
           decision?: string | null
           feature?: string
           id?: string
+          input_hash?: string | null
           model_id?: string | null
           organization_id?: string
           prompt_version?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           reviewed_response?: Json | null
+          served_from_cache?: boolean
           source_ref?: Json | null
           target_id?: string | null
           target_type?: string | null

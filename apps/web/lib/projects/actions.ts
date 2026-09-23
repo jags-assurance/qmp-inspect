@@ -9,6 +9,7 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 
@@ -802,7 +803,19 @@ export async function askProjectQuestionAction(
   ].join("\n");
 
   try {
-    const answer = await geminiProvider.askProjectQuestion({ question, projectContext });
+    // Hashing question + the assembled context together (not the question alone) means a cache hit
+    // only ever happens when the underlying project data hasn't changed since the last time this
+    // exact question was asked — new ITPs/NCRs/inspection activity naturally produce a different
+    // context and so a fresh call, which is exactly the safety property this feature needs (a
+    // stale cached answer here would be actively wrong, not just less fresh).
+    const inputHash = hashAiCacheInput({ question, projectContext });
+    const cached = await findCachedAiResponse<string>(supabase, {
+      organizationId: project.organization_id,
+      feature: "project_qa",
+      promptVersion: PROMPT_VERSIONS.project_qa,
+      inputHash,
+    });
+    const answer = cached ?? (await geminiProvider.askProjectQuestion({ question, projectContext }));
     await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -811,6 +824,8 @@ export async function askProjectQuestionAction(
       promptVersion: PROMPT_VERSIONS.project_qa,
       sourceRef: { projectId, question },
       aiResponse: answer,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, answer, question };
   } catch (err) {

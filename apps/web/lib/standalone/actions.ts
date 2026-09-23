@@ -11,6 +11,7 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import type { StandaloneMeasurementSuggestion } from "@/lib/ai/provider";
 import {
@@ -294,13 +295,25 @@ export async function suggestStandaloneMeasurementsAction(
   if (!gate.allowed) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: gate.reason };
 
   try {
-    const suggestions = await geminiProvider.suggestStandaloneMeasurements({
+    // Grounded only in the equipment's own static fields (type/description/manufacturer/model/
+    // standard) — the same piece of equipment on a different assignment hashes identically, so this
+    // is a strong repeat-input candidate (a manufacturer/model combo showing up on more than one
+    // FAT).
+    const cacheInput = {
       assignmentType: assignment.assignment_type,
       equipmentDescription: assignment.equipment_description,
       manufacturer: assignment.manufacturer,
       model: assignment.model,
       standardReference: assignment.standard_reference,
+    };
+    const inputHash = hashAiCacheInput(cacheInput);
+    const cached = await findCachedAiResponse<StandaloneMeasurementSuggestion[]>(supabase, {
+      organizationId: project.organization_id,
+      feature: "standalone_measurement_suggestion",
+      promptVersion: PROMPT_VERSIONS.standalone_measurement_suggestion,
+      inputHash,
     });
+    const suggestions = cached ?? (await geminiProvider.suggestStandaloneMeasurements(cacheInput));
     await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -309,6 +322,8 @@ export async function suggestStandaloneMeasurementsAction(
       promptVersion: PROMPT_VERSIONS.standalone_measurement_suggestion,
       sourceRef: { assignmentId, assignmentType: assignment.assignment_type },
       aiResponse: suggestions,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, suggestions };
   } catch (err) {

@@ -24,7 +24,9 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
 
@@ -134,41 +136,52 @@ export async function generateChecklistsForItp(
   // "acceptance criteria as one item" placeholder rather than failing checklist generation
   // outright, so this action never regresses below what it did before AI was wired in.
   const gate = await assertAiAllowed(supabase, organizationId);
+  // One ai_usage_log row PER ITEM (not one combined row for the whole batch, as this used to log)
+  // — this is what lets caching work at the granularity that actually repeats: the same activity
+  // text (a common master-template activity reused across many projects/ITPs) hashes identically
+  // regardless of which ITP/batch it's generated for, so a later project's checklist generation can
+  // reuse an earlier project's draft for that same activity without a fresh model call. See
+  // lib/ai/cache.ts.
   let aiUsed = false;
   const itemsByPendingId = new Map(
     await Promise.all(
       pending.map(async (item) => {
-        if (!gate.allowed) return [item.id, null] as const;
+        if (!gate.allowed) return [item.id, { drafted: null as ChecklistItemDraft[] | null, logId: null as string | null }] as const;
+        const cacheInput = {
+          activity: item.activity,
+          referenceSpec: item.reference_spec ?? "",
+          acceptanceCriteria: item.acceptance_criteria ?? "",
+          method: item.method ?? "",
+          frequency: item.frequency ?? "",
+        };
+        const inputHash = hashAiCacheInput(cacheInput);
         try {
-          const drafted = await geminiProvider.generateChecklistItems({
-            activity: item.activity,
-            referenceSpec: item.reference_spec ?? "",
-            acceptanceCriteria: item.acceptance_criteria ?? "",
-            method: item.method ?? "",
-            frequency: item.frequency ?? "",
-            sourceExcerpt: "",
+          const cached = await findCachedAiResponse<ChecklistItemDraft[]>(supabase, {
+            organizationId,
+            feature: "checklist_generation",
+            promptVersion: PROMPT_VERSIONS.checklist_generation,
+            inputHash,
           });
+          const drafted = cached ?? (await geminiProvider.generateChecklistItems({ ...cacheInput, sourceExcerpt: "" }));
           aiUsed = true;
-          return [item.id, drafted] as const;
+          const logId = await logAiUsage(supabase, {
+            organizationId,
+            userId,
+            feature: "checklist_generation",
+            modelId: getGeminiModel("checklist_generation"),
+            promptVersion: PROMPT_VERSIONS.checklist_generation,
+            sourceRef: { itpId, itpItemId: item.id },
+            aiResponse: drafted,
+            inputHash,
+            servedFromCache: !!cached,
+          });
+          return [item.id, { drafted, logId }] as const;
         } catch {
-          return [item.id, null] as const;
+          return [item.id, { drafted: null, logId: null }] as const;
         }
       })
     )
   );
-
-  let aiLogId: string | null = null;
-  if (aiUsed && organizationId) {
-    aiLogId = await logAiUsage(supabase, {
-      organizationId,
-      userId,
-      feature: "checklist_generation",
-      modelId: getGeminiModel("checklist_generation"),
-      promptVersion: PROMPT_VERSIONS.checklist_generation,
-      sourceRef: { itpId, itemIds: pending.map((i) => i.id) },
-      aiResponse: Object.fromEntries(itemsByPendingId),
-    });
-  }
 
   // Atomic per-ITP counter (race-free even if this action fires twice concurrently, e.g. a
   // double-click, or a later run adding checklists for newly-added items) rather than
@@ -188,7 +201,7 @@ export async function generateChecklistsForItp(
       projectId,
       seqKey: `checklist:${itpId}`,
     });
-    const drafted = itemsByPendingId.get(item.id);
+    const drafted = itemsByPendingId.get(item.id)?.drafted;
     const items =
       drafted && drafted.length > 0
         ? drafted.map((di, i) => ({ item_number: String(i + 1), description: di.text, is_mandatory: di.mandatory, sort_order: i }))
@@ -212,15 +225,26 @@ export async function generateChecklistsForItp(
     return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
   }
 
-  if (aiLogId && userId) {
-    await recordAiReviewDecision(supabase, {
-      logId: aiLogId,
-      reviewedBy: userId,
-      targetType: "checklist_batch",
-      targetId: itpId,
-      reviewedResponse: { insertedTemplateIds: inserted.map((t) => t.id) },
-      decision: "accepted_as_is", // generated and persisted in one atomic step, no separate human-edit screen exists for this feature today
-    });
+  if (aiUsed && userId) {
+    // One review-decision closure per item's own ai_usage_log row (see the generation loop above),
+    // matched back to the template row insert_checklists_atomic actually created for that item —
+    // finer-grained than the old single "checklist_batch" closure, and correct now that each item
+    // has its own row rather than a shared one.
+    const templateIdByItpItemId = new Map(inserted.map((t) => [t.itp_item_id, t.id]));
+    await Promise.all(
+      Array.from(itemsByPendingId.entries()).map(async ([itpItemId, { logId }]) => {
+        const templateId = templateIdByItpItemId.get(itpItemId);
+        if (!logId || !templateId) return;
+        await recordAiReviewDecision(supabase, {
+          logId,
+          reviewedBy: userId,
+          targetType: "checklist_template",
+          targetId: templateId,
+          reviewedResponse: { checklistTemplateId: templateId },
+          decision: "accepted_as_is", // generated and persisted in one atomic step, no separate human-edit screen exists for this feature today
+        });
+      })
+    );
   }
 
   return { error: null, created: inserted.length };
@@ -780,10 +804,21 @@ export async function checkChecklistConsistencyAction(
   }
 
   try {
-    const flags = await geminiProvider.checkConsistency({
-      acceptanceCriteria: itpItem?.acceptance_criteria ?? "",
-      responses: responseInputs,
+    // Re-clicking "check consistency" with no answers changed since the last check (a real,
+    // observed pattern — nothing here auto-runs it) hits this cache instead of a fresh call.
+    const inputHash = hashAiCacheInput({ acceptanceCriteria: itpItem?.acceptance_criteria ?? "", responses: responseInputs });
+    const cached = await findCachedAiResponse<string[]>(supabase, {
+      organizationId: project.organization_id,
+      feature: "checklist_consistency_check",
+      promptVersion: PROMPT_VERSIONS.checklist_consistency_check,
+      inputHash,
     });
+    const flags =
+      cached ??
+      (await geminiProvider.checkConsistency({
+        acceptanceCriteria: itpItem?.acceptance_criteria ?? "",
+        responses: responseInputs,
+      }));
     await logAiUsage(supabase, {
       organizationId: project.organization_id,
       userId: user?.id ?? null,
@@ -792,6 +827,8 @@ export async function checkChecklistConsistencyAction(
       promptVersion: PROMPT_VERSIONS.checklist_consistency_check,
       sourceRef: { templateId, inspectionRecordId },
       aiResponse: flags,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, flags };
   } catch (err) {

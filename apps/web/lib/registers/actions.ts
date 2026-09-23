@@ -15,6 +15,7 @@ import {
 } from "@/lib/registers/types";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import type { ExtractedCalibrationRow, ExtractedMaterialRow, ExtractedWelderRow } from "@/lib/ai/provider";
 
@@ -311,7 +312,17 @@ export async function extractCalibrationRowsAction(
   if (!gate.allowed) return { ...EMPTY_EXTRACT_CALIBRATION_STATE, error: gate.reason };
 
   try {
-    const rows = await geminiProvider.extractCalibrationRows({ sourceText });
+    // The same certificate text pasted twice (a re-submit, or the same cert used on more than one
+    // register) reuses the prior extraction instead of paying for it again — the source text alone
+    // determines the output, not which project it's being extracted into.
+    const inputHash = hashAiCacheInput(sourceText);
+    const cached = await findCachedAiResponse<ExtractedCalibrationRow[]>(supabase, {
+      organizationId: project.organization_id,
+      feature: "calibration_register_extraction",
+      promptVersion: PROMPT_VERSIONS.calibration_register_extraction,
+      inputHash,
+    });
+    const rows = cached ?? (await geminiProvider.extractCalibrationRows({ sourceText }));
     if (rows.length === 0) {
       return { ...EMPTY_EXTRACT_CALIBRATION_STATE, error: "No calibration entries could be identified in that text." };
     }
@@ -323,6 +334,8 @@ export async function extractCalibrationRowsAction(
       promptVersion: PROMPT_VERSIONS.calibration_register_extraction,
       sourceRef: { projectId, sourceTextLength: sourceText.length },
       aiResponse: rows,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, rows, aiLogId: logId };
   } catch (err) {
@@ -459,7 +472,14 @@ export async function extractWelderRowsAction(
   if (!gate.allowed) return { ...EMPTY_EXTRACT_WELDER_STATE, error: gate.reason };
 
   try {
-    const rows = await geminiProvider.extractWelderRows({ sourceText });
+    const inputHash = hashAiCacheInput(sourceText);
+    const cached = await findCachedAiResponse<ExtractedWelderRow[]>(supabase, {
+      organizationId: project.organization_id,
+      feature: "welder_register_extraction",
+      promptVersion: PROMPT_VERSIONS.welder_register_extraction,
+      inputHash,
+    });
+    const rows = cached ?? (await geminiProvider.extractWelderRows({ sourceText }));
     if (rows.length === 0) {
       return { ...EMPTY_EXTRACT_WELDER_STATE, error: "No welder qualification entries could be identified in that text." };
     }
@@ -471,6 +491,8 @@ export async function extractWelderRowsAction(
       promptVersion: PROMPT_VERSIONS.welder_register_extraction,
       sourceRef: { projectId, sourceTextLength: sourceText.length },
       aiResponse: rows,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, rows, aiLogId: logId };
   } catch (err) {
@@ -595,7 +617,14 @@ export async function extractMaterialRowsAction(
   if (!gate.allowed) return { ...EMPTY_EXTRACT_MATERIAL_STATE, error: gate.reason };
 
   try {
-    const rows = await geminiProvider.extractMaterialRows({ sourceText });
+    const inputHash = hashAiCacheInput(sourceText);
+    const cached = await findCachedAiResponse<ExtractedMaterialRow[]>(supabase, {
+      organizationId: project.organization_id,
+      feature: "material_register_extraction",
+      promptVersion: PROMPT_VERSIONS.material_register_extraction,
+      inputHash,
+    });
+    const rows = cached ?? (await geminiProvider.extractMaterialRows({ sourceText }));
     if (rows.length === 0) {
       return { ...EMPTY_EXTRACT_MATERIAL_STATE, error: "No material entries could be identified in that text." };
     }
@@ -607,6 +636,8 @@ export async function extractMaterialRowsAction(
       promptVersion: PROMPT_VERSIONS.material_register_extraction,
       sourceRef: { projectId, sourceTextLength: sourceText.length },
       aiResponse: rows,
+      inputHash,
+      servedFromCache: !!cached,
     });
     return { error: null, rows, aiLogId: logId };
   } catch (err) {

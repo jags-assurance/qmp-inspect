@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
 import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
@@ -132,19 +133,36 @@ export async function generateItpDraftAction(
     }));
   }
 
+  // Cost/latency: the heavy-tier model is the single most expensive call in this app, and
+  // "regenerate" on the exact same selected documents + instructions is a real, observed pattern
+  // (a user re-clicking Generate after just looking at the form again). Cache key mirrors exactly
+  // what generateItpDraft is grounded in — see lib/ai/cache.ts.
+  const inputHash = hashAiCacheInput({ sourceDocuments, additionalInstructions, projectParties, disciplines: disciplines ?? [] });
   let draft: ItpDraftResult;
-  try {
-    draft = await geminiProvider.generateItpDraft({
-      sourceDocuments,
-      additionalInstructions,
-      projectParties,
-      disciplines: disciplines ?? [],
-    });
-  } catch (err) {
-    return {
-      ...EMPTY_DRAFT_STATE,
-      error: err instanceof Error ? err.message : "Could not generate a draft from the selected documents.",
-    };
+  let servedFromCache = false;
+  const cached = await findCachedAiResponse<ItpDraftResult>(supabase, {
+    organizationId: project.organization_id,
+    feature: "itp_draft",
+    promptVersion: PROMPT_VERSIONS.itp_draft,
+    inputHash,
+  });
+  if (cached) {
+    draft = cached;
+    servedFromCache = true;
+  } else {
+    try {
+      draft = await geminiProvider.generateItpDraft({
+        sourceDocuments,
+        additionalInstructions,
+        projectParties,
+        disciplines: disciplines ?? [],
+      });
+    } catch (err) {
+      return {
+        ...EMPTY_DRAFT_STATE,
+        error: err instanceof Error ? err.message : "Could not generate a draft from the selected documents.",
+      };
+    }
   }
 
   const logId = await logAiUsage(supabase, {
@@ -155,6 +173,8 @@ export async function generateItpDraftAction(
     promptVersion: PROMPT_VERSIONS.itp_draft,
     sourceRef: { vaultDocumentIds, additionalInstructions },
     aiResponse: draft,
+    inputHash,
+    servedFromCache,
   });
 
   // Reuse the same suggested number across a "regenerate with feedback" cycle rather than drawing a
