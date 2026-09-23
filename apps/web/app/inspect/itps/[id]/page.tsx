@@ -27,6 +27,8 @@ import {
 import { ExpectedRecordsSection } from "./expected-record-form";
 import { getLatestItpPdf } from "@/lib/reports/actions";
 import { ItpPdfButton } from "./itp-pdf-button";
+import { ItpStalePdfToast } from "./itp-stale-pdf-toast";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import type { VaultDocumentOption } from "./expected-record-form";
 import {
@@ -342,10 +344,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
   // successfully rendered PDF, so "Regenerate PDF" isn't something you have to remember to click on
   // a hunch — found live: nothing told you the on-disk PDF was stale.
   const lastPdfCompletedAt = latestPdf?.status === "completed" ? latestPdf.completedAt : null;
+  const latestSignoffChangeAt = ownSignoffs.reduce<string | null>(
+    (latest, row) => (row.updated_at && (!latest || row.updated_at > latest) ? row.updated_at : latest),
+    null
+  );
+  // The later of the two possible causes of staleness — used as the toast's dedupe key
+  // (ItpStalePdfToast) so a later change re-fires it even if an earlier staleness was already seen.
+  const latestChangeAt = latestSignoffChangeAt && latestSignoffChangeAt > itp.updated_at ? latestSignoffChangeAt : itp.updated_at;
   const isPdfStale =
     !!lastPdfCompletedAt &&
     (new Date(itp.updated_at).getTime() > new Date(lastPdfCompletedAt).getTime() ||
-      ownSignoffs.some((row) => row.updated_at && new Date(row.updated_at).getTime() > new Date(lastPdfCompletedAt).getTime()));
+      (latestSignoffChangeAt != null && new Date(latestSignoffChangeAt).getTime() > new Date(lastPdfCompletedAt).getTime()));
 
   const levels = sortLevels(levelTypes ?? []);
   const blockingCodes = new Set(levels.filter((l) => l.is_blocking).map((l) => l.code));
@@ -485,32 +494,30 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           </ol>
         </div>
 
-        {isPdfStale && (
-          <p className="mt-2 rounded-md border border-warning/60 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
-            This ITP has changed (content or a sign-off) since the PDF below was generated — Regenerate PDF to pick up the latest state.
-          </p>
-        )}
+        <ItpStalePdfToast isStale={isPdfStale} changedAt={latestChangeAt} />
 
         <div className="flex flex-wrap gap-2">
-          <ItpPdfButton itpId={itp.id} latest={latestPdf} />
-          {/* R41: export the ITP's current content as an editable .xlsx — offline-revision-form.tsx
-              below is the matching re-upload half of this round trip. Available to anyone who can
-              view the ITP, same as the PDF button; the re-upload side is staff-only. */}
-          <a
-            href={`/api/itps/${itp.id}/export-xlsx`}
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-          >
-            Download for offline editing
-          </a>
-          {/* R107: a plain Word copy of the controlled ITP (sections/items + intervention grid),
-              stamped "UNCONTROLLED COPY" — see app/api/itps/[id]/export-docx/route.ts. Available to
-              anyone who can view the ITP, same as the PDF/.xlsx buttons above. */}
-          <a
-            href={`/api/itps/${itp.id}/export-docx`}
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-          >
-            Word
-          </a>
+          <ItpPdfButton
+            itpId={itp.id}
+            latest={latestPdf}
+            extraActions={
+              <>
+                {/* R41: export the ITP's current content as an editable .xlsx —
+                    offline-revision-form.tsx below is the matching re-upload half of this round
+                    trip. Available to anyone who can view the ITP; the re-upload side is
+                    staff-only. */}
+                <DropdownMenuItem>
+                  <a href={`/api/itps/${itp.id}/export-xlsx`}>Download for offline editing</a>
+                </DropdownMenuItem>
+                {/* R107: a plain Word copy of the controlled ITP (sections/items + intervention
+                    grid), stamped "UNCONTROLLED COPY" — see
+                    app/api/itps/[id]/export-docx/route.ts. */}
+                <DropdownMenuItem>
+                  <a href={`/api/itps/${itp.id}/export-docx`}>Word</a>
+                </DropdownMenuItem>
+              </>
+            }
+          />
           {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
           <Link
             href={`/inspect/itps/${itp.id}/checklists`}
