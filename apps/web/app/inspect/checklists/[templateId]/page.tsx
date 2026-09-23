@@ -29,6 +29,7 @@ import { CompleteInspectionForm } from "./complete-inspection-form";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 import { canCompleteInspection } from "@/lib/signoff/actions";
+import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
 /**
  * Field execution surface for one checklist: shows any in-progress inspection to keep filling in,
@@ -172,8 +173,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   >();
   // Photos with a null checklist_item_id go to the generic whole-inspection section (unchanged
   // behaviour); photos linked to a specific item are grouped here and handed to that item's row.
-  let photos: { id: string; storage_path: string; caption: string | null }[] = [];
-  let itemPhotos = new Map<string, { id: string; storage_path: string; caption: string | null }[]>();
+  let photos: { id: string; storage_path: string; caption: string | null; url: string | null }[] = [];
+  let itemPhotos = new Map<string, { id: string; storage_path: string; caption: string | null; url: string | null }[]>();
   let registerVerification: RegisterVerificationResult | null = null;
   let personnelCertVerification: RegisterVerificationResult | null = null;
   let calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[] = [];
@@ -197,12 +198,24 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         { result: r.result, comment: r.comment, calibrationAssetId: r.calibration_asset_id },
       ])
     );
-    photos = (photoRows ?? []).filter((p) => !p.checklist_item_id);
+    // Perf: one batched Storage call for every photo's signed URL on this checklist (across both
+    // the whole-inspection section and every item's own photos) instead of each <PhotoThumbnail>
+    // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
+    const photoUrls = await getSignedPhotoUrls(
+      supabase,
+      "inspection-evidence",
+      (photoRows ?? []).map((p) => p.storage_path)
+    );
+    const withUrl = (p: Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">) => ({
+      ...p,
+      url: photoUrls.get(p.storage_path) ?? null,
+    });
+    photos = (photoRows ?? []).filter((p) => !p.checklist_item_id).map(withUrl);
     itemPhotos = new Map();
     for (const p of photoRows ?? []) {
       if (!p.checklist_item_id) continue;
       const existing = itemPhotos.get(p.checklist_item_id) ?? [];
-      existing.push(p);
+      existing.push(withUrl(p));
       itemPhotos.set(p.checklist_item_id, existing);
     }
 

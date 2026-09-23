@@ -25,6 +25,7 @@ import { InspectionReportPdfButton } from "./inspection-report-pdf-button";
 import { IrnPdfButton } from "./irn-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -105,6 +106,11 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   ]);
 
   const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
+
+  // Perf: one batched Storage call for every photo's signed URL instead of each <PhotoThumbnail>
+  // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
+  const photoUrls = await getSignedPhotoUrls(supabase, "inspection-evidence", (photos ?? []).map((p) => p.storage_path));
+  const photosWithUrls = (photos ?? []).map((p) => ({ id: p.id, url: photoUrls.get(p.storage_path) ?? null, caption: p.caption }));
 
   const sortedResponses = [...(responses ?? [])].sort((a, b) =>
     (a.checklist_items?.item_number ?? "").localeCompare(b.checklist_items?.item_number ?? "", undefined, { numeric: true })
@@ -279,7 +285,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
         <div className="mt-3">
-          <PhotoGallery photos={photos ?? []} />
+          <PhotoGallery photos={photosWithUrls} />
         </div>
       </div>
 

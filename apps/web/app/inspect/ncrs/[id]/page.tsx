@@ -13,6 +13,7 @@ import { CloseOutForm } from "./close-out-form";
 import { NcrPhotoUpload } from "./ncr-photo-upload";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
 interface NcrDetail {
   id: string;
@@ -156,6 +157,10 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
     .order("created_at")
     .returns<NcrPhotoRow[]>();
 
+  // Perf: one batched Storage call for every photo's signed URL instead of each <PhotoThumbnail>
+  // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
+  const photoUrls = await getSignedPhotoUrls(supabase, "inspection-evidence", (photos ?? []).map((p) => p.storage_path));
+
   // Same "real people with access to this project" resolution as the raise-NCR form (see
   // app/inspect/ncrs/new/page.tsx) — access_grants (global/organization/project staff scopes) plus
   // project_parties rows linked to a login — just scoped to this NCR's one already-known project.
@@ -273,7 +278,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {(photos ?? []).map((photo) => (
             <div key={photo.id}>
-              <PhotoThumbnail storagePath={photo.storage_path} caption={photo.caption} />
+              <PhotoThumbnail url={photoUrls.get(photo.storage_path) ?? null} caption={photo.caption} />
               {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
             </div>
           ))}

@@ -10,6 +10,7 @@ interface Photo {
   id: string;
   storage_path: string;
   caption: string | null;
+  url: string | null;
 }
 
 /**
@@ -80,7 +81,7 @@ export function ItemPhotoUpload({
         <div className="flex flex-wrap gap-1.5">
           {photos.map((photo) => (
             <div key={photo.id} className="h-10 w-10 overflow-hidden rounded">
-              <PhotoThumbnail storagePath={photo.storage_path} />
+              <PhotoThumbnail url={photo.url} />
             </div>
           ))}
           {queuedPreviews.map((url, i) => (

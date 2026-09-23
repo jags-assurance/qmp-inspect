@@ -10,6 +10,7 @@ interface Photo {
   id: string;
   storage_path: string;
   caption: string | null;
+  url: string | null;
 }
 
 /**
@@ -81,7 +82,7 @@ export function PhotoUpload({
     <div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {photos.map((photo) => (
-          <PhotoThumbnail key={photo.id} storagePath={photo.storage_path} />
+          <PhotoThumbnail key={photo.id} url={photo.url} />
         ))}
         {queuedPreviews.map((url, i) => (
           <div key={url} className="relative">

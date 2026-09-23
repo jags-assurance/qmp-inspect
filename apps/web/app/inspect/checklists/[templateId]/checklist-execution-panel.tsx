@@ -60,7 +60,7 @@ export function ChecklistExecutionPanel({
   itpItemId: string;
   /** Each checklist item's own evidence photos (checklist_item_id === that item's id), keyed by
    *  checklist_item_id, for the compact per-row "+ photo" affordance. */
-  itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null }[]>;
+  itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null; url: string | null }[]>;
 }) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set(initialResponses.keys()));
   // Round-table finding: the old per-row transient "Saving…" text disappeared the instant that one

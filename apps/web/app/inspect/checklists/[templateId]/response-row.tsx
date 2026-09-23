@@ -94,7 +94,7 @@ export function ResponseRow({
   projectId: string;
   /** This item's own evidence photos (checklist_item_id === checklistItemId), for the compact
    *  per-row "+ photo" affordance below the pills. */
-  photos: { id: string; storage_path: string; caption: string | null }[];
+  photos: { id: string; storage_path: string; caption: string | null; url: string | null }[];
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
