@@ -12,6 +12,11 @@ import { IdleTimeout } from "./idle-timeout";
 export interface NavItem {
   label: string;
   href: string;
+  /** When set, this item renders as a collapsible group header (no link of its own) whose children
+   *  are shown/hidden together — used to fold the ~17 flat /inspect/organisation/* admin items
+   *  (Numbering, Staff Access, Teams, ...) into one "Organisation Settings" section instead of a
+   *  single long flat list. A group with no children is never rendered (see SidebarNav). */
+  children?: NavItem[];
 }
 
 export interface OrgBrandingInfo {

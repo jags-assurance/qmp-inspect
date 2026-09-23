@@ -107,6 +107,12 @@ const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => React.ReactEleme
       <path d="M3 16h13" />
     </Icon>
   ),
+  "Organisation Settings": (p) => (
+    <Icon {...p}>
+      <circle cx="10" cy="10" r="2.5" />
+      <path d="M10 3.5v2M10 14.5v2M16.5 10h-2M5.5 10h-2M14.6 5.4l-1.4 1.4M6.8 13.2l-1.4 1.4M14.6 14.6l-1.4-1.4M6.8 6.8L5.4 5.4" />
+    </Icon>
+  ),
   "Staff Access": (p) => (
     <Icon {...p}>
       <circle cx="7.5" cy="7" r="2.5" />

@@ -256,9 +256,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <HubCard href={`/inspect/vault?project=${projectId}`} title="Document Vault" description="Drawings, specs, certificates and controlled documents." />
           <HubCard href={`/inspect/projects/${projectId}/registers`} title="Registers" description="Calibration, welder qualification and material registers." />
           <HubCard href={`/inspect/projects/${projectId}/punch-list`} title="Punch List" description="Outstanding items across every source, open and closed." />
-          <HubCard href={`/inspect/projects/${projectId}/data-book`} title="Data Book" description="Compile and issue the project's data book." />
-          <HubCard href={`/inspect/projects/${projectId}/kpis`} title="Client KPIs" description="First-time pass rate, hold-point turnaround and more." />
           <HubCard href={`/inspect/projects/${projectId}/activity`} title="Activity" description="A live timeline of inspections, sign-offs and NCRs on this project." />
+        </div>
+      </div>
+
+      {/* Grouped together (previously scattered among the cards above) — everything here is "read
+          about progress" rather than "do work on the project", so it reads as one destination
+          instead of three separately-discovered cards. */}
+      <div className="mt-8">
+        <h2 className="font-medium text-ink">Reports &amp; Analytics</h2>
+        <p className="mt-1 text-sm text-muted">Progress numbers, compiled records and downloadable packs for this project.</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <HubCard href={`/inspect/projects/${projectId}/kpis`} title="Client KPIs" description="First-time pass rate, hold-point turnaround and more." />
+          <HubCard href={`/inspect/projects/${projectId}/data-book`} title="Data Book" description="Compile and issue the project's data book." />
           <HubCard href={`/inspect/projects/${projectId}/reports`} title="Reports & Downloads" description="Monthly report packs and ITP documents for your organisation." />
           {session.isJagsStaff && (
             <HubCard href={`/inspect/projects/${projectId}/audit-log`} title="Audit Log" description="Who did what and when, across ITPs, NCRs, sign-offs and inspections." />

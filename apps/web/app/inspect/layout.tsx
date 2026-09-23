@@ -125,25 +125,37 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // Master library review and numbering/engagement settings are the Admin's job — an Inspector
     // gets the same operational nav a client sees, plus staff-wide screens (Projects/ITPs/etc.
     // above already show every organisation to any JAGS staff login, admin or inspector alike).
+    //
+    // Folded into one collapsible "Organisation Settings" group (see NavItem.children/NavGroup in
+    // sidebar-nav.tsx) instead of 17 flat top-level items — these are setup/admin screens visited
+    // far less often than the operational items above them, and a flat 26-item sidebar (9 top-level
+    // + these 17) was the actual reported problem, not any one item individually. Every href below
+    // is unchanged; this only changes how they're grouped.
     ...(isAdminStaff(session)
       ? [
-          { label: "Client Organisations", href: "/inspect/organisation/clients" },
-          { label: "Master ITP Library", href: "/inspect/itp-master" },
-          { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
-          { label: "Numbering", href: "/inspect/organisation/numbering" },
-          { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
-          { label: "Brand Colors", href: "/inspect/organisation/branding" },
-          { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
-          { label: "Plans & Seats", href: "/inspect/organisation/plans" },
-          { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
-          { label: "Usage & Cost", href: "/inspect/organisation/usage" },
-          { label: "Reporting", href: "/inspect/organisation/reporting" },
-          { label: "Staff Access", href: "/inspect/organisation/staff-access" },
-          { label: "Teams", href: "/inspect/organisation/teams" },
-          { label: "Client Teams", href: "/inspect/organisation/client-teams" },
-          { label: "Custom Roles", href: "/inspect/organisation/roles" },
-          { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
-          { label: "Document Traceability", href: "/inspect/organisation/traceability" },
+          {
+            label: "Organisation Settings",
+            href: "/inspect/organisation",
+            children: [
+              { label: "Client Organisations", href: "/inspect/organisation/clients" },
+              { label: "Master ITP Library", href: "/inspect/itp-master" },
+              { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
+              { label: "Numbering", href: "/inspect/organisation/numbering" },
+              { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
+              { label: "Brand Colors", href: "/inspect/organisation/branding" },
+              { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
+              { label: "Plans & Seats", href: "/inspect/organisation/plans" },
+              { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
+              { label: "Usage & Cost", href: "/inspect/organisation/usage" },
+              { label: "Reporting", href: "/inspect/organisation/reporting" },
+              { label: "Staff Access", href: "/inspect/organisation/staff-access" },
+              { label: "Teams", href: "/inspect/organisation/teams" },
+              { label: "Client Teams", href: "/inspect/organisation/client-teams" },
+              { label: "Custom Roles", href: "/inspect/organisation/roles" },
+              { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
+              { label: "Document Traceability", href: "/inspect/organisation/traceability" },
+            ],
+          },
         ]
       : []),
     ...(showTeamsNav && !isAdminStaff(session)
