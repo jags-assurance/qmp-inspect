@@ -498,14 +498,29 @@ export async function advanceItpStatusAction(
   return { error: null };
 }
 
-export async function acceptItpAction(formData: FormData) {
+export interface AcceptItpState {
+  error: string | null;
+}
+
+/**
+ * Real bug found live: this used to call the accept_itp RPC and completely ignore any error it
+ * raised (no destructuring, no check) — the button just silently did nothing whenever the RPC
+ * rejected the call, with zero feedback to the client clicking it. Now returns a real error state
+ * (mirroring advanceItpStatusAction's own fix for the same class of problem) so accept_itp's actual
+ * exception message — e.g. "Only the client party's own login can accept this ITP" or "ITP must be
+ * approved before it can be accepted" — reaches the screen instead of vanishing.
+ */
+export async function acceptItpAction(_prev: AcceptItpState, formData: FormData): Promise<AcceptItpState> {
   const itpId = String(formData.get("itp_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  await supabase.rpc("accept_itp", { target_itp_id: itpId });
+  const { error: rpcError } = await supabase.rpc("accept_itp", { target_itp_id: itpId });
+  if (rpcError) {
+    return { error: rpcError.message || "Could not accept this ITP." };
+  }
 
   // Best-effort: confirm the RPC actually landed (status is now client_accepted) before recording
   // it, rather than assuming success — the audit trail is a convenience layer on top of the real
@@ -538,6 +553,7 @@ export async function acceptItpAction(formData: FormData) {
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
 }
 
 export interface RecordExternalApprovalState {

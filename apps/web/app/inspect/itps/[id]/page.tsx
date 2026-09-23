@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ActivitySignoffGrid } from "./activity-signoff-grid";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
-import { acceptItpAction } from "@/lib/itps/actions";
+import { AcceptItpForm } from "./accept-itp-form";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
@@ -540,14 +540,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
               </button>
             </form>
           )}
-          {canAccept && (
-            <form action={acceptItpAction}>
-              <input type="hidden" name="itp_id" value={itp.id} />
-              <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">
-                Accept ITP
-              </button>
-            </form>
-          )}
+          {canAccept && <AcceptItpForm itpId={itp.id} />}
           {/* Added for the "propose to master library" action (Reqs R31) — only shown once the ITP
               has reached approved/client_accepted, matching this file's existing status gating. */}
           {canPropose && (
