@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { Badge } from "@/components/ui/badge";
+import { StatCard } from "@/components/ui/stat-card";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
 import { computeDataBookDisciplineBreakdown } from "@/lib/databook/discipline-breakdown";
 import { DATA_BOOKS_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
@@ -86,6 +87,36 @@ export default async function DataBookPage({
         </p>
       </div>
 
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard
+          label="Overall readiness"
+          value={
+            <span className="tabular-nums">{readiness.overallPercentage}%</span>
+          }
+        />
+        <StatCard
+          label="ITPs approved"
+          value={
+            <span className="tabular-nums">
+              {readiness.itps.ready}/{readiness.itps.total}
+            </span>
+          }
+        />
+        <StatCard
+          label="NCRs closed"
+          value={
+            <span className="tabular-nums">
+              {readiness.ncrs.ready}/{readiness.ncrs.total}
+            </span>
+          }
+        />
+        <StatCard
+          label="Open punch items"
+          value={<span className="tabular-nums">{readiness.openPunchItems}</span>}
+          caption={readiness.openPunchItems === 0 ? "Clear" : "Must be zero to compile"}
+        />
+      </div>
+
       <div className="mt-6">
         <ReadinessPanel readiness={readiness} />
       </div>
@@ -107,6 +138,10 @@ export default async function DataBookPage({
               <div>
                 <span className="doc-id text-sm font-medium text-ink">{book.book_number}</span>
                 <span className="ml-2 text-sm text-ink">{book.title}</span>
+                <p className="mt-0.5 text-xs text-muted">
+                  Created {new Date(book.created_at).toLocaleDateString()}
+                  {book.compiled_at && ` · Compiled ${new Date(book.compiled_at).toLocaleDateString()}`}
+                </p>
               </div>
               <Badge tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
             </div>
