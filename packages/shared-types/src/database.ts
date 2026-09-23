@@ -630,6 +630,7 @@ export type Database = {
           description: string | null
           discipline_id: string | null
           id: string
+          organization_id: string | null
           title: string
           updated_at: string
         }
@@ -639,6 +640,7 @@ export type Database = {
           description?: string | null
           discipline_id?: string | null
           id?: string
+          organization_id?: string | null
           title: string
           updated_at?: string
         }
@@ -648,6 +650,7 @@ export type Database = {
           description?: string | null
           discipline_id?: string | null
           id?: string
+          organization_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -664,6 +667,13 @@ export type Database = {
             columns: ["discipline_id"]
             isOneToOne: false
             referencedRelation: "master_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_library_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1801,6 +1811,7 @@ export type Database = {
         Row: {
           acceptance_criteria: string | null
           activity: string
+          discipline_id: string | null
           evidence_type: number
           frequency: string | null
           id: string
@@ -1813,6 +1824,7 @@ export type Database = {
         Insert: {
           acceptance_criteria?: string | null
           activity: string
+          discipline_id?: string | null
           evidence_type?: number
           frequency?: string | null
           id?: string
@@ -1825,6 +1837,7 @@ export type Database = {
         Update: {
           acceptance_criteria?: string | null
           activity?: string
+          discipline_id?: string | null
           evidence_type?: number
           frequency?: string | null
           id?: string
@@ -1835,6 +1848,13 @@ export type Database = {
           sort_order?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "itp_master_items_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "master_disciplines"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "itp_master_items_section_id_fkey"
             columns: ["section_id"]
@@ -1912,6 +1932,60 @@ export type Database = {
           {
             foreignKeyName: "itp_master_proposals_target_template_id_fkey"
             columns: ["target_template_id"]
+            isOneToOne: false
+            referencedRelation: "itp_master_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      itp_master_revisions: {
+        Row: {
+          applicable_standard: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          industry: string
+          reason: string | null
+          sections_snapshot: Json
+          template_id: string
+          title: string
+          version: number
+        }
+        Insert: {
+          applicable_standard?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry: string
+          reason?: string | null
+          sections_snapshot: Json
+          template_id: string
+          title: string
+          version: number
+        }
+        Update: {
+          applicable_standard?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          industry?: string
+          reason?: string | null
+          sections_snapshot?: Json
+          template_id?: string
+          title?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itp_master_revisions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itp_master_revisions_template_id_fkey"
+            columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "itp_master_templates"
             referencedColumns: ["id"]
@@ -2420,6 +2494,7 @@ export type Database = {
           project_id: string
           raised_by: string | null
           requirement_not_met: string | null
+          responsible_party_id: string | null
           root_cause: string | null
           severity: string
           status: string
@@ -2442,6 +2517,7 @@ export type Database = {
           project_id: string
           raised_by?: string | null
           requirement_not_met?: string | null
+          responsible_party_id?: string | null
           root_cause?: string | null
           severity: string
           status?: string
@@ -2464,6 +2540,7 @@ export type Database = {
           project_id?: string
           raised_by?: string | null
           requirement_not_met?: string | null
+          responsible_party_id?: string | null
           root_cause?: string | null
           severity?: string
           status?: string
@@ -2546,6 +2623,13 @@ export type Database = {
             columns: ["raised_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ncrs_responsible_party_id_fkey"
+            columns: ["responsible_party_id"]
+            isOneToOne: false
+            referencedRelation: "project_parties"
             referencedColumns: ["id"]
           },
         ]
@@ -2713,6 +2797,7 @@ export type Database = {
           created_at: string
           doc_type: string
           id: string
+          include_discipline: boolean
           include_year: boolean
           organization_id: string
           originator_code: string
@@ -2726,6 +2811,7 @@ export type Database = {
           created_at?: string
           doc_type: string
           id?: string
+          include_discipline?: boolean
           include_year?: boolean
           organization_id: string
           originator_code?: string
@@ -2739,6 +2825,7 @@ export type Database = {
           created_at?: string
           doc_type?: string
           id?: string
+          include_discipline?: boolean
           include_year?: boolean
           organization_id?: string
           originator_code?: string
@@ -4205,6 +4292,7 @@ export type Database = {
         Args: { target_client_team_id: string }
         Returns: boolean
       }
+      compute_itp_phase: { Args: { p_itp_id: string }; Returns: string }
       has_custom_permission: {
         Args: {
           target_permission_key: string
