@@ -23,6 +23,39 @@ export async function isClientTeamLeadOf(
   return !!data;
 }
 
+/**
+ * Whether `userId` leads ANY client team currently assigned to `projectId` — the client-team
+ * analogue of lib/teams/helpers.ts's isTeamLeadForProject(). Until this existed,
+ * client_team_project_assignments (set from the "Assign to project" control on the Client Teams
+ * page) was write-only: the row was inserted and displayed back on that same admin page, but
+ * nothing else in the app ever read it — "assigning" a team to a project had no actual effect. This
+ * is what gives that assignment a real consequence: it's what reassignSignoffPartyAction and the
+ * project page's reassign affordance check for a client-side party, mirroring exactly how a JAGS
+ * team's project assignment already gates the same capability for staff.
+ */
+export async function isClientTeamLeadForProject(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  projectId: string
+): Promise<boolean> {
+  const { data: assignments } = await supabase
+    .from("client_team_project_assignments")
+    .select("client_team_id")
+    .eq("project_id", projectId);
+
+  const teamIds = (assignments ?? []).map((a) => a.client_team_id);
+  if (teamIds.length === 0) return false;
+
+  const { data: leadRows } = await supabase
+    .from("client_team_members")
+    .select("client_team_id")
+    .eq("user_id", userId)
+    .eq("is_team_lead", true)
+    .in("client_team_id", teamIds);
+
+  return (leadRows ?? []).length > 0;
+}
+
 /** Whether `userId` leads any client team at all, within any organization. */
 export async function isLeadOfAnyClientTeam(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,

@@ -15,6 +15,7 @@ import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle
 import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
 import { EnforceHoldBlocksStartToggle } from "./enforce-hold-blocks-start-toggle";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
+import { isClientTeamLeadForProject } from "@/lib/client-teams/helpers";
 import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
 import { ResponsiblePersonPicker } from "./responsible-person-picker";
@@ -102,6 +103,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     { count: openNcrCount },
     { count: pendingInspectionCount },
     { count: openPunchCount },
+    { data: assignedClientTeams },
   ] = await Promise.all([
     supabase
       .from("project_parties")
@@ -133,13 +135,30 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .eq("status", "open"),
+    // Read-only visibility for client_team_project_assignments (organisation/client-teams' "Assign
+    // to project" control) — previously that assignment had no consequence anywhere outside the
+    // admin page that wrote it; showing it here at least makes the assignment itself legible from
+    // the project a team is actually responsible for, alongside the real permission effect wired
+    // into canReassign/isClientTeamLead below.
+    supabase
+      .from("client_team_project_assignments")
+      .select("client_teams(name)")
+      .eq("project_id", projectId)
+      .returns<{ client_teams: { name: string } | null }[]>(),
   ]);
 
-  // Reassignment (piece 3) and the client-execution toggle (piece 4) are both sensitive, staff-only
-  // affordances — gated the same way reassignSignoffPartyAction gates itself server-side: a JAGS
-  // Admin, or a lead of a team actually assigned to this project. Computed once here so both the
-  // party list and the settings toggle below use the identical check the server action re-verifies.
+  // Reassignment is a sensitive affordance — gated the same way reassignSignoffPartyAction gates
+  // itself server-side: a JAGS Admin, or a lead of a JAGS team actually assigned to this project.
+  // Computed once here so both the party list and the eligible-user fetch below use the identical
+  // check the server action re-verifies.
   const canReassign = isAdminStaff(session) || (await isTeamLeadForProject(supabase, session.userId, project.id));
+
+  // A client team's own lead reaches the same reassign capability too, but only for that project's
+  // own party_type='client' rows (project_parties_u RLS, 20260929020000_client_team_project_parties_
+  // reassign.sql, is the real enforcement — this mirrors it to decide whether the affordance shows
+  // up at all). This is what gives "Assign [client team] to project" (organisation/client-teams) a
+  // real effect, rather than the row it writes being read by nothing.
+  const isClientTeamLead = await isClientTeamLeadForProject(supabase, session.userId, project.id);
 
   // Self-managed client party onboarding (supabase/migrations/20260919020000_self_managed_project_party_access.sql):
   // shown instead of the JAGS-only AddProjectPartyForm below, to a non-staff user whose access
@@ -153,7 +172,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   // than only existing party-linked users, since reassignment is precisely for handing a party's
   // sign-off responsibility to someone who doesn't hold it yet.
   let eligibleUsers: { id: string; full_name: string; email: string }[] = [];
-  if (canReassign) {
+  if (canReassign || isClientTeamLead) {
     const { data: grantedUserIds } = await supabase
       .from("access_grants")
       .select("user_id")
@@ -254,6 +273,16 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <div>
             <h2 className="font-medium text-ink">Project parties</h2>
             <p className="mt-1 text-sm text-muted">Every organisation engaged on this project.</p>
+            {(assignedClientTeams ?? []).length > 0 && (
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                Client team{assignedClientTeams!.length > 1 ? "s" : ""} assigned:
+                {(assignedClientTeams ?? []).map((a, i) => (
+                  <Badge key={i} tone="info">
+                    {a.client_teams?.name ?? "Unknown team"}
+                  </Badge>
+                ))}
+              </p>
+            )}
           </div>
           {isAdminStaff(session) && STATUSES_ELIGIBLE_FOR_BULK_DEACTIVATE.has(project.status) && (
             <DeactivateAllPartiesControl
@@ -288,7 +317,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   {isAdminStaff(session) && !party.user_id && party.is_active && (
                     <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} />
                   )}
-                  {canReassign && party.is_active && (
+                  {(canReassign || (isClientTeamLead && party.party_type === "client")) && party.is_active && (
                     <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />
                   )}
                   {isAdminStaff(session) && (

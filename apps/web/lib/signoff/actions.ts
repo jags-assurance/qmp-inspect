@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
+import { isClientTeamLeadForProject } from "@/lib/client-teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -697,9 +698,9 @@ export async function reassignSignoffPartyAction(
 
   const { data: party } = await supabase
     .from("project_parties")
-    .select("id, project_id")
+    .select("id, project_id, party_type")
     .eq("id", projectPartyId)
-    .maybeSingle<{ id: string; project_id: string }>();
+    .maybeSingle<{ id: string; project_id: string; party_type: string }>();
 
   if (!party) return { error: "Party not found." };
 
@@ -707,12 +708,23 @@ export async function reassignSignoffPartyAction(
   // additional allow-path alongside Admin/team-lead — never a replacement (see
   // lib/rbac/permissions.ts). project_parties_write RLS (20260918020000_custom_rbac.sql) mirrors this
   // exact check, so a grant here isn't silently rejected at the database layer.
+  //
+  // A client team's own lead can do the same, but only for a party_type='client' row on a project
+  // their team is actually assigned to (client_team_project_assignments) — the client-org analogue
+  // of a JAGS team lead's reach, restricted to their own client-side people rather than every party
+  // on the project (a client team lead reassigning a subcontractor's sign-off would be out of
+  // scope). This is what gives "Assign [client team] to project" (client-teams/page.tsx) a real
+  // effect — see isClientTeamLeadForProject's own doc comment.
   const allowed =
     isAdminStaff(session) ||
     (await isTeamLeadForProject(supabase, session.userId, party.project_id)) ||
+    (party.party_type === "client" && (await isClientTeamLeadForProject(supabase, session.userId, party.project_id))) ||
     (await hasPermission(session.userId, "reassign_project_party", party.project_id));
   if (!allowed) {
-    return { error: "Only a JAGS Admin, a lead of a team assigned to this project, or someone granted this permission, can reassign a party." };
+    return {
+      error:
+        "Only a JAGS Admin, a lead of a team assigned to this project, a lead of a client team assigned to this project (for their own client-side parties), or someone granted this permission, can reassign a party.",
+    };
   }
 
   const { data: partyWithType, error: fetchTypeError } = await supabase
