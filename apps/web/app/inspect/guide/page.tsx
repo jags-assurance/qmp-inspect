@@ -319,6 +319,33 @@ export default async function AppGuidePage() {
       </div>
 
       <section className="mt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Every role, at a glance</h2>
+        <p className="mt-1 text-sm text-muted">
+          Not just your own role — what everyone else on a project is responsible for too, so you know who to expect
+          to see doing what.
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {Object.entries(ROLE_CONTENT).map(([key, role]) => (
+            <div
+              key={key}
+              className={`rounded-lg border p-4 ${roleKey === key ? "border-burgundy/40 bg-burgundy/5" : "border-border bg-surface"}`}
+            >
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-ink">{role.heading}</h3>
+                {roleKey === key && <span className="rounded-full bg-burgundy px-1.5 py-0.5 text-[10px] font-medium text-white">You</span>}
+              </div>
+              <p className="mt-1 text-xs text-muted">{role.tagline}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-ink">
+                {role.points.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">The core workflow</h2>
         <CoreWorkflowDiagram />
       </section>
