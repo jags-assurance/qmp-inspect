@@ -10,6 +10,7 @@ import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types"
 import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
+import { startReviewChainForItp, getItpReviewProgress } from "@/lib/itps/review-chain";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
@@ -497,6 +498,21 @@ export async function advanceItpStatusAction(
     }
   }
 
+  // R79 extension: once a project has a configured multi-person review chain and this ITP has an
+  // in-progress snapshot of it, the single-click Approve button is no longer the real gate —
+  // approveReviewStepAction (lib/itps/review-chain.ts) auto-approves the ITP the moment the last
+  // reviewer signs off. Blocking the plain button here (even for staff, other than a JAGS Admin's
+  // documented override) stops someone from skipping the hierarchy by clicking the button that used
+  // to be the only path.
+  if (nextStatus === "approved" && !isAdminStaff(session)) {
+    const reviewSteps = await getItpReviewProgress(supabase, itpId);
+    if (reviewSteps.length > 0 && reviewSteps.some((s) => s.status === "pending")) {
+      return {
+        error: "This ITP has a configured review chain still in progress — it will approve automatically once every reviewer has signed off, or a JAGS Admin can override.",
+      };
+    }
+  }
+
   const now = new Date().toISOString();
   const update =
     nextStatus === "under_review"
@@ -549,11 +565,17 @@ export async function advanceItpStatusAction(
       // unnoticed until someone happens to check the register. Never fires for a JAGS-staff submission
       // (nothing for staff to notify themselves about).
       if (nextStatus === "under_review" && organizationId) {
+        // R79 extension: if this project has a configured review chain, snapshot it onto the ITP
+        // right now and let startReviewChainForItp notify only the FIRST reviewer — the broad
+        // "notify every JAGS staff member" fallback below is for projects with no chain configured,
+        // where any staff member clicking the single Approve button is still the real mechanism.
+        const chainStarted = await startReviewChainForItp(supabase, itpId, itp?.project_id ?? "");
+
         const { data: submitter } = user
           ? await supabase.from("users").select("is_jags_staff").eq("id", user.id).maybeSingle<{ is_jags_staff: boolean }>()
           : { data: null };
 
-        if (!submitter?.is_jags_staff) {
+        if (!chainStarted && !submitter?.is_jags_staff) {
           const { data: grants } = await supabase
             .from("access_grants")
             .select("user_id")

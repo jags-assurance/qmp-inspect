@@ -21,6 +21,8 @@ import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
 import { ResponsiblePersonPicker } from "./responsible-person-picker";
 import { isAiConfigured } from "@/lib/ai/gate";
 import { AskProjectPanel } from "./ask-project-panel";
+import { ReviewChainForm } from "./review-chain-form";
+import { getProjectReviewChain } from "@/lib/itps/review-chain";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -166,6 +168,17 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   // requires has_org_access) on an org that's opted into engagement_scope = 'self_managed'. JAGS
   // staff keep using the admin form regardless of the org's scope.
   const canAddSelfManagedParty = !session.isJagsStaff && project.organizations?.engagement_scope === "self_managed";
+
+  let staffUsers: { id: string; full_name: string }[] = [];
+  let reviewChain: { reviewerUserId: string }[] = [];
+  if (isAdminStaff(session)) {
+    const [{ data: staffData }, chainData] = await Promise.all([
+      supabase.from("users").select("id, full_name").eq("is_jags_staff", true).order("full_name").returns<{ id: string; full_name: string }[]>(),
+      getProjectReviewChain(supabase, project.id),
+    ]);
+    staffUsers = staffData ?? [];
+    reviewChain = chainData;
+  }
 
   // Eligible reassignment targets: anyone whose access already reaches this project's organisation
   // (global/organisation/project-scoped access_grants) or this project specifically — a broader set
@@ -361,6 +374,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             without changing behaviour on any other project.
           </p>
           <AllowClientExecutionToggle projectId={project.id} allowClientExecution={project.allow_client_execution} />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-8">
+          <ReviewChainForm projectId={project.id} staff={staffUsers} initialChain={reviewChain} />
         </div>
       )}
 

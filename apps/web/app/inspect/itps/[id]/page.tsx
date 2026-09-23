@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { ActivitySignoffGrid } from "./activity-signoff-grid";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { AcceptItpForm } from "./accept-itp-form";
+import { ReviewChainStatus } from "./review-chain-status";
+import { getItpReviewProgress } from "@/lib/itps/review-chain";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
@@ -476,6 +478,9 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
   const canSignOffFor = (partyUserId: string | null, partyIsActive: boolean) =>
     session.isJagsStaff || (partyIsActive && !!partyUserId && partyUserId === session.userId);
 
+  const reviewSteps = itp.status === "under_review" ? await getItpReviewProgress(supabase, itp.id) : [];
+  const hasActiveReviewChain = reviewSteps.length > 0 && reviewSteps.some((s) => s.status === "pending");
+
   return (
     <div>
       {/* Live cross-party updates: another party's sign-off, or a status/section change, refreshes
@@ -592,7 +597,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             Completion roadmap →
           </Link>
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
-          {session.isJagsStaff && itp.status === "under_review" && (
+          {session.isJagsStaff && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" />
           )}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
@@ -614,6 +619,9 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             <ProposeToMasterForm itpId={itp.id} itpTitle={itp.title} masterTemplates={masterTemplates ?? []} />
           )}
         </div>
+        {reviewSteps.length > 0 && (
+          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} />
+        )}
       </div>
 
       {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
