@@ -267,6 +267,9 @@ export interface ItpPdfStatus {
   status: "pending" | "processing" | "completed" | "failed";
   errorMessage: string | null;
   createdAt: string;
+  /** Null until the job actually finishes — used to tell whether the ITP's content/sign-off state
+   *  has changed since this specific PDF was rendered (see the ITP page's "stale PDF" banner). */
+  completedAt: string | null;
   /** Opens inline in a new tab (no Content-Disposition override) — the "View" option. */
   pdfUrl: string | null;
   /** Same file, signed with { download: true } so Supabase sets Content-Disposition: attachment —
@@ -290,13 +293,13 @@ export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | nul
   // unbounded, linearly-growing scan into an indexed, single-row lookup.
   const { data: latest } = await supabase
     .from(BACKGROUND_JOBS_TABLE)
-    .select("id, payload, status, result_storage_path, error_message, created_at")
+    .select("id, payload, status, result_storage_path, error_message, created_at, completed_at")
     .eq("job_type", "render_itp_pdf")
     .eq("payload->>itp_id", itpId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle<
-      Pick<BackgroundJobRow, "id" | "payload" | "status" | "error_message" | "created_at"> & {
+      Pick<BackgroundJobRow, "id" | "payload" | "status" | "error_message" | "created_at" | "completed_at"> & {
         result_storage_path: string | null;
       }
     >();
@@ -319,6 +322,7 @@ export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | nul
     status: latest.status,
     errorMessage: latest.error_message,
     createdAt: latest.created_at,
+    completedAt: latest.completed_at,
     pdfUrl,
     downloadUrl,
   };

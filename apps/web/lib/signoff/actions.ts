@@ -256,8 +256,105 @@ export async function notifyAllPendingForItpAction(formData: FormData): Promise<
         Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">[]
       >();
 
-    for (const row of pending ?? []) {
-      await notifySignoffRow(supabase, row);
+    // Bulk twin of notifySignoffRow's per-row logic, batched instead of looped: on a large ITP (this
+    // bug was found live on a 465-point ITP with 391 rows still pending) the old version awaited
+    // notifySignoffRow — itself several sequential queries — once per row in a for-loop, meaning
+    // 1000+ serial round trips in one request. That reliably exceeds a Vercel serverless function's
+    // execution timeout, so the button appeared to silently "not work." Fixed by doing the one
+    // mutation that actually matters (the status flip) as a single bulk update, then fetching every
+    // row's notification/audit context in a handful of batched queries instead of one query per row,
+    // and firing the best-effort notification+audit writes concurrently rather than sequentially.
+    if (pending && pending.length > 0) {
+      const pendingIds = pending.map((row) => row.id);
+      const { error: bulkError } = await supabase
+        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+        .update({ status: "notified", notified_at: new Date().toISOString() })
+        .in("id", pendingIds);
+
+      if (!bulkError) {
+        try {
+          const uniqueItemIds = [...new Set(pending.map((row) => row.itp_item_id))];
+          const uniquePartyIds = [...new Set(pending.map((row) => row.project_party_id))];
+
+          const [{ data: itemContexts }, { data: parties }] = await Promise.all([
+            supabase
+              .from("itp_items")
+              .select("id, activity, itp_sections(itps(id, itp_number, project_id, projects(organization_id)))")
+              .in("id", uniqueItemIds)
+              .returns<
+                {
+                  id: string;
+                  activity: string;
+                  itp_sections: {
+                    itps: {
+                      id: string;
+                      itp_number: string;
+                      project_id: string;
+                      projects: { organization_id: string } | null;
+                    } | null;
+                  } | null;
+                }[]
+              >(),
+            supabase
+              .from("project_parties")
+              .select("id, user_id, name")
+              .in("id", uniquePartyIds)
+              .returns<{ id: string; user_id: string | null; name: string }[]>(),
+          ]);
+
+          const itemContextById = new Map((itemContexts ?? []).map((row) => [row.id, row]));
+          const partyById = new Map((parties ?? []).map((row) => [row.id, row]));
+          const organizationId = itemContexts?.[0]?.itp_sections?.itps?.projects?.organization_id ?? null;
+
+          const { data: levelTypes } = organizationId
+            ? await supabase
+                .from(INTERVENTION_LEVEL_TYPES_TABLE)
+                .select("code, label")
+                .eq("organization_id", organizationId)
+                .returns<{ code: string; label: string }[]>()
+            : { data: null };
+          const labelByCode = new Map((levelTypes ?? []).map((row) => [row.code, row.label]));
+
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          await Promise.all(
+            pending.map(async (row) => {
+              const itemContext = itemContextById.get(row.itp_item_id);
+              const party = partyById.get(row.project_party_id);
+              const itp = itemContext?.itp_sections?.itps;
+              const rowOrgId = itp?.projects?.organization_id;
+              const levelLabel = labelByCode.get(row.intervention) ?? row.intervention;
+
+              if (party?.user_id && itp && rowOrgId) {
+                await createNotification(supabase, {
+                  organizationId: rowOrgId,
+                  projectId: itp.project_id,
+                  recipientUserId: party.user_id,
+                  title: `${levelLabel} sign-off needed`,
+                  body: `${itp.itp_number} — ${itemContext?.activity ?? "an activity"}`,
+                  link: `/inspect/itps/${itp.id}`,
+                });
+              }
+
+              if (itp && rowOrgId) {
+                await recordAuditEvent(supabase, {
+                  organizationId: rowOrgId,
+                  projectId: itp.project_id,
+                  entityType: "signoff",
+                  entityId: row.id,
+                  action: "notified",
+                  actorId: user?.id ?? null,
+                  summary: `${party?.name ?? "Party"} notified of ${levelLabel} sign-off on ${itp.itp_number}`,
+                });
+              }
+            })
+          );
+        } catch {
+          // Notification/audit delivery is best-effort — the status update above already succeeded.
+        }
+      }
     }
   }
 

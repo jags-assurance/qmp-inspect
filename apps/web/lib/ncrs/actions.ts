@@ -92,35 +92,63 @@ export async function createNcrAction(
   // Routed through the shared numbering engine (Phase 2) rather than an inline per-project count —
   // NCR numbering is a clean fit for it (one sequence per project, no sub-type prefix to preserve,
   // unlike e.g. standalone assignments' FAT/WIT/... prefixes, which stay on their own local scheme).
-  const { documentNumber: ncrNumber } = await generateDocumentNumber(supabase, {
-    organizationId: project.organization_id,
-    projectId,
-    docType: "ncr",
-    projectNumber: project.project_number,
-    disciplineCode,
-  });
+  //
+  // Real bug found live: next_document_sequence itself is genuinely atomic (a single
+  // INSERT ... ON CONFLICT DO UPDATE ... RETURNING — see that function's own doc comment), but a
+  // project whose NCRs were ever seeded/imported with a hand-picked ncr_number (bypassing the
+  // counter entirely) leaves the counter behind the highest number actually in use. The counter then
+  // has to "catch up" one collision at a time — every generated number below the seeded high-water
+  // mark hits the unique constraint and used to just fail outright with no retry, so raising an NCR
+  // could error repeatedly on a project with any legacy numbering. Retrying with a freshly generated
+  // number on that specific collision (bounded, so a genuine persistent failure still surfaces) fixes
+  // it without needing to touch or backfill the counter itself.
+  let ncr: { id: string } | null = null;
+  let ncrNumber = "";
+  let lastError: { code?: string; message: string } | null = null;
 
-  const { data: ncr, error } = await supabase
-    .from(NCRS_TABLE)
-    .insert({
-      project_id: projectId,
-      ncr_number: ncrNumber,
-      severity,
-      description,
-      requirement_not_met: requirementNotMet || null,
-      assigned_to: assignedTo || null,
-      due_date: dueDate || null,
-      raised_by: user?.id ?? null,
-      itp_item_id: itpItemId,
-      inspection_record_id: inspectionRecordId,
-      responsible_party_id: responsiblePartyId,
-    })
-    .select("id")
-    .single<{ id: string }>();
+  for (let attempt = 0; attempt < 5 && !ncr; attempt++) {
+    const generated = await generateDocumentNumber(supabase, {
+      organizationId: project.organization_id,
+      projectId,
+      docType: "ncr",
+      projectNumber: project.project_number,
+      disciplineCode,
+    });
+    ncrNumber = generated.documentNumber;
 
-  if (error || !ncr) {
+    const { data, error } = await supabase
+      .from(NCRS_TABLE)
+      .insert({
+        project_id: projectId,
+        ncr_number: ncrNumber,
+        severity,
+        description,
+        requirement_not_met: requirementNotMet || null,
+        assigned_to: assignedTo || null,
+        due_date: dueDate || null,
+        raised_by: user?.id ?? null,
+        itp_item_id: itpItemId,
+        inspection_record_id: inspectionRecordId,
+        responsible_party_id: responsiblePartyId,
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (data) {
+      ncr = data;
+      break;
+    }
+
+    lastError = error;
+    if (error?.code !== "23505") break; // Only a number collision is worth retrying.
+  }
+
+  if (!ncr) {
+    const error = lastError;
     if (error?.code === "23505") {
-      return { error: "An NCR with that number already exists for this project." };
+      return {
+        error: "Could not generate a unique NCR number after several attempts — check the project's numbering configuration.",
+      };
     }
     if (error?.code === "23503") {
       return { error: "The assigned-to user or responsible party doesn't match a known record." };

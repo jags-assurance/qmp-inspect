@@ -166,6 +166,15 @@ export function NewNcrForm({
           >
             {draftPending ? "Drafting…" : "Draft with AI"}
           </button>
+          {/* Real gap found live: the button just silently stayed disabled with no explanation when
+              a project hadn't been picked yet, or the notes box was still empty — looked broken
+              rather than waiting on input. */}
+          {!draftPending && !projectId && (
+            <p className="mt-1.5 text-xs text-muted">Select a project above first.</p>
+          )}
+          {!draftPending && projectId && !notes.trim() && (
+            <p className="mt-1.5 text-xs text-muted">Jot down some field notes above first.</p>
+          )}
           {draftState.error && <p className="mt-2 text-sm text-danger">{draftState.error}</p>}
         </div>
 

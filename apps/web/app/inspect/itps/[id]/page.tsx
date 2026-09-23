@@ -111,6 +111,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       external_approval_reference: string | null;
       external_approval_recorded_by: string | null;
       external_approval_recorded_at: string | null;
+      updated_at: string;
       projects: {
         id: string;
         name: string;
@@ -193,8 +194,13 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       // activity_party_intervention query above, just against the sibling progress table.
       supabase
         .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-        .select("id, itp_item_id, project_party_id, intervention, status, notified_at")
-        .returns<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at">[]>(),
+        .select("id, itp_item_id, project_party_id, intervention, status, notified_at, updated_at")
+        .returns<
+          Pick<
+            ActivitySignoffProgressRow,
+            "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "updated_at"
+          >[]
+        >(),
       supabase
         .from("notice_period_configs")
         .select("intervention, hours")
@@ -305,21 +311,41 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   const disciplineByid = new Map((disciplines ?? []).map((d) => [d.id, d.code]));
 
+  // Real bug found live: `interventions`/`signoffs` above are fetched with no itp_item_id filter at
+  // all (RLS-scoped to the org, not to this ITP) — so without this filter, every count derived from
+  // them below (including the "N of M sign-off points complete" summary) was silently counting every
+  // ITP's sign-off rows the viewer has access to, not just this one. Filtering here, once, rather
+  // than adding an `.in(...)` to the Promise.all query above, since `allItemIds` itself depends on
+  // `sections`, fetched in that same parallel batch — see allItemIds's own comment.
+  const ownItemIds = new Set(allItemIds);
+
   const interventionMap = new Map<string, InterventionLevel>();
   for (const row of interventions ?? []) {
+    if (!ownItemIds.has(row.itp_item_id)) continue;
     interventionMap.set(`${row.itp_item_id}:${row.project_party_id}`, row.intervention as InterventionLevel);
   }
 
   const signoffMap = new Map<string, NonNullable<typeof signoffs>[number]>();
-  for (const row of signoffs ?? []) {
+  const ownSignoffs = (signoffs ?? []).filter((row) => ownItemIds.has(row.itp_item_id));
+  for (const row of ownSignoffs) {
     signoffMap.set(`${row.itp_item_id}:${row.project_party_id}`, row);
   }
 
   // Sign-off progress summary (near the page top) and "Notify all pending" gating below — both
-  // computed from the same activity_signoff_progress rows already fetched above, no extra query.
-  const signoffTotal = (signoffs ?? []).length;
-  const signoffComplete = (signoffs ?? []).filter((row) => row.status === "signed_off").length;
-  const hasPendingSignoffs = (signoffs ?? []).some((row) => row.status === "pending");
+  // computed from the same activity_signoff_progress rows already fetched above, filtered to this
+  // ITP's own items (see ownSignoffs's comment above) rather than every ITP's rows.
+  const signoffTotal = ownSignoffs.length;
+  const signoffComplete = ownSignoffs.filter((row) => row.status === "signed_off").length;
+  const hasPendingSignoffs = ownSignoffs.some((row) => row.status === "pending");
+
+  // R-quick-fix: surfaces when this ITP's content or sign-off state has changed since the last
+  // successfully rendered PDF, so "Regenerate PDF" isn't something you have to remember to click on
+  // a hunch — found live: nothing told you the on-disk PDF was stale.
+  const lastPdfCompletedAt = latestPdf?.status === "completed" ? latestPdf.completedAt : null;
+  const isPdfStale =
+    !!lastPdfCompletedAt &&
+    (new Date(itp.updated_at).getTime() > new Date(lastPdfCompletedAt).getTime() ||
+      ownSignoffs.some((row) => row.updated_at && new Date(row.updated_at).getTime() > new Date(lastPdfCompletedAt).getTime()));
 
   const levels = sortLevels(levelTypes ?? []);
   const blockingCodes = new Set(levels.filter((l) => l.is_blocking).map((l) => l.code));
@@ -451,6 +477,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           </ol>
         </div>
 
+        {isPdfStale && (
+          <p className="mt-2 rounded-md border border-warning/60 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
+            This ITP has changed (content or a sign-off) since the PDF below was generated — Regenerate PDF to pick up the latest state.
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <ItpPdfButton itpId={itp.id} latest={latestPdf} />
           {/* R41: export the ITP's current content as an editable .xlsx — offline-revision-form.tsx
@@ -477,6 +509,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
           >
             Checklists →
+          </Link>
+          <Link
+            href={`/inspect/itps/${itp.id}/status`}
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+          >
+            Completion roadmap →
           </Link>
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
           {session.isJagsStaff && itp.status === "under_review" && (

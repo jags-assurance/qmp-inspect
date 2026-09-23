@@ -62,6 +62,44 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
 
   const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
 
+  // Real-world gap found live: this table previously had no status column at all — the only way to
+  // tell whether a checklist had been started, or completed pass/fail, was to open every single one.
+  // inspection_records gets its row at "Start inspection" time (overall_result null) and only gets
+  // overall_result set at "Complete inspection" — so a row's mere existence is "in progress", and a
+  // set overall_result is "complete" — no need to touch checklist_responses at all. A template can
+  // have more than one inspection_record over time (e.g. a re-inspection after a fail), so this
+  // takes the most recently created one per template as the current status.
+  const templateIds = (templates ?? []).map((t) => t.id);
+  const { data: inspectionRecords } =
+    templateIds.length > 0
+      ? await supabase
+          .from("inspection_records")
+          .select("checklist_template_id, overall_result, created_at")
+          .in("checklist_template_id", templateIds)
+          .order("created_at", { ascending: false })
+          .returns<{ checklist_template_id: string | null; overall_result: string | null; created_at: string }[]>()
+      : { data: [] as { checklist_template_id: string | null; overall_result: string | null; created_at: string }[] };
+
+  const latestByTemplateId = new Map<string, string | null>();
+  for (const row of inspectionRecords ?? []) {
+    if (row.checklist_template_id && !latestByTemplateId.has(row.checklist_template_id)) {
+      latestByTemplateId.set(row.checklist_template_id, row.overall_result);
+    }
+  }
+
+  const RESULT_LABEL: Record<string, { label: string; tone: "success" | "danger" | "warning" }> = {
+    pass: { label: "Complete — Pass", tone: "success" },
+    fail: { label: "Complete — Fail", tone: "danger" },
+    partial: { label: "Complete — Partial", tone: "warning" },
+  };
+
+  function statusFor(templateId: string | undefined): { label: string; tone: "success" | "danger" | "warning" | "neutral" } {
+    if (!templateId) return { label: "Not generated yet", tone: "neutral" };
+    if (!latestByTemplateId.has(templateId)) return { label: "Not started", tone: "neutral" };
+    const result = latestByTemplateId.get(templateId);
+    return (result && RESULT_LABEL[result]) || { label: "In progress", tone: "warning" };
+  }
+
   // R44/R47: staff can start a checklist-type activity's checklist from a reusable library
   // template instead of the blank auto-generate path — see lib/checklist-library/actions.ts's
   // attachLibraryTemplateToActivityAction. The library itself is staff-only (RLS), so this option
@@ -108,7 +146,10 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
 
   return (
     <div>
-      <div>
+      <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
+        ← Back to ITP
+      </Link>
+      <div className="mt-2">
         <p className="text-sm text-muted">
           {itp.projects?.organizations?.name} · {itp.projects?.name}
         </p>
@@ -138,12 +179,14 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
               <th className="px-4 py-2 font-medium">Item</th>
               <th className="px-4 py-2 font-medium">Activity</th>
               <th className="px-4 py-2 font-medium">Checklist</th>
+              <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium" />
             </tr>
           </thead>
           <tbody>
             {(items ?? []).map((item) => {
               const template = templateByItem.get(item.id);
+              const status = statusFor(template?.id);
               return (
                 <tr key={item.id} className="border-b border-border last:border-0">
                   <td className="doc-id px-4 py-3 text-ink">{item.item_number}</td>
@@ -154,6 +197,9 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
                     ) : (
                       <span className="text-muted">Not generated yet</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge tone={status.tone}>{status.label}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
                     {template ? (
@@ -172,7 +218,7 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
             })}
             {(items ?? []).length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted">
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">
                   No checklist-type activities on this ITP.
                 </td>
               </tr>

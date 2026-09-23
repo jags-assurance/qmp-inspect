@@ -29,6 +29,18 @@ function normalize(text: string): string {
   return trimmed.length > MAX_EXTRACTED_CHARS ? trimmed.slice(0, MAX_EXTRACTED_CHARS) : trimmed;
 }
 
+// A scanned (image-only) PDF has no real text layer, so pdf-parse's getText() returns nothing per
+// page except its own "-- N of M --" progress separator — real bug found live this session: that
+// came back non-empty (e.g. "-- 1 of 39 --" repeated), so a scanned upload was silently marked
+// extraction_status 'done' with junk placeholder text instead of 'empty', making it look eligible
+// as AI-draft source material when it carries zero real content. Stripping the separators before
+// the emptiness check below is what actually catches this — the raw text alone is never empty.
+const PDF_PAGE_SEPARATOR = /^--\s*\d+\s*of\s*\d+\s*--$/gm;
+
+function isEffectivelyEmpty(text: string): boolean {
+  return text.replace(PDF_PAGE_SEPARATOR, "").trim().length === 0;
+}
+
 // pdf-parse (v2+) wraps pdfjs-dist, which references DOMMatrix — a browser Canvas API — even on the
 // pure-text extraction path, to compose each page's coordinate-space transform. Node has no
 // DOMMatrix at all, so every PDF failed extraction with "DOMMatrix is not defined" (real bug this
@@ -83,7 +95,7 @@ export async function extractTextFromFile(bytes: ArrayBuffer, filename: string):
     }
 
     const text = normalize(raw);
-    return text ? { status: "done", text } : { status: "empty" };
+    return text && !isEffectivelyEmpty(text) ? { status: "done", text } : { status: "empty" };
   } catch (err) {
     return { status: "failed", error: err instanceof Error ? err.message : "Unknown extraction error." };
   }
