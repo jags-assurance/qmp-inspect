@@ -22,6 +22,7 @@ export const PUNCH_LIST_SOURCES = [
   "ncr",
   "walkdown",
   "manual",
+  "itp_measurement_failure",
 ] as const;
 export type PunchListSource = (typeof PUNCH_LIST_SOURCES)[number];
 
@@ -31,6 +32,7 @@ export const PUNCH_LIST_SOURCE_LABELS: Record<PunchListSource, string> = {
   ncr: "NCR",
   walkdown: "Walkdown",
   manual: "Manual",
+  itp_measurement_failure: "Measurement failure",
 };
 
 export const PUNCH_LIST_STATUSES = ["open", "closed"] as const;
@@ -44,6 +46,7 @@ export interface PunchListItemRow {
   source_inspection_record_id: string | null;
   source_standalone_assignment_id: string | null;
   source_ncr_id: string | null;
+  source_itp_item_id: string | null;
   location: string | null;
   responsible_party_id: string | null;
   due_date: string | null;

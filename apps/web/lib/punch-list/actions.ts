@@ -254,6 +254,10 @@ export async function recordWalkdownAction(
  *  - standalone assignment finalize (apps/web/lib/standalone/actions.ts, when
  *    conclusion = 'conditional_pass'): source: 'fat_conditional_pass', sourceStandaloneAssignmentId.
  *  - NCR raise (apps/web/lib/ncrs/actions.ts createNcrAction): source: 'ncr', sourceNcrId.
+ *  - ITP measurement-record evidence turning newly Fail (apps/web/lib/itps/evidence-actions.ts,
+ *    add/updateItpItemMeasurementAction): source: 'itp_measurement_failure', sourceItpItemId. One
+ *    item per newly-failing row, not one per activity — unlike a checklist, evidence_type=3 has no
+ *    single "complete" action to hang an aggregate check off.
  *
  * Manual, undifferentiated entries go through addPunchItemAction above (source: 'manual').
  * 'walkdown'-sourced items are produced by recordWalkdownAction below (R95): a final walk-down is a
@@ -270,6 +274,7 @@ export async function createPunchItemFromSource(params: {
   sourceInspectionRecordId?: string;
   sourceStandaloneAssignmentId?: string;
   sourceNcrId?: string;
+  sourceItpItemId?: string;
   location?: string;
   responsiblePartyId?: string;
   dueDate?: string;
@@ -291,6 +296,7 @@ export async function createPunchItemFromSource(params: {
       source_inspection_record_id: params.sourceInspectionRecordId ?? null,
       source_standalone_assignment_id: params.sourceStandaloneAssignmentId ?? null,
       source_ncr_id: params.sourceNcrId ?? null,
+      source_itp_item_id: params.sourceItpItemId ?? null,
       location: params.location ?? null,
       responsible_party_id: params.responsiblePartyId ?? null,
       due_date: params.dueDate ?? null,

@@ -5,6 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { canExecuteItpItem, findProjectIdForItpItem } from "@/lib/checklists/execution-parties";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import { createNotification } from "@/lib/notifications/helpers";
 
 // Same pattern as lib/ai/log.ts's AI_USAGE_LOG_TABLE: these two tables aren't in the generated
 // Database type yet (packages/shared-types/src/database.ts is hand-maintained until the next
@@ -49,6 +51,75 @@ async function findItpIdForItem(
     .eq("id", itpItemId)
     .maybeSingle<{ itp_sections: { itp_id: string } | null }>();
   return data?.itp_sections?.itp_id ?? null;
+}
+
+/**
+ * R92-96 parity for evidence_type=3: a failed checklist inspection auto-creates a punch item and
+ * notifies the activity's stakeholders (lib/checklists/actions.ts completeInspectionCore); a failed
+ * measurement row never did, with no reason for the difference — found in a self-review audit. Same
+ * "notify every party with a stake in this item, deduped against the ITP's preparer" pattern that
+ * function already uses. Called once per measurement row that newly becomes 'fail' — evidence_type=3
+ * has no single "complete" action to hang an aggregate per-activity check off, unlike a checklist, so
+ * this fires per failing row rather than once per activity.
+ */
+async function notifyAndPunchOnMeasurementFail(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string,
+  measurementDescription: string
+): Promise<void> {
+  const { data: context } = await supabase
+    .from("itp_items")
+    .select("activity, item_number, itp_sections(itps(prepared_by, project_id, projects(organization_id)))")
+    .eq("id", itpItemId)
+    .maybeSingle<{
+      activity: string;
+      item_number: string;
+      itp_sections: {
+        itps: { prepared_by: string | null; project_id: string; projects: { organization_id: string } | null } | null;
+      } | null;
+    }>();
+
+  const itp = context?.itp_sections?.itps;
+  const organizationId = itp?.projects?.organization_id;
+  const projectId = itp?.project_id;
+  if (!organizationId || !projectId || !context) return;
+
+  await createPunchItemFromSource({
+    projectId,
+    description: `Failed measurement: ${measurementDescription} — ${context.activity} (${context.item_number})`,
+    source: "itp_measurement_failure",
+    sourceItpItemId: itpItemId,
+  });
+
+  try {
+    const recipientIds = new Set<string>();
+    if (itp?.prepared_by) recipientIds.add(itp.prepared_by);
+
+    const { data: stakeholderParties } = await supabase
+      .from("activity_party_intervention")
+      .select("project_parties(user_id)")
+      .eq("itp_item_id", itpItemId)
+      .returns<{ project_parties: { user_id: string | null } | null }[]>();
+    for (const row of stakeholderParties ?? []) {
+      if (row.project_parties?.user_id) recipientIds.add(row.project_parties.user_id);
+    }
+
+    const itpId = await findItpIdForItem(supabase, itpItemId);
+    await Promise.all(
+      [...recipientIds].map((recipientUserId) =>
+        createNotification(supabase, {
+          organizationId,
+          projectId,
+          recipientUserId,
+          title: "Measurement failed",
+          body: `${context.activity} (${context.item_number}) — ${measurementDescription}`,
+          link: `/inspect/itps/${itpId}`,
+        })
+      )
+    );
+  } catch {
+    // Notification delivery is best-effort — see completeInspectionCore's own comment for why.
+  }
 }
 
 export interface EvidenceActionState {
@@ -105,6 +176,12 @@ export async function addItpItemMeasurementAction(_prev: EvidenceActionState, fo
 
   if (error) return { error: "Could not record the measurement. Check you have permission and try again." };
 
+  // R92-96 parity: a measurement entered as an immediate fail feeds the punch list the same way a
+  // failed checklist inspection does. Never blocks the save above, which already succeeded.
+  if (result === "fail") {
+    await notifyAndPunchOnMeasurementFail(supabase, itpItemId, description);
+  }
+
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {
     revalidatePath(`/inspect/itps/${itpId}`);
@@ -137,16 +214,20 @@ export async function updateItpItemMeasurementAction(_prev: EvidenceActionState,
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
+  // Fetched up front regardless of staff/non-staff: non-staff needs recorded_by for the ownership
+  // check below, and everyone needs the prior result to tell "still fail, already punched" apart
+  // from "just turned fail, needs a new punch item" a few lines down.
+  const { data: existing } = await supabase
+    .from(ITP_ITEM_MEASUREMENTS_TABLE)
+    .select("recorded_by, result")
+    .eq("id", measurementId)
+    .maybeSingle<{ recorded_by: string | null; result: MeasurementResult | null }>();
+
   if (!session.isJagsStaff) {
     if (!(await canExecuteItpItem(supabase, itpItemId))) {
       return { error: "Only the party assigned to execute this activity (or JAGS staff) can edit a measurement." };
     }
-    const { data: row } = await supabase
-      .from(ITP_ITEM_MEASUREMENTS_TABLE)
-      .select("recorded_by")
-      .eq("id", measurementId)
-      .maybeSingle<{ recorded_by: string | null }>();
-    if (row?.recorded_by !== session.userId) {
+    if (existing?.recorded_by !== session.userId) {
       return { error: "Only the person who recorded this measurement (or JAGS staff) can edit it." };
     }
   }
@@ -164,6 +245,12 @@ export async function updateItpItemMeasurementAction(_prev: EvidenceActionState,
     .eq("id", measurementId);
 
   if (error) return { error: "Could not update the measurement. Check you have permission and try again." };
+
+  // Only when this edit is what actually MADE it a fail — re-saving an already-failing row (e.g.
+  // fixing a typo in the description) must not create a second punch item for the same failure.
+  if (result === "fail" && existing?.result !== "fail") {
+    await notifyAndPunchOnMeasurementFail(supabase, itpItemId, description);
+  }
 
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {

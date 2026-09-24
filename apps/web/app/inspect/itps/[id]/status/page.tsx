@@ -286,7 +286,13 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
               isBlocking: !!levelByCode.get(r.intervention)?.is_blocking,
             }));
 
-          const overallDone = evidence.done && required > 0 && signedOff === required;
+          // required === 0 is a legitimate state (no sign-off rows configured for this activity at
+          // all) — "0 required, 0 done" should read as "nothing outstanding," not "can never be
+          // complete." Found in a self-review audit: the old `required > 0` guard meant a fully-
+          // passed activity with zero configured sign-off could never show Complete, with no
+          // explanation given for why. `signedOff === required` alone already handles the 0-row case
+          // correctly (0 === 0), so the guard was only ever excluding it, never protecting anything.
+          const overallDone = evidence.done && signedOff === required;
           const overallTone: "success" | "danger" | "warning" | "neutral" = overallDone
             ? "success"
             : blockingOpen.length > 0
