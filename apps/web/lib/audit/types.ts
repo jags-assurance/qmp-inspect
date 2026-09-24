@@ -9,7 +9,9 @@ export const AUDIT_LOG_TABLE = "audit_log" as any;
 
 export interface AuditLogRow {
   id: string;
-  organization_id: string;
+  // Nullable: a genuinely platform-wide event (e.g. granting/revoking GLOBAL-scope staff access)
+  // isn't scoped to any one organisation — see 20260930030000_audit_log_platform_wide_events.sql.
+  organization_id: string | null;
   project_id: string | null;
   entity_type: string;
   entity_id: string;

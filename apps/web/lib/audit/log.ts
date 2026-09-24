@@ -14,6 +14,12 @@ import { AUDIT_LOG_TABLE } from "./types";
  * under that user's RLS (audit_log_insert only requires org access to the event's own
  * organization_id — see the migration — matching the pattern createNotification already uses).
  *
+ * organizationId is nullable: omit it (or pass null) for a genuinely platform-wide event that isn't
+ * scoped to any one organisation — e.g. granting/revoking a GLOBAL-scope access_grants row. RLS
+ * (20260930030000_audit_log_platform_wide_events.sql) only lets JAGS staff read or write a null-org
+ * row, since a platform-wide event is inherently a staff-only concern — never omit organizationId
+ * for an event that genuinely does belong to one organisation just because it's convenient.
+ *
  * Best-effort: a failure here must never fail — or even surface an error on — the mutation it's
  * recording. The underlying business event (the ITP approval, the NCR close, the sign-off, ...) has
  * already happened and is the source of truth; this is a convenience trail on top, not part of the
@@ -24,7 +30,7 @@ import { AUDIT_LOG_TABLE } from "./types";
 export async function recordAuditEvent(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   params: {
-    organizationId: string;
+    organizationId?: string | null;
     projectId?: string | null;
     entityType: string;
     entityId: string;
@@ -36,7 +42,7 @@ export async function recordAuditEvent(
 ): Promise<void> {
   try {
     await supabase.from(AUDIT_LOG_TABLE).insert({
-      organization_id: params.organizationId,
+      organization_id: params.organizationId ?? null,
       project_id: params.projectId ?? null,
       entity_type: params.entityType,
       entity_id: params.entityId,

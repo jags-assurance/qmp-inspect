@@ -87,17 +87,20 @@ export async function addStaffGrantAction(
     return { error: "Could not add the grant. Check you have permission and try again." };
   }
 
-  if (organizationId) {
-    await recordAuditEvent(supabase, {
-      organizationId,
-      entityType: "staff_access_grant",
-      entityId: grant.id,
-      action: "granted",
-      actorId: session.userId,
-      summary: `Staff access (${scopeType}, role "${role}") granted to ${staffUserId}`,
-      changes: { staff_user_id: staffUserId, scope_type: scopeType, project_id: projectId || null, role },
-    });
-  }
+  // Found missing in a self-review audit: a 'global' grant has no organizationId to attach the
+  // event to under the old NOT NULL schema, so it silently skipped auditing — the single most
+  // sensitive grant type in this file (access to every organisation) was the one left unaudited.
+  // organizationId omitted entirely (not just falsy) now genuinely means "platform-wide event," per
+  // recordAuditEvent's own doc comment.
+  await recordAuditEvent(supabase, {
+    organizationId: organizationId || null,
+    entityType: "staff_access_grant",
+    entityId: grant.id,
+    action: "granted",
+    actorId: session.userId,
+    summary: `Staff access (${scopeType}, role "${role}") granted to ${staffUserId}`,
+    changes: { staff_user_id: staffUserId, scope_type: scopeType, project_id: projectId || null, role },
+  });
 
   revalidatePath(STAFF_ACCESS_PATH);
   return { error: null };
@@ -130,7 +133,9 @@ export async function removeStaffGrantAction(
     return { error: "Could not remove the grant. Check you have permission and try again." };
   }
 
-  if (grant?.organization_id) {
+  if (grant) {
+    // Same platform-wide-event handling as addStaffGrantAction above — a 'global' grant's
+    // organization_id is null, and that's now a real, auditable case rather than a skipped one.
     await recordAuditEvent(supabase, {
       organizationId: grant.organization_id,
       entityType: "staff_access_grant",
