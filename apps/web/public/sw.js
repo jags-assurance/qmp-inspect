@@ -9,7 +9,7 @@
 // Actions are POST-only and can never be meaningfully cached; the app-level offline queue in
 // lib/offline/ is what makes those resilient to being offline, not this service worker).
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const APP_SHELL_CACHE = `qmp-inspect-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `qmp-inspect-runtime-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -84,7 +84,10 @@ async function networkFirstRuntime(request) {
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    throw new Error("Offline and no cached response available.");
+    // Never throw here — this runs inside event.respondWith(), so a throw becomes an uncaught
+    // promise rejection in the page's console instead of a normal failed response. Returning a
+    // real (if unsuccessful) Response lets the caller's own fetch/error handling take over.
+    return new Response(null, { status: 503, statusText: "Offline" });
   }
 }
 
