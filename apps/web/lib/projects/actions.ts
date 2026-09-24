@@ -636,6 +636,66 @@ export async function reactivateAllProjectPartiesAction(
   return { error: null };
 }
 
+export interface UpdateProjectStatusState {
+  error: string | null;
+}
+
+const VALID_PROJECT_STATUSES = ["draft", "active", "on_hold", "completed", "cancelled"] as const;
+type ProjectStatus = (typeof VALID_PROJECT_STATUSES)[number];
+
+/**
+ * Closes a real gap: projects.status (supabase/migrations/20260909220000_phase1_projects.sql) has
+ * carried 'completed'/'cancelled' in its check constraint since Phase 1, and other code already
+ * talks about a project being "flipped to completed" (see deactivateAllProjectPartiesAction's own
+ * comment above), but nothing ever actually wrote to this column — every project sat at its default
+ * 'active' forever. Admin-only, same boundary as the bulk deactivate/reactivate actions this sits
+ * next to; deliberately NOT wired to deactivateAllProjectPartiesAction (that stays its own explicit,
+ * confirmed click — see that action's own comment for why "status change auto-triggers party
+ * deactivation" is exactly the surprising behaviour to avoid).
+ */
+export async function updateProjectStatusAction(
+  _prev: UpdateProjectStatusState,
+  formData: FormData
+): Promise<UpdateProjectStatusState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change a project's status." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim() as ProjectStatus;
+  if (!projectId || !VALID_PROJECT_STATUSES.includes(status)) {
+    return { error: "Missing project or invalid status." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: project, error } = await supabase
+    .from("projects")
+    .update({ status })
+    .eq("id", projectId)
+    .select("organization_id, status")
+    .single<{ organization_id: string; status: string }>();
+
+  if (error || !project) {
+    return { error: "Could not update the project's status. Check you have permission and try again." };
+  }
+
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "project",
+    entityId: projectId,
+    action: "status_changed",
+    actorId: session.userId,
+    summary: `Project status changed to "${status}"`,
+    changes: { status },
+  });
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  revalidatePath("/inspect/projects");
+  return { error: null };
+}
+
 export interface SetResponsiblePersonState {
   error: string | null;
 }

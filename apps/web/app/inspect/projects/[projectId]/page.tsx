@@ -24,6 +24,7 @@ import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
 import { PageGuide } from "@/components/domain/page-guide";
+import { ProjectStatusControl } from "./project-status-control";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -225,7 +226,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 "\"Responsible Person\", checklist execution, ITP creation and hold-point enforcement settings are Admin-only — each one applies to THIS project only, never platform-wide.",
                 "Reassigning a party's sign-off responsibility is available to an Admin, a lead of a JAGS team assigned to this project, or (for that project's own client-type party) a client team lead.",
                 "Audit Log only appears here for JAGS staff — it's an internal governance view, not something a client or contractor party sees.",
-                "\"Deactivate all parties\" only unlocks once the project's status is completed or cancelled, so it can't be fired by mistake on a live project.",
+                "The status dropdown next to the project name (Admin-only) is the only place that changes a project's status — nothing else in the app sets it automatically, including compiling the Data Book or acknowledging Handover.",
+                "\"Deactivate all parties\" only unlocks once the project's status is completed or cancelled, so it can't be fired by mistake on a live project — and even then it's its own separate click, never automatic on the status change itself.",
               ]}
             />
           </div>
@@ -235,7 +237,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             {project.country && `, ${project.country}`}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
+        {isAdminStaff(session) ? (
+          <ProjectStatusControl projectId={project.id} status={project.status} />
+        ) : (
+          <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
+        )}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-off-white px-3 py-2">
