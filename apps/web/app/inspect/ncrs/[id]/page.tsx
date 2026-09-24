@@ -14,6 +14,7 @@ import { NcrPhotoUpload } from "./ncr-photo-upload";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface NcrDetail {
   id: string;
@@ -222,10 +223,19 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{ncr.ncr_number}</h1>
             <Badge tone={SEVERITY_TONE[ncr.severity]}>{SEVERITY_LABEL[ncr.severity]}</Badge>
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
+            <PageGuide
+              title="NCR detail — how this works"
+              points={[
+                "\"Start progress\" / \"Send for verification\" are quick, no-validation status moves — closing is deliberately not one of them.",
+                "Closing only happens from the corrective action close-out form below, and requires root cause, corrective action and verification notes (preventive action stays optional).",
+                "Closing this NCR also closes the punch-list item it created when raised, reusing the same verification notes as closing evidence, and (if linked to a failed inspection record) notifies the original inspector the activity is ready to re-inspect.",
+                "The assignee and responsible-party pickers are built from real people with access to this NCR's project (access grants plus linked project parties) — not free text.",
+              ]}
+            />
           </div>
           <p className="mt-1 text-sm text-muted">
             {ncr.projects?.organizations?.name} · {ncr.projects?.name}

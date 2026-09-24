@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itps-table";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * Consolidated self-service hub for a Self-Managed client's own org — everything they can already
@@ -97,7 +98,18 @@ export default async function ManageHubPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Manage — {org.name}</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Manage — {org.name}</h1>
+        <PageGuide
+          title="Manage — how this works"
+          points={[
+            "Only shown to Self-Managed client organisations, and only for your own org — JAGS staff never see this page, they use the ordinary nav instead.",
+            "\"Needs your action\" surfaces exactly what's waiting on you: submitting your own draft ITPs, generating checklists once an ITP you can create for is approved, and accepting an ITP if you're the client party.",
+            "Nothing here grants a new permission — it's the same RLS-scoped data and the same gated actions the ITP detail/checklists pages already expose, just gathered in one place.",
+            "Approving an ITP, closing an NCR, and issuing an IRN are never self-service, even here — those stay JAGS-only by design, as the independent check.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Self-Managed organisation — a single place for what your own team runs day to day. JAGS still
         Approves every ITP, Closes every NCR, and Issues every IRN — that independent check never

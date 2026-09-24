@@ -13,6 +13,7 @@ import { ItemsTable } from "./items-table";
 import { ImportPanel } from "./import-panel";
 import { ExportButton } from "./export-button";
 import { EditTemplateForm } from "./edit-template-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * R46: staff get the full builder (edit details incl. client scope, add/import/export items).
@@ -56,7 +57,18 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
       </Link>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
+            <PageGuide
+              title="Checklist / Form Template — how this works"
+              points={[
+                "Staff get the full builder here: edit the template's details (including which client org it's scoped to, if any), add/import/export items. A non-staff viewer only ever reaches a template RLS already resolved as visible to them (global, or scoped to their own org) and gets a read-only view — no edit form, no add/import/export actions.",
+                "You only ever reach this page for a template you're allowed to see — a non-staff user requesting one outside their visibility gets a plain 404, no separate redirect logic needed.",
+                "Editing items here never touches any ITP that already copied this template's items — those copies are independent per-project checklists from the moment they're created.",
+                "Import/Export (from Excel) and Export are staff-only, same as everything else on this page besides the read-only item list.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {template.master_disciplines?.name ?? "No discipline set"}
             {template.description ? ` · ${template.description}` : ""}

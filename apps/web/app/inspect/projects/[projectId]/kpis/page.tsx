@@ -15,6 +15,7 @@ import {
 import { NCRS_TABLE, NCR_SEVERITIES, type NcrSeverity } from "@/lib/ncrs/types";
 import { OpenItemsTable } from "./open-items-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { PageGuide } from "@/components/domain/page-guide";
 
 function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value)}%`;
@@ -270,7 +271,18 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
     <div>
       <RealtimeRefresh table="inspection_records" filter={`project_id=eq.${projectId}`} />
       <div>
-        <h1 className="text-2xl font-semibold text-ink">Quality performance</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Quality performance</h1>
+          <PageGuide
+            title="Client KPIs — how this works"
+            points={[
+              "Client-facing quality metrics for this one project only: first-time pass rate, hold-point turnaround, NCR close-out time, data-book readiness (a proxy), inspection and ITP completion.",
+              "Every number and chart here is computed live from this project's own recorded ITPs, inspections, NCRs, sign-offs and punch list — nothing is fabricated trend data or JAGS-internal cost/margin figures.",
+              "\"Open Holds\" (currently blocked, ranked by how long they've been waiting) is distinct from \"Hold-point turnaround\" above, which only averages Holds that have already closed.",
+              "Reachable by any role with access to this project — no staff-only gate.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name} · <span className="doc-id">{project.project_number}</span> {project.name}
         </p>

@@ -9,6 +9,7 @@ import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { VAULT_FOLDERS_TABLE, VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const EVENT_DOT_TONE: Record<ActivityEvent["kind"], string> = {
   itp_created: "bg-info",
@@ -403,7 +404,18 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
   return (
     <div>
       <div>
-        <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Activity</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Activity</h1>
+          <PageGuide
+            title="Activity — how this works"
+            points={[
+              "A single chronological feed of everything recorded on this project — ITP lifecycle, sign-offs, inspections, NCRs, standalone assignments, data book/handover, punch list, and Document Vault uploads.",
+              "Reachable by any role with access to this project (client, subcontractor, main contractor, TPI/lab, staff) — no staff-only gate, same as Punch List and Client KPIs.",
+              "Every event shown is backed by a real recorded timestamp column — nothing here is inferred or backfilled from an unrelated column like updated_at.",
+              "Capped to the most recent 80 events across all sources, newest first.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name} · {project.name}. A full chronological feed of everything recorded on this
           project — ITPs, sign-offs, inspections, NCRs, standalone assignments, data book and handover, punch list,

@@ -26,6 +26,7 @@ import { IrnPdfButton } from "./irn-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
 import { isAiConfigured } from "@/lib/ai/gate";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -135,6 +136,16 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>
               {(record.overall_result ?? "In progress").toString().toUpperCase()}
             </Badge>
+            <PageGuide
+              title="Inspection record — how this works"
+              points={[
+                "Read-only record of one completed inspection — every checklist response, photo evidence, the inspector's signature and any linked NCR/IRN.",
+                "A fail or partial result surfaces a \"Raise NCR →\" link pre-filled with this project, ITP item and inspection record — the NCR raised is linked back to this record both ways.",
+                "Once that linked NCR is closed, the original inspector is notified the activity is ready to re-inspect — closing the NCR's paperwork never auto-passes the record itself.",
+                "An IRN (Inspection Release Note) can only be issued once the inspection has passed — it's blocked while a fail/partial result stands.",
+                "The narrative editor (AI-assisted draft, when AI is configured) only shows for JAGS staff.",
+              ]}
+            />
           </div>
         </div>
         <div className="bg-surface px-5 py-3">

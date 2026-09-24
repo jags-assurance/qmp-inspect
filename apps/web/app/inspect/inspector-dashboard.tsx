@@ -3,6 +3,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { PendingActionsTable, type PendingActionItem } from "@/components/domain/pending-actions-table";
 import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export interface PendingStandaloneAssignmentItem {
   id: string;
@@ -86,7 +87,18 @@ export function InspectorDashboard({
           <p className="text-sm text-muted">
             {greeting}, {firstName}
           </p>
-          <h1 className="text-2xl font-semibold text-ink">Inspector Dashboard</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Inspector Dashboard</h1>
+            <PageGuide
+              title="Inspector Dashboard — how this works"
+              points={[
+                "\"Pending actions\" is a real worklist of checklists not yet started or still a draft — sorted by real urgency (a Hold-gated activity outranks a Witness one, which outranks a plain Review/Surveillance one), not just recency.",
+                "A checklist with no response two days after it was generated counts as overdue — there's no separate due-date field, so age since generation is the closest real signal.",
+                "\"Overdue hold points\" are blocking-level activities that were notified but never signed off, past their project's configured notice period (or the organisation's default, or 48h if neither is set).",
+                "Standalone/FAT assignments show up here too, alongside ITP-driven checklists, since both are real field work waiting on you.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">{today}</p>
         </div>
         <Link

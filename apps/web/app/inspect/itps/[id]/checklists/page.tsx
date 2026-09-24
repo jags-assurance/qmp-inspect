@@ -8,6 +8,7 @@ import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types
 import { GenerateChecklistsButton } from "./generate-button";
 import { AttachLibraryTemplateForm } from "./attach-library-template-form";
 import { ITP_STATUS_LABEL } from "../../itps-table";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * Lists every checklist-type (evidence_type = 1) activity on an ITP, generates checklists for an
@@ -153,9 +154,20 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
         <p className="text-sm text-muted">
           {itp.projects?.organizations?.name} · {itp.projects?.name}
         </p>
-        <h1 className="mt-1 text-2xl font-semibold text-ink">
-          Checklists <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
-        </h1>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">
+            Checklists <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
+          </h1>
+          <PageGuide
+            title="ITP checklists — how this works"
+            points={[
+              "Lists every checklist-type (evidence_type = 1) activity on this ITP and lets you generate its checklist once the ITP is approved — other evidence types (document upload, measurement) are handled on the ITP page itself, not here.",
+              "Generating checklists is available to JAGS staff, or to the same client/contractor party eligible to create this ITP's content, once the ITP is approved — approving the ITP itself always stays JAGS-only.",
+              "Staff can start a checklist from a reusable library template instead of a blank one — only templates that are global or scoped to this ITP's own client organisation are offered.",
+              "Status reflects the most recent inspection_records row for that checklist: no row = not started, a row with no result yet = in progress, a result set = complete (pass/fail/partial).",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">{itp.title}</p>
       </div>
 

@@ -7,6 +7,7 @@ import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types"
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { getLatestPortfolioSummaryPdf } from "@/lib/reports/actions";
 import { PortfolioSummaryPdfButton } from "./portfolio-summary-pdf-button";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * A lightweight in-app equivalent of the vw_powerbi_* views (see
@@ -83,6 +84,13 @@ function sampleCaption(sampleSize: number): string | undefined {
   return sampleSize > 0 && sampleSize < SMALL_SAMPLE_THRESHOLD ? `Based on ${sampleSize} data point${sampleSize === 1 ? "" : "s"}` : undefined;
 }
 
+const PORTFOLIO_INSIGHTS_GUIDE_POINTS = [
+  "Admin-only — a live, in-app rollup across every client and project, computed from the same base tables Power BI reads (see Reporting) but through the ordinary RLS-scoped queries every other page uses, not the unscoped vw_powerbi_* views (those are for the standalone powerbi_reader login only).",
+  "\"Blocking\" levels used for hold-point turnaround are approximated across every organisation's own custom intervention levels, not one org's — there's no single org to scope to on a portfolio-wide page.",
+  "A stat shown with \"(n=...)\" or a small-sample caption is based on fewer than 5 underlying data points — read it as low-confidence, not a firm measurement.",
+  "The PDF button generates a point-in-time portfolio summary; the numbers on this page itself are always live on page load.",
+];
+
 export default async function PortfolioInsightsPage() {
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -101,7 +109,10 @@ export default async function PortfolioInsightsPage() {
     return (
       <div className="max-w-4xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+            <PageGuide title="Portfolio Insights — how this works" points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
+          </div>
           <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
         </div>
         <p className="mt-3 text-sm text-muted">No projects yet.</p>
@@ -230,7 +241,10 @@ export default async function PortfolioInsightsPage() {
     <div className="max-w-4xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
+            <PageGuide title="Portfolio Insights — how this works" points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
+          </div>
           <p className="mt-1 text-sm text-muted">
             A live, in-app summary across every client and project you have access to — the same
             aggregates Power BI Desktop reads (see{" "}

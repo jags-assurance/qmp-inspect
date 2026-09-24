@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { listMonthlyReportPacks } from "@/lib/reports/actions";
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -85,7 +86,18 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
   return (
     <div>
       <div>
-        <h1 className="text-2xl font-semibold text-ink">Reports</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Reports</h1>
+          <PageGuide
+            title="Reports & Downloads — how this works"
+            points={[
+              "Display and download only — generating a new monthly report pack stays staff-only, done from the Reporting admin page, not from here.",
+              "Reachable by any role with access to this project, since a subcontractor or TPI/lab can have reports across several client organisations' projects — no single org to scope a layout-level gate to.",
+              "This page requires the project's organisation to be licensed for the Reporting module (JAGS staff always bypass) — otherwise it redirects back to the project hub.",
+              "Each ITP's own controlled A4 PDF lives on that ITP's own page, linked from the \"ITP documents\" list below.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name ?? "—"} · <span className="doc-id">{project.project_number}</span> {project.name}
         </p>

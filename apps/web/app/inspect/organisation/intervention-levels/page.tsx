@@ -5,6 +5,7 @@ import { INTERVENTION_LEVEL_TYPES_TABLE, sortLevels, type InterventionLevelTypeR
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { LevelRowForm } from "./level-row-form";
 import { AddLevelForm } from "./add-level-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
   id: string;
@@ -53,7 +54,19 @@ export default async function InterventionLevelsSettingsPage({
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Intervention (sign-off) levels</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Intervention (sign-off) levels</h1>
+        <PageGuide
+          title="Intervention (sign-off) levels — how this works"
+          points={[
+            "Admin-only, same page-shape convention as Numbering/Branding/Plans — an org picker up top, then a focused settings panel for whichever org is selected.",
+            "Every org is seeded with the same four built-in levels (Hold/Witness/Review/Surveillance), but they're fully custom per organisation now: freely renamed, reordered or reclassified, plus any number of custom levels added here.",
+            "A blocking level (like Hold) stops an inspection completing until it's signed off; a non-blocking level doesn't — that flag is what other pages (e.g. Portfolio Insights' hold-point turnaround) key off.",
+            "Default notice hours is how long the originator waits before a non-blocking level can \"proceed without response\" — leave blank for none.",
+            "Party sign-off sequencing (whether non-blocking levels must also clear in sort order, like blocking levels already do) is configured separately, on the Numbering page.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Every ITP activity's per-party sign-off level (Hold/Witness/Review/Surveillance by default)
         is now custom per organisation, not a fixed set. A <strong>blocking</strong> level (like Hold)

@@ -10,6 +10,7 @@ import { NCR_TABLE_PAGE_SIZE } from "../ncrs/constants";
 import { isOverdue } from "../ncrs/is-overdue";
 import { DisciplineFilterForm } from "../ncrs/discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -93,7 +94,18 @@ export default async function ObservationsPage({
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Observation Register</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Observation Register</h1>
+            <PageGuide
+              title="Observation Register — how this works"
+              points={[
+                "Observations are raised on the same NCR form and stored in the same ncrs table as minor/major NCRs — severity \"Observation\" is what routes a record here instead of to the NCR Register, so the two registers never double-list the same rows.",
+                "Anyone with project access can raise one via \"+ Raise Observation\"; raising it still creates a matching project punch-list item, same as any NCR.",
+                "Closing one still requires root cause, corrective action and verification notes on its close-out form, same rule as a minor/major NCR.",
+                "The discipline filter only matches observations raised against a specific ITP item — a standalone one has no discipline and stays visible unfiltered.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {session.isJagsStaff
               ? "Observations across every project you have access to."

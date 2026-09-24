@@ -6,6 +6,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { StatCard } from "@/components/ui/stat-card";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export interface DashboardLevelOption {
   code: string;
@@ -155,7 +156,18 @@ export function ExternalPartyDashboard({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">{orgName ? `${orgName} Dashboard` : "Dashboard"}</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">{orgName ? `${orgName} Dashboard` : "Dashboard"}</h1>
+        <PageGuide
+          title="Dashboard — how this works"
+          points={[
+            "The stat cards and queues below are scoped to your organisation's own access — RLS decides what you see, not this page.",
+            "\"Needs attention\" combines ITPs awaiting your acceptance, work awaiting your review, sign-offs pending on you, and NCRs assigned to you — click any row to act on it directly.",
+            "Accepting an ITP is a whole-ITP client step, separate from signing off an individual intervention grid cell (that's the contractor/subcontractor/TPI's job on that activity).",
+            "\"Your projects\" links straight into each project's Reports, Data Book, Activity and KPIs — no need to go through the Projects register first.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         {roleLabel} · {today}
       </p>

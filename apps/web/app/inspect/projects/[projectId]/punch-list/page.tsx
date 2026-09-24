@@ -7,6 +7,7 @@ import { AddPunchItemForm } from "./add-punch-item-form";
 import { RecordWalkdownForm } from "./record-walkdown-form";
 import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function PunchListPage({
   params,
@@ -47,7 +48,18 @@ export default async function PunchListPage({
       <RealtimeRefresh table="punch_list_items" filter={`project_id=eq.${projectId}`} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Punch List</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Punch List</h1>
+            <PageGuide
+              title="Punch List — how this works"
+              points={[
+                "Outstanding items across every source (NCRs, observations, walkdowns, manually added) — open and closed, all in one list.",
+                "Anyone with access to this project can add or close an item — closing one requires entering closing evidence, it's never a bare status flip.",
+                "The project's Data Book can't compile while any item here is open, unless a JAGS staff member explicitly overrides it with a documented reason on the Data Book page.",
+                "\"Record walkdown\" adds several items at once from a single site walkdown, rather than one at a time through the add form.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {project.organizations?.name} · {project.name}. {openCount} open item{openCount === 1 ? "" : "s"}{" "}
             outstanding before this project's Data Book can compile without an override.

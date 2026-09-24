@@ -22,6 +22,7 @@ import { FatReportPdfButton } from "./fat-report-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface AssignmentDetail {
   id: string;
@@ -141,9 +142,18 @@ export default async function StandaloneAssignmentDetailPage({
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{assignment.assignment_number}</h1>
             <Badge tone={TYPE_TONE[assignment.assignment_type]}>{TYPE_LABEL[assignment.assignment_type]}</Badge>
+            <PageGuide
+              title="Standalone assignment — how this works"
+              points={[
+                "Executing this assignment — measurements, photos, punch items, signatures, finalizing, evidence linking — is JAGS-staff-only; unlike an ITP checklist, a contractor can't self-execute it.",
+                "A \"conditional pass\" finalize creates a real project-wide punch-list item (not just the assignment's own internal punch tab) — the assignment stays \"conditional_open\" until every linked punch item is closed and clearance is explicitly issued.",
+                "A clean pass or fail completes the assignment immediately on finalize — no separate clearance step.",
+                "The FAT report PDF and narrative (AI-assisted draft, when AI is configured) are generated from this record's own data — the narrative editor only shows for JAGS staff.",
+              ]}
+            />
           </div>
           <p className="mt-1 text-lg text-ink">{assignment.equipment_description}</p>
           <p className="mt-1 text-sm text-muted">

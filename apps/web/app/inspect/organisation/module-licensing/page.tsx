@@ -9,6 +9,7 @@ import {
 } from "@/lib/module-licensing/types";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { ModuleLicenseToggle } from "./module-license-toggle";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
   id: string;
@@ -60,7 +61,18 @@ export default async function ModuleLicensingSettingsPage({
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-ink">Module licensing</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Module licensing</h1>
+        <PageGuide
+          title="Module licensing — how this works"
+          points={[
+            "Admin-only — turns individual feature modules (ITPs, NCRs, Observations, Vault, Standalone Assignments, Registers, Data Book, Handover, Client Teams, Custom Roles, Reporting, Power BI) on or off per organisation.",
+            "Every module is licensed by default — a missing row for a module means it's on; you only ever switch one off here to restrict a client.",
+            "Distinct from Plans & Seats: this is feature access, not seat-count/tier capacity.",
+            "JAGS staff logins always see every module regardless of this setting, so support work for a client is never blocked by that client's own licensing.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Turn individual feature modules on or off for a client organisation. Every module is{" "}
         <strong>licensed by default</strong> — switch one off here only when a client should not

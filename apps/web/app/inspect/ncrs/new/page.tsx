@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { NewNcrForm } from "./new-ncr-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface ProjectRow {
   id: string;
@@ -117,7 +118,19 @@ export default async function NewNcrPage({
       <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
         ← Back to NCR Register
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">Raise NCR / Observation</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Raise NCR / Observation</h1>
+        <PageGuide
+          title="Raise NCR / Observation — how this works"
+          points={[
+            "One form, one engine, for both — picking severity \"Observation\" instead of minor/major NCR is what routes it to the Observation Register instead of the NCR Register.",
+            "Anyone with access to the project can raise one; the assignee and responsible-party pickers only offer real people with access to this project (access grants plus linked project parties), not free text.",
+            "A due date is required — the \"Overdue\" dashboard metric depends on every open NCR having one.",
+            "Raising it always also creates a matching project punch-list item, so it's tracked toward handover regardless of severity.",
+            "Reaching this page from a failed inspection record pre-fills the project, ITP item and description and links the two records — closing the resulting NCR will prompt the original inspector to re-inspect.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Record a non-conformance or observation against a project — from a failed inspection, a
         walkdown, or standalone.

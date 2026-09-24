@@ -23,6 +23,7 @@ import { isAiConfigured } from "@/lib/ai/gate";
 import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -215,7 +216,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="doc-id text-sm text-muted">{project.project_number}</p>
-          <h1 className="text-2xl font-semibold text-ink">{project.name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">{project.name}</h1>
+            <PageGuide
+              title="Project hub — how this works"
+              points={[
+                "The entry point into everything scoped to this project — ITPs, NCRs, registers, punch list, data book, reports, and every party engaged on it.",
+                "\"Responsible Person\", checklist execution, ITP creation and hold-point enforcement settings are Admin-only — each one applies to THIS project only, never platform-wide.",
+                "Reassigning a party's sign-off responsibility is available to an Admin, a lead of a JAGS team assigned to this project, or (for that project's own client-type party) a client team lead.",
+                "Audit Log only appears here for JAGS staff — it's an internal governance view, not something a client or contractor party sees.",
+                "\"Deactivate all parties\" only unlocks once the project's status is completed or cancelled, so it can't be fired by mistake on a live project.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {project.organizations?.name ?? "—"}
             {project.site_location && ` · ${project.site_location}`}

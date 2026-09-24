@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProjectPickerForm, type ProjectOption } from "../vault/project-picker-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * Cross-project entry point for the four per-project "read about progress" pages (Reports &
@@ -34,7 +35,17 @@ export default async function ReportsDocumentsPage({
   return (
     <div>
       <div>
-        <h1 className="text-2xl font-semibold text-ink">Reports &amp; Documents</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Reports &amp; Documents</h1>
+          <PageGuide
+            title="Reports & Documents — how this works"
+            points={[
+              "This page is purely a navigation hub — pick a project and it just links you into that project's own Reports, Data Book, Activity, KPIs and (JAGS staff only) Audit Log pages.",
+              "Nothing here is filtered by module license or role beyond the project picker itself — each destination page applies its own RLS to decide what you actually see once you get there.",
+              "\"Audit Log\" only appears for JAGS staff — it's not part of what a client or contractor can open.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           Reports &amp; downloads, the Data Book, project activity and Client KPIs — pick a project below.
         </p>

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { ProjectPickerForm, type ProjectOption } from "./project-picker-form";
 import { ConnectorsPanel } from "./connectors-panel";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function VaultPage({
   searchParams,
@@ -52,7 +53,18 @@ export default async function VaultPage({
   return (
     <div>
       <div>
-        <h1 className="text-2xl font-semibold text-ink">Document Vault</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Document Vault</h1>
+          <PageGuide
+            title="Document Vault — how this works"
+            points={[
+              "Every project gets the same fixed set of 11 folders automatically — pick a project above, then open a folder to see its documents.",
+              "Uploading a file whose document reference matches one already in that folder doesn't overwrite it — the old row is marked superseded and stays visible, nothing is silently lost.",
+              "A newly uploaded document starts at status \"for review\" — a JAGS Admin, or anyone granted the approve_vault_document permission for that project, has to approve it before it counts as the controlled baseline.",
+              "Every upload also gets a real document number stamped by the numbering engine, and its text is extracted in the background so it can later be used as source input for AI-drafted ITPs.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           The controlled set of project documents, organised into fixed folders with revision
           tracking.

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrgPlanForm } from "./org-plan-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationRow {
   id: string;
@@ -55,7 +56,17 @@ export default async function PlansSettingsPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Plans & seats</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Plans & seats</h1>
+        <PageGuide
+          title="Plans & seats — how this works"
+          points={[
+            "Admin-only. Each organisation's plan tier is informational today — nothing in the app currently gates a feature by tier.",
+            "seat_limit is the one enforced setting: a seat is one distinct user holding an organisation- or project-scoped access grant for that client; leave it blank for unlimited.",
+            "Enforcement happens in the database, not this page — the access_grants_org_seat_limit trigger blocks the next staff-access grant for that org once the limit is exceeded, with a clear error surfaced back on the Staff Access page.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Each organisation&rsquo;s plan tier and optional seat cap. A seat is one distinct user
         holding an organisation- or project-scoped access grant for that client; leave the seat

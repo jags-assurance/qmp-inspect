@@ -7,6 +7,7 @@ import { DRAWING_MARKUPS_TABLE, type DrawingMarkupRow } from "@/lib/drawing-mark
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { DrawingMarkupViewer } from "./drawing-markup-viewer";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface DocumentRow {
   id: string;
@@ -72,7 +73,17 @@ export default async function VaultDocumentPage({
         ← Back to {folder.name}
       </Link>
 
-      <h1 className="mt-2 text-2xl font-semibold text-ink">{document.title}</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">{document.title}</h1>
+        <PageGuide
+          title="Document viewer — how this works"
+          points={[
+            "Drop a pin anywhere on the drawing to mark where something happened on site — a way to record location, not just a text description.",
+            "A pin can optionally link to an existing NCR on this project, tying the markup directly to the non-conformance it documents.",
+            "Pins appear live for everyone viewing this document — added by one person, visible to the others without a refresh.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         {document.document_number ?? "—"} · Rev. {document.revision}
       </p>

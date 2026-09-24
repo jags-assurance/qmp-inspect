@@ -6,6 +6,7 @@ import { CLOUD_FOLDER_SYNC_CONFIGS_TABLE, type CloudFolderSyncConfigRow } from "
 import { isCloudSyncConfigured } from "@/lib/cloud-sync/gate";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { CloudFolderSyncForm } from "./cloud-folder-sync-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
   id: string;
@@ -47,7 +48,18 @@ export default async function CloudFolderSyncPage({
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-ink">Cloud folder sync</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Cloud folder sync</h1>
+        <PageGuide
+          title="Cloud folder sync — how this works"
+          points={[
+            "Admin-only — this is an external-integration configuration act, same boundary as Plans & Seats and Reporting, not a self-managed client's own org setting like branding/numbering.",
+            "You can save which SharePoint/OneDrive folder to sync against an organisation even before live syncing is possible — the configuration is stored now and syncing begins automatically once a JAGS admin registers an Azure app and sets the Microsoft Graph OAuth env vars (MICROSOFT_GRAPH_CLIENT_ID/SECRET/TENANT_ID).",
+            "Without those credentials configured for this deployment, nothing actually syncs yet — the banner at the top says so.",
+            "This is separate from Aconex/Procore/ProjectWise connectors, which live on the Document Vault page instead.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Point a SharePoint or OneDrive folder at an organisation so its documents can flow into the
         Document Vault automatically.

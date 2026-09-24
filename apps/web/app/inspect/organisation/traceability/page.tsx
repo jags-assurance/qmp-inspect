@@ -5,6 +5,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { ITP_REVISIONS_TABLE } from "@/lib/itps/revision-types";
+import { PageGuide } from "@/components/domain/page-guide";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -153,7 +154,18 @@ export default async function DocumentTraceabilityPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Document Traceability</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Document Traceability</h1>
+        <PageGuide
+          title="Document Traceability — how this works"
+          points={[
+            "Admin-only, read-only lookup — enter any ITP, NCR or inspection report number and see its full lineage: identity, revision history, related records and audit trail. It writes nothing.",
+            "An ITP's items are reached through its sections (itp_items has no direct itp_id column) — that's how related inspection records and NCRs for an ITP get found.",
+            "An NCR's link to a specific ITP item and/or inspection record is optional — an NCR raised without going through a specific checklist item legitimately shows neither.",
+            "This aggregates real foreign keys that already exist elsewhere (numbering, ITP revisions, the audit log) — it does not fabricate any relationship the schema doesn't actually have, e.g. there's no link from a record to the master template library it was originally copied from.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Look up any document number — an ITP, NCR or inspection report number — and see its full
         lineage: identity, revision history, related records and audit trail.

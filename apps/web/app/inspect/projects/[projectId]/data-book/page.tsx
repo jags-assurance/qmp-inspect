@@ -16,6 +16,7 @@ import { CompileDataBookForm, type OpenPunchItemPreview } from "./compile-databo
 import { IssueHandoverForm } from "./issue-handover-form";
 import { DataBookPdfButton } from "./data-book-pdf-button";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   draft: "neutral",
@@ -81,7 +82,18 @@ export default async function DataBookPage({
     <div className="max-w-3xl">
       <RealtimeRefresh table="data_books" filter={`project_id=eq.${projectId}`} />
       <div>
-        <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Data Book</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Data Book</h1>
+          <PageGuide
+            title="Data Book — how this works"
+            points={[
+              "Won't compile while any category is below 100% or any punch list item is open — every ITP must be approved, every NCR closed, and zero open punch items.",
+              "A JAGS staff member can override that and compile anyway (a \"Conditional Handover\"), but only with a required, documented reason — the still-open punch items are snapshotted onto the record at that moment, reason and who approved it included.",
+              "Only JAGS staff can create a Data Book, compile a draft one, or issue a handover once compiled — everyone else with project access can view readiness and download issued PDFs.",
+              "\"Data-book readiness\" on the Client KPIs page is a proxy metric; this page computes it directly from the project's own ITPs, NCRs and punch list.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name} · {project.name}
         </p>

@@ -6,6 +6,7 @@ import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-
 import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
 import { DisciplineFilterForm } from "./discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
@@ -59,7 +60,18 @@ export default async function StandaloneAssignmentsPage({
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Standalone Assignments</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Standalone Assignments</h1>
+            <PageGuide
+              title="Standalone Assignments — how this works"
+              points={[
+                "One-off FATs, witness inspections, specific tests and pre-shipment checks that don't need an ITP or data book behind them.",
+                "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance are all gated to JAGS staff, unlike ITP checklists which a contractor can self-execute.",
+                "A conditional pass leaves the assignment genuinely open (\"conditional_open\") until its linked punch-list item(s) are closed and clearance is issued — a clean pass or fail completes immediately on finalize.",
+                "The discipline filter and search run server-side against the full register, not just the current page.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             One-off FATs, witness inspections, specific tests and pre-shipment checks — no ITP or
             data book required.

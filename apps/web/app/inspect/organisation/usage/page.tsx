@@ -11,6 +11,7 @@ import {
   type RenderItpPdfPayload,
   type RenderPortfolioSummaryPdfPayload,
 } from "@/lib/reports/types";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * Admin-only "Usage & Cost" view — a CEO-level strategy review flagged that this app has real
@@ -264,7 +265,18 @@ export default async function UsageAndCostPage() {
   return (
     <div className="max-w-5xl">
       <div>
-        <h1 className="text-2xl font-semibold text-ink">Usage &amp; Cost</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Usage &amp; Cost</h1>
+          <PageGuide
+            title="Usage & Cost — how this works"
+            points={[
+              "Admin-only, read-only cost-visibility reporting — AI feature invocation counts and PDF render job counts/durations, broken down per organisation for the last 30 days. No billing, pricing tier, or payment logic here.",
+              "Computed from the same base tables (ai_usage_log, background_jobs) through the querying admin's own RLS-scoped session, the same pattern as Portfolio Insights — not an unscoped analytics view, so this can never widen what a non-admin session could read.",
+              "A render job is attributed back to an organisation via its payload (e.g. an ITP PDF's itp_id → project → org); some job types (like the one-click portfolio summary PDF) have no single org to attribute to and show under \"Portfolio-wide jobs\" instead.",
+              "Only completed jobs contribute to the average-duration figures — pending/processing/failed jobs count toward the total but not the average.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           AI feature invocations and PDF render job volume per organisation, last {WINDOW_DAYS}{" "}
           days — a cost-visibility signal for the app&apos;s variable spend (Gemini AI tokens,

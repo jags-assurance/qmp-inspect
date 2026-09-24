@@ -5,6 +5,7 @@ import { getOrgLogoPreviewUrl } from "@/lib/branding/actions";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { BrandingForm } from "./branding-form";
 import { LogoUploadForm } from "./logo-upload-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
   id: string;
@@ -77,7 +78,18 @@ export default async function BrandingSettingsPage({
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-ink">Brand colors &amp; logo</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Brand colors &amp; logo</h1>
+        <PageGuide
+          title="Brand colors & logo — how this works"
+          points={[
+            "Admin-only for a Full-Managed org, same boundary as Numbering/engagement mode — but a Self-Managed client can manage their own organisation's brand colors and logo directly here, scoped to just their own org with no picker.",
+            "What actually shows a client's branding is the organisation's engagement mode (set under Numbering, JAGS Admin only): jags_led shows JAGS branding only regardless of what's uploaded here; co-branded shows both together; white-label replaces JAGS branding with the client's own.",
+            "A logo uploaded while engagement mode is still jags_led is saved but won't be shown anywhere until an Admin changes the mode.",
+            "Applies wherever a page is scoped to this organisation (its projects), the app header, and generated PDF reports — all driven from the same colors/logo set here.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Override the default burgundy/gold theme and upload this organisation&rsquo;s own logo.
         Applies wherever a page is scoped to this organisation (e.g. its projects), the app header,

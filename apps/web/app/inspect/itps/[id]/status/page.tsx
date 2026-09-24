@@ -9,6 +9,7 @@ import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types"
 import { ACTIVITY_EXPECTED_RECORDS_TABLE, type ActivityExpectedRecordRow } from "@/lib/expected-records/db-types";
 import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE, type ItpItemMeasurementRow } from "@/lib/itps/evidence-actions";
 import type { InterventionLevel } from "@jags/shared-types";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
   1: "Checklist",
@@ -242,9 +243,20 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
       </Link>
       <div className="mt-2">
         <p className="text-sm text-muted">{itp.projects?.name}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-ink">
-          Completion roadmap <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
-        </h1>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">
+            Completion roadmap <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
+          </h1>
+          <PageGuide
+            title="Completion roadmap — how this works"
+            points={[
+              "Read-only summary of where every activity actually stands — combines evidence completion (checklist result, linked document, or measurement results) with H/W/R/S sign-off completion in one place, across all evidence types.",
+              "An activity is only \"Complete\" once its evidence is done AND every required sign-off is given — a still-open blocking level (e.g. Hold) shows as \"Blocked\" even if the evidence itself has passed.",
+              "This page only links out to where each thing is actually done — checklists open on their own fill page, evidence documents/measurements are recorded on the ITP page itself — nothing is editable here.",
+              "\"Expected records\" (third-party test records like calibration certs) are tracked separately as received/not-yet-received and shown per activity when any are expected.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">{itp.title}</p>
       </div>
 

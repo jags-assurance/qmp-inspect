@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { NewOrganizationForm } from "./new-organization-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationRow {
   id: string;
@@ -54,7 +55,18 @@ export default async function ClientOrganisationsPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Client organisations</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Client organisations</h1>
+        <PageGuide
+          title="Client organisations — how this works"
+          points={[
+            "Admin-only — creating and viewing the list of tenant organisations is an account-administration action, same boundary as Staff Access and Numbering.",
+            "A new organisation starts with no projects, no AI consent, and JAGS-led branding — those are set up separately from this page (New project, Branding, Numbering).",
+            "Everything else in the app (projects, ITPs, staff access grants, module licensing) is always scoped to one of these organisations, so this is the first step of onboarding a real client.",
+            "Engagement scope (Full-Managed vs Self-Managed) shown here as a badge controls whether the client can self-serve settings like branding/numbering on their own org — set under Numbering, not here.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Every client this platform works with is an organisation (tenant) here — projects, ITPs,
         staff access grants and everything else are always scoped to one of these. Create a new one

@@ -10,6 +10,7 @@ import {
 } from "@/lib/itp-master/types";
 import { ITP_MASTER_REVISIONS_TABLE, type ItpMasterRevisionRow } from "@/lib/itp-master/revision-types";
 import { VersionHistoryPanel } from "./version-history-panel";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -73,10 +74,19 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
       <Link href="/inspect/itp-master" className="text-sm text-burgundy hover:underline">
         ← Back to ITP Master Library
       </Link>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
         <Badge tone={template.is_active ? "success" : "neutral"}>{template.is_active ? "Active" : "Inactive"}</Badge>
         <span className="text-sm text-muted">v{template.version}</span>
+        <PageGuide
+          title="Master template — how this works"
+          points={[
+            "Read-only here — you can't edit a master template's sections or items directly on this page.",
+            "The only way content changes is via the proposal flow: a JAGS Admin approves a proposal (from an ITP's own \"Propose to master library\" action) to create a new template or update this one.",
+            "Every approved update bumps the version number shown above and freezes a snapshot in the version history panel below, so past versions stay inspectable even after the template moves on.",
+            "\"Inactive\" means this version is no longer offered when starting a new project ITP from a template, but it's kept for record-keeping.",
+          ]}
+        />
       </div>
       <p className="mt-1 text-sm text-muted">
         {template.industry || "—"} · {template.master_disciplines?.name ?? "—"}

@@ -11,6 +11,7 @@ import { isOverdue } from "./is-overdue";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { DisciplineFilterForm } from "./discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function NcrsPage({
   searchParams,
@@ -111,7 +112,19 @@ export default async function NcrsPage({
       <RealtimeRefresh table="ncrs" />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">NCR Register</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">NCR Register</h1>
+            <PageGuide
+              title="NCR Register — how this works"
+              points={[
+                "Lists every minor/major NCR (observations are excluded — they have their own register) with server-side search, pagination and a discipline filter.",
+                "Anyone with project access can raise an NCR via \"+ Raise NCR\" — raising one always also creates a matching project punch-list item, since every NCR must be closed out before handover regardless of severity.",
+                "Closing an NCR requires root cause, corrective action and verification notes to be filled in (preventive action is optional) — enforced by the close-out action, not just the form.",
+                "The discipline filter only matches NCRs raised against a specific ITP item — a standalone/walkdown NCR has no discipline of its own and always stays visible unfiltered.",
+                "Stat cards and the aging chart are computed from every matching NCR, not just the current page.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {session.isJagsStaff
               ? "Minor and major non-conformances across every project you have access to."

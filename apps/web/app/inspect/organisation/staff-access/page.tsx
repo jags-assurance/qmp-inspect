@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffGrantForm, type StaffOption, type OrgOption, type ProjectOption } from "./staff-grant-form";
 import { RemoveGrantButton } from "./remove-grant-button";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface StaffRow {
   id: string;
@@ -72,7 +73,18 @@ export default async function StaffAccessPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Staff access</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Staff access</h1>
+        <PageGuide
+          title="Staff access — how this works"
+          points={[
+            "Admin-only — deciding who can see which client's data is an account-administration concern, same boundary as project creation and numbering settings.",
+            "Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client's data at all — with none, the account can sign in but sees nothing.",
+            "Global reaches every organisation (the default for a new staff account); Organisation or Project narrows an Inspector to only the clients they actually work with.",
+            "This is enforced by Row-Level Security in the database, not just this screen — and a per-organisation seat_limit (set on Plans & Seats) can block a new grant for that org.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any
         client&apos;s data — <strong>Global</strong> reaches every organisation (the default for a

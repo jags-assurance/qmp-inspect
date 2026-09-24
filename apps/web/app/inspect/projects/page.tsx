@@ -4,6 +4,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { ProjectsTable, type ProjectRow } from "./projects-table";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function ProjectsPage() {
   const session = await requireSession();
@@ -77,7 +78,17 @@ export default async function ProjectsPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Projects</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Projects</h1>
+            <PageGuide
+              title="Projects — how this works"
+              points={[
+                "Every project you have access to, across every client — JAGS staff see everything they're granted; a client/contractor login sees only projects their organisation is engaged on.",
+                "\"+ New project\" is normally Admin-only; it also appears for a Self-Managed/Platform-Only client organisation, which runs its own program and creates its own projects.",
+                "ITP completion % and open NCR count per row are computed live from that project's own ITPs and NCRs, not cached.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {session.isJagsStaff
               ? "Every project across every client you have access to."

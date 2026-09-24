@@ -8,6 +8,7 @@ import {
   type ItpMasterProposedAction,
 } from "@/lib/itp-master/types";
 import { ProposalReviewForm } from "./proposal-review-form";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface ProposalWithSourceItp {
   id: string;
@@ -41,7 +42,18 @@ export default async function ItpMasterProposalsPage() {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Master Library Proposals</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">Master Library Proposals</h1>
+            <PageGuide
+              title="Master Library Proposals — how this works"
+              points={[
+                "A proposal is raised from a project's own ITP once it's approved or client-accepted (\"Propose to master library\" on the ITP page) — either as a brand new template or an update to an existing one.",
+                "Only a JAGS Admin can approve or reject a pending proposal; other JAGS staff can see this queue but only get an \"Awaiting review by a JAGS Admin\" note instead of the review form.",
+                "This list only ever shows pending proposals — approved or rejected ones drop off once actioned.",
+                "Approving a proposal is what actually creates or revises the master template and bumps its version — nothing here edits the library directly.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">
             Pending proposals to add a new master template, or update an existing one, from a
             project&apos;s own ITP.

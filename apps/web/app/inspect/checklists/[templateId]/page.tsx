@@ -30,6 +30,7 @@ import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
+import { PageGuide } from "@/components/domain/page-guide";
 
 /**
  * Field execution surface for one checklist: shows any in-progress inspection to keep filling in,
@@ -272,9 +273,21 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           {itp.itp_number}
         </Link>
       </p>
-      <h1 className="mt-1 text-2xl font-semibold text-ink">
-        Checklist <span className="doc-id text-lg text-muted">{template.checklist_number}</span>
-      </h1>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">
+          Checklist <span className="doc-id text-lg text-muted">{template.checklist_number}</span>
+        </h1>
+        <PageGuide
+          title="Checklist — how this works"
+          points={[
+            "Only JAGS staff, or the subcontractor/main contractor party actually performing the work, can start or answer this checklist — an independent verifier (TPI/lab) holding a sign-off point, or the client, is sign-off-only unless the project has opted the client into execution.",
+            "A still-open blocking intervention level (e.g. Hold) on this activity stops the inspection from even starting, once the project has \"Hold blocks start\" enforcement on.",
+            "Register-fed verification (calibration, personnel certification) is a soft-stop assist shown inline while answering — it flags a mismatch, it doesn't block submission.",
+            "Everyone with project access can view the checklist and its past results; only the executing party's answers are actually recorded (read-only for anyone else, including sign-off-only parties).",
+            "Editing the checklist template itself (adding items) is collapsed under \"Edit checklist template\" and is staff-only.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-ink">
         {itpItem.item_number}. {itpItem.activity}
       </p>

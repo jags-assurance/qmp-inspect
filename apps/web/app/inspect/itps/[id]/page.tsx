@@ -68,6 +68,7 @@ import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/p
 import { isAiConfigured } from "@/lib/ai/gate";
 import { TranslateContentPanel } from "./translate-content-panel";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageGuide } from "@/components/domain/page-guide";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -503,8 +504,18 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       </div>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{itp.itp_number}</h1>
+            <PageGuide
+              title="ITP detail — how this works"
+              points={[
+                "The H/W/R/S grid records which party intervenes at what level on each activity (Hold/Witness/Review/Surveillance, or a custom level your org configures) — a blocking level (e.g. Hold) stops the next step until that party signs off.",
+                "A party can only sign off their own intervention point: staff can always countersign, but an external login can only sign for the project party their account is linked to, and only while that party is active.",
+                "Editing content (sections/items/the grid) is allowed on a 'draft' ITP for JAGS staff, or for the client/contractor party that originated it if their project opted them into ITP creation — approval itself always stays JAGS-only.",
+                "Once the ITP is approved or client-accepted, adding items/sections counts as an edit-after-issue and bumps the revision, with a frozen snapshot kept in revision history.",
+                "Checklists → and Completion roadmap → are separate pages: this page is where content, sign-offs and evidence are actually recorded; those summarise status without duplicating the forms.",
+              ]}
+            />
             <Badge tone={STATUS_TONE[itp.status]}>{STATUS_LABEL[itp.status]}</Badge>
             {/* R23: real lifecycle phase, derived from status + sign-off completion — never set
                 directly by this page or any action (see lib/itps/phase.ts). */}

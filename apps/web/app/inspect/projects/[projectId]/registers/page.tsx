@@ -26,6 +26,7 @@ import {
   extractMaterialRowsAction,
   addExtractedMaterialRowsAction,
 } from "@/lib/registers/actions";
+import { PageGuide } from "@/components/domain/page-guide";
 
 // The three extract*Action/addExtracted*RowsAction pairs are typed against their own specific row
 // shapes (ExtractedCalibrationRow, etc.) for type safety inside lib/registers/actions.ts, but
@@ -103,7 +104,18 @@ export default async function RegistersPage({ params }: { params: Promise<{ proj
   return (
     <div>
       <div>
-        <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Registers</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Registers</h1>
+          <PageGuide
+            title="Registers — how this works"
+            points={[
+              "Calibration, welder qualification, material approval and personnel certification records that ITP field execution auto-verifies against.",
+              "Each status (valid/expiring/expired) is recomputed against today's date every time this page loads, not on a schedule — so it's never stale.",
+              "This page requires the project's organisation to be licensed for the Registers module (JAGS staff always bypass) — otherwise it redirects back to the project hub.",
+              "The \"Extract\" panel on each register reads free text (e.g. a pasted certificate) and proposes rows to add — it never sets an approval/release status itself; a material's disposition still needs a person to decide it.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name} · {project.name}. These feed the auto-verification shown when inspecting
           related ITP activities.

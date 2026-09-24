@@ -14,6 +14,7 @@ import { ItpCreationTabs } from "./itp-creation-tabs";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { isAiConfigured } from "@/lib/ai/gate";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function NewItpPage() {
   const session = await requireSession();
@@ -132,7 +133,20 @@ export default async function NewItpPage() {
         <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
           ← Back to ITP Register
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-ink">New ITP</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+          <PageGuide
+            title="New ITP — how this works"
+            points={[
+              "You're seeing this because your login is linked to an eligible client/contractor party on at least one project that's opted into ITP creation, or your organisation is Self-Managed (org-wide eligibility).",
+              "The manual flow creates a draft with the four standard sections — fully editable (add/rename/reorder) afterwards, not fixed to those four.",
+              aiConfigured
+                ? "Generating from your own vault documents drafts content for review, not a finished ITP — the manual flow is the same underlying create action either way."
+                : "AI drafting is hidden because this deployment has no AI provider configured.",
+              "Once created, the ITP stays a draft you (or JAGS staff) can keep editing until it's submitted for review — JAGS approval authority is unaffected by who created it.",
+            ]}
+          />
+        </div>
         <p className="mt-1 text-sm text-muted">
           Creates a draft ITP with the four standard sections — add, rename or reorder them as
           needed once it&apos;s created.
@@ -149,7 +163,20 @@ export default async function NewItpPage() {
       <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
         ← Back to ITP Register
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">New ITP</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+        <PageGuide
+          title="New ITP — how this works"
+          points={[
+            "Staff-only creation flow — build manually with the four standard sections (fully editable afterwards), start from a JAGS master template and customize it for this project, or generate a first draft from vault documents.",
+            "Starting from a master template copies its current content into a brand-new project ITP — it doesn't stay linked to the master template afterwards.",
+            aiConfigured
+              ? "The AI-generated option produces a draft for review, not a finished ITP — it still goes through the same create action as the manual flow."
+              : "AI drafting is hidden because this deployment has no AI provider configured.",
+            "Whichever flow you use, the ITP is created as a draft — content stays editable until it's submitted for review and approved.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Creates a draft ITP with the four standard sections — add, rename or reorder them as
         needed once it&apos;s created. Or start from a JAGS master template and customize it for

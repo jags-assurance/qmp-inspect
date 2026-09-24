@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function StartWorkPage() {
   const session = await requireSession();
@@ -9,7 +10,18 @@ export default async function StartWorkPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Start work</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Start work</h1>
+        <PageGuide
+          title="Start work — how this works"
+          points={[
+            "Only JAGS staff see this page — anyone else is redirected straight back to the dashboard.",
+            "Both cards just link to a real creation form — nothing is created by clicking here, only once you submit that form.",
+            "\"ITP-driven project\" is for the full workflow: approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off.",
+            "\"Standalone assignment\" skips the ITP entirely — a focused, independent inspection (FAT, vendor visit, one-off verification) with its own checklist and report.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Choose the workflow that best matches the engagement. Both options take you to the real
         creation form — nothing is created until you submit it there.

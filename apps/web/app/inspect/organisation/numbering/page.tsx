@@ -16,6 +16,7 @@ import { MonthlyReportPackForm } from "./monthly-report-pack-form";
 import { WeeklyReportPackForm } from "./weekly-report-pack-form";
 import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
   id: string;
@@ -113,9 +114,29 @@ export default async function NumberingSettingsPage({
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">
-        {numberingOnly ? "Document numbering" : "Numbering & engagement mode"}
-      </h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">
+          {numberingOnly ? "Document numbering" : "Numbering & engagement mode"}
+        </h1>
+        <PageGuide
+          title={`${numberingOnly ? "Document numbering" : "Numbering & engagement mode"} — how this works`}
+          points={
+            numberingOnly
+              ? [
+                  "Self-managed clients can configure their own organisation's document numbering format directly — this is the same page a JAGS Admin uses, scoped to just your org and with only the numbering section shown.",
+                  "Engagement mode/scope, sign-off sequencing, ITP approval workflow and report packs stay JAGS-Admin-only actions regardless of who's viewing.",
+                  "Leave a document type unconfigured to use the default format: {project number}-JAGS-{TYPE}-{seq}.",
+                ]
+              : [
+                  "Admin-only. One org-level engagement mode drives both branding and how every document type is numbered for that client.",
+                  "A Self-Managed client can configure their own org's numbering directly (this same page, scoped to their org) — engagement mode/scope, sign-off sequencing, ITP approval workflow and report packs stay Admin-only regardless.",
+                  "Party sign-off sequencing controls whether non-blocking intervention levels (e.g. Witness, Review) must also clear in sort_order, the same way blocking levels like Hold already do.",
+                  "ITP approval workflow: by default any JAGS staff login can submit/approve an ITP; pin a slot to one specific reviewer/approver if the client's process requires a named person. A JAGS Admin can always act regardless of this setting.",
+                  "Monthly/weekly report packs render in the background — the table updates automatically once done, no reload needed.",
+                ]
+          }
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         {numberingOnly
           ? "Configure how each document type is numbered for your organisation."

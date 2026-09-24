@@ -8,6 +8,7 @@ import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter
 import { PhaseFilterForm } from "./phase-filter-form";
 import { ITP_PHASES, normalizeItpPhase } from "@/lib/itps/phase";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function ItpsPage({
   searchParams,
@@ -129,7 +130,18 @@ export default async function ItpsPage({
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">ITP Register</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">ITP Register</h1>
+            <PageGuide
+              title="ITP Register — how this works"
+              points={[
+                "Every Inspection & Test Plan across your accessible projects — staff see all of them, others see only what RLS scopes to their organisation/project.",
+                "\"+ New ITP\" appears for JAGS staff always, and for a client or subcontractor/main-contractor login only if their project has opted them into ITP creation (or their organisation is Self-Managed, which grants it org-wide).",
+                "The discipline filter is register-level: it shows every ITP that has at least one activity tagged with that discipline, not just activities within one ITP.",
+                "PDF and Excel export the current filtered view — every matching row, not just the current page.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">Inspection & Test Plans across your projects.</p>
         </div>
         <div className="flex items-center gap-2">

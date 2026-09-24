@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
 import { CreateTeamForm } from "./create-team-form";
 import { TeamCard, type TeamCardData, type StaffOption, type ProjectOption } from "./team-card";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface StaffRow {
   id: string;
@@ -93,7 +94,18 @@ export default async function TeamsPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Teams</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Teams</h1>
+        <PageGuide
+          title="Teams — how this works"
+          points={[
+            "JAGS-internal staff groupings only — who's on which team, who leads it, which projects it's responsible for. Every JAGS staff account can see every team; only a JAGS Admin or that team's own lead can manage one.",
+            "Visible only to a JAGS Admin (full control over every team) or a staff account that leads at least one team (control over their own team's membership/assignments only) — a plain Inspector with no lead role is redirected away.",
+            "Separate, parallel structure to Client Teams (organisation/client-teams) — that page groups a client's own people, not JAGS staff.",
+            "Only a JAGS Admin can create a new team; a lead can only manage the membership/project assignments of a team that already exists.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         JAGS-internal staff groupings — which staff belong to which team, who leads it, and which
         projects that team is responsible for. A team lead can manage their own team&apos;s

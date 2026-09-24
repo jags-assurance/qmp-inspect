@@ -7,6 +7,7 @@ import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from 
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documents-table";
 import { VaultUploadForm } from "./upload-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface DocumentWithUploader {
   id: string;
@@ -83,7 +84,17 @@ export default async function VaultFolderPage({
         ← Back to Document Vault
       </Link>
 
-      <h1 className="mt-2 text-2xl font-semibold text-ink">{folder.name}</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">{folder.name}</h1>
+        <PageGuide
+          title="Vault folder — how this works"
+          points={[
+            "Every revision of a document uploaded to this folder stays visible — a new upload matching an existing document reference marks the old one \"superseded\", it's never deleted or replaced.",
+            "New uploads start at status \"for review\". Only a JAGS Admin, or someone specifically granted the approve_vault_document permission for this project, can approve one to make it the controlled baseline.",
+            "Uploading is open to anyone with access to this project — approval is the gated step, not the upload itself.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Every revision of a document stays visible here — a new upload of the same reference marks
         the previous one superseded rather than replacing it.

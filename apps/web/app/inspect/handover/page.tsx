@@ -5,6 +5,7 @@ import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
 import { AcknowledgeForm } from "./acknowledge-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface HandoverRow {
   id: string;
@@ -55,7 +56,19 @@ export default async function HandoverPage() {
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="handover_certificates" />
-      <h1 className="text-2xl font-semibold text-ink">Handover Portal</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Handover Portal</h1>
+        <PageGuide
+          title="Handover Portal — how this works"
+          points={[
+            "Each card is a certificate for a compiled Data Book that's been issued to your organisation — you only ever see certificates for your own org's projects.",
+            "Acknowledging receipt is a client-side action: enter your name (and optionally company) and confirm — that timestamp becomes the formal record that you received the package.",
+            "A \"Conditional\" badge means the handover was issued with open items still outstanding — they're listed on the card along with who owns each one and its agreed due date.",
+            "The SHA-256 fingerprint next to the download link lets you verify any copy of the package you receive elsewhere is byte-for-byte the certified file.",
+            "A red warning banner instead of a download link means no package file is attached to that certificate (a pre-fix legacy record) — contact JAGS Assurance rather than treat it as complete.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Issued Data Books and handover certificates for the projects you have access to.
       </p>

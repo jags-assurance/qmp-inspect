@@ -4,6 +4,7 @@ import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
+import { PageGuide } from "@/components/domain/page-guide";
 
 export interface PendingProposalItem {
   id: string;
@@ -75,7 +76,17 @@ export function AdminDashboard({
           <p className="text-sm text-muted">
             {greeting}, {firstName}
           </p>
-          <h1 className="text-2xl font-semibold text-ink">JAGS Admin Overview</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-ink">JAGS Admin Overview</h1>
+            <PageGuide
+              title="JAGS Admin Overview — how this works"
+              points={[
+                "This view only renders for JAGS Admin — Inspectors and every external party each get their own dashboard instead, scoped to their own work.",
+                "\"Pending proposals\" are submissions to the Tier-1 ITP template library — an Inspector can propose a new template or an update, but only an Admin can approve one.",
+                "The portfolio table's active-project and open-NCR counts are computed per organisation from the same RLS-scoped rows every other page reads, not a separate summary table.",
+              ]}
+            />
+          </div>
           <p className="mt-1 text-sm text-muted">{today} · Portfolio status across every client you have access to.</p>
         </div>
         <Link
