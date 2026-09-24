@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import {
   addItpItemMeasurementAction,
+  updateItpItemMeasurementAction,
   deleteItpItemMeasurementAction,
   linkItpItemEvidenceDocumentAction,
   unlinkItpItemEvidenceDocumentAction,
@@ -69,6 +70,60 @@ function MeasurementRow({
   measurement: ItpItemMeasurementRow;
   canDelete: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [state, formAction, pending] = useActionState(updateItpItemMeasurementAction, initialState);
+
+  if (editing) {
+    return (
+      <tr className="border-t border-border/60 bg-off-white">
+        <td colSpan={canDelete ? 7 : 6} className="py-1.5">
+          <form action={formAction} className="flex flex-wrap items-center gap-1.5 px-1">
+            <input type="hidden" name="itp_item_id" value={itpItemId} />
+            <input type="hidden" name="measurement_id" value={measurement.id} />
+            <input
+              name="description"
+              required
+              defaultValue={measurement.description}
+              placeholder="What's being measured"
+              className="min-w-[8rem] flex-1 rounded border border-border bg-surface px-2 py-1"
+            />
+            <input
+              name="nominal_value"
+              defaultValue={measurement.nominal_value ?? ""}
+              placeholder="Nominal e.g. 12.0"
+              className="w-24 rounded border border-border bg-surface px-2 py-1"
+            />
+            <input
+              name="tolerance"
+              defaultValue={measurement.tolerance ?? ""}
+              placeholder="Tolerance e.g. ±0.5"
+              className="w-24 rounded border border-border bg-surface px-2 py-1"
+            />
+            <input
+              name="actual_value"
+              defaultValue={measurement.actual_value ?? ""}
+              placeholder="Actual e.g. 11.8"
+              className="w-24 rounded border border-border bg-surface px-2 py-1"
+            />
+            <input name="unit" defaultValue={measurement.unit ?? ""} placeholder="mm" className="w-14 rounded border border-border bg-surface px-2 py-1" />
+            <select name="result" defaultValue={measurement.result ?? ""} className="rounded border border-border bg-surface px-2 py-1">
+              <option value="">No result yet</option>
+              <option value="pass">Pass</option>
+              <option value="fail">Fail</option>
+            </select>
+            {state.error && <p className="w-full text-danger">{state.error}</p>}
+            <Button type="submit" size="sm" disabled={pending}>
+              {pending ? "Saving…" : "Save"}
+            </Button>
+            <button type="button" onClick={() => setEditing(false)} className="text-muted hover:underline">
+              Cancel
+            </button>
+          </form>
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <tr className="border-t border-border/60">
       <td className="py-1 pr-2 text-ink">{measurement.description}</td>
@@ -90,11 +145,14 @@ function MeasurementRow({
         )}
       </td>
       {canDelete && (
-        <td className="py-1 text-right">
-          <form action={deleteItpItemMeasurementAction}>
+        <td className="py-1 text-right whitespace-nowrap">
+          <button type="button" onClick={() => setEditing(true)} className="text-[10px] text-burgundy hover:underline">
+            Edit
+          </button>
+          <form action={deleteItpItemMeasurementAction} className="inline">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
-            <button type="submit" className="text-[10px] text-danger hover:underline">
+            <button type="submit" className="ml-2 text-[10px] text-danger hover:underline">
               Remove
             </button>
           </form>

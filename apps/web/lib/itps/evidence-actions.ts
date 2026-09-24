@@ -114,6 +114,66 @@ export async function addItpItemMeasurementAction(_prev: EvidenceActionState, fo
 }
 
 /**
+ * Corrects a measurement row in place — the gap a self-review audit found: previously the only way
+ * to fix a mis-entered value, or give a "no result yet" row its actual pass/fail, was delete and
+ * re-add, which loses the original recorded_by/created_at. Same ownership rule as delete (below):
+ * staff can always edit any row; a non-staff caller must additionally be the row's own recorder.
+ * Needs supabase/migrations/20260930010000_itp_item_measurement_update_and_inspection_race_fix.sql
+ * applied first — itp_item_measurements had no UPDATE RLS policy until that migration.
+ */
+export async function updateItpItemMeasurementAction(_prev: EvidenceActionState, formData: FormData): Promise<EvidenceActionState> {
+  const measurementId = String(formData.get("measurement_id") ?? "").trim();
+  const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const nominalValue = String(formData.get("nominal_value") ?? "").trim();
+  const tolerance = String(formData.get("tolerance") ?? "").trim();
+  const actualValue = String(formData.get("actual_value") ?? "").trim();
+  const unit = String(formData.get("unit") ?? "").trim();
+  const resultRaw = String(formData.get("result") ?? "").trim();
+  const result: MeasurementResult | null = resultRaw === "pass" || resultRaw === "fail" ? resultRaw : null;
+
+  if (!measurementId || !itpItemId || !description) return { error: "A description is required." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  if (!session.isJagsStaff) {
+    if (!(await canExecuteItpItem(supabase, itpItemId))) {
+      return { error: "Only the party assigned to execute this activity (or JAGS staff) can edit a measurement." };
+    }
+    const { data: row } = await supabase
+      .from(ITP_ITEM_MEASUREMENTS_TABLE)
+      .select("recorded_by")
+      .eq("id", measurementId)
+      .maybeSingle<{ recorded_by: string | null }>();
+    if (row?.recorded_by !== session.userId) {
+      return { error: "Only the person who recorded this measurement (or JAGS staff) can edit it." };
+    }
+  }
+
+  const { error } = await supabase
+    .from(ITP_ITEM_MEASUREMENTS_TABLE)
+    .update({
+      description,
+      nominal_value: nominalValue || null,
+      tolerance: tolerance || null,
+      actual_value: actualValue || null,
+      unit: unit || null,
+      result,
+    })
+    .eq("id", measurementId);
+
+  if (error) return { error: "Could not update the measurement. Check you have permission and try again." };
+
+  const itpId = await findItpIdForItem(supabase, itpItemId);
+  if (itpId) {
+    revalidatePath(`/inspect/itps/${itpId}`);
+    revalidatePath(`/inspect/itps/${itpId}/status`);
+  }
+  return { error: null };
+}
+
+/**
  * Corrects a mis-entered measurement — staff can always remove any row, mirroring every other
  * delete gate in this app. A non-staff caller must additionally be the row's own recorder, not just
  * any active executing-type party on the activity: found in a self-review audit that
