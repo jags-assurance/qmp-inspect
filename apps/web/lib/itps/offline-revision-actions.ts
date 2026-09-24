@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { bumpRevisionIfIssued } from "@/lib/itps/revisions";
 import { parseItpWorkbook, EVIDENCE_LABEL, type OfflineParsedRow } from "@/lib/itps/offline-workbook";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 // R41 — the re-upload half of the AI offline round-trip: AI draft (ai-draft-actions.ts) -> review ->
 // confirm into a real ITP -> (this file) export -> edit offline -> re-upload -> new validated
@@ -375,6 +376,31 @@ export async function applyOfflineItpRevisionAction(
         }
       }
     }
+  }
+
+  // Found missing in a self-review audit: this bulk re-upload can silently add/remove/rewrite many
+  // activities in one shot — a higher-stakes write than a single addItpItemAction call, which IS
+  // audited — but had no audit_log entry at all (bumpRevisionIfIssued above only freezes a
+  // content-history snapshot into itp_revisions, a different table with a different purpose).
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+    if (itp?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "offline_revision_applied",
+        actorId: user?.id ?? null,
+        summary: `ITP re-uploaded from offline edit — ${reason}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);

@@ -207,6 +207,27 @@ export async function addClientTeamMemberByEmailAction(
       : "Added to the team, but granting platform access failed — check with a JAGS Admin.";
   }
 
+  // Found missing in a self-review audit: this is a real permission grant (organisation-scoped
+  // platform access), not just a team-membership add — the event below only covers the latter, so
+  // logged separately here under its own entityType, whether or not the insert above actually
+  // succeeded (a duplicate/23505 still means "this person already has this grant," worth a trail
+  // entry distinct from a genuine seat-limit failure, which is only ever surfaced as grantWarning).
+  if (!grantError || grantError.code === "23505") {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        entityType: "access_grant",
+        entityId: targetUser.id,
+        action: "granted",
+        actorId: session.userId,
+        summary: `Organisation access granted to ${email} via client team add`,
+        changes: { user_id: targetUser.id, scope_type: "organization", organization_id: organizationId, role: "member" },
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
   await recordAuditEvent(supabase, {
     organizationId,
     entityType: "client_team_member",

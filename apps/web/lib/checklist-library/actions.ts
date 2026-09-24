@@ -106,6 +106,21 @@ export async function updateLibraryTemplateAction(
 
   if (error) return { error: "Could not save the changes." };
 
+  if (organizationId) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        entityType: "checklist_library_template",
+        entityId: templateId,
+        action: "updated",
+        actorId: session.userId,
+        summary: `Checklist library template "${title}" edited`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
   revalidatePath(`/inspect/organisation/checklist-library/${templateId}`);
   revalidatePath("/inspect/organisation/checklist-library");
   return { error: null };
@@ -271,6 +286,26 @@ export async function commitLibraryImportAction(_prev: CommitImportState, formDa
           : "Could not import the rows. Check you have permission and try again.",
       addedCount: 0,
     };
+  }
+
+  try {
+    const { data: template } = await supabase
+      .from(CHECKLIST_LIBRARY_TEMPLATES_TABLE)
+      .select("organization_id")
+      .eq("id", templateId)
+      .maybeSingle<{ organization_id: string | null }>();
+    if (template?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: template.organization_id,
+        entityType: "checklist_library_template",
+        entityId: templateId,
+        action: "items_imported",
+        actorId: session.userId,
+        summary: `${payload.length} item(s) imported from file`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/organisation/checklist-library/${templateId}`);

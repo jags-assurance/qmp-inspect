@@ -318,6 +318,35 @@ export async function addChecklistItemAction(
     return { error: error.code === "23505" ? "That item number is already used on this checklist." : "Could not add the item." };
   }
 
+  try {
+    const { data: context } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("itp_item_id, itp_items(itp_sections(itps(project_id, projects(organization_id))))")
+      .eq("id", templateId)
+      .maybeSingle<{
+        itp_item_id: string;
+        itp_items: { itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null } | null;
+      }>();
+    const itp = context?.itp_items?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+    if (organizationId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp?.project_id,
+        entityType: "checklist_item",
+        entityId: templateId,
+        action: "item_added",
+        actorId: user?.id ?? null,
+        summary: `Checklist item ${itemNumber} added: ${description}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   revalidatePath(`/inspect/checklists/${templateId}`);
   return { error: null };
 }
@@ -499,6 +528,22 @@ export async function startInspectionAction(
 
   if (error) {
     return { error: "Could not start the inspection. Check you have permission and try again." };
+  }
+
+  if (project?.organization_id) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "inspection_record",
+        entityId: itpItemId,
+        action: "started",
+        actorId: user?.id ?? null,
+        summary: `Inspection started: ${activity} (${itpNumber})`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
   }
 
   revalidatePath(`/inspect/checklists/${templateId}`);

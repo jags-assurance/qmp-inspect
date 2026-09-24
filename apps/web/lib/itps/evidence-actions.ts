@@ -53,6 +53,23 @@ async function findItpIdForItem(
   return data?.itp_sections?.itp_id ?? null;
 }
 
+/** organizationId + projectId for an itp_items row, for the audit calls below — findProjectIdForItpItem
+ *  only returns the project id, not the org, so this is its own small query rather than two round trips. */
+async function findOrgAndProjectForItpItem(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string
+): Promise<{ organizationId: string; projectId: string } | null> {
+  const { data } = await supabase
+    .from("itp_items")
+    .select("itp_sections(itps(project_id, projects(organization_id)))")
+    .eq("id", itpItemId)
+    .maybeSingle<{ itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null }>();
+  const itp = data?.itp_sections?.itps;
+  const organizationId = itp?.projects?.organization_id;
+  if (!organizationId || !itp?.project_id) return null;
+  return { organizationId, projectId: itp.project_id };
+}
+
 /**
  * R92-96 parity for evidence_type=3: a failed checklist inspection auto-creates a punch item and
  * notifies the activity's stakeholders (lib/checklists/actions.ts completeInspectionCore); a failed
@@ -182,6 +199,23 @@ export async function addItpItemMeasurementAction(_prev: EvidenceActionState, fo
     await notifyAndPunchOnMeasurementFail(supabase, itpItemId, description);
   }
 
+  try {
+    const context = await findOrgAndProjectForItpItem(supabase, itpItemId);
+    if (context) {
+      await recordAuditEvent(supabase, {
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+        entityType: "itp_item_measurement",
+        entityId: itpItemId,
+        action: "recorded",
+        actorId: session.userId,
+        summary: `Measurement recorded: ${description}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {
     revalidatePath(`/inspect/itps/${itpId}`);
@@ -252,6 +286,23 @@ export async function updateItpItemMeasurementAction(_prev: EvidenceActionState,
     await notifyAndPunchOnMeasurementFail(supabase, itpItemId, description);
   }
 
+  try {
+    const context = await findOrgAndProjectForItpItem(supabase, itpItemId);
+    if (context) {
+      await recordAuditEvent(supabase, {
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+        entityType: "itp_item_measurement",
+        entityId: measurementId,
+        action: "updated",
+        actorId: session.userId,
+        summary: `Measurement edited: ${description}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {
     revalidatePath(`/inspect/itps/${itpId}`);
@@ -276,17 +327,43 @@ export async function deleteItpItemMeasurementAction(formData: FormData): Promis
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
+  let descriptionForAudit = "Measurement";
   if (!session.isJagsStaff) {
     if (!(await canExecuteItpItem(supabase, itpItemId))) return;
     const { data: row } = await supabase
       .from(ITP_ITEM_MEASUREMENTS_TABLE)
-      .select("recorded_by")
+      .select("recorded_by, description")
       .eq("id", measurementId)
-      .maybeSingle<{ recorded_by: string | null }>();
+      .maybeSingle<{ recorded_by: string | null; description: string }>();
     if (row?.recorded_by !== session.userId) return;
+    descriptionForAudit = row.description;
+  } else {
+    const { data: row } = await supabase
+      .from(ITP_ITEM_MEASUREMENTS_TABLE)
+      .select("description")
+      .eq("id", measurementId)
+      .maybeSingle<{ description: string }>();
+    if (row) descriptionForAudit = row.description;
   }
 
   await supabase.from(ITP_ITEM_MEASUREMENTS_TABLE).delete().eq("id", measurementId);
+
+  try {
+    const context = await findOrgAndProjectForItpItem(supabase, itpItemId);
+    if (context) {
+      await recordAuditEvent(supabase, {
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+        entityType: "itp_item_measurement",
+        entityId: measurementId,
+        action: "deleted",
+        actorId: session.userId,
+        summary: `Measurement deleted: ${descriptionForAudit}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {
@@ -395,6 +472,26 @@ export async function unlinkItpItemEvidenceDocumentAction(formData: FormData): P
   }
 
   await supabase.from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE).delete().eq("id", linkId);
+
+  // Symmetry with linkItpItemEvidenceDocumentAction, which already audits the link — removing
+  // evidence right before an activity is marked complete is just as much a "who did this" event as
+  // adding it.
+  try {
+    const context = await findOrgAndProjectForItpItem(supabase, itpItemId);
+    if (context) {
+      await recordAuditEvent(supabase, {
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+        entityType: "itp_item_evidence_document",
+        entityId: itpItemId,
+        action: "unlinked",
+        actorId: session.userId,
+        summary: "Evidence document unlinked from activity",
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {

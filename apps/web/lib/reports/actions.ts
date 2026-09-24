@@ -30,6 +30,7 @@ import {
 } from "./types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { aggregateReportSummaryData } from "@/lib/reports/report-summary";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface GenerateMonthlyReportPackState {
   error: string | null;
@@ -980,6 +981,27 @@ export async function saveInspectionNarrativeAction(_prev: SaveNarrativeState, f
 
   if (error) return { error: "Could not save the narrative. Check you have permission and try again." };
 
+  try {
+    const { data: record } = await supabase
+      .from("inspection_records")
+      .select("record_number, project_id, projects(organization_id)")
+      .eq("id", inspectionRecordId)
+      .maybeSingle<{ record_number: string; project_id: string; projects: { organization_id: string } | null }>();
+    if (record?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: record.projects.organization_id,
+        projectId: record.project_id,
+        entityType: "inspection_record",
+        entityId: inspectionRecordId,
+        action: "narrative_saved",
+        actorId: session.userId,
+        summary: `Report narrative saved for ${record.record_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   if (aiLogId && session.userId) {
     await recordAiReviewDecision(supabase, {
       logId: aiLogId,
@@ -1112,6 +1134,27 @@ export async function saveFatNarrativeAction(_prev: SaveNarrativeState, formData
     .eq("id", assignmentId);
 
   if (error) return { error: "Could not save the narrative. Check you have permission and try again." };
+
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("assignment_number, project_id, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ assignment_number: string; project_id: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment",
+        entityId: assignmentId,
+        action: "narrative_saved",
+        actorId: session.userId,
+        summary: `Report narrative saved for ${assignmentRow.assignment_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   if (aiLogId && session.userId) {
     await recordAiReviewDecision(supabase, {

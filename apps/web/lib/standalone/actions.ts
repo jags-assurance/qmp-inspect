@@ -247,6 +247,27 @@ export async function addMeasurementAction(
     return { error: "Could not add the measurement. Check you have permission and try again." };
   }
 
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment_measurement",
+        entityId: assignmentId,
+        action: "recorded",
+        actorId: session.userId,
+        summary: `Measurement recorded: ${description} (${assignmentRow.assignment_number})`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   revalidatePath(`/inspect/standalone/${assignmentId}`);
   return { error: null };
 }
@@ -371,6 +392,27 @@ export async function addPunchItemAction(
     return { error: "Could not add the punch item. Check you have permission and try again." };
   }
 
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment_punch_item",
+        entityId: assignmentId,
+        action: "created",
+        actorId: session.userId,
+        summary: `Punch item added: ${description} (${assignmentRow.assignment_number})`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   revalidatePath(`/inspect/standalone/${assignmentId}`);
   return { error: null };
 }
@@ -391,6 +433,27 @@ export async function togglePunchItemAction(formData: FormData) {
     .from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS)
     .update({ status: nextStatus })
     .eq("id", punchItemId);
+
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment_punch_item",
+        entityId: punchItemId,
+        action: nextStatus === "closed" ? "closed" : "reopened",
+        actorId: session.userId,
+        summary: `Punch item ${nextStatus} on ${assignmentRow.assignment_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
 }
@@ -781,6 +844,30 @@ export async function unlinkAssignmentEvidenceDocumentAction(formData: FormData)
 
   const supabase = await createSupabaseServerClient();
   await supabase.from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS).delete().eq("id", linkId);
+
+  // Symmetry with linkAssignmentEvidenceDocumentAction, which already audits the link — found
+  // missing in a self-review audit: removing evidence is just as much a "who did this" event as
+  // adding it.
+  try {
+    const { data: assignmentRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (assignmentRow?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: assignmentRow.projects.organization_id,
+        projectId: assignmentRow.project_id,
+        entityType: "standalone_assignment_evidence_document",
+        entityId: assignmentId,
+        action: "unlinked",
+        actorId: session.userId,
+        summary: `Evidence document unlinked from ${assignmentRow.assignment_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
 }
