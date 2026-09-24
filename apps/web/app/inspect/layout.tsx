@@ -112,6 +112,13 @@ export default async function InspectLayout({ children }: { children: React.Reac
     { label: "Guide", href: "/inspect/guide" },
     ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
     { label: "Projects", href: "/inspect/projects" },
+    // Reports & Downloads / Data Book / Activity / KPIs are all per-project pages — no single
+    // top-level href makes sense for them without a project already chosen. This is a dedicated
+    // index page (the project filter lives there, not in the sidebar itself) that lists every
+    // project this login can reach and links straight into that project's own four pages — same
+    // "always visible, RLS decides what's actually in the list" pattern Projects itself already
+    // uses, not gated on any module license since it's purely a navigational aggregator.
+    { label: "Reports & Documents", href: "/inspect/reports-documents" },
     ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps" }] : []),
     ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs" }] : []),
     ...(isLicensed("observations") ? [{ label: "Observations", href: "/inspect/observations" }] : []),
@@ -126,34 +133,64 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // gets the same operational nav a client sees, plus staff-wide screens (Projects/ITPs/etc.
     // above already show every organisation to any JAGS staff login, admin or inspector alike).
     //
-    // Folded into one collapsible "Organisation Settings" group (see NavItem.children/NavGroup in
-    // sidebar-nav.tsx) instead of 17 flat top-level items — these are setup/admin screens visited
-    // far less often than the operational items above them, and a flat 26-item sidebar (9 top-level
-    // + these 17) was the actual reported problem, not any one item individually. Every href below
-    // is unchanged; this only changes how they're grouped.
+    // Previously one big collapsible "Organisation Settings" group holding all 17 items — better
+    // than the original flat 26-item sidebar, but a single 17-row group is still a long list once
+    // opened. Split into 6 smaller theme groups instead, so opening one only ever shows the 2-4
+    // items actually related to what you're looking for. Every href below is unchanged from the
+    // single-group version — this only changes how they're grouped.
     ...(isAdminStaff(session)
       ? [
           {
-            label: "Organisation Settings",
-            href: "/inspect/organisation",
+            label: "Client Management",
+            href: "/inspect/organisation/clients",
             children: [
               { label: "Client Organisations", href: "/inspect/organisation/clients" },
+              { label: "Client Teams", href: "/inspect/organisation/client-teams" },
+            ],
+          },
+          {
+            label: "Libraries",
+            href: "/inspect/itp-master",
+            children: [
               { label: "Master ITP Library", href: "/inspect/itp-master" },
               { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
+            ],
+          },
+          {
+            label: "Access & Roles",
+            href: "/inspect/organisation/staff-access",
+            children: [
+              { label: "Staff Access", href: "/inspect/organisation/staff-access" },
+              { label: "Teams", href: "/inspect/organisation/teams" },
+              { label: "Custom Roles", href: "/inspect/organisation/roles" },
+              { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
+            ],
+          },
+          {
+            label: "Numbering & Branding",
+            href: "/inspect/organisation/numbering",
+            children: [
               { label: "Numbering", href: "/inspect/organisation/numbering" },
-              { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
               { label: "Brand Colors", href: "/inspect/organisation/branding" },
-              { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
-              { label: "Plans & Seats", href: "/inspect/organisation/plans" },
+            ],
+          },
+          {
+            label: "Insights & Usage",
+            href: "/inspect/organisation/insights",
+            children: [
               { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
               { label: "Usage & Cost", href: "/inspect/organisation/usage" },
               { label: "Reporting", href: "/inspect/organisation/reporting" },
-              { label: "Staff Access", href: "/inspect/organisation/staff-access" },
-              { label: "Teams", href: "/inspect/organisation/teams" },
-              { label: "Client Teams", href: "/inspect/organisation/client-teams" },
-              { label: "Custom Roles", href: "/inspect/organisation/roles" },
-              { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
+            ],
+          },
+          {
+            label: "Sync & Traceability",
+            href: "/inspect/organisation/cloud-sync",
+            children: [
+              { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
               { label: "Document Traceability", href: "/inspect/organisation/traceability" },
+              { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
+              { label: "Plans & Seats", href: "/inspect/organisation/plans" },
             ],
           },
         ]

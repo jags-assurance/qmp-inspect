@@ -113,6 +113,50 @@ const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => React.ReactEleme
       <path d="M10 3.5v2M10 14.5v2M16.5 10h-2M5.5 10h-2M14.6 5.4l-1.4 1.4M6.8 13.2l-1.4 1.4M14.6 14.6l-1.4-1.4M6.8 6.8L5.4 5.4" />
     </Icon>
   ),
+  "Reports & Documents": (p) => (
+    <Icon {...p}>
+      <path d="M4 16V9M9 16V4M14 16v-6" />
+      <path d="M3 16h13" />
+    </Icon>
+  ),
+  "Client Management": (p) => (
+    <Icon {...p}>
+      <rect x="4.5" y="3.5" width="8" height="13" rx="1" />
+      <path d="M7 6.5h.01M10 6.5h.01M7 9.5h.01M10 9.5h.01M7 12.5h.01M10 12.5h.01" />
+      <path d="M12.5 8.5H15a1 1 0 011 1v6.5h-3.5" />
+    </Icon>
+  ),
+  Libraries: (p) => (
+    <Icon {...p}>
+      <path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5z" />
+      <path d="M16 4.5A1.5 1.5 0 0014.5 3H10v14h4.5a1.5 1.5 0 001.5-1.5z" />
+    </Icon>
+  ),
+  "Access & Roles": (p) => (
+    <Icon {...p}>
+      <circle cx="7.5" cy="7" r="2.5" />
+      <path d="M2.5 16c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5" />
+      <path d="M13 8a2 2 0 100-4 2 2 0 000 4z" />
+      <path d="M12.5 11.5c1.9.4 3.5 1.9 3.5 3.7" />
+    </Icon>
+  ),
+  "Numbering & Branding": (p) => (
+    <Icon {...p}>
+      <path d="M4 6.5h12M4 10h12M4 13.5h8" />
+    </Icon>
+  ),
+  "Insights & Usage": (p) => (
+    <Icon {...p}>
+      <path d="M4 16V9M9 16V4M14 16v-6" />
+      <path d="M3 16h13" />
+    </Icon>
+  ),
+  "Sync & Traceability": (p) => (
+    <Icon {...p}>
+      <path d="M5 8.5a5 5 0 018.5-3M15 5v3.5H11.5" />
+      <path d="M15 11.5a5 5 0 01-8.5 3M5 15v-3.5H8.5" />
+    </Icon>
+  ),
   "Staff Access": (p) => (
     <Icon {...p}>
       <circle cx="7.5" cy="7" r="2.5" />
