@@ -318,7 +318,7 @@ export async function updateNcrAction(
   // fields already satisfy the punch item's closing-evidence requirement, so this reuses them
   // rather than asking for the same evidence twice.
   if (closeNow) {
-    await supabase
+    const { data: closedPunchItems } = await supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
       .update({
         status: "closed",
@@ -327,7 +327,34 @@ export async function updateNcrAction(
         closed_at: new Date().toISOString(),
       })
       .eq("source_ncr_id", ncrId)
-      .eq("status", "open");
+      .eq("status", "open")
+      .select("id")
+      .returns<{ id: string }[]>();
+
+    // Found missing in a self-review audit: this auto-close previously rode entirely on the NCR's
+    // own "closed" event below, so a punch-list-only audit query would never see it. closePunchItemAction
+    // (the manual close path) logs its own "closed" / punch_list_item event per item — this mirrors
+    // that exactly, just for every row this NCR closed automatically instead of one clicked by hand.
+    if (updatedNcr?.projects?.organization_id) {
+      try {
+        await Promise.all(
+          (closedPunchItems ?? []).map((item) =>
+            recordAuditEvent(supabase, {
+              organizationId: updatedNcr.projects!.organization_id,
+              projectId: updatedNcr.project_id,
+              entityType: "punch_list_item",
+              entityId: item.id,
+              action: "closed",
+              actorId: user?.id ?? null,
+              summary: `Punch item auto-closed by NCR ${updatedNcr.ncr_number} closing`,
+              changes: { closing_evidence: verificationNotes, source_ncr_id: ncrId },
+            })
+          )
+        );
+      } catch {
+        // Best-effort — see lib/audit/log.ts's doc comment.
+      }
+    }
 
     // Best-effort: whoever raised this NCR should hear that it's now closed, without having to
     // notice it themselves on the register. Never blocks the close, which has already succeeded.
