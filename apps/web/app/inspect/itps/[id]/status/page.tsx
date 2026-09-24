@@ -7,7 +7,8 @@ import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { ACTIVITY_EXPECTED_RECORDS_TABLE, type ActivityExpectedRecordRow } from "@/lib/expected-records/db-types";
-import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE, type ItpItemMeasurementRow } from "@/lib/itps/evidence-actions";
+import { type ItpItemMeasurementRow } from "@/lib/itps/evidence-actions";
+import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/itps/evidence-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { PageGuide } from "@/components/domain/page-guide";
 
