@@ -22,8 +22,24 @@ export async function createTeamAction(_prev: TeamActionState, formData: FormDat
   if (!name) return { error: "A team name is required." };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("teams").insert({ name });
-  if (error) return { error: "Could not create the team. Check you have permission and try again." };
+  const { data: team, error } = await supabase.from("teams").insert({ name }).select("id").single<{ id: string }>();
+  if (error || !team) return { error: "Could not create the team. Check you have permission and try again." };
+
+  // Platform-wide event, not scoped to any organisation — teams/team_members have no
+  // organization_id column at all (JAGS-internal by design). Same null-organizationId convention
+  // addStaffGrantAction's 'global'-scope grant now uses (lib/audit/log.ts's own doc comment).
+  // Found missing in a self-review audit.
+  try {
+    await recordAuditEvent(supabase, {
+      entityType: "team",
+      entityId: team.id,
+      action: "created",
+      actorId: session.userId,
+      summary: `Team "${name}" created`,
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(TEAMS_PATH);
   return { error: null };
@@ -65,6 +81,20 @@ export async function addTeamMemberAction(_prev: TeamActionState, formData: Form
     };
   }
 
+  try {
+    const session = await requireSession();
+    await recordAuditEvent(supabase, {
+      entityType: "team_member",
+      entityId: teamId,
+      action: "added",
+      actorId: session.userId,
+      summary: `Member added to team${isTeamLead ? " as lead" : ""}`,
+      changes: { team_id: teamId, user_id: userId, is_team_lead: isTeamLead },
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   revalidatePath(TEAMS_PATH);
   return { error: null };
 }
@@ -80,6 +110,20 @@ export async function removeTeamMemberAction(_prev: TeamActionState, formData: F
 
   const { error } = await supabase.from("team_members").delete().eq("team_id", teamId).eq("user_id", userId);
   if (error) return { error: "Could not remove the member." };
+
+  try {
+    const session = await requireSession();
+    await recordAuditEvent(supabase, {
+      entityType: "team_member",
+      entityId: teamId,
+      action: "removed",
+      actorId: session.userId,
+      summary: "Member removed from team",
+      changes: { team_id: teamId, user_id: userId },
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(TEAMS_PATH);
   return { error: null };
@@ -103,6 +147,24 @@ export async function setTeamLeadAction(_prev: TeamActionState, formData: FormDa
     .eq("user_id", userId);
 
   if (error) return { error: "Could not update the lead flag." };
+
+  // The strongest case among this file's audit gaps: a team lead gains real authority elsewhere in
+  // the app (reassignSignoffPartyAction's isTeamLeadForProject check, this file's own
+  // requireTeamWriteAccess) — promoting/demoting one is a genuine role/authority change, not just
+  // membership bookkeeping.
+  try {
+    const session = await requireSession();
+    await recordAuditEvent(supabase, {
+      entityType: "team_member",
+      entityId: teamId,
+      action: isTeamLead ? "promoted_to_lead" : "demoted_from_lead",
+      actorId: session.userId,
+      summary: `Team member ${isTeamLead ? "promoted to" : "demoted from"} lead`,
+      changes: { team_id: teamId, user_id: userId, is_team_lead: isTeamLead },
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 
   revalidatePath(TEAMS_PATH);
   return { error: null };
