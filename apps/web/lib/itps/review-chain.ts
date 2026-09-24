@@ -116,6 +116,24 @@ export async function setProjectReviewChainAction(_prev: SetReviewChainState, fo
     if (insertError) return { error: "Could not save the review chain. Check you have permission and try again." };
   }
 
+  try {
+    const { data: project } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "itp_review_chain",
+        entityId: projectId,
+        action: "configured",
+        actorId: session.userId,
+        summary: `Review chain set to ${reviewerIds.length} reviewer${reviewerIds.length === 1 ? "" : "s"}`,
+        changes: { reviewer_user_ids: reviewerIds },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
 }

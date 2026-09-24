@@ -150,9 +150,9 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   // applying it, rather than letting an issued document change silently with no record.
   const { data: itpForRevisionCheck } = await supabase
     .from("itps")
-    .select("status")
+    .select("status, project_id, projects(organization_id)")
     .eq("id", itpId)
-    .maybeSingle<{ status: string }>();
+    .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
 
   if (isIssued) {
@@ -206,6 +206,29 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     return { error: "Could not add the activity. Check you have permission and try again." };
   }
 
+  // Found missing in a self-review audit: ITP content-authoring actions (add/edit/delete item, set
+  // intervention) had no audit trail at all, unlike every status-transition action on this same ITP
+  // — best-effort, never blocks the write above, which already succeeded.
+  const organizationId = itpForRevisionCheck?.projects?.organization_id;
+  if (organizationId) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itpForRevisionCheck?.project_id ?? undefined,
+        entityType: "itp_item",
+        entityId: itpId,
+        action: "item_added",
+        actorId: user?.id ?? null,
+        summary: `Activity ${itemNumber} added: ${activity}`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
   revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
 }
@@ -248,9 +271,9 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
 
   const { data: itpForRevisionCheck } = await supabase
     .from("itps")
-    .select("status")
+    .select("status, project_id, projects(organization_id)")
     .eq("id", itpId)
-    .maybeSingle<{ status: string }>();
+    .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
 
   if (isIssued) {
@@ -285,6 +308,26 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     return { error: "Could not update the activity. Check you have permission and try again." };
   }
 
+  const organizationId = itpForRevisionCheck?.projects?.organization_id;
+  if (organizationId) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itpForRevisionCheck?.project_id ?? undefined,
+        entityType: "itp_item",
+        entityId: itemId,
+        action: "item_edited",
+        actorId: user?.id ?? null,
+        summary: `Activity ${itemNumber} edited: ${activity}`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
   revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
 }
@@ -308,9 +351,9 @@ export async function deleteItpItemAction(formData: FormData) {
 
   const { data: itpForRevisionCheck } = await supabase
     .from("itps")
-    .select("status")
+    .select("status, project_id, projects(organization_id)")
     .eq("id", itpId)
-    .maybeSingle<{ status: string }>();
+    .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
 
   if (isIssued) {
@@ -328,7 +371,34 @@ export async function deleteItpItemAction(formData: FormData) {
     }
   }
 
+  // Grabbed before the delete below so the audit summary can still name what was removed, not just
+  // its id.
+  const { data: itemForAudit } = await supabase.from("itp_items").select("item_number, activity").eq("id", itemId).maybeSingle<{
+    item_number: string;
+    activity: string;
+  }>();
+
   await supabase.from("itp_items").delete().eq("id", itemId);
+
+  const organizationId = itpForRevisionCheck?.projects?.organization_id;
+  if (organizationId) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itpForRevisionCheck?.project_id ?? undefined,
+        entityType: "itp_item",
+        entityId: itemId,
+        action: "item_deleted",
+        actorId: user?.id ?? null,
+        summary: itemForAudit ? `Activity ${itemForAudit.item_number} deleted: ${itemForAudit.activity}` : "Activity deleted",
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
 
   revalidatePath(`/inspect/itps/${itpId}`);
 }
@@ -347,6 +417,32 @@ export async function setInterventionAction(formData: FormData) {
       .delete()
       .eq("itp_item_id", itpItemId)
       .eq("project_party_id", projectPartyId);
+
+    try {
+      const { data: context } = await supabase
+        .from("itp_items")
+        .select("itp_sections(itps(project_id, projects(organization_id)))")
+        .eq("id", itpItemId)
+        .maybeSingle<{ itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null }>();
+      const itp = context?.itp_sections?.itps;
+      const organizationId = itp?.projects?.organization_id;
+      if (organizationId) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        await recordAuditEvent(supabase, {
+          organizationId,
+          projectId: itp?.project_id,
+          entityType: "activity_party_intervention",
+          entityId: itpItemId,
+          action: "cleared",
+          actorId: user?.id ?? null,
+          summary: "Sign-off intervention cleared for a party on this activity",
+        });
+      }
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
   } else {
     // Look up the label for the notification below (and, incidentally, resolve the organisation so
     // we know which org's levels to check against) before writing the row — the DB itself is the
@@ -394,6 +490,26 @@ export async function setInterventionAction(formData: FormData) {
     if (upsertError) {
       revalidatePath(`/inspect/itps/${itpId}`);
       return;
+    }
+
+    if (organizationId) {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        await recordAuditEvent(supabase, {
+          organizationId,
+          projectId: itp?.project_id,
+          entityType: "activity_party_intervention",
+          entityId: itpItemId,
+          action: "set",
+          actorId: user?.id ?? null,
+          summary: `${interventionLabel} set for a party on ${context?.activity ?? "an activity"}`,
+          changes: { intervention, project_party_id: projectPartyId },
+        });
+      } catch {
+        // Best-effort — see lib/audit/log.ts's doc comment.
+      }
     }
 
     // Best-effort: the assigned party otherwise has no signal at all that they're now responsible
@@ -737,7 +853,11 @@ export async function recordExternalApprovalAction(
   // this was previously only enforced by the page not rendering the form before internal approval,
   // which a direct POST to this action could bypass. Re-checked here so the rule holds regardless
   // of caller.
-  const { data: itp } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("status, project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   if (!itp || !["approved", "client_accepted"].includes(itp.status)) {
     return { error: "This ITP must be internally approved before recording an external approval reference." };
   }
@@ -753,6 +873,23 @@ export async function recordExternalApprovalAction(
 
   if (error) {
     return { error: "Could not save the external approval reference. Check you have permission and try again." };
+  }
+
+  const organizationId = itp.projects?.organization_id;
+  if (organizationId) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "external_approval_recorded",
+        actorId: session.userId,
+        summary: `External approval reference recorded: ${reference}`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);

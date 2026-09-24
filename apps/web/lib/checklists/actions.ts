@@ -259,6 +259,22 @@ export async function generateChecklistTemplatesAction(
   if (result.error) return { error: result.error };
   if (result.created === 0) return { error: "Checklists already exist for every checklist-type activity, or this ITP has none." };
 
+  if (itp.projects?.organization_id) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "checklists_generated",
+        actorId: user?.id ?? null,
+        summary: `${result.created} checklist(s) generated for ITP ${itp.itp_number}`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
   revalidatePath(`/inspect/itps/${itpId}/checklists`);
   return { error: null };
 }
@@ -872,6 +888,22 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
 
   if (error) {
     return { error: error.code === "23505" ? "An IRN already exists for this inspection." : "Could not issue the IRN." };
+  }
+
+  if (project?.organization_id) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId: record.project_id,
+        entityType: "irn",
+        entityId: inspectionRecordId,
+        action: "issued",
+        actorId: user?.id ?? null,
+        summary: `IRN ${record.itp_number}-IRN-${seq} issued`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
   }
 
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);

@@ -592,7 +592,35 @@ export async function setNcrStatusAction(formData: FormData) {
   if (!status) return;
 
   const supabase = await createSupabaseServerClient();
-  await supabase.from(NCRS_TABLE).update({ status }).eq("id", ncrId);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: updatedNcr } = await supabase
+    .from(NCRS_TABLE)
+    .update({ status })
+    .eq("id", ncrId)
+    .select("ncr_number, project_id, projects(organization_id)")
+    .maybeSingle<{ ncr_number: string; project_id: string; projects: { organization_id: string } | null }>();
+
+  // Found missing in a self-review audit: this quick status nudge (open/in_progress/pending_
+  // verification) had no audit trail at all, unlike updateNcrAction's own "closed" event right above
+  // it — best-effort, never blocks the update above, which already succeeded.
+  if (updatedNcr?.projects?.organization_id) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: updatedNcr.projects.organization_id,
+        projectId: updatedNcr.project_id,
+        entityType: "ncr",
+        entityId: ncrId,
+        action: "status_changed",
+        actorId: user?.id ?? null,
+        summary: `NCR ${updatedNcr.ncr_number} status set to ${status}`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
 
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");
