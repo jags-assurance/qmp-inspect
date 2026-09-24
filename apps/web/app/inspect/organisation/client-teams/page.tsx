@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { CreateClientTeamForm } from "./create-client-team-form";
 import { ClientTeamCard, type ClientTeamCardData, type UserOption, type ProjectOption } from "./client-team-card";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
   id: string;
@@ -176,7 +177,18 @@ export default async function ClientTeamsPage({
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Client Teams</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Client Teams</h1>
+        <PageGuide
+          title="Client Teams — how this works"
+          points={[
+            "Who can ADD a member: a JAGS Admin (any organisation), or that team's own team lead (their team only). A self-managed org's first user can also bootstrap its very first team before any lead exists yet.",
+            "Add someone by picking from people who already have platform access to this organisation or its projects, or by entering their email directly if they have a JAGS Assurance account but aren't yet on any project — the email must already have an account; if not, provision their login first from that project's own page (Provision login).",
+            "A client team only ever contains this organisation's own people, and can only be assigned to this organisation's own projects — it's a separate, parallel structure to JAGS's internal Teams page.",
+            "Assigning a team to a project doesn't grant access by itself — each member still needs their own access_grant to that project; the assignment is how this page groups \"who's responsible for what\".",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         This organisation&apos;s own groupings of its people — who&apos;s on which team, who leads
         it, and which of this organisation&apos;s own projects that team is responsible for. Separate

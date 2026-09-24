@@ -63,6 +63,21 @@ dashboard:
 5. In the Navigator, select only the five `vw_powerbi_*` views listed above (that is all this role
    can see) and load/build your report.
 
+## Sharing it on the web (Power BI Service)
+
+Connecting in Power BI **Desktop** above does not by itself put anything on the web — Desktop and
+the Power BI **Service** (app.powerbi.com) are two different products.
+
+1. Build the report in Desktop, then **Publish** it to a workspace in the Power BI Service.
+2. Supabase's Postgres is not one of Power BI's pre-approved cloud data sources, so the Service
+   cannot reach it directly. You need an **On-premises Data Gateway** — despite the name, it also
+   brokers a cloud-hosted database like this one. Install it on any always-on machine your team
+   controls, register it under your Power BI tenant, then map the `powerbi_reader` data source to
+   it in the published dataset's settings (Service → dataset → Settings → Gateway connection).
+3. Without the gateway: a **DirectQuery** report simply fails to load once opened in the browser,
+   and an **Import** report publishes fine but can never refresh on a schedule — it stays frozen at
+   whatever snapshot was in Desktop at publish time.
+
 ## Notes
 
 - These views are additive and safe to re-run the migration's `create or replace view` statements

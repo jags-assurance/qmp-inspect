@@ -5,6 +5,7 @@ import { CUSTOM_ROLES_TABLE, CUSTOM_ROLE_PERMISSIONS_TABLE, CUSTOM_ROLE_ASSIGNME
 import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { CreateRoleForm } from "./create-role-form";
 import { RoleCard, type RoleCardData } from "./role-card";
+import { PageGuide } from "@/components/domain/page-guide";
 
 interface RoleRow {
   id: string;
@@ -121,7 +122,20 @@ export default async function CustomRolesPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-ink">Custom roles</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Custom roles</h1>
+        <PageGuide
+          title="Custom roles — how this works"
+          points={[
+            "A role is a named bundle of specific permissions (e.g. \"can approve ITPs\", \"can close NCRs\") — pick exactly which ones when you create it.",
+            "Assigning a role to someone ADDS to their access — it never replaces what their staff role, team lead status, or party type already grants them.",
+            admin
+              ? "As Admin, you can create a JAGS-global role (assignable to any JAGS staff member) or a role scoped to one client organisation (assignable to that client's own users)."
+              : "Roles you create are scoped to your own organisation only — your own people, your own projects.",
+            "A role can optionally be narrowed to one specific project when you assign it, instead of the whole organisation.",
+          ]}
+        />
+      </div>
       <p className="mt-1 text-sm text-muted">
         Grant a specific person a bundle of real permissions without promoting them to Admin or
         inventing a new hardcoded role — additional to whatever access they already have via staff
