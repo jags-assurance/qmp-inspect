@@ -392,10 +392,16 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
                 <span aria-hidden className="select-none text-muted">⠿</span>
                 <span className="doc-id text-muted">{item.item_number}.</span>
                 <span className="flex-1">{item.description}</span>
-                <Badge tone={item.is_mandatory ? "danger" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>
+                <span title="Only changes the red asterisk shown to the inspector — every item, mandatory or not, must still be answered, and a &quot;No&quot; on either kind still fails the whole inspection.">
+                  <Badge tone={item.is_mandatory ? "danger" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>
+                </span>
               </li>
             ))}
           </ul>
+          <p className="border-t border-border px-4 py-2 text-[11px] text-muted">
+            &quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be
+            answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.
+          </p>
           <AddChecklistItemForm templateId={template.id} />
         </details>
       )}

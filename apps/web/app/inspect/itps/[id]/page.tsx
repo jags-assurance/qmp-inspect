@@ -237,7 +237,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       // always re-uploading the same file a second time. Joined to the folder for a readable label.
       supabase
         .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, title, document_reference, revision, storage_path, vault_folders!inner(project_id, name, folder_key)")
+        .select("id, title, document_reference, revision, storage_path, status, vault_folders!inner(project_id, name, folder_key)")
         .eq("vault_folders.project_id", itp.projects?.id ?? "")
         .order("title")
         .returns<
@@ -247,6 +247,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             document_reference: string | null;
             revision: string;
             storage_path: string;
+            status: string;
             vault_folders: { name: string; folder_key: string } | null;
           }[]
         >(),
@@ -312,12 +313,12 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
           .returns<ItpItemMeasurementRow[]>(),
         supabase
           .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
-          .select("id, itp_item_id, vault_document_id, linked_by, created_at, vault_documents(title, document_reference)")
+          .select("id, itp_item_id, vault_document_id, linked_by, created_at, vault_documents(title, document_reference, status)")
           .in("itp_item_id", allItemIds)
           .order("created_at")
-          .returns<(ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null } | null })[]>(),
+          .returns<(ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null; status: string } | null })[]>(),
       ])
-    : [{ data: [] as ItpItemMeasurementRow[] }, { data: [] as (ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null } | null })[] }];
+    : [{ data: [] as ItpItemMeasurementRow[] }, { data: [] as (ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null; status: string } | null })[] }];
 
   const measurementsByItem = new Map<string, ItpItemMeasurementRow[]>();
   for (const row of measurements ?? []) {
@@ -326,10 +327,18 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     measurementsByItem.set(row.itp_item_id, list);
   }
 
-  const evidenceDocumentsByItem = new Map<string, (ItpItemEvidenceDocumentRow & { title: string; documentReference: string | null })[]>();
+  const evidenceDocumentsByItem = new Map<
+    string,
+    (ItpItemEvidenceDocumentRow & { title: string; documentReference: string | null; status: string | null })[]
+  >();
   for (const row of evidenceDocuments ?? []) {
     const list = evidenceDocumentsByItem.get(row.itp_item_id) ?? [];
-    list.push({ ...row, title: row.vault_documents?.title ?? "Untitled document", documentReference: row.vault_documents?.document_reference ?? null });
+    list.push({
+      ...row,
+      title: row.vault_documents?.title ?? "Untitled document",
+      documentReference: row.vault_documents?.document_reference ?? null,
+      status: row.vault_documents?.status ?? null,
+    });
     evidenceDocumentsByItem.set(row.itp_item_id, list);
   }
 
@@ -341,6 +350,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     documentReference: d.document_reference,
     storagePath: d.storage_path,
     folderName: d.vault_folders?.name ?? "Document Vault",
+    status: d.status,
   }));
 
   // R103/R125: governing-drawing picker on AddItemForm only offers documents actually filed under
@@ -514,6 +524,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 "Editing content (sections/items/the grid) is allowed on a 'draft' ITP for JAGS staff, or for the client/contractor party that originated it if their project opted them into ITP creation — approval itself always stays JAGS-only.",
                 "Once the ITP is approved or client-accepted, adding items/sections counts as an edit-after-issue and bumps the revision, with a frozen snapshot kept in revision history.",
                 "Checklists → and Completion roadmap → are separate pages: this page is where content, sign-offs and evidence are actually recorded; those summarise status without duplicating the forms.",
+                "Recording evidence (checklist answers, measurements, or linking a document) follows the same rule as sign-off: staff can always do it, the party actually assigned to that activity can self-execute it (client only if your project opted them in), and a TPI/lab party never can — it can only sign off its own witness/review cells.",
               ]}
             />
             <Badge tone={STATUS_TONE[itp.status]}>{STATUS_LABEL[itp.status]}</Badge>

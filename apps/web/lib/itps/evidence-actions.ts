@@ -113,8 +113,14 @@ export async function addItpItemMeasurementAction(_prev: EvidenceActionState, fo
   return { error: null };
 }
 
-/** Corrects a mis-entered measurement — same executing-party gate as adding one; staff can always
- *  remove any row, mirroring every other delete gate in this app. */
+/**
+ * Corrects a mis-entered measurement — staff can always remove any row, mirroring every other
+ * delete gate in this app. A non-staff caller must additionally be the row's own recorder, not just
+ * any active executing-type party on the activity: found in a self-review audit that
+ * canExecuteItpItem alone checks "type + activity membership," not row ownership, so on an activity
+ * with two executing parties (e.g. two subcontractors both linked via activity_party_intervention),
+ * either could otherwise delete evidence the other one recorded.
+ */
 export async function deleteItpItemMeasurementAction(formData: FormData): Promise<void> {
   const measurementId = String(formData.get("measurement_id") ?? "").trim();
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
@@ -123,7 +129,15 @@ export async function deleteItpItemMeasurementAction(formData: FormData): Promis
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  if (!session.isJagsStaff && !(await canExecuteItpItem(supabase, itpItemId))) return;
+  if (!session.isJagsStaff) {
+    if (!(await canExecuteItpItem(supabase, itpItemId))) return;
+    const { data: row } = await supabase
+      .from(ITP_ITEM_MEASUREMENTS_TABLE)
+      .select("recorded_by")
+      .eq("id", measurementId)
+      .maybeSingle<{ recorded_by: string | null }>();
+    if (row?.recorded_by !== session.userId) return;
+  }
 
   await supabase.from(ITP_ITEM_MEASUREMENTS_TABLE).delete().eq("id", measurementId);
 
@@ -140,6 +154,14 @@ export async function deleteItpItemMeasurementAction(formData: FormData): Promis
  * the project's existing Vault (upload there first, same as the governing-drawing picker on
  * AddItemForm already does) rather than building a second upload UI/storage path here: a many-to-
  * many link table (itp_item_evidence_documents), not a new upload mechanism.
+ *
+ * Found missing in a self-review audit: the client-side picker (page.tsx) already scopes options to
+ * this ITP's own project, but nothing re-checked that server-side, and the RLS insert policy on
+ * itp_item_evidence_documents never joins vault_documents at all — so a crafted direct form-action
+ * call (bypassing the picker entirely) could link a document from a different project a caller
+ * happens to also have access to. Same audit found unapproved/superseded documents were linkable
+ * too, satisfying this activity's completion requirement with no real evidence review behind it.
+ * Both are now checked here, server-side, not just filtered out of the picker's option list.
  */
 export async function linkItpItemEvidenceDocumentAction(_prev: EvidenceActionState, formData: FormData): Promise<EvidenceActionState> {
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
@@ -151,6 +173,20 @@ export async function linkItpItemEvidenceDocumentAction(_prev: EvidenceActionSta
 
   if (!(await canExecuteItpItem(supabase, itpItemId))) {
     return { error: "Only the party assigned to execute this activity (or JAGS staff) can link evidence." };
+  }
+
+  const itemProjectId = await findProjectIdForItpItem(supabase, itpItemId);
+  const { data: vaultDoc } = await supabase
+    .from("vault_documents")
+    .select("status, vault_folders(project_id)")
+    .eq("id", vaultDocumentId)
+    .maybeSingle<{ status: string; vault_folders: { project_id: string } | null }>();
+
+  if (!vaultDoc || !itemProjectId || vaultDoc.vault_folders?.project_id !== itemProjectId) {
+    return { error: "That document isn't in this activity's own project." };
+  }
+  if (vaultDoc.status !== "approved") {
+    return { error: "Only an approved document can be linked as evidence — get it approved in the Document Vault first." };
   }
 
   const { error } = await supabase
@@ -187,8 +223,12 @@ export async function linkItpItemEvidenceDocumentAction(_prev: EvidenceActionSta
   return { error: null };
 }
 
-/** Removes the link (never deletes the underlying vault document itself — it may still be
- *  referenced elsewhere, e.g. as another activity's governing drawing). */
+/**
+ * Removes the link (never deletes the underlying vault document itself — it may still be
+ * referenced elsewhere, e.g. as another activity's governing drawing). Same ownership check as
+ * deleteItpItemMeasurementAction above, for the same reason: canExecuteItpItem alone doesn't tell
+ * one executing party's link apart from another's on a shared activity.
+ */
 export async function unlinkItpItemEvidenceDocumentAction(formData: FormData): Promise<void> {
   const linkId = String(formData.get("link_id") ?? "").trim();
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
@@ -197,7 +237,15 @@ export async function unlinkItpItemEvidenceDocumentAction(formData: FormData): P
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  if (!session.isJagsStaff && !(await canExecuteItpItem(supabase, itpItemId))) return;
+  if (!session.isJagsStaff) {
+    if (!(await canExecuteItpItem(supabase, itpItemId))) return;
+    const { data: row } = await supabase
+      .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
+      .select("linked_by")
+      .eq("id", linkId)
+      .maybeSingle<{ linked_by: string | null }>();
+    if (row?.linked_by !== session.userId) return;
+  }
 
   await supabase.from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE).delete().eq("id", linkId);
 

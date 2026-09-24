@@ -26,6 +26,11 @@ export interface VaultDocumentOption {
   documentReference: string | null;
   storagePath: string;
   folderName: string;
+  /** 'for_review' | 'approved' | 'superseded' — see supabase/migrations/20260910010000_phase2_
+   *  document_vault.sql. Only ExpectedRecordsSection's own picker ignores it (an expected record's
+   *  file doesn't need prior approval to be attached); ItpItemEvidenceDocumentsSection's picker
+   *  (evidence_type=2 completion evidence) filters to 'approved' only. */
+  status: string;
 }
 
 /**

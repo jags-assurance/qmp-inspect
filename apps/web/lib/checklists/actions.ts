@@ -496,9 +496,10 @@ export interface CompleteInspectionState {
 /**
  * Finalises an inspection: computes the overall result from the recorded responses (server-side,
  * not trusted from the client), stamps the signature and notes, then locks the record by giving it
- * a non-null overall_result. A fail/partial result is a normal, expected outcome here — raising an
- * NCR off it is a separate feature (a different agent's work); this only surfaces that possibility
- * to the inspector, it doesn't call anything for it.
+ * a non-null overall_result. A fail result is a normal, expected outcome here: it auto-creates a
+ * punch-list item and notifies the item's stakeholders below (R92-R96) — raising an NCR off it is
+ * still a separate, manual step the inspector takes themselves (see the "Raise NCR" link on the
+ * inspection page), this function doesn't do that part.
  */
 /**
  * The validation + write logic shared by completeInspectionAction (the live form, which redirects
@@ -566,17 +567,28 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const results = [...responseByItem.values()];
   const overallResult: OverallResult = computeOverallResult(results);
 
-  const { error } = await supabase
+  // .is("overall_result", null) makes this update conditional on the record still being open —
+  // without it, a double-click or the offline-sync route replaying an at-least-once-delivered
+  // "complete_inspection" item (see app/api/offline-sync/route.ts) could both pass the validation
+  // above and both run, each independently creating a punch item and sending "Inspection failed"
+  // notifications for the one real event. `.select("id")` lets us tell "updated" from "already
+  // completed by someone/something else" apart, since a plain `error`-only check can't.
+  const { data: updated, error } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .update({
       overall_result: overallResult,
       notes: notes || null,
       inspector_signature: signature || null,
     })
-    .eq("id", inspectionRecordId);
+    .eq("id", inspectionRecordId)
+    .is("overall_result", null)
+    .select("id");
 
   if (error) {
     return { error: "Could not complete the inspection. Check you have permission and try again." };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: "This inspection has already been completed." };
   }
 
   // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
@@ -807,7 +819,14 @@ export interface IssueIrnState {
   error: string | null;
 }
 
-/** Issues an IRN off a passed inspection record. Numbering is an atomic per-ITP counter (R44-R65). */
+/**
+ * Issues an IRN off a passed inspection record. Numbering is an atomic per-ITP counter (R44-R65).
+ * Gated by canExecuteItpItem — same "the party actually assigned to this activity, or staff" rule
+ * every other write on this activity already uses. Found missing in a self-review audit: this was
+ * the one write action on the checklist path that only checked tenant/project access (via RLS) with
+ * no party-level check at all, meaning any project member — including a client or an unrelated
+ * subcontractor — could issue a controlled release document off someone else's passed inspection.
+ */
 export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): Promise<IssueIrnState> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   if (!inspectionRecordId) return { error: "Missing inspection record." };
@@ -816,11 +835,14 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
 
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("id, project_id, itp_number, overall_result")
+    .select("id, project_id, itp_number, itp_item_id, overall_result")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "id" | "project_id" | "itp_number" | "overall_result">>();
+    .maybeSingle<Pick<InspectionRecordRow, "id" | "project_id" | "itp_number" | "itp_item_id" | "overall_result">>();
 
   if (!record) return { error: "Inspection record not found." };
+  if (!(await canExecuteItpItem(supabase, record.itp_item_id))) {
+    return { error: "Only the party assigned to execute this activity (or JAGS staff) can issue its IRN." };
+  }
   if (record.overall_result !== "pass") return { error: "An IRN can only be issued from a passed inspection." };
 
   const { data: project } = await supabase

@@ -87,7 +87,10 @@ export function ChecklistExecutionPanel({
   const totalCount = items.length;
   const answeredCount = answeredIds.size;
   const answeredPct = totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
-  const allAnswered = answeredCount === totalCount;
+  // totalCount === 0 must never satisfy this — answeredCount === totalCount (0 === 0) is otherwise
+  // vacuously true, which rendered a clickable Complete button for a checklist with no items even
+  // though the server (validateChecklistItemsAnswered) always rejects that completion attempt.
+  const allAnswered = totalCount > 0 && answeredCount === totalCount;
 
   const syncStatus = !isOnline
     ? { label: "Offline — will sync when reconnected", className: "text-warning" }

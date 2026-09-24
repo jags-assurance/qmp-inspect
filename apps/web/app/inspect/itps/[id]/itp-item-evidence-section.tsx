@@ -126,10 +126,10 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
         className="w-full rounded border border-border bg-surface px-2 py-1"
       />
       <div className="flex gap-1.5">
-        <input name="nominal_value" placeholder="Nominal" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="tolerance" placeholder="Tolerance" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="actual_value" placeholder="Actual" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="unit" placeholder="Unit" className="w-16 rounded border border-border bg-surface px-2 py-1" />
+        <input name="nominal_value" placeholder="Nominal e.g. 12.0" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
+        <input name="tolerance" placeholder="Tolerance e.g. ±0.5" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
+        <input name="actual_value" placeholder="Actual e.g. 11.8" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
+        <input name="unit" placeholder="mm" className="w-16 rounded border border-border bg-surface px-2 py-1" />
       </div>
       <select name="result" defaultValue="" className="rounded border border-border bg-surface px-2 py-1">
         <option value="">No result yet</option>
@@ -156,6 +156,11 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
  * ExpectedRecordsSection's MarkReceivedForm already offers — a document-upload activity's evidence
  * should be a controlled vault document with its own revision history, not a one-off file.
  */
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  for_review: { label: "For review", className: "bg-warning/10 text-warning" },
+  superseded: { label: "Superseded", className: "bg-danger/10 text-danger" },
+};
+
 export function ItpItemEvidenceDocumentsSection({
   itpItemId,
   documents,
@@ -163,49 +168,68 @@ export function ItpItemEvidenceDocumentsSection({
   canLink,
 }: {
   itpItemId: string;
-  documents: (ItpItemEvidenceDocumentRow & { title: string; documentReference: string | null })[];
+  documents: (ItpItemEvidenceDocumentRow & { title: string; documentReference: string | null; status: string | null })[];
   vaultDocuments: VaultDocumentOption[];
   canLink: boolean;
 }) {
   const linkedIds = new Set(documents.map((d) => d.vault_document_id));
-  const availableDocuments = vaultDocuments.filter((d) => !linkedIds.has(d.id));
+  // Only an approved, current document satisfies this activity's evidence requirement — a document
+  // still "for review" or already superseded by a newer revision can't be picked, matching the
+  // server-side check in linkItpItemEvidenceDocumentAction (this is the UX-level mirror of that
+  // check, not the enforcement itself — see that action's own comment).
+  const availableDocuments = vaultDocuments.filter((d) => !linkedIds.has(d.id) && d.status === "approved");
+  const hasUnlinkedNonApproved = vaultDocuments.some((d) => !linkedIds.has(d.id) && d.status !== "approved");
 
   return (
     <div className="border-t border-border px-3 py-3">
       <h4 className="text-xs font-medium text-muted">Evidence documents</h4>
       <ul className="mt-2 space-y-1.5">
-        {documents.map((doc) => (
-          <li key={doc.id} className="flex items-center justify-between rounded border border-border px-2 py-1.5 text-xs">
-            <span className="text-ink">
-              {doc.title}
-              {doc.documentReference && <span className="text-muted"> ({doc.documentReference})</span>}
-            </span>
-            {canLink && (
-              <form action={unlinkItpItemEvidenceDocumentAction}>
-                <input type="hidden" name="itp_item_id" value={itpItemId} />
-                <input type="hidden" name="link_id" value={doc.id} />
-                <button type="submit" className="text-danger hover:underline">
-                  Unlink
-                </button>
-              </form>
-            )}
-          </li>
-        ))}
+        {documents.map((doc) => {
+          const badge = doc.status ? STATUS_BADGE[doc.status] : undefined;
+          return (
+            <li key={doc.id} className="flex items-center justify-between rounded border border-border px-2 py-1.5 text-xs">
+              <span className="text-ink">
+                {doc.title}
+                {doc.documentReference && <span className="text-muted"> ({doc.documentReference})</span>}
+                {badge && <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium ${badge.className}`}>{badge.label}</span>}
+              </span>
+              {canLink && (
+                <form action={unlinkItpItemEvidenceDocumentAction}>
+                  <input type="hidden" name="itp_item_id" value={itpItemId} />
+                  <input type="hidden" name="link_id" value={doc.id} />
+                  <button type="submit" className="text-danger hover:underline">
+                    Unlink
+                  </button>
+                </form>
+              )}
+            </li>
+          );
+        })}
         {documents.length === 0 && <li className="text-xs text-muted">No evidence document linked yet.</li>}
       </ul>
-      {canLink && <LinkDocumentForm itpItemId={itpItemId} availableDocuments={availableDocuments} />}
+      {canLink && <LinkDocumentForm itpItemId={itpItemId} availableDocuments={availableDocuments} hasUnlinkedNonApproved={hasUnlinkedNonApproved} />}
     </div>
   );
 }
 
-function LinkDocumentForm({ itpItemId, availableDocuments }: { itpItemId: string; availableDocuments: VaultDocumentOption[] }) {
+function LinkDocumentForm({
+  itpItemId,
+  availableDocuments,
+  hasUnlinkedNonApproved,
+}: {
+  itpItemId: string;
+  availableDocuments: VaultDocumentOption[];
+  hasUnlinkedNonApproved: boolean;
+}) {
   const [state, formAction, pending] = useActionState(linkItpItemEvidenceDocumentAction, initialState);
   const [open, setOpen] = useState(false);
 
   if (availableDocuments.length === 0) {
     return (
       <p className="mt-2 text-[11px] text-muted">
-        Upload the evidence document to the project&rsquo;s Document Vault first, then link it here.
+        {hasUnlinkedNonApproved
+          ? "There's an unapproved or superseded document in the vault, but only an approved, current document can be linked as evidence — get it approved first (Document Vault → Approve)."
+          : "Upload the evidence document to the project's Document Vault first, then link it here."}
       </p>
     );
   }
