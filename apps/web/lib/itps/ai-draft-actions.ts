@@ -11,6 +11,7 @@ import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { recordAuditEvent } from "@/lib/audit/log";
 
 // Reqs R34-R43: spec-to-ITP draft generation, grounded in the project's own vault documents (the
 // actual attached specs/standards/method statements) rather than a free-typed description alone.
@@ -378,6 +379,23 @@ export async function createItpFromDraftAction(
       organizationId: projectForChecklists.organization_id,
       userId: user?.id ?? null,
     });
+
+    // Found missing in a self-review audit: unlike createItpAction ("created") and
+    // copyMasterTemplateToItpAction ("created_from_master_template"), this third ITP-creation path
+    // had no audit event at all. Best-effort, never blocks the redirect below.
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: projectForChecklists.organization_id,
+        projectId,
+        entityType: "itp",
+        entityId: itp.id,
+        action: "created_from_ai_draft",
+        actorId: user?.id ?? null,
+        summary: `ITP ${itpNumber} "${title}" created from an AI draft`,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
   }
 
   redirect(`/inspect/itps/${itp.id}`);
