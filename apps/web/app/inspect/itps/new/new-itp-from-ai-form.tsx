@@ -639,7 +639,15 @@ export function NewItpFromAiForm({
           </Button>
           <button
             type="button"
-            onClick={() => setDraft(null)}
+            onClick={() => {
+              setDraft(null);
+              // Without this, a discarded draft's suggested number/title/standard survive in state
+              // (the `prev || ...` guards at lines 142-144 only fill an EMPTY field) and get silently
+              // reused as the "suggestion" for the next generated draft, even once they're stale.
+              setItpNumber("");
+              setTitle("");
+              setApplicableStandard("");
+            }}
             className="rounded-md border border-border px-3 py-2 text-sm text-ink hover:bg-off-white"
           >
             Discard draft

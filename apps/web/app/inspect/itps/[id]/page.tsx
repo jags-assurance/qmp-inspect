@@ -14,6 +14,7 @@ import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from
 import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
 import type { InterventionLevel } from "@jags/shared-types";
 import { AddItemForm } from "./add-item-form";
+import { ActivityEvidenceToggle } from "./activity-evidence-toggle";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 // Added for the "propose to master library" action (Reqs R31) — no other change to this file.
 import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
@@ -757,29 +758,43 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                           <span className="doc-id mr-1">{item.item_number}</span>
                           {item.activity}
                         </p>
-                        <ExpectedRecordsSection
-                          itpItemId={item.id}
-                          records={expectedRecordsByItem.get(item.id) ?? []}
-                          canAdd={session.isJagsStaff}
-                          canMarkReceivedByProvider={canMarkReceivedByProvider}
-                          projectId={itp.projects?.id ?? ""}
-                          vaultDocuments={vaultDocuments}
-                        />
-                        {item.evidence_type === 3 && (
-                          <ItpItemMeasurementsSection
-                            itpItemId={item.id}
-                            measurements={measurementsByItem.get(item.id) ?? []}
-                            canRecord={canExecuteItemEvidence(item.id)}
-                          />
-                        )}
-                        {item.evidence_type === 2 && (
-                          <ItpItemEvidenceDocumentsSection
-                            itpItemId={item.id}
-                            documents={evidenceDocumentsByItem.get(item.id) ?? []}
-                            vaultDocuments={vaultDocuments}
-                            canLink={canExecuteItemEvidence(item.id)}
-                          />
-                        )}
+                        <div className="flex flex-wrap gap-1.5">
+                          <ActivityEvidenceToggle
+                            label={`Expected records${(expectedRecordsByItem.get(item.id) ?? []).length > 0 ? ` (${(expectedRecordsByItem.get(item.id) ?? []).length})` : ""}`}
+                          >
+                            <ExpectedRecordsSection
+                              itpItemId={item.id}
+                              records={expectedRecordsByItem.get(item.id) ?? []}
+                              canAdd={session.isJagsStaff}
+                              canMarkReceivedByProvider={canMarkReceivedByProvider}
+                              projectId={itp.projects?.id ?? ""}
+                              vaultDocuments={vaultDocuments}
+                            />
+                          </ActivityEvidenceToggle>
+                          {item.evidence_type === 3 && (
+                            <ActivityEvidenceToggle
+                              label={`Measurements${(measurementsByItem.get(item.id) ?? []).length > 0 ? ` (${(measurementsByItem.get(item.id) ?? []).length})` : ""}`}
+                            >
+                              <ItpItemMeasurementsSection
+                                itpItemId={item.id}
+                                measurements={measurementsByItem.get(item.id) ?? []}
+                                canRecord={canExecuteItemEvidence(item.id)}
+                              />
+                            </ActivityEvidenceToggle>
+                          )}
+                          {item.evidence_type === 2 && (
+                            <ActivityEvidenceToggle
+                              label={`Evidence documents${(evidenceDocumentsByItem.get(item.id) ?? []).length > 0 ? ` (${(evidenceDocumentsByItem.get(item.id) ?? []).length})` : ""}`}
+                            >
+                              <ItpItemEvidenceDocumentsSection
+                                itpItemId={item.id}
+                                documents={evidenceDocumentsByItem.get(item.id) ?? []}
+                                vaultDocuments={vaultDocuments}
+                                canLink={canExecuteItemEvidence(item.id)}
+                              />
+                            </ActivityEvidenceToggle>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

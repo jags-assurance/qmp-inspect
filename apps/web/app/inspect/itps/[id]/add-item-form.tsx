@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { addItpItemAction, type AddItemState } from "@/lib/itps/actions";
 
 const initialState: AddItemState = { error: null };
@@ -24,6 +24,22 @@ export function AddItemForm({
   drawingDocuments: { id: string; title: string; revision: string }[];
 }) {
   const [state, formAction, pending] = useActionState(addItpItemAction, initialState);
+  // Was always rendered fully open, one 7-field row per section, whether or not anyone was
+  // actively adding an activity — real clutter on an ITP with several sections. Collapsed behind
+  // its own button, same click-to-reveal pattern as the per-activity evidence sections right above.
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full border-t border-border bg-off-white px-4 py-2.5 text-left text-sm font-medium text-burgundy hover:bg-burgundy/5"
+      >
+        + Add activity
+      </button>
+    );
+  }
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border bg-off-white px-4 py-4">
@@ -125,7 +141,10 @@ export function AddItemForm({
         disabled={pending}
         className="rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-medium hover:bg-off-white disabled:opacity-50"
       >
-        {pending ? "Adding…" : isIssued ? "+ Add activity (new revision)" : "+ Add activity"}
+        {pending ? "Adding…" : isIssued ? "Add activity (new revision)" : "Add activity"}
+      </button>
+      <button type="button" onClick={() => setOpen(false)} className="text-sm text-muted hover:underline">
+        Cancel
       </button>
       {isIssued && (
         <p className="w-full text-xs text-warning">

@@ -240,11 +240,12 @@ export async function createItpFromDraftAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: itp, error } = await supabase
+  let numberToUse = itpNumber;
+  let { data: itp, error } = await supabase
     .from("itps")
     .insert({
       project_id: projectId,
-      itp_number: itpNumber,
+      itp_number: numberToUse,
       title,
       applicable_standard: applicableStandard || null,
       prepared_by: user?.id ?? null,
@@ -252,9 +253,49 @@ export async function createItpFromDraftAction(
     .select("id")
     .single();
 
+  // The suggested number offered on the draft screen can go stale by the time this confirm step
+  // runs — a manual/template-created ITP elsewhere can claim it first (numbering.md: only this
+  // and createItpAction's free-text path share the same document_sequences counter, and neither
+  // reserves a number until insert time). Rather than bounce the user back with a generic "already
+  // exists" error, draw one fresh number from the atomic sequence and retry once before giving up.
+  if (error?.code === "23505") {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id, project_number")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string; project_number: string }>();
+
+    if (project) {
+      try {
+        const generated = await generateDocumentNumber(supabase, {
+          organizationId: project.organization_id,
+          projectId,
+          docType: "itp",
+          projectNumber: project.project_number,
+        });
+        numberToUse = generated.documentNumber;
+        ({ data: itp, error } = await supabase
+          .from("itps")
+          .insert({
+            project_id: projectId,
+            itp_number: numberToUse,
+            title,
+            applicable_standard: applicableStandard || null,
+            prepared_by: user?.id ?? null,
+          })
+          .select("id")
+          .single());
+      } catch (err) {
+        console.error("[itp-draft] Could not auto-retry with a fresh ITP number:", err);
+      }
+    }
+  }
+
   if (error || !itp) {
     if (error?.code === "23505") {
-      return { error: "An ITP with that number already exists for this project." };
+      return {
+        error: `An ITP with that number already exists for this project (tried "${numberToUse}"). Please choose a different number and try again.`,
+      };
     }
     return { error: "Could not create the ITP. Check you have permission and try again." };
   }
@@ -374,7 +415,7 @@ export async function createItpFromDraftAction(
   if (projectForChecklists) {
     await generateChecklistsForItp(supabase, {
       itpId: itp.id,
-      itpNumber,
+      itpNumber: numberToUse,
       projectId,
       organizationId: projectForChecklists.organization_id,
       userId: user?.id ?? null,
@@ -391,7 +432,7 @@ export async function createItpFromDraftAction(
         entityId: itp.id,
         action: "created_from_ai_draft",
         actorId: user?.id ?? null,
-        summary: `ITP ${itpNumber} "${title}" created from an AI draft`,
+        summary: `ITP ${numberToUse} "${title}" created from an AI draft`,
       });
     } catch {
       // Best-effort — see lib/audit/log.ts's doc comment.
