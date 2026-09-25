@@ -25,6 +25,9 @@ import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProjectStatusControl } from "./project-status-control";
+import { NoticePeriodSettings } from "./notice-period-settings";
+import { INTERVENTION_LEVEL_TYPES_TABLE, sortLevels, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
+import { NOTICE_PERIOD_CONFIGS_TABLE, type NoticePeriodConfigRow } from "@/lib/signoff/db-types";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -173,13 +176,27 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   let staffUsers: { id: string; full_name: string }[] = [];
   let reviewChain: { reviewerUserId: string }[] = [];
+  let interventionLevels: InterventionLevelTypeRow[] = [];
+  let noticePeriodConfigs: Record<string, number> = {};
   if (isAdminStaff(session)) {
-    const [{ data: staffData }, chainData] = await Promise.all([
+    const [{ data: staffData }, chainData, { data: levelData }, { data: noticeData }] = await Promise.all([
       supabase.from("users").select("id, full_name").eq("is_jags_staff", true).order("full_name").returns<{ id: string; full_name: string }[]>(),
       getProjectReviewChain(supabase, project.id),
+      supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("id, organization_id, code, label, sort_order, is_blocking, default_notice_hours, created_at")
+        .eq("organization_id", project.organization_id)
+        .returns<InterventionLevelTypeRow[]>(),
+      supabase
+        .from(NOTICE_PERIOD_CONFIGS_TABLE)
+        .select("intervention, hours")
+        .eq("project_id", project.id)
+        .returns<Pick<NoticePeriodConfigRow, "intervention" | "hours">[]>(),
     ]);
     staffUsers = staffData ?? [];
     reviewChain = chainData;
+    interventionLevels = sortLevels(levelData ?? []);
+    noticePeriodConfigs = Object.fromEntries((noticeData ?? []).map((r) => [r.intervention, r.hours]));
   }
 
   // Eligible reassignment targets: anyone whose access already reaches this project's organisation
@@ -435,6 +452,27 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <EnforceHoldBlocksStartToggle
             projectId={project.id}
             enforceHoldBlocksStart={project.enforce_hold_blocks_start}
+          />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Notice period overrides</h2>
+          <p className="mt-1 text-sm text-muted">
+            How long an originator waits for a response before a level can be marked &ldquo;notified&rdquo; /
+            proceed-without-response applies (R25). Set one value here per intervention level for
+            THIS project, instead of overriding every individual activity — leave blank to keep
+            using the organisation&apos;s own default for that level.
+          </p>
+          <NoticePeriodSettings
+            projectId={project.id}
+            levels={interventionLevels.map((l) => ({
+              code: l.code,
+              label: l.label,
+              default_notice_hours: l.default_notice_hours,
+            }))}
+            configuredHours={noticePeriodConfigs}
           />
         </div>
       )}
