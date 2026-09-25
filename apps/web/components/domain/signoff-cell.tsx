@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { notifyPartyAction, proceedWithoutResponseAction, signOffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 
@@ -63,8 +63,16 @@ export function SignoffCell({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Real bug found live: clicking Notify/Sign off/Proceed didn't visibly change anything until the
+  // full page re-fetched after revalidatePath — on this page (a lot of data) that round trip is
+  // slow enough that the click looked like it did nothing. Flips the badge/buttons the instant
+  // you click instead; React reverts this back to the real `status` prop on its own once the
+  // transition settles — immediately, if the mutation succeeded and the prop now matches, or back
+  // to the pre-click state if it failed (see the error message shown below either way).
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(status);
+
   const deadlineMs =
-    status === "notified" && notifiedAt && noticeHours != null
+    optimisticStatus === "notified" && notifiedAt && noticeHours != null
       ? new Date(notifiedAt).getTime() + noticeHours * 60 * 60 * 1000
       : null;
 
@@ -85,13 +93,14 @@ export function SignoffCell({
   // on the project. Previously ungated (shown to every viewer on every pending cell); now uses the
   // same canSignOffForThisParty check Sign off already used, mirrored server-side in
   // notifyPartyAction.
-  const canNotify = status === "pending" && canSignOffForThisParty;
-  const canSignOff = (status === "pending" || status === "notified") && canSignOffForThisParty;
-  const canProceed = !isBlocking && status === "notified" && noticeElapsed && isJagsStaff;
+  const canNotify = optimisticStatus === "pending" && canSignOffForThisParty;
+  const canSignOff = (optimisticStatus === "pending" || optimisticStatus === "notified") && canSignOffForThisParty;
+  const canProceed = !isBlocking && optimisticStatus === "notified" && noticeElapsed && isJagsStaff;
 
-  function run(action: () => Promise<{ error: string | null }>) {
+  function run(action: () => Promise<{ error: string | null }>, nextStatus: SignoffStatus) {
     setError(null);
     startTransition(async () => {
+      setOptimisticStatus(nextStatus);
       const result = await action();
       if (result.error) setError(result.error);
     });
@@ -99,8 +108,8 @@ export function SignoffCell({
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[status]}`}>
-        {STATUS_LABEL[status]}
+      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[optimisticStatus]}`}>
+        {STATUS_LABEL[optimisticStatus]}
       </span>
       {deadlineMs != null && now != null && (
         <span
@@ -115,7 +124,7 @@ export function SignoffCell({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => run(() => notifyPartyAction(progressId))}
+            onClick={() => run(() => notifyPartyAction(progressId), "notified")}
             className="rounded border border-border px-1 py-0.5 text-[10px] font-medium hover:bg-off-white disabled:opacity-50"
           >
             Notify
@@ -125,13 +134,13 @@ export function SignoffCell({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => run(() => signOffAction(progressId))}
+            onClick={() => run(() => signOffAction(progressId), "signed_off")}
             className="rounded border border-border px-1 py-0.5 text-[10px] font-medium hover:bg-off-white disabled:opacity-50"
           >
             Sign off
           </button>
         )}
-        {!canSignOff && (status === "pending" || status === "notified") && !canSignOffForThisParty && (
+        {!canSignOff && (optimisticStatus === "pending" || optimisticStatus === "notified") && !canSignOffForThisParty && (
           <span className="text-[10px] text-muted" title="Only this party's own login (or JAGS staff) can sign off">
             Awaiting party
           </span>
@@ -140,7 +149,7 @@ export function SignoffCell({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => run(() => proceedWithoutResponseAction(progressId))}
+            onClick={() => run(() => proceedWithoutResponseAction(progressId), "proceeded_no_response")}
             className="rounded border border-border px-1 py-0.5 text-[10px] font-medium hover:bg-off-white disabled:opacity-50"
           >
             Proceed
