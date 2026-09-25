@@ -10,7 +10,6 @@ import {
 } from "@/lib/itps/review-chain";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
-import type { InterventionLevel } from "@jags/shared-types";
 import { ItpReviewChainForm } from "../itp-review-chain-form";
 import { ItpAcceptorPicker } from "../itp-acceptor-picker";
 import { ItpApprovalRoadmap } from "../itp-approval-roadmap";
@@ -62,9 +61,9 @@ export default async function ItpApprovalRoadmapPage({ params }: { params: Promi
   ] = await Promise.all([
     supabase
       .from("itp_sections")
-      .select("id, itp_items(id)")
+      .select("id, itp_items(id, item_number, activity)")
       .eq("itp_id", itp.id)
-      .returns<{ id: string; itp_items: { id: string }[] }[]>(),
+      .returns<{ id: string; itp_items: { id: string; item_number: string; activity: string }[] }[]>(),
     supabase
       .from("project_parties")
       .select("id, party_type, name, user_id, is_active")
@@ -84,22 +83,24 @@ export default async function ItpApprovalRoadmapPage({ params }: { params: Promi
   ]);
 
   const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
+  const itemById = new Map(
+    (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => [it.id, { itemNumber: it.item_number, activity: it.activity }] as const))
+  );
 
-  const [{ data: interventions }, { data: signoffs }, { data: approvalNamesRows }] = await Promise.all([
-    itemIds.length > 0
-      ? supabase
-          .from("activity_party_intervention")
-          .select("itp_item_id, project_party_id, intervention")
-          .in("itp_item_id", itemIds)
-          .returns<{ itp_item_id: string; project_party_id: string; intervention: InterventionLevel }[]>()
-      : Promise.resolve({ data: [] as { itp_item_id: string; project_party_id: string; intervention: InterventionLevel }[] }),
+  const [{ data: signoffs }, { data: approvalNamesRows }] = await Promise.all([
+    // activity_signoff_progress already carries the intervention code per row (kept in lockstep with
+    // activity_party_intervention by a DB trigger — one row per (item, party) pair that has a level
+    // set) — no need for a separate query against activity_party_intervention just to know who holds
+    // what; this one table has everything the per-person detail below needs.
     itemIds.length > 0
       ? supabase
           .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-          .select("id, itp_item_id, status")
+          .select("id, itp_item_id, project_party_id, intervention, status, notified_at")
           .in("itp_item_id", itemIds)
-          .returns<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "status">[]>()
-      : Promise.resolve({ data: [] as Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "status">[] }),
+          .returns<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at">[]>()
+      : Promise.resolve({
+          data: [] as Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at">[],
+        }),
     supabase
       .from("users")
       .select("id, full_name")
@@ -114,16 +115,33 @@ export default async function ItpApprovalRoadmapPage({ params }: { params: Promi
   const signoffTotal = (signoffs ?? []).length;
   const signoffComplete = (signoffs ?? []).filter((s) => s.status === "signed_off").length;
 
-  const holderCountsByParty = new Map<string, Map<string, number>>();
-  for (const row of interventions ?? []) {
-    const counts = holderCountsByParty.get(row.project_party_id) ?? new Map<string, number>();
-    counts.set(row.intervention, (counts.get(row.intervention) ?? 0) + 1);
-    holderCountsByParty.set(row.project_party_id, counts);
+  // Person-wise detail (round-table ask: "who will, how many, sign up person wise detail, what
+  // intervention/notify/sign-off he has, remaining in detail") — one entry per party, each carrying
+  // its own full list of points (which activity, which level, current status) instead of just a
+  // per-level count. Sorted by item number within each party so it reads top-to-bottom like the ITP
+  // itself.
+  const pointsByParty = new Map<
+    string,
+    { itemNumber: string; activity: string; levelCode: string; isBlocking: boolean; status: string; notifiedAt: string | null }[]
+  >();
+  for (const row of signoffs ?? []) {
+    const item = itemById.get(row.itp_item_id);
+    if (!item) continue;
+    const list = pointsByParty.get(row.project_party_id) ?? [];
+    list.push({
+      itemNumber: item.itemNumber,
+      activity: item.activity,
+      levelCode: row.intervention,
+      isBlocking: blockingCodes.has(row.intervention),
+      status: row.status,
+      notifiedAt: row.notified_at,
+    });
+    pointsByParty.set(row.project_party_id, list);
   }
-  const holderSummary = [...holderCountsByParty.entries()]
-    .map(([partyId, counts]) => ({
+  const holderDetail = [...pointsByParty.entries()]
+    .map(([partyId, points]) => ({
       partyName: partyNameById.get(partyId) ?? "Unknown party",
-      levels: [...counts.entries()].map(([code, count]) => ({ code, count, isBlocking: blockingCodes.has(code) })),
+      points: points.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber, undefined, { numeric: true })),
     }))
     .sort((a, b) => a.partyName.localeCompare(b.partyName));
 
@@ -219,7 +237,7 @@ export default async function ItpApprovalRoadmapPage({ params }: { params: Promi
           clientAcceptedAt={itp.client_accepted_at}
           signoffTotal={signoffTotal}
           signoffComplete={signoffComplete}
-          holderSummary={holderSummary}
+          holderDetail={holderDetail}
         />
       </div>
     </div>

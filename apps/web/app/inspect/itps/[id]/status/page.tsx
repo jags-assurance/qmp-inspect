@@ -335,12 +335,18 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
           }
 
           return (
-            <div key={item.id} className="rounded-lg border border-border bg-surface p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <details key={item.id} className="group rounded-lg border border-border bg-surface" open={!overallDone}>
+              {/* Collapsed by default only once an activity is actually Complete — an ITP with many
+                  activities was previously one long always-open page; a still-outstanding activity
+                  stays open so the "what's left" detail is visible without an extra click, a
+                  finished one collapses to free up space. */}
+              <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 p-4 marker:content-none">
                 <div>
                   <p className="text-sm text-ink">
                     <span className="doc-id mr-1.5 text-muted">{item.item_number}</span>
                     {item.activity}
+                    <span className="ml-1.5 text-muted group-open:hidden">▸</span>
+                    <span className="ml-1.5 hidden text-muted group-open:inline">▾</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {item.sectionTitle}
@@ -348,8 +354,9 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                   </p>
                 </div>
                 <Badge tone={overallTone}>{overallLabel}</Badge>
-              </div>
+              </summary>
 
+              <div className="border-t border-border px-4 pb-4 pt-3">
               {item.acceptance_criteria && (
                 <p className="mt-2 text-xs text-muted">
                   <span className="font-medium text-ink">Acceptance criteria: </span>
@@ -432,7 +439,8 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
                   {missing.join("; ")}.
                 </p>
               )}
-            </div>
+              </div>
+            </details>
           );
         })}
         {items.length === 0 && <p className="text-sm text-muted">This ITP has no activities yet.</p>}
