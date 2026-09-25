@@ -7,7 +7,10 @@ import { ActivitySignoffGrid } from "./activity-signoff-grid";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { AcceptItpForm } from "./accept-itp-form";
 import { ReviewChainStatus } from "./review-chain-status";
-import { getItpReviewProgress } from "@/lib/itps/review-chain";
+import { getItpReviewProgress, getItpReviewChainOverride } from "@/lib/itps/review-chain";
+import { ItpReviewChainForm } from "./itp-review-chain-form";
+import { ItpAcceptorPicker } from "./itp-acceptor-picker";
+import { ItpApprovalRoadmap } from "./itp-approval-roadmap";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
@@ -124,6 +127,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
       external_approval_recorded_by: string | null;
       external_approval_recorded_at: string | null;
       updated_at: string;
+      approved_by: string | null;
+      approved_at: string | null;
+      client_accepted_by: string | null;
+      client_accepted_at: string | null;
+      assigned_acceptor_user_id: string | null;
       projects: {
         id: string;
         name: string;
@@ -180,6 +188,8 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     { data: levelTypes },
     { data: aiDraftReview },
     { data: revisions },
+    { data: staffUsers },
+    { data: approvalNamesRows },
   ] = await Promise.all([
       // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
       // everything else below, so it runs concurrently instead of blocking the rest of the page
@@ -276,6 +286,22 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         .eq("itp_id", itp.id)
         .order("revision", { ascending: false })
         .returns<(ItpRevisionRow & { users: { full_name: string } | null })[]>(),
+      // For the ITP-level review-chain override picker/ReviewChainForm's reviewer options (this
+      // page's own twin of the project settings page's staffUsers fetch) — only actually needed by
+      // an Admin, but querying unconditionally keeps this straightforward and the table is small.
+      session.isJagsStaff
+        ? supabase.from("users").select("id, full_name").eq("is_jags_staff", true).order("full_name").returns<{ id: string; full_name: string }[]>()
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      // Display names for the roadmap below (approved_by/client_accepted_by/assigned_acceptor_user_id)
+      // — batched into one query rather than three, since at most 3 distinct ids are ever involved.
+      supabase
+        .from("users")
+        .select("id, full_name")
+        .in(
+          "id",
+          [itp.approved_by, itp.client_accepted_by, itp.assigned_acceptor_user_id].filter((v): v is string => Boolean(v))
+        )
+        .returns<{ id: string; full_name: string }[]>(),
     ]);
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
@@ -429,6 +455,26 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
   const levels = sortLevels(levelTypes ?? []);
   const blockingCodes = new Set(levels.filter((l) => l.is_blocking).map((l) => l.code));
 
+  // "Who holds what" — the round-table's own follow-up ask ("the person who hold, who accept, who
+  // will approve... add this all"): the roadmap already shows who approves/accepts, this rounds it
+  // out with who currently holds each intervention level across the whole ITP (not per-activity —
+  // that's what the grid itself is for — just a consolidated "who's actually holding a point on
+  // this document" summary), grouped by party from the same interventionMap the grid renders from.
+  const holderCountsByParty = new Map<string, Map<string, number>>();
+  for (const [key, code] of interventionMap) {
+    const partyId = key.split(":")[1];
+    const counts = holderCountsByParty.get(partyId) ?? new Map<string, number>();
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+    holderCountsByParty.set(partyId, counts);
+  }
+  const partyNameById = new Map((parties ?? []).map((p) => [p.id, p.name]));
+  const holderSummary = [...holderCountsByParty.entries()]
+    .map(([partyId, counts]) => ({
+      partyName: partyNameById.get(partyId) ?? "Unknown party",
+      levels: [...counts.entries()].map(([code, count]) => ({ code, count, isBlocking: blockingCodes.has(code) })),
+    }))
+    .sort((a, b) => a.partyName.localeCompare(b.partyName));
+
   // Precedence, highest first: a project-level notice_period_configs override, then this
   // organisation's own configured default_notice_hours for that level, then the original hardcoded
   // spec fallback (Hold=48h/Witness=24h) for the two levels that ever had one — same three-tier
@@ -476,8 +522,11 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
   // Client acceptance is that specific party's own action — not "any non-staff login," which the
   // end-to-end walkthrough flagged as too broad (a subcontractor/main contractor/TPI login could
   // technically have hit the same button). Mirrors accept_itp()'s own check at the database layer.
+  // Once an assigned_acceptor_user_id is set, it narrows further to just that one login — same
+  // "never trust the UI alone" discipline, accept_itp() enforces the real restriction itself.
   const isLinkedClientParty = (parties ?? []).some((p) => p.party_type === "client" && p.user_id === session.userId);
-  const canAccept = isLinkedClientParty && itp.status === "approved";
+  const isAssignedAcceptor = itp.assigned_acceptor_user_id === session.userId;
+  const canAccept = itp.status === "approved" && (itp.assigned_acceptor_user_id ? isAssignedAcceptor : isLinkedClientParty);
 
   // Role-based restriction (R66-R81): a party's sign-off is theirs to give, not anyone's on the
   // project — staff can always countersign, an external user only for the party their own login is
@@ -486,8 +535,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
   const canSignOffFor = (partyUserId: string | null, partyIsActive: boolean) =>
     session.isJagsStaff || (partyIsActive && !!partyUserId && partyUserId === session.userId);
 
-  const reviewSteps = itp.status === "under_review" ? await getItpReviewProgress(supabase, itp.id) : [];
+  // Broadened from "under_review only" so the roadmap (below) can show a completed chain's history
+  // once the ITP has moved on to approved/client_accepted too, not just while still mid-review.
+  const reviewSteps = itp.status !== "draft" ? await getItpReviewProgress(supabase, itp.id) : [];
   const hasActiveReviewChain = reviewSteps.length > 0 && reviewSteps.some((s) => s.status === "pending");
+  const itpReviewChainOverride =
+    session.isJagsStaff && itp.status === "draft" ? await getItpReviewChainOverride(supabase, itp.id) : [];
+
+  const nameById = new Map((approvalNamesRows ?? []).map((u) => [u.id, u.full_name]));
+  const clientPartyUsers = (parties ?? [])
+    .filter((p) => p.party_type === "client" && p.is_active && p.user_id)
+    .map((p) => ({ userId: p.user_id as string, name: p.name }));
 
   return (
     <div>
@@ -640,6 +698,37 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
         </div>
         {reviewSteps.length > 0 && (
           <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} />
+        )}
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <ItpApprovalRoadmap
+          status={itp.status}
+          reviewSteps={reviewSteps}
+          approvedByName={itp.approved_by ? nameById.get(itp.approved_by) ?? null : null}
+          approvedAt={itp.approved_at}
+          assignedAcceptorName={itp.assigned_acceptor_user_id ? nameById.get(itp.assigned_acceptor_user_id) ?? null : null}
+          clientAcceptedByName={itp.client_accepted_by ? nameById.get(itp.client_accepted_by) ?? null : null}
+          clientAcceptedAt={itp.client_accepted_at}
+          signoffTotal={signoffTotal}
+          signoffComplete={signoffComplete}
+          holderSummary={holderSummary}
+        />
+        {/* Who-decides-who config, admin-only: the review chain override can only take effect on a
+            draft (see setItpReviewChainAction's doc comment for why); the acceptor can be assigned
+            any time up to acceptance itself. */}
+        {session.isJagsStaff && itp.status !== "client_accepted" && (
+          <div className="space-y-4">
+            {itp.status === "draft" && (
+              <ItpReviewChainForm
+                itpId={itp.id}
+                staff={staffUsers ?? []}
+                initialChain={itpReviewChainOverride}
+                usingProjectDefault={itpReviewChainOverride.length === 0}
+              />
+            )}
+            <ItpAcceptorPicker itpId={itp.id} clientPartyUsers={clientPartyUsers} currentAcceptorUserId={itp.assigned_acceptor_user_id} />
+          </div>
         )}
       </div>
 

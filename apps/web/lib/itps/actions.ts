@@ -818,6 +818,86 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
   return { error: null };
 }
 
+export interface AssignItpAcceptorState {
+  error: string | null;
+}
+
+/**
+ * Admin-only: assigns (or clears) the ONE specific client-side login who may accept this ITP,
+ * written to itps.assigned_acceptor_user_id. Null (the default, or after clearing) keeps today's
+ * behaviour — any login linked to the project's client party can accept, unchanged. The real
+ * restriction once an acceptor IS assigned is enforced inside accept_itp() itself (see
+ * supabase/migrations/20260930040000_itp_review_chain_override_and_assigned_acceptor.sql) — this
+ * action's own checks (candidate must actually be an active client party on this ITP's project) are
+ * the same "clear message over a raw DB error" belt-and-braces the rest of this file already uses.
+ */
+export async function assignItpAcceptorAction(_prev: AssignItpAcceptorState, formData: FormData): Promise<AssignItpAcceptorState> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const acceptorUserId = String(formData.get("acceptor_user_id") ?? "").trim();
+
+  if (!itpId) return { error: "Missing ITP." };
+
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can assign this ITP's acceptor." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("project_id, itp_number, status, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{ project_id: string; itp_number: string; status: string; projects: { organization_id: string } | null }>();
+
+  if (!itp) return { error: "ITP not found." };
+  if (itp.status === "client_accepted") {
+    return { error: "This ITP has already been accepted — its acceptor can no longer be changed." };
+  }
+
+  let newAcceptorId: string | null = null;
+  if (acceptorUserId) {
+    const { data: candidate } = await supabase
+      .from("project_parties")
+      .select("id")
+      .eq("project_id", itp.project_id)
+      .eq("party_type", "client")
+      .eq("user_id", acceptorUserId)
+      .eq("is_active", true)
+      .maybeSingle<{ id: string }>();
+
+    if (!candidate) {
+      return { error: "That person isn't an active client-party login on this ITP's project." };
+    }
+    newAcceptorId = acceptorUserId;
+  }
+
+  const { error } = await supabase.from("itps").update({ assigned_acceptor_user_id: newAcceptorId }).eq("id", itpId);
+  if (error) return { error: "Could not update the assigned acceptor. Check you have permission and try again." };
+
+  try {
+    if (itp.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: newAcceptorId ? "acceptor_assigned" : "acceptor_cleared",
+        actorId: session.userId,
+        summary: newAcceptorId
+          ? `Assigned acceptor set on ${itp.itp_number}`
+          : `Assigned acceptor cleared on ${itp.itp_number} — any linked client party can accept again`,
+        changes: { acceptor_user_id: newAcceptorId },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
 export interface RecordExternalApprovalState {
   error: string | null;
 }

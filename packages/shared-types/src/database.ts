@@ -2264,6 +2264,7 @@ export type Database = {
           applicable_standard: string | null
           approved_at: string | null
           approved_by: string | null
+          assigned_acceptor_user_id: string | null
           client_accepted_at: string | null
           client_accepted_by: string | null
           created_at: string
@@ -2287,6 +2288,7 @@ export type Database = {
           applicable_standard?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assigned_acceptor_user_id?: string | null
           client_accepted_at?: string | null
           client_accepted_by?: string | null
           created_at?: string
@@ -2310,6 +2312,7 @@ export type Database = {
           applicable_standard?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assigned_acceptor_user_id?: string | null
           client_accepted_at?: string | null
           client_accepted_by?: string | null
           created_at?: string
@@ -2333,6 +2336,13 @@ export type Database = {
           {
             foreignKeyName: "itps_approved_by_fkey"
             columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itps_assigned_acceptor_user_id_fkey"
+            columns: ["assigned_acceptor_user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

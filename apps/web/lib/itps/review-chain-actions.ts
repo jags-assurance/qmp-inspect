@@ -15,7 +15,12 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { snapshotInitialIssue } from "@/lib/itps/revisions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { getProjectReviewChain, ITP_REVIEW_CHAIN_MEMBERS_TABLE, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
+import {
+  getProjectReviewChain,
+  ITP_REVIEW_CHAIN_MEMBERS_TABLE,
+  ITP_REVIEW_PROGRESS_TABLE,
+  ITP_REVIEW_CHAIN_OVERRIDES_TABLE,
+} from "@/lib/itps/review-chain";
 
 export interface SetReviewChainState {
   error: string | null;
@@ -70,6 +75,75 @@ export async function setProjectReviewChainAction(_prev: SetReviewChainState, fo
   }
 
   revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
+/**
+ * Admin-only, per-ITP twin of setProjectReviewChainAction: replaces THIS ITP's own review-chain
+ * override with the ordered list of user ids in `reviewer_user_ids`. Only meaningful while the ITP
+ * is still 'draft' — startReviewChainForItp snapshots whichever chain applies the moment it's
+ * submitted for review, so editing this after submission wouldn't retroactively change anything
+ * (the page only renders this form in draft, but the check here is the real enforcement, same
+ * "never trust the UI alone" discipline as every other gate in this app). An empty list clears the
+ * override, falling back to the project's own chain (or plain single-click Approve if that's empty
+ * too).
+ */
+export async function setItpReviewChainAction(_prev: SetReviewChainState, formData: FormData): Promise<SetReviewChainState> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const reviewerIds = formData.getAll("reviewer_user_ids").map(String).filter(Boolean);
+
+  if (!itpId) return { error: "Missing ITP." };
+
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can configure an ITP's review chain." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("status, project_id, itp_number, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{ status: string; project_id: string; itp_number: string; projects: { organization_id: string } | null }>();
+
+  if (!itp) return { error: "ITP not found." };
+  if (itp.status !== "draft") {
+    return { error: "This ITP's review chain can only be set while it's still in draft." };
+  }
+
+  const { error: deleteError } = await supabase.from(ITP_REVIEW_CHAIN_OVERRIDES_TABLE).delete().eq("itp_id", itpId);
+  if (deleteError) return { error: "Could not update this ITP's review chain. Check you have permission and try again." };
+
+  if (reviewerIds.length > 0) {
+    const { error: insertError } = await supabase.from(ITP_REVIEW_CHAIN_OVERRIDES_TABLE).insert(
+      reviewerIds.map((reviewerUserId, i) => ({
+        itp_id: itpId,
+        reviewer_user_id: reviewerUserId,
+        sort_order: i,
+      }))
+    );
+    if (insertError) return { error: "Could not save this ITP's review chain. Check you have permission and try again." };
+  }
+
+  try {
+    if (itp.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "review_chain_override_configured",
+        actorId: session.userId,
+        summary: `Review chain override on ${itp.itp_number} set to ${reviewerIds.length} reviewer${reviewerIds.length === 1 ? "" : "s"}`,
+        changes: { reviewer_user_ids: reviewerIds },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
 }
 
