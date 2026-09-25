@@ -31,6 +31,19 @@ import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
+import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
+import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
+
+// Kept in sync by hand with the same map on the project detail page and elsewhere in this app (no
+// shared lib for it — see that page's own comment on the same duplication).
+const PARTY_TYPE_LABEL: Record<string, string> = {
+  client: "Client",
+  main_contractor: "Main Contractor",
+  subcontractor: "Subcontractor",
+  tpi_lab: "TPI / Lab",
+  vendor: "Vendor",
+  jags: "JAGS Assurance",
+};
 
 /**
  * Field execution surface for one checklist: shows any in-progress inspection to keep filling in,
@@ -45,7 +58,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const { data: template } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
     .select(
-      "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, projects(id, name, enforce_hold_blocks_start, organizations(name)))))"
+      "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, projects(id, name, organization_id, enforce_hold_blocks_start, organizations(name)))))"
     )
     .eq("id", templateId)
     .maybeSingle<{
@@ -62,7 +75,13 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           itps: {
             id: string;
             itp_number: string;
-            projects: { id: string; name: string; enforce_hold_blocks_start: boolean; organizations: { name: string } | null } | null;
+            projects: {
+              id: string;
+              name: string;
+              organization_id: string;
+              enforce_hold_blocks_start: boolean;
+              organizations: { name: string } | null;
+            } | null;
           } | null;
         } | null;
       } | null;
@@ -93,9 +112,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     getExecutingPartyTypes(supabase, project.id),
     supabase
       .from("activity_party_intervention")
-      .select("project_parties(id, user_id, party_type, is_active)")
+      .select("project_parties(id, name, user_id, party_type, is_active)")
       .eq("itp_item_id", itpItem.id)
-      .returns<{ project_parties: { id: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>(),
+      .returns<{ project_parties: { id: string; name: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>(),
   ]);
   // is_active gates this the same way it now gates the server-side action (canExecuteItpItem
   // in lib/checklists/actions.ts) — a deactivated party shouldn't see live Yes/No/N-A buttons that the
@@ -259,13 +278,62 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const holdOpen =
     !draft && canExecute && project.enforce_hold_blocks_start ? !(await canCompleteInspection(itpItem.id)) : false;
 
+  // Named "who's holding this" instead of the old generic "the assigned party must release it" —
+  // found live: nobody could tell from this message alone which specific party/person to go chase.
+  // Re-derives which levels are blocking + which rows on this activity are still open, the same way
+  // canCompleteInspection itself does internally (that helper only ever returns a boolean).
+  let openHoldHolders: { partyName: string; partyType: string; levelCode: string }[] = [];
+  if (holdOpen) {
+    const { data: blockingLevels } = await supabase
+      .from(INTERVENTION_LEVEL_TYPES_TABLE)
+      .select("code")
+      .eq("organization_id", project.organization_id)
+      .eq("is_blocking", true)
+      .returns<{ code: string }[]>();
+    const blockingCodes = (blockingLevels ?? []).map((l) => l.code);
+
+    if (blockingCodes.length > 0) {
+      const { data: openRows } = await supabase
+        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+        .select("intervention, project_parties(name, party_type)")
+        .eq("itp_item_id", itpItem.id)
+        .in("intervention", blockingCodes)
+        .neq("status", "signed_off")
+        .returns<{ intervention: string; project_parties: { name: string; party_type: string } | null }[]>();
+
+      openHoldHolders = (openRows ?? [])
+        .filter((r) => r.project_parties)
+        .map((r) => ({
+          partyName: r.project_parties!.name,
+          partyType: PARTY_TYPE_LABEL[r.project_parties!.party_type] ?? r.project_parties!.party_type,
+          levelCode: r.intervention,
+        }));
+    }
+  }
+
+  // For the "Not started yet, your organisation doesn't hold a role here" message: names whichever
+  // party actually executes this specific activity (a subcontractor/main contractor — or client, if
+  // this project opted them in — holding SOME intervention here), instead of leaving it generic.
+  const executingPartyNames = [
+    ...new Map(
+      (stakeholderParties ?? [])
+        .filter((row) => row.project_parties?.is_active && EXECUTING_PARTY_TYPES.has(row.project_parties.party_type))
+        .map((row) => [
+          row.project_parties!.id,
+          { partyName: row.project_parties!.name, partyType: PARTY_TYPE_LABEL[row.project_parties!.party_type] ?? row.project_parties!.party_type },
+        ])
+    ).values(),
+  ];
+
   const RESULT_TONE: Record<string, "success" | "danger" | "warning"> = { pass: "success", fail: "danger", partial: "warning" };
 
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="checklist_responses" />
-      <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        ← Back to {itp.itp_number}
+      {/* Was linking to the full ITP page — most people reach this checklist FROM the ITP's
+          Checklists list, so "back" now returns there instead of the much heavier ITP detail page. */}
+      <Link href={`/inspect/itps/${itp.id}/checklists`} className="text-sm text-burgundy hover:underline">
+        ← Back to {itp.itp_number} checklists
       </Link>
       <p className="mt-2 text-sm text-muted">
         {project.organizations?.name} · {project.name} ·{" "}
@@ -294,8 +362,19 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && canExecute && holdOpen && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          This activity has an open <Badge tone="danger">Hold</Badge> — the assigned party must
-          release it on the <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>{" "}
+          This activity has an open <Badge tone="danger">Hold</Badge> — held by{" "}
+          {openHoldHolders.length > 0 ? (
+            openHoldHolders.map((h, i) => (
+              <span key={i}>
+                {i > 0 && ", "}
+                <span className="font-medium text-ink">{h.partyName}</span> ({h.partyType}, {h.levelCode})
+              </span>
+            ))
+          ) : (
+            "a party on the intervention grid"
+          )}
+          . They must release it on the{" "}
+          <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>{" "}
           before the inspection can start.
         </p>
       )}
@@ -315,11 +394,24 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && !canExecute && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          {isSignoffOnlyParty
-            ? "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
-            : ownPartyLink
-              ? "Not started yet. Your organisation doesn't hold a sign-off point on this specific activity, so a JAGS inspector or the party assigned to it will run this field inspection."
-              : "Not started yet — a JAGS inspector or the party assigned to this activity will run this field inspection."}
+          {isSignoffOnlyParty ? (
+            "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
+          ) : executingPartyNames.length > 0 ? (
+            <>
+              Not started yet. This is{" "}
+              {executingPartyNames.map((p, i) => (
+                <span key={i}>
+                  {i > 0 && ", "}
+                  <span className="font-medium text-ink">{p.partyName}</span>&apos;s ({p.partyType}) activity to run
+                </span>
+              ))}{" "}
+              — {ownPartyLink ? "your organisation isn't assigned to it" : "a JAGS inspector can also run it"}.
+            </>
+          ) : ownPartyLink ? (
+            "Not started yet. Your organisation doesn't hold a sign-off point on this specific activity, so a JAGS inspector or the party assigned to it will run this field inspection."
+          ) : (
+            "Not started yet — a JAGS inspector or the party assigned to this activity will run this field inspection."
+          )}
         </p>
       )}
 
