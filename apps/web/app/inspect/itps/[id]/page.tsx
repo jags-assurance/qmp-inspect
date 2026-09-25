@@ -30,12 +30,8 @@ import {
 import { ExpectedRecordsSection } from "./expected-record-form";
 // evidence_type=2/3 field-execution (measurement records, document-upload evidence) — previously
 // missing entirely, see status/page.tsx's own "No execution flow yet" comment.
-import {
-  ITP_ITEM_MEASUREMENTS_TABLE,
-  ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE,
-  type ItpItemMeasurementRow,
-  type ItpItemEvidenceDocumentRow,
-} from "@/lib/itps/evidence-actions";
+import { type ItpItemMeasurementRow, type ItpItemEvidenceDocumentRow } from "@/lib/itps/evidence-actions";
+import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/itps/evidence-types";
 import { ItpItemMeasurementsSection, ItpItemEvidenceDocumentsSection } from "./itp-item-evidence-section";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 import { getLatestItpPdf } from "@/lib/reports/actions";

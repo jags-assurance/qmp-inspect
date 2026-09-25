@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { setProjectReviewChainAction, type SetReviewChainState } from "@/lib/itps/review-chain";
+import { setProjectReviewChainAction, type SetReviewChainState } from "@/lib/itps/review-chain-actions";
 
 const initialState: SetReviewChainState = { error: null };
 

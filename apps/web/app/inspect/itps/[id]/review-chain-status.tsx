@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { approveReviewStepAction, type ApproveReviewStepState, type ReviewProgressStep } from "@/lib/itps/review-chain";
+import { approveReviewStepAction, type ApproveReviewStepState } from "@/lib/itps/review-chain-actions";
+import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 
 const initialState: ApproveReviewStepState = { error: null };
 

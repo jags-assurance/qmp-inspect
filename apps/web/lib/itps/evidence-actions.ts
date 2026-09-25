@@ -7,15 +7,7 @@ import { canExecuteItpItem, findProjectIdForItpItem } from "@/lib/checklists/exe
 import { recordAuditEvent } from "@/lib/audit/log";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
-
-// Same pattern as lib/ai/log.ts's AI_USAGE_LOG_TABLE: these two tables aren't in the generated
-// Database type yet (packages/shared-types/src/database.ts is hand-maintained until the next
-// `pnpm db:types` run — see the README), so `.from()` can't resolve them against the Tables map.
-// Casting the table name here is the one place that gap leaks in.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
-export const ITP_ITEM_MEASUREMENTS_TABLE = "itp_item_measurements" as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
-export const ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE = "itp_item_evidence_documents" as any;
+import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/itps/evidence-types";
 
 export type MeasurementResult = "pass" | "fail";
 
