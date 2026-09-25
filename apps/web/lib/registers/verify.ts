@@ -71,7 +71,7 @@ async function checkCalibration(supabase: SupabaseClient, projectId: string): Pr
   if (!entry) {
     return {
       tone: "warning",
-      message: "Calibration record not found for this project (Calibration Register). This does not block the inspection.",
+      message: "Calibration record not found for this project (Calibration Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.",
       requiresOverrideReason: true,
       kind: "calibration",
     };
@@ -80,7 +80,7 @@ async function checkCalibration(supabase: SupabaseClient, projectId: string): Pr
   if (entry.status === "expired") {
     return {
       tone: "warning",
-      message: `Calibration expired — ${entry.instrument_name} (cert ${entry.cert_number}) was due ${entry.due_date} (Calibration Register). This does not block the inspection.`,
+      message: `Calibration expired — ${entry.instrument_name} (cert ${entry.cert_number}) was due ${entry.due_date} (Calibration Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.`,
       requiresOverrideReason: true,
       kind: "calibration",
     };
@@ -125,7 +125,7 @@ async function checkWelder(supabase: SupabaseClient, projectId: string): Promise
   if (!entry) {
     return {
       tone: "warning",
-      message: "Welder qualification record not found for this project (Welder Qualification Register). This does not block the inspection.",
+      message: "Welder qualification record not found for this project (Welder Qualification Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.",
       requiresOverrideReason: true,
       kind: "welder",
     };
@@ -134,7 +134,7 @@ async function checkWelder(supabase: SupabaseClient, projectId: string): Promise
   if (entry.status === "expired") {
     return {
       tone: "warning",
-      message: `Welder qualification expired — ${entry.welder_identifier} on ${entry.qualified_wps} expired ${entry.expiry_date} (Welder Qualification Register). This does not block the inspection.`,
+      message: `Welder qualification expired — ${entry.welder_identifier} on ${entry.qualified_wps} expired ${entry.expiry_date} (Welder Qualification Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.`,
       requiresOverrideReason: true,
       kind: "welder",
     };
@@ -166,7 +166,7 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
   if (!entry) {
     return {
       tone: "warning",
-      message: "Material approval record not found for this project (Material Register). This does not block the inspection.",
+      message: "Material approval record not found for this project (Material Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.",
       requiresOverrideReason: true,
       kind: "material",
     };
@@ -178,7 +178,7 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
   if (entry.approval_status === "C" || entry.approval_status === "D") {
     return {
       tone: "warning",
-      message: `Material not approved for use — ${entry.material_description}${refSuffix}: ${label} (Material Register). This does not block the inspection.`,
+      message: `Material not approved for use — ${entry.material_description}${refSuffix}: ${label} (Material Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.`,
       requiresOverrideReason: true,
       kind: "material",
     };
@@ -194,7 +194,7 @@ async function checkMaterial(supabase: SupabaseClient, projectId: string): Promi
       tone: "warning",
       message: `Material ${receiptLabel.toLowerCase()} at receiving inspection — ${entry.material_description}${refSuffix}${
         entry.disposition_notes ? `: ${entry.disposition_notes}` : ""
-      } (Material Register). This does not block the inspection.`,
+      } (Material Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.`,
       requiresOverrideReason: true,
       kind: "material",
     };
@@ -268,7 +268,7 @@ export async function checkPersonnelCertification(
     return {
       tone: "warning",
       message:
-        "Personnel certification record not found for this person for this type of activity (Personnel Certification Register). This does not block the inspection.",
+        "Personnel certification record not found for this person for this type of activity (Personnel Certification Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.",
       requiresOverrideReason: true,
     };
   }
@@ -276,7 +276,7 @@ export async function checkPersonnelCertification(
   if (entry.status === "expired") {
     return {
       tone: "warning",
-      message: `Personnel certification expired — ${entry.certification_type}${entry.cert_number ? ` (cert ${entry.cert_number})` : ""} was due ${entry.expiry_date} (Personnel Certification Register). This does not block the inspection.`,
+      message: `Personnel certification expired — ${entry.certification_type}${entry.cert_number ? ` (cert ${entry.cert_number})` : ""} was due ${entry.expiry_date} (Personnel Certification Register). This does not block the inspection, but you must type a reason above before Yes/No/N-A become clickable.`,
       requiresOverrideReason: true,
     };
   }
