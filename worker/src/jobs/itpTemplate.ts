@@ -54,7 +54,7 @@ export interface ItpTemplateLevelType {
  * intervention code itself (which only ever says who holds what, never whether it happened). Without
  * this, a freshly-approved ITP and a fully-executed one render an identical-looking grid.
  */
-export type ItpTemplateSignoffStatus = "pending" | "notified" | "signed_off";
+export type ItpTemplateSignoffStatus = "pending" | "notified" | "signed_off" | "proceeded_no_response";
 
 export interface ItpTemplateSignoffCell {
   itpItemId: string;
@@ -166,6 +166,7 @@ const SIGNOFF_STATUS_LABEL: Record<ItpTemplateSignoffStatus, string> = {
   pending: "Pending — not yet notified",
   notified: "Notified — awaiting sign-off",
   signed_off: "Signed off",
+  proceeded_no_response: "Proceeded without response (notice period elapsed)",
 };
 
 // Appended to the intervention letter so a freshly-approved ITP and a fully-executed one don't
@@ -174,6 +175,10 @@ const SIGNOFF_STATUS_LABEL: Record<ItpTemplateSignoffStatus, string> = {
 // uses an inline SVG rather than a Unicode check mark (U+2713) — Puppeteer's default Arial/Helvetica
 // fallback doesn't carry that glyph and silently renders it as a missing-character box instead.
 const SIGNOFF_NOTIFIED_MARK = "~";
+// Distinct from both marks above — this activity was never actually signed off, just timed out past
+// its notice period (R66-R81's "proceed without response"), so it shouldn't look identical to a real
+// checkmark or still read as merely "in progress" like the notified tilde.
+const SIGNOFF_PROCEEDED_MARK = "››"; // "»" (double right-pointing angle quote), plain enough for the Arial/Helvetica fallback
 const SIGNOFF_CHECK_SVG =
   '<svg class="signoff-check" viewBox="0 0 12 12" width="8" height="8"><polyline points="2,6.5 5,9.5 10,3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -191,7 +196,13 @@ function interventionToken(
 ): string {
   const effectiveStatus = status ?? "pending";
   const mark =
-    effectiveStatus === "signed_off" ? SIGNOFF_CHECK_SVG : effectiveStatus === "notified" ? SIGNOFF_NOTIFIED_MARK : "";
+    effectiveStatus === "signed_off"
+      ? SIGNOFF_CHECK_SVG
+      : effectiveStatus === "notified"
+        ? SIGNOFF_NOTIFIED_MARK
+        : effectiveStatus === "proceeded_no_response"
+          ? SIGNOFF_PROCEEDED_MARK
+          : "";
   const label = levelLabelByCode.get(code) ?? code;
   const title = `${escapeHtml(party.name)} (${escapeHtml(partyTypeLabel(party.partyType))}) — ${escapeHtml(label)} — ${SIGNOFF_STATUS_LABEL[effectiveStatus]}`;
   const { background, color } = colorForLevelIndex(levelIndexByCode.get(code) ?? 0);
@@ -317,7 +328,7 @@ function renderLegend(levelTypes: ItpTemplateLevelType[]): string {
   return `
     <div class="legend">
       ${items}
-      <span class="legend-item legend-signoff">${SIGNOFF_CHECK_SVG} Signed off &nbsp;&nbsp; ${SIGNOFF_NOTIFIED_MARK} Notified, awaiting sign-off &nbsp;&nbsp; (no mark) Not yet notified</span>
+      <span class="legend-item legend-signoff">${SIGNOFF_CHECK_SVG} Signed off &nbsp;&nbsp; ${SIGNOFF_NOTIFIED_MARK} Notified, awaiting sign-off &nbsp;&nbsp; ${escapeHtml(SIGNOFF_PROCEEDED_MARK)} Proceeded without response &nbsp;&nbsp; (no mark) Not yet notified</span>
     </div>`;
 }
 
@@ -722,6 +733,7 @@ export function buildItpHtml(data: ItpTemplateData): string {
   .iv-token.signoff-pending { opacity: 0.45; }
   .iv-token.signoff-notified { outline: 1.5px dashed var(--ink); outline-offset: -1px; }
   .iv-token.signoff-signed_off { outline: 1px solid var(--ink); }
+  .iv-token.signoff-proceeded_no_response { outline: 1.5px dotted var(--ink); outline-offset: -1px; }
   .signoff-mark {
     display: inline-block;
     margin-left: 2px;
