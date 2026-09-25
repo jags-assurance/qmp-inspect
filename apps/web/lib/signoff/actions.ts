@@ -113,7 +113,13 @@ async function notifySignoffRow(
     .update({ status: "notified", notified_at: new Date().toISOString() })
     .eq("id", progress.id);
 
-  if (error) return { error: "Could not notify the party. Check you have permission and try again." };
+  if (error) {
+    // Real gap found live: this DB error was silently discarded — every caller only ever saw the
+    // same generic permission message, with no way (not even in Vercel's own function logs) to tell
+    // an RLS denial apart from an FK violation or anything else Postgres actually rejected it for.
+    console.error(`[signoff] notifySignoffRow failed for progress ${progress.id}:`, error);
+    return { error: "Could not notify the party. Check you have permission and try again." };
+  }
 
   // Best-effort real notification delivery — failures here (missing user link, RLS denial for an
   // edge case) never surface as an error on the Notify action itself; the status update above is
@@ -461,7 +467,10 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
     })
     .eq("id", progressId);
 
-  if (error) return { error: "Could not record sign-off. Check you have permission and try again." };
+  if (error) {
+    console.error(`[signoff] signOffAction failed for progress ${progressId} (user ${user?.id ?? "unknown"}):`, error);
+    return { error: "Could not record sign-off. Check you have permission and try again." };
+  }
 
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
@@ -572,7 +581,10 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
     })
     .eq("id", progressId);
 
-  if (error) return { error: "Could not proceed. Check you have permission and try again." };
+  if (error) {
+    console.error(`[signoff] proceedWithoutResponseAction failed for progress ${progressId}:`, error);
+    return { error: "Could not proceed. Check you have permission and try again." };
+  }
 
   const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
   if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
@@ -738,7 +750,10 @@ export async function reassignSignoffPartyAction(
     .update({ user_id: newUserId })
     .eq("id", projectPartyId);
 
-  if (error) return { error: "Could not reassign the party. Check you have permission and try again." };
+  if (error) {
+    console.error(`[signoff] reassignSignoffPartyAction failed for party ${projectPartyId} -> user ${newUserId}:`, error);
+    return { error: "Could not reassign the party. Check you have permission and try again." };
+  }
 
   // Real bug fix: linking a login here (project_parties.user_id) was never actually granting that
   // login any platform access — has_org_access()/has_project_access() (the RLS gate on nearly every
