@@ -24,12 +24,19 @@ export function StartInspectionForm({
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
   const locationRef = useRef<HTMLInputElement>(null);
   const [locating, setLocating] = useState(false);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  // Real device GPS, not a fabricated value — appends "lat, lng" to whatever the inspector has
-  // already typed rather than replacing it, since a free-text description ("Block C, Level 2") is
-  // still more useful to a human reader than raw coordinates alone.
-  function useMyLocation() {
+  // Real device GPS, not a fabricated value. Previously only ever appended raw "lat, lng" text —
+  // real gap found live: the app stored coordinates but never resolved them to an actual street
+  // address, even though the field (and the generated report) is meant to read as a human location.
+  // Reverse-geocodes via OpenStreetMap's Nominatim (free, no API key/account needed — the right
+  // choice here since it needs no secret this session could set up on the user's behalf) and
+  // prefixes the resolved address ahead of the coordinates; falls back to coordinates alone if the
+  // lookup fails (offline, rate-limited, or genuinely no match) — never blocks starting the
+  // inspection over it. Appends to whatever's already typed rather than replacing it, since a free-
+  // text description ("Block C, Level 2") is still useful alongside a real address.
+  async function useMyLocation() {
     if (!navigator.geolocation) {
       setLocationError("Geolocation isn't available on this device/browser.");
       return;
@@ -37,14 +44,35 @@ export function StartInspectionForm({
     setLocating(true);
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
         const coords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        setLocating(false);
+        setResolvingAddress(true);
+
+        let locationText = coords;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=0`,
+            { signal: controller.signal, headers: { Accept: "application/json" } }
+          );
+          clearTimeout(timeout);
+          if (res.ok) {
+            const data = (await res.json()) as { display_name?: string };
+            if (data.display_name) locationText = `${data.display_name} (${coords})`;
+          }
+        } catch {
+          // Best-effort — offline or the lookup failed; the raw coordinates alone are still useful
+          // and already what this field stored before reverse geocoding existed.
+        }
+
         if (locationRef.current) {
           const existing = locationRef.current.value.trim();
-          locationRef.current.value = existing ? `${existing} (${coords})` : coords;
+          locationRef.current.value = existing ? `${existing} (${locationText})` : locationText;
         }
-        setLocating(false);
+        setResolvingAddress(false);
       },
       () => {
         setLocationError("Could not get your location — enter it manually instead.");
@@ -77,13 +105,14 @@ export function StartInspectionForm({
         <button
           type="button"
           onClick={useMyLocation}
-          disabled={locating}
+          disabled={locating || resolvingAddress}
           className="shrink-0 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-off-white disabled:opacity-50"
         >
-          {locating ? "Locating…" : "📍 Use my location"}
+          {locating ? "Locating…" : resolvingAddress ? "Resolving address…" : "📍 Use my location"}
         </button>
       </div>
       {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
+      <p className="mt-1 text-xs text-muted">Resolves your coordinates to a street address automatically (via OpenStreetMap) — the coordinates are always kept too.</p>
 
       <Button type="submit" disabled={pending} className="mt-4">
         {pending ? "Starting…" : "Start inspection"}
