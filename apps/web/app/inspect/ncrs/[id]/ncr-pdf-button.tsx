@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<NcrPdfStatus["status"], string> = {
 /** Same trigger/poll/View+Download pattern as FatReportPdfButton — see lib/reports/use-pdf-polling.ts. */
 export function NcrPdfButton({ ncrId, latest }: { ncrId: string; latest: NcrPdfStatus | null }) {
   const [state, formAction, pending] = useActionState(requestNcrPdfAction, initialState);
-  const { liveStatus, polling, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrPdf, ncrId);
+  const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrPdf, ncrId);
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -63,6 +63,11 @@ export function NcrPdfButton({ ncrId, latest }: { ncrId: string; latest: NcrPdfS
       </div>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {timedOut && (
+        <p className="text-xs text-danger">
+          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+        </p>
+      )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
           {STATUS_LABEL[liveStatus.status]}

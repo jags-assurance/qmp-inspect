@@ -29,6 +29,13 @@ const MAX_POLLS = 60;
 export function usePdfPolling<T extends PdfStatusLike, Id>(initialLatest: T | null, fetchLatest: (id: Id) => Promise<T | null>, id: Id) {
   const [liveStatus, setLiveStatus] = useState<T | null>(initialLatest);
   const [polling, setPolling] = useState(false);
+  // Hitting MAX_POLLS while the job is still pending/processing used to just stop polling in
+  // silence — no error, no close on the blank tab window.open() left sitting there — so the user's
+  // only visible symptom was a permanently blank about:blank tab with nothing telling them
+  // anything went wrong (reported: "generate itp pdf... redirects to other page... pdf is not
+  // generated" — that "redirect" was this blank tab, never resolving). Now a genuine "reached the
+  // client-side timeout" case, distinct from failed (the job errored) and completed.
+  const [timedOut, setTimedOut] = useState(false);
   const pollCountRef = useRef(0);
   const autoOpenedRef = useRef(false);
   // A window.open() called from inside the async polling effect, seconds after the click, has lost
@@ -44,6 +51,7 @@ export function usePdfPolling<T extends PdfStatusLike, Id>(initialLatest: T | nu
 
   function startPolling() {
     setPolling(true);
+    setTimedOut(false);
     pollCountRef.current = 0;
     autoOpenedRef.current = false;
   }
@@ -57,8 +65,10 @@ export function usePdfPolling<T extends PdfStatusLike, Id>(initialLatest: T | nu
       const next = await fetchLatest(id);
       if (cancelled) return;
       setLiveStatus(next);
-      if (next?.status === "completed" || next?.status === "failed" || pollCountRef.current >= MAX_POLLS) {
+      const settled = next?.status === "completed" || next?.status === "failed";
+      if (settled || pollCountRef.current >= MAX_POLLS) {
         setPolling(false);
+        if (!settled) setTimedOut(true);
       }
     }, POLL_INTERVAL_MS);
 
@@ -90,5 +100,14 @@ export function usePdfPolling<T extends PdfStatusLike, Id>(initialLatest: T | nu
     }
   }, [liveStatus]);
 
-  return { liveStatus, polling, beginGenerate, startPolling };
+  useEffect(() => {
+    if (timedOut && pendingWindowRef.current && !pendingWindowRef.current.closed) {
+      // Same reasoning as the "failed" branch above — a job stuck past the client's own patience
+      // shouldn't leave a dead blank tab behind either, even though the job itself might still be
+      // pending server-side (see the doc comment above timedOut's declaration).
+      pendingWindowRef.current.close();
+    }
+  }, [timedOut]);
+
+  return { liveStatus, polling, timedOut, beginGenerate, startPolling };
 }

@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<FatReportPdfStatus["status"], string> = {
 /** Same trigger/poll/View+Download pattern as ItpPdfButton — see lib/reports/use-pdf-polling.ts. */
 export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: string; latest: FatReportPdfStatus | null }) {
   const [state, formAction, pending] = useActionState(requestFatReportPdfAction, initialState);
-  const { liveStatus, polling, beginGenerate, startPolling } = usePdfPolling(latest, getLatestFatReportPdf, assignmentId);
+  const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestFatReportPdf, assignmentId);
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -63,6 +63,11 @@ export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: str
       </div>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {timedOut && (
+        <p className="text-xs text-danger">
+          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+        </p>
+      )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
           {STATUS_LABEL[liveStatus.status]}

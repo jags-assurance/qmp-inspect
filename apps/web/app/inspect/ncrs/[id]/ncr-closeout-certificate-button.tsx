@@ -25,7 +25,7 @@ const STATUS_LABEL: Record<NcrCloseoutCertificateStatus["status"], string> = {
  */
 export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string; latest: NcrCloseoutCertificateStatus | null }) {
   const [state, formAction, pending] = useActionState(requestNcrCloseoutCertificateAction, initialState);
-  const { liveStatus, polling, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrCloseoutCertificate, ncrId);
+  const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrCloseoutCertificate, ncrId);
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -67,6 +67,11 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
       </div>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {timedOut && (
+        <p className="text-xs text-danger">
+          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+        </p>
+      )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
           {STATUS_LABEL[liveStatus.status]}

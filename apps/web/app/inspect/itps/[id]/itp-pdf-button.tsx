@@ -37,7 +37,7 @@ export function ItpPdfButton({
   extraActions?: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(requestItpPdfAction, initialState);
-  const { liveStatus, polling, beginGenerate, startPolling } = usePdfPolling(latest, getLatestItpPdf, itpId);
+  const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestItpPdf, itpId);
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -79,6 +79,12 @@ export function ItpPdfButton({
       </div>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — check &ldquo;⋯ More&rdquo; in a moment for the finished PDF…</p>}
+      {timedOut && (
+        <p className="text-xs text-danger">
+          Still rendering after 2 minutes — the PDF worker may be slow or stuck. Try &ldquo;Regenerate PDF&rdquo; again shortly, or
+          reload this page to check whether it finished anyway.
+        </p>
+      )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
           {STATUS_LABEL[liveStatus.status]}

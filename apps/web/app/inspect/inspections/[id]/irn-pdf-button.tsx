@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<IrnPdfStatus["status"], string> = {
 /** Same trigger/poll/View+Download pattern as NcrPdfButton — see lib/reports/use-pdf-polling.ts. */
 export function IrnPdfButton({ irnId, latest }: { irnId: string; latest: IrnPdfStatus | null }) {
   const [state, formAction, pending] = useActionState(requestIrnPdfAction, initialState);
-  const { liveStatus, polling, beginGenerate, startPolling } = usePdfPolling(latest, getLatestIrnPdf, irnId);
+  const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestIrnPdf, irnId);
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -63,6 +63,11 @@ export function IrnPdfButton({ irnId, latest }: { irnId: string; latest: IrnPdfS
       </div>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {timedOut && (
+        <p className="text-xs text-danger">
+          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+        </p>
+      )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
           {STATUS_LABEL[liveStatus.status]}
