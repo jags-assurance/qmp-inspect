@@ -3,16 +3,17 @@
 import { useEffect, useRef } from "react";
 import { signOutAction } from "@/lib/auth/actions";
 
-const IDLE_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+const IDLE_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 hours
 const ACTIVITY_THROTTLE_MS = 1000; // ignore activity bursts finer than this
 
 const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "touchstart"] as const;
 
 /**
- * Signs the user out after 20 minutes of no real user activity — this app runs on shared field
- * tablets that get left logged in on a job site, so an idle session is a real handover risk.
- * Mounted once in AppShell so it's active on every authenticated page. No warning modal; the
- * round-table ask was the timeout itself, not an "are you still there" UX.
+ * Signs the user out after 12 hours of no real user activity. Originally 20 minutes — this app runs
+ * on shared field tablets that get left logged in on a job site, so an idle session is a real
+ * handover risk — raised to 12h on explicit request, trading that protection for not interrupting a
+ * long field shift. Mounted once in AppShell so it's active on every authenticated page. No warning
+ * modal; the round-table ask was the timeout itself, not an "are you still there" UX.
  */
 export function IdleTimeout() {
   const lastActivityRef = useRef(Date.now());
