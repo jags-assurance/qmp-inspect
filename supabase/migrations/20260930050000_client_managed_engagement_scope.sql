@@ -137,7 +137,7 @@ $$;
 -- CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp, provision_party_login) ONLY when the role's org
 -- is specifically client_managed — a plain self_managed ("Hybrid") org still cannot grant itself
 -- either key, keeping Hybrid's "JAGS must approve" behaviour completely unchanged. =====
-drop policy custom_roles_self_managed_write on public.custom_roles;
+drop policy if exists custom_roles_self_managed_write on public.custom_roles;
 create policy custom_roles_self_managed_write on public.custom_roles
   for all
   using (
@@ -157,7 +157,7 @@ create policy custom_roles_self_managed_write on public.custom_roles
     and public.has_org_access(organization_id)
   );
 
-drop policy custom_role_permissions_self_managed_write on public.custom_role_permissions;
+drop policy if exists custom_role_permissions_self_managed_write on public.custom_role_permissions;
 create policy custom_role_permissions_self_managed_write on public.custom_role_permissions
   for all
   using (
@@ -190,7 +190,7 @@ create policy custom_role_permissions_self_managed_write on public.custom_role_p
     )
   );
 
-drop policy custom_role_assignments_self_managed_write on public.custom_role_assignments;
+drop policy if exists custom_role_assignments_self_managed_write on public.custom_role_assignments;
 create policy custom_role_assignments_self_managed_write on public.custom_role_assignments
   for all
   using (
@@ -228,7 +228,7 @@ create policy custom_role_assignments_self_managed_write on public.custom_role_a
 
 -- ===== 8. itps_u — approve_itp custom-permission holder can move under_review -> approved
 -- (20260922000300_consolidate_permissive_policies_tier2.sql is the base being widened) =====
-drop policy itps_u on public.itps;
+drop policy if exists itps_u on public.itps;
 create policy itps_u on public.itps
   for update using (
     exists (select 1 from projects p where p.id = itps.project_id and is_jags_staff() and has_org_access(p.organization_id))
@@ -245,7 +245,7 @@ create policy itps_u on public.itps
 
 -- ===== 9. project_parties — self_managed party-onboarding insert widened to client_managed; update
 -- also allows a provision_party_login holder to link a newly-created login (user_id) =====
-drop policy project_parties_i on public.project_parties;
+drop policy if exists project_parties_i on public.project_parties;
 create policy project_parties_i on public.project_parties
   for insert with check (
     exists (select 1 from projects p where p.id = project_parties.project_id and is_jags_staff() and has_org_access(p.organization_id))
@@ -257,7 +257,7 @@ create policy project_parties_i on public.project_parties
     )
   );
 
-drop policy project_parties_u on public.project_parties;
+drop policy if exists project_parties_u on public.project_parties;
 create policy project_parties_u on public.project_parties
   for update using (
     exists (select 1 from projects p where p.id = project_parties.project_id and is_jags_staff() and has_org_access(p.organization_id))
@@ -274,7 +274,7 @@ create policy project_parties_u on public.project_parties
 
 -- ===== 10. access_grants insert — widened to client_managed so a provision_party_login holder's
 -- grant (project_parties.ts's provisionPartyLoginAction) actually succeeds =====
-drop policy access_grants_insert on public.access_grants;
+drop policy if exists access_grants_insert on public.access_grants;
 create policy access_grants_insert on public.access_grants
   for insert with check (
     is_jags_staff()
@@ -289,8 +289,8 @@ create policy access_grants_insert on public.access_grants
   );
 
 -- ===== 11. projects self-managed write/update — widened to client_managed =====
-drop policy projects_self_managed_client_write on public.projects;
-drop policy projects_self_managed_client_update on public.projects;
+drop policy if exists projects_self_managed_client_write on public.projects;
+drop policy if exists projects_self_managed_client_update on public.projects;
 create policy projects_self_managed_client_write on public.projects
   for insert
   with check (
@@ -309,7 +309,7 @@ create policy projects_self_managed_client_update on public.projects
   );
 
 -- ===== 12. numbering/branding self-managed write — widened to client_managed =====
-drop policy numbering_configs_self_managed_write on public.numbering_configs;
+drop policy if exists numbering_configs_self_managed_write on public.numbering_configs;
 create policy numbering_configs_self_managed_write on public.numbering_configs
   for all
   using (
@@ -321,13 +321,13 @@ create policy numbering_configs_self_managed_write on public.numbering_configs
     and public.has_org_access(organization_id)
   );
 
-drop policy organizations_self_managed_branding_update on public.organizations;
+drop policy if exists organizations_self_managed_branding_update on public.organizations;
 create policy organizations_self_managed_branding_update on public.organizations
   for update
   using (engagement_scope in ('self_managed', 'client_managed') and public.has_org_access(id))
   with check (engagement_scope in ('self_managed', 'client_managed') and public.has_org_access(id));
 
-drop policy org_branding_insert on storage.objects;
+drop policy if exists org_branding_insert on storage.objects;
 create policy org_branding_insert on storage.objects
   for insert to authenticated
   with check (
@@ -339,7 +339,7 @@ create policy org_branding_insert on storage.objects
     )
   );
 
-drop policy org_branding_update on storage.objects;
+drop policy if exists org_branding_update on storage.objects;
 create policy org_branding_update on storage.objects
   for update to authenticated
   using (
