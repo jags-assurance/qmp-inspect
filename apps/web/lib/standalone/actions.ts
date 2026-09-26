@@ -30,14 +30,39 @@ type Session = Awaited<ReturnType<typeof requireSession>>;
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 /**
- * The "Full Client-Managed" tier's 3rd self-service permission (see
- * CLIENT_MANAGED_ONLY_PERMISSION_KEYS, lib/rbac/types.ts): a client_managed org can grant
- * run_standalone_assignment to its own people, letting them run FAT/witness/specific-test/
- * pre-shipment work themselves — every other tier (full_service, plain self_managed "Hybrid") keeps
- * this JAGS-staff-only, since that permission key is never grantable outside client_managed.
+ * Three ways in, mirroring the same "who may actually run field work" model as ITP execution
+ * (canExecuteItpItem, lib/checklists/execution-parties.ts):
+ *
+ * 1. JAGS staff — always.
+ * 2. The "Full Client-Managed" tier's 3rd self-service permission (see
+ *    CLIENT_MANAGED_ONLY_PERMISSION_KEYS, lib/rbac/types.ts): a client_managed org can grant
+ *    run_standalone_assignment to its own people. Never available on any other tier.
+ * 3. A subcontractor/main_contractor party actually active on THIS project, when a JAGS Admin has
+ *    opted this specific project into projects.allow_contractor_standalone_assignment — the same
+ *    tier-independent, per-project pattern as allow_contractor_itp_creation. Real-world basis: the
+ *    subcontractor who supplied/installed the equipment is routinely the one running its FAT or
+ *    pre-shipment check, on ANY engagement tier, not just a client_managed one.
  */
-async function canRunStandaloneAssignment(session: Session, projectId: string): Promise<boolean> {
-  return session.isJagsStaff || (await hasPermission(session.userId, "run_standalone_assignment", projectId));
+export async function canRunStandaloneAssignment(session: Session, supabase: SupabaseClient, projectId: string): Promise<boolean> {
+  if (session.isJagsStaff) return true;
+  if (await hasPermission(session.userId, "run_standalone_assignment", projectId)) return true;
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("allow_contractor_standalone_assignment")
+    .eq("id", projectId)
+    .maybeSingle<{ allow_contractor_standalone_assignment: boolean }>();
+  if (!project?.allow_contractor_standalone_assignment) return false;
+
+  const { count } = await supabase
+    .from("project_parties")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("user_id", session.userId)
+    .eq("is_active", true)
+    .in("party_type", ["subcontractor", "main_contractor"]);
+
+  return !!count;
 }
 
 /**
@@ -56,7 +81,7 @@ async function requireStandaloneAccess(
     .eq("id", assignmentId)
     .maybeSingle<{ project_id: string }>();
   if (!data) return { error: "Assignment not found.", projectId: null };
-  if (!(await canRunStandaloneAssignment(session, data.project_id))) {
+  if (!(await canRunStandaloneAssignment(session, supabase, data.project_id))) {
     return { error: STAFF_ONLY_ERROR, projectId: data.project_id };
   }
   return { error: null, projectId: data.project_id };
@@ -160,7 +185,9 @@ export async function createAssignmentAction(
 
   const projectId = String(formData.get("project_id") ?? "").trim();
   if (!projectId) return { error: "Project, assignment type and equipment description are required." };
-  if (!(await canRunStandaloneAssignment(session, projectId))) return { error: STAFF_ONLY_ERROR };
+
+  const supabase = await createSupabaseServerClient();
+  if (!(await canRunStandaloneAssignment(session, supabase, projectId))) return { error: STAFF_ONLY_ERROR };
 
   const assignmentType = String(formData.get("assignment_type") ?? "").trim() as AssignmentType;
   const equipmentDescription = String(formData.get("equipment_description") ?? "").trim();
@@ -176,7 +203,6 @@ export async function createAssignmentAction(
     return { error: "Project, assignment type and equipment description are required." };
   }
 
-  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -351,7 +377,7 @@ export async function suggestStandaloneMeasurementsAction(
     >();
 
   if (!assignment) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: "Assignment not found." };
-  if (!(await canRunStandaloneAssignment(session, assignment.project_id))) {
+  if (!(await canRunStandaloneAssignment(session, supabase, assignment.project_id))) {
     return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: STAFF_ONLY_ERROR };
   }
 

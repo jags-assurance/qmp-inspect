@@ -9,19 +9,39 @@ import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function NewStandaloneAssignmentPage() {
   const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
   // Booking/running a standalone FAT/witness/test assignment is JAGS staff's job by default, same
-  // boundary as ITP creation (apps/web/app/inspect/itps/new/page.tsx) — UNLESS this person holds the
-  // run_standalone_assignment custom permission (Full Client-Managed tier only). RLS on `projects`
-  // below still scopes what they can actually select to their own org's projects regardless.
-  if (!session.isJagsStaff && !(await hasPermission(session.userId, "run_standalone_assignment"))) {
+  // boundary as ITP creation (apps/web/app/inspect/itps/new/page.tsx) — unless this person holds
+  // the run_standalone_assignment custom permission (Full Client-Managed tier only), OR is an
+  // active subcontractor/main_contractor on at least one project that's opted into
+  // allow_contractor_standalone_assignment (tier-independent — see canRunStandaloneAssignment,
+  // lib/standalone/actions.ts, for the exact 3-way rule this mirrors).
+  const orgWidePermission = await hasPermission(session.userId, "run_standalone_assignment");
+
+  let projects: { id: string; project_number: string; name: string }[] = [];
+  if (session.isJagsStaff || orgWidePermission) {
+    // RLS already scopes this to projects has_org_access() actually reaches.
+    const { data } = await supabase.from("projects").select("id, project_number, name").order("name");
+    projects = data ?? [];
+  } else {
+    const { data: eligibleParties } = await supabase
+      .from("project_parties")
+      .select("projects(id, project_number, name, allow_contractor_standalone_assignment)")
+      .eq("user_id", session.userId)
+      .eq("is_active", true)
+      .in("party_type", ["subcontractor", "main_contractor"])
+      .returns<{ projects: { id: string; project_number: string; name: string; allow_contractor_standalone_assignment: boolean } | null }[]>();
+    projects = (eligibleParties ?? [])
+      .map((p) => p.projects)
+      .filter((p): p is NonNullable<typeof p> => !!p?.allow_contractor_standalone_assignment)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  if (!session.isJagsStaff && !orgWidePermission && projects.length === 0) {
     redirect("/inspect/standalone");
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, project_number, name")
-    .order("name");
   const disciplines = await getActiveMasterDisciplines();
 
   return (
@@ -34,7 +54,8 @@ export default async function NewStandaloneAssignmentPage() {
         <PageGuide
           title="New assignment — how this works"
           points={[
-            "Only JAGS staff can reach this page by default — booking/running a standalone FAT, witness inspection, specific test or pre-shipment check is JAGS staff's job, same boundary as ITP creation — unless your organisation is Full Client-Managed and you hold the run_standalone_assignment custom permission.",
+            "Only JAGS staff can reach this page by default — booking/running a standalone FAT, witness inspection, specific test or pre-shipment check is JAGS staff's job, same boundary as ITP creation — unless your organisation is Full Client-Managed and you hold the run_standalone_assignment custom permission, or you're an active subcontractor/main-contractor party on a project that's specifically opted into contractor-run assignments.",
+            "The project list above only shows projects you're actually eligible to create one on — for a subcontractor/main-contractor login, that's just the projects with contractor-run assignments turned on.",
             "The assignment number is generated automatically on save, with a type-specific prefix (FAT/WI/ST/PS) — never hand-entered.",
             "This only creates the assignment shell; measurements, photos, punch items and signatures are then added from the assignment's own detail page, gated the same way as this page.",
           ]}

@@ -13,6 +13,7 @@ import { ProvisionPartyLoginForm } from "./provision-party-login-form";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
 import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
+import { AllowContractorStandaloneAssignmentToggle } from "./allow-contractor-standalone-assignment-toggle";
 import { EnforceHoldBlocksStartToggle } from "./enforce-hold-blocks-start-toggle";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { isClientTeamLeadForProject } from "@/lib/client-teams/helpers";
@@ -61,6 +62,7 @@ interface ProjectDetail {
   allow_client_execution: boolean;
   allow_client_itp_creation: boolean;
   allow_contractor_itp_creation: boolean;
+  allow_contractor_standalone_assignment: boolean;
   enforce_hold_blocks_start: boolean;
   responsible_person_id: string | null;
   responsible_person: { full_name: string; email: string } | null;
@@ -98,7 +100,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
+      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, allow_contractor_standalone_assignment, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
     )
     .eq("id", projectId)
     .maybeSingle<ProjectDetail>();
@@ -447,6 +449,25 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <AllowContractorItpCreationToggle
             projectId={project.id}
             allowContractorItpCreation={project.allow_contractor_itp_creation}
+          />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Standalone Assignment execution settings</h2>
+          <p className="mt-1 text-sm text-muted">
+            By default only JAGS staff can run a Standalone Assignment (FAT/witness inspection/
+            specific test/pre-shipment) on this project, on any engagement tier. Turning this on
+            lets an active subcontractor or main-contractor party on THIS project run one
+            themselves too — the equipment they supplied is routinely something they're best
+            placed to test. This works independently of the Full Client-Managed tier's own
+            run_standalone_assignment permission (Organisation → Custom roles), which is separate
+            and grants the same right to the client's own people instead.
+          </p>
+          <AllowContractorStandaloneAssignmentToggle
+            projectId={project.id}
+            allowContractorStandaloneAssignment={project.allow_contractor_standalone_assignment}
           />
         </div>
       )}

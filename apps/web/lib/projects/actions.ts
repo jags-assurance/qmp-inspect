@@ -488,6 +488,47 @@ export async function setAllowContractorItpCreationAction(
   return { error: null };
 }
 
+export interface SetAllowContractorStandaloneAssignmentState {
+  error: string | null;
+}
+
+/**
+ * Per-project opt-in that lets a subcontractor or main_contractor party run Standalone Assignments
+ * (FAT/witness inspection/specific test/pre-shipment) on this project themselves — the tier-
+ * independent counterpart to the client_managed-only run_standalone_assignment custom permission
+ * (lib/rbac/types.ts): this flag works on ANY engagement tier (full_service/self_managed/
+ * client_managed alike), same as allow_contractor_itp_creation above, since a subcontractor/
+ * main_contractor actually running the equipment they supplied is real-world practice regardless of
+ * how the client itself is engaged. See canRunStandaloneAssignment (lib/standalone/actions.ts) for
+ * the actual gate this flag drives. Admin-only to change.
+ */
+export async function setAllowContractorStandaloneAssignmentAction(
+  _prev: SetAllowContractorStandaloneAssignmentState,
+  formData: FormData
+): Promise<SetAllowContractorStandaloneAssignmentState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can change this setting." };
+  }
+
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const allow = formData.get("allow_contractor_standalone_assignment") === "on";
+  if (!projectId) return { error: "Missing project." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ allow_contractor_standalone_assignment: allow })
+    .eq("id", projectId);
+
+  if (error) return { error: "Could not update this setting. Check you have permission and try again." };
+
+  await auditProjectSetting(supabase, projectId, session.userId, "allow_contractor_standalone_assignment", allow);
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null };
+}
+
 export interface ProjectPartyActiveState {
   error: string | null;
 }

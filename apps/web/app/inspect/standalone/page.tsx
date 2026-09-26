@@ -15,14 +15,26 @@ export default async function StandaloneAssignmentsPage({
   searchParams: Promise<{ project?: string; discipline?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
   // Full Client-Managed tier: a run_standalone_assignment permission holder gets the same
   // "+ New assignment" affordance JAGS staff always had — org-wide check since we don't yet know
   // which project they'll pick; a project-scoped grant just won't show the button here (they'd
   // still succeed from a project-filtered view, this is only about this one link's visibility).
-  const canRunStandaloneAssignment = session.isJagsStaff || (await hasPermission(session.userId, "run_standalone_assignment"));
+  // Tier-independent: a subcontractor/main_contractor also gets it if at least one of their active
+  // projects has opted into allow_contractor_standalone_assignment.
+  let canRunStandaloneAssignment = session.isJagsStaff || (await hasPermission(session.userId, "run_standalone_assignment"));
+  if (!canRunStandaloneAssignment) {
+    const { count } = await supabase
+      .from("project_parties")
+      .select("id, projects!inner(allow_contractor_standalone_assignment)", { count: "exact", head: true })
+      .eq("user_id", session.userId)
+      .eq("is_active", true)
+      .in("party_type", ["subcontractor", "main_contractor"])
+      .eq("projects.allow_contractor_standalone_assignment", true);
+    canRunStandaloneAssignment = !!count;
+  }
   const { project: projectId, discipline: disciplineId, q, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
-  const supabase = await createSupabaseServerClient();
 
   const disciplines = await getActiveMasterDisciplines();
 
@@ -72,7 +84,7 @@ export default async function StandaloneAssignmentsPage({
               title="Standalone Assignments — how this works"
               points={[
                 "One-off FATs, witness inspections, specific tests and pre-shipment checks that don't need an ITP or data book behind them.",
-                "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance — UNLESS your organisation is on the Full Client-Managed tier and you specifically hold the \"Create and run a Standalone Assignment\" custom permission, in which case you can do all of it yourself too.",
+                "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance — UNLESS your organisation is on the Full Client-Managed tier and you specifically hold the \"Create and run a Standalone Assignment\" custom permission, OR you're an active subcontractor/main-contractor party on a project a JAGS Admin has specifically opted into contractor-run assignments — either way you can then do all of it yourself.",
                 "A conditional pass leaves the assignment genuinely open (\"conditional_open\") until its linked punch-list item(s) are closed and clearance is issued — a clean pass or fail completes immediately on finalize.",
                 "The discipline filter and search run server-side against the full register, not just the current page.",
               ]}

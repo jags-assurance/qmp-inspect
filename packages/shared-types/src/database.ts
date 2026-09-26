@@ -3302,6 +3302,7 @@ export type Database = {
           allow_client_execution: boolean
           allow_client_itp_creation: boolean
           allow_contractor_itp_creation: boolean
+          allow_contractor_standalone_assignment: boolean
           contract_number: string | null
           country: string | null
           created_at: string
@@ -3322,6 +3323,7 @@ export type Database = {
           allow_client_execution?: boolean
           allow_client_itp_creation?: boolean
           allow_contractor_itp_creation?: boolean
+          allow_contractor_standalone_assignment?: boolean
           contract_number?: string | null
           country?: string | null
           created_at?: string
@@ -3342,6 +3344,7 @@ export type Database = {
           allow_client_execution?: boolean
           allow_client_itp_creation?: boolean
           allow_contractor_itp_creation?: boolean
+          allow_contractor_standalone_assignment?: boolean
           contract_number?: string | null
           country?: string | null
           created_at?: string

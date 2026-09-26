@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/rbac/permissions";
+import { canRunStandaloneAssignment } from "@/lib/standalone/actions";
 import { Badge } from "@/components/ui/badge";
 import type {
   AssignmentConclusion,
@@ -75,10 +75,9 @@ export default async function StandaloneAssignmentDetailPage({
 
   if (!assignment) notFound();
 
-  // Full Client-Managed tier: a run_standalone_assignment permission holder on this specific
-  // project gets the same execution rights JAGS staff always had (see requireStandaloneAccess in
-  // lib/standalone/actions.ts — this mirrors that check purely to decide what renders).
-  const canManage = session.isJagsStaff || (await hasPermission(session.userId, "run_standalone_assignment", assignment.project_id));
+  // Same 3-way rule as requireStandaloneAccess (lib/standalone/actions.ts) — reused directly
+  // rather than re-derived here, so this can never drift from the actual server-side gate.
+  const canManage = await canRunStandaloneAssignment(session, supabase, assignment.project_id);
 
   const latestReportPdf = await getLatestFatReportPdf(id);
 
@@ -154,7 +153,7 @@ export default async function StandaloneAssignmentDetailPage({
             <PageGuide
               title="Standalone assignment — how this works"
               points={[
-                "Executing this assignment — measurements, photos, punch items, signatures, finalizing, evidence linking — is JAGS-staff-only by default; on the Full Client-Managed tier, a person specifically granted the run_standalone_assignment permission can do all of it themselves too.",
+                "Executing this assignment — measurements, photos, punch items, signatures, finalizing, evidence linking — is JAGS-staff-only by default; a person specifically granted the run_standalone_assignment permission (Full Client-Managed tier only), or an active subcontractor/main-contractor party on a project a JAGS Admin has opted into contractor-run assignments, can do all of it themselves too.",
                 "A \"conditional pass\" finalize creates a real project-wide punch-list item (not just the assignment's own internal punch tab) — the assignment stays \"conditional_open\" until every linked punch item is closed and clearance is explicitly issued.",
                 "A clean pass or fail completes the assignment immediately on finalize — no separate clearance step.",
                 "The FAT report PDF and narrative (AI-assisted draft, when AI is configured) are generated from this record's own data — the narrative editor only shows for JAGS staff.",
