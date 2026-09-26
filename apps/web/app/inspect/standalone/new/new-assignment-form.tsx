@@ -130,6 +130,7 @@ export function NewAssignmentForm({
             <input
               id="manufacturer"
               name="manufacturer"
+              placeholder="e.g. Metso"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
@@ -140,6 +141,7 @@ export function NewAssignmentForm({
             <input
               id="model"
               name="model"
+              placeholder="e.g. C120"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
@@ -153,6 +155,7 @@ export function NewAssignmentForm({
             <input
               id="serial_tag"
               name="serial_tag"
+              placeholder="e.g. SN-48213 / TAG-102"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
