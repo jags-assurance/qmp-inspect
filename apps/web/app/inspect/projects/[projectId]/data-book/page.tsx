@@ -68,7 +68,7 @@ export default async function DataBookPage({
       .from(PUNCH_LIST_ITEMS_TABLE)
       .select("id, description, location, due_date, project_parties(name)")
       .eq("project_id", projectId)
-      .eq("status", "open")
+      .neq("status", "closed")
       .returns<OpenPunchItemPreview[]>(),
   ]);
 
@@ -87,8 +87,8 @@ export default async function DataBookPage({
           <PageGuide
             title="Data Book — how this works"
             points={[
-              "Won't compile while any category is below 100% or any punch list item is open — every ITP must be approved, every NCR closed, and zero open punch items.",
-              "A JAGS staff member can override that and compile anyway (a \"Conditional Handover\"), but only with a required, documented reason — the still-open punch items are snapshotted onto the record at that moment, reason and who approved it included.",
+              "Won't compile while any category is below 100% or any punch list item is open or resolved-but-not-yet-verified — every ITP must be approved, every NCR closed, and every punch item independently closed (not just marked resolved).",
+              "A JAGS staff member can override that and compile anyway (a \"Conditional Handover\"), but only with a required, documented reason — the still-outstanding punch items (open or resolved-but-unverified) are snapshotted onto the record at that moment, reason and who approved it included.",
               "Only JAGS staff can create a Data Book, compile a draft one, or issue a handover once compiled — everyone else with project access can view readiness and download issued PDFs.",
               "\"Data-book readiness\" on the Client KPIs page is a proxy metric; this page computes it directly from the project's own ITPs, NCRs and punch list.",
             ]}
@@ -123,7 +123,7 @@ export default async function DataBookPage({
           }
         />
         <StatCard
-          label="Open punch items"
+          label="Open / unverified punch items"
           value={<span className="tabular-nums">{readiness.openPunchItems}</span>}
           caption={readiness.openPunchItems === 0 ? "Clear" : "Must be zero to compile"}
         />

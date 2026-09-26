@@ -140,7 +140,7 @@ export default async function NewItpPage() {
           <PageGuide
             title="New ITP — how this works"
             points={[
-              "You're seeing this because your login is linked to an eligible client/contractor party on at least one project that's opted into ITP creation, or your organisation is Self-Managed (org-wide eligibility).",
+              "You're seeing this because your login is linked to an eligible client/contractor party on at least one project that's opted into ITP creation, or your organisation is Self-Managed/\"Hybrid\" or Full Client-Managed (both grant a client party org-wide eligibility).",
               "The manual flow creates a draft with the four standard sections — fully editable (add/rename/reorder) afterwards, not fixed to those four.",
               aiConfigured
                 ? "Generating from your own vault documents drafts content for review, not a finished ITP — the manual flow is the same underlying create action either way."

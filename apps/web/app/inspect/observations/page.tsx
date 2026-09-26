@@ -101,7 +101,7 @@ export default async function ObservationsPage({
               points={[
                 "Observations are raised on the same NCR form and stored in the same ncrs table as minor/major NCRs — severity \"Observation\" is what routes a record here instead of to the NCR Register, so the two registers never double-list the same rows.",
                 "Anyone with project access can raise one via \"+ Raise Observation\"; raising it still creates a matching project punch-list item, same as any NCR.",
-                "Closing one still requires root cause, corrective action and verification notes on its close-out form, same rule as a minor/major NCR.",
+                "Closing one still requires root cause, corrective action and verification notes on its close-out form, same rule as a minor/major NCR — and same lack of a separate reviewer/approver step: anyone with project access who fills those fields in can close it.",
                 "The discipline filter only matches observations raised against a specific ITP item — a standalone one has no discipline and stays visible unfiltered.",
               ]}
             />

@@ -164,7 +164,7 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
             title="ITP checklists — how this works"
             points={[
               "Lists every checklist-type (evidence_type = 1) activity on this ITP and lets you generate its checklist once the ITP is approved — other evidence types (document upload, measurement) are handled on the ITP page itself, not here.",
-              "Generating checklists is available to JAGS staff, or to the same client/contractor party eligible to create this ITP's content, once the ITP is approved — approving the ITP itself always stays JAGS-only.",
+              "Generating checklists is available to JAGS staff, or to the same client/contractor party eligible to create this ITP's content, once the ITP is approved — approving the ITP itself is JAGS-only for a Full-Service or Self-Managed (\"Hybrid\") client; a Full Client-Managed client's own approve_itp permission holder can approve it themselves too.",
               "Staff can start a checklist from a reusable library template instead of a blank one — only templates that are global or scoped to this ITP's own client organisation are offered.",
               "Status reflects the most recent inspection_records row for that checklist: no row = not started, a row with no result yet = in progress, a result set = complete (pass/fail/partial).",
             ]}

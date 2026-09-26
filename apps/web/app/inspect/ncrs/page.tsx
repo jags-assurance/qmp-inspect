@@ -119,7 +119,7 @@ export default async function NcrsPage({
               points={[
                 "Lists every minor/major NCR (observations are excluded — they have their own register) with server-side search, pagination and a discipline filter.",
                 "Anyone with project access can raise an NCR via \"+ Raise NCR\" — raising one always also creates a matching project punch-list item, since every NCR must be closed out before handover regardless of severity.",
-                "Closing an NCR requires root cause, corrective action and verification notes to be filled in (preventive action is optional) — enforced by the close-out action, not just the form.",
+                "Closing an NCR requires root cause, corrective action and verification notes to be filled in (preventive action is optional) — enforced by the close-out action, not just the form. There's no separate reviewer/approver step: anyone with project access who fills those fields in can close it.",
                 "The discipline filter only matches NCRs raised against a specific ITP item — a standalone/walkdown NCR has no discipline of its own and always stays visible unfiltered.",
                 "Stat cards and the aging chart are computed from every matching NCR, not just the current page.",
               ]}

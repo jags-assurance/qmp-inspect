@@ -58,7 +58,7 @@ export default async function VaultPage({
           <PageGuide
             title="Document Vault — how this works"
             points={[
-              "Every project gets the same fixed set of 11 folders automatically — pick a project above, then open a folder to see its documents.",
+              "Every project gets the same fixed set of 12 folders automatically — pick a project above, then open a folder to see its documents.",
               "Uploading a file whose document reference matches one already in that folder doesn't overwrite it — the old row is marked superseded and stays visible, nothing is silently lost.",
               "A newly uploaded document starts at status \"for review\" — a JAGS Admin, or anyone granted the approve_vault_document permission for that project, has to approve it before it counts as the controlled baseline.",
               "Every upload also gets a real document number stamped by the numbering engine, and its text is extracted in the background so it can later be used as source input for AI-drafted ITPs.",

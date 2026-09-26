@@ -182,7 +182,7 @@ export default async function ClientTeamsPage({
         <PageGuide
           title="Client Teams — how this works"
           points={[
-            "Who can ADD a member: a JAGS Admin (any organisation), or that team's own team lead (their team only). A self-managed org's first user can also bootstrap its very first team before any lead exists yet.",
+            "Who can ADD a member: a JAGS Admin (any organisation), or that team's own team lead (their team only). A Self-Managed or Full Client-Managed org's first user can also bootstrap its very first team before any lead exists yet.",
             "Add someone by picking from people who already have platform access to this organisation or its projects, or by entering their email directly if they have a JAGS Assurance account but aren't yet on any project — the email must already have an account; if not, provision their login first from that project's own page (Provision login).",
             "A client team only ever contains this organisation's own people, and can only be assigned to this organisation's own projects — it's a separate, parallel structure to JAGS's internal Teams page.",
             "Assigning a team to a project doesn't grant access by itself — each member still needs their own access_grant to that project; the assignment is how this page groups \"who's responsible for what\".",

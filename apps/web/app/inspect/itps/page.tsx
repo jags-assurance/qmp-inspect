@@ -138,7 +138,7 @@ export default async function ItpsPage({
               title="ITP Register — how this works"
               points={[
                 "Every Inspection & Test Plan across your accessible projects — staff see all of them, others see only what RLS scopes to their organisation/project.",
-                "\"+ New ITP\" appears for JAGS staff always, and for a client or subcontractor/main-contractor login only if their project has opted them into ITP creation (or their organisation is Self-Managed, which grants it org-wide).",
+                "\"+ New ITP\" appears for JAGS staff always, and for a client or subcontractor/main-contractor login only if their project has opted them into ITP creation (or their organisation is Self-Managed/\"Hybrid\" or Full Client-Managed, either of which grants it org-wide for a client party).",
                 "The discipline filter is register-level: it shows every ITP that has at least one activity tagged with that discipline, not just activities within one ITP.",
                 "PDF and Excel export the current filtered view — every matching row, not just the current page.",
               ]}

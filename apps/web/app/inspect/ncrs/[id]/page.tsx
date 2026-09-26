@@ -230,8 +230,10 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
             <PageGuide
               title="NCR detail — how this works"
               points={[
-                "\"Start progress\" / \"Send for verification\" are quick, no-validation status moves — closing is deliberately not one of them.",
-                "Closing only happens from the corrective action close-out form below, and requires root cause, corrective action and verification notes (preventive action stays optional).",
+                "\"Start progress\" / \"Send for verification\" are quick, no-validation status moves along the timeline above — closing is deliberately not one of them.",
+                "Closing only happens from the corrective action close-out form below, and requires root cause, corrective action and verification notes to be filled in (preventive action stays optional).",
+                "\"Pending verification\" is just a status label on the timeline, not an independent approval gate — the same close-out form can close the NCR directly from Open or In progress too, and anyone with project access can fill in the CAPA fields and close it (no separate JAGS/reviewer sign-off is enforced here).",
+                "\"Save progress\" (without closing) always sets the status back to In progress, even from Pending verification.",
                 "Closing this NCR also closes the punch-list item it created when raised, reusing the same verification notes as closing evidence, and (if linked to a failed inspection record) notifies the original inspector the activity is ready to re-inspect.",
                 "The assignee and responsible-party pickers are built from real people with access to this NCR's project (access grants plus linked project parties) — not free text.",
               ]}

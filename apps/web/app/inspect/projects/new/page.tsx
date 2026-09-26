@@ -9,12 +9,12 @@ export default async function NewProjectPage() {
   const session = await requireSession();
 
   // Project setup is normally the Admin's job (client onboarding, commercial scope) — an Inspector
-  // runs the day-to-day work on projects already set up. The one exception: a Self-Managed/
-  // Platform-Only client (organizations.engagement_scope = 'self_managed',
+  // runs the day-to-day work on projects already set up. The exception: a Self-Managed (Hybrid) or
+  // Full Client-Managed org (organizations.engagement_scope = 'self_managed' | 'client_managed',
   // supabase/migrations/20260919010000_self_managed_project_creation.sql) runs its own program on
   // the platform, so "the client manages its own projects" has to include creating them, not just
   // executing/creating ITPs inside ones JAGS already set up. Mirrors the RLS policy exactly: any
-  // org this user's access reaches, filtered to engagement_scope = 'self_managed'.
+  // org this user's access reaches, filtered to engagement_scope in ('self_managed', 'client_managed').
   let organizations: { id: string; name: string }[] = [];
   const supabase = await createSupabaseServerClient();
 
@@ -50,8 +50,8 @@ export default async function NewProjectPage() {
           title="New project — how this works"
           points={[
             "Normally Admin-only — client onboarding and commercial scope are set up by JAGS.",
-            "The exception: a Self-Managed/Platform-Only client organisation runs its own program on the platform, so it can create its own projects here too, scoped to its own organisation.",
-            "An Admin can also create a brand-new client organisation from this form; a self-managed client can only create projects under organisations they already have access to.",
+            "The exception: anyone whose organisation is on the Self-Managed (Hybrid) or Full Client-Managed engagement tier runs its own program on the platform, so they can create their own projects here too, scoped to their own organisation.",
+            "An Admin can also create a brand-new client organisation from this form; a self-managed or client-managed user can only create projects under organisations they already have access to.",
           ]}
         />
       </div>

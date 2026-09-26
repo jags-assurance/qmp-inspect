@@ -250,7 +250,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               title="Project hub — how this works"
               points={[
                 "The entry point into everything scoped to this project — ITPs, NCRs, registers, punch list, data book, reports, and every party engaged on it.",
-                "\"Responsible Person\", checklist execution, ITP creation and hold-point enforcement settings are Admin-only — each one applies to THIS project only, never platform-wide.",
+                "Adding parties is normally Admin-only; on a Self-Managed (Hybrid) or Full Client-Managed organisation's project, that org's own non-staff users get a second, separate form to add their own parties.",
+                "Provisioning a login for a party (turning \"No linked login yet\" into an active user) is available to an Admin, or to anyone holding the provision_party_login permission on this project — the way a Full Client-Managed org's own people onboard their own team without JAGS.",
+                "\"Responsible Person\", checklist execution, ITP creation toggles and hold-point enforcement settings are Admin-only — each one applies to THIS project only, never platform-wide.",
                 "Reassigning a party's sign-off responsibility is available to an Admin, a lead of a JAGS team assigned to this project, or (for that project's own client-type party) a client team lead.",
                 "Audit Log only appears here for JAGS staff — it's an internal governance view, not something a client or contractor party sees.",
                 "The status dropdown next to the project name (Admin-only) is the only place that changes a project's status — nothing else in the app sets it automatically, including compiling the Data Book or acknowledging Handover.",

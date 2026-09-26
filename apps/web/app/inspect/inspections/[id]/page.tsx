@@ -142,7 +142,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 "Read-only record of one completed inspection — every checklist response, photo evidence, the inspector's signature and any linked NCR/IRN.",
                 "A fail or partial result surfaces a \"Raise NCR →\" link pre-filled with this project, ITP item and inspection record — the NCR raised is linked back to this record both ways.",
                 "Once that linked NCR is closed, the original inspector is notified the activity is ready to re-inspect — closing the NCR's paperwork never auto-passes the record itself.",
-                "An IRN (Inspection Release Note) can only be issued once the inspection has passed — it's blocked while a fail/partial result stands.",
+                "An IRN (Inspection Release Note) can only be issued once the inspection has passed — it's blocked while a fail/partial result stands, and only the party assigned to execute this activity (or JAGS staff) can issue it, even though the button shows to anyone viewing a passed record.",
                 "The narrative editor (AI-assisted draft, when AI is configured) only shows for JAGS staff.",
               ]}
             />

@@ -25,9 +25,9 @@ export default async function BrandingSettingsPage({
   const supabase = await createSupabaseServerClient();
 
   // Admin-only for a full_service org, same boundary as numbering/engagement-mode — but a
-  // Self-Managed client can manage its OWN organization's brand colors
+  // Self-Managed or Full Client-Managed client can manage its OWN organization's brand colors
   // (20260919050000_self_managed_org_settings.sql), matching "the client manages its own
-  // organization." A self-managed non-staff user sees only their own org, no picker.
+  // organization." A self-managed/client-managed non-staff user sees only their own org, no picker.
   let organizations: OrganizationOption[] = [];
   let restrictedToOwnOrg = false;
 
@@ -83,7 +83,7 @@ export default async function BrandingSettingsPage({
         <PageGuide
           title="Brand colors & logo — how this works"
           points={[
-            "Admin-only for a Full-Managed org, same boundary as Numbering/engagement mode — but a Self-Managed client can manage their own organisation's brand colors and logo directly here, scoped to just their own org with no picker.",
+            "Admin-only for a Full-Managed org, same boundary as Numbering/engagement mode — but a Self-Managed or Full Client-Managed client can manage their own organisation's brand colors and logo directly here, scoped to just their own org with no picker.",
             "What actually shows a client's branding is the organisation's engagement mode (set under Numbering, JAGS Admin only): jags_led shows JAGS branding only regardless of what's uploaded here; co-branded shows both together; white-label replaces JAGS branding with the client's own.",
             "A logo uploaded while engagement mode is still jags_led is saved but won't be shown anywhere until an Admin changes the mode.",
             "Applies wherever a page is scoped to this organisation (its projects), the app header, and generated PDF reports — all driven from the same colors/logo set here.",

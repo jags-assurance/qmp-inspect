@@ -86,7 +86,7 @@ export default async function ProjectsPage() {
               title="Projects — how this works"
               points={[
                 "Every project you have access to, across every client — JAGS staff see everything they're granted; a client/contractor login sees only projects their organisation is engaged on.",
-                "\"+ New project\" is normally Admin-only; it also appears for a Self-Managed/Platform-Only client organisation, which runs its own program and creates its own projects.",
+                "\"+ New project\" is normally Admin-only; it also appears for anyone whose organisation is on the Self-Managed (Hybrid) or Full Client-Managed engagement tier, since both run their own program and create their own projects.",
                 "ITP completion % and open NCR count per row are computed live from that project's own ITPs and NCRs, not cached.",
               ]}
             />

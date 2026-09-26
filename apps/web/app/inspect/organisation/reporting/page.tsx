@@ -8,6 +8,7 @@ const VIEWS: { name: string; covers: string }[] = [
   { name: "vw_powerbi_hold_point_turnaround", covers: "Average Hold-point turnaround hours (signoff-chain data only)" },
   { name: "vw_powerbi_first_time_pass_rate", covers: "First-time pass rate, per project" },
   { name: "vw_powerbi_ncr_trends", covers: "Monthly NCR volume and close-out time, by severity/status, per project" },
+  { name: "vw_powerbi_punch_list_and_fat", covers: "Open/closed punch-list item counts and standalone FAT pass/conditional/fail counts, per project" },
 ];
 
 /**
@@ -30,7 +31,7 @@ export default async function ReportingPage() {
           title="Power BI reporting — how this works"
           points={[
             "This is JAGS-internal analytics only — clients never get Power BI access; they receive the monthly report pack (PDF/Excel) instead.",
-            "Desktop connects directly and live via DirectQuery, using a dedicated read-only login (powerbi_reader) that can see exactly five reporting views and nothing else.",
+            "Desktop connects directly and live via DirectQuery, using a dedicated read-only login (powerbi_reader) that can see exactly these six reporting views and nothing else.",
             "Desktop and the Power BI Service (the web version at app.powerbi.com) are separate — publishing to the web additionally needs an On-premises Data Gateway, or a DirectQuery report won't load once opened in a browser. See the web-sharing section below.",
             "Reset the powerbi_reader password before handing this connection to anyone — the one committed in the migration file is a placeholder.",
           ]}
@@ -44,7 +45,7 @@ export default async function ReportingPage() {
       </p>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">The five reporting views</h2>
+        <h2 className="font-medium text-ink">The six reporting views</h2>
         <p className="mt-1 text-sm text-muted">
           Every view carries <code className="doc-id text-xs">organization_id</code> and{" "}
           <code className="doc-id text-xs">project_id</code> columns, so Power BI can slice by client
@@ -78,7 +79,7 @@ export default async function ReportingPage() {
             <code className="doc-id text-xs">powerbi_reader</code>, password from wherever your team
             keeps it — never the placeholder committed in the migration file.
           </li>
-          <li>In the Navigator, select only the five views above — that is all this role can see.</li>
+          <li>In the Navigator, select only the six views above — that is all this role can see.</li>
         </ol>
       </div>
 
@@ -116,7 +117,7 @@ export default async function ReportingPage() {
           anyone — including your own team.
         </p>
         <p className="mt-2 text-sm text-ink">
-          This role can only ever read the five views above — no other table, no writes. Isolation
+          This role can only ever read the six views above — no other table, no writes. Isolation
           for who sees which client&apos;s data comes entirely from who is allowed to hold the{" "}
           <code className="doc-id text-xs">powerbi_reader</code> credential, not from row-level
           security (a plain database login has no Supabase Auth session for RLS to key off).

@@ -64,7 +64,7 @@ export default async function ClientOrganisationsPage() {
             "Admin-only — creating and viewing the list of tenant organisations is an account-administration action, same boundary as Staff Access and Numbering.",
             "A new organisation starts with no projects, no AI consent, and JAGS-led branding — those are set up separately from this page (New project, Branding, Numbering).",
             "Everything else in the app (projects, ITPs, staff access grants, module licensing) is always scoped to one of these organisations, so this is the first step of onboarding a real client.",
-            "Engagement scope (Full-Managed vs Self-Managed) shown here as a badge controls whether the client can self-serve settings like branding/numbering on their own org — set under Numbering, not here.",
+            "Engagement scope shown here as a badge is one of three tiers, set under Numbering (not here): Full-Managed (JAGS runs the whole ITP workflow), Self-Managed/\"Hybrid\" (the client builds, submits and accepts its own ITPs and can self-serve branding/numbering/custom roles, but JAGS still approves ITPs and provisions client logins), or Full Client-Managed (all of that, plus the client's own permission-granted people can approve their own ITPs and provision their own team's logins, with no JAGS involvement day to day).",
           ]}
         />
       </div>
