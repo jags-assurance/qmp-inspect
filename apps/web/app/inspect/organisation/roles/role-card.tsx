@@ -51,8 +51,9 @@ export function RoleCard({
   restrictGrantableKeys?: boolean;
   /**
    * True when this role's own organisation is on the client_managed ("Full Client-Managed") tier —
-   * lets the 2 CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp, provision_party_login) also be
-   * grantable, on top of the always-grantable CLIENT_SELF_SERVICE_PERMISSION_KEYS. A plain
+   * lets the CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp, provision_party_login,
+   * run_standalone_assignment) also be grantable, on top of the always-grantable
+   * CLIENT_SELF_SERVICE_PERMISSION_KEYS. A plain
    * self_managed ("Hybrid") org's roles keep this false.
    */
   isClientManagedOrg?: boolean;

@@ -24,6 +24,7 @@ export const PERMISSION_KEYS = [
   "approve_itp",
   "provision_party_login",
   "close_punch_item",
+  "run_standalone_assignment",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
@@ -33,23 +34,30 @@ export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 // reasoning lives. Short version: these 3 are client-operational (deciding how the client's own
 // people split up work on the client's own projects); the rest
 // (manage_intervention_levels/issue_irn/close_ncr/approve_vault_document/approve_itp/
-// provision_party_login/close_punch_item) touch the platform's independent-assurance controls or
-// credential issuance and stay JAGS-Admin-grantable-only even for a self-managed org's own role. A
-// JAGS Admin is never limited by this list — only the self-managed client's own write path is.
+// provision_party_login/close_punch_item/run_standalone_assignment) touch the platform's
+// independent-assurance controls, credential issuance, or client-managed-only self-service and stay
+// JAGS-Admin-grantable-only even for a self-managed org's own role. A JAGS Admin is never limited by
+// this list — only the self-managed client's own write path is.
 export const CLIENT_SELF_SERVICE_PERMISSION_KEYS: readonly PermissionKey[] = [
   "add_project_party",
   "reassign_project_party",
   "view_org_reports",
 ];
 
-// The 2 keys that make the "Full Client-Managed" tier actually mean zero JAGS staff involvement in
+// The 3 keys that make the "Full Client-Managed" tier actually mean zero JAGS staff involvement in
 // day-to-day work: approving the client's own ITPs (elsewhere RLS/app-layer always required
-// is_jags_staff() for this transition) and provisioning brand-new logins for the client's own
-// people (elsewhere provisionPartyLoginAction is JAGS-Admin-only). Grantable ONLY when the role's
-// organisation is on the client_managed tier — NOT plain self_managed ("Hybrid"), which must keep
-// requiring JAGS to approve and provision. See custom_role_permissions_self_managed_write and
-// itps_u in the RLS migrations for the matching database-side gate.
-export const CLIENT_MANAGED_ONLY_PERMISSION_KEYS: readonly PermissionKey[] = ["approve_itp", "provision_party_login"];
+// is_jags_staff() for this transition), provisioning brand-new logins for the client's own people
+// (elsewhere provisionPartyLoginAction is JAGS-Admin-only), and creating/running the client's own
+// Standalone Assignments (FAT/witness/specific-test/pre-shipment — elsewhere JAGS-staff-only end to
+// end). Grantable ONLY when the role's organisation is on the client_managed tier — NOT plain
+// self_managed ("Hybrid"), which must keep requiring JAGS for all three. See
+// custom_role_permissions_self_managed_write and itps_u in the RLS migrations for the matching
+// database-side gate.
+export const CLIENT_MANAGED_ONLY_PERMISSION_KEYS: readonly PermissionKey[] = [
+  "approve_itp",
+  "provision_party_login",
+  "run_standalone_assignment",
+];
 
 export const PERMISSION_LABEL: Record<PermissionKey, string> = {
   add_project_party: "Add a party to a project",
@@ -62,6 +70,7 @@ export const PERMISSION_LABEL: Record<PermissionKey, string> = {
   approve_itp: "Approve an ITP (client-managed tier only)",
   provision_party_login: "Create a new login for a project party (client-managed tier only)",
   close_punch_item: "Verify and close a punch list item",
+  run_standalone_assignment: "Create and run a Standalone Assignment (client-managed tier only)",
 };
 
 export interface CustomRoleRow {

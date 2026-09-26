@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
@@ -23,7 +24,43 @@ import {
   STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS,
 } from "./types";
 
-const STAFF_ONLY_ERROR = "Only JAGS staff can run a standalone assignment.";
+const STAFF_ONLY_ERROR = "Only JAGS staff, or someone granted this permission, can run a standalone assignment.";
+
+type Session = Awaited<ReturnType<typeof requireSession>>;
+type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+/**
+ * The "Full Client-Managed" tier's 3rd self-service permission (see
+ * CLIENT_MANAGED_ONLY_PERMISSION_KEYS, lib/rbac/types.ts): a client_managed org can grant
+ * run_standalone_assignment to its own people, letting them run FAT/witness/specific-test/
+ * pre-shipment work themselves — every other tier (full_service, plain self_managed "Hybrid") keeps
+ * this JAGS-staff-only, since that permission key is never grantable outside client_managed.
+ */
+async function canRunStandaloneAssignment(session: Session, projectId: string): Promise<boolean> {
+  return session.isJagsStaff || (await hasPermission(session.userId, "run_standalone_assignment", projectId));
+}
+
+/**
+ * Most mutations here only carry an assignment_id, not a project_id — this resolves the project
+ * once so canRunStandaloneAssignment can be checked, reused by every action below instead of each
+ * one hand-rolling its own lookup.
+ */
+async function requireStandaloneAccess(
+  session: Session,
+  supabase: SupabaseClient,
+  assignmentId: string
+): Promise<{ error: string | null; projectId: string | null }> {
+  const { data } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .select("project_id")
+    .eq("id", assignmentId)
+    .maybeSingle<{ project_id: string }>();
+  if (!data) return { error: "Assignment not found.", projectId: null };
+  if (!(await canRunStandaloneAssignment(session, data.project_id))) {
+    return { error: STAFF_ONLY_ERROR, projectId: data.project_id };
+  }
+  return { error: null, projectId: data.project_id };
+}
 
 export type AssignmentType = "fat" | "witness_inspection" | "specific_test" | "pre_shipment";
 // R16: a conditional pass leaves the assignment genuinely open ("conditional_open") until its
@@ -120,9 +157,11 @@ export async function createAssignmentAction(
   formData: FormData
 ): Promise<CreateAssignmentState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) return { error: "Project, assignment type and equipment description are required." };
+  if (!(await canRunStandaloneAssignment(session, projectId))) return { error: STAFF_ONLY_ERROR };
+
   const assignmentType = String(formData.get("assignment_type") ?? "").trim() as AssignmentType;
   const equipmentDescription = String(formData.get("equipment_description") ?? "").trim();
   const manufacturer = String(formData.get("manufacturer") ?? "").trim();
@@ -211,7 +250,6 @@ export async function addMeasurementAction(
   formData: FormData
 ): Promise<AddMeasurementState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -226,6 +264,8 @@ export async function addMeasurementAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
 
   const { count } = await supabase
     .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
@@ -290,7 +330,6 @@ export async function suggestStandaloneMeasurementsAction(
   formData: FormData
 ): Promise<SuggestMeasurementsState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   if (!assignmentId) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: "Missing assignment." };
@@ -312,6 +351,9 @@ export async function suggestStandaloneMeasurementsAction(
     >();
 
   if (!assignment) return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: "Assignment not found." };
+  if (!(await canRunStandaloneAssignment(session, assignment.project_id))) {
+    return { ...EMPTY_SUGGEST_MEASUREMENTS_STATE, error: STAFF_ONLY_ERROR };
+  }
 
   const { data: project } = await supabase
     .from("projects")
@@ -373,7 +415,6 @@ export async function addPunchItemAction(
   formData: FormData
 ): Promise<AddPunchItemState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -383,6 +424,9 @@ export async function addPunchItemAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
+
   const { error } = await supabase.from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS).insert({
     assignment_id: assignmentId,
     description,
@@ -419,7 +463,6 @@ export async function addPunchItemAction(
 
 export async function togglePunchItemAction(formData: FormData) {
   const session = await requireSession();
-  if (!session.isJagsStaff) return;
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const punchItemId = String(formData.get("punch_item_id") ?? "").trim();
@@ -429,6 +472,9 @@ export async function togglePunchItemAction(formData: FormData) {
   if (!assignmentId || !punchItemId) return;
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return;
+
   await supabase
     .from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS)
     .update({ status: nextStatus })
@@ -469,7 +515,6 @@ export interface AddPhotoState {
  */
 export async function addPhotoAction(_prev: AddPhotoState, formData: FormData): Promise<AddPhotoState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const storagePath = String(formData.get("storage_path") ?? "").trim();
@@ -480,6 +525,9 @@ export async function addPhotoAction(_prev: AddPhotoState, formData: FormData): 
   }
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -508,7 +556,6 @@ export async function addSignatureAction(
   formData: FormData
 ): Promise<AddSignatureState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const role = String(formData.get("role") ?? "").trim();
@@ -520,6 +567,9 @@ export async function addSignatureAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
+
   const { error } = await supabase.from(STANDALONE_ASSIGNMENT_SIGNATURES).insert({
     assignment_id: assignmentId,
     role,
@@ -544,7 +594,6 @@ export async function updateNotesAction(
   formData: FormData
 ): Promise<UpdateNotesState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
@@ -554,6 +603,9 @@ export async function updateNotesAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
+
   const { error } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
     .update({ notes: notes || null })
@@ -577,7 +629,6 @@ export async function finalizeAssignmentAction(
   formData: FormData
 ): Promise<FinalizeAssignmentState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const conclusion = String(formData.get("conclusion") ?? "").trim() as AssignmentConclusion;
@@ -587,6 +638,8 @@ export async function finalizeAssignmentAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
 
   // A FAT/witness/pre-shipment record's signatures are the actual evidence the test was witnessed —
   // finalizing (which locks the record) without at least one captured signature would produce a
@@ -709,12 +762,13 @@ export async function issueClearanceAction(
   formData: FormData
 ): Promise<IssueClearanceState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   if (!assignmentId) return { error: "Missing assignment." };
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
 
   const { count: openCount, error: openCountError } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
@@ -792,13 +846,15 @@ export async function linkAssignmentEvidenceDocumentAction(
   formData: FormData
 ): Promise<LinkEvidenceDocumentState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: STAFF_ONLY_ERROR };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const vaultDocumentId = String(formData.get("vault_document_id") ?? "").trim();
   if (!assignmentId || !vaultDocumentId) return { error: "Choose a document to link." };
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return { error: access.error };
+
   const { error } = await supabase
     .from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS)
     .insert({ assignment_id: assignmentId, vault_document_id: vaultDocumentId, linked_by: session.userId });
@@ -838,13 +894,15 @@ export async function linkAssignmentEvidenceDocumentAction(
 /** Removes the link (never deletes the underlying vault document — it may be referenced elsewhere). */
 export async function unlinkAssignmentEvidenceDocumentAction(formData: FormData): Promise<void> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return;
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
   const linkId = String(formData.get("link_id") ?? "").trim();
   if (!assignmentId || !linkId) return;
 
   const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  if (access.error) return;
+
   await supabase.from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS).delete().eq("id", linkId);
 
   // Symmetry with linkAssignmentEvidenceDocumentAction, which already audits the link — found

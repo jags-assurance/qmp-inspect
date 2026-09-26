@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { Button } from "@/components/ui/button";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
 import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
@@ -14,6 +15,11 @@ export default async function StandaloneAssignmentsPage({
   searchParams: Promise<{ project?: string; discipline?: string; q?: string; page?: string }>;
 }) {
   const session = await requireSession();
+  // Full Client-Managed tier: a run_standalone_assignment permission holder gets the same
+  // "+ New assignment" affordance JAGS staff always had — org-wide check since we don't yet know
+  // which project they'll pick; a project-scoped grant just won't show the button here (they'd
+  // still succeed from a project-filtered view, this is only about this one link's visibility).
+  const canRunStandaloneAssignment = session.isJagsStaff || (await hasPermission(session.userId, "run_standalone_assignment"));
   const { project: projectId, discipline: disciplineId, q, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
@@ -66,7 +72,7 @@ export default async function StandaloneAssignmentsPage({
               title="Standalone Assignments — how this works"
               points={[
                 "One-off FATs, witness inspections, specific tests and pre-shipment checks that don't need an ITP or data book behind them.",
-                "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance are all gated to JAGS staff, unlike ITP checklists which a contractor can self-execute.",
+                "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance — UNLESS your organisation is on the Full Client-Managed tier and you specifically hold the \"Create and run a Standalone Assignment\" custom permission, in which case you can do all of it yourself too.",
                 "A conditional pass leaves the assignment genuinely open (\"conditional_open\") until its linked punch-list item(s) are closed and clearance is issued — a clean pass or fail completes immediately on finalize.",
                 "The discipline filter and search run server-side against the full register, not just the current page.",
               ]}
@@ -77,7 +83,7 @@ export default async function StandaloneAssignmentsPage({
             data book required.
           </p>
         </div>
-        {session.isJagsStaff && (
+        {canRunStandaloneAssignment && (
           <Link href="/inspect/standalone/new">
             <Button>+ New assignment</Button>
           </Link>

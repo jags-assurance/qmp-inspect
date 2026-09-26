@@ -83,7 +83,7 @@ export function AssignmentWorkspace({
   punchItems,
   signatures,
   linkedOpenPunchCount,
-  isJagsStaff,
+  canManage,
 }: {
   assignment: Assignment;
   measurements: StandaloneAssignmentMeasurementRow[];
@@ -96,21 +96,23 @@ export function AssignmentWorkspace({
    *  created — the real R16 clearance gate, distinct from `punchItems` above (the assignment's own
    *  internal punch tab, a separate table with no bearing on clearance). */
   linkedOpenPunchCount: number;
-  /** Every mutating control below (add measurement/punch item/photo/signature, finalize) is
-   * staff-only server-side — every action in lib/standalone/actions.ts rejects a non-staff call.
-   * Without this, the controls still rendered for any logged-in party (client, subcontractor,
-   * TPI), who could click "+ Add measurement" or "Finalize" and only find out it was blocked
-   * after submitting. Gating on isDraft alone was never enough; it has to be isDraft && staff. */
-  isJagsStaff: boolean;
+  /** Every mutating control below (add measurement/punch item/photo/signature, finalize, issue
+   * clearance) is gated server-side by requireStandaloneAccess/canRunStandaloneAssignment
+   * (lib/standalone/actions.ts): true for JAGS staff, or for anyone specifically granted the
+   * run_standalone_assignment permission (Full Client-Managed tier only). Without this prop, the
+   * controls would still render for any logged-in party who fails that check, who could click "+
+   * Add measurement" or "Finalize" and only find out it was blocked after submitting. Gating on
+   * isDraft alone was never enough; it has to be isDraft && canManage. */
+  canManage: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("measurements");
   const isDraft = assignment.status === "draft";
   const isConditionalOpen = assignment.status === "conditional_open";
   // Distinct from isDraft: isDraft is about the assignment's actual state (still correct to show
   // as "Draft" to anyone), canEdit is about whether THIS viewer may mutate it. Every action this
-  // gates is staff-only server-side (lib/standalone/actions.ts) — this just stops the controls
-  // from rendering for a party who'd only find that out after clicking submit.
-  const canEdit = isDraft && isJagsStaff;
+  // gates is permission-checked server-side (lib/standalone/actions.ts) — this just stops the
+  // controls from rendering for a party who'd only find that out after clicking submit.
+  const canEdit = isDraft && canManage;
   const openPunchCount = punchItems.filter((p) => p.status === "open").length;
 
   return (
@@ -333,16 +335,16 @@ export function AssignmentWorkspace({
         </div>
       )}
       {isDraft && !canEdit && (
-        <p className="mt-6 text-sm text-muted">This assignment is still in progress — a JAGS inspector will finalize it.</p>
+        <p className="mt-6 text-sm text-muted">This assignment is still in progress — someone with access to run it will finalize it.</p>
       )}
-      {isConditionalOpen && isJagsStaff && (
+      {isConditionalOpen && canManage && (
         <div className="mt-6">
           <IssueClearanceForm assignmentId={assignment.id} canClear={linkedOpenPunchCount === 0} />
         </div>
       )}
-      {isConditionalOpen && !isJagsStaff && (
+      {isConditionalOpen && !canManage && (
         <p className="mt-6 text-sm text-muted">
-          Conditionally passed — a JAGS inspector will issue clearance once the linked punch item(s) are closed.
+          Conditionally passed — someone with access to run it will issue clearance once the linked punch item(s) are closed.
         </p>
       )}
       {assignment.status === "completed" && (

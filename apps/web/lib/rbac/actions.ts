@@ -134,10 +134,11 @@ export async function toggleRolePermissionAction(
     // Granting (not revoking) is restricted to the client-safe subset — see
     // CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment for why manage_intervention_levels/issue_irn/
     // close_ncr/approve_vault_document stay JAGS-Admin-grantable-only. A client_managed org can
-    // additionally grant the 2 CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp,
-    // provision_party_login) — a plain self_managed ("Hybrid") org cannot, since Hybrid must keep
-    // requiring JAGS to approve/provision. Revoking any key (including one an Admin previously
-    // granted) is always allowed — mirrors the RLS policy's using/with-check split exactly.
+    // additionally grant the CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp,
+    // provision_party_login, run_standalone_assignment) — a plain self_managed ("Hybrid") org
+    // cannot, since Hybrid must keep requiring JAGS for all three. Revoking any key (including one
+    // an Admin previously granted) is always allowed — mirrors the RLS policy's using/with-check
+    // split exactly.
     if (grant && !CLIENT_SELF_SERVICE_PERMISSION_KEYS.includes(permissionKey as (typeof CLIENT_SELF_SERVICE_PERMISSION_KEYS)[number])) {
       const isClientManagedOnlyKey = CLIENT_MANAGED_ONLY_PERMISSION_KEYS.includes(
         permissionKey as (typeof CLIENT_MANAGED_ONLY_PERMISSION_KEYS)[number]
