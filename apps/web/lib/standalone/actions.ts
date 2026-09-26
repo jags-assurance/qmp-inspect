@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -500,6 +500,17 @@ export async function togglePunchItemAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const access = await requireStandaloneAccess(session, supabase, assignmentId);
   if (access.error) return;
+
+  // Real gap the audit found: this single click was the ONLY gate between "conditional pass" and
+  // fully cleared (issueClearanceAction below trusts punch items being non-'open' as its clearance
+  // check) — the same person who ran the FAT could self-close their own punch item with zero
+  // independent review or evidence, unlike the project-wide punch list's deliberate two-step
+  // resolve→verify-close split (lib/punch-list/actions.ts). Mirrors that same authority bar rather
+  // than building a second, inconsistent two-step flow for this smaller feature.
+  if (access.projectId && nextStatus === "closed") {
+    const canClose = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", access.projectId));
+    if (!canClose) return;
+  }
 
   await supabase
     .from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS)

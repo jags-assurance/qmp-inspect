@@ -745,6 +745,16 @@ export async function reassignSignoffPartyAction(
     .eq("id", projectPartyId)
     .maybeSingle<{ party_type: string; projects: { organization_id: string } | null }>();
 
+  // Real gap found in audit: the reassignment update below used to run unconditionally even when
+  // this fetch failed — the party's user_id would get repointed, but the access-grant insert further
+  // down (gated on `!fetchTypeError`) would silently never run, quietly reintroducing the exact
+  // "linked but no access" bug the comment on that insert says this whole action exists to fix.
+  // Abort before the write instead of after, so a fetch failure can never leave that split state.
+  if (fetchTypeError) {
+    console.error(`[signoff] reassignSignoffPartyAction: could not resolve party type for ${projectPartyId}:`, fetchTypeError);
+    return { error: "Could not reassign the party. Check you have permission and try again." };
+  }
+
   const { error } = await supabase
     .from("project_parties")
     .update({ user_id: newUserId })

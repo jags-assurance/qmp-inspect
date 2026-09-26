@@ -182,6 +182,24 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
     return { error: "It isn't your turn to review this ITP yet, or you're not on its review chain." };
   }
 
+  // Real gap found in audit: the chain is snapshotted at submission time (startReviewChainForItp)
+  // and never re-checked against the reviewer's CURRENT access — if this person was removed from
+  // the org after the chain was set, the step deadlocks forever with no way to unstick it (unlike
+  // the H/W/R/S grid, which has reassignSignoffPartyAction). Not a security hole in itself (a
+  // removed user can't get a session), but a real deadlock risk — surface it clearly so an Admin
+  // knows to use reassignReviewStepAction below instead of assuming the step is just "not ready".
+  if (!isAdminStaff(session)) {
+    const { data: stillGranted } = await supabase
+      .from("access_grants")
+      .select("id")
+      .eq("user_id", session.userId)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    if (!stillGranted) {
+      return { error: "Your access to this organisation appears to have been removed — ask a JAGS Admin to reassign this review step." };
+    }
+  }
+
   const { error: updateError } = await supabase
     .from(ITP_REVIEW_PROGRESS_TABLE)
     .update({ status: "approved", reviewed_at: new Date().toISOString() })
@@ -284,5 +302,73 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
+export interface ReassignReviewStepState {
+  error: string | null;
+}
+
+/**
+ * Admin-only escape hatch for the deadlock the audit flagged: a review chain is snapshotted at
+ * submission time and has no reassignment path if that reviewer is later removed from the org or
+ * deactivated — the ITP would otherwise sit stuck at "under_review" forever with no route forward.
+ * Only repoints a still-PENDING step (an already-approved step is a historical record, not editable).
+ */
+export async function reassignReviewStepAction(_prev: ReassignReviewStepState, formData: FormData): Promise<ReassignReviewStepState> {
+  const stepId = String(formData.get("step_id") ?? "").trim();
+  const newReviewerUserId = String(formData.get("new_reviewer_user_id") ?? "").trim();
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  if (!stepId || !newReviewerUserId || !itpId) return { error: "Missing step or replacement reviewer." };
+
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can reassign a stuck review step." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error, data } = await supabase
+    .from(ITP_REVIEW_PROGRESS_TABLE)
+    .update({ reviewer_user_id: newReviewerUserId })
+    .eq("id", stepId)
+    .eq("itp_id", itpId)
+    .eq("status", "pending")
+    .select("id")
+    .returns<{ id: string }[]>();
+
+  if (error) return { error: "Could not reassign this review step." };
+  if (!data || data.length === 0) return { error: "This step is no longer pending — it may already have been reviewed." };
+
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("itp_number, title, project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ itp_number: string; title: string; project_id: string; projects: { organization_id: string } | null }>();
+    if (itp?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "review_step_reassigned",
+        actorId: session.userId,
+        summary: `Review step reassigned on ${itp.itp_number}`,
+      });
+      await createNotification(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        recipientUserId: newReviewerUserId,
+        title: "Your review is needed",
+        body: `${itp.itp_number} — ${itp.title}`,
+        link: `/inspect/itps/${itpId}`,
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath(`/inspect/itps/${itpId}/approval-roadmap`);
   return { error: null };
 }

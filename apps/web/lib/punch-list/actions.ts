@@ -205,6 +205,20 @@ export async function closePunchItemAction(
 
   const supabase = await createSupabaseServerClient();
 
+  // Real self-certification gap the two-step split exists to close: without this check, whoever
+  // clicked "Mark resolved" could immediately click "Verify & close" on their own fix, defeating
+  // the entire point of the independent-verification step (identical concern to NCR close-out and
+  // vault-document approval, both of which are single-actor already). Not gated on isAdminStaff()
+  // either — an Admin who did the fix themselves still isn't an INDEPENDENT reviewer of it.
+  const { data: existing } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .select("resolved_by")
+    .eq("id", punchItemId)
+    .maybeSingle<{ resolved_by: string | null }>();
+  if (existing?.resolved_by && existing.resolved_by === session.userId) {
+    return { error: "You marked this item resolved — a different person must independently verify and close it." };
+  }
+
   const { error, data } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
     .update({
