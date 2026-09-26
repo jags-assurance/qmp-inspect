@@ -28,7 +28,11 @@ export async function getExecutingPartyTypes(
   // client-execution right as the per-project allow_client_execution toggle, without needing an
   // Admin to flip it project-by-project. See supabase/migrations/
   // 20260918010000_self_managed_engagement_scope.sql.
-  if (project?.allow_client_execution || project?.organizations?.engagement_scope === "self_managed") {
+  if (
+    project?.allow_client_execution ||
+    project?.organizations?.engagement_scope === "self_managed" ||
+    project?.organizations?.engagement_scope === "client_managed"
+  ) {
     types.add("client");
   }
   return types;

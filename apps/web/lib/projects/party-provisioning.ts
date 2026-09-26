@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { hasPermission } from "@/lib/rbac/permissions";
 
 export interface ProvisionPartyLoginState {
   error: string | null;
@@ -54,10 +55,12 @@ function generateTempPassword(): string {
  *      password, flag it must_change_password so the next sign-in is forced through /reset-password
  *      before anywhere else (proxy.ts), then link + grant exactly as path 1.
  *
- * JAGS-Admin only: this calls the service-role auth admin API, which is a materially more sensitive
- * capability than anything else in projects/actions.ts (it can create real login credentials for
- * anyone), so it is deliberately NOT extended to team leads or the custom "add_project_party"
- * RBAC grant the way addProjectPartyAction is.
+ * JAGS-Admin only, OR a custom "provision_party_login" RBAC grant on the party's project — this
+ * calls the service-role auth admin API, which is a materially more sensitive capability than
+ * anything else in projects/actions.ts (it can create real login credentials for anyone), so unlike
+ * addProjectPartyAction's "add_project_party" grant, it is deliberately restricted to a permission
+ * key that only a "Full Client-Managed" org's own role can ever be granted (see
+ * CLIENT_MANAGED_ONLY_PERMISSION_KEYS) — never a plain self-managed ("Hybrid") org's.
  */
 export async function provisionPartyLoginAction(
   _prev: ProvisionPartyLoginState,
@@ -69,9 +72,6 @@ export async function provisionPartyLoginAction(
   if (!projectPartyId) return { ...INITIAL_STATE, error: "Missing party." };
 
   const session = await requireSession();
-  if (!isAdminStaff(session)) {
-    return { ...INITIAL_STATE, error: "Only a JAGS Admin can grant a party platform access." };
-  }
 
   if (!isServiceRoleConfigured()) {
     return {
@@ -98,6 +98,15 @@ export async function provisionPartyLoginAction(
     }>();
 
   if (!party) return { ...INITIAL_STATE, error: "Party not found." };
+
+  // JAGS Admin, always; OR — the "Full Client-Managed" tier's whole point — someone holding the
+  // provision_party_login custom permission on this party's own project, which the RLS side
+  // (project_parties_client_managed_provision, if/when the DB grant is added) would enforce anyway.
+  // This app-layer check exists for a clear error message; hasPermission() is never the real gate.
+  if (!isAdminStaff(session) && !(await hasPermission(session.userId, "provision_party_login", party.project_id))) {
+    return { ...INITIAL_STATE, error: "Only a JAGS Admin (or someone granted this permission) can grant a party platform access." };
+  }
+
   if (party.user_id) return { ...INITIAL_STATE, error: "This party is already linked to a login." };
 
   const email = (emailInput || party.contact_email || "").trim();

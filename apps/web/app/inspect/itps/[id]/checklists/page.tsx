@@ -136,7 +136,9 @@ export default async function ItpChecklistsPage({ params }: { params: Promise<{ 
     if (myParty?.is_active) {
       if (myParty.party_type === "client") {
         isEligibleChecklistGenerator =
-          !!itp.projects?.allow_client_itp_creation || itp.projects?.organizations?.engagement_scope === "self_managed";
+          !!itp.projects?.allow_client_itp_creation ||
+          itp.projects?.organizations?.engagement_scope === "self_managed" ||
+          itp.projects?.organizations?.engagement_scope === "client_managed";
       } else if (myParty.party_type === "subcontractor" || myParty.party_type === "main_contractor") {
         isEligibleChecklistGenerator = !!itp.projects?.allow_contractor_itp_creation;
       }

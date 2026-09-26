@@ -9,7 +9,13 @@ import {
   type RbacActionState,
   type AssignCustomRoleState,
 } from "@/lib/rbac/actions";
-import { PERMISSION_KEYS, PERMISSION_LABEL, CLIENT_SELF_SERVICE_PERMISSION_KEYS, type PermissionKey } from "@/lib/rbac/types";
+import {
+  PERMISSION_KEYS,
+  PERMISSION_LABEL,
+  CLIENT_SELF_SERVICE_PERMISSION_KEYS,
+  CLIENT_MANAGED_ONLY_PERMISSION_KEYS,
+  type PermissionKey,
+} from "@/lib/rbac/types";
 import { Button } from "@/components/ui/button";
 
 const deleteInitial: RbacActionState = { error: null };
@@ -19,6 +25,7 @@ const assignInitial: AssignCustomRoleState = { error: null };
 export interface RoleCardData {
   id: string;
   name: string;
+  organizationId: string | null;
   organizationName: string | null;
   grantedPermissions: Set<PermissionKey>;
   assignments: { id: string; userName: string; userEmail: string; projectName: string | null }[];
@@ -29,18 +36,26 @@ export function RoleCard({
   users,
   projects,
   restrictGrantableKeys = false,
+  isClientManagedOrg = false,
 }: {
   role: RoleCardData;
   users: { id: string; full_name: string; email: string }[];
   projects: { id: string; name: string }[];
   /**
-   * True for a self-managed client (never for the Admin view): disables the toggle for the 3
-   * JAGS-operational-only keys (manage_intervention_levels/issue_irn/close_ncr — see
-   * CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment) UNLESS already granted, in which case it
-   * stays clickable to revoke — mirrors the RLS policy's grant-restricted/revoke-unrestricted split
-   * exactly.
+   * True for a self-managed client (never for the Admin view): disables the toggle for the
+   * JAGS-operational-only keys (manage_intervention_levels/issue_irn/close_ncr/
+   * approve_vault_document — see CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment) UNLESS already
+   * granted, in which case it stays clickable to revoke — mirrors the RLS policy's
+   * grant-restricted/revoke-unrestricted split exactly.
    */
   restrictGrantableKeys?: boolean;
+  /**
+   * True when this role's own organisation is on the client_managed ("Full Client-Managed") tier —
+   * lets the 2 CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp, provision_party_login) also be
+   * grantable, on top of the always-grantable CLIENT_SELF_SERVICE_PERMISSION_KEYS. A plain
+   * self_managed ("Hybrid") org's roles keep this false.
+   */
+  isClientManagedOrg?: boolean;
 }) {
   const [deleteState, deleteAction, deletePending] = useActionState(deleteCustomRoleAction, deleteInitial);
   const [toggleState, toggleAction] = useActionState(toggleRolePermissionAction, toggleInitial);
@@ -67,7 +82,9 @@ export function RoleCard({
         <div className="mt-1 flex flex-wrap gap-2">
           {PERMISSION_KEYS.map((key) => {
             const granted = role.grantedPermissions.has(key);
-            const clientCanGrant = CLIENT_SELF_SERVICE_PERMISSION_KEYS.includes(key);
+            const clientCanGrant =
+              CLIENT_SELF_SERVICE_PERMISSION_KEYS.includes(key) ||
+              (isClientManagedOrg && CLIENT_MANAGED_ONLY_PERMISSION_KEYS.includes(key));
             // Only disable the not-yet-granted (grant) direction — revoking an already-granted
             // admin-only key must stay clickable, matching the server action/RLS exactly.
             const disabled = restrictGrantableKeys && !granted && !clientCanGrant;

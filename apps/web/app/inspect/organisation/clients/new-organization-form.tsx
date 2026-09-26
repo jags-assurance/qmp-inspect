@@ -83,9 +83,18 @@ export function NewOrganizationForm() {
           <label className="flex items-start gap-2 text-sm">
             <input type="radio" name="engagement_scope" value="self_managed" className="mt-1" />
             <span>
-              <span className="font-medium text-ink">Self-Managed / Platform-Only</span>
+              <span className="font-medium text-ink">Self-Managed (Hybrid)</span>
               <span className="block text-xs text-muted">
-                This client&apos;s own teams create and execute ITPs on every project — JAGS only provides the platform.
+                This client&apos;s own teams build, submit and accept ITPs on every project — but a JAGS staff member still has to Approve each one.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="radio" name="engagement_scope" value="client_managed" className="mt-1" />
+            <span>
+              <span className="font-medium text-ink">Full Client-Managed</span>
+              <span className="block text-xs text-muted">
+                Everything Self-Managed gives, plus the client&apos;s own permission-granted people can Approve their own ITPs and create new logins for their own team — no JAGS staff involvement day-to-day after onboarding.
               </span>
             </span>
           </label>

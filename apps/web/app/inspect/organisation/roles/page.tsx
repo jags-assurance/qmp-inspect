@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CUSTOM_ROLES_TABLE, CUSTOM_ROLE_PERMISSIONS_TABLE, CUSTOM_ROLE_ASSIGNMENTS_TABLE, type PermissionKey } from "@/lib/rbac/types";
-import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
+import { getSelfManagedOrgIdsForUser, getClientManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { CreateRoleForm } from "./create-role-form";
 import { RoleCard, type RoleCardData } from "./role-card";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -44,9 +44,11 @@ export default async function CustomRolesPage() {
   const admin = isAdminStaff(session);
 
   let selfManagedOrgIds: string[] = [];
+  let clientManagedOrgIds = new Set<string>();
   if (!admin) {
     selfManagedOrgIds = Array.from(await getSelfManagedOrgIdsForUser(supabase, session.userId));
     if (selfManagedOrgIds.length === 0) redirect("/inspect");
+    clientManagedOrgIds = await getClientManagedOrgIdsForUser(supabase, session.userId);
   }
 
   const [{ data: roles }, { data: permissionRows }, { data: assignmentRows }, { data: organizations }, { data: projects }] = await Promise.all([
@@ -110,6 +112,7 @@ export default async function CustomRolesPage() {
   const roleCards: RoleCardData[] = (roles ?? []).map((r) => ({
     id: r.id,
     name: r.name,
+    organizationId: r.organization_id,
     organizationName: r.organization_id ? (orgNameById.get(r.organization_id) ?? "Unknown organisation") : null,
     grantedPermissions: permissionsByRole.get(r.id) ?? new Set<PermissionKey>(),
     assignments: (assignmentsByRole.get(r.id) ?? []).map((a) => ({
@@ -149,7 +152,14 @@ export default async function CustomRolesPage() {
 
       <div className="mt-8 space-y-4">
         {roleCards.map((role) => (
-          <RoleCard key={role.id} role={role} users={users} projects={projects ?? []} restrictGrantableKeys={!admin} />
+          <RoleCard
+            key={role.id}
+            role={role}
+            users={users}
+            projects={projects ?? []}
+            restrictGrantableKeys={!admin}
+            isClientManagedOrg={!!role.organizationId && clientManagedOrgIds.has(role.organizationId)}
+          />
         ))}
         {roleCards.length === 0 && <p className="text-sm text-muted">No custom roles yet — create the first one above.</p>}
       </div>

@@ -15,9 +15,15 @@ const SCOPES: { value: string; label: string; description: string }[] = [
   },
   {
     value: "self_managed",
-    label: "Self-Managed / Platform-Only",
+    label: "Self-Managed (Hybrid)",
     description:
-      "This client's own teams create and execute ITPs across every one of their projects — JAGS only provides the platform and standard monitoring. Applies org-wide, no per-project setup needed.",
+      "This client's own teams create, submit and accept their own ITPs across every one of their projects — but a JAGS staff member still has to Approve each one. JAGS only provides the platform and standard monitoring otherwise. Applies org-wide, no per-project setup needed.",
+  },
+  {
+    value: "client_managed",
+    label: "Full Client-Managed",
+    description:
+      "Everything Self-Managed gives, plus: the client's own people can Approve their own ITPs and create brand-new logins for their own team — both still permission-gated via that client's own Custom roles page, not automatic for every user. JAGS only does the one-time onboarding; no JAGS staff involvement day-to-day after that.",
   },
 ];
 

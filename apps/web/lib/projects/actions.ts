@@ -233,8 +233,8 @@ export async function addSelfManagedPartyAction(
   if (!project) {
     return { error: "Project not found, or you don't have access to it." };
   }
-  if (project.organizations?.engagement_scope !== "self_managed") {
-    return { error: "This is only available on projects belonging to a self-managed client organisation." };
+  if (project.organizations?.engagement_scope !== "self_managed" && project.organizations?.engagement_scope !== "client_managed") {
+    return { error: "This is only available on projects belonging to a self-managed or client-managed client organisation." };
   }
 
   // Escape ILIKE's own wildcard characters so a literal email is matched, not a pattern — email is

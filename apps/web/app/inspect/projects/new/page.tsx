@@ -31,7 +31,7 @@ export default async function NewProjectPage() {
     const seen = new Set<string>();
     for (const g of grants ?? []) {
       const org = g.organizations;
-      if (org && org.engagement_scope === "self_managed" && !seen.has(org.id)) {
+      if (org && (org.engagement_scope === "self_managed" || org.engagement_scope === "client_managed") && !seen.has(org.id)) {
         seen.add(org.id);
         organizations.push({ id: org.id, name: org.name });
       }

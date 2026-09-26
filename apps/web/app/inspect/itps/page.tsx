@@ -50,7 +50,9 @@ export default async function ItpsPage({
       >();
     canCreateItp = (eligibleParties ?? []).some((p) =>
       p.party_type === "client"
-        ? p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed"
+        ? p.projects?.allow_client_itp_creation ||
+          p.projects?.organizations?.engagement_scope === "self_managed" ||
+          p.projects?.organizations?.engagement_scope === "client_managed"
         : p.projects?.allow_contractor_itp_creation
     );
   }

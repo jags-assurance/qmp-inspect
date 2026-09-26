@@ -21,7 +21,9 @@ export default async function ProjectsPage() {
       .select("organizations(engagement_scope)")
       .eq("user_id", session.userId)
       .returns<{ organizations: { engagement_scope: string } | null }[]>();
-    canCreateProject = (grants ?? []).some((g) => g.organizations?.engagement_scope === "self_managed");
+    canCreateProject = (grants ?? []).some(
+      (g) => g.organizations?.engagement_scope === "self_managed" || g.organizations?.engagement_scope === "client_managed"
+    );
   }
 
   const { data: projects } = await supabase

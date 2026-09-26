@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
+import { hasPermission } from "@/lib/rbac/permissions";
 
 /**
  * Consolidated self-service hub for a Self-Managed client's own org — everything they can already
@@ -35,7 +36,8 @@ export default async function ManageHubPage() {
     .eq("id", ownOrgId)
     .maybeSingle<{ id: string; name: string; engagement_scope: string }>();
 
-  if (!org || org.engagement_scope !== "self_managed") redirect("/inspect");
+  if (!org || (org.engagement_scope !== "self_managed" && org.engagement_scope !== "client_managed")) redirect("/inspect");
+  const isClientManaged = org.engagement_scope === "client_managed";
 
   const { data: projects } = await supabase
     .from("projects")
@@ -71,13 +73,32 @@ export default async function ManageHubPage() {
     const partyType = myPartyByProject.get(projectId);
     const project = projectById.get(projectId);
     if (!partyType || !project) return false;
-    // This page only ever renders for a self_managed org (redirected away otherwise, above), and
-    // is_client_itp_creator treats a self_managed org's client party as eligible unconditionally —
-    // so there's no flag to check here, unlike the contractor branch below.
+    // This page only ever renders for a self_managed or client_managed org (redirected away
+    // otherwise, above), and is_client_itp_creator treats either tier's client party as eligible
+    // unconditionally — so there's no flag to check here, unlike the contractor branch below.
     if (partyType === "client") return true;
     if (partyType === "subcontractor" || partyType === "main_contractor") return project.allow_contractor_itp_creation;
     return false;
   }
+
+  // Full Client-Managed tier's approval half: only shown when this specific person holds the
+  // approve_itp custom permission on the ITP's own project (see CLIENT_MANAGED_ONLY_PERMISSION_KEYS)
+  // — never true for a plain Self-Managed ("Hybrid") org, which always needs JAGS to approve.
+  const underReviewProjectIds = isClientManaged
+    ? [...new Set((itps ?? []).filter((itp) => itp.status === "under_review").map((itp) => itp.project_id))]
+    : [];
+  const approvableProjectIds = new Set(
+    (
+      await Promise.all(
+        underReviewProjectIds.map(async (projectId) => ({
+          projectId,
+          canApprove: await hasPermission(session.userId, "approve_itp", projectId),
+        }))
+      )
+    )
+      .filter((r) => r.canApprove)
+      .map((r) => r.projectId)
+  );
 
   const actionQueue = (itps ?? [])
     .map((itp) => {
@@ -85,6 +106,9 @@ export default async function ManageHubPage() {
       const partyType = myPartyByProject.get(itp.project_id);
       if (itp.status === "draft" && eligible) {
         return { ...itp, action: "Submit for review" as const };
+      }
+      if (itp.status === "under_review" && approvableProjectIds.has(itp.project_id)) {
+        return { ...itp, action: "Approve ITP" as const };
       }
       if (itp.status === "approved" && partyType === "client") {
         return { ...itp, action: "Accept ITP" as const };
@@ -103,17 +127,18 @@ export default async function ManageHubPage() {
         <PageGuide
           title="Manage — how this works"
           points={[
-            "Only shown to Self-Managed client organisations, and only for your own org — JAGS staff never see this page, they use the ordinary nav instead.",
-            "\"Needs your action\" surfaces exactly what's waiting on you: submitting your own draft ITPs, generating checklists once an ITP you can create for is approved, and accepting an ITP if you're the client party.",
+            "Only shown to Self-Managed and Full Client-Managed client organisations, and only for your own org — JAGS staff never see this page, they use the ordinary nav instead.",
+            "\"Needs your action\" surfaces exactly what's waiting on you: submitting your own draft ITPs, generating checklists once an ITP you can create for is approved, accepting an ITP if you're the client party, and — Full Client-Managed only, and only if you hold the approve_itp custom permission — approving an ITP yourself.",
             "Nothing here grants a new permission — it's the same RLS-scoped data and the same gated actions the ITP detail/checklists pages already expose, just gathered in one place.",
-            "Approving an ITP, closing an NCR, and issuing an IRN are never self-service, even here — those stay JAGS-only by design, as the independent check.",
+            "Closing an NCR and issuing an IRN are never self-service, even here — those stay JAGS-only by design, as the independent check. Approving is JAGS-only on Self-Managed (Hybrid); it becomes self-service only on Full Client-Managed, and only for whoever's granted that permission.",
           ]}
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Self-Managed organisation — a single place for what your own team runs day to day. JAGS still
-        Approves every ITP, Closes every NCR, and Issues every IRN — that independent check never
-        moves to this side, by design.
+        {isClientManaged ? "Full Client-Managed" : "Self-Managed"} organisation — a single place for
+        what your own team runs day to day. JAGS still Closes every NCR and Issues every IRN — that
+        independent check never moves to this side, by design.
+        {!isClientManaged && " JAGS also still Approves every ITP on this tier."}
       </p>
 
       <section className="mt-6">

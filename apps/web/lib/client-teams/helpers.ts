@@ -72,10 +72,11 @@ export async function isLeadOfAnyClientTeam(
 }
 
 /**
- * Whether `organizationId` is self_managed — the tier that gets the "create your first client team"
- * bootstrap capability (mirrors can_bootstrap_client_team()'s engagement_scope check at the DB
- * layer). A full_service client never sees the create-team affordance; their teams (if any) are set
- * up by JAGS during onboarding.
+ * Whether `organizationId` is self_managed OR client_managed — both tiers get the "create your
+ * first client team" bootstrap capability (mirrors can_bootstrap_client_team()'s engagement_scope
+ * check at the DB layer, widened in 20260930050000_client_managed_engagement_scope.sql). A
+ * full_service client never sees the create-team affordance; their teams (if any) are set up by
+ * JAGS during onboarding.
  */
 export async function isSelfManagedOrg(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -87,5 +88,5 @@ export async function isSelfManagedOrg(
     .eq("id", organizationId)
     .maybeSingle();
 
-  return data?.engagement_scope === "self_managed";
+  return data?.engagement_scope === "self_managed" || data?.engagement_scope === "client_managed";
 }

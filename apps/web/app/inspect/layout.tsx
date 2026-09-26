@@ -39,7 +39,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
       supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
     ]);
-    isSelfManagedOrg = org?.engagement_scope === "self_managed";
+    isSelfManagedOrg = org?.engagement_scope === "self_managed" || org?.engagement_scope === "client_managed";
     showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
   }
 

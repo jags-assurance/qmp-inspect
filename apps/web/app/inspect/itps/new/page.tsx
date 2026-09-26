@@ -52,7 +52,9 @@ export default async function NewItpPage() {
       (eligibleParties ?? [])
         .filter((p) =>
           p.party_type === "client"
-            ? p.projects?.allow_client_itp_creation || p.projects?.organizations?.engagement_scope === "self_managed"
+            ? p.projects?.allow_client_itp_creation ||
+              p.projects?.organizations?.engagement_scope === "self_managed" ||
+              p.projects?.organizations?.engagement_scope === "client_managed"
             : p.projects?.allow_contractor_itp_creation
         )
         .map((p) => p.project_id)

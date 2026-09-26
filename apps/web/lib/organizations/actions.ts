@@ -46,7 +46,7 @@ export async function createOrganizationAction(
   if (!["jags_led", "co_branded", "white_label"].includes(engagementMode)) {
     return { error: "Invalid engagement mode." };
   }
-  if (!["full_service", "self_managed"].includes(engagementScope)) {
+  if (!["full_service", "self_managed", "client_managed"].includes(engagementScope)) {
     return { error: "Invalid engagement scope." };
   }
 
@@ -60,7 +60,7 @@ export async function createOrganizationAction(
       name,
       slug,
       engagement_mode: engagementMode as "jags_led" | "co_branded" | "white_label",
-      engagement_scope: engagementScope as "full_service" | "self_managed",
+      engagement_scope: engagementScope as "full_service" | "self_managed" | "client_managed",
     })
     .select("id")
     .single();

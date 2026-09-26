@@ -25,6 +25,7 @@ const ENGAGEMENT_MODE_LABEL: Record<string, string> = {
 const ENGAGEMENT_SCOPE_LABEL: Record<string, string> = {
   full_service: "Full-Managed",
   self_managed: "Self-Managed",
+  client_managed: "Full Client-Managed",
 };
 
 /**
@@ -94,7 +95,7 @@ export default async function ClientOrganisationsPage() {
               </div>
               <div className="flex items-center gap-2">
                 {!org.is_active && <Badge tone="neutral">Inactive</Badge>}
-                <Badge tone={org.engagement_scope === "self_managed" ? "gold" : "neutral"}>
+                <Badge tone={org.engagement_scope === "self_managed" || org.engagement_scope === "client_managed" ? "gold" : "neutral"}>
                   {ENGAGEMENT_SCOPE_LABEL[org.engagement_scope] ?? org.engagement_scope}
                 </Badge>
                 <Badge tone={org.ai_consent ? "info" : "neutral"}>

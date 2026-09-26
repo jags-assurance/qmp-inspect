@@ -151,7 +151,7 @@ export default async function ClientTeamsPage({
   // Bootstrap: a team with no lead yet, in a self_managed org, is manageable by anyone who reaches
   // this page for that org (mirrors can_bootstrap_client_team_members() in RLS) — lets the person who
   // just created the org's first team add themselves (or anyone else) as its first member/lead.
-  const isSelfManaged = selectedOrg.engagement_scope === "self_managed";
+  const isSelfManaged = selectedOrg.engagement_scope === "self_managed" || selectedOrg.engagement_scope === "client_managed";
   const teamHasNoLead = (teamId: string) => !(membersByTeam.get(teamId) ?? []).some((m) => m.is_team_lead);
 
   const teamCards: ClientTeamCardData[] = (teams ?? []).map((t) => ({

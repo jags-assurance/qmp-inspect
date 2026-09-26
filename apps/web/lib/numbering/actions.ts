@@ -63,7 +63,7 @@ export async function updateEngagementModeAction(
   return { error: null };
 }
 
-const ENGAGEMENT_SCOPES = ["full_service", "self_managed"] as const;
+const ENGAGEMENT_SCOPES = ["full_service", "self_managed", "client_managed"] as const;
 type EngagementScope = (typeof ENGAGEMENT_SCOPES)[number];
 
 /**
@@ -138,7 +138,7 @@ export async function upsertNumberingConfigAction(
       .select("engagement_scope")
       .eq("id", organizationId)
       .maybeSingle<{ engagement_scope: string }>();
-    if (org?.engagement_scope !== "self_managed") {
+    if (org?.engagement_scope !== "self_managed" && org?.engagement_scope !== "client_managed") {
       return { error: "Only a JAGS Admin can change this organisation's numbering settings." };
     }
   }

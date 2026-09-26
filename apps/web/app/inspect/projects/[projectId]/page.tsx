@@ -20,6 +20,7 @@ import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
 import { ResponsiblePersonPicker } from "./responsible-person-picker";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
@@ -170,9 +171,18 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   // Self-managed client party onboarding (supabase/migrations/20260919020000_self_managed_project_party_access.sql):
   // shown instead of the JAGS-only AddProjectPartyForm below, to a non-staff user whose access
   // already reaches this project (implied by having loaded this page at all — project_parties_select
-  // requires has_org_access) on an org that's opted into engagement_scope = 'self_managed'. JAGS
-  // staff keep using the admin form regardless of the org's scope.
-  const canAddSelfManagedParty = !session.isJagsStaff && project.organizations?.engagement_scope === "self_managed";
+  // requires has_org_access) on an org that's opted into engagement_scope = 'self_managed' OR
+  // 'client_managed' (client_managed is a superset capability tier — it can do everything
+  // self_managed can, plus approve/provision on its own). JAGS staff keep using the admin form
+  // regardless of the org's scope.
+  const canAddSelfManagedParty =
+    !session.isJagsStaff &&
+    (project.organizations?.engagement_scope === "self_managed" || project.organizations?.engagement_scope === "client_managed");
+
+  // "Full Client-Managed" tier's whole point: this org's own people can provision brand-new logins
+  // for their own team without a JAGS Admin, via the provision_party_login custom-role grant (see
+  // CLIENT_MANAGED_ONLY_PERMISSION_KEYS) — never available on a plain self_managed org.
+  const canProvisionPartyLogin = isAdminStaff(session) || (await hasPermission(session.userId, "provision_party_login", project.id));
 
   let staffUsers: { id: string; full_name: string }[] = [];
   let reviewChain: { reviewerUserId: string }[] = [];
@@ -373,7 +383,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <div className="mt-1 flex items-center justify-between text-xs text-muted">
                 <span>{party.users ? `${party.users.full_name} (${party.users.email})` : "No linked login yet"}</span>
                 <span className="flex items-center gap-2">
-                  {isAdminStaff(session) && !party.user_id && party.is_active && (
+                  {canProvisionPartyLogin && !party.user_id && party.is_active && (
                     <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} />
                   )}
                   {(canReassign || (isClientTeamLead && party.party_type === "client")) && party.is_active && (

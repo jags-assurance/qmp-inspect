@@ -39,7 +39,7 @@ export async function updateOrgBrandColorsAction(
       .select("engagement_scope")
       .eq("id", organizationId)
       .maybeSingle<{ engagement_scope: string }>();
-    if (org?.engagement_scope !== "self_managed") {
+    if (org?.engagement_scope !== "self_managed" && org?.engagement_scope !== "client_managed") {
       return { error: "Only a JAGS Admin can change this organisation's brand colors." };
     }
   }
@@ -115,7 +115,7 @@ export async function updateOrgLogoAction(
       .select("engagement_scope")
       .eq("id", organizationId)
       .maybeSingle<{ engagement_scope: string }>();
-    if (org?.engagement_scope !== "self_managed") {
+    if (org?.engagement_scope !== "self_managed" && org?.engagement_scope !== "client_managed") {
       return { error: "Only a JAGS Admin can change this organisation's logo." };
     }
   }

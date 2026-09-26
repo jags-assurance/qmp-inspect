@@ -10,8 +10,9 @@ import {
   CUSTOM_ROLE_ASSIGNMENTS_TABLE,
   PERMISSION_KEYS,
   CLIENT_SELF_SERVICE_PERMISSION_KEYS,
+  CLIENT_MANAGED_ONLY_PERMISSION_KEYS,
 } from "./types";
-import { getSelfManagedOrgIdsForUser, getClientOwnedRoleOrgId } from "./access";
+import { getSelfManagedOrgIdsForUser, getClientManagedOrgIdsForUser, getClientOwnedRoleOrgId } from "./access";
 
 export interface RbacActionState {
   error: string | null;
@@ -132,10 +133,19 @@ export async function toggleRolePermissionAction(
     if (!selfManagedOrgIds.has(roleOrgId)) return { error: "You can only change permissions on roles scoped to your own organisation." };
     // Granting (not revoking) is restricted to the client-safe subset — see
     // CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment for why manage_intervention_levels/issue_irn/
-    // close_ncr stay JAGS-Admin-grantable-only. Revoking any key (including one an Admin previously
+    // close_ncr/approve_vault_document stay JAGS-Admin-grantable-only. A client_managed org can
+    // additionally grant the 2 CLIENT_MANAGED_ONLY_PERMISSION_KEYS (approve_itp,
+    // provision_party_login) — a plain self_managed ("Hybrid") org cannot, since Hybrid must keep
+    // requiring JAGS to approve/provision. Revoking any key (including one an Admin previously
     // granted) is always allowed — mirrors the RLS policy's using/with-check split exactly.
     if (grant && !CLIENT_SELF_SERVICE_PERMISSION_KEYS.includes(permissionKey as (typeof CLIENT_SELF_SERVICE_PERMISSION_KEYS)[number])) {
-      return { error: "That permission can only be granted by a JAGS Admin." };
+      const isClientManagedOnlyKey = CLIENT_MANAGED_ONLY_PERMISSION_KEYS.includes(
+        permissionKey as (typeof CLIENT_MANAGED_ONLY_PERMISSION_KEYS)[number]
+      );
+      const clientManagedOrgIds = isClientManagedOnlyKey ? await getClientManagedOrgIdsForUser(supabase, session.userId) : null;
+      if (!isClientManagedOnlyKey || !clientManagedOrgIds!.has(roleOrgId)) {
+        return { error: "That permission can only be granted by a JAGS Admin." };
+      }
     }
   }
 

@@ -63,6 +63,7 @@ import { OfflineRevisionForm } from "./offline-revision-form";
 import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
 // R111: honest "AI not configured" gate (R43's pattern) for the translate-content panel below.
 import { isAiConfigured } from "@/lib/ai/gate";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { TranslateContentPanel } from "./translate-content-panel";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -447,21 +448,26 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
     noticeHours[config.intervention] = config.hours;
   }
 
-  // Client-created ITPs (opt-in per project, or org-wide for a Self-Managed/Platform-Only client —
-  // supabase/migrations/20260918000000_client_itp_creation.sql,
-  // 20260918010000_self_managed_engagement_scope.sql, and 20260919000000_contractor_itp_creation.sql):
-  // the originating client OR subcontractor/main_contractor party can populate sections/items/the
-  // intervention grid on their own ITP while it's still 'draft' — mirrors is_client_itp_creator()
-  // exactly. Submitting for review, approving, and bulk-notifying stay JAGS-only actions regardless
-  // (gated on session.isJagsStaff directly below, not this flag) — approval authority always stays
-  // with JAGS even for a Self-Managed client or a contractor-originated ITP.
+  // Client-created ITPs (opt-in per project, or org-wide for a Self-Managed/Hybrid or Full
+  // Client-Managed client — supabase/migrations/20260918000000_client_itp_creation.sql,
+  // 20260918010000_self_managed_engagement_scope.sql, 20260919000000_contractor_itp_creation.sql,
+  // and 20260930050000_client_managed_engagement_scope.sql): the originating client OR
+  // subcontractor/main_contractor party can populate sections/items/the intervention grid on their
+  // own ITP while it's still 'draft' — mirrors is_client_itp_creator() exactly. Bulk-notifying stays
+  // a JAGS-only action regardless. Approving is JAGS-only UNLESS this org is on the Full
+  // Client-Managed tier AND this person specifically holds the approve_itp custom permission (see
+  // canApproveItp below) — a plain Self-Managed ("Hybrid") org still always needs JAGS to approve.
   const isEligibleItpCreator =
     !session.isJagsStaff &&
     itp.status === "draft" &&
     (parties ?? []).some((p) => {
       if (!p.is_active || p.user_id !== session.userId) return false;
       if (p.party_type === "client") {
-        return !!itp.projects?.allow_client_itp_creation || itp.projects?.organizations?.engagement_scope === "self_managed";
+        return (
+          !!itp.projects?.allow_client_itp_creation ||
+          itp.projects?.organizations?.engagement_scope === "self_managed" ||
+          itp.projects?.organizations?.engagement_scope === "client_managed"
+        );
       }
       if (p.party_type === "subcontractor" || p.party_type === "main_contractor") {
         return !!itp.projects?.allow_contractor_itp_creation;
@@ -496,6 +502,13 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
 
   const reviewSteps = itp.status === "under_review" ? await getItpReviewProgress(supabase, itp.id) : [];
   const hasActiveReviewChain = reviewSteps.length > 0 && reviewSteps.some((s) => s.status === "pending");
+
+  // Full Client-Managed tier's approval half: a non-staff person can Approve only when they hold
+  // the approve_itp custom-role permission on this project — RLS (itps_u,
+  // 20260930050000_client_managed_engagement_scope.sql) is the real gate; this only decides whether
+  // the button renders at all. Never true for a plain Self-Managed ("Hybrid") org, since that tier
+  // has no way to be granted this permission key (see CLIENT_MANAGED_ONLY_PERMISSION_KEYS).
+  const canApproveItp = session.isJagsStaff || (await hasPermission(session.userId, "approve_itp", itp.projects?.id));
 
   return (
     <div>
@@ -630,7 +643,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             Approval roadmap →
           </Link>
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
-          {session.isJagsStaff && itp.status === "under_review" && !hasActiveReviewChain && (
+          {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" />
           )}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
