@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import {
   PUNCH_LIST_ITEMS_TABLE,
   PUNCH_LIST_SOURCES,
@@ -86,19 +88,26 @@ export async function addPunchItemAction(
   return { error: null };
 }
 
-export interface ClosePunchItemState {
+export interface ResolvePunchItemState {
   error: string | null;
 }
 
 /**
- * Closes a punch item. Mirrors the NCR close-out gating pattern (lib/ncrs/actions.ts
- * updateNcrAction): closing evidence is required and is enforced here, in the action, since this
- * is the actual authority boundary — not left to the UI to withhold the button.
+ * Step 1 of 2: marks a punch item resolved — the same "anyone with project access can do their own
+ * work" boundary this table always had (open access, tenant isolation only at the RLS layer), since
+ * fixing the underlying issue is routinely the contractor's/subcontractor's own work, not
+ * JAGS-staff-only. Evidence of what was actually done is required and enforced here, in the action
+ * — the real authority boundary, not left to the UI to withhold the button.
+ *
+ * This does NOT close the item. Closing is a separate, independently-gated step (closePunchItemAction
+ * below) — the gap this two-step split exists to close: previously the SAME person could resolve
+ * and close in one move with no independent check, same self-certification problem this app already
+ * avoids for NCR close-out/vault approval/IRN issuance.
  */
-export async function closePunchItemAction(
-  _prev: ClosePunchItemState,
+export async function resolvePunchItemAction(
+  _prev: ResolvePunchItemState,
   formData: FormData
-): Promise<ClosePunchItemState> {
+): Promise<ResolvePunchItemState> {
   const punchItemId = String(formData.get("punch_item_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
   const closingEvidence = String(formData.get("closing_evidence") ?? "").trim();
@@ -107,7 +116,7 @@ export async function closePunchItemAction(
     return { error: "Missing punch item." };
   }
   if (!closingEvidence) {
-    return { error: "Closing evidence is required before this item can be closed." };
+    return { error: "Evidence of what was done is required before this item can be marked resolved." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -115,18 +124,105 @@ export async function closePunchItemAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase
+  const { error, data } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .update({
+      status: "resolved",
+      closing_evidence: closingEvidence,
+      resolved_by: user?.id ?? null,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq("id", punchItemId)
+    .eq("status", "open")
+    .select("id")
+    .returns<{ id: string }[]>();
+
+  if (error) {
+    return { error: "Could not mark the punch item resolved. Check you have permission and try again." };
+  }
+  if (!data || data.length === 0) {
+    return { error: "This item isn't open (already resolved or closed)." };
+  }
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: punchItemId,
+        action: "resolved",
+        actorId: user?.id ?? null,
+        summary: "Punch item marked resolved, awaiting verification",
+        changes: { closing_evidence: closingEvidence },
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  revalidatePath(`/inspect/projects/${projectId}/punch-list`);
+  revalidatePath(`/inspect/projects/${projectId}/data-book`);
+  return { error: null };
+}
+
+export interface ClosePunchItemState {
+  error: string | null;
+}
+
+/**
+ * Step 2 of 2: verifies and closes a RESOLVED punch item — "high authority by default, delegatable
+ * per person", same model as approveVaultDocumentAction (lib/vault/actions.ts): a JAGS Admin always
+ * can; anyone else needs the close_punch_item custom-role permission (deliberately NOT grantable by
+ * a self-managed/client-managed client to its own role — see CLIENT_SELF_SERVICE_PERMISSION_KEYS's
+ * doc comment — closing out your own fix without independent review is the same self-certification
+ * concern as an NCR close-out or a vault-document approval).
+ *
+ * Only fires from status = 'resolved' (the .eq("status","resolved") below) — you cannot close an
+ * item straight from 'open', skipping the independent-fix-verification step entirely.
+ */
+export async function closePunchItemAction(
+  _prev: ClosePunchItemState,
+  formData: FormData
+): Promise<ClosePunchItemState> {
+  const punchItemId = String(formData.get("punch_item_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const verificationNotes = String(formData.get("verification_notes") ?? "").trim();
+
+  if (!punchItemId || !projectId) {
+    return { error: "Missing punch item." };
+  }
+  if (!verificationNotes) {
+    return { error: "Verification notes are required before this item can be closed." };
+  }
+
+  const session = await requireSession();
+  const allowed = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", projectId));
+  if (!allowed) {
+    return { error: "Only a JAGS Admin, or someone granted this permission, can verify and close a punch item." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { error, data } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
     .update({
       status: "closed",
-      closing_evidence: closingEvidence,
-      closed_by: user?.id ?? null,
+      verification_notes: verificationNotes,
+      closed_by: session.userId,
       closed_at: new Date().toISOString(),
     })
-    .eq("id", punchItemId);
+    .eq("id", punchItemId)
+    .eq("status", "resolved")
+    .select("id")
+    .returns<{ id: string }[]>();
 
   if (error) {
     return { error: "Could not close the punch item. Check you have permission and try again." };
+  }
+  if (!data || data.length === 0) {
+    return { error: "This item isn't awaiting verification yet — it must be marked resolved first." };
   }
 
   try {
@@ -138,9 +234,9 @@ export async function closePunchItemAction(
         entityType: "punch_list_item",
         entityId: punchItemId,
         action: "closed",
-        actorId: user?.id ?? null,
-        summary: "Punch item closed",
-        changes: { closing_evidence: closingEvidence },
+        actorId: session.userId,
+        summary: "Punch item verified and closed",
+        changes: { verification_notes: verificationNotes },
       });
     }
   } catch {

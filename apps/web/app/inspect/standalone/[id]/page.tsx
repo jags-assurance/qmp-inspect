@@ -131,7 +131,7 @@ export default async function StandaloneAssignmentDetailPage({
         .from("punch_list_items" as any)
         .select("id", { count: "exact", head: true })
         .eq("source_standalone_assignment_id", id)
-        .eq("status", "open"),
+        .neq("status", "closed"),
     ]);
 
   return (

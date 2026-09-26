@@ -112,7 +112,7 @@ export default async function ProjectGuidePage({ params }: { params: Promise<{ p
       .returns<{ id: string; party_type: string; name: string; user_id: string | null; is_active: boolean }[]>(),
     supabase.from("itps").select("id, status, applicable_standard").eq("project_id", projectId).returns<{ id: string; status: string; applicable_standard: string | null }[]>(),
     supabase.from("ncrs").select("id, status").eq("project_id", projectId).returns<{ id: string; status: string }[]>(),
-    supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "open"),
+    supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "closed"),
   ]);
 

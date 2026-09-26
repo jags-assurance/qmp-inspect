@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AddPunchItemForm } from "./add-punch-item-form";
 import { RecordWalkdownForm } from "./record-walkdown-form";
@@ -15,7 +16,8 @@ export default async function PunchListPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  await requireSession();
+  const session = await requireSession();
+  const canVerifyClose = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", projectId));
   const supabase = await createSupabaseServerClient();
 
   const { data: project } = await supabase
@@ -41,7 +43,9 @@ export default async function PunchListPage({
       .order("name"),
   ]);
 
-  const openCount = (items ?? []).filter((item) => item.status === "open").length;
+  // "Outstanding" for the Data Book blurb below means not yet truly closed — a 'resolved' item still
+  // blocks compilation until someone independently verifies it (see readiness.ts's matching count).
+  const openCount = (items ?? []).filter((item) => item.status !== "closed").length;
 
   return (
     <div>
@@ -53,9 +57,9 @@ export default async function PunchListPage({
             <PageGuide
               title="Punch List — how this works"
               points={[
-                "Outstanding items across every source (NCRs, observations, walkdowns, manually added) — open and closed, all in one list.",
-                "Anyone with access to this project can add or close an item — closing one requires entering closing evidence, it's never a bare status flip.",
-                "The project's Data Book can't compile while any item here is open, unless a JAGS staff member explicitly overrides it with a documented reason on the Data Book page.",
+                "Outstanding items across every source (NCRs, observations, walkdowns, manually added) — open, resolved and closed, all in one list.",
+                "Two-step close, not a bare status flip: anyone with project access can mark an item Resolved (evidence of the fix required) — then a JAGS Admin, or someone specifically granted permission, independently verifies and closes it.",
+                "The project's Data Book can't compile while any item here is open OR resolved-but-not-yet-verified, unless a JAGS staff member explicitly overrides it with a documented reason on the Data Book page.",
                 "\"Record walkdown\" adds several items at once from a single site walkdown, rather than one at a time through the add form.",
               ]}
             />
@@ -79,7 +83,7 @@ export default async function PunchListPage({
       </div>
 
       <div className="mt-6">
-        <PunchListTable projectId={projectId} rows={items ?? []} />
+        <PunchListTable projectId={projectId} rows={items ?? []} canVerifyClose={canVerifyClose} />
       </div>
     </div>
   );

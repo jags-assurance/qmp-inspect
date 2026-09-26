@@ -590,7 +590,7 @@ export async function computeOverdueItems(supabase: SupabaseClient, projectId: s
       .from("punch_list_items")
       .select("id, description, due_date, status")
       .eq("project_id", projectId)
-      .eq("status", "open")
+      .neq("status", "closed")
       .not("due_date", "is", null)
       .lt("due_date", todayIso)
       .returns<{ id: string; description: string; due_date: string; status: string }[]>(),
@@ -645,7 +645,9 @@ export async function computePunchListBySource(
   const bySource = new Map<string, { openCount: number; closedCount: number }>();
   for (const row of data ?? []) {
     const entry = bySource.get(row.source) ?? { openCount: 0, closedCount: 0 };
-    if (row.status === "open") entry.openCount += 1;
+    // "Resolved but not yet verified" still counts as open here — it isn't truly closed until an
+    // independent verifier signs off (see resolvePunchItemAction/closePunchItemAction).
+    if (row.status !== "closed") entry.openCount += 1;
     else entry.closedCount += 1;
     bySource.set(row.source, entry);
   }

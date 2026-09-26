@@ -90,7 +90,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
       .from(PUNCH_LIST_ITEMS_TABLE)
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
-      .eq("status", "open"),
+      .neq("status", "closed"),
     supabase.from(CALIBRATION_REGISTER_TABLE).select("id, status").eq("project_id", projectId).returns<
       { id: string; status: string }[]
     >(),

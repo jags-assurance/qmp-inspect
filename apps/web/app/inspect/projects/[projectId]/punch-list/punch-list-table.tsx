@@ -3,7 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { PUNCH_LIST_SOURCE_LABELS, type PunchListSource, type PunchListStatus } from "@/lib/punch-list/types";
-import { ClosePunchItemForm } from "./close-punch-item-form";
+import { ResolvePunchItemForm } from "./resolve-punch-item-form";
+import { VerifyClosePunchItemForm } from "./verify-close-punch-item-form";
 
 export interface PunchListItemDisplayRow {
   id: string;
@@ -15,20 +16,32 @@ export interface PunchListItemDisplayRow {
   project_parties: { name: string } | null;
 }
 
-const STATUS_TONE: Record<PunchListStatus, "success" | "neutral"> = {
+const STATUS_TONE: Record<PunchListStatus, "success" | "neutral" | "warning"> = {
   open: "neutral",
+  resolved: "warning",
   closed: "success",
 };
 
 const PUNCH_LIST_STATUS_LABELS: Record<PunchListStatus, string> = {
   open: "Open",
+  resolved: "Resolved — awaiting verification",
   closed: "Closed",
 };
 
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // this wrapper exists so the Server Component page only ever passes plain, serializable row data
 // down, same pattern as ProjectsTable/NcrsTable.
-export function PunchListTable({ projectId, rows }: { projectId: string; rows: PunchListItemDisplayRow[] }) {
+export function PunchListTable({
+  projectId,
+  rows,
+  canVerifyClose,
+}: {
+  projectId: string;
+  rows: PunchListItemDisplayRow[];
+  /** Whether THIS viewer can do the independent verify-and-close step (JAGS Admin, or a
+   *  close_punch_item permission holder) — computed once on the server page, not re-derived here. */
+  canVerifyClose: boolean;
+}) {
   const columns: DataTableColumn<PunchListItemDisplayRow>[] = [
     { key: "description", header: "Description", render: (row) => row.description },
     {
@@ -55,8 +68,14 @@ export function PunchListTable({ projectId, rows }: { projectId: string; rows: P
     {
       key: "actions",
       header: "",
-      render: (row) =>
-        row.status === "open" ? <ClosePunchItemForm projectId={projectId} punchItemId={row.id} /> : null,
+      render: (row) => {
+        if (row.status === "open") return <ResolvePunchItemForm projectId={projectId} punchItemId={row.id} />;
+        if (row.status === "resolved" && canVerifyClose) {
+          return <VerifyClosePunchItemForm projectId={projectId} punchItemId={row.id} />;
+        }
+        if (row.status === "resolved") return <span className="text-xs text-muted">Awaiting verification</span>;
+        return null;
+      },
     },
   ];
 

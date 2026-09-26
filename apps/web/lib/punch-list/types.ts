@@ -35,7 +35,11 @@ export const PUNCH_LIST_SOURCE_LABELS: Record<PunchListSource, string> = {
   itp_measurement_failure: "Measurement failure",
 };
 
-export const PUNCH_LIST_STATUSES = ["open", "closed"] as const;
+// R-verify-punch: added 'resolved' as a real middle state — the person who did the fix marks it
+// resolved (with evidence), but a JAGS Admin or a close_punch_item permission holder has to
+// independently verify and close it before it stops blocking the Data Book. See
+// resolvePunchItemAction/closePunchItemAction in lib/punch-list/actions.ts.
+export const PUNCH_LIST_STATUSES = ["open", "resolved", "closed"] as const;
 export type PunchListStatus = (typeof PUNCH_LIST_STATUSES)[number];
 
 export interface PunchListItemRow {
@@ -51,7 +55,13 @@ export interface PunchListItemRow {
   responsible_party_id: string | null;
   due_date: string | null;
   status: PunchListStatus;
+  /** What was actually done to fix it — recorded at the resolve step, by whoever fixed it. */
   closing_evidence: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  /** The independent verifier's own notes at the verify-and-close step — distinct from
+   *  closing_evidence, which is the fixer's own account. */
+  verification_notes: string | null;
   closed_by: string | null;
   closed_at: string | null;
   created_at: string;

@@ -720,13 +720,15 @@ export async function issueClearanceAction(
     .from(PUNCH_LIST_ITEMS_TABLE)
     .select("id", { count: "exact", head: true })
     .eq("source_standalone_assignment_id", assignmentId)
-    .eq("status", "open");
+    .neq("status", "closed");
 
   if (openCountError) {
     return { error: "Could not check the linked punch item(s). Try again." };
   }
   if (openCount) {
-    return { error: `${openCount} linked punch item(s) still open — close them before issuing clearance.` };
+    return {
+      error: `${openCount} linked punch item(s) still open or awaiting verification — get them fully closed before issuing clearance.`,
+    };
   }
 
   const { error, data } = await supabase
