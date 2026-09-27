@@ -30,6 +30,8 @@ import { ProjectStatusControl } from "./project-status-control";
 import { NoticePeriodSettings } from "./notice-period-settings";
 import { INTERVENTION_LEVEL_TYPES_TABLE, sortLevels, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { NOTICE_PERIOD_CONFIGS_TABLE, type NoticePeriodConfigRow } from "@/lib/signoff/db-types";
+import { LocationPresetsSettings } from "./location-presets-settings";
+import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -185,6 +187,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   // for their own team without a JAGS Admin, via the provision_party_login custom-role grant (see
   // CLIENT_MANAGED_ONLY_PERMISSION_KEYS) — never available on a plain self_managed org.
   const canProvisionPartyLogin = isAdminStaff(session) || (await hasPermission(session.userId, "provision_party_login", project.id));
+
+  const projectLocationPresets = (
+    isAdminStaff(session) || canAddSelfManagedParty
+      ? (await getLocationPresetsForProject(supabase, project.organization_id, project.id)).filter((r) => r.project_id === project.id)
+      : []
+  ).map((r) => ({ id: r.id, name: r.name }));
 
   let staffUsers: { id: string; full_name: string }[] = [];
   let reviewChain: { reviewerUserId: string }[] = [];
@@ -468,6 +476,16 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <AllowContractorStandaloneAssignmentToggle
             projectId={project.id}
             allowContractorStandaloneAssignment={project.allow_contractor_standalone_assignment}
+          />
+        </div>
+      )}
+
+      {(isAdminStaff(session) || canAddSelfManagedParty) && (
+        <div className="mt-4">
+          <LocationPresetsSettings
+            organizationId={project.organization_id}
+            projectId={project.id}
+            presets={projectLocationPresets}
           />
         </div>
       )}

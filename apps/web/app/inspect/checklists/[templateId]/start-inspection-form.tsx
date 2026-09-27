@@ -13,6 +13,7 @@ export function StartInspectionForm({
   projectName,
   itpNumber,
   activity,
+  locationPresets = [],
 }: {
   templateId: string;
   itpItemId: string;
@@ -20,6 +21,9 @@ export function StartInspectionForm({
   projectName: string;
   itpNumber: string;
   activity: string;
+  /** Org/project-configured preset location names — see lib/checklists/location-presets.ts. Empty
+   *  when none are configured; the free-text input below always still works either way. */
+  locationPresets?: string[];
 }) {
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
   const locationRef = useRef<HTMLInputElement>(null);
@@ -94,6 +98,27 @@ export function StartInspectionForm({
       <label htmlFor="location" className="block text-sm font-medium text-ink">
         Location (optional)
       </label>
+      {locationPresets.length > 0 && (
+        <select
+          aria-label="Preset location"
+          defaultValue=""
+          onChange={(e) => {
+            const value = e.target.value;
+            if (!value || !locationRef.current) return;
+            const existing = locationRef.current.value.trim();
+            locationRef.current.value = existing ? `${existing}, ${value}` : value;
+            e.target.value = "";
+          }}
+          className="mt-1 w-full max-w-md rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+        >
+          <option value="">— Pick a preset location —</option>
+          {locationPresets.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      )}
       <div className="mt-1 flex max-w-md gap-2">
         <input
           ref={locationRef}

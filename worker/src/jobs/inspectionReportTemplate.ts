@@ -25,6 +25,9 @@ export interface InspectionReportSignoff {
 
 export interface InspectionReportData {
   recordNumber: string;
+  /** Attempt count for this activity (0-indexed) — drives the Document Control "REV" cell, same
+   *  idea as the ITP PDF's own `itps.revision`, scoped to re-inspections of this one activity. */
+  revision: number;
   activity: string;
   projectName: string;
   /** Best-effort, only used for the client logo's alt text when branding shows one. */
@@ -439,7 +442,7 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.recordNumber)}</dd>
-        <dt>REV</dt><dd>0</dd>
+        <dt>REV</dt><dd>${escapeHtml(String(data.revision ?? 0))}</dd>
         <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
       </dl>
     </div>

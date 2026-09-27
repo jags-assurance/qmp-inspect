@@ -28,6 +28,7 @@ import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
+import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -311,6 +312,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     }
   }
 
+  const locationPresetNames =
+    !draft && canExecute && !holdOpen
+      ? (await getLocationPresetsForProject(supabase, project.organization_id, project.id)).map((p) => p.name)
+      : [];
+
   // For the "Not started yet, your organisation doesn't hold a role here" message: names whichever
   // party actually executes this specific activity (a subcontractor/main contractor — or client, if
   // this project opted them in — holding SOME intervention here), instead of leaving it generic.
@@ -388,6 +394,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             projectName={project.name}
             itpNumber={itp.itp_number}
             activity={itpItem.activity}
+            locationPresets={locationPresetNames}
           />
         </div>
       )}

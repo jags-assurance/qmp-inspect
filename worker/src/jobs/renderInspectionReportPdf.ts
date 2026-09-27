@@ -34,7 +34,7 @@ export async function renderInspectionReportPdf(
   const { data: rawRecord, error: recordError } = await supabase
     .from("inspection_records")
     .select(
-      "id, record_number, project_id, project_name, itp_number, itp_item_id, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, inspector_id"
+      "id, record_number, revision, project_id, project_name, itp_number, itp_item_id, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, inspector_id"
     )
     .eq("id", payload.inspection_record_id)
     .single();
@@ -42,6 +42,7 @@ export async function renderInspectionReportPdf(
   const record = rawRecord as {
     id: string;
     record_number: string;
+    revision: number | null;
     project_id: string;
     project_name: string;
     itp_number: string;
@@ -118,6 +119,7 @@ export async function renderInspectionReportPdf(
 
   const templateData: InspectionReportData = {
     recordNumber: record.record_number,
+    revision: record.revision ?? 0,
     activity: record.activity,
     projectName: record.project_name,
     organizationName: project?.organizations?.name ?? null,

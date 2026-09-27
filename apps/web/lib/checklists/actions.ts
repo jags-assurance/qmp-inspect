@@ -508,11 +508,21 @@ export async function startInspectionAction(
     seqKey: `inspection:${itpNumber}`,
   });
 
+  // Per-ACTIVITY attempt count (distinct from the ITP-wide `seq` above) — drives the PDF's Document
+  // Control "REV" field. Read-then-insert is fine here (unlike the shared seq counter): a double
+  // count on a rare concurrent double-click just produces the same revision number twice, which is
+  // cosmetic, not a collision on a unique record_number.
+  const { count: priorAttempts } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("itp_item_id", itpItemId);
+
   const { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert({
     project_id: projectId,
     itp_item_id: itpItemId,
     checklist_template_id: templateId,
     record_number: `${itpNumber}-INSP-${seq}`,
+    revision: priorAttempts ?? 0,
     project_name: projectName,
     itp_number: itpNumber,
     activity,
