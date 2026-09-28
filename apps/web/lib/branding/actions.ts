@@ -47,6 +47,12 @@ export async function updateOrgBrandColorsAction(
   // Empty string means "clear back to the default JAGS palette" (stored as null), not an error.
   const primaryRaw = String(formData.get("brand_primary_color") ?? "").trim();
   const accentRaw = String(formData.get("brand_accent_color") ?? "").trim();
+  // The two extra colors of the optional 4-color combo (Microsoft/Gemini-style multi-color
+  // branding) — only meaningful when multiColor is on, but stored regardless so toggling the
+  // checkbox back on later doesn't lose what was typed.
+  const color3Raw = String(formData.get("brand_color_3") ?? "").trim();
+  const color4Raw = String(formData.get("brand_color_4") ?? "").trim();
+  const multiColor = formData.get("brand_multi_color_mode") === "on";
 
   if (primaryRaw && !HEX_COLOR_RE.test(primaryRaw)) {
     return { error: "Primary color must be a 6-digit hex code, e.g. #6b1e2c." };
@@ -54,12 +60,24 @@ export async function updateOrgBrandColorsAction(
   if (accentRaw && !HEX_COLOR_RE.test(accentRaw)) {
     return { error: "Accent color must be a 6-digit hex code, e.g. #f5c518." };
   }
+  if (color3Raw && !HEX_COLOR_RE.test(color3Raw)) {
+    return { error: "Third color must be a 6-digit hex code." };
+  }
+  if (color4Raw && !HEX_COLOR_RE.test(color4Raw)) {
+    return { error: "Fourth color must be a 6-digit hex code." };
+  }
+  if (multiColor && (!color3Raw || !color4Raw)) {
+    return { error: "The 4-color combo needs all four colors set — fill in the third and fourth color, or turn the combo off." };
+  }
 
   const { error } = await supabase
     .from("organizations")
     .update({
       brand_primary_color: primaryRaw || null,
       brand_accent_color: accentRaw || null,
+      brand_color_3: color3Raw || null,
+      brand_color_4: color4Raw || null,
+      brand_multi_color_mode: multiColor,
     })
     .eq("id", organizationId);
 
@@ -74,7 +92,13 @@ export async function updateOrgBrandColorsAction(
     action: "colors_updated",
     actorId: session.userId,
     summary: "Organisation brand colors updated",
-    changes: { brand_primary_color: primaryRaw || null, brand_accent_color: accentRaw || null },
+    changes: {
+      brand_primary_color: primaryRaw || null,
+      brand_accent_color: accentRaw || null,
+      brand_color_3: color3Raw || null,
+      brand_color_4: color4Raw || null,
+      brand_multi_color_mode: multiColor,
+    },
   });
 
   revalidatePath(BRANDING_PATH);

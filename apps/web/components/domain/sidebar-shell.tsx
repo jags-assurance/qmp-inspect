@@ -36,6 +36,11 @@ export function SidebarShell({
   const logoUrl = orgBranding?.logoUrl ?? null;
   const isWhiteLabel = engagementMode === "white_label" && Boolean(logoUrl);
   const isCoBranded = engagementMode === "co_branded" && Boolean(logoUrl);
+  // Optional 4-color combo (Microsoft/Google-style multi-color mark), set on Organisation ->
+  // Branding — renders the badge as a conic-gradient ring instead of its plain single-accent
+  // border. Only relevant for a non-staff login whose own org opted in (JAGS staff always see the
+  // plain default mark, same as the logo/co-branding above never applying to them either).
+  const brandCombo = orgBranding?.brandCombo ?? null;
   // Starts expanded on the server and on first client paint (matches SSR markup, no hydration
   // mismatch — the same discipline as offline-banner.tsx elsewhere in this app), then reads the
   // real stored preference in an effect once mounted.
@@ -119,8 +124,16 @@ export function SidebarShell({
           />
         ) : (
           <>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold text-sm font-semibold">
-              JA
+            <div
+              className={
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold" +
+                (brandCombo ? " p-[3px]" : " border-2 border-gold")
+              }
+              style={brandCombo ? { background: `conic-gradient(${brandCombo.join(", ")}, ${brandCombo[0]})` } : undefined}
+            >
+              <span className={brandCombo ? "flex h-full w-full items-center justify-center rounded-full bg-burgundy" : "contents"}>
+                JA
+              </span>
             </div>
             {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide">JAGS Assurance</span>}
           </>

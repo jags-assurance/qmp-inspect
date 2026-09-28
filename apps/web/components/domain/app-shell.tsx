@@ -25,6 +25,10 @@ export interface OrgBrandingInfo {
    *  (no logo uploaded, or engagement_mode is jags_led). See sidebar-shell.tsx for how this is
    *  rendered — Reqs R113-R118. */
   logoUrl: string | null;
+  /** The org's 4-color combo (see lib/branding/org-brand.ts's brandComboColors), or null when the
+   *  org hasn't opted into multi-color mode — sidebar-shell.tsx renders the "JA" badge as a 4-color
+   *  conic ring instead of its plain single-accent border when this is set. */
+  brandCombo?: [string, string, string, string] | null;
 }
 
 /**
