@@ -14,7 +14,14 @@ function ProgressBar({ percentage, tone }: { percentage: number; tone: "success"
 }
 
 function CategoryRow({ label, ready, total, percentage }: { label: string; ready: number; total: number; percentage: number }) {
-  const tone = percentage === 100 ? "success" : "warning";
+  // Real gap found live: total===0 computes as percentage 100 (nothing outstanding, so it doesn't
+  // block compilation — see readiness.ts's own doc comment, that gating logic is correct and
+  // unchanged), but showing a plain "100%" success badge when there are literally zero ITPs/NCRs/
+  // etc. on the project reads as "fully verified" when really nothing has happened yet. Distinguish
+  // the two in the DISPLAY only: an empty category shows a neutral "No items yet" instead.
+  const isEmpty = total === 0;
+  const badgeTone: "success" | "warning" | "neutral" = isEmpty ? "neutral" : percentage === 100 ? "success" : "warning";
+  const barTone: "success" | "warning" = !isEmpty && percentage === 100 ? "success" : "warning";
   return (
     <div className="border-b border-border py-3 last:border-0">
       <div className="flex items-center justify-between">
@@ -23,26 +30,38 @@ function CategoryRow({ label, ready, total, percentage }: { label: string; ready
           <span className="text-sm text-muted">
             {ready}/{total}
           </span>
-          <Badge tone={tone}>{percentage}%</Badge>
+          <Badge tone={badgeTone}>{isEmpty ? "No items yet" : `${percentage}%`}</Badge>
         </div>
       </div>
       <div className="mt-2">
-        <ProgressBar percentage={percentage} tone={tone} />
+        <ProgressBar percentage={percentage} tone={barTone} />
       </div>
     </div>
   );
 }
 
 export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) {
-  const overallTone = readiness.overallPercentage === 100 ? "success" : "warning";
+  // Same "empty ≠ verified" distinction as CategoryRow, applied to the overall summary — every
+  // gating category having zero items (a brand-new project) shouldn't read as a confident "100%
+  // overall" success badge.
+  const nothingProvisionedYet = [
+    readiness.itps,
+    readiness.inspectionRecords,
+    readiness.checklists,
+    readiness.calibrationRegister,
+    readiness.welderRegister,
+    readiness.materialRegister,
+    readiness.ncrs,
+  ].every((c) => c.total === 0);
+  const overallTone = nothingProvisionedYet ? "neutral" : readiness.overallPercentage === 100 ? "success" : "warning";
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-medium text-ink">Compilation readiness</h2>
-        <Badge tone={overallTone}>{readiness.overallPercentage}% overall</Badge>
+        <Badge tone={overallTone}>{nothingProvisionedYet ? "No data yet" : `${readiness.overallPercentage}% overall`}</Badge>
       </div>
       <div className="mt-2">
-        <ProgressBar percentage={readiness.overallPercentage} tone={overallTone} />
+        <ProgressBar percentage={readiness.overallPercentage} tone={overallTone === "success" ? "success" : "warning"} />
       </div>
 
       <div className="mt-4">

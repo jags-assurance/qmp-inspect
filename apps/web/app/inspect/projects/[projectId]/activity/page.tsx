@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
@@ -403,7 +404,10 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
 
   return (
     <div>
-      <div>
+      <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
+        ← Back to Project
+      </Link>
+      <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Activity</h1>
           <PageGuide

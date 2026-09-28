@@ -3065,8 +3065,7 @@ export type Database = {
         Row: {
           ai_consent: boolean
           brand_accent_color: string | null
-          brand_color_3: string | null
-          brand_color_4: string | null
+          brand_extra_colors: string[]
           brand_multi_color_mode: boolean
           brand_primary_color: string | null
           branding_logo_path: string | null
@@ -3083,8 +3082,7 @@ export type Database = {
         Insert: {
           ai_consent?: boolean
           brand_accent_color?: string | null
-          brand_color_3?: string | null
-          brand_color_4?: string | null
+          brand_extra_colors?: string[]
           brand_multi_color_mode?: boolean
           brand_primary_color?: string | null
           branding_logo_path?: string | null
@@ -3101,8 +3099,7 @@ export type Database = {
         Update: {
           ai_consent?: boolean
           brand_accent_color?: string | null
-          brand_color_3?: string | null
-          brand_color_4?: string | null
+          brand_extra_colors?: string[]
           brand_multi_color_mode?: boolean
           brand_primary_color?: string | null
           branding_logo_path?: string | null

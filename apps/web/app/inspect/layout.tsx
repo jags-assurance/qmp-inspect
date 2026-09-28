@@ -48,12 +48,12 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // internalReference) — this is the same signal driving visual branding in the app chrome. Only
   // looked up for a user with a definite own-org context (a client login); JAGS staff move across
   // every organisation's data, so their chrome always stays JAGS-only, same as today.
-  let orgBranding: { engagementMode: string; logoUrl: string | null; brandCombo: [string, string, string, string] | null } | null = null;
+  let orgBranding: { engagementMode: string; logoUrl: string | null; brandCombo: string[] | null } | null = null;
   if (ownOrgId) {
     const { data: brandOrg } = await supabase
       .from("organizations")
       .select(
-        "engagement_mode, branding_logo_path, brand_primary_color, brand_accent_color, brand_color_3, brand_color_4, brand_multi_color_mode"
+        "engagement_mode, branding_logo_path, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode"
       )
       .eq("id", ownOrgId)
       .maybeSingle<{
@@ -61,8 +61,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
         branding_logo_path: string | null;
         brand_primary_color: string | null;
         brand_accent_color: string | null;
-        brand_color_3: string | null;
-        brand_color_4: string | null;
+        brand_extra_colors: string[];
         brand_multi_color_mode: boolean;
       }>();
 

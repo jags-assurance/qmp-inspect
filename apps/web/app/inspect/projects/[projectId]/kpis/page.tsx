@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
@@ -270,7 +271,10 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
   return (
     <div>
       <RealtimeRefresh table="inspection_records" filter={`project_id=eq.${projectId}`} />
-      <div>
+      <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
+        ← Back to Project
+      </Link>
+      <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink">Quality performance</h1>
           <PageGuide
@@ -328,8 +332,14 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
         />
       </div>
 
+      {/* Real UX gap found live: these 5 list-style panels used to each be a full-width stacked
+          card (mt-8 apart), forcing a long scroll to reach the charts below on any project with a
+          few open items — a 2-column grid on wider screens halves that without losing anything,
+          since none of these actually need full page width to read well. Charts below stay full
+          width — they genuinely benefit from the horizontal room. */}
+      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
       {overdueItems.length > 0 && (
-        <div className="mt-8 rounded-lg border border-danger/40 bg-danger/5 p-4">
+        <div className="rounded-lg border border-danger/40 bg-danger/5 p-4">
           <h2 className="font-medium text-danger">Overdue — past due date</h2>
           <p className="mt-1 text-sm text-muted">
             {overdueItems.length} open item{overdueItems.length === 1 ? "" : "s"} (NCRs and punch list) past their due date.
@@ -354,7 +364,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       )}
 
       {openHolds.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink">Open Holds — how long work has actually been stopped</h2>
           <p className="mt-1 text-sm text-muted">
             Every currently open blocking sign-off, ranked longest-waiting first — distinct from the average
@@ -378,7 +388,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       )}
 
       {punchBySource.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink">Punch list by source</h2>
           <p className="mt-1 text-sm text-muted">Where every punch list item actually came from — open vs. closed, by origin.</p>
           <ol className="mt-4 space-y-3">
@@ -402,7 +412,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       )}
 
       {qualityByParty.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink">Quality by party</h2>
           <p className="mt-1 text-sm text-muted">
             Sign-off completion rate and NCR count per project party, ranked by sign-off rate highest to lowest.
@@ -428,7 +438,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       )}
 
       {qualityByDiscipline.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink">Quality by discipline</h2>
           <p className="mt-1 text-sm text-muted">First-time pass rate per discipline, ranked highest to lowest.</p>
           <ol className="mt-4 space-y-3">
@@ -450,6 +460,7 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
           </ol>
         </div>
       )}
+      </div>
 
       {itpCompletionRows.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">

@@ -12,8 +12,7 @@ interface OrganizationOption {
   name: string;
   brand_primary_color: string | null;
   brand_accent_color: string | null;
-  brand_color_3: string | null;
-  brand_color_4: string | null;
+  brand_extra_colors: string[];
   brand_multi_color_mode: boolean;
   branding_logo_path: string | null;
   engagement_mode: string;
@@ -38,7 +37,7 @@ export default async function BrandingSettingsPage({
     const { data } = await supabase
       .from("organizations")
       .select(
-        "id, name, brand_primary_color, brand_accent_color, brand_color_3, brand_color_4, brand_multi_color_mode, branding_logo_path, engagement_mode"
+        "id, name, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode, branding_logo_path, engagement_mode"
       )
       .order("name")
       .returns<OrganizationOption[]>();
@@ -47,7 +46,7 @@ export default async function BrandingSettingsPage({
     const { data: grants } = await supabase
       .from("access_grants")
       .select(
-        "organizations(id, name, brand_primary_color, brand_accent_color, brand_color_3, brand_color_4, brand_multi_color_mode, branding_logo_path, engagement_mode, engagement_scope)"
+        "organizations(id, name, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode, branding_logo_path, engagement_mode, engagement_scope)"
       )
       .eq("user_id", session.userId)
       .returns<{ organizations: (OrganizationOption & { engagement_scope: string }) | null }[]>();
@@ -62,8 +61,7 @@ export default async function BrandingSettingsPage({
           name: org.name,
           brand_primary_color: org.brand_primary_color,
           brand_accent_color: org.brand_accent_color,
-          brand_color_3: org.brand_color_3,
-          brand_color_4: org.brand_color_4,
+          brand_extra_colors: org.brand_extra_colors,
           brand_multi_color_mode: org.brand_multi_color_mode,
           branding_logo_path: org.branding_logo_path,
           engagement_mode: org.engagement_mode,
@@ -127,8 +125,7 @@ export default async function BrandingSettingsPage({
                 organizationId={selectedOrg.id}
                 brandPrimaryColor={selectedOrg.brand_primary_color}
                 brandAccentColor={selectedOrg.brand_accent_color}
-                brandColor3={selectedOrg.brand_color_3}
-                brandColor4={selectedOrg.brand_color_4}
+                brandExtraColors={selectedOrg.brand_extra_colors}
                 brandMultiColorMode={selectedOrg.brand_multi_color_mode}
               />
             </div>

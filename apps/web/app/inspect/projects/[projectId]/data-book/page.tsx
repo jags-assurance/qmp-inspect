@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
@@ -81,7 +82,10 @@ export default async function DataBookPage({
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="data_books" filter={`project_id=eq.${projectId}`} />
-      <div>
+      <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
+        ← Back to Project
+      </Link>
+      <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Data Book</h1>
           <PageGuide
@@ -103,8 +107,11 @@ export default async function DataBookPage({
         <StatCard
           label="Overall readiness"
           value={
-            <span className="tabular-nums">{readiness.overallPercentage}%</span>
+            <span className="tabular-nums">
+              {readiness.itps.total === 0 && readiness.ncrs.total === 0 ? "—" : `${readiness.overallPercentage}%`}
+            </span>
           }
+          caption={readiness.itps.total === 0 && readiness.ncrs.total === 0 ? "No data yet" : undefined}
         />
         <StatCard
           label="ITPs approved"

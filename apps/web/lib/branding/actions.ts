@@ -47,11 +47,10 @@ export async function updateOrgBrandColorsAction(
   // Empty string means "clear back to the default JAGS palette" (stored as null), not an error.
   const primaryRaw = String(formData.get("brand_primary_color") ?? "").trim();
   const accentRaw = String(formData.get("brand_accent_color") ?? "").trim();
-  // The two extra colors of the optional 4-color combo (Microsoft/Gemini-style multi-color
-  // branding) — only meaningful when multiColor is on, but stored regardless so toggling the
-  // checkbox back on later doesn't lose what was typed.
-  const color3Raw = String(formData.get("brand_color_3") ?? "").trim();
-  const color4Raw = String(formData.get("brand_color_4") ?? "").trim();
+  // Any number of extra colors on top of the primary/accent pair — client feedback: a fixed 4-color
+  // combo wasn't enough, so this is a plain repeated field (one input per color, add/remove freely
+  // in the UI) rather than two fixed named fields.
+  const extraColorsRaw = formData.getAll("brand_extra_colors").map((v) => String(v).trim()).filter(Boolean);
   const multiColor = formData.get("brand_multi_color_mode") === "on";
 
   if (primaryRaw && !HEX_COLOR_RE.test(primaryRaw)) {
@@ -60,14 +59,12 @@ export async function updateOrgBrandColorsAction(
   if (accentRaw && !HEX_COLOR_RE.test(accentRaw)) {
     return { error: "Accent color must be a 6-digit hex code, e.g. #f5c518." };
   }
-  if (color3Raw && !HEX_COLOR_RE.test(color3Raw)) {
-    return { error: "Third color must be a 6-digit hex code." };
+  const invalidExtra = extraColorsRaw.find((c) => !HEX_COLOR_RE.test(c));
+  if (invalidExtra) {
+    return { error: `"${invalidExtra}" isn't a valid 6-digit hex code.` };
   }
-  if (color4Raw && !HEX_COLOR_RE.test(color4Raw)) {
-    return { error: "Fourth color must be a 6-digit hex code." };
-  }
-  if (multiColor && (!color3Raw || !color4Raw)) {
-    return { error: "The 4-color combo needs all four colors set — fill in the third and fourth color, or turn the combo off." };
+  if (multiColor && extraColorsRaw.length === 0) {
+    return { error: "The color combo needs at least one extra color beyond primary/accent — add one, or turn the combo off." };
   }
 
   const { error } = await supabase
@@ -75,8 +72,7 @@ export async function updateOrgBrandColorsAction(
     .update({
       brand_primary_color: primaryRaw || null,
       brand_accent_color: accentRaw || null,
-      brand_color_3: color3Raw || null,
-      brand_color_4: color4Raw || null,
+      brand_extra_colors: extraColorsRaw,
       brand_multi_color_mode: multiColor,
     })
     .eq("id", organizationId);
@@ -95,8 +91,7 @@ export async function updateOrgBrandColorsAction(
     changes: {
       brand_primary_color: primaryRaw || null,
       brand_accent_color: accentRaw || null,
-      brand_color_3: color3Raw || null,
-      brand_color_4: color4Raw || null,
+      brand_extra_colors: extraColorsRaw,
       brand_multi_color_mode: multiColor,
     },
   });

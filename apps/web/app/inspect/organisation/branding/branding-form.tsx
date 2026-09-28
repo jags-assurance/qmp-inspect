@@ -8,8 +8,7 @@ const initialState: BrandingSettingsState = { error: null };
 
 const DEFAULT_PRIMARY = "#6b1e2c";
 const DEFAULT_ACCENT = "#f5c518";
-const DEFAULT_COLOR_3 = "#1f5f5b";
-const DEFAULT_COLOR_4 = "#2f6fed";
+const NEW_EXTRA_DEFAULT = "#2f6fed";
 
 function ColorField({
   id,
@@ -52,32 +51,33 @@ function ColorField({
   );
 }
 
+let extraColorKeySeq = 0;
+
 export function BrandingForm({
   organizationId,
   brandPrimaryColor,
   brandAccentColor,
-  brandColor3,
-  brandColor4,
+  brandExtraColors,
   brandMultiColorMode,
 }: {
   organizationId: string;
   brandPrimaryColor: string | null;
   brandAccentColor: string | null;
-  brandColor3: string | null;
-  brandColor4: string | null;
+  brandExtraColors: string[];
   brandMultiColorMode: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateOrgBrandColorsAction, initialState);
   const [primary, setPrimary] = useState(brandPrimaryColor ?? "");
   const [accent, setAccent] = useState(brandAccentColor ?? "");
-  const [color3, setColor3] = useState(brandColor3 ?? "");
-  const [color4, setColor4] = useState(brandColor4 ?? "");
   const [multiColor, setMultiColor] = useState(brandMultiColorMode);
+  // Any number of extra colors — client feedback: a fixed 4-color combo wasn't enough. Each row
+  // gets a stable client-only key so React doesn't reuse a text input's DOM node (and its cursor
+  // position) across an add/remove that shifts array indexes.
+  const [extras, setExtras] = useState(() => brandExtraColors.map((color) => ({ key: extraColorKeySeq++, color })));
 
   const p = primary || DEFAULT_PRIMARY;
   const a = accent || DEFAULT_ACCENT;
-  const c3 = color3 || DEFAULT_COLOR_3;
-  const c4 = color4 || DEFAULT_COLOR_4;
+  const comboColors = [p, a, ...extras.map((e) => e.color || NEW_EXTRA_DEFAULT)];
 
   return (
     <form action={formAction} className="space-y-4">
@@ -101,47 +101,63 @@ export function BrandingForm({
 
       <label className="flex items-center gap-2 text-sm text-ink">
         <input type="checkbox" name="brand_multi_color_mode" checked={multiColor} onChange={(e) => setMultiColor(e.target.checked)} />
-        Use a 4-color combo instead (Microsoft/Google-style multi-color mark)
+        Use a multi-color combo instead (Microsoft/Google-style multi-color mark)
       </label>
 
       {multiColor && (
         <div className="rounded-md border border-border bg-off-white p-4">
           <p className="text-xs text-muted">
-            All four colors apply to this organisation&rsquo;s brand mark (e.g. the sidebar badge) for its own users — a
-            solid 4-quadrant square like Microsoft&rsquo;s logo, or a 4-color conic ring like Gemini&rsquo;s, picked below.
+            Add as many extra colors as you want — there&rsquo;s no fixed count. All of them together (primary, accent, then
+            these) become this organisation&rsquo;s brand mark (e.g. the sidebar badge) for its own users.
           </p>
-          <div className="mt-3 flex flex-wrap gap-6">
-            <ColorField id="brand_color_3" name="brand_color_3" label="Third color" value={color3} defaultHex={DEFAULT_COLOR_3} onChange={setColor3} />
-            <ColorField id="brand_color_4" name="brand_color_4" label="Fourth color" value={color4} defaultHex={DEFAULT_COLOR_4} onChange={setColor4} />
 
-            <div>
-              <span className="block text-xs text-muted">Combo preview</span>
+          <div className="mt-3 flex flex-wrap gap-4">
+            {extras.map((extra, index) => (
+              <div key={extra.key} className="flex items-end gap-1">
+                <ColorField
+                  id={`brand_extra_color_${extra.key}`}
+                  name="brand_extra_colors"
+                  label={`Color ${index + 3}`}
+                  value={extra.color}
+                  defaultHex={NEW_EXTRA_DEFAULT}
+                  onChange={(v) => setExtras((prev) => prev.map((e) => (e.key === extra.key ? { ...e, color: v } : e)))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setExtras((prev) => prev.filter((e) => e.key !== extra.key))}
+                  aria-label={`Remove color ${index + 3}`}
+                  className="mb-1 h-9 rounded-md border border-border bg-surface px-2 text-sm text-muted hover:bg-off-white hover:text-danger"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => setExtras((prev) => [...prev, { key: extraColorKeySeq++, color: "" }])}
+                className="h-9 rounded-md border border-dashed border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white"
+              >
+                + Add color
+              </button>
+            </div>
+          </div>
+
+          {extras.length > 0 && (
+            <div className="mt-4">
+              <span className="block text-xs text-muted">Combo preview ({comboColors.length} colors)</span>
               <div className="mt-1 flex items-center gap-4 rounded-md border border-border p-2">
                 <div
                   aria-hidden
-                  className="h-9 w-9 overflow-hidden rounded-md border border-border"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gridTemplateRows: "1fr 1fr",
-                  }}
-                  title="4-quadrant style (Microsoft-like)"
-                >
-                  <span style={{ background: p }} />
-                  <span style={{ background: a }} />
-                  <span style={{ background: c3 }} />
-                  <span style={{ background: c4 }} />
-                </div>
-                <div
-                  aria-hidden
                   className="h-9 w-9 rounded-full border border-border"
-                  style={{ background: `conic-gradient(${p}, ${a}, ${c3}, ${c4}, ${p})` }}
-                  title="Conic-ring style (Gemini-like)"
+                  style={{ background: `conic-gradient(${comboColors.join(", ")}, ${comboColors[0]})` }}
+                  title="How the sidebar badge will look"
                 />
-                <span className="text-xs text-muted">Both styles use the same 4 colors — shown for reference; the badge itself uses the ring style.</span>
+                <span className="text-xs text-muted">This is exactly how the sidebar badge renders for this organisation&rsquo;s own users.</span>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

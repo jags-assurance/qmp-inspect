@@ -85,7 +85,10 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
 
   return (
     <div>
-      <div>
+      <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
+        ← Back to Project
+      </Link>
+      <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink">Reports</h1>
           <PageGuide
