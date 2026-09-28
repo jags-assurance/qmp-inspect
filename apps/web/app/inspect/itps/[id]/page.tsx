@@ -12,6 +12,7 @@ import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
+import { ExportLink } from "@/components/domain/export-link";
 import type { InterventionLevel } from "@jags/shared-types";
 import { AddItemForm } from "./add-item-form";
 import { ActivityEvidenceToggle } from "./activity-evidence-toggle";
@@ -612,13 +613,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                     trip. Available to anyone who can view the ITP; the re-upload side is
                     staff-only. */}
                 <DropdownMenuItem>
-                  <a href={`/api/itps/${itp.id}/export-xlsx`}>Download for offline editing</a>
+                  <ExportLink href={`/api/itps/${itp.id}/export-xlsx`} pendingLabel="Preparing…">
+                    Download for offline editing
+                  </ExportLink>
                 </DropdownMenuItem>
                 {/* R107: a plain Word copy of the controlled ITP (sections/items + intervention
                     grid), stamped "UNCONTROLLED COPY" — see
                     app/api/itps/[id]/export-docx/route.ts. */}
                 <DropdownMenuItem>
-                  <a href={`/api/itps/${itp.id}/export-docx`}>Word</a>
+                  <ExportLink href={`/api/itps/${itp.id}/export-docx`} pendingLabel="Preparing…">
+                    Word
+                  </ExportLink>
                 </DropdownMenuItem>
               </>
             }

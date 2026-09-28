@@ -9,6 +9,7 @@ import { PhaseFilterForm } from "./phase-filter-form";
 import { ITP_PHASES, normalizeItpPhase } from "@/lib/itps/phase";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { ExportLink } from "@/components/domain/export-link";
 
 export default async function ItpsPage({
   searchParams,
@@ -150,9 +151,9 @@ export default async function ItpsPage({
           <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`}>
             <Button variant="outline">PDF</Button>
           </Link>
-          <a href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`}>
-            <Button variant="outline">Excel</Button>
-          </a>
+          <ExportLink href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`}>
+            {(pending) => <Button variant="outline">{pending ? "Preparing…" : "Excel"}</Button>}
+          </ExportLink>
           {canCreateItp && (
             <Link href="/inspect/itps/new">
               <Button>+ New ITP</Button>
