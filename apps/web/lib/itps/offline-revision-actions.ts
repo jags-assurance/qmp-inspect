@@ -327,11 +327,11 @@ export async function applyOfflineItpRevisionAction(
   }
 
   // Sections present in the ITP but absent from the uploaded file — cascades to their items
-  // (itp_items.section_id has ON DELETE CASCADE).
-  for (const section of current) {
-    if (!target.has(section.section_number)) {
-      await supabase.from("itp_sections").delete().eq("id", section.id);
-    }
+  // (itp_items.section_id has ON DELETE CASCADE). Perf fix: was one delete call per removed
+  // section, serially; batched into a single .in() call.
+  const removedSectionIds = current.filter((s) => !target.has(s.section_number)).map((s) => s.id);
+  if (removedSectionIds.length > 0) {
+    await supabase.from("itp_sections").delete().in("id", removedSectionIds);
   }
 
   for (const [sectionNumber, group] of target) {
@@ -370,10 +370,12 @@ export async function applyOfflineItpRevisionAction(
     }
 
     if (existingSection) {
-      for (const item of existingSection.itp_items) {
-        if (!seenItemNumbers.has(item.item_number)) {
-          await supabase.from("itp_items").delete().eq("id", item.id);
-        }
+      // Perf fix: was one delete call per removed item, serially; batched into a single .in() call.
+      const removedItemIds = existingSection.itp_items
+        .filter((item) => !seenItemNumbers.has(item.item_number))
+        .map((item) => item.id);
+      if (removedItemIds.length > 0) {
+        await supabase.from("itp_items").delete().in("id", removedItemIds);
       }
     }
   }

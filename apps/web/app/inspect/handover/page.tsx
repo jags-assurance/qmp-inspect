@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
+import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { AcknowledgeForm } from "./acknowledge-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -44,13 +45,19 @@ export default async function HandoverPage() {
     .order("issued_date", { ascending: false })
     .returns<HandoverRow[]>();
 
+  // Perf fix: this used to be one createSignedUrl round trip PER certificate, serially — an org
+  // with many issued handovers paid N sequential Storage calls on every page load. Batched via the
+  // same getSignedPhotoUrls helper other photo/document surfaces already use (bucket-agnostic
+  // despite the name — it just wraps Storage's own plural createSignedUrls).
+  const pathToUrl = await getSignedPhotoUrls(
+    supabase,
+    GENERATED_DOCUMENTS_BUCKET,
+    (certificates ?? []).map((c) => c.package_storage_path).filter((p): p is string => Boolean(p))
+  );
   const packageLinks = new Map<string, string>();
   for (const cert of certificates ?? []) {
-    if (!cert.package_storage_path) continue;
-    const { data: signed } = await supabase.storage
-      .from(GENERATED_DOCUMENTS_BUCKET)
-      .createSignedUrl(cert.package_storage_path, 3600);
-    if (signed?.signedUrl) packageLinks.set(cert.id, signed.signedUrl);
+    const url = cert.package_storage_path ? pathToUrl.get(cert.package_storage_path) : undefined;
+    if (url) packageLinks.set(cert.id, url);
   }
 
   return (
