@@ -534,13 +534,57 @@ export interface ProjectPartyActiveState {
 }
 
 /**
+ * Deletes this user's project-scoped access_grants row for this project — but ONLY if no other
+ * active project_parties row for the same user+project still needs it (rare, but a single login can
+ * in principle be linked to two parties on the same project). Safe to call unconditionally:
+ * access_grants_one_per_project_per_user means there's at most one row to remove either way.
+ */
+async function revokeProjectAccessGrantIfUnused(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  userId: string
+): Promise<void> {
+  const { count } = await supabase
+    .from("project_parties")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if ((count ?? 0) > 0) return;
+
+  await supabase.from("access_grants").delete().eq("project_id", projectId).eq("user_id", userId).eq("scope_type", "project");
+}
+
+/** Duplicate-tolerant re-insert of this party's project-scoped access grant, mirroring
+ *  provisionPartyLoginAction's own insert shape. */
+async function restoreProjectAccessGrant(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  organizationId: string,
+  userId: string,
+  role: string
+): Promise<void> {
+  const { error } = await supabase.from("access_grants").insert({
+    user_id: userId,
+    scope_type: "project",
+    organization_id: organizationId,
+    project_id: projectId,
+    role,
+  });
+  if (error && error.code !== "23505") {
+    console.error(`[projects] restoreProjectAccessGrant failed for user ${userId} on project ${projectId}:`, error);
+  }
+}
+
+/**
  * Single-party activate/deactivate. Admin-only. project_parties.is_active is a real access boundary,
  * not just a display flag: canSignOffForParty (lib/signoff/actions.ts) and canExecuteItpItem
- * (lib/checklists/actions.ts) both now require is_active alongside the user_id match, so flipping this
- * off actually revokes that party's linked user's ability to sign off or execute checklists on this
- * project, in addition to hiding them from lists/summaries that filter on is_active. It does NOT
- * revoke platform-level access (access_grants) — a deactivated party's user can still be re-activated
- * or reassigned to another party without a separate invite. See deactivateAllProjectPartiesAction
+ * (lib/checklists/actions.ts) both require is_active alongside the user_id match, so flipping this
+ * off already revoked that party's linked user's ability to sign off or execute checklists on this
+ * project. It now ALSO revokes platform-level access (access_grants) on deactivation, and restores it
+ * on reactivation — a deactivated party's login genuinely loses project access, not just those two
+ * specific actions, matching what "Deactivate" implies in the UI. See deactivateAllProjectPartiesAction
  * below for the bulk version this backs.
  */
 async function setProjectPartyActive(
@@ -557,6 +601,13 @@ async function setProjectPartyActive(
   if (!projectPartyId || !projectId) return { error: "Missing party or project." };
 
   const supabase = await createSupabaseServerClient();
+
+  const { data: party } = await supabase
+    .from("project_parties")
+    .select("user_id, party_type")
+    .eq("id", projectPartyId)
+    .maybeSingle<{ user_id: string | null; party_type: string }>();
+
   const { error } = await supabase
     .from("project_parties")
     .update({ is_active: active })
@@ -564,12 +615,21 @@ async function setProjectPartyActive(
 
   if (error) return { error: "Could not update this party. Check you have permission and try again." };
 
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+
+  if (party?.user_id) {
+    if (active && project?.organization_id) {
+      await restoreProjectAccessGrant(supabase, projectId, project.organization_id, party.user_id, party.party_type);
+    } else if (!active) {
+      await revokeProjectAccessGrantIfUnused(supabase, projectId, party.user_id);
+    }
+  }
+
   try {
-    const { data: project } = await supabase
-      .from("projects")
-      .select("organization_id")
-      .eq("id", projectId)
-      .maybeSingle<{ organization_id: string }>();
     if (project?.organization_id) {
       await recordAuditEvent(supabase, {
         organizationId: project.organization_id,
@@ -578,7 +638,7 @@ async function setProjectPartyActive(
         entityId: projectPartyId,
         action: active ? "reactivated" : "deactivated",
         actorId: session.userId,
-        summary: `Party ${active ? "reactivated" : "deactivated"}`,
+        summary: `Party ${active ? "reactivated" : "deactivated"}${party?.user_id ? " (platform access grant " + (active ? "restored" : "revoked") + ")" : ""}`,
       });
     }
   } catch {
@@ -615,9 +675,10 @@ export interface BulkProjectPartiesState {
  * notice failure mode the ask calls out. So this is its own button the admin clicks, with its own
  * confirm step in the UI (see DeactivateAllPartiesControl), not something wired to setProjectStatus.
  *
- * Only touches project_parties.is_active — never access_grants, never deletes anything. Reversible
- * in one click (reactivateAllProjectPartiesAction) for exactly that reason: if the project reopens or
- * someone needs access again post-handover, nothing has to be recreated from scratch.
+ * Also revokes each deactivated party's project-scoped access_grants row (per-user-facing decision:
+ * "Deactivate" should mean the login actually loses project access, not just two specific in-app
+ * actions — see setProjectPartyActive's own updated doc comment). Still fully reversible in one click
+ * (reactivateAllProjectPartiesAction), which restores each grant rather than requiring a fresh invite.
  *
  * See the note on setProjectPartyActive above: is_active is a real access boundary now (canSignOffForParty
  * and canExecuteItpItem both require it), so this bulk action actually revokes every deactivated
@@ -636,6 +697,18 @@ export async function deactivateAllProjectPartiesAction(
   if (!projectId) return { error: "Missing project." };
 
   const supabase = await createSupabaseServerClient();
+
+  // Every party being deactivated in this same bulk call — after the update below, none of them
+  // remain active, so their access_grants rows can be removed unconditionally (no "still needed by
+  // another active party" case to check, unlike the single-party path).
+  const { data: parties } = await supabase
+    .from("project_parties")
+    .select("user_id")
+    .eq("project_id", projectId)
+    .eq("is_active", true)
+    .not("user_id", "is", null)
+    .returns<{ user_id: string | null }[]>();
+
   const { error } = await supabase
     .from("project_parties")
     .update({ is_active: false })
@@ -643,6 +716,11 @@ export async function deactivateAllProjectPartiesAction(
     .eq("is_active", true);
 
   if (error) return { error: "Could not deactivate project parties. Check you have permission and try again." };
+
+  const userIds = [...new Set((parties ?? []).map((p) => p.user_id).filter((id): id is string => Boolean(id)))];
+  if (userIds.length > 0) {
+    await supabase.from("access_grants").delete().eq("project_id", projectId).eq("scope_type", "project").in("user_id", userIds);
+  }
 
   await auditProjectSetting(supabase, projectId, session.userId, "all_parties_deactivated", true);
 
@@ -663,6 +741,18 @@ export async function reactivateAllProjectPartiesAction(
   if (!projectId) return { error: "Missing project." };
 
   const supabase = await createSupabaseServerClient();
+
+  const [{ data: parties }, { data: project }] = await Promise.all([
+    supabase
+      .from("project_parties")
+      .select("user_id, party_type")
+      .eq("project_id", projectId)
+      .eq("is_active", false)
+      .not("user_id", "is", null)
+      .returns<{ user_id: string | null; party_type: string }[]>(),
+    supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>(),
+  ]);
+
   const { error } = await supabase
     .from("project_parties")
     .update({ is_active: true })
@@ -670,6 +760,13 @@ export async function reactivateAllProjectPartiesAction(
     .eq("is_active", false);
 
   if (error) return { error: "Could not reactivate project parties. Check you have permission and try again." };
+
+  if (project?.organization_id) {
+    for (const party of parties ?? []) {
+      if (!party.user_id) continue;
+      await restoreProjectAccessGrant(supabase, projectId, project.organization_id, party.user_id, party.party_type);
+    }
+  }
 
   await auditProjectSetting(supabase, projectId, session.userId, "all_parties_deactivated", false);
 
