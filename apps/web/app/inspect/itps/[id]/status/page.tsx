@@ -37,7 +37,7 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
 
   const { data: itp } = await supabase
     .from("itps")
-    .select("id, itp_number, title, status, project_id, projects(name)")
+    .select("id, itp_number, title, status, project_id, projects(name, organization_id)")
     .eq("id", id)
     .maybeSingle<{
       id: string;
@@ -45,7 +45,7 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
       title: string;
       status: string;
       project_id: string;
-      projects: { name: string } | null;
+      projects: { name: string; organization_id: string } | null;
     }>();
 
   if (!itp) notFound();
@@ -122,6 +122,7 @@ export default async function ItpStatusPage({ params }: { params: Promise<{ id: 
     supabase
       .from(INTERVENTION_LEVEL_TYPES_TABLE)
       .select("code, label, is_blocking")
+      .eq("organization_id", itp.projects?.organization_id ?? "")
       .returns<{ code: string; label: string; is_blocking: boolean }[]>(),
   ]);
 

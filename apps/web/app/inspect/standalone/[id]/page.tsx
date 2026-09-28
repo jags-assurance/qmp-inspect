@@ -23,6 +23,7 @@ import { FatReportPdfButton } from "./fat-report-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
 
 interface AssignmentDetail {
@@ -139,6 +140,16 @@ export default async function StandaloneAssignmentDetailPage({
         .neq("status", "closed"),
     ]);
 
+  // Real gap found in a wiring audit: the Photos tab only ever showed each photo's filename text —
+  // never the actual image, unlike every other photo-evidence surface in the app (NCR detail,
+  // inspection records). Same batched-signed-URL pattern as those: one Storage call for every photo
+  // on this assignment, keyed by storage_path, so PhotoTile can render a real thumbnail.
+  const photoSignedUrls = await getSignedPhotoUrls(
+    supabase,
+    "inspection-evidence",
+    (photos ?? []).map((p) => p.storage_path)
+  );
+
   return (
     <div>
       <RealtimeRefresh table="standalone_assignments" filter={`id=eq.${id}`} />
@@ -174,6 +185,7 @@ export default async function StandaloneAssignmentDetailPage({
           assignment={assignment}
           measurements={measurements ?? []}
           photos={photos ?? []}
+          photoSignedUrls={photoSignedUrls}
           evidenceDocuments={(rawEvidenceDocuments ?? []).map((d) => ({
             ...d,
             title: d.vault_documents?.title ?? "Untitled document",

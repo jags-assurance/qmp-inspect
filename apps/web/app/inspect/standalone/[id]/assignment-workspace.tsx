@@ -78,6 +78,7 @@ export function AssignmentWorkspace({
   assignment,
   measurements,
   photos,
+  photoSignedUrls,
   evidenceDocuments,
   vaultDocuments,
   punchItems,
@@ -88,6 +89,9 @@ export function AssignmentWorkspace({
   assignment: Assignment;
   measurements: StandaloneAssignmentMeasurementRow[];
   photos: StandaloneAssignmentPhotoRow[];
+  /** storage_path -> signed URL, batched server-side (lib/storage/signed-urls.ts) — a path missing
+   *  from this map (deleted object, sign failure) just renders an empty frame, never a broken image. */
+  photoSignedUrls: Map<string, string>;
   evidenceDocuments: (StandaloneAssignmentEvidenceDocumentRow & { title: string; documentReference: string | null })[];
   vaultDocuments: VaultDocumentOption[];
   punchItems: StandaloneAssignmentPunchItemRow[];
@@ -235,7 +239,7 @@ export function AssignmentWorkspace({
           <div className="p-4">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
               {photos.map((photo) => (
-                <PhotoTile key={photo.id} photo={photo} />
+                <PhotoTile key={photo.id} photo={photo} url={photoSignedUrls.get(photo.storage_path) ?? null} />
               ))}
               {photos.length === 0 && <p className="col-span-full text-center text-sm text-muted">No photos uploaded yet.</p>}
             </div>
@@ -360,13 +364,20 @@ export function AssignmentWorkspace({
   );
 }
 
-function PhotoTile({ photo }: { photo: StandaloneAssignmentPhotoRow }) {
+function PhotoTile({ photo, url }: { photo: StandaloneAssignmentPhotoRow; url: string | null }) {
   return (
     <div className="rounded-md border border-border p-2">
-      <p className="truncate text-xs text-muted" title={photo.storage_path}>
-        {photo.storage_path.split("/").pop()}
-      </p>
-      {photo.caption && <p className="mt-1 text-sm text-ink">{photo.caption}</p>}
+      <div className="aspect-square overflow-hidden rounded-md bg-off-white">
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
+          <img src={url} alt={photo.caption ?? "Assignment evidence"} className="h-full w-full object-cover" />
+        ) : (
+          <p className="flex h-full items-center justify-center truncate px-1 text-center text-[10px] text-muted" title={photo.storage_path}>
+            {photo.storage_path.split("/").pop()}
+          </p>
+        )}
+      </div>
+      {photo.caption && <p className="mt-1 truncate text-sm text-ink" title={photo.caption}>{photo.caption}</p>}
     </div>
   );
 }
