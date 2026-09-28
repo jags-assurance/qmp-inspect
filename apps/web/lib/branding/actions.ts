@@ -105,6 +105,8 @@ export interface LogoUploadState {
 }
 
 const ORG_BRANDING_BUCKET = "org-branding";
+const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024; // Same 2MB cap as the client-side check.
+const ACCEPTED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/svg+xml", "image/webp"]);
 
 /**
  * Records the storage path of a logo the browser has already uploaded straight to the (private)
@@ -143,6 +145,29 @@ export async function updateOrgLogoAction(
   // an honest error here rather than letting a mismatched path silently record the wrong logo.
   if (!storagePath.startsWith(`${organizationId}/`)) {
     return { error: "Uploaded file does not belong to this organisation." };
+  }
+
+  // Real gap found in a UX audit: the 2MB/PNG-JPEG-SVG-WebP checks only ever ran client-side —
+  // this action recorded whatever storage_path it was handed with no re-check, so calling it
+  // directly (bypassing the upload form's own validation) could point branding_logo_path at an
+  // oversized or arbitrary-mimetype file the bucket itself never rejected. list() on the object's
+  // own folder returns the metadata Storage recorded at upload time, so this re-checks the ACTUAL
+  // uploaded file rather than trusting the client's own prior check.
+  const slashIndex = storagePath.lastIndexOf("/");
+  const folder = storagePath.slice(0, slashIndex);
+  const fileName = storagePath.slice(slashIndex + 1);
+  const { data: listing } = await supabase.storage.from(ORG_BRANDING_BUCKET).list(folder, { search: fileName });
+  const uploadedFile = listing?.find((f) => f.name === fileName);
+  if (!uploadedFile) {
+    return { error: "Could not find the uploaded file — try uploading again." };
+  }
+  const size = uploadedFile.metadata?.size as number | undefined;
+  const mimetype = uploadedFile.metadata?.mimetype as string | undefined;
+  if (typeof size === "number" && size > MAX_LOGO_SIZE_BYTES) {
+    return { error: "Logo must be 2MB or smaller." };
+  }
+  if (mimetype && !ACCEPTED_LOGO_TYPES.has(mimetype)) {
+    return { error: "Logo must be a PNG, JPEG, SVG, or WebP image." };
   }
 
   const { data: org, error: fetchError } = await supabase

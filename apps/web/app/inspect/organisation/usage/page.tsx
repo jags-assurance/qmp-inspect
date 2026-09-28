@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
@@ -264,7 +265,10 @@ export default async function UsageAndCostPage() {
 
   return (
     <div className="max-w-5xl">
-      <div>
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink">Usage &amp; Cost</h1>
           <PageGuide

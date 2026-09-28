@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { NUMBERING_CONFIGS_TABLE, NUMBERING_DOC_TYPES, type NumberingConfigRow } from "@/lib/numbering/types";
-import { listMonthlyReportPacks, listWeeklyReportPacks } from "@/lib/reports/actions";
 import {
   ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE,
   type ItpApprovalWorkflowConfigRow,
@@ -12,10 +12,7 @@ import { EngagementScopeForm } from "./engagement-scope-form";
 import { ItpSequencingModeForm } from "./itp-sequencing-mode-form";
 import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config-row";
 import { OrgPickerForm } from "./org-picker-form";
-import { MonthlyReportPackForm } from "./monthly-report-pack-form";
-import { WeeklyReportPackForm } from "./weekly-report-pack-form";
 import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
-import { isAiConfigured } from "@/lib/ai/gate";
 import { PageGuide } from "@/components/domain/page-guide";
 
 interface OrganizationOption {
@@ -85,9 +82,6 @@ export default async function NumberingSettingsPage({
     configsByDocType = new Map((configs ?? []).map((c) => [c.doc_type, c]));
   }
 
-  const reportPacks = selectedOrg && !numberingOnly ? await listMonthlyReportPacks(selectedOrg.id) : [];
-  const weeklyReportPacks = selectedOrg && !numberingOnly ? await listWeeklyReportPacks(selectedOrg.id) : [];
-
   // R79 configurable ITP approval workflow: staff pool to pick a required reviewer/approver from —
   // JAGS staff aren't org-scoped (any staff login can be granted access to any org via access_grants,
   // same as the Staff Access screen), so this is the same global "every JAGS staff account" query
@@ -114,7 +108,10 @@ export default async function NumberingSettingsPage({
 
   return (
     <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center gap-2">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">
           {numberingOnly ? "Document numbering" : "Numbering & engagement mode"}
         </h1>
@@ -132,7 +129,7 @@ export default async function NumberingSettingsPage({
                   "A Self-Managed or Full Client-Managed client can configure their own org's numbering directly (this same page, scoped to their org) — engagement mode/scope, sign-off sequencing, ITP approval workflow and report packs stay Admin-only regardless.",
                   "Party sign-off sequencing controls whether non-blocking intervention levels (e.g. Witness, Review) must also clear in sort_order, the same way blocking levels like Hold already do.",
                   "ITP approval workflow: by default any JAGS staff login can submit/approve an ITP; pin a slot to one specific reviewer/approver if the client's process requires a named person. A JAGS Admin can always act regardless of this setting.",
-                  "Monthly/weekly report packs render in the background — the table updates automatically once done, no reload needed.",
+                  "Monthly/weekly client report packs moved to Reporting (Insights & Usage) — this page now covers numbering/engagement/workflow only.",
                 ]
           }
         />
@@ -237,33 +234,13 @@ export default async function NumberingSettingsPage({
                 </div>
               </div>
 
-              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-semibold text-ink">Monthly client report pack</h2>
-                <p className="mt-1 text-xs text-muted">
-                  Generates a PDF + CSV report pack (R109) covering this organisation&rsquo;s
-                  first-time pass rate, inspections completed, NCR summary and ITP completion,
-                  aggregated across all of their projects for the chosen month. Rendering happens
-                  in the background — the table below updates automatically once it completes, no
-                  reload needed.
-                </p>
-                <div className="mt-4">
-                  <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={isAiConfigured()} />
-                </div>
-              </div>
-
-              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-semibold text-ink">Weekly client report pack</h2>
-                <p className="mt-1 text-xs text-muted">
-                  The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month —
-                  covers first-time pass rate, inspections completed, NCR summary and ITP
-                  completion for the chosen week, aggregated across all of this
-                  organisation&rsquo;s projects. Rendering happens in the background — the table
-                  below updates automatically once it completes, no reload needed.
-                </p>
-                <div className="mt-4">
-                  <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} />
-                </div>
-              </div>
+              <p className="mt-8 text-sm text-muted">
+                Looking for monthly/weekly client report packs? They moved to{" "}
+                <Link href={`/inspect/organisation/reporting?org=${selectedOrg.id}`} className="text-burgundy hover:underline">
+                  Reporting
+                </Link>{" "}
+                (under Insights &amp; Usage) — same organisation, one click away.
+              </p>
             </>
           )}
         </>

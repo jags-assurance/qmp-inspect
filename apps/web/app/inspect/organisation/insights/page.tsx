@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
@@ -108,7 +109,10 @@ export default async function PortfolioInsightsPage() {
   if (projectIds.length === 0) {
     return (
       <div className="max-w-4xl">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+          ← Back to Dashboard
+        </Link>
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
             <PageGuide title="Portfolio Insights — how this works" points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
@@ -239,7 +243,10 @@ export default async function PortfolioInsightsPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">Portfolio Insights</h1>
