@@ -735,6 +735,7 @@ export async function advanceItpStatusAction(
             .select("user_id")
             .eq("project_id", itp.project_id)
             .eq("party_type", "client")
+            .eq("is_active", true)
             .not("user_id", "is", null)
             .returns<{ user_id: string | null }[]>();
 
