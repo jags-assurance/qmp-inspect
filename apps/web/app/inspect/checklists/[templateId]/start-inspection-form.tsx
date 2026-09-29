@@ -27,6 +27,7 @@ export function StartInspectionForm({
 }) {
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
   const locationRef = useRef<HTMLInputElement>(null);
+  const selectedPresetRef = useRef<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [resolvingAddress, setResolvingAddress] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -105,8 +106,16 @@ export function StartInspectionForm({
           onChange={(e) => {
             const value = e.target.value;
             if (!value || !locationRef.current) return;
-            const existing = locationRef.current.value.trim();
+            // Picking a preset replaces the PREVIOUSLY picked preset (not whatever was manually
+            // typed or added via "Use my location") — otherwise picking a second preset just piled
+            // both onto the field instead of swapping the choice.
+            let existing = locationRef.current.value.trim();
+            const prevPreset = selectedPresetRef.current;
+            if (prevPreset && existing.endsWith(prevPreset)) {
+              existing = existing.slice(0, existing.length - prevPreset.length).replace(/,\s*$/, "").trim();
+            }
             locationRef.current.value = existing ? `${existing}, ${value}` : value;
+            selectedPresetRef.current = value;
             e.target.value = "";
           }}
           className="mt-1 w-full max-w-md rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
