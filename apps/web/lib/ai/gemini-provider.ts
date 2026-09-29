@@ -39,6 +39,19 @@ function modelFor(tier: GeminiTier): string {
   return model;
 }
 
+// Real gap found in a cost-reduction audit: no call here ever set a max output length — an
+// unbounded `maxOutputTokens` (Gemini's default has no practical ceiling) is the single biggest
+// per-call cost lever this app wasn't using. "heavy" (itp_draft) genuinely needs room for a full
+// multi-section ITP; every "light" feature is a short structured draft/suggestion/extraction and
+// has no legitimate reason to ever generate a multi-thousand-token response.
+const MAX_OUTPUT_TOKENS: Record<GeminiTier, number> = {
+  heavy: 8192,
+  // Not 2048: several "light" features return bulk JSON arrays (checklist generation, register
+  // extraction can legitimately list dozens of rows) — 4096 still caps runaway generation while
+  // leaving real headroom for a genuinely large but valid extraction.
+  light: 4096,
+};
+
 // Which tier each feature's prompt actually calls (see the `generateContent("heavy"|"light", ...)`
 // call inside each method below) — exposed so a caller can resolve "which model actually produced
 // this draft" for the audit-trail log (lib/ai/log.ts's logAiUsage) without a network round trip.
@@ -87,7 +100,7 @@ export const PROMPT_VERSIONS: Record<AiFeature, string> = {
 };
 
 interface GeminiGenerateContentResponse {
-  candidates?: { content?: { parts?: { text?: string }[] } }[];
+  candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
 }
 
 /**
@@ -109,7 +122,10 @@ async function generateContent(tier: GeminiTier, prompt: string, expectJson: boo
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      ...(expectJson ? { generationConfig: { responseMimeType: "application/json" } } : {}),
+      generationConfig: {
+        maxOutputTokens: MAX_OUTPUT_TOKENS[tier],
+        ...(expectJson ? { responseMimeType: "application/json" } : {}),
+      },
     }),
   });
 
@@ -122,6 +138,14 @@ async function generateContent(tier: GeminiTier, prompt: string, expectJson: boo
   const text = body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
   if (!text.trim()) {
     throw new Error("Gemini returned an empty response.");
+  }
+  // A response cut off by the maxOutputTokens cap above (not an error Gemini itself reports as a
+  // failure) would otherwise surface as a confusing "not valid JSON" from parseJson — this gives
+  // whoever hits it a real explanation and a real fix (raise MAX_OUTPUT_TOKENS for this tier).
+  if (body.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+    throw new Error(
+      `Gemini's response was cut off at the ${MAX_OUTPUT_TOKENS[tier]}-token output limit for this feature — raise MAX_OUTPUT_TOKENS[\"${tier}\"] in gemini-provider.ts if this recurs.`
+    );
   }
   return text;
 }

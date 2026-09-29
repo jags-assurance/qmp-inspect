@@ -22,6 +22,14 @@ export interface AiCacheLookupParams {
   inputHash: string;
 }
 
+// Real gap found in a cost-reduction audit: this cache had no expiry at all — a call from a year
+// ago would be served forever as long as the input hash matched. 30 days is generous for what this
+// caches (a deterministic draft from a fixed grounding input, not live project state — the input
+// hash already changes whenever the actual source content does) while still bounding how long a
+// stale draft can keep getting reused if e.g. a downstream reference dataset silently changed
+// without also changing the hashed input.
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Looks for a previous ai_usage_log row for this exact (organisation, feature, prompt version,
  * input hash) combination and returns its stored ai_response if found, else null.
@@ -45,6 +53,7 @@ export async function findCachedAiResponse<T>(
   params: AiCacheLookupParams
 ): Promise<T | null> {
   try {
+    const notBefore = new Date(Date.now() - CACHE_TTL_MS).toISOString();
     const { data } = await supabase
       .from(AI_USAGE_LOG_TABLE)
       .select("ai_response")
@@ -52,6 +61,7 @@ export async function findCachedAiResponse<T>(
       .eq("feature", params.feature)
       .eq("prompt_version", params.promptVersion)
       .eq("input_hash", params.inputHash)
+      .gte("created_at", notBefore)
       .not("ai_response", "is", null)
       .order("created_at", { ascending: false })
       .limit(1)
