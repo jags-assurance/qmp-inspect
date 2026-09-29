@@ -10,6 +10,7 @@ import { AddProjectPartyForm } from "./add-project-party-form";
 import { AddSelfManagedPartyForm } from "./add-self-managed-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
 import { ProvisionPartyLoginForm } from "./provision-party-login-form";
+import { PartyMembersPanel, type PartyMemberRow, type CustomRoleOption } from "./party-members-panel";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
 import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
@@ -119,7 +120,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   ] = await Promise.all([
     supabase
       .from("project_parties")
-      .select("id, name, party_type, is_active, onboarded_by, user_id, contact_email, users(full_name, email)")
+      .select("id, name, party_type, is_active, onboarded_by, user_id, contact_email, access_mode, users(full_name, email)")
       .eq("project_id", projectId)
       .order("is_active", { ascending: false })
       .order("party_type")
@@ -132,6 +133,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           onboarded_by: "jags" | "client";
           user_id: string | null;
           contact_email: string | null;
+          access_mode: "whole_org" | "selected_people";
           users: { full_name: string; email: string } | null;
         }[]
       >(),
@@ -187,6 +189,34 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   // for their own team without a JAGS Admin, via the provision_party_login custom-role grant (see
   // CLIENT_MANAGED_ONLY_PERMISSION_KEYS) — never available on a plain self_managed org.
   const canProvisionPartyLogin = isAdminStaff(session) || (await hasPermission(session.userId, "provision_party_login", project.id));
+
+  // Party-members/custom-permission management (project_party_members,
+  // 20260930180000_project_party_members.sql) — gated identically to canProvisionPartyLogin since
+  // it's the same sensitivity level (granting/revoking real project access), and only fetched at all
+  // when at least one party exists to attach the panel to.
+  let partyMembersByPartyId = new Map<string, PartyMemberRow[]>();
+  let orgCustomRoles: CustomRoleOption[] = [];
+  if (canProvisionPartyLogin && (parties ?? []).length > 0) {
+    const [{ data: memberRows }, { data: roleRows }] = await Promise.all([
+      supabase
+        .from("project_party_members")
+        .select("id, project_party_id, user_id, invited_email, permission_mode, custom_role_id, users(full_name, email), custom_roles(name)")
+        .in("project_party_id", (parties ?? []).map((p) => p.id))
+        .returns<(PartyMemberRow & { project_party_id: string })[]>(),
+      supabase
+        .from("custom_roles")
+        .select("id, name, organization_id")
+        .or(`organization_id.eq.${project.organization_id},organization_id.is.null`)
+        .order("name")
+        .returns<{ id: string; name: string; organization_id: string | null }[]>(),
+    ]);
+    for (const row of memberRows ?? []) {
+      const list = partyMembersByPartyId.get(row.project_party_id) ?? [];
+      list.push(row);
+      partyMembersByPartyId.set(row.project_party_id, list);
+    }
+    orgCustomRoles = (roleRows ?? []).map((r) => ({ id: r.id, name: r.name }));
+  }
 
   const projectLocationPresets = (
     isAdminStaff(session) || canAddSelfManagedParty
@@ -414,6 +444,17 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   )}
                 </span>
               </div>
+              {canProvisionPartyLogin && party.is_active && (
+                <div className="mt-1.5">
+                  <PartyMembersPanel
+                    projectPartyId={party.id}
+                    accessMode={party.access_mode}
+                    members={partyMembersByPartyId.get(party.id) ?? []}
+                    customRoles={orgCustomRoles}
+                    primaryContactUserId={party.user_id}
+                  />
+                </div>
+              )}
             </li>
           ))}
           {(parties ?? []).length === 0 && <li className="text-sm text-muted">No parties recorded on this project yet.</li>}

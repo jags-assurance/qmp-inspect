@@ -167,13 +167,21 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
             ],
           },
+          // Reordered to read as one story instead of four unrelated screens bolted together:
+          // 1) Staff Access — who has an account and which org/project they can reach at all.
+          // 2) Custom Roles — what a specific person is additionally allowed to DO, on top of that.
+          // 3) Teams — how staff are grouped for delegation (a team lead can reassign/provision on
+          //    the projects their team is assigned to — see isTeamLeadForProject).
+          // 4) Module Licensing — which modules exist for an org's people to be given any of the
+          //    above access to in the first place. See staff-access/page.tsx's intro paragraph for
+          //    the one-paragraph version of this same relationship.
           {
             label: "Access & Roles",
             href: "/inspect/organisation/staff-access",
             children: [
               { label: "Staff Access", href: "/inspect/organisation/staff-access" },
-              { label: "Teams", href: "/inspect/organisation/teams" },
               { label: "Custom Roles", href: "/inspect/organisation/roles" },
+              { label: "Teams", href: "/inspect/organisation/teams" },
               { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
             ],
           },

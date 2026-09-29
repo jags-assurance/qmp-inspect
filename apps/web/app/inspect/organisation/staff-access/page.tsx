@@ -101,6 +101,15 @@ export default async function StaffAccessPage() {
         an Inspector to only the clients they actually work with. This is a permission boundary
         enforced by the database itself (Row-Level Security), not just this screen.
       </p>
+      <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
+        This is the first of four related Access &amp; Roles screens, read in order: <strong>Staff
+        Access</strong> (this page) decides who has an account and which org/project they can reach
+        at all; <strong>Custom Roles</strong> then decides what a specific person is additionally
+        allowed to do on top of that; <strong>Teams</strong> groups staff so a team lead can delegate
+        day-to-day actions on the projects their team is assigned to; and <strong>Module
+        Licensing</strong> decides which modules exist for a client org&apos;s own people to be given
+        any access to in the first place.
+      </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Staff accounts" value={(staff ?? []).length} />
