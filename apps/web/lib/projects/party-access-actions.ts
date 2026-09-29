@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 
 export interface PartyMemberActionState {
   error: string | null;
@@ -73,7 +74,10 @@ export async function setPartyAccessModeAction(
 
   const { error } = await supabase
     .from("project_parties")
-    .update({ access_mode: accessMode })
+    // access_mode isn't in the generated Database type yet — see the PROJECT_PARTY_MEMBERS_TABLE
+    // comment above for why; same narrow escape hatch, scoped to just this one update payload.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- narrow, documented escape hatch
+    .update({ access_mode: accessMode } as any)
     .eq("id", projectPartyId);
   if (error) return { error: "Could not update the access mode." };
 
@@ -146,7 +150,7 @@ export async function addPartyMemberAction(
   const userId = existingUser?.id ?? null;
 
   const { data: inserted, error: insertError } = await supabase
-    .from("project_party_members")
+    .from(PROJECT_PARTY_MEMBERS_TABLE)
     .insert({
       project_party_id: projectPartyId,
       user_id: userId,
@@ -187,7 +191,7 @@ export async function addPartyMemberAction(
   if (grantError && grantError.code !== "23505") {
     // Roll back the membership row so we don't leave a "member" who was never actually granted
     // anything — same compensating-rollback instinct as provisionPartyLoginAction's own comment.
-    if (inserted) await supabase.from("project_party_members").delete().eq("id", inserted.id);
+    if (inserted) await supabase.from(PROJECT_PARTY_MEMBERS_TABLE).delete().eq("id", inserted.id);
     return {
       error: grantError.message.includes("seat limit")
         ? grantError.message
@@ -247,7 +251,7 @@ export async function removePartyMemberAction(
   const supabase = await createSupabaseServerClient();
 
   const { data: member } = await supabase
-    .from("project_party_members")
+    .from(PROJECT_PARTY_MEMBERS_TABLE)
     .select("id, user_id, permission_mode, custom_role_id, project_parties(id, project_id, party_type, projects(organization_id))")
     .eq("id", memberId)
     .maybeSingle<{
@@ -296,7 +300,7 @@ export async function removePartyMemberAction(
       .eq("role", party.party_type);
   }
 
-  const { error } = await supabase.from("project_party_members").delete().eq("id", memberId);
+  const { error } = await supabase.from(PROJECT_PARTY_MEMBERS_TABLE).delete().eq("id", memberId);
   if (error) return { error: "Could not remove that member." };
 
   try {

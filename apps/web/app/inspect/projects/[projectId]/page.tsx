@@ -11,6 +11,7 @@ import { AddSelfManagedPartyForm } from "./add-self-managed-party-form";
 import { ReassignPartyForm } from "./reassign-party-form";
 import { ProvisionPartyLoginForm } from "./provision-party-login-form";
 import { PartyMembersPanel, type PartyMemberRow, type CustomRoleOption } from "./party-members-panel";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 import { AllowClientExecutionToggle } from "./allow-client-execution-toggle";
 import { AllowClientItpCreationToggle } from "./allow-client-itp-creation-toggle";
 import { AllowContractorItpCreationToggle } from "./allow-contractor-itp-creation-toggle";
@@ -199,7 +200,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   if (canProvisionPartyLogin && (parties ?? []).length > 0) {
     const [{ data: memberRows }, { data: roleRows }] = await Promise.all([
       supabase
-        .from("project_party_members")
+        .from(PROJECT_PARTY_MEMBERS_TABLE)
         .select("id, project_party_id, user_id, invited_email, permission_mode, custom_role_id, users(full_name, email), custom_roles(name)")
         .in("project_party_id", (parties ?? []).map((p) => p.id))
         .returns<(PartyMemberRow & { project_party_id: string })[]>(),
