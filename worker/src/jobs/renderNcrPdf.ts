@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { buildNcrPdfHtml, type NcrPdfData, type NcrPdfSeverity, type NcrPdfStatus } from "./ncrTemplate";
 import type { RenderNcrPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -130,6 +131,22 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  // "approvals_correspondence" — no dedicated NCR category exists in the fixed vault taxonomy
+  // (lib/vault/types.ts's VAULT_FOLDER_KEYS), and "certificates" is reserved for
+  // calibration/qualification-style certificates per
+  // 20260917050000_add_test_reports_vault_folder.sql's own header comment, so it would be a poor
+  // fit. An NCR dossier is a formal, project-level record of correspondence about a
+  // non-conformance, which this category otherwise already covers.
+  await autoFileVaultDocument(supabase, {
+    projectId: ncr.project_id,
+    folderKey: "approvals_correspondence",
+    title: `NCR ${ncr.ncr_number}`,
+    documentReference: ncr.ncr_number,
+    revision: "0",
+    storagePath,
+    fileSize: pdfBuffer.length,
+  });
 
   return { resultStoragePath: storagePath };
 }

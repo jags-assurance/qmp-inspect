@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { buildNcrCloseoutPdfHtml, type NcrCloseoutPdfData, type NcrCloseoutSeverity } from "./ncrCloseoutTemplate";
 import type { RenderNcrCloseoutCertificatePayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -130,6 +131,16 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  await autoFileVaultDocument(supabase, {
+    projectId: ncr.project_id,
+    folderKey: "certificates",
+    title: `NCR ${ncr.ncr_number} — Close-out certificate`,
+    documentReference: `${ncr.ncr_number}-closeout`,
+    revision: "0",
+    storagePath,
+    fileSize: pdfBuffer.length,
+  });
 
   return { resultStoragePath: storagePath };
 }

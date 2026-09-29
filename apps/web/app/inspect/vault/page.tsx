@@ -96,6 +96,14 @@ export default async function VaultPage({
 
       {selectedProject && (
         <>
+          <div className="mt-4">
+            <a
+              href={`/api/vault/${selectedProject}/download-all`}
+              className="inline-flex items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
+            >
+              Download all (.zip)
+            </a>
+          </div>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {folders.map((folder) => (
               <Link

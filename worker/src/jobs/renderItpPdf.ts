@@ -12,6 +12,7 @@ import {
 } from "./itpTemplate";
 import type { RenderItpPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -305,6 +306,16 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  await autoFileVaultDocument(supabase, {
+    projectId: project.id,
+    folderKey: "itps_approved",
+    title: `${itp.itp_number} — ${itp.title}`,
+    documentReference: itp.itp_number,
+    revision: String(itp.revision),
+    storagePath,
+    fileSize: pdfBuffer.length,
+  });
 
   return { resultStoragePath: storagePath };
 }

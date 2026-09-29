@@ -9,8 +9,24 @@ import { Badge } from "@/components/ui/badge";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 
+/**
+ * Every manually-uploaded vault document lives in the "inspection-evidence" bucket with a bare
+ * storage_path. Worker-auto-filed documents (ITP/NCR/Inspection Report PDFs — see
+ * worker/src/jobs/vaultAutoFile.ts) live in the separate "generated-documents" bucket instead, so
+ * their storage_path is prefixed "generated-documents:<path>". Parsed here so both kinds resolve
+ * to the right bucket; the prefix is stripped from the path before use.
+ */
+function resolveStorageLocation(storagePath: string): { bucket: string; path: string } {
+  const prefixMatch = /^([a-z0-9_-]+):(.+)$/i.exec(storagePath);
+  if (prefixMatch && prefixMatch[1] === "generated-documents") {
+    return { bucket: prefixMatch[1], path: prefixMatch[2] };
+  }
+  return { bucket: "inspection-evidence", path: storagePath };
+}
+
 function fileExtension(storagePath: string): string {
-  const match = /\.([a-z0-9]+)$/i.exec(storagePath);
+  const { path } = resolveStorageLocation(storagePath);
+  const match = /\.([a-z0-9]+)$/i.exec(path);
   return match ? match[1].toLowerCase() : "";
 }
 
@@ -59,9 +75,10 @@ export function DrawingMarkupViewer({
   useEffect(() => {
     let cancelled = false;
     const supabase = createSupabaseBrowserClient();
+    const { bucket, path } = resolveStorageLocation(storagePath);
     supabase.storage
-      .from("inspection-evidence")
-      .createSignedUrl(storagePath, 3600)
+      .from(bucket)
+      .createSignedUrl(path, 3600)
       .then(({ data }) => {
         if (!cancelled) setSignedUrl(data?.signedUrl ?? null);
       });

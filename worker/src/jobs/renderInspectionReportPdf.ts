@@ -8,6 +8,7 @@ import {
 } from "./inspectionReportTemplate";
 import type { RenderInspectionReportPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
@@ -188,6 +189,19 @@ export async function renderInspectionReportPdf(
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  // "checklists_forms" — an Inspection Report is the rendered output of a completed checklist
+  // execution, which this category already covers; there is no separate "inspection reports"
+  // category in the fixed vault taxonomy.
+  await autoFileVaultDocument(supabase, {
+    projectId: record.project_id,
+    folderKey: "checklists_forms",
+    title: `Inspection Report ${record.record_number} — ${record.activity}`,
+    documentReference: record.record_number,
+    revision: String(record.revision ?? 0),
+    storagePath,
+    fileSize: pdfBuffer.length,
+  });
 
   return { resultStoragePath: storagePath };
 }
