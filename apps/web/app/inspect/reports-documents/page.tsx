@@ -13,6 +13,12 @@ import { PageGuide } from "@/components/domain/page-guide";
  * then jump straight into any of its four pages. RLS on each destination page still decides what
  * that login actually sees — this is purely a navigation aggregator, unconditional on any module
  * license or role, same as "Projects" itself.
+ *
+ * The Handover Portal (/inspect/handover) is also surfaced from here, not project-scoped, since a
+ * handover certificate is itself a kind of report/document — it used to be its own confusing
+ * top-level nav item alongside this one (see app/inspect/layout.tsx's nav array); it now lives only
+ * here, one level down, with the route itself unchanged so every existing "/inspect/handover" link
+ * elsewhere in the app (e.g. the Data Book page's "Issue Handover" follow-up link) still works.
  */
 export default async function ReportsDocumentsPage({
   searchParams,
@@ -34,7 +40,12 @@ export default async function ReportsDocumentsPage({
 
   return (
     <div>
-      <div>
+      {selectedProject && (
+        <Link href={`/inspect/projects/${selectedProject}`} className="text-sm text-burgundy hover:underline">
+          ← Back to Project
+        </Link>
+      )}
+      <div className={selectedProject ? "mt-2" : undefined}>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink">Reports &amp; Documents</h1>
           <PageGuide
@@ -49,6 +60,14 @@ export default async function ReportsDocumentsPage({
         <p className="mt-1 text-sm text-muted">
           Reports &amp; downloads, the Data Book, project activity and Client KPIs — pick a project below.
         </p>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ReportsCard
+          href="/inspect/handover"
+          title="Handover Portal"
+          description="Issued handover certificates and Data Book packages, across every project."
+        />
       </div>
 
       {projects && projects.length > 0 ? (

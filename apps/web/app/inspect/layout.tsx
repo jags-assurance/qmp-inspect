@@ -136,9 +136,10 @@ export default async function InspectLayout({ children }: { children: React.Reac
       ? [{ label: "Standalone Assignments", href: "/inspect/standalone" }]
       : []),
     ...(isLicensed("vault") ? [{ label: "Document Vault", href: "/inspect/vault" }] : []),
-    ...((session.isJagsStaff || isClientRole) && isLicensed("handover")
-      ? [{ label: "Handover", href: "/inspect/handover" }]
-      : []),
+    // Handover used to be its own top-level nav item here — folded into "Reports & Documents"
+    // instead (a handover certificate is itself a kind of report/document, and the two sitting
+    // side by side in the sidebar was confusing/redundant). The route itself is unchanged
+    // (/inspect/handover), just reached via a card on that page now instead of its own nav entry.
     // Master library review and numbering/engagement settings are the Admin's job — an Inspector
     // gets the same operational nav a client sees, plus staff-wide screens (Projects/ITPs/etc.
     // above already show every organisation to any JAGS staff login, admin or inspector alike).
