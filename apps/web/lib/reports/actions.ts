@@ -6,7 +6,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import {
   STANDALONE_ASSIGNMENTS,
   STANDALONE_ASSIGNMENT_MEASUREMENTS,
@@ -940,9 +940,18 @@ export async function draftInspectionNarrativeAction(
       promptVersion: PROMPT_VERSIONS.report_narrative_draft,
       inputHash,
     });
-    const narrative = cached ?? (await geminiProvider.draftReportNarrative(cacheInput));
+    let usage: GeminiTokenUsage | null = null;
+    let narrative: string;
+    if (cached) {
+      narrative = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.draftReportNarrative(cacheInput));
+      narrative = captured.result;
+      usage = captured.usage;
+    }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId: record.project_id,
       userId: user?.id ?? null,
       feature: "report_narrative_draft",
       modelId: getGeminiModel("report_narrative_draft"),
@@ -951,6 +960,8 @@ export async function draftInspectionNarrativeAction(
       aiResponse: narrative,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, narrative, aiLogId: logId };
   } catch (err) {
@@ -1098,9 +1109,18 @@ export async function draftFatNarrativeAction(
       promptVersion: PROMPT_VERSIONS.report_narrative_draft,
       inputHash,
     });
-    const narrative = cached ?? (await geminiProvider.draftReportNarrative(cacheInput));
+    let usage: GeminiTokenUsage | null = null;
+    let narrative: string;
+    if (cached) {
+      narrative = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.draftReportNarrative(cacheInput));
+      narrative = captured.result;
+      usage = captured.usage;
+    }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId: assignment.project_id,
       userId: user?.id ?? null,
       feature: "report_narrative_draft",
       modelId: getGeminiModel("report_narrative_draft"),
@@ -1109,6 +1129,8 @@ export async function draftFatNarrativeAction(
       aiResponse: narrative,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, narrative, aiLogId: logId };
   } catch (err) {
@@ -1376,12 +1398,20 @@ export async function generateReportPackSummaryAction(
       promptVersion: PROMPT_VERSIONS.report_pack_summary,
       inputHash,
     });
-    const summary =
-      cached ??
-      (await geminiProvider.summarizeReportPack({
-        organizationName: agg.organizationName,
-        ...cacheInput,
-      }));
+    let usage: GeminiTokenUsage | null = null;
+    let summary: string;
+    if (cached) {
+      summary = cached;
+    } else {
+      const captured = await withGeminiUsage(() =>
+        geminiProvider.summarizeReportPack({
+          organizationName: agg.organizationName,
+          ...cacheInput,
+        })
+      );
+      summary = captured.result;
+      usage = captured.usage;
+    }
     await logAiUsage(supabase, {
       organizationId,
       userId: user?.id ?? null,
@@ -1392,6 +1422,8 @@ export async function generateReportPackSummaryAction(
       aiResponse: summary,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, summary };
   } catch (err) {
@@ -1449,9 +1481,18 @@ export async function cleanUpNarrativeAction(
       promptVersion: PROMPT_VERSIONS.text_cleanup,
       inputHash,
     });
-    const cleaned = cached ?? (await geminiProvider.cleanUpText({ text }));
+    let usage: GeminiTokenUsage | null = null;
+    let cleaned: string;
+    if (cached) {
+      cleaned = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.cleanUpText({ text }));
+      cleaned = captured.result;
+      usage = captured.usage;
+    }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId,
       userId: user?.id ?? null,
       feature: "text_cleanup",
       modelId: getGeminiModel("text_cleanup"),
@@ -1460,6 +1501,8 @@ export async function cleanUpNarrativeAction(
       aiResponse: cleaned,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, cleaned, aiLogId: logId };
   } catch (err) {

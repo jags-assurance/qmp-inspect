@@ -16,7 +16,7 @@ import {
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ExtractedCalibrationRow, ExtractedMaterialRow, ExtractedWelderRow } from "@/lib/ai/provider";
 
 async function auditRegisterEntry(
@@ -322,12 +322,21 @@ export async function extractCalibrationRowsAction(
       promptVersion: PROMPT_VERSIONS.calibration_register_extraction,
       inputHash,
     });
-    const rows = cached ?? (await geminiProvider.extractCalibrationRows({ sourceText }));
+    let usage: GeminiTokenUsage | null = null;
+    let rows: ExtractedCalibrationRow[];
+    if (cached) {
+      rows = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.extractCalibrationRows({ sourceText }));
+      rows = captured.result;
+      usage = captured.usage;
+    }
     if (rows.length === 0) {
       return { ...EMPTY_EXTRACT_CALIBRATION_STATE, error: "No calibration entries could be identified in that text." };
     }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId,
       userId: user?.id ?? null,
       feature: "calibration_register_extraction",
       modelId: getGeminiModel("calibration_register_extraction"),
@@ -336,6 +345,8 @@ export async function extractCalibrationRowsAction(
       aiResponse: rows,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, rows, aiLogId: logId };
   } catch (err) {
@@ -479,12 +490,21 @@ export async function extractWelderRowsAction(
       promptVersion: PROMPT_VERSIONS.welder_register_extraction,
       inputHash,
     });
-    const rows = cached ?? (await geminiProvider.extractWelderRows({ sourceText }));
+    let usage: GeminiTokenUsage | null = null;
+    let rows: ExtractedWelderRow[];
+    if (cached) {
+      rows = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.extractWelderRows({ sourceText }));
+      rows = captured.result;
+      usage = captured.usage;
+    }
     if (rows.length === 0) {
       return { ...EMPTY_EXTRACT_WELDER_STATE, error: "No welder qualification entries could be identified in that text." };
     }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId,
       userId: user?.id ?? null,
       feature: "welder_register_extraction",
       modelId: getGeminiModel("welder_register_extraction"),
@@ -493,6 +513,8 @@ export async function extractWelderRowsAction(
       aiResponse: rows,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, rows, aiLogId: logId };
   } catch (err) {
@@ -624,12 +646,21 @@ export async function extractMaterialRowsAction(
       promptVersion: PROMPT_VERSIONS.material_register_extraction,
       inputHash,
     });
-    const rows = cached ?? (await geminiProvider.extractMaterialRows({ sourceText }));
+    let usage: GeminiTokenUsage | null = null;
+    let rows: ExtractedMaterialRow[];
+    if (cached) {
+      rows = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.extractMaterialRows({ sourceText }));
+      rows = captured.result;
+      usage = captured.usage;
+    }
     if (rows.length === 0) {
       return { ...EMPTY_EXTRACT_MATERIAL_STATE, error: "No material entries could be identified in that text." };
     }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId,
       userId: user?.id ?? null,
       feature: "material_register_extraction",
       modelId: getGeminiModel("material_register_extraction"),
@@ -638,6 +669,8 @@ export async function extractMaterialRowsAction(
       aiResponse: rows,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, rows, aiLogId: logId };
   } catch (err) {

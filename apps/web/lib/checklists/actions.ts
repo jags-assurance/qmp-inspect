@@ -24,7 +24,7 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
@@ -126,10 +126,21 @@ export async function generateChecklistsForItp(
             promptVersion: PROMPT_VERSIONS.checklist_generation,
             inputHash,
           });
-          const drafted = cached ?? (await geminiProvider.generateChecklistItems({ ...cacheInput, sourceExcerpt: "" }));
+          let usage: GeminiTokenUsage | null = null;
+          let drafted: ChecklistItemDraft[];
+          if (cached) {
+            drafted = cached;
+          } else {
+            const captured = await withGeminiUsage(() =>
+              geminiProvider.generateChecklistItems({ ...cacheInput, sourceExcerpt: "" })
+            );
+            drafted = captured.result;
+            usage = captured.usage;
+          }
           aiUsed = true;
           const logId = await logAiUsage(supabase, {
             organizationId,
+            projectId,
             userId,
             feature: "checklist_generation",
             modelId: getGeminiModel("checklist_generation"),
@@ -138,6 +149,8 @@ export async function generateChecklistsForItp(
             aiResponse: drafted,
             inputHash,
             servedFromCache: !!cached,
+            inputTokens: usage?.inputTokens ?? null,
+            outputTokens: usage?.outputTokens ?? null,
           });
           return [item.id, { drafted, logId }] as const;
         } catch {
@@ -860,14 +873,23 @@ export async function checkChecklistConsistencyAction(
       promptVersion: PROMPT_VERSIONS.checklist_consistency_check,
       inputHash,
     });
-    const flags =
-      cached ??
-      (await geminiProvider.checkConsistency({
-        acceptanceCriteria: itpItem?.acceptance_criteria ?? "",
-        responses: responseInputs,
-      }));
+    let usage: GeminiTokenUsage | null = null;
+    let flags: string[];
+    if (cached) {
+      flags = cached;
+    } else {
+      const captured = await withGeminiUsage(() =>
+        geminiProvider.checkConsistency({
+          acceptanceCriteria: itpItem?.acceptance_criteria ?? "",
+          responses: responseInputs,
+        })
+      );
+      flags = captured.result;
+      usage = captured.usage;
+    }
     await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId: record.project_id,
       userId: user?.id ?? null,
       feature: "checklist_consistency_check",
       modelId: getGeminiModel("checklist_consistency_check"),
@@ -876,6 +898,8 @@ export async function checkChecklistConsistencyAction(
       aiResponse: flags,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, flags };
   } catch (err) {

@@ -10,7 +10,7 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 
 export interface CreateProjectState {
@@ -1013,9 +1013,18 @@ export async function askProjectQuestionAction(
       promptVersion: PROMPT_VERSIONS.project_qa,
       inputHash,
     });
-    const answer = cached ?? (await geminiProvider.askProjectQuestion({ question, projectContext }));
+    let usage: GeminiTokenUsage | null = null;
+    let answer: string;
+    if (cached) {
+      answer = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.askProjectQuestion({ question, projectContext }));
+      answer = captured.result;
+      usage = captured.usage;
+    }
     await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId,
       userId: user?.id ?? null,
       feature: "project_qa",
       modelId: getGeminiModel("project_qa"),
@@ -1024,6 +1033,8 @@ export async function askProjectQuestionAction(
       aiResponse: answer,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, answer, question };
   } catch (err) {

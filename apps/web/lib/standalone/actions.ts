@@ -13,7 +13,7 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { StandaloneMeasurementSuggestion } from "@/lib/ai/provider";
 import {
   STANDALONE_ASSIGNMENTS,
@@ -411,9 +411,18 @@ export async function suggestStandaloneMeasurementsAction(
       promptVersion: PROMPT_VERSIONS.standalone_measurement_suggestion,
       inputHash,
     });
-    const suggestions = cached ?? (await geminiProvider.suggestStandaloneMeasurements(cacheInput));
+    let usage: GeminiTokenUsage | null = null;
+    let suggestions: StandaloneMeasurementSuggestion[];
+    if (cached) {
+      suggestions = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.suggestStandaloneMeasurements(cacheInput));
+      suggestions = captured.result;
+      usage = captured.usage;
+    }
     await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId: assignment.project_id,
       userId: user?.id ?? null,
       feature: "standalone_measurement_suggestion",
       modelId: getGeminiModel("standalone_measurement_suggestion"),
@@ -422,6 +431,8 @@ export async function suggestStandaloneMeasurementsAction(
       aiResponse: suggestions,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, suggestions };
   } catch (err) {

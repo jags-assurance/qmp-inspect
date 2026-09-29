@@ -14,7 +14,7 @@ import { startReviewChainForItp, getItpReviewProgress } from "@/lib/itps/review-
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -1037,9 +1037,18 @@ export async function translateItpContentAction(
       promptVersion: PROMPT_VERSIONS.content_translation,
       inputHash,
     });
-    const translated = cached ?? (await geminiProvider.translateText({ text: sourceText, targetLanguage }));
+    let usage: GeminiTokenUsage | null = null;
+    let translated: string;
+    if (cached) {
+      translated = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.translateText({ text: sourceText, targetLanguage }));
+      translated = captured.result;
+      usage = captured.usage;
+    }
     await logAiUsage(supabase, {
       organizationId: itp.projects.organization_id,
+      projectId: itp.project_id,
       userId: user?.id ?? null,
       feature: "content_translation",
       modelId: getGeminiModel("content_translation"),
@@ -1048,6 +1057,8 @@ export async function translateItpContentAction(
       aiResponse: translated,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, translated, targetLanguage };
   } catch (err) {

@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
-import { geminiProvider, getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
@@ -141,6 +141,7 @@ export async function generateItpDraftAction(
   const inputHash = hashAiCacheInput({ sourceDocuments, additionalInstructions, projectParties, disciplines: disciplines ?? [] });
   let draft: ItpDraftResult;
   let servedFromCache = false;
+  let usage: GeminiTokenUsage | null = null;
   const cached = await findCachedAiResponse<ItpDraftResult>(supabase, {
     organizationId: project.organization_id,
     feature: "itp_draft",
@@ -152,12 +153,16 @@ export async function generateItpDraftAction(
     servedFromCache = true;
   } else {
     try {
-      draft = await geminiProvider.generateItpDraft({
-        sourceDocuments,
-        additionalInstructions,
-        projectParties,
-        disciplines: disciplines ?? [],
-      });
+      const captured = await withGeminiUsage(() =>
+        geminiProvider.generateItpDraft({
+          sourceDocuments,
+          additionalInstructions,
+          projectParties,
+          disciplines: disciplines ?? [],
+        })
+      );
+      draft = captured.result;
+      usage = captured.usage;
     } catch (err) {
       return {
         ...EMPTY_DRAFT_STATE,
@@ -168,6 +173,7 @@ export async function generateItpDraftAction(
 
   const logId = await logAiUsage(supabase, {
     organizationId: project.organization_id,
+    projectId,
     userId: user?.id ?? null,
     feature: "itp_draft",
     modelId: getGeminiModel("itp_draft"),
@@ -176,6 +182,8 @@ export async function generateItpDraftAction(
     aiResponse: draft,
     inputHash,
     servedFromCache,
+    inputTokens: usage?.inputTokens ?? null,
+    outputTokens: usage?.outputTokens ?? null,
   });
 
   // Reuse the same suggested number across a "regenerate with feedback" cycle rather than drawing a

@@ -21,6 +21,7 @@ import type {
   TranslateTextInput,
 } from "@/lib/ai/provider";
 import type { AiFeature } from "@/lib/ai/log";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 // Gemini REST API via a raw fetch wrapper — deliberately not the `@google/generative-ai` package.
 // The app makes exactly three narrow, single-turn "send a prompt, get text back" calls; a typed
@@ -101,6 +102,34 @@ export const PROMPT_VERSIONS: Record<AiFeature, string> = {
 
 interface GeminiGenerateContentResponse {
   candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
+}
+
+export interface GeminiTokenUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
+// Every provider method below returns its own feature-specific shape (ItpDraftResult, string,
+// string[], ...), so token usage can't just ride along on the return value without changing 14
+// public return types and every one of their ~15 call sites across lib/*/actions.ts. Node's
+// AsyncLocalStorage solves this the way it's meant to be used: withGeminiUsage() opens a context
+// right around a single `await geminiProvider.someMethod(...)` call at the call site, and
+// generateContent() — several stack frames deeper, inside whichever method actually ran — writes
+// this call's real usageMetadata into that SAME context object, because AsyncLocalStorage follows
+// the async call chain rather than the lexical one. No parameter threading, and (unlike a bare
+// module-level variable) no cross-request race: each concurrent request's withGeminiUsage() gets
+// its own isolated store, even though they share the same Node process and event loop.
+const usageALS = new AsyncLocalStorage<{ current: GeminiTokenUsage | null }>();
+
+/** Wrap a single `geminiProvider.<method>(...)` call to also capture the token usage of the Gemini
+ *  API request it makes — see the comment on usageALS above for why this exists instead of a
+ *  return-type change. Returns `usage: null` when the wrapped call served from cache or never
+ *  actually reached generateContent (e.g. it threw before calling Gemini). */
+export async function withGeminiUsage<T>(fn: () => Promise<T>): Promise<{ result: T; usage: GeminiTokenUsage | null }> {
+  const store: { current: GeminiTokenUsage | null } = { current: null };
+  const result = await usageALS.run(store, fn);
+  return { result, usage: store.current };
 }
 
 /**
@@ -135,6 +164,15 @@ async function generateContent(tier: GeminiTier, prompt: string, expectJson: boo
   }
 
   const body = (await response.json()) as GeminiGenerateContentResponse;
+
+  const usageStore = usageALS.getStore();
+  if (usageStore) {
+    usageStore.current = {
+      inputTokens: body.usageMetadata?.promptTokenCount ?? null,
+      outputTokens: body.usageMetadata?.candidatesTokenCount ?? null,
+    };
+  }
+
   const text = body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
   if (!text.trim()) {
     throw new Error("Gemini returned an empty response.");

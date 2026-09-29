@@ -17,7 +17,7 @@ import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
-import { getGeminiModel, PROMPT_VERSIONS } from "@/lib/ai/gemini-provider";
+import { getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -524,9 +524,18 @@ export async function draftNcrDescriptionAction(
       promptVersion: PROMPT_VERSIONS.ncr_description_draft,
       inputHash,
     });
-    const result = cached ?? (await geminiProvider.draftNcrDescription({ notes }));
+    let usage: GeminiTokenUsage | null = null;
+    let result: { description: string; requirementNotMet: string };
+    if (cached) {
+      result = cached;
+    } else {
+      const captured = await withGeminiUsage(() => geminiProvider.draftNcrDescription({ notes }));
+      result = captured.result;
+      usage = captured.usage;
+    }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId,
       userId: user?.id ?? null,
       feature: "ncr_description_draft",
       modelId: getGeminiModel("ncr_description_draft"),
@@ -535,6 +544,8 @@ export async function draftNcrDescriptionAction(
       aiResponse: result,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return {
       error: null,
@@ -608,15 +619,24 @@ export async function suggestNcrRootCauseAction(
       promptVersion: PROMPT_VERSIONS.ncr_root_cause_suggestion,
       inputHash,
     });
-    const rootCause =
-      cached ??
-      (await geminiProvider.suggestRootCause({
-        description: ncr.description,
-        requirementNotMet: ncr.requirement_not_met,
-        severity: ncr.severity,
-      }));
+    let usage: GeminiTokenUsage | null = null;
+    let rootCause: string;
+    if (cached) {
+      rootCause = cached;
+    } else {
+      const captured = await withGeminiUsage(() =>
+        geminiProvider.suggestRootCause({
+          description: ncr.description,
+          requirementNotMet: ncr.requirement_not_met,
+          severity: ncr.severity,
+        })
+      );
+      rootCause = captured.result;
+      usage = captured.usage;
+    }
     const logId = await logAiUsage(supabase, {
       organizationId: project.organization_id,
+      projectId: ncr.project_id,
       userId: user?.id ?? null,
       feature: "ncr_root_cause_suggestion",
       modelId: getGeminiModel("ncr_root_cause_suggestion"),
@@ -625,6 +645,8 @@ export async function suggestNcrRootCauseAction(
       aiResponse: rootCause,
       inputHash,
       servedFromCache: !!cached,
+      inputTokens: usage?.inputTokens ?? null,
+      outputTokens: usage?.outputTokens ?? null,
     });
     return { error: null, rootCause, aiLogId: logId };
   } catch (err) {

@@ -28,6 +28,12 @@ export type AiReviewDecision = "accepted_as_is" | "edited_and_accepted" | "disca
 
 export interface LogAiUsageParams {
   organizationId: string;
+  /** Which single project this call was made in service of, when the feature has exactly one —
+   *  null for an org-wide/portfolio feature (e.g. report_pack_summary) or a feature genuinely not
+   *  tied to one project. Powers the per-project filter on the Usage & Cost page; never guessed at
+   *  by parsing sourceRef, which varies shape per feature — always passed explicitly by the caller,
+   *  which already has the project in scope. */
+  projectId?: string | null;
   userId: string | null;
   feature: AiFeature;
   /** Which model actually produced this draft (e.g. "gemini-2.5-pro") — see
@@ -52,6 +58,13 @@ export interface LogAiUsageParams {
    *  this time — see lib/ai/cache.ts's findCachedAiResponse. Defaults false (an ordinary fresh
    *  call). */
   servedFromCache?: boolean;
+  /** Real token counts from Gemini's own usageMetadata for THIS call — see
+   *  lib/ai/gemini-provider.ts's withGeminiUsage. Null for a cache hit (no real API call made) or if
+   *  the provider didn't report usage. Powers the $ cost estimate on the Usage & Cost page
+   *  (lib/ai/pricing.ts) — without real token counts that page could only show call counts, not an
+   *  actual cost figure. */
+  inputTokens?: number | null;
+  outputTokens?: number | null;
 }
 
 /**
@@ -66,6 +79,7 @@ export async function logAiUsage(supabase: SupabaseClient, params: LogAiUsagePar
     .from(AI_USAGE_LOG_TABLE)
     .insert({
       organization_id: params.organizationId,
+      project_id: params.projectId ?? null,
       user_id: params.userId,
       feature: params.feature,
       model_id: params.modelId ?? null,
@@ -74,6 +88,8 @@ export async function logAiUsage(supabase: SupabaseClient, params: LogAiUsagePar
       ai_response: params.aiResponse ?? null,
       input_hash: params.inputHash ?? null,
       served_from_cache: params.servedFromCache ?? false,
+      input_tokens: params.inputTokens ?? null,
+      output_tokens: params.outputTokens ?? null,
     })
     .select("id")
     .single<{ id: string }>();
