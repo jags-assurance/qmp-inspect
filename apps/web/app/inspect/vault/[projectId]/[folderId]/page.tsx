@@ -99,7 +99,16 @@ export default async function VaultFolderPage({
         ? [
             approvers.filter((a) => a.status === "approved").length,
             approvers.length,
-            approvers.some((a) => a.approver_user_id === session.userId && a.status === "pending"),
+            // Real gap found in a transactional-integrity audit: if every approver row is
+            // 'approved' but the document itself never flipped (the finalization write failed
+            // after the last row was recorded), the named approver's own row already reads
+            // 'approved' too — without this, their button would vanish with no way to retry the
+            // stuck finalization. Keep it visible for them specifically in exactly that state.
+            approvers.some(
+              (a) =>
+                a.approver_user_id === session.userId &&
+                (a.status === "pending" || approvers.every((x) => x.status === "approved"))
+            ),
           ]
         : undefined,
     };

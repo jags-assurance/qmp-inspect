@@ -105,15 +105,20 @@ export async function approveDocumentAction(
     if (!myRow) {
       return { error: "This document requires specific named approvers, and you aren't one of them." };
     }
-    if (myRow.status === "approved") {
-      return { error: "You've already approved this document." };
-    }
 
-    const { error: myError } = await supabase
-      .from(VAULT_DOCUMENT_APPROVERS_TABLE)
-      .update({ status: "approved", reviewed_at: new Date().toISOString() })
-      .eq("id", myRow.id);
-    if (myError) return { error: "Could not record your approval. Try again." };
+    // Real gap found in a transactional-integrity audit: if the finalization write below ever
+    // failed after this row was already marked approved, the OLD code permanently blocked that
+    // same approver from ever re-triggering it ("You've already approved this document.") — with
+    // every other approver also already 'approved', there was no path left to unstick the
+    // document from 'for_review'. Now self-healing: re-clicking when you've already approved is a
+    // no-op on your own row, but still re-attempts finalization if it's still outstanding.
+    if (myRow.status !== "approved") {
+      const { error: myError } = await supabase
+        .from(VAULT_DOCUMENT_APPROVERS_TABLE)
+        .update({ status: "approved", reviewed_at: new Date().toISOString() })
+        .eq("id", myRow.id);
+      if (myError) return { error: "Could not record your approval. Try again." };
+    }
 
     const stillPending = approvers.filter((a) => a.id !== myRow.id && a.status !== "approved").length;
     if (stillPending === 0) {
@@ -122,7 +127,9 @@ export async function approveDocumentAction(
         .update({ status: "approved", approved_by: session.userId, approved_at: new Date().toISOString() })
         .eq("id", documentId)
         .eq("status", "for_review");
-      if (error) return { error: "Recorded your approval, but could not finalize the document. Try again." };
+      if (error) return { error: "Recorded your approval, but could not finalize the document — try again, it will retry automatically." };
+    } else if (myRow.status === "approved") {
+      return { error: "You've already approved this document — still waiting on the other required approver(s)." };
     }
   }
 

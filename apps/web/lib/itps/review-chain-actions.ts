@@ -147,6 +147,64 @@ export async function setItpReviewChainAction(_prev: SetReviewChainState, formDa
   return { error: null };
 }
 
+/**
+ * The itps.status flip + its side effects (initial-issue snapshot, client notification), pulled out
+ * so it can be retried on its own — see the `!currentStep` self-heal branch in
+ * approveReviewStepAction below, for the case where every review step is already approved but this
+ * write failed the first time it ran. Returns whether the itps update itself succeeded (the
+ * snapshot/notification calls stay best-effort either way, same as before).
+ */
+async function finalizeApprovedReviewChain(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpId: string,
+  actorUserId: string
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  const { error: approveError } = await supabase
+    .from("itps")
+    .update({ status: "approved", approved_by: actorUserId, approved_at: now })
+    .eq("id", itpId)
+    .eq("status", "under_review");
+
+  if (approveError) return false;
+
+  try {
+    await snapshotInitialIssue(supabase, itpId, actorUserId);
+
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("itp_number, title, project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ itp_number: string; title: string; project_id: string; projects: { organization_id: string } | null }>();
+
+    if (itp?.projects?.organization_id) {
+      const { data: clientParties } = await supabase
+        .from("project_parties")
+        .select("user_id")
+        .eq("project_id", itp.project_id)
+        .eq("party_type", "client")
+        .not("user_id", "is", null)
+        .returns<{ user_id: string | null }[]>();
+
+      for (const party of clientParties ?? []) {
+        if (!party.user_id) continue;
+        await createNotification(supabase, {
+          organizationId: itp.projects.organization_id,
+          projectId: itp.project_id,
+          recipientUserId: party.user_id,
+          title: "ITP ready for your acceptance",
+          body: `${itp.itp_number} — ${itp.title}`,
+          link: `/inspect/itps/${itpId}`,
+        });
+      }
+    }
+  } catch {
+    // Best-effort.
+  }
+
+  return true;
+}
+
 export interface ApproveReviewStepState {
   error: string | null;
 }
@@ -176,6 +234,22 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
   const currentStep = pendingSteps[0];
 
   if (!currentStep) {
+    // Real gap found in a transactional-integrity audit: if every review step was already
+    // approved but the ITP itself never flipped to 'approved' (the finalization write below
+    // failed after the last step was recorded), this used to be a dead end — "no pending step"
+    // with no way to retry the stuck finalization, since there's genuinely no step left to
+    // re-approve. Self-heal: if that's exactly the state, retry finalizing right here instead of
+    // just erroring.
+    const allApproved = (steps ?? []).length > 0 && (steps ?? []).every((s) => s.status === "approved");
+    if (allApproved) {
+      const { data: itpStatus } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
+      if (itpStatus?.status === "under_review") {
+        const finalized = await finalizeApprovedReviewChain(supabase, itpId, session.userId);
+        if (!finalized) return { error: "Every review step is approved, but finalizing the ITP failed again. Try once more." };
+        revalidatePath(`/inspect/itps/${itpId}`);
+        return { error: null };
+      }
+    }
     return { error: "There's no pending review step on this ITP." };
   }
   if (!isAdminStaff(session) && currentStep.reviewer_user_id !== session.userId) {
@@ -233,48 +307,11 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
 
   if (remainingPending.length === 0) {
     // Last step just approved — auto-approve the ITP itself, same effects as the manual Approve
-    // button (advanceItpStatusAction's "approved" branch).
-    const now = new Date().toISOString();
-    const { error: approveError } = await supabase
-      .from("itps")
-      .update({ status: "approved", approved_by: session.userId, approved_at: now })
-      .eq("id", itpId)
-      .eq("status", "under_review");
-
-    if (!approveError) {
-      try {
-        await snapshotInitialIssue(supabase, itpId, session.userId);
-
-        const { data: itp } = await supabase
-          .from("itps")
-          .select("itp_number, title, project_id, projects(organization_id)")
-          .eq("id", itpId)
-          .maybeSingle<{ itp_number: string; title: string; project_id: string; projects: { organization_id: string } | null }>();
-
-        if (itp?.projects?.organization_id) {
-          const { data: clientParties } = await supabase
-            .from("project_parties")
-            .select("user_id")
-            .eq("project_id", itp.project_id)
-            .eq("party_type", "client")
-            .not("user_id", "is", null)
-            .returns<{ user_id: string | null }[]>();
-
-          for (const party of clientParties ?? []) {
-            if (!party.user_id) continue;
-            await createNotification(supabase, {
-              organizationId: itp.projects.organization_id,
-              projectId: itp.project_id,
-              recipientUserId: party.user_id,
-              title: "ITP ready for your acceptance",
-              body: `${itp.itp_number} — ${itp.title}`,
-              link: `/inspect/itps/${itpId}`,
-            });
-          }
-        }
-      } catch {
-        // Best-effort.
-      }
+    // button (advanceItpStatusAction's "approved" branch). A failure here is now surfaced (not
+    // silently swallowed) and self-healable via the `!currentStep` branch above on a later click.
+    const finalized = await finalizeApprovedReviewChain(supabase, itpId, session.userId);
+    if (!finalized) {
+      return { error: "Your review was recorded, but finalizing the ITP failed — try clicking Approve again to retry." };
     }
   } else {
     // Notify the NEXT reviewer in line — strict hierarchy means they couldn't act (or even

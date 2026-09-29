@@ -158,9 +158,18 @@ export async function provisionPartyLoginAction(
       .update({ must_change_password: true })
       .eq("id", linkedUserId);
     if (flagError) {
+      // Real gap found in a transactional-integrity audit: this used to just error out, leaving
+      // the just-created auth account behind with no tempPassword returned to the admin and no
+      // party link — a genuinely orphaned, invisible login nobody could find or clean up.
+      // Compensating rollback: delete the account we just created, so a retry starts clean
+      // instead of leaving a stray credential behind.
+      await serviceClient.auth.admin.deleteUser(linkedUserId).catch(() => {
+        // Best-effort — if even the rollback fails, the error message below still tells the admin
+        // an account may exist for this email so they know to check rather than assume nothing happened.
+      });
       return {
         ...INITIAL_STATE,
-        error: "Account created, but could not mark it as needing a password change. Check with a JAGS Admin.",
+        error: "Could not finish setting up the new account, so it was rolled back — try again. If this repeats, check whether an account for this email already exists before retrying.",
       };
     }
   }
