@@ -3,9 +3,11 @@ import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
+import { Badge } from "@/components/ui/badge";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
-import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { NCRS_TABLE, type NcrSeverity } from "@/lib/ncrs/types";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { getLatestPortfolioSummaryPdf } from "@/lib/reports/actions";
 import { PortfolioSummaryPdfButton } from "./portfolio-summary-pdf-button";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -65,8 +67,20 @@ interface NcrRow {
   id: string;
   project_id: string;
   status: string;
+  severity: NcrSeverity;
   created_at: string;
+  closed_at: string | null;
 }
+
+interface PunchListItemRow {
+  id: string;
+  project_id: string;
+  status: string;
+  due_date: string | null;
+}
+
+type HealthTone = "success" | "warning" | "danger";
+const HEALTH_LABEL: Record<HealthTone, string> = { success: "On track", warning: "At risk", danger: "Critical" };
 
 function hoursBetween(startIso: string, endIso: string): number {
   return (new Date(endIso).getTime() - new Date(startIso).getTime()) / (1000 * 60 * 60);
@@ -89,6 +103,7 @@ const PORTFOLIO_INSIGHTS_GUIDE_POINTS = [
   "Admin-only — a live, in-app rollup across every client and project, computed from the same base tables Power BI reads (see Reporting) but through the ordinary RLS-scoped queries every other page uses, not the unscoped vw_powerbi_* views (those are for the standalone powerbi_reader login only).",
   "\"Blocking\" levels used for hold-point turnaround are approximated across every organisation's own custom intervention levels, not one org's — there's no single org to scope to on a portfolio-wide page.",
   "A stat shown with \"(n=...)\" or a small-sample caption is based on fewer than 5 underlying data points — read it as low-confidence, not a firm measurement.",
+  "Project Health is a computed indicator, not a stored field: Critical means an open Major NCR or 3+ overdue punch items; At risk means any open NCR, any overdue punch item, or ITP completion under 50%; On track means none of that.",
   "The PDF button generates a point-in-time portfolio summary; the numbers on this page itself are always live on page load.",
 ];
 
@@ -124,13 +139,18 @@ export default async function PortfolioInsightsPage() {
     );
   }
 
-  const [{ data: itps }, { data: ncrs }] = await Promise.all([
+  const [{ data: itps }, { data: ncrs }, { data: punchItems }] = await Promise.all([
     supabase.from("itps").select("id, project_id, status").in("project_id", projectIds).returns<ItpRow[]>(),
     supabase
       .from(NCRS_TABLE)
-      .select("id, project_id, status, created_at")
+      .select("id, project_id, status, severity, created_at, closed_at")
       .in("project_id", projectIds)
       .returns<NcrRow[]>(),
+    supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id, project_id, status, due_date")
+      .in("project_id", projectIds)
+      .returns<PunchListItemRow[]>(),
   ]);
 
   const itpIds = (itps ?? []).map((i) => i.id);
@@ -219,11 +239,13 @@ export default async function PortfolioInsightsPage() {
     .map((s) => hoursBetween(s.notified_at as string, s.signed_off_at as string));
   const avgHoldPointHours = average(holdDurations);
 
-  // --- NCR volume, last 6 calendar months ---
-  const monthTotals = new Map<string, number>();
+  // --- NCR volume, last 6 calendar months, broken down by severity ---
+  const monthSeverityTotals = new Map<string, Record<NcrSeverity, number>>();
   for (const ncr of ncrs ?? []) {
     const key = ncr.created_at.slice(0, 7); // "YYYY-MM"
-    monthTotals.set(key, (monthTotals.get(key) ?? 0) + 1);
+    const entry = monthSeverityTotals.get(key) ?? { observation: 0, minor_ncr: 0, major_ncr: 0 };
+    entry[ncr.severity] += 1;
+    monthSeverityTotals.set(key, entry);
   }
   const last6Months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date();
@@ -231,15 +253,79 @@ export default async function PortfolioInsightsPage() {
     d.setUTCMonth(d.getUTCMonth() - (5 - i));
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   });
-  const ncrByMonth = last6Months.map((key) => ({ key, count: monthTotals.get(key) ?? 0 }));
+  const ncrByMonth = last6Months.map((key) => {
+    const entry = monthSeverityTotals.get(key) ?? { observation: 0, minor_ncr: 0, major_ncr: 0 };
+    return {
+      key,
+      major: entry.major_ncr,
+      minor: entry.minor_ncr,
+      observation: entry.observation,
+      count: entry.major_ncr + entry.minor_ncr + entry.observation,
+    };
+  });
   const maxMonthCount = Math.max(1, ...ncrByMonth.map((m) => m.count));
 
-  // --- Per-project ITP completion, sorted worst-first ---
-  const projectById = new Map((projects ?? []).map((p) => [p.id, p]));
-  const itpByProjectSorted = itpRatesWithData
-    .map((r) => ({ ...r, project: projectById.get(r.projectId) }))
-    .filter((r) => r.project)
-    .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0));
+  // --- NCR severity/status breakdown (portfolio-wide, open == not closed) ---
+  const openNcrs = (ncrs ?? []).filter((n) => n.status !== "closed");
+  const openNcrsBySeverity = new Map<NcrSeverity, number>();
+  for (const ncr of openNcrs) {
+    openNcrsBySeverity.set(ncr.severity, (openNcrsBySeverity.get(ncr.severity) ?? 0) + 1);
+  }
+
+  // --- Avg NCR closure time (created_at -> closed_at, for NCRs that have actually closed) ---
+  const closureDurations = (ncrs ?? [])
+    .filter((n) => n.status === "closed" && n.closed_at)
+    .map((n) => hoursBetween(n.created_at, n.closed_at as string));
+  const avgClosureHours = average(closureDurations);
+  const avgClosureLabel =
+    avgClosureHours !== null
+      ? avgClosureHours >= 48
+        ? `${(avgClosureHours / 24).toFixed(1)}d`
+        : `${avgClosureHours.toFixed(1)}h`
+      : "—";
+
+  // --- Overdue punch items (open/resolved, past due_date) ---
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const overduePunchItems = (punchItems ?? []).filter(
+    (p) => p.status !== "closed" && p.due_date !== null && p.due_date < todayIso
+  );
+
+  // --- Per-project rollups feeding the Project Health table ---
+  const openNcrsByProject = new Map<string, number>();
+  const majorOpenNcrsByProject = new Map<string, number>();
+  for (const ncr of openNcrs) {
+    openNcrsByProject.set(ncr.project_id, (openNcrsByProject.get(ncr.project_id) ?? 0) + 1);
+    if (ncr.severity === "major_ncr") {
+      majorOpenNcrsByProject.set(ncr.project_id, (majorOpenNcrsByProject.get(ncr.project_id) ?? 0) + 1);
+    }
+  }
+  const overduePunchByProject = new Map<string, number>();
+  for (const item of overduePunchItems) {
+    overduePunchByProject.set(item.project_id, (overduePunchByProject.get(item.project_id) ?? 0) + 1);
+  }
+
+  // --- Per-project ITP completion + health, sorted worst-first ---
+  const itpByProjectSorted = (projects ?? [])
+    .map((project) => {
+      const itpRow = itpCompletionByProject.find((r) => r.projectId === project.id);
+      const pct = itpRow?.pct ?? null;
+      const total = itpRow?.total ?? 0;
+      const openNcrCount = openNcrsByProject.get(project.id) ?? 0;
+      const majorOpenNcrCount = majorOpenNcrsByProject.get(project.id) ?? 0;
+      const overdueCount = overduePunchByProject.get(project.id) ?? 0;
+      const health: HealthTone =
+        majorOpenNcrCount > 0 || overdueCount >= 3
+          ? "danger"
+          : openNcrCount > 0 || overdueCount > 0 || (pct !== null && pct < 50)
+            ? "warning"
+            : "success";
+      return { projectId: project.id, project, pct, total, openNcrCount, overdueCount, health };
+    })
+    .sort((a, b) => {
+      const rank: Record<HealthTone, number> = { danger: 0, warning: 1, success: 2 };
+      if (rank[a.health] !== rank[b.health]) return rank[a.health] - rank[b.health];
+      return (a.pct ?? 0) - (b.pct ?? 0);
+    });
 
   return (
     <div className="max-w-4xl">
@@ -266,6 +352,7 @@ export default async function PortfolioInsightsPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Active projects" value={projectIds.length} />
         <StatCard
           label="Inspections completed"
           value={totalPlanned ? `${totalCompleted} / ${totalPlanned}` : totalCompleted}
@@ -280,25 +367,80 @@ export default async function PortfolioInsightsPage() {
           value={avgFirstTimePassRate !== null ? `${avgFirstTimePassRate.toFixed(1)}%` : "—"}
           caption={avgFirstTimePassRate !== null ? sampleCaption(firstAttempts.length) : "No inspection attempts yet"}
         />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           label="Avg hold-point turnaround"
           value={avgHoldPointHours !== null ? `${avgHoldPointHours.toFixed(1)}h` : "—"}
           caption={avgHoldPointHours !== null ? sampleCaption(holdDurations.length) : "No hold-point signoffs yet"}
         />
+        <StatCard
+          label="Open NCRs"
+          value={openNcrs.length}
+          href="/inspect/ncrs"
+          caption={
+            openNcrs.length > 0
+              ? `${openNcrsBySeverity.get("major_ncr") ?? 0} major · ${openNcrsBySeverity.get("minor_ncr") ?? 0} minor · ${openNcrsBySeverity.get("observation") ?? 0} obs.`
+              : "None open"
+          }
+        />
+        <StatCard
+          label="Avg NCR closure time"
+          value={avgClosureLabel}
+          caption={closureDurations.length > 0 ? sampleCaption(closureDurations.length) : "No closed NCRs yet"}
+        />
+        <StatCard
+          label="Overdue punch items"
+          value={overduePunchItems.length}
+          caption={overduePunchItems.length === 0 ? "Nothing overdue" : "Past due date, not yet closed"}
+        />
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">NCR volume — last 6 months</h2>
-        <p className="mt-1 text-sm text-muted">Total NCRs and observations raised per month, all projects.</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-medium text-ink">NCR volume — last 6 months</h2>
+            <p className="mt-1 text-sm text-muted">Total NCRs and observations raised per month, all projects.</p>
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-danger" /> Major
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-warning" /> Minor
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-info" /> Observation
+            </span>
+          </div>
+        </div>
         <div className="mt-4 flex items-end gap-3">
           {ncrByMonth.map((m) => (
             <div key={m.key} className="flex flex-1 flex-col items-center gap-1">
-              <div className="flex h-24 w-full items-end">
-                <div
-                  className="w-full rounded-t bg-gold"
-                  style={{ height: `${Math.max(4, (m.count / maxMonthCount) * 100)}%` }}
-                  title={`${m.count} NCRs`}
-                />
+              <div className="flex h-28 w-full flex-col items-end justify-end overflow-hidden rounded-t">
+                {m.major > 0 && (
+                  <div
+                    className="w-full bg-danger"
+                    style={{ height: `${Math.max(2, (m.major / maxMonthCount) * 100)}%` }}
+                    title={`${m.major} major NCRs`}
+                  />
+                )}
+                {m.minor > 0 && (
+                  <div
+                    className="w-full bg-warning"
+                    style={{ height: `${Math.max(2, (m.minor / maxMonthCount) * 100)}%` }}
+                    title={`${m.minor} minor NCRs`}
+                  />
+                )}
+                {m.observation > 0 && (
+                  <div
+                    className="w-full bg-info"
+                    style={{ height: `${Math.max(2, (m.observation / maxMonthCount) * 100)}%` }}
+                    title={`${m.observation} observations`}
+                  />
+                )}
+                {m.count === 0 && <div className="h-1 w-full bg-border" />}
               </div>
               <span className="text-xs text-muted">{m.key}</span>
               <span className="text-xs font-medium text-ink">{m.count}</span>
@@ -308,26 +450,54 @@ export default async function PortfolioInsightsPage() {
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">ITP completion by project</h2>
-        <p className="mt-1 text-sm text-muted">Client-accepted / total ITPs, lowest first.</p>
+        <h2 className="font-medium text-ink">Project health</h2>
+        <p className="mt-1 text-sm text-muted">
+          ITP completion, open NCRs and overdue punch items per project — worst first.
+        </p>
         {itpByProjectSorted.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">No ITP data yet.</p>
+          <p className="mt-3 text-sm text-muted">No project data yet.</p>
         ) : (
-          <ul className="mt-3 space-y-2">
-            {itpByProjectSorted.slice(0, 8).map((r) => (
-              <li key={r.projectId} className="flex items-center justify-between text-sm">
-                <span className="text-ink">
-                  {r.project?.project_number} — {r.project?.name}
-                </span>
-                <span className="font-medium text-ink">
-                  {(r.pct ?? 0).toFixed(1)}%
-                  {r.total < SMALL_SAMPLE_THRESHOLD && (
-                    <span className="ml-1 font-normal text-muted">(n={r.total})</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase text-muted">
+                  <th className="py-2 pr-3">Project</th>
+                  <th className="py-2 pr-3">ITP completion</th>
+                  <th className="py-2 pr-3">Open NCRs</th>
+                  <th className="py-2 pr-3">Overdue punch</th>
+                  <th className="py-2">Health</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itpByProjectSorted.slice(0, 12).map((r) => (
+                  <tr key={r.projectId} className="border-b border-border last:border-0">
+                    <td className="py-2 pr-3">
+                      <Link href={`/inspect/projects/${r.projectId}`} className="text-burgundy hover:underline">
+                        <span className="doc-id">{r.project?.project_number}</span> — {r.project?.name}
+                      </Link>
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-ink">
+                      {r.pct !== null ? (
+                        <>
+                          {r.pct.toFixed(1)}%
+                          {r.total < SMALL_SAMPLE_THRESHOLD && (
+                            <span className="ml-1 font-normal text-muted">(n={r.total})</span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums text-ink">{r.openNcrCount}</td>
+                    <td className="py-2 pr-3 tabular-nums text-ink">{r.overdueCount}</td>
+                    <td className="py-2">
+                      <Badge tone={r.health}>{HEALTH_LABEL[r.health]}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
