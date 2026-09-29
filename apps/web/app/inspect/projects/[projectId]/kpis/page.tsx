@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
+import { Badge } from "@/components/ui/badge";
 import {
   computeProjectKpis,
   computeQualityByParty,
@@ -26,6 +27,43 @@ function formatHours(value: number | null): string {
   if (value === null) return "—";
   if (value < 48) return `${Math.round(value)} h`;
   return `${(value / 24).toFixed(1)} d`;
+}
+
+type Tone = "success" | "warning" | "danger" | "neutral";
+
+/**
+ * Tone thresholds for the client-facing KPI tiles. These are deliberately generous, industry-typical
+ * bands for construction QA work — not contractual targets — chosen so the badge reads as a quick
+ * "is this healthy" signal at a glance rather than a precise pass/fail gate:
+ *  - First-time pass rate: >=90% is a strong result for first-attempt inspections, 70-89% is
+ *    workable but worth watching, <70% signals a real rework/quality problem.
+ *  - Hold-point turnaround & NCR close-out (lower is better): <=24h / <=72h respectively is a same-
+ *    or next-day response (good), up to 72h / 7 days is a normal admin lag (watch), beyond that
+ *    something is stuck.
+ *  - Data-book readiness, inspection completion, ITP completion: these track progress toward 100%
+ *    completion rather than a quality rate, so the bar is a little higher — >=90% essentially done,
+ *    60-89% in progress, <60% still early / lagging.
+ * A null value (no data yet) always renders neutral — there's nothing to judge yet.
+ */
+function tonePercent(value: number | null, { good, ok }: { good: number; ok: number }): Tone {
+  if (value === null) return "neutral";
+  if (value >= good) return "success";
+  if (value >= ok) return "warning";
+  return "danger";
+}
+
+function toneHoursLowerBetter(value: number | null, { good, ok }: { good: number; ok: number }): Tone {
+  if (value === null) return "neutral";
+  if (value <= good) return "success";
+  if (value <= ok) return "warning";
+  return "danger";
+}
+
+const KPI_TONE_LABEL: Record<Tone, string> = { success: "Good", warning: "Watch", danger: "Attention", neutral: "No data" };
+
+function KpiToneBadge({ tone }: { tone: Tone }) {
+  if (tone === "neutral") return null;
+  return <Badge tone={tone}>{KPI_TONE_LABEL[tone]}</Badge>;
 }
 
 const NCR_SEVERITY_LABEL: Record<NcrSeverity, string> = {
@@ -296,21 +334,26 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
         <StatCard
           label="First-time pass rate"
           value={formatPercent(kpis.firstTimePassRate)}
+          icon={<KpiToneBadge tone={tonePercent(kpis.firstTimePassRate, { good: 90, ok: 70 })} />}
         />
         <StatCard
           label="Hold-point turnaround"
           value={formatHours(kpis.holdPointTurnaroundHours)}
           icon={
-            kpis.holdPointTurnaroundSource && (
-              <span className="text-xs text-muted">
-                {kpis.holdPointTurnaroundSource === "signoff_chain" ? "sign-off" : "approval proxy"}
-              </span>
-            )
+            <span className="flex items-center gap-2">
+              {kpis.holdPointTurnaroundSource && (
+                <span className="text-xs text-muted">
+                  {kpis.holdPointTurnaroundSource === "signoff_chain" ? "sign-off" : "approval proxy"}
+                </span>
+              )}
+              <KpiToneBadge tone={toneHoursLowerBetter(kpis.holdPointTurnaroundHours, { good: 24, ok: 72 })} />
+            </span>
           }
         />
         <StatCard
           label="NCR close-out time"
           value={formatHours(kpis.ncrCloseOutHours)}
+          icon={<KpiToneBadge tone={toneHoursLowerBetter(kpis.ncrCloseOutHours, { good: 72, ok: 168 })} />}
         />
         <StatCard
           label="Data-book readiness"
@@ -320,15 +363,22 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
               <ProgressRing percent={kpis.dataBookReadiness} size={40} />
             </span>
           }
-          icon={<span className="text-xs text-muted">proxy</span>}
+          icon={
+            <span className="flex items-center gap-2">
+              <span className="text-xs text-muted">proxy</span>
+              <KpiToneBadge tone={tonePercent(kpis.dataBookReadiness, { good: 90, ok: 60 })} />
+            </span>
+          }
         />
         <StatCard
           label="Inspections completed"
           value={`${kpis.inspectionsCompleted} / ${kpis.inspectionsPlanned} (${formatPercent(kpis.inspectionsCompletionRate)})`}
+          icon={<KpiToneBadge tone={tonePercent(kpis.inspectionsCompletionRate, { good: 90, ok: 60 })} />}
         />
         <StatCard
           label="ITP completion"
           value={formatPercent(kpis.itpCompletionRate)}
+          icon={<KpiToneBadge tone={tonePercent(kpis.itpCompletionRate, { good: 90, ok: 60 })} />}
         />
       </div>
 
