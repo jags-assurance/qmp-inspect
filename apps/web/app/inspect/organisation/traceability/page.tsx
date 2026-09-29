@@ -320,7 +320,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
       <tbody>
         {events.map((event) => (
           <tr key={event.id} className="border-b border-border last:border-0 align-top">
-            <td className="whitespace-nowrap py-2 text-xs text-muted">{new Date(event.created_at).toLocaleString()}</td>
+            <td className="whitespace-nowrap py-2 text-xs text-muted">{new Date(event.created_at).toLocaleString("en-GB")}</td>
             <td className="py-2">
               {event.actor ? (
                 <span>
@@ -407,7 +407,7 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
               <li key={r.id} className="border-b border-border pb-2 last:border-0">
                 <span className="font-medium text-ink">Rev {r.revision}</span> — {r.title}
                 <div className="text-xs text-muted">
-                  {r.reason ?? "No reason recorded"} · {new Date(r.created_at).toLocaleString()}
+                  {r.reason ?? "No reason recorded"} · {new Date(r.created_at).toLocaleString("en-GB")}
                   {r.created_by_user ? ` · ${r.created_by_user.full_name}` : ""}
                 </div>
               </li>
@@ -426,7 +426,7 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
                 <Link href={`/inspect/inspections/${r.id}`} className="text-burgundy hover:underline">
                   {r.record_number}
                 </Link>{" "}
-                — {r.activity} ({r.overall_result ?? "pending"}) · {new Date(r.inspection_date).toLocaleDateString()}
+                — {r.activity} ({r.overall_result ?? "pending"}) · {new Date(r.inspection_date).toLocaleDateString("en-GB")}
               </li>
             ))}
           </ul>
@@ -503,9 +503,9 @@ async function NcrLineage({ supabase, ncr }: { supabase: SupabaseClient; ncr: Nc
         <IdentityRow label="Severity" value={ncr.severity} />
         <IdentityRow label="Raised by" value={ncr.raised_by_user?.full_name} />
         <IdentityRow label="Assigned to" value={ncr.assigned_to_user?.full_name} />
-        <IdentityRow label="Due date" value={ncr.due_date ? new Date(ncr.due_date).toLocaleDateString() : null} />
+        <IdentityRow label="Due date" value={ncr.due_date ? new Date(ncr.due_date).toLocaleDateString("en-GB") : null} />
         <IdentityRow label="Closed by" value={ncr.closed_by_user?.full_name} />
-        <IdentityRow label="Closed at" value={ncr.closed_at ? new Date(ncr.closed_at).toLocaleString() : null} />
+        <IdentityRow label="Closed at" value={ncr.closed_at ? new Date(ncr.closed_at).toLocaleString("en-GB") : null} />
         <p className="mt-3">
           <Link href={`/inspect/ncrs/${ncr.id}`} className="text-sm text-burgundy hover:underline">
             Open full NCR →
@@ -587,7 +587,7 @@ async function InspectionRecordLineage({ supabase, record }: { supabase: Supabas
           }
         />
         <IdentityRow label="Overall result" value={record.overall_result} />
-        <IdentityRow label="Inspection date" value={new Date(record.inspection_date).toLocaleDateString()} />
+        <IdentityRow label="Inspection date" value={new Date(record.inspection_date).toLocaleDateString("en-GB")} />
         <IdentityRow label="Inspector" value={record.inspector?.full_name} />
         <IdentityRow label="Client name (frozen at inspection)" value={record.client_name} />
         <IdentityRow label="Applicable standard (frozen at inspection)" value={record.applicable_standard} />

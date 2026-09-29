@@ -258,7 +258,7 @@ export function DrawingMarkupViewer({
                 {ncrOptions.find((n) => n.id === selectedMarkup.linked_entity_id)?.label ?? selectedMarkup.linked_entity_id}
               </p>
             )}
-            <p className="mt-1 text-xs text-muted">{new Date(selectedMarkup.created_at).toLocaleString()}</p>
+            <p className="mt-1 text-xs text-muted">{new Date(selectedMarkup.created_at).toLocaleString("en-GB")}</p>
           </div>
         )}
 

@@ -151,8 +151,8 @@ export default async function ItpsPage({
           <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`}>
             <Button variant="outline">PDF</Button>
           </Link>
-          <ExportLink href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`}>
-            {(pending) => <Button variant="outline">{pending ? "Preparing…" : "Excel"}</Button>}
+          <ExportLink href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`} asButton pendingLabel="Preparing…">
+            Excel
           </ExportLink>
           {canCreateItp && (
             <Link href="/inspect/itps/new">

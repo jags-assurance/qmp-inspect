@@ -158,8 +158,8 @@ export default async function DataBookPage({
                 <span className="doc-id text-sm font-medium text-ink">{book.book_number}</span>
                 <span className="ml-2 text-sm text-ink">{book.title}</span>
                 <p className="mt-0.5 text-xs text-muted">
-                  Created {new Date(book.created_at).toLocaleDateString()}
-                  {book.compiled_at && ` · Compiled ${new Date(book.compiled_at).toLocaleDateString()}`}
+                  Created {new Date(book.created_at).toLocaleDateString("en-GB")}
+                  {book.compiled_at && ` · Compiled ${new Date(book.compiled_at).toLocaleDateString("en-GB")}`}
                 </p>
               </div>
               <Badge tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
@@ -181,7 +181,7 @@ export default async function DataBookPage({
                       <li key={item.id}>
                         • {item.description}
                         {item.location ? ` (${item.location})` : ""} — {item.responsible_party_name ?? "unassigned"},
-                        due {item.due_date ? new Date(item.due_date).toLocaleDateString() : "no date set"}
+                        due {item.due_date ? new Date(item.due_date).toLocaleDateString("en-GB") : "no date set"}
                       </li>
                     ))}
                   </ul>
@@ -208,7 +208,7 @@ export default async function DataBookPage({
 
             {book.status === "issued" && (
               <p className="mt-2 text-xs text-muted">
-                Issued {book.compiled_at ? new Date(book.compiled_at).toLocaleDateString() : ""} — see the{" "}
+                Issued {book.compiled_at ? new Date(book.compiled_at).toLocaleDateString("en-GB") : ""} — see the{" "}
                 <a href="/inspect/handover" className="text-burgundy hover:underline">
                   Handover Portal
                 </a>{" "}

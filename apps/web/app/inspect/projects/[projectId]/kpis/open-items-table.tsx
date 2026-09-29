@@ -32,7 +32,7 @@ const COLUMNS: DataTableColumn<OpenItem>[] = [
   {
     key: "createdAt",
     header: "Raised",
-    render: (row) => new Date(row.createdAt).toLocaleDateString(),
+    render: (row) => new Date(row.createdAt).toLocaleDateString("en-GB"),
   },
 ];
 

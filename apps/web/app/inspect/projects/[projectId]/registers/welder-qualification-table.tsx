@@ -36,7 +36,7 @@ export function WelderQualificationTable({ rows }: { rows: WelderQualificationDi
     { key: "welder_identifier", header: "Welder", render: (row) => row.welder_identifier },
     { key: "qualified_wps", header: "Qualified WPS", render: (row) => row.qualified_wps },
     { key: "qualified_ranges", header: "Ranges", render: (row) => row.qualified_ranges ?? "—" },
-    { key: "expiry_date", header: "Expiry", render: (row) => new Date(row.expiry_date).toLocaleDateString() },
+    { key: "expiry_date", header: "Expiry", render: (row) => new Date(row.expiry_date).toLocaleDateString("en-GB") },
     {
       key: "status",
       header: "Status",

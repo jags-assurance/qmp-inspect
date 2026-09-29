@@ -36,8 +36,8 @@ export function CalibrationTable({ rows }: { rows: CalibrationRegisterDisplayRow
   const columns: DataTableColumn<CalibrationRegisterDisplayRow>[] = [
     { key: "instrument_name", header: "Instrument", render: (row) => row.instrument_name },
     { key: "cert_number", header: "Cert No.", render: (row) => <span className="doc-id">{row.cert_number}</span> },
-    { key: "cal_date", header: "Cal. date", render: (row) => (row.cal_date ? new Date(row.cal_date).toLocaleDateString() : "—") },
-    { key: "due_date", header: "Due", render: (row) => new Date(row.due_date).toLocaleDateString() },
+    { key: "cal_date", header: "Cal. date", render: (row) => (row.cal_date ? new Date(row.cal_date).toLocaleDateString("en-GB") : "—") },
+    { key: "due_date", header: "Due", render: (row) => new Date(row.due_date).toLocaleDateString("en-GB") },
     {
       key: "status",
       header: "Status",

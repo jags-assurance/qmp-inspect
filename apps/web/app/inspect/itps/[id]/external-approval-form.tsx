@@ -38,7 +38,7 @@ export function ExternalApprovalForm({
           {(recordedByName || recordedAt) && (
             <p className="mt-1 text-xs text-muted">
               Recorded by {recordedByName ?? "unknown"}
-              {recordedAt ? ` on ${new Date(recordedAt).toLocaleString()}` : ""}
+              {recordedAt ? ` on ${new Date(recordedAt).toLocaleString("en-GB")}` : ""}
             </p>
           )}
         </div>

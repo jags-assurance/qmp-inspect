@@ -133,7 +133,7 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
                   </td>
                   <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
                   <td className="py-2 text-xs text-muted">
-                    {pack.completedAt ? new Date(pack.completedAt).toLocaleString() : "—"}
+                    {pack.completedAt ? new Date(pack.completedAt).toLocaleString("en-GB") : "—"}
                   </td>
                   <td className="py-2">
                     {pack.status === "completed" && pack.pdfUrl ? (

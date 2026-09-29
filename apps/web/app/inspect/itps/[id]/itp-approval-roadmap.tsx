@@ -76,7 +76,7 @@ export function ItpApprovalRoadmap({
       label: "Approved",
       done: pastReview,
       current: status === "under_review",
-      detail: pastReview && approvedByName ? `${approvedByName}${approvedAt ? ` · ${new Date(approvedAt).toLocaleDateString()}` : ""}` : null,
+      detail: pastReview && approvedByName ? `${approvedByName}${approvedAt ? ` · ${new Date(approvedAt).toLocaleDateString("en-GB")}` : ""}` : null,
     },
     {
       key: "accepted",
@@ -84,7 +84,7 @@ export function ItpApprovalRoadmap({
       done: isAccepted,
       current: status === "approved",
       detail: isAccepted
-        ? `${clientAcceptedByName ?? "Client"}${clientAcceptedAt ? ` · ${new Date(clientAcceptedAt).toLocaleDateString()}` : ""}`
+        ? `${clientAcceptedByName ?? "Client"}${clientAcceptedAt ? ` · ${new Date(clientAcceptedAt).toLocaleDateString("en-GB")}` : ""}`
         : assignedAcceptorName
           ? `Assigned to ${assignedAcceptorName}`
           : "Open to any linked client party",
@@ -165,7 +165,7 @@ export function ItpApprovalRoadmap({
                         <span className={p.isBlocking ? "font-medium text-burgundy" : "text-muted"}>({p.levelCode})</span> —{" "}
                         <span className={STATUS_TONE[p.status] ?? "text-muted"}>{STATUS_LABEL[p.status] ?? p.status}</span>
                         {p.status === "notified" && p.notifiedAt && (
-                          <span className="text-muted"> ({new Date(p.notifiedAt).toLocaleDateString()})</span>
+                          <span className="text-muted"> ({new Date(p.notifiedAt).toLocaleDateString("en-GB")})</span>
                         )}
                       </li>
                     ))}

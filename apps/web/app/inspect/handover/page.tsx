@@ -105,7 +105,7 @@ export default async function HandoverPage() {
               <p className="mt-1 text-sm text-muted">
                 {cert.data_books?.projects?.organizations?.name} · {cert.data_books?.projects?.name} (
                 {cert.data_books?.projects?.project_number}) · Issued{" "}
-                {new Date(cert.issued_date).toLocaleDateString()}
+                {new Date(cert.issued_date).toLocaleDateString("en-GB")}
               </p>
               {cert.is_conditional && (
                 <div className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
@@ -119,7 +119,7 @@ export default async function HandoverPage() {
                         <li key={item.id}>
                           • {item.description}
                           {item.location ? ` (${item.location})` : ""} — {item.responsible_party_name ?? "unassigned"},
-                          agreed due {item.due_date ? new Date(item.due_date).toLocaleDateString() : "no date set"}
+                          agreed due {item.due_date ? new Date(item.due_date).toLocaleDateString("en-GB") : "no date set"}
                         </li>
                       ))}
                     </ul>
@@ -152,7 +152,7 @@ export default async function HandoverPage() {
                 <p className="text-sm text-success">
                   Acknowledged by {cert.received_by_name ?? "—"}
                   {cert.received_by_company ? `, ${cert.received_by_company}` : ""} on{" "}
-                  {new Date(cert.acknowledged_at).toLocaleDateString()}
+                  {new Date(cert.acknowledged_at).toLocaleDateString("en-GB")}
                 </p>
               ) : (
                 <AcknowledgeForm certificateId={cert.id} />

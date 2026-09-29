@@ -88,7 +88,7 @@ export default async function ProjectAuditLogPage({ params }: { params: Promise<
               {(events ?? []).map((event) => (
                 <tr key={event.id} className="border-b border-border last:border-0 align-top">
                   <td className="whitespace-nowrap py-2 text-xs text-muted">
-                    {new Date(event.created_at).toLocaleString()}
+                    {new Date(event.created_at).toLocaleString("en-GB")}
                   </td>
                   <td className="py-2">
                     {event.actor ? (

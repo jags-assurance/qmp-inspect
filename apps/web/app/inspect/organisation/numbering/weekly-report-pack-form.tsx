@@ -74,7 +74,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks }: { organiz
               <tr key={pack.id} className="border-b border-border last:border-0">
                 <td className="py-2">Week of {pack.weekStart}</td>
                 <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
-                <td className="py-2 text-xs text-muted">{new Date(pack.createdAt).toLocaleString()}</td>
+                <td className="py-2 text-xs text-muted">{new Date(pack.createdAt).toLocaleString("en-GB")}</td>
                 <td className="py-2">
                   {pack.status === "completed" && pack.pdfUrl ? (
                     <span className="flex flex-wrap gap-3">

@@ -209,7 +209,7 @@ export function AdminDashboard({
                 {
                   key: "submitted",
                   header: "Submitted",
-                  render: (r) => <span className="text-muted">{new Date(r.submittedOn).toLocaleDateString()}</span>,
+                  render: (r) => <span className="text-muted">{new Date(r.submittedOn).toLocaleDateString("en-GB")}</span>,
                 },
                 { key: "status", header: "Status", render: () => <Badge tone="warning">Pending review</Badge> },
                 {

@@ -90,7 +90,7 @@ export default async function CloudFolderSyncPage({
           {config && (
             <p className="mt-1 text-xs text-muted">
               Currently pointed at a {config.provider === "sharepoint" ? "SharePoint" : "OneDrive"}{" "}
-              folder, saved {new Date(config.connected_at).toLocaleString()}.
+              folder, saved {new Date(config.connected_at).toLocaleString("en-GB")}.
             </p>
           )}
 

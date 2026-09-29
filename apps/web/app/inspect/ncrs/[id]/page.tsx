@@ -305,7 +305,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
         <h2 className="text-base font-medium text-ink">Corrective action close-out</h2>
         <p className="mt-1 text-sm text-muted">
           {isClosed
-            ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString() : ""}.`
+            ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString("en-GB") : ""}.`
             : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
         </p>
         <div className="mt-4">

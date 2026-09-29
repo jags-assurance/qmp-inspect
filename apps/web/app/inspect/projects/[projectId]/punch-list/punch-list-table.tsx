@@ -58,7 +58,7 @@ export function PunchListTable({
     {
       key: "due_date",
       header: "Due",
-      render: (row) => (row.due_date ? new Date(row.due_date).toLocaleDateString() : "—"),
+      render: (row) => (row.due_date ? new Date(row.due_date).toLocaleDateString("en-GB") : "—"),
     },
     {
       key: "status",

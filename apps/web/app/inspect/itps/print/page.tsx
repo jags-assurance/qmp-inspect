@@ -74,7 +74,7 @@ export default async function ItpRegisterPrintPage({
 
       <div className="print-area mt-6">
         <h1 className="text-xl font-semibold text-ink">ITP Register</h1>
-        <p className="mt-1 text-xs text-muted">Generated {new Date().toLocaleString()} · {itps?.length ?? 0} ITPs</p>
+        <p className="mt-1 text-xs text-muted">Generated {new Date().toLocaleString("en-GB")} · {itps?.length ?? 0} ITPs</p>
         <table className="mt-4 w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase text-muted">

@@ -314,7 +314,7 @@ export function AssignmentWorkspace({
                     {sig.signatory_name} <span className="text-muted">— {sig.role}</span>
                   </p>
                   <p className="mt-1 text-xs text-muted">
-                    Signed {new Date(sig.signed_at).toLocaleString()}
+                    Signed {new Date(sig.signed_at).toLocaleString("en-GB")}
                   </p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={sig.signature_data} alt={`Signature of ${sig.signatory_name}`} className="mt-2 h-24 w-full rounded bg-off-white object-contain" />

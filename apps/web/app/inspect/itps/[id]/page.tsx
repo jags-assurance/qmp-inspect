@@ -556,7 +556,7 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
                 className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-xs font-medium text-[color:var(--color-burgundy-dark)]"
                 title={
                   aiDraftReview.reviewed_at
-                    ? `Reviewed by ${aiDraftReview.users?.full_name ?? "a reviewer"} on ${new Date(aiDraftReview.reviewed_at).toLocaleDateString()}`
+                    ? `Reviewed by ${aiDraftReview.users?.full_name ?? "a reviewer"} on ${new Date(aiDraftReview.reviewed_at).toLocaleDateString("en-GB")}`
                     : undefined
                 }
               >

@@ -56,7 +56,7 @@ export function MaterialTable({ rows }: { rows: MaterialRegisterDisplayRow[] }) 
     {
       key: "approved_date",
       header: "Approved",
-      render: (row) => (row.approved_date ? new Date(row.approved_date).toLocaleDateString() : "—"),
+      render: (row) => (row.approved_date ? new Date(row.approved_date).toLocaleDateString("en-GB") : "—"),
     },
     {
       key: "traceability",

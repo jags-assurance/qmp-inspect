@@ -68,7 +68,7 @@ export function CompileDataBookForm({
                   <li key={item.id}>
                     • {item.description}
                     {item.location ? ` (${item.location})` : ""} — {item.project_parties?.name ?? "unassigned"}, due{" "}
-                    {item.due_date ? new Date(item.due_date).toLocaleDateString() : "no date set"}
+                    {item.due_date ? new Date(item.due_date).toLocaleDateString("en-GB") : "no date set"}
                   </li>
                 ))}
               </ul>

@@ -76,7 +76,7 @@ export default async function ItpMasterProposalsPage() {
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   From {proposal.itps ? `${proposal.itps.itp_number} — ${proposal.itps.title}` : "an ITP"} ·{" "}
-                  {new Date(proposal.created_at).toLocaleDateString()}
+                  {new Date(proposal.created_at).toLocaleDateString("en-GB")}
                 </p>
               </div>
               {proposal.itps && (

@@ -983,7 +983,7 @@ export async function askProjectQuestionAction(
   const recordLines =
     (records ?? []).length > 0
       ? (records ?? [])
-          .map((r) => `- ${new Date(r.created_at).toLocaleDateString()}: "${r.activity}" — result: ${r.overall_result ?? "pending"}`)
+          .map((r) => `- ${new Date(r.created_at).toLocaleDateString("en-GB")}: "${r.activity}" — result: ${r.overall_result ?? "pending"}`)
           .join("\n")
       : "(no inspection records yet)";
 

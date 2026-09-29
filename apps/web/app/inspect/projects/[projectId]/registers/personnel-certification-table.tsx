@@ -34,7 +34,7 @@ export function PersonnelCertificationTable({ rows }: { rows: PersonnelCertifica
     { key: "person", header: "Person", render: (row) => row.project_parties?.name ?? "—" },
     { key: "certification_type", header: "Certification", render: (row) => row.certification_type },
     { key: "cert_number", header: "Cert No.", render: (row) => row.cert_number ?? "—" },
-    { key: "expiry_date", header: "Expiry", render: (row) => new Date(row.expiry_date).toLocaleDateString() },
+    { key: "expiry_date", header: "Expiry", render: (row) => new Date(row.expiry_date).toLocaleDateString("en-GB") },
     {
       key: "status",
       header: "Status",

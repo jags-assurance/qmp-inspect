@@ -69,12 +69,12 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
     {
       key: "document_date",
       header: "Doc. date",
-      render: (row) => (row.document_date ? new Date(row.document_date).toLocaleDateString() : "—"),
+      render: (row) => (row.document_date ? new Date(row.document_date).toLocaleDateString("en-GB") : "—"),
     },
     {
       key: "created_at",
       header: "Uploaded",
-      render: (row) => new Date(row.created_at).toLocaleDateString(),
+      render: (row) => new Date(row.created_at).toLocaleDateString("en-GB"),
     },
     { key: "uploader_name", header: "Uploaded by", render: (row) => row.uploader_name ?? "—" },
   ];
