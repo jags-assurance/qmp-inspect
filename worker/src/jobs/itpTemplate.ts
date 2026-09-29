@@ -437,7 +437,9 @@ export function buildItpHtml(data: ItpTemplateData): string {
     align-items: stretch;
     gap: 14px;
     background: var(--burgundy);
-    border-bottom: 4px solid var(--gold);
+    /* Was a 4px band — real feedback: too much decorative color weight/print ink for a line that
+       carries no information. A thin 2px accent still reads as a letterhead rule without the bulk. */
+    border-bottom: 2px solid var(--gold);
     border-radius: 4px;
     /* Deliberately NOT bled to the true page edge via a negative margin cancelling @page's margin —
        Chrome's print-to-PDF does not reliably apply that margin the same way twice in a row (visible
@@ -710,6 +712,11 @@ export function buildItpHtml(data: ItpTemplateData): string {
      level (Hold-equivalent) gets a tinted background, a non-blocking one stays plain. */
   td.party-cell-blocking {
     background: #f6e9ea;
+    /* Real gap: on a B&W/grayscale print this near-white tint can wash out completely, leaving no
+       visual distinction between a blocking and non-blocking cell (the level code inside is still
+       legible either way, but the "this one blocks" signal itself was color-only). A solid left
+       border is dark enough to survive grayscale conversion regardless of print quality. */
+    border-left: 3px solid var(--burgundy);
   }
 
   /* Per-level background/text color is set inline per token (colorForLevelIndex), keyed by that

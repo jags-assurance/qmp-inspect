@@ -170,7 +170,7 @@ export function buildWeeklyReportHtml(data: WeeklyReportTemplateData): string {
     align-items: stretch;
     gap: 14px;
     background: var(--burgundy);
-    border-bottom: 4px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
     border-radius: 4px;
     /* Deliberately NOT bled to the true page edge — see monthlyReportTemplate.ts's identical note. */
     padding: 10px 16px;

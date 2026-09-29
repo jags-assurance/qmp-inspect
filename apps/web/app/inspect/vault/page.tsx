@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { ProjectPickerForm, type ProjectOption } from "./project-picker-form";
+import { AddCategoryForm } from "./add-category-form";
 import { ConnectorsPanel } from "./connectors-panel";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -11,7 +12,7 @@ export default async function VaultPage({
 }: {
   searchParams: Promise<{ project?: string }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
   const { project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
@@ -24,7 +25,19 @@ export default async function VaultPage({
   const selectedProject = projectId ?? projects?.[0]?.id ?? null;
 
   let folders: (VaultFolderRow & { documentCount: number })[] = [];
+  let canManageCategories = false;
   if (selectedProject) {
+    if (isAdminStaff(session)) {
+      canManageCategories = true;
+    } else {
+      const { data: proj } = await supabase
+        .from("projects")
+        .select("organizations(engagement_scope)")
+        .eq("id", selectedProject)
+        .maybeSingle<{ organizations: { engagement_scope: string } | null }>();
+      const scope = proj?.organizations?.engagement_scope;
+      canManageCategories = scope === "self_managed" || scope === "client_managed";
+    }
     const { data: folderRows } = await supabase
       .from(VAULT_FOLDERS_TABLE)
       .select("id, project_id, folder_key, name, created_at")
@@ -82,20 +95,26 @@ export default async function VaultPage({
       )}
 
       {selectedProject && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {folders.map((folder) => (
-            <Link
-              key={folder.id}
-              href={`/inspect/vault/${selectedProject}/${folder.id}`}
-              className="rounded-lg border border-border bg-surface p-4 transition hover:border-burgundy"
-            >
-              <p className="font-medium text-ink">{folder.name}</p>
-              <p className="mt-1 text-sm text-muted">
-                {folder.documentCount} document{folder.documentCount === 1 ? "" : "s"}
-              </p>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {folders.map((folder) => (
+              <Link
+                key={folder.id}
+                href={`/inspect/vault/${selectedProject}/${folder.id}`}
+                className="rounded-lg border border-border bg-surface p-4 transition hover:border-burgundy"
+              >
+                <p className="font-medium text-ink">
+                  {folder.name}
+                  {folder.is_custom && <span className="ml-1.5 text-xs font-normal text-muted">(custom)</span>}
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {folder.documentCount} document{folder.documentCount === 1 ? "" : "s"}
+                </p>
+              </Link>
+            ))}
+          </div>
+          {canManageCategories && <AddCategoryForm projectId={selectedProject} />}
+        </>
       )}
 
       <ConnectorsPanel />

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import {
   NCRS_TABLE,
   NCR_PHOTOS_TABLE,
@@ -251,10 +252,28 @@ export async function updateNcrAction(
     };
   }
 
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Real gap found in a workflow audit: the punch-list close-out already blocks the same person who
+  // marked an item resolved from also independently verifying it (see closePunchItemAction's own
+  // comment, which explicitly claims NCR close-out avoids "the same self-certification problem" —
+  // that claim was false until now). The person who raised the NCR shouldn't also be the one
+  // certifying, via root cause/corrective action/verification notes, that it's genuinely fixed.
+  // Admins are exempt, same as every other self-certification gate in this app.
+  if (closeNow && !isAdminStaff(session)) {
+    const { data: existing } = await supabase
+      .from(NCRS_TABLE)
+      .select("raised_by")
+      .eq("id", ncrId)
+      .maybeSingle<{ raised_by: string | null }>();
+    if (existing?.raised_by && existing.raised_by === session.userId) {
+      return { error: "You raised this NCR — a different person must close it out." };
+    }
+  }
 
   const update: Record<string, unknown> = {
     assigned_to: assignedTo || null,
@@ -274,10 +293,16 @@ export async function updateNcrAction(
     update.status = "in_progress";
   }
 
+  // Real race condition found in a workflow audit: this update had no optimistic-concurrency guard
+  // at all — two concurrent submits (e.g. a stale quick-action request racing this form) could
+  // interleave with last-write-wins, silently reverting an already-closed NCR back to in_progress
+  // or vice versa. Excluding 'closed' rows means once an NCR is closed, only a real reopen action
+  // (none exists today) can move it again — this update can never accidentally clobber it.
   const { data: updatedNcr, error } = await supabase
     .from(NCRS_TABLE)
     .update(update)
     .eq("id", ncrId)
+    .neq("status", "closed")
     .select(
       "id, ncr_number, project_id, raised_by, itp_item_id, inspection_record_id, projects(organization_id)"
     )
@@ -290,6 +315,10 @@ export async function updateNcrAction(
       inspection_record_id: string | null;
       projects: { organization_id: string } | null;
     }>();
+
+  if (!error && !updatedNcr) {
+    return { error: "This NCR is already closed." };
+  }
 
   if (error) {
     if (error.code === "23503") {
@@ -318,16 +347,24 @@ export async function updateNcrAction(
   // fields already satisfy the punch item's closing-evidence requirement, so this reuses them
   // rather than asking for the same evidence twice.
   if (closeNow) {
+    // Real gap found in a workflow audit: this only ever matched status='open' — a punch item
+    // someone had already marked 'resolved' directly (bypassing the NCR) was left stranded at
+    // 'resolved' forever once the NCR closed, diverging from the NCR's own now-closed state. The
+    // NCR close-out (root cause + corrective action + verification notes, by a person other than
+    // whoever raised it — see the self-certification check above) already IS the independent
+    // verification a 'resolved' item is waiting on, so this now also picks those up and fills
+    // verification_notes, not just closing_evidence.
     const { data: closedPunchItems } = await supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
       .update({
         status: "closed",
         closing_evidence: verificationNotes,
+        verification_notes: verificationNotes,
         closed_by: user?.id ?? null,
         closed_at: new Date().toISOString(),
       })
       .eq("source_ncr_id", ncrId)
-      .eq("status", "open")
+      .in("status", ["open", "resolved"])
       .select("id")
       .returns<{ id: string }[]>();
 
@@ -623,10 +660,14 @@ export async function setNcrStatusAction(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Real race condition found in a workflow audit: this had no optimistic-concurrency guard —
+  // a quick-action click racing an in-flight CAPA close (updateNcrAction) could revert an
+  // already-closed NCR back to in_progress with no error surfaced to either caller.
   const { data: updatedNcr } = await supabase
     .from(NCRS_TABLE)
     .update({ status })
     .eq("id", ncrId)
+    .neq("status", "closed")
     .select("ncr_number, project_id, projects(organization_id)")
     .maybeSingle<{ ncr_number: string; project_id: string; projects: { organization_id: string } | null }>();
 

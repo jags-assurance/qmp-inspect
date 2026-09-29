@@ -3,8 +3,6 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession, isAdminStaff } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
@@ -225,71 +223,9 @@ export async function uploadVaultDocumentAction(
   return result;
 }
 
-export interface ApproveVaultDocumentState {
-  error: string | null;
-}
-
-/**
- * The missing piece: vault_documents.status could always be 'approved' (schema/check constraint),
- * but no action anywhere ever set it there — every upload was stuck at 'for_review' forever. Gated
- * "high authority by default, delegatable per person" — the same model as issue_irn/close_ncr:
- * JAGS Admin always can; anyone else needs the approve_vault_document custom-role permission
- * (deliberately NOT grantable by a self-managed client to its own role — see
- * CLIENT_SELF_SERVICE_PERMISSION_KEYS's doc comment — since a vault document can become the
- * controlled baseline an ITP is later drafted against, the same self-certification concern as an
- * NCR close-out or an IRN release).
- */
-export async function approveVaultDocumentAction(
-  _prev: ApproveVaultDocumentState,
-  formData: FormData
-): Promise<ApproveVaultDocumentState> {
-  const documentId = String(formData.get("document_id") ?? "").trim();
-  const projectId = String(formData.get("project_id") ?? "").trim();
-  const folderId = String(formData.get("folder_id") ?? "").trim();
-  if (!documentId) return { error: "Missing document." };
-
-  const session = await requireSession();
-  const allowed = isAdminStaff(session) || (await hasPermission(session.userId, "approve_vault_document", projectId || undefined));
-  if (!allowed) {
-    return { error: "Only a JAGS Admin, or someone granted this permission, can approve a document." };
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
-    .from(VAULT_DOCUMENTS_TABLE)
-    .update({ status: "approved", approved_by: session.userId, approved_at: new Date().toISOString() })
-    .eq("id", documentId)
-    .eq("status", "for_review");
-
-  if (error) return { error: "Could not approve the document. Check you have permission and try again." };
-
-  try {
-    const { data: document } = await supabase
-      .from(VAULT_DOCUMENTS_TABLE)
-      .select("title, vault_folders(project_id, projects(organization_id))")
-      .eq("id", documentId)
-      .maybeSingle<{
-        title: string;
-        vault_folders: { project_id: string; projects: { organization_id: string } | null } | null;
-      }>();
-    const organizationId = document?.vault_folders?.projects?.organization_id;
-    if (organizationId) {
-      await recordAuditEvent(supabase, {
-        organizationId,
-        projectId: document?.vault_folders?.project_id ?? projectId ?? null,
-        entityType: "vault_document",
-        entityId: documentId,
-        action: "approved",
-        actorId: session.userId,
-        summary: `Document "${document?.title ?? documentId}" approved`,
-      });
-    }
-  } catch {
-    // Best-effort — see lib/audit/log.ts's doc comment.
-  }
-
-  if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
-  return { error: null };
-}
+// approveVaultDocumentAction (the single-click "first permitted person flips it to approved" path)
+// moved to lib/vault/multi-approval-actions.ts's approveDocumentAction, which handles both that
+// original shape AND an optional configured multi-approver requirement in one action — see that
+// file's doc comment.
 
 export type { VaultDocumentRow };

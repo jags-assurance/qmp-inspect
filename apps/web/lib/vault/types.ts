@@ -35,9 +35,10 @@ export type VaultDocumentExtractionStatus = (typeof VAULT_DOCUMENT_EXTRACTION_ST
 export interface VaultFolderRow {
   id: string;
   project_id: string;
-  folder_key: VaultFolderKey;
+  folder_key: VaultFolderKey | string;
   name: string;
   created_at: string;
+  is_custom?: boolean;
 }
 
 export interface VaultDocumentRow {

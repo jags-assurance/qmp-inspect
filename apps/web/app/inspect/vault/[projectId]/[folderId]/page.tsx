@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { SetApproversForm } from "./set-approvers-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
+import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documents-table";
 import { VaultUploadForm } from "./upload-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -63,19 +65,75 @@ export default async function VaultFolderPage({
     console.error("Failed to load vault documents", documentsError);
   }
 
-  const rows: VaultDocumentTableRow[] = (documents ?? []).map((d) => ({
-    id: d.id,
-    project_id: projectId,
-    folder_id: folderId,
-    title: d.title,
-    document_number: d.document_number,
-    document_reference: d.document_reference,
-    revision: d.revision,
-    document_date: d.document_date,
-    status: d.status,
-    created_at: d.created_at,
-    uploader_name: d.users?.full_name ?? null,
-  }));
+  const reviewDocIds = (documents ?? []).filter((d) => d.status === "for_review").map((d) => d.id);
+  const { data: approverRows } = reviewDocIds.length
+    ? await supabase
+        .from(VAULT_DOCUMENT_APPROVERS_TABLE)
+        .select("document_id, approver_user_id, status")
+        .in("document_id", reviewDocIds)
+        .returns<{ document_id: string; approver_user_id: string; status: "pending" | "approved" }[]>()
+    : { data: [] as { document_id: string; approver_user_id: string; status: "pending" | "approved" }[] };
+
+  const approversByDoc = new Map<string, { document_id: string; approver_user_id: string; status: "pending" | "approved" }[]>();
+  for (const row of approverRows ?? []) {
+    const list = approversByDoc.get(row.document_id) ?? [];
+    list.push(row);
+    approversByDoc.set(row.document_id, list);
+  }
+
+  const rows: VaultDocumentTableRow[] = (documents ?? []).map((d) => {
+    const approvers = approversByDoc.get(d.id);
+    return {
+      id: d.id,
+      project_id: projectId,
+      folder_id: folderId,
+      title: d.title,
+      document_number: d.document_number,
+      document_reference: d.document_reference,
+      revision: d.revision,
+      document_date: d.document_date,
+      status: d.status,
+      created_at: d.created_at,
+      uploader_name: d.users?.full_name ?? null,
+      approverProgress: approvers
+        ? [
+            approvers.filter((a) => a.status === "approved").length,
+            approvers.length,
+            approvers.some((a) => a.approver_user_id === session.userId && a.status === "pending"),
+          ]
+        : undefined,
+    };
+  });
+
+  let approverOptions: { id: string; name: string }[] = [];
+  if (isAdminStaff(session)) {
+    const { data: parties } = await supabase
+      .from("project_parties")
+      .select("user_id, name, users(full_name)")
+      .eq("project_id", projectId)
+      .eq("is_active", true)
+      .not("user_id", "is", null)
+      .returns<{ user_id: string; name: string; users: { full_name: string } | null }[]>();
+
+    const { data: staffUsers } = await supabase
+      .from("users")
+      .select("id, full_name")
+      .eq("is_jags_staff", true)
+      .order("full_name")
+      .returns<{ id: string; full_name: string }[]>();
+
+    const seen = new Set<string>();
+    for (const p of parties ?? []) {
+      if (!p.user_id || seen.has(p.user_id)) continue;
+      seen.add(p.user_id);
+      approverOptions.push({ id: p.user_id, name: `${p.users?.full_name ?? "Unknown"} (${p.name})` });
+    }
+    for (const s of staffUsers ?? []) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      approverOptions.push({ id: s.id, name: `${s.full_name} (JAGS)` });
+    }
+  }
 
   return (
     <div>
@@ -105,6 +163,19 @@ export default async function VaultFolderPage({
       </div>
 
       <VaultUploadForm projectId={projectId} folderId={folderId} folderKey={folder.folder_key} />
+
+      {isAdminStaff(session) && reviewDocIds.length > 0 && (
+        <SetApproversForm
+          documentOptions={(documents ?? [])
+            .filter((d) => d.status === "for_review")
+            .map((d) => ({
+              id: d.id,
+              label: `${d.document_number ?? d.title} — Rev. ${d.revision}`,
+              currentApproverIds: (approversByDoc.get(d.id) ?? []).map((a) => a.approver_user_id),
+            }))}
+          approverOptions={approverOptions}
+        />
+      )}
     </div>
   );
 }

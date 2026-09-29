@@ -17,6 +17,10 @@ export interface VaultDocumentTableRow {
   status: string;
   created_at: string;
   uploader_name: string | null;
+  /** Set only when this document has a configured multi-approver requirement — [approvedCount,
+   *  totalCount, amIAPendingApprover]. Undefined means "no requirement configured", the plain
+   *  single-click approval path. */
+  approverProgress?: [number, number, boolean];
 }
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
@@ -51,7 +55,16 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
     {
       key: "status",
       header: "Status",
-      render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>,
+      render: (row) => (
+        <span className="flex items-center gap-1.5">
+          <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
+          {row.approverProgress && row.status === "for_review" && (
+            <span className="text-xs text-muted" title="Custom approvers required for this document">
+              {row.approverProgress[0]}/{row.approverProgress[1]} agreed
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: "document_date",
@@ -66,16 +79,27 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
     { key: "uploader_name", header: "Uploaded by", render: (row) => row.uploader_name ?? "—" },
   ];
 
-  if (canApprove) {
-    columns.push({
-      key: "actions",
-      header: "",
-      render: (row) =>
-        row.status === "for_review" ? (
-          <ApproveDocumentButton documentId={row.id} projectId={row.project_id} folderId={row.folder_id} />
-        ) : null,
-    });
-  }
+  columns.push({
+    key: "actions",
+    header: "",
+    render: (row) => {
+      if (row.status !== "for_review") return null;
+      // A named-but-otherwise-unprivileged approver still gets to click their own step even
+      // without the general canApprove permission — the button itself figures out which case
+      // applies (lib/vault/multi-approval-actions.ts's approveDocumentAction).
+      const isNamedApprover = row.approverProgress ? row.approverProgress[2] : false;
+      if (!canApprove && !isNamedApprover) return null;
+      return (
+        <ApproveDocumentButton
+          documentId={row.id}
+          projectId={row.project_id}
+          folderId={row.folder_id}
+          canApproveGenerally={canApprove}
+          label={row.approverProgress ? "Agree" : "Approve"}
+        />
+      );
+    },
+  });
 
   return columns;
 }

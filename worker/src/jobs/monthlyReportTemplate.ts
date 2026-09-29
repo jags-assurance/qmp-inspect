@@ -176,7 +176,7 @@ export function buildMonthlyReportHtml(data: MonthlyReportTemplateData): string 
     align-items: stretch;
     gap: 14px;
     background: var(--burgundy);
-    border-bottom: 4px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
     border-radius: 4px;
     /* Deliberately NOT bled to the true page edge via a negative margin cancelling @page's margin —
        Chrome's print-to-PDF does not reliably apply that margin the same way twice in a row (visible

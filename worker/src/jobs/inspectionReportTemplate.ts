@@ -301,7 +301,9 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
     align-items: stretch;
     gap: 14px;
     background: var(--burgundy);
-    border-bottom: 4px solid var(--gold);
+    /* Was a 4px band — real feedback: too much decorative color weight/print ink for a line that
+       carries no information. A thin 2px accent still reads as a letterhead rule without the bulk. */
+    border-bottom: 2px solid var(--gold);
     border-radius: 4px;
     /* Deliberately NOT bled to the true page edge via a negative margin cancelling @page's margin —
        Chrome's print-to-PDF does not reliably apply that margin the same way twice in a row (visible

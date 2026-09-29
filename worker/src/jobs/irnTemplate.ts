@@ -139,7 +139,7 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
     align-items: stretch;
     gap: 14px;
     background: var(--burgundy);
-    border-bottom: 4px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
     border-radius: 4px;
     padding: 10px 16px;
     margin-bottom: 10px;
