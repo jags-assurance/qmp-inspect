@@ -58,8 +58,15 @@ export function DropdownMenu({
         // Closes on any click inside (a link navigating, a form submitting, a plain button) — the
         // menu re-closing is the right default for every item it currently holds; a future item
         // that needs to stay open after its own click can stopPropagation() on itself.
+        //
+        // Deferred via setTimeout(0), not called synchronously: a real bug found live — closing
+        // synchronously in this bubble-phase handler unmounts the clicked <a>/<form> before the
+        // browser's native "activation behavior" (the anchor's navigation, or the submit button's
+        // form submission) had actually fired, silently swallowing the click entirely — Generate PDF,
+        // the .xlsx export, and the Word export all did nothing because of this exact race. Letting
+        // the native action fire first, then closing on the next tick, fixes all of them at once.
         <div
-          onClick={() => setOpen(false)}
+          onClick={() => setTimeout(() => setOpen(false), 0)}
           className={
             "absolute z-20 mt-1 min-w-[14rem] overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg " +
             (align === "end" ? "right-0" : "left-0")
