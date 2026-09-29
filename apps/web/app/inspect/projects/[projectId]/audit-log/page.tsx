@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { DateRangeFilter, parseDateRange, dateRangeToFromIso } from "@/components/domain/date-range-filter";
 
 interface ProjectSummary {
   id: string;
@@ -22,7 +23,13 @@ interface AuditLogListRow extends Pick<AuditLogRow, "id" | "entity_type" | "enti
  * its call sites). Staff-only, same as the app's other admin-facing register/config pages: this is
  * an internal governance view, not something a client or contractor party needs day to day.
  */
-export default async function ProjectAuditLogPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function ProjectAuditLogPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ range?: string }>;
+}) {
   const session = await requireSession();
   const { projectId } = await params;
   if (!session.isJagsStaff) redirect(`/inspect/projects/${projectId}`);
@@ -37,13 +44,19 @@ export default async function ProjectAuditLogPage({ params }: { params: Promise<
 
   if (!project) notFound();
 
-  const { data: events } = await supabase
+  const { range } = await searchParams;
+  const dateRange = parseDateRange(range);
+  const fromIso = dateRangeToFromIso(dateRange);
+
+  let query = supabase
     .from(AUDIT_LOG_TABLE)
     .select("id, entity_type, entity_id, action, summary, created_at, actor:users(full_name, email)")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
-    .limit(200)
-    .returns<AuditLogListRow[]>();
+    .limit(200);
+  if (fromIso) query = query.gte("created_at", fromIso);
+
+  const { data: events } = await query.returns<AuditLogListRow[]>();
 
   return (
     <div>
@@ -68,6 +81,13 @@ export default async function ProjectAuditLogPage({ params }: { params: Promise<
         <p className="mt-1 text-sm text-muted">
           Every recorded create, edit, approval and status-change event on this project, newest first.
         </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <DateRangeFilter />
+          <p className="text-xs text-muted">
+            Showing {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
+            {(events ?? []).length >= 200 ? " (capped to the most recent 200)" : ""}
+          </p>
+        </div>
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">

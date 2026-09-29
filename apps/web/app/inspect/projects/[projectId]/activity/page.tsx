@@ -11,6 +11,7 @@ import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/ty
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { VAULT_FOLDERS_TABLE, VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { DateRangeFilter, parseDateRange, dateRangeToFromIso } from "@/components/domain/date-range-filter";
 
 const EVENT_DOT_TONE: Record<ActivityEvent["kind"], string> = {
   itp_created: "bg-info",
@@ -70,10 +71,20 @@ interface ActivityEvent {
  * sign-off notified, data book compiled, handover issued/acknowledged, punch list opened/closed,
  * vault document uploaded) already had a real timestamp on record and simply wasn't being surfaced.
  */
-export default async function ProjectActivityPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function ProjectActivityPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ range?: string }>;
+}) {
   const { projectId } = await params;
   await requireSession();
   const supabase = await createSupabaseServerClient();
+
+  const { range } = await searchParams;
+  const dateRange = parseDateRange(range);
+  const fromIso = dateRangeToFromIso(dateRange);
 
   const { data: project } = await supabase
     .from("projects")
@@ -388,7 +399,7 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
     return events;
   });
 
-  const events = [
+  const allEvents = [
     ...itpEvents,
     ...inspectionEvents,
     ...ncrEvents,
@@ -398,9 +409,14 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
     ...handoverEvents,
     ...punchEvents,
     ...vaultEvents,
-  ]
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 80);
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // The underlying queries above each cap at their own limit (50/100 rows) as a fallback safety net,
+  // but the actual date-range scoping happens here on the merged, per-event timestamp list — a single
+  // source row (e.g. an NCR) can contribute multiple events (raised/closed) with different timestamps,
+  // so filtering has to happen after the row is split into its individual events, not before.
+  const filteredEvents = fromIso ? allEvents.filter((e) => new Date(e.timestamp).getTime() >= new Date(fromIso).getTime()) : allEvents;
+  const events = filteredEvents.slice(0, 80);
 
   return (
     <div>
@@ -425,6 +441,13 @@ export default async function ProjectActivityPage({ params }: { params: Promise<
           project — ITPs, sign-offs, inspections, NCRs, standalone assignments, data book and handover, punch list,
           and Document Vault uploads.
         </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <DateRangeFilter />
+          <p className="text-xs text-muted">
+            Showing {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
+            {filteredEvents.length > 80 ? " (capped to the most recent 80)" : ""}
+          </p>
+        </div>
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
