@@ -12,6 +12,7 @@ import { renderIrnPdf } from "./jobs/renderIrnPdf";
 import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
 import { closeSharedBrowser } from "./browserPool";
+import { runAutomationSweep } from "./automation";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -56,6 +57,12 @@ const JOB_TIMEOUT_MS = 3 * 60 * 1000;
 // Log queue depth / oldest-pending-job age this often (in poll cycles), not every single tick, so
 // a stuck queue is visible in Railway logs without spamming them.
 const OBSERVABILITY_LOG_EVERY_N_CYCLES = 20; // ~once a minute at POLL_INTERVAL_MS = 3000
+
+// The automation sweep (stuck Hold / overdue NCR / overdue punch item nudges) checks hour-scale
+// conditions, not this queue's own second-scale job backlog — running it every poll cycle would be
+// 20x more Supabase round trips than useful. ~15 minutes at POLL_INTERVAL_MS = 3000 is frequent
+// enough that a real automation_rules threshold_hours (minimum 1) is never meaningfully delayed.
+const AUTOMATION_SWEEP_EVERY_N_CYCLES = 300;
 
 // `background_jobs` isn't in `@jags/shared-types` yet (see jobs/types.ts) — this worker is the
 // only thing that queries it, so a single narrow `as unknown as` cast here stands in for
@@ -310,6 +317,10 @@ async function pollOnce(cycle: number): Promise<void> {
   if (cycle % OBSERVABILITY_LOG_EVERY_N_CYCLES === 0) {
     await logQueueHealth();
     await reclaimOrphanedJobs();
+  }
+
+  if (cycle % AUTOMATION_SWEEP_EVERY_N_CYCLES === 0) {
+    await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
   }
 
   const job = await claimNextPendingJob();

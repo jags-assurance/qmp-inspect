@@ -182,6 +182,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
             children: [
               { label: "Numbering", href: "/inspect/organisation/numbering" },
               { label: "Brand Colors", href: "/inspect/organisation/branding" },
+              { label: "Automation Rules", href: "/inspect/organisation/automation" },
             ],
           },
           {
