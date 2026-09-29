@@ -1,9 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffGrantForm, type StaffOption, type OrgOption, type ProjectOption } from "./staff-grant-form";
 import { RemoveGrantButton } from "./remove-grant-button";
 import { PageGuide } from "@/components/domain/page-guide";
+import { StatCard } from "@/components/ui/stat-card";
+import { Badge } from "@/components/ui/badge";
 
 interface StaffRow {
   id: string;
@@ -71,9 +74,15 @@ export default async function StaffAccessPage() {
     return `${projectNameById.get(grant.project_id ?? "") ?? "Unknown project"} (${orgNameById.get(grant.organization_id ?? "") ?? "Unknown org"})`;
   }
 
+  const staffWithoutAccess = (staff ?? []).filter((s) => (grantsByUser.get(s.id) ?? []).length === 0).length;
+  const adminCount = (staff ?? []).filter((s) => s.staff_role !== "inspector").length;
+
   return (
     <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center gap-2">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Staff access</h1>
         <PageGuide
           title="Staff access — how this works"
@@ -93,7 +102,20 @@ export default async function StaffAccessPage() {
         enforced by the database itself (Row-Level Security), not just this screen.
       </p>
 
-      <StaffGrantForm staff={staffOptions} organizations={organizations ?? []} projects={projects ?? []} />
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Staff accounts" value={(staff ?? []).length} />
+        <StatCard label="Admins" value={adminCount} />
+        <StatCard label="Inspectors" value={(staff ?? []).length - adminCount} />
+        <StatCard
+          label="No access grants"
+          value={staffWithoutAccess}
+          caption={staffWithoutAccess === 0 ? "Clear" : "Sees no client data"}
+        />
+      </div>
+
+      <div className="mt-6">
+        <StaffGrantForm staff={staffOptions} organizations={organizations ?? []} projects={projects ?? []} />
+      </div>
 
       <div className="mt-8 space-y-4">
         {(staff ?? []).map((s) => (
@@ -108,9 +130,7 @@ export default async function StaffAccessPage() {
             </div>
             <div className="mt-3 space-y-1.5">
               {(grantsByUser.get(s.id) ?? []).length === 0 && (
-                <p className="text-xs text-danger">
-                  No access grants — this account can sign in but sees no client data at all.
-                </p>
+                <Badge tone="danger">No access grants — sees no client data</Badge>
               )}
               {(grantsByUser.get(s.id) ?? []).map((grant) => (
                 <div key={grant.id} className="flex items-center justify-between text-sm">

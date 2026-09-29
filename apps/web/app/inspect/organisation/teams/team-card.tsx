@@ -50,8 +50,16 @@ export function TeamCard({
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-medium text-ink">{team.name}</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="font-medium text-ink">{team.name}</h2>
+          <Badge tone="neutral">
+            {team.members.length} member{team.members.length === 1 ? "" : "s"}
+          </Badge>
+          <Badge tone="neutral">
+            {team.assignedProjects.length} project{team.assignedProjects.length === 1 ? "" : "s"}
+          </Badge>
+        </div>
         {!team.canManage && <span className="text-xs text-muted">View only</span>}
       </div>
 

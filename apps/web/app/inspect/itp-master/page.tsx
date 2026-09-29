@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
 import { TemplatesTable, type MasterTemplateRow } from "./templates-table";
 import { PageGuide } from "@/components/domain/page-guide";
+import { StatCard } from "@/components/ui/stat-card";
 
 // Tier 1 master library is JAGS-staff-only at every level (RLS-enforced) — this redirect is a UX
 // nicety, not the actual boundary; a non-staff user's query would come back empty regardless.
@@ -19,9 +20,15 @@ export default async function ItpMasterLibraryPage() {
     .order("title")
     .returns<MasterTemplateRow[]>();
 
+  const activeCount = (templates ?? []).filter((t) => t.is_active).length;
+  const disciplineCount = new Set((templates ?? []).map((t) => t.master_disciplines?.name).filter(Boolean)).size;
+
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">Master ITP Library</h1>
@@ -46,6 +53,13 @@ export default async function ItpMasterLibraryPage() {
         >
           Review proposals →
         </Link>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Templates" value={(templates ?? []).length} />
+        <StatCard label="Active" value={activeCount} />
+        <StatCard label="Inactive" value={(templates ?? []).length - activeCount} />
+        <StatCard label="Disciplines covered" value={disciplineCount} />
       </div>
 
       <div className="mt-6">

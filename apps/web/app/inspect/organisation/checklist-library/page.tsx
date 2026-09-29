@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
 import { TemplatesTable, type LibraryTemplateRow } from "./templates-table";
 import { CreateTemplateForm } from "./create-template-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { StatCard } from "@/components/ui/stat-card";
 
 /**
  * R44/R47: standalone checklist/form template builder — a reusable library of check-item sets,
@@ -38,9 +40,15 @@ export default async function ChecklistLibraryPage() {
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
   ]);
 
+  const globalCount = (templates ?? []).filter((t) => !t.organization_id).length;
+  const totalItems = (templates ?? []).reduce((sum, t) => sum + (t.checklist_library_items?.[0]?.count ?? 0), 0);
+
   return (
     <div>
-      <div>
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink">Checklist / Form Template Library</h1>
           <PageGuide
@@ -58,6 +66,13 @@ export default async function ChecklistLibraryPage() {
             ? "JAGS-internal, reusable checklist and form templates, built independently of any specific project. Attach one to a checklist-type ITP activity to start that activity’s checklist from a proven set of check items instead of a blank one. Global templates are shared with every client; a template can also be scoped to one client so per-client variants never collide."
             : "Checklist and form templates JAGS can start a checklist-type ITP activity from — global templates plus any built specifically for your organisation."}
         </p>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Templates" value={(templates ?? []).length} />
+        <StatCard label="Global (shared)" value={globalCount} />
+        <StatCard label="Org-specific" value={(templates ?? []).length - globalCount} />
+        <StatCard label="Total check items" value={totalItems} />
       </div>
 
       {session.isJagsStaff && (

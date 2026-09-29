@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CUSTOM_ROLES_TABLE, CUSTOM_ROLE_PERMISSIONS_TABLE, CUSTOM_ROLE_ASSIGNMENTS_TABLE, type PermissionKey } from "@/lib/rbac/types";
@@ -6,6 +7,7 @@ import { getSelfManagedOrgIdsForUser, getClientManagedOrgIdsForUser } from "@/li
 import { CreateRoleForm } from "./create-role-form";
 import { RoleCard, type RoleCardData } from "./role-card";
 import { PageGuide } from "@/components/domain/page-guide";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface RoleRow {
   id: string;
@@ -123,9 +125,15 @@ export default async function CustomRolesPage() {
     })),
   }));
 
+  const totalAssignments = (assignmentRows ?? []).length;
+  const distinctPermissionsGranted = new Set((permissionRows ?? []).map((p) => p.permission_key)).size;
+
   return (
     <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center gap-2">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Custom roles</h1>
         <PageGuide
           title="Custom roles — how this works"
@@ -149,7 +157,16 @@ export default async function CustomRolesPage() {
           : " Roles you create here are scoped to your own organisation only — your own people, your own projects. Which permissions you can self-grant depends on your org's engagement tier (Self-Managed vs Full Client-Managed)."}
       </p>
 
-      <CreateRoleForm organizations={organizations ?? []} lockedOrganizationId={admin ? null : selfManagedOrgIds[0]} />
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Custom roles" value={roleCards.length} />
+        <StatCard label="Assignments" value={totalAssignments} />
+        <StatCard label="Distinct permission keys in use" value={distinctPermissionsGranted} />
+        <StatCard label="People with a role" value={new Set((assignmentRows ?? []).map((a) => a.users?.email ?? a.id)).size} />
+      </div>
+
+      <div className="mt-6">
+        <CreateRoleForm organizations={organizations ?? []} lockedOrganizationId={admin ? null : selfManagedOrgIds[0]} />
+      </div>
 
       <div className="mt-8 space-y-4">
         {roleCards.map((role) => (

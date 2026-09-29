@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
 import { CreateTeamForm } from "./create-team-form";
 import { TeamCard, type TeamCardData, type StaffOption, type ProjectOption } from "./team-card";
 import { PageGuide } from "@/components/domain/page-guide";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface StaffRow {
   id: string;
@@ -92,9 +94,15 @@ export default async function TeamsPage() {
     })),
   }));
 
+  const totalMembers = new Set((memberRows ?? []).map((r) => r.user_id)).size;
+  const totalAssignedProjects = new Set((assignmentRows ?? []).map((r) => r.project_id)).size;
+
   return (
     <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center gap-2">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Teams</h1>
         <PageGuide
           title="Teams — how this works"
@@ -112,7 +120,18 @@ export default async function TeamsPage() {
         membership and project assignments; a JAGS Admin can manage every team.
       </p>
 
-      {admin && <CreateTeamForm />}
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Teams" value={teamCards.length} />
+        <StatCard label="Staff assigned" value={totalMembers} />
+        <StatCard label="Projects covered" value={totalAssignedProjects} />
+        <StatCard label="Unassigned staff" value={Math.max(0, (staff ?? []).length - totalMembers)} />
+      </div>
+
+      {admin && (
+        <div className="mt-6">
+          <CreateTeamForm />
+        </div>
+      )}
 
       <div className="mt-8 space-y-6">
         {teamCards.map((team) => (

@@ -17,6 +17,7 @@ import {
   type PermissionKey,
 } from "@/lib/rbac/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const deleteInitial: RbacActionState = { error: null };
 const toggleInitial: RbacActionState = { error: null };
@@ -66,7 +67,15 @@ export function RoleCard({
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-medium text-ink">{role.name}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-ink">{role.name}</p>
+            <Badge tone="neutral">
+              {role.grantedPermissions.size} permission{role.grantedPermissions.size === 1 ? "" : "s"}
+            </Badge>
+            <Badge tone="neutral">
+              {role.assignments.length} assignment{role.assignments.length === 1 ? "" : "s"}
+            </Badge>
+          </div>
           <p className="text-xs text-muted">{role.organizationName ?? "JAGS-global"}</p>
         </div>
         <form action={deleteAction}>

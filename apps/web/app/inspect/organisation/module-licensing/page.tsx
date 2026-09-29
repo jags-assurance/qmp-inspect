@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -10,6 +11,7 @@ import {
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { ModuleLicenseToggle } from "./module-license-toggle";
 import { PageGuide } from "@/components/domain/page-guide";
+import { Badge } from "@/components/ui/badge";
 
 interface OrganizationOption {
   id: string;
@@ -59,9 +61,14 @@ export default async function ModuleLicensingSettingsPage({
     }
   }
 
+  const offCount = selectedOrg ? MODULE_KEYS.filter((k) => (licenseByModule.get(k) ?? true) === false).length : 0;
+
   return (
     <div className="max-w-2xl">
-      <div className="flex flex-wrap items-center gap-2">
+      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Module licensing</h1>
         <PageGuide
           title="Module licensing — how this works"
@@ -84,7 +91,12 @@ export default async function ModuleLicensingSettingsPage({
 
       {selectedOrg && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}&rsquo;s modules</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}&rsquo;s modules</h2>
+            <Badge tone={offCount === 0 ? "success" : "warning"}>
+              {offCount === 0 ? `All ${MODULE_KEYS.length} licensed` : `${offCount} of ${MODULE_KEYS.length} off`}
+            </Badge>
+          </div>
 
           <div className="mt-3 divide-y divide-border">
             {MODULE_KEYS.map((moduleKey) => (
