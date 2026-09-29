@@ -5,9 +5,15 @@ import { Button } from "@/components/ui/button";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { ProjectsTable, type ProjectRow } from "./projects-table";
 import { PageGuide } from "@/components/domain/page-guide";
+import { OrgFilter } from "./org-filter";
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ org?: string }>;
+}) {
   const session = await requireSession();
+  const { org: selectedOrgId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   // Project creation is normally Admin-only, but a Self-Managed/Platform-Only client runs its own
@@ -26,11 +32,27 @@ export default async function ProjectsPage() {
     );
   }
 
-  const { data: projects } = await supabase
+  let projectsQuery = supabase
     .from("projects")
-    .select("id, project_number, name, site_location, status, organizations(name)")
-    .order("created_at", { ascending: false })
-    .returns<ProjectRow[]>();
+    .select("id, project_number, name, site_location, status, organization_id, organizations(name)")
+    .order("created_at", { ascending: false });
+  if (selectedOrgId) projectsQuery = projectsQuery.eq("organization_id", selectedOrgId);
+  const { data: projects } = await projectsQuery.returns<ProjectRow[]>();
+
+  // Organisations for the filter dropdown — drawn from the same RLS-scoped `projects` query (not a
+  // separate `organizations` select) so the list only ever shows orgs this session can actually see
+  // projects for, and stays correct even while `selectedOrgId` narrows the `projects` fetch above.
+  const { data: allProjectOrgs } = await supabase
+    .from("projects")
+    .select("organization_id, organizations(name)")
+    .returns<{ organization_id: string; organizations: { name: string } | null }[]>();
+  const orgFilterOptions = [
+    ...new Map(
+      (allProjectOrgs ?? [])
+        .filter((p) => p.organizations)
+        .map((p) => [p.organization_id, { id: p.organization_id, label: p.organizations!.name }])
+    ).values(),
+  ].sort((a, b) => a.label.localeCompare(b.label));
 
   const projectIds = (projects ?? []).map((p) => p.id);
 
@@ -97,11 +119,14 @@ export default async function ProjectsPage() {
               : "Projects your organisation is engaged on."}
           </p>
         </div>
-        {canCreateProject && (
-          <Link href="/inspect/projects/new">
-            <Button>+ New project</Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {orgFilterOptions.length > 0 && <OrgFilter organizations={orgFilterOptions} />}
+          {canCreateProject && (
+            <Link href="/inspect/projects/new">
+              <Button>+ New project</Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="mt-6">

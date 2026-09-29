@@ -10,6 +10,7 @@ export interface ProjectRow {
   name: string;
   site_location: string | null;
   status: string;
+  organization_id: string;
   organizations: { name: string } | null;
   /** round(client_accepted ITPs / total ITPs * 100); null when the project has zero ITPs. */
   itpCompletionPct: number | null;
