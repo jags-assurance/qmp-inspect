@@ -5,10 +5,12 @@ import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { cn } from "@/lib/cn";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
 import { computeDataBookDisciplineBreakdown } from "@/lib/databook/discipline-breakdown";
-import { DATA_BOOKS_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
+import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { NCRS_TABLE, type NcrSeverity } from "@/lib/ncrs/types";
 import { getLatestDataBookPdf } from "@/lib/reports/actions";
 import { ReadinessPanel } from "./readiness-panel";
 import { DisciplineBreakdownPanel } from "./discipline-breakdown-panel";
@@ -31,6 +33,25 @@ const STATUS_LABEL: Record<DataBookStatus, string> = {
   issued: "Issued",
 };
 
+const PARTY_TYPE_LABEL: Record<string, string> = {
+  client: "Client",
+  main_contractor: "Main Contractor",
+  subcontractor: "Subcontractor",
+  tpi_lab: "TPI / Lab",
+  vendor: "Vendor",
+  jags: "JAGS Assurance",
+};
+
+const NCR_SEVERITY_LABEL: Record<NcrSeverity, string> = {
+  observation: "Observation",
+  minor_ncr: "Minor",
+  major_ncr: "Major",
+};
+
+function formatDate(value: string | null): string {
+  return value ? new Date(value).toLocaleDateString("en-GB") : "—";
+}
+
 export default async function DataBookPage({
   params,
 }: {
@@ -42,9 +63,19 @@ export default async function DataBookPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, project_number, organization_id, organizations(name)")
+    .select("id, name, project_number, site_location, country, start_date, end_date, organization_id, organizations(name)")
     .eq("id", projectId)
-    .maybeSingle<{ id: string; name: string; project_number: string; organization_id: string; organizations: { name: string } | null }>();
+    .maybeSingle<{
+      id: string;
+      name: string;
+      project_number: string;
+      site_location: string | null;
+      country: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      organization_id: string;
+      organizations: { name: string } | null;
+    }>();
 
   if (!project) notFound();
 
@@ -54,7 +85,15 @@ export default async function DataBookPage({
     redirect(`/inspect/projects/${projectId}`);
   }
 
-  const [readiness, disciplineBreakdown, { data: dataBooks }, { data: openPunchItemRows }] = await Promise.all([
+  const [
+    readiness,
+    disciplineBreakdown,
+    { data: dataBooks },
+    { data: openPunchItemRows },
+    { data: parties },
+    { data: ncrs },
+    { data: punchItems },
+  ] = await Promise.all([
     computeDataBookReadiness(projectId),
     computeDataBookDisciplineBreakdown(projectId),
     supabase
@@ -71,6 +110,26 @@ export default async function DataBookPage({
       .eq("project_id", projectId)
       .neq("status", "closed")
       .returns<OpenPunchItemPreview[]>(),
+    // Project parties — same source apps/inspect/projects/[projectId]/page.tsx uses — surfaced here
+    // so a Data Book reads like a real completion dossier ("who was involved"), not just a readiness
+    // meter with no project context.
+    supabase
+      .from("project_parties")
+      .select("id, name, party_type, is_active")
+      .eq("project_id", projectId)
+      .eq("is_active", true)
+      .order("party_type")
+      .returns<{ id: string; name: string; party_type: string; is_active: boolean }[]>(),
+    supabase
+      .from(NCRS_TABLE)
+      .select("id, severity, status")
+      .eq("project_id", projectId)
+      .returns<{ id: string; severity: NcrSeverity; status: string }[]>(),
+    supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id, status")
+      .eq("project_id", projectId)
+      .returns<{ id: string; status: string }[]>(),
   ]);
 
   const openPunchItems: OpenPunchItemPreview[] = openPunchItemRows ?? [];
@@ -78,6 +137,48 @@ export default async function DataBookPage({
   const dataBookPdfStatuses = await Promise.all(
     (dataBooks ?? []).map((book) => getLatestDataBookPdf(book.id))
   );
+
+  // Chain-of-custody trail (draft → compiled → issued → client acknowledged) per data book — the
+  // handover_certificates row is the source of truth for the "issued"/"acknowledged" steps, same
+  // table lib/handover/actions.ts writes to.
+  const dataBookCertificates = await Promise.all(
+    (dataBooks ?? []).map((book) =>
+      book.status === "issued"
+        ? supabase
+            .from(HANDOVER_CERTIFICATES_TABLE)
+            .select("id, certificate_number, issued_date, issued_by, received_by_name, received_by_company, acknowledged_at, is_conditional")
+            .eq("data_book_id", book.id)
+            .maybeSingle<{
+              id: string;
+              certificate_number: string;
+              issued_date: string;
+              issued_by: string | null;
+              received_by_name: string | null;
+              received_by_company: string | null;
+              acknowledged_at: string | null;
+              is_conditional: boolean;
+            }>()
+            .then((r) => r.data)
+        : Promise.resolve(null)
+    )
+  );
+
+  // What was actually done, by severity/status — real counts pulled together here rather than
+  // fabricated, so the page answers "what was done" at a glance the way the PDF's own summary does.
+  const ncrRows = ncrs ?? [];
+  const ncrTotal = ncrRows.length;
+  const ncrClosed = ncrRows.filter((n) => n.status === "closed").length;
+  const ncrBySeverity = (["observation", "minor_ncr", "major_ncr"] as const).map((severity) => ({
+    severity,
+    label: NCR_SEVERITY_LABEL[severity],
+    total: ncrRows.filter((n) => n.severity === severity).length,
+    closed: ncrRows.filter((n) => n.severity === severity && n.status === "closed").length,
+  }));
+
+  const punchRows = punchItems ?? [];
+  const punchTotal = punchRows.length;
+  const punchClosed = punchRows.filter((p) => p.status === "closed").length;
+  const punchResolvedNotClosed = punchRows.filter((p) => p.status === "resolved").length;
 
   return (
     <div className="max-w-3xl">
@@ -101,6 +202,109 @@ export default async function DataBookPage({
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name} · {project.name}
         </p>
+      </div>
+
+      {/* Project completion dossier summary — "what was done, who did it, how, when" per the client's
+          own framing of what a Data Book is meant to be, not just a readiness meter. */}
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-base font-medium text-ink">Project summary</h2>
+        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted">Project</dt>
+            <dd className="mt-0.5 text-sm text-ink">
+              {project.project_number} — {project.name}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted">Client organisation</dt>
+            <dd className="mt-0.5 text-sm text-ink">{project.organizations?.name ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted">Site / location</dt>
+            <dd className="mt-0.5 text-sm text-ink">
+              {[project.site_location, project.country].filter(Boolean).join(", ") || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted">Project period</dt>
+            <dd className="mt-0.5 text-sm text-ink">
+              {formatDate(project.start_date)} – {formatDate(project.end_date)}
+            </dd>
+          </div>
+        </dl>
+
+        <div className="mt-4 border-t border-border pt-3">
+          <h3 className="text-xs uppercase tracking-wide text-muted">Project parties involved</h3>
+          {(parties ?? []).length === 0 ? (
+            <p className="mt-2 text-sm text-muted">No active project parties recorded.</p>
+          ) : (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {(parties ?? []).map((party) => (
+                <li key={party.id} className="rounded-md border border-border bg-off-white px-2.5 py-1 text-xs text-ink">
+                  <span className="font-medium">{PARTY_TYPE_LABEL[party.party_type] ?? party.party_type}</span>
+                  <span className="ml-1.5 text-muted">{party.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* What was done — real completed-work counts, same underlying tables as the compile PDF's own
+          summary, surfaced here so the in-app page isn't thinner than the document it produces. */}
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-base font-medium text-ink">What was done</h2>
+        <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard
+            label="ITPs on project"
+            value={<span className="tabular-nums">{readiness.itps.total}</span>}
+            caption={`${readiness.itps.ready} approved / client-accepted`}
+          />
+          <StatCard
+            label="Inspection records"
+            value={<span className="tabular-nums">{readiness.inspectionRecords.total}</span>}
+            caption={`${readiness.inspectionRecords.ready} with issued IRN`}
+          />
+          <StatCard
+            label="NCRs raised"
+            value={<span className="tabular-nums">{ncrTotal}</span>}
+            caption={ncrTotal === 0 ? undefined : `${ncrClosed}/${ncrTotal} closed`}
+          />
+          <StatCard
+            label="Punch list items"
+            value={<span className="tabular-nums">{punchTotal}</span>}
+            caption={punchTotal === 0 ? undefined : `${punchClosed} closed, ${punchResolvedNotClosed} resolved (unverified)`}
+          />
+        </div>
+
+        {ncrTotal > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
+            <h3 className="text-xs uppercase tracking-wide text-muted">NCRs by severity</h3>
+            <div className="mt-2 space-y-2">
+              {ncrBySeverity
+                .filter((row) => row.total > 0)
+                .map((row) => (
+                  <div key={row.severity} className="flex items-center justify-between text-sm">
+                    <span className="text-ink">{row.label}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted/15">
+                        <div
+                          className={cn(
+                            "h-full rounded-full",
+                            row.severity === "major_ncr" ? "bg-danger" : row.severity === "minor_ncr" ? "bg-gold" : "bg-muted"
+                          )}
+                          style={{ width: `${row.total === 0 ? 0 : Math.round((row.closed / row.total) * 100)}%` }}
+                        />
+                      </div>
+                      <Badge tone={row.closed === row.total ? "success" : "warning"}>
+                        {row.closed}/{row.total} closed
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -164,6 +368,56 @@ export default async function DataBookPage({
               </div>
               <Badge tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
             </div>
+
+            {/* Chain-of-custody trail — the closing record for this data book: draft → compiled →
+                issued → client acknowledged. Issued/acknowledged come from the handover_certificates
+                row lib/handover/actions.ts writes; draft/compiled come from the data book itself. */}
+            <ol className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+              {(["draft", "compiled", "issued", "acknowledged"] as const).map((step, stepIndex, arr) => {
+                const cert = dataBookCertificates[index];
+                const reached =
+                  step === "draft"
+                    ? true
+                    : step === "compiled"
+                      ? book.status === "compiled" || book.status === "issued"
+                      : step === "issued"
+                        ? book.status === "issued"
+                        : Boolean(cert?.acknowledged_at);
+                const label =
+                  step === "draft"
+                    ? "Draft"
+                    : step === "compiled"
+                      ? book.compiled_at
+                        ? `Compiled ${formatDate(book.compiled_at)}`
+                        : "Compiled"
+                      : step === "issued"
+                        ? cert
+                          ? `Issued ${formatDate(cert.issued_date)}`
+                          : "Issued"
+                        : cert?.acknowledged_at
+                          ? `Acknowledged ${formatDate(cert.acknowledged_at)}`
+                          : "Acknowledged";
+                return (
+                  <li key={step} className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5",
+                        reached ? "border-success bg-success/10 text-success" : "border-border text-muted"
+                      )}
+                    >
+                      {label}
+                    </span>
+                    {stepIndex < arr.length - 1 && <span className="text-muted">→</span>}
+                  </li>
+                );
+              })}
+            </ol>
+            {dataBookCertificates[index]?.received_by_name && (
+              <p className="mt-1 text-xs text-muted">
+                Received by {dataBookCertificates[index]?.received_by_name}
+                {dataBookCertificates[index]?.received_by_company ? ` (${dataBookCertificates[index]?.received_by_company})` : ""}
+              </p>
+            )}
 
             <div className="mt-3">
               <DataBookPdfButton dataBookId={book.id} projectId={projectId} latest={dataBookPdfStatuses[index]} />
