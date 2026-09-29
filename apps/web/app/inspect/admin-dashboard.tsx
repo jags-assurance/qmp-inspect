@@ -240,7 +240,15 @@ export function AdminDashboard({
             searchKeys={(r) => r.name}
             emptyMessage="No organisations are visible to your account yet."
             columns={[
-              { key: "name", header: "Organisation", render: (r) => <span className="text-ink">{r.name}</span> },
+              {
+                key: "name",
+                header: "Organisation",
+                render: (r) => (
+                  <Link href={`/inspect/projects?org=${r.id}`} className="text-burgundy hover:underline">
+                    {r.name}
+                  </Link>
+                ),
+              },
               {
                 key: "mode",
                 header: "Engagement mode",
