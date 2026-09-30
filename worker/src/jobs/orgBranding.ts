@@ -23,6 +23,15 @@ export interface OrgBrandingInfo {
    * exactly as before," never an invented image.
    */
   logoUrl: string | null;
+  /**
+   * The org's own accent colors (organizations.brand_primary_color/brand_accent_color — same
+   * columns the web app's org-brand.ts reads for the in-app burgundy/gold CSS variable overrides),
+   * only ever populated outside jags_led mode: a real gap found live — these PDF templates always
+   * rendered in JAGS's fixed burgundy/gold regardless of what the org configured, even when
+   * co_branded/white_label. Null means "no override, render the default palette."
+   */
+  brandPrimaryColor: string | null;
+  brandAccentColor: string | null;
 }
 
 /**
@@ -36,18 +45,27 @@ export async function getOrgBranding(
   supabase: SupabaseClient,
   organizationId: string | null | undefined
 ): Promise<OrgBrandingInfo> {
-  if (!organizationId) return { engagementMode: "jags_led", logoUrl: null };
+  if (!organizationId) return { engagementMode: "jags_led", logoUrl: null, brandPrimaryColor: null, brandAccentColor: null };
 
   const { data: org } = await supabase
     .from("organizations")
-    .select("engagement_mode, branding_logo_path")
+    .select("engagement_mode, branding_logo_path, brand_primary_color, brand_accent_color")
     .eq("id", organizationId)
-    .maybeSingle<{ engagement_mode: EngagementMode | null; branding_logo_path: string | null }>();
+    .maybeSingle<{
+      engagement_mode: EngagementMode | null;
+      branding_logo_path: string | null;
+      brand_primary_color: string | null;
+      brand_accent_color: string | null;
+    }>();
 
   const engagementMode: EngagementMode = org?.engagement_mode ?? "jags_led";
+  // Colors are a jags_led-excluded override, same semantics as the logo — jags_led always means
+  // "JAGS's own fixed palette," regardless of what an org has configured.
+  const brandPrimaryColor = engagementMode === "jags_led" ? null : (org?.brand_primary_color ?? null);
+  const brandAccentColor = engagementMode === "jags_led" ? null : (org?.brand_accent_color ?? null);
 
   if (engagementMode === "jags_led" || !org?.branding_logo_path) {
-    return { engagementMode, logoUrl: null };
+    return { engagementMode, logoUrl: null, brandPrimaryColor, brandAccentColor };
   }
 
   const { data: signed, error } = await supabase.storage
@@ -55,8 +73,8 @@ export async function getOrgBranding(
     .createSignedUrl(org.branding_logo_path, LOGO_SIGNED_URL_TTL_SECONDS);
 
   if (error || !signed?.signedUrl) {
-    return { engagementMode, logoUrl: null };
+    return { engagementMode, logoUrl: null, brandPrimaryColor, brandAccentColor };
   }
 
-  return { engagementMode, logoUrl: signed.signedUrl };
+  return { engagementMode, logoUrl: signed.signedUrl, brandPrimaryColor, brandAccentColor };
 }

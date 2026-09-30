@@ -67,6 +67,12 @@ export interface InspectionReportData {
 export interface InspectionReportBranding {
   engagementMode: "jags_led" | "co_branded" | "white_label";
   logoUrl: string | null;
+  /** Org-configured accent colors (organizations.brand_primary_color/brand_accent_color), only ever
+   *  set outside jags_led mode (see orgBranding.ts) — overrides the --burgundy/--gold CSS variables
+   *  below when present. A real gap found live: this template previously always rendered in JAGS's
+   *  fixed burgundy/gold regardless of the org's own configured branding colors. */
+  brandPrimaryColor?: string | null;
+  brandAccentColor?: string | null;
 }
 
 const RESULT_LABEL: Record<"yes" | "no" | "na", string> = { yes: "PASS", no: "FAIL", na: "N/A" };
@@ -82,6 +88,27 @@ function escapeHtml(value: string): string {
 
 function cell(value: string | null | undefined): string {
   return value ? escapeHtml(value) : "&mdash;";
+}
+
+/** Narrow hex-color validation (`#abc` or `#aabbcc`) — the only shape the branding color picker
+ *  ever saves, but never trust a DB value directly into a raw CSS block without checking it still
+ *  looks like a color. */
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+
+/** Overrides the --burgundy/--gold CSS variables with the org's own configured colors, when set —
+ *  see InspectionReportBranding's doc comment for why this previously never happened. Emits nothing
+ *  (falls back to the default palette) when neither color is a valid hex value. */
+function renderBrandColorOverride(data: InspectionReportData): string {
+  const primary = data.branding?.brandPrimaryColor;
+  const accent = data.branding?.brandAccentColor;
+  const declarations = [
+    primary && HEX_COLOR_PATTERN.test(primary) ? `--burgundy: ${primary};` : "",
+    accent && HEX_COLOR_PATTERN.test(accent) ? `--gold: ${accent};` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (!declarations) return "";
+  return `<style>:root { ${declarations} }</style>`;
 }
 
 /** A factual, template-built summary from the record's own real data — not AI-generated, so it
@@ -434,6 +461,7 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
     font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
   }
 </style>
+${renderBrandColorOverride(data)}
 </head>
 <body>
   <div class="letterhead">
@@ -459,7 +487,6 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
     <div><span class="label">ITP / PROCEDURE</span>${cell(data.itpNumber)}</div>
     <div><span class="label">ACTIVITY</span>${cell(data.activity)}</div>
     <div><span class="label">DISCIPLINE</span>${cell(data.discipline)}</div>
-    <div><span class="label">LOCATION</span>${cell(data.location)}</div>
     <div><span class="label">DATE</span>${cell(data.inspectionDate)}</div>
   </div>
 

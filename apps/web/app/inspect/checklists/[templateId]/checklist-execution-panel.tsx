@@ -29,7 +29,9 @@ export function ChecklistExecutionPanel({
   calibrationOptions,
   canExecute,
   photoSlot,
+  hasEvidencePhoto,
   completeSlot,
+  missingPhotoSlot,
   incompleteSlot,
   projectId,
   itpItemId,
@@ -50,8 +52,15 @@ export function ChecklistExecutionPanel({
   canExecute: boolean;
   /** Rendered between the response rows and the complete/incomplete slot below. */
   photoSlot: ReactNode;
-  /** Rendered once every item has a response (Complete-inspection form + consistency check). */
+  /** At least one evidence photo exists — attached to the inspection as a whole, or to any
+   *  individual item — computed server-side from the same rows photoSlot itself renders. Required
+   *  to complete, same as a signature (see completeInspectionCore's matching server-side check). */
+  hasEvidencePhoto: boolean;
+  /** Rendered once every item has a response AND at least one evidence photo exists (Complete-
+   *  inspection form + consistency check). */
   completeSlot: ReactNode;
+  /** Rendered once every item is answered but no evidence photo has been attached yet. */
+  missingPhotoSlot: ReactNode;
   /** Rendered while items remain unanswered. */
   incompleteSlot: ReactNode;
   /** Needed to build each item-linked photo's storage path. */
@@ -150,7 +159,8 @@ export function ChecklistExecutionPanel({
         {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}
       </div>
       {photoSlot}
-      {canExecute && (allAnswered ? completeSlot : incompleteSlot)}
+      {canExecute &&
+        (allAnswered ? (hasEvidencePhoto ? completeSlot : missingPhotoSlot) : incompleteSlot)}
     </>
   );
 }

@@ -7,6 +7,7 @@ import {
   CHECKLIST_ITEMS_TABLE,
   CHECKLIST_RESPONSES_TABLE,
   CHECKLIST_TEMPLATES_TABLE,
+  INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
   IRNS_TABLE,
   type ChecklistItemRow,
@@ -602,6 +603,19 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   if (!signature) return { error: "A signature is required to complete the inspection." };
 
   const supabase = await createSupabaseServerClient();
+
+  // Real gap found live: the "Photo evidence" section looked optional (no enforcement client- or
+  // server-side), even though a completed inspection with zero evidence photos is close to
+  // worthless in a dispute or ISO audit. At least one photo — attached to the inspection as a
+  // whole, or to any individual item — is now required to complete, mirroring the signature check
+  // just above.
+  const { count: photoCount } = await supabase
+    .from(INSPECTION_PHOTOS_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("inspection_record_id", inspectionRecordId);
+  if (!photoCount) {
+    return { error: "At least one evidence photo is required to complete the inspection." };
+  }
 
   const { data: recordForAuth } = await supabase
     .from(INSPECTION_RECORDS_TABLE)

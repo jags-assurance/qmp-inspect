@@ -199,6 +199,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   let registerVerification: RegisterVerificationResult | null = null;
   let personnelCertVerification: RegisterVerificationResult | null = null;
   let calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[] = [];
+  // At least one evidence photo (whole-inspection or item-linked) is required to complete — see
+  // completeInspectionCore's matching server-side check, this only drives which slot renders.
+  let hasEvidencePhoto = false;
 
   if (draft) {
     const [{ data: responses }, { data: photoRows }] = await Promise.all([
@@ -239,6 +242,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       existing.push(withUrl(p));
       itemPhotos.set(p.checklist_item_id, existing);
     }
+    hasEvidencePhoto = (photoRows ?? []).length > 0;
 
     // R92-R100: register-fed auto-verification — a soft-stop assist, not a hard block. Computed
     // once per checklist (the same itp_items row backs every checklist_items row here), then shown
@@ -454,17 +458,28 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             itemPhotos={itemPhotos}
             photoSlot={
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
+                <h2 className="text-sm font-medium text-ink">
+                  Photo evidence <span className="text-danger">*</span>
+                </h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  At least one photo (here or on an individual item above) is required to complete this inspection.
+                </p>
                 <div className="mt-3">
                   <PhotoUpload projectId={project.id} inspectionRecordId={draft.id} photos={photos} readOnly={!canExecute} />
                 </div>
               </div>
             }
+            hasEvidencePhoto={hasEvidencePhoto}
             completeSlot={
               <>
                 <ConsistencyCheck templateId={template.id} inspectionRecordId={draft.id} />
                 <CompleteInspectionForm templateId={template.id} inspectionRecordId={draft.id} />
               </>
+            }
+            missingPhotoSlot={
+              <p className="rounded-md bg-warning/10 p-4 text-sm text-ink">
+                Attach at least one evidence photo (★ required, above) before completing this inspection.
+              </p>
             }
             incompleteSlot={
               <p className="rounded-md bg-off-white p-4 text-sm text-muted">
