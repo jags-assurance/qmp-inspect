@@ -16,6 +16,14 @@ export interface PendingProposalItem {
   submittedOn: string;
 }
 
+export interface OpenNcrItem {
+  id: string;
+  ncrNumber: string;
+  severity: "minor_ncr" | "major_ncr";
+  createdAt: string;
+  projectLabel: string;
+}
+
 export interface RecentActivityItem {
   id: string;
   summary: string;
@@ -82,6 +90,7 @@ export function AdminDashboard({
   pendingProposals,
   orgPortfolio,
   recentActivity,
+  openNcrItems,
 }: {
   firstName: string;
   today: string;
@@ -92,6 +101,7 @@ export function AdminDashboard({
   pendingProposals: PendingProposalItem[];
   orgPortfolio: OrgPortfolioItem[];
   recentActivity: RecentActivityItem[];
+  openNcrItems: OpenNcrItem[];
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -101,6 +111,7 @@ export function AdminDashboard({
   // Only one row's form is open at a time, closing on submit via key remount below.
   const [expandedProposalId, setExpandedProposalId] = useState<string | null>(null);
   const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
+  const [showOpenNcrs, setShowOpenNcrs] = useState(false);
 
   return (
     <div>
@@ -181,19 +192,25 @@ export function AdminDashboard({
             </span>
           }
         />
-        <StatCard
-          label="Open NCRs"
-          value={openNcrs}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <path d="M10 3.5l7 12.5H3l7-12.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M10 8.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="10" cy="13.5" r="0.75" fill="currentColor" />
-              </svg>
-            </span>
-          }
-        />
+        <button
+          type="button"
+          onClick={() => setShowOpenNcrs((v) => !v)}
+          className="rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-burgundy"
+        >
+          <StatCard
+            label="Open NCRs"
+            value={openNcrs}
+            icon={
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                  <path d="M10 3.5l7 12.5H3l7-12.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M10 8.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="10" cy="13.5" r="0.75" fill="currentColor" />
+                </svg>
+              </span>
+            }
+          />
+        </button>
         <StatCard
           label="Library proposals"
           value={pendingProposals.length}
@@ -207,6 +224,45 @@ export function AdminDashboard({
           }
         />
       </div>
+
+      {/* Click-to-expand KPI (new purpose: less page-hopping) — the real open NCRs behind the tile
+          above, inline, instead of always needing a navigation to /inspect/ncrs just to see what
+          they are. Same pattern as the Client KPIs page's contributing-records drilldown. */}
+      {showOpenNcrs && (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-ink">Open NCRs across your portfolio</h2>
+            <button type="button" onClick={() => setShowOpenNcrs(false)} className="text-xs text-muted hover:text-ink">
+              Close
+            </button>
+          </div>
+          <ul className="mt-2 divide-y divide-border">
+            {openNcrItems.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                <span className="flex items-center gap-2">
+                  <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
+                    {item.severity === "major_ncr" ? "Major" : "Minor"}
+                  </Badge>
+                  <Link href={`/inspect/ncrs/${item.id}`} className="doc-id text-burgundy hover:underline">
+                    {item.ncrNumber}
+                  </Link>
+                  <span className="text-muted">{item.projectLabel}</span>
+                </span>
+                <span className="text-xs text-muted">Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
+              </li>
+            ))}
+            {openNcrItems.length === 0 && <li className="py-2 text-sm text-muted">No open NCRs.</li>}
+          </ul>
+          {openNcrs > openNcrItems.length && (
+            <p className="mt-2 text-xs text-muted">
+              Showing the {openNcrItems.length} most recent —{" "}
+              <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
+                see all {openNcrs} →
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Fieldwire-style "Activity" log (new purpose: daily-use, in-place navigation) — real
           audit_log events across every organisation this Admin can see, so what's happening on the

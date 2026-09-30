@@ -239,6 +239,13 @@ export default async function InspectDashboardPage() {
     projectLabel: string | null;
     createdAt: string;
   }[] = [];
+  let openNcrItems: {
+    id: string;
+    ncrNumber: string;
+    severity: "minor_ncr" | "major_ncr";
+    createdAt: string;
+    projectLabel: string;
+  }[] = [];
   if (isAdminStaff(session)) {
     const [{ data: proposals }, { data: activeProjectRows }, { data: openNcrRows }, { data: activityRows }] = await Promise.all([
       supabase
@@ -255,10 +262,20 @@ export default async function InspectDashboardPage() {
         .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
       supabase
         .from("ncrs")
-        .select("project_id, projects(organization_id)")
+        .select("id, ncr_number, severity, created_at, project_id, projects(organization_id, project_number, name)")
         .neq("status", "closed")
         .neq("severity", "observation")
-        .returns<{ project_id: string; projects: { organization_id: string } | null }[]>(),
+        .order("created_at", { ascending: false })
+        .returns<
+          {
+            id: string;
+            ncr_number: string;
+            severity: "minor_ncr" | "major_ncr";
+            created_at: string;
+            project_id: string;
+            projects: { organization_id: string; project_number: string; name: string } | null;
+          }[]
+        >(),
       // Portfolio-wide "what's been happening" feed (new purpose: less page-hopping, more in one
       // place) — reuses the same audit_log rows every per-project Audit Log page already reads
       // (see app/inspect/projects/[projectId]/audit-log/page.tsx), just unscoped to one project and
@@ -280,6 +297,18 @@ export default async function InspectDashboardPage() {
         >(),
     ]);
     pendingProposals = proposals ?? [];
+    // The real list behind the "Open NCRs" KPI tile (new purpose: less page-hopping) — same rows
+    // the org-portfolio aggregation below already fetched, just kept in full instead of only
+    // counted, so the tile can expand inline to the actual NCRs instead of only a number.
+    openNcrItems = (openNcrRows ?? [])
+      .slice(0, 8)
+      .map((row) => ({
+        id: row.id,
+        ncrNumber: row.ncr_number,
+        severity: row.severity,
+        createdAt: row.created_at,
+        projectLabel: row.projects ? `${row.projects.project_number} — ${row.projects.name}` : "—",
+      }));
     recentActivity = (activityRows ?? []).map((row) => ({
       id: row.id,
       summary: row.summary,
@@ -710,6 +739,7 @@ export default async function InspectDashboardPage() {
       }))}
       orgPortfolio={orgPortfolio}
       recentActivity={recentActivity}
+      openNcrItems={openNcrItems}
     />
   );
 }
