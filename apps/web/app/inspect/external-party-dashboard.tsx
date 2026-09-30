@@ -165,28 +165,13 @@ export function ExternalPartyDashboard({
             "\"Needs attention\" combines ITPs awaiting your acceptance, work awaiting your review, sign-offs pending on you, and NCRs assigned to you — click any row to act on it directly.",
             "Accepting an ITP is a whole-ITP client step, separate from signing off an individual intervention grid cell (that's the contractor/subcontractor/TPI's job on that activity).",
             "\"Your projects\" links straight into each project's Reports, Data Book, Activity and KPIs — no need to go through the Projects register first.",
+            ...(roleKey && ROLE_GUIDE[roleKey] ? ROLE_GUIDE[roleKey] : []),
           ]}
         />
       </div>
       <p className="mt-1 text-sm text-muted">
         {roleLabel} · {today}
       </p>
-
-      {roleKey && ROLE_GUIDE[roleKey] && (
-        <details className="mt-4 rounded-lg border border-gold/40 bg-gold/5 open:pb-4" open>
-          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink">
-            Your role as {roleLabel}: what to do here
-          </summary>
-          <ul className="space-y-1.5 px-4 text-sm text-ink">
-            {ROLE_GUIDE[roleKey].map((line, i) => (
-              <li key={i} className="flex gap-2">
-                <span aria-hidden className="text-burgundy">•</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
 
       {myProjects.length > 0 && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">

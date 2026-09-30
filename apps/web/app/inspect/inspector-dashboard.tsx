@@ -32,10 +32,8 @@ const ASSIGNMENT_TYPE_TONE: Record<AssignmentType, "gold" | "info" | "neutral" |
   pre_shipment: "warning",
 };
 
-// Plain-language "what to do here" guide, matching the one added to the external-party dashboard
-// (see ROLE_GUIDE in external-party-dashboard.tsx) — same reasoning: the panels alone don't spell
-// out what an Inspector's actual job is day to day. Kept to short, concrete bullets tied to the
-// panels this dashboard actually renders below.
+// Plain-language "what to do here" guide — folded into the page's own Guide popover rather than an
+// always-open box on the dashboard body (see admin-dashboard.tsx's matching comment for why).
 const INSPECTOR_GUIDE: string[] = [
   "Run field inspections: open \"New inspection\" or pick a checklist from \"My pending actions\" below to fill in results for an activity.",
   "Chase the ones not yet started or still in progress — that's exactly what \"My pending actions\" lists, split into Today and Overdue.",
@@ -96,6 +94,7 @@ export function InspectorDashboard({
                 "A checklist with no response two days after it was generated counts as overdue — there's no separate due-date field, so age since generation is the closest real signal.",
                 "\"Overdue hold points\" are blocking-level activities that were notified but never signed off, past their project's configured notice period (or the organisation's default, or 48h if neither is set).",
                 "Standalone/FAT assignments show up here too, alongside ITP-driven checklists, since both are real field work waiting on you.",
+                ...INSPECTOR_GUIDE,
               ]}
             />
           </div>
@@ -108,20 +107,6 @@ export function InspectorDashboard({
           New inspection
         </Link>
       </div>
-
-      <details className="mt-4 rounded-lg border border-gold/40 bg-gold/5 open:pb-4" open>
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink">
-          Your role as Inspector: what to do here
-        </summary>
-        <ul className="space-y-1.5 px-4 text-sm text-ink">
-          {INSPECTOR_GUIDE.map((line, i) => (
-            <li key={i} className="flex gap-2">
-              <span aria-hidden className="text-burgundy">•</span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

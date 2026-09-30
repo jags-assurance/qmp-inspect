@@ -24,6 +24,14 @@ export interface OpenNcrItem {
   projectLabel: string;
 }
 
+export interface OverdueHoldPointItem {
+  id: string;
+  activity: string;
+  itpNumber: string;
+  projectLabel: string;
+  daysOpen: number;
+}
+
 export interface RecentActivityItem {
   id: string;
   summary: string;
@@ -61,10 +69,10 @@ const ENGAGEMENT_MODE_LABEL: Record<string, string> = {
   white_label: "White-label",
 };
 
-// Plain-language "what to do here" guide, matching the one added to the external-party dashboard
-// (see ROLE_GUIDE in external-party-dashboard.tsx) — same reasoning applied to the Admin view: the
-// panels alone don't spell out what an Admin's job actually is. Kept to short, concrete bullets tied
-// to the panels this dashboard actually renders below.
+// Plain-language "what to do here" guide — folded into the page's own Guide popover instead of an
+// always-open box on the dashboard body (the box duplicated what "Guide" already exists for, and
+// took up space above the fold on every visit, not just the first). Same treatment applied to
+// Inspector and External-party dashboards.
 const ADMIN_GUIDE: string[] = [
   "You oversee the whole client portfolio, not individual field work — see \"Your organisations\" below for every org your access reaches, with their active projects and open NCRs.",
   "Inspectors can propose new or updated Master Library ITP templates, but only you can approve them — see \"Master Library proposals awaiting review\" below.",
@@ -91,6 +99,7 @@ export function AdminDashboard({
   orgPortfolio,
   recentActivity,
   openNcrItems,
+  overdueHoldPointItems,
 }: {
   firstName: string;
   today: string;
@@ -102,6 +111,7 @@ export function AdminDashboard({
   orgPortfolio: OrgPortfolioItem[];
   recentActivity: RecentActivityItem[];
   openNcrItems: OpenNcrItem[];
+  overdueHoldPointItems: OverdueHoldPointItem[];
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -111,7 +121,6 @@ export function AdminDashboard({
   // Only one row's form is open at a time, closing on submit via key remount below.
   const [expandedProposalId, setExpandedProposalId] = useState<string | null>(null);
   const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
-  const [showOpenNcrs, setShowOpenNcrs] = useState(false);
 
   return (
     <div>
@@ -128,6 +137,7 @@ export function AdminDashboard({
                 "This view only renders for JAGS Admin — Inspectors and every external party each get their own dashboard instead, scoped to their own work.",
                 "\"Pending proposals\" are submissions to the Tier-1 ITP template library — an Inspector can propose a new template or an update, but only an Admin can approve one.",
                 "The portfolio table's active-project and open-NCR counts are computed per organisation from the same RLS-scoped rows every other page reads, not a separate summary table.",
+                ...ADMIN_GUIDE,
               ]}
             />
           </div>
@@ -141,21 +151,7 @@ export function AdminDashboard({
         </Link>
       </div>
 
-      <details className="mt-4 rounded-lg border border-gold/40 bg-gold/5 open:pb-4" open>
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink">
-          Your role as JAGS Admin: what to do here
-        </summary>
-        <ul className="space-y-1.5 px-4 text-sm text-ink">
-          {ADMIN_GUIDE.map((line, i) => (
-            <li key={i} className="flex gap-2">
-              <span aria-hidden className="text-burgundy">•</span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
-
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard
           label="Active projects"
           value={activeProjects}
@@ -192,25 +188,6 @@ export function AdminDashboard({
             </span>
           }
         />
-        <button
-          type="button"
-          onClick={() => setShowOpenNcrs((v) => !v)}
-          className="rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-burgundy"
-        >
-          <StatCard
-            label="Open NCRs"
-            value={openNcrs}
-            icon={
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                  <path d="M10 3.5l7 12.5H3l7-12.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                  <path d="M10 8.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <circle cx="10" cy="13.5" r="0.75" fill="currentColor" />
-                </svg>
-              </span>
-            }
-          />
-        </button>
         <StatCard
           label="Library proposals"
           value={pendingProposals.length}
@@ -223,72 +200,109 @@ export function AdminDashboard({
             </span>
           }
         />
+        <StatCard
+          label="Overdue hold points"
+          value={overdueHoldPointItems.length}
+          icon={
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M10 6v4.5l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          }
+        />
       </div>
 
-      {/* Click-to-expand KPI (new purpose: less page-hopping) — the real open NCRs behind the tile
-          above, inline, instead of always needing a navigation to /inspect/ncrs just to see what
-          they are. Same pattern as the Client KPIs page's contributing-records drilldown. */}
-      {showOpenNcrs && (
-        <div className="mt-4 rounded-lg border border-border bg-surface p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-ink">Open NCRs across your portfolio</h2>
-            <button type="button" onClick={() => setShowOpenNcrs(false)} className="text-xs text-muted hover:text-ink">
-              Close
-            </button>
-          </div>
-          <ul className="mt-2 divide-y divide-border">
+      {/* Window-grid layout (new purpose: every section as its own window, not one column of
+          stacked panels) — three small real-time watchlists side by side on a wide screen (Overdue
+          Hold Points / Open NCRs / Recent Activity), each independently scrollable so one long list
+          never pushes the others down the page, with the two wide DataTables (Proposals,
+          Organisations) as their own full-width windows below. */}
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        {/* Real blocking sign-off points notified past their notice period, across every
+            organisation — same logic the Inspector dashboard already computes for its own
+            worklist, an Admin needs the portfolio-wide view of it too. */}
+        <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-sm font-medium text-ink">Overdue hold points</h2>
+          <p className="mt-1 text-xs text-muted">Blocking sign-offs notified past their notice period.</p>
+          <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
+            {overdueHoldPointItems.map((item) => (
+              <li key={item.id} className="py-2 text-sm">
+                <p className="text-ink">
+                  <span className="doc-id mr-1 text-muted">{item.itpNumber}</span>
+                  {item.activity}
+                </p>
+                <p className="mt-0.5 flex items-center justify-between text-xs">
+                  <span className="text-muted">{item.projectLabel}</span>
+                  <span className="font-semibold text-danger">{item.daysOpen}d overdue</span>
+                </p>
+              </li>
+            ))}
+            {overdueHoldPointItems.length === 0 && <li className="py-2 text-sm text-muted">No overdue hold points.</li>}
+          </ul>
+        </div>
+
+        {/* The real open NCRs behind the KPI tile above, inline, instead of always needing a
+            navigation to /inspect/ncrs just to see what they are. */}
+        <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-sm font-medium text-ink">Open NCRs</h2>
+          <p className="mt-1 text-xs text-muted">Minor and major, across every project you have access to.</p>
+          <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
             {openNcrItems.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                <span className="flex items-center gap-2">
+              <li key={item.id} className="py-2 text-sm">
+                <p className="flex items-center gap-2">
                   <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
                     {item.severity === "major_ncr" ? "Major" : "Minor"}
                   </Badge>
                   <Link href={`/inspect/ncrs/${item.id}`} className="doc-id text-burgundy hover:underline">
                     {item.ncrNumber}
                   </Link>
-                  <span className="text-muted">{item.projectLabel}</span>
-                </span>
-                <span className="text-xs text-muted">Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
+                </p>
+                <p className="mt-0.5 flex items-center justify-between text-xs text-muted">
+                  <span>{item.projectLabel}</span>
+                  <span>Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
+                </p>
               </li>
             ))}
             {openNcrItems.length === 0 && <li className="py-2 text-sm text-muted">No open NCRs.</li>}
           </ul>
           {openNcrs > openNcrItems.length && (
-            <p className="mt-2 text-xs text-muted">
-              Showing the {openNcrItems.length} most recent —{" "}
-              <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
-                see all {openNcrs} →
-              </Link>
-            </p>
+            <Link href="/inspect/ncrs" className="mt-2 text-xs text-burgundy hover:underline">
+              See all {openNcrs} →
+            </Link>
           )}
         </div>
-      )}
 
-      {/* Fieldwire-style "Activity" log (new purpose: daily-use, in-place navigation) — real
-          audit_log events across every organisation this Admin can see, so what's happening on the
-          portfolio is visible here directly instead of needing to open each project's own Audit Log
-          page to find out. */}
-      {recentActivity.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Recent activity across your portfolio</h2>
-          <ul className="mt-3 divide-y divide-border">
+        {/* Fieldwire-style "Activity" log — real audit_log events across every organisation this
+            Admin can see, so what's happening on the portfolio is visible here directly instead of
+            needing to open each project's own Audit Log page to find out. */}
+        <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-sm font-medium text-ink">Recent activity</h2>
+          <p className="mt-1 text-xs text-muted">Across every organisation your access reaches.</p>
+          <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
             {recentActivity.map((event) => (
-              <li key={event.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm">
-                <span className="text-ink">
+              <li key={event.id} className="py-2 text-sm">
+                <p className="text-ink">
                   {event.actorName && <span className="font-medium">{event.actorName}</span>}
                   {event.actorName ? " — " : ""}
                   {event.summary}
-                  {event.projectLabel && <span className="text-muted"> · {event.projectLabel}</span>}
-                </span>
-                <span className="shrink-0 text-xs text-muted">{timeAgo(event.createdAt)}</span>
+                </p>
+                <p className="mt-0.5 flex items-center justify-between text-xs text-muted">
+                  <span>{event.projectLabel ?? "—"}</span>
+                  <span>{timeAgo(event.createdAt)}</span>
+                </p>
               </li>
             ))}
+            {recentActivity.length === 0 && <li className="py-2 text-sm text-muted">No recent activity.</li>}
           </ul>
         </div>
-      )}
+      </div>
 
+      {/* Full-width window below the 3-up grid — a wide DataTable (5 columns plus the inline
+          review form) reads better at full width than squeezed into one of three small panes. */}
       {pendingProposals.length > 0 && (
-        <div className="mt-8">
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-medium text-ink">Master Library proposals awaiting review</h2>
@@ -354,7 +368,8 @@ export function AdminDashboard({
         </div>
       )}
 
-      <div className="mt-8">
+      {/* Another full-width window — same reasoning as Proposals above. */}
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="font-medium text-ink">Your organisations</h2>
         <p className="mt-1 text-sm text-muted">
           Visible here only because your access grants reach them — this list is the tenant isolation
