@@ -223,7 +223,14 @@ export default async function InspectDashboardPage() {
     itps: { id: string; itp_number: string; title: string } | null;
   }
   let pendingProposals: PendingProposalRow[] = [];
-  let orgPortfolio: { id: string; name: string; engagementMode: string; activeProjects: number; openNcrs: number }[] = [];
+  let orgPortfolio: {
+    id: string;
+    name: string;
+    engagementMode: string;
+    activeProjects: number;
+    openNcrs: number;
+    projects: { id: string; projectNumber: string; name: string; openNcrs: number }[];
+  }[] = [];
   if (isAdminStaff(session)) {
     const [{ data: proposals }, { data: activeProjectRows }, { data: openNcrRows }] = await Promise.all([
       supabase
@@ -233,36 +240,53 @@ export default async function InspectDashboardPage() {
         .order("created_at")
         .limit(5)
         .returns<PendingProposalRow[]>(),
-      supabase.from("projects").select("organization_id").eq("status", "active").returns<{ organization_id: string }[]>(),
+      supabase
+        .from("projects")
+        .select("id, project_number, name, organization_id")
+        .eq("status", "active")
+        .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
       supabase
         .from("ncrs")
-        .select("projects(organization_id)")
+        .select("project_id, projects(organization_id)")
         .neq("status", "closed")
         .neq("severity", "observation")
-        .returns<{ projects: { organization_id: string } | null }[]>(),
+        .returns<{ project_id: string; projects: { organization_id: string } | null }[]>(),
     ]);
     pendingProposals = proposals ?? [];
 
     // Per-org portfolio counts: no GROUP BY over PostgREST, so counted client-side from the raw
     // rows above — fine at this scale (a handful of orgs/projects), and still two real, RLS-scoped
     // queries rather than one per organisation.
-    const activeProjectsByOrg = new Map<string, number>();
+    const projectsByOrg = new Map<string, { id: string; project_number: string; name: string }[]>();
     for (const row of activeProjectRows ?? []) {
-      activeProjectsByOrg.set(row.organization_id, (activeProjectsByOrg.get(row.organization_id) ?? 0) + 1);
+      const list = projectsByOrg.get(row.organization_id) ?? [];
+      list.push({ id: row.id, project_number: row.project_number, name: row.name });
+      projectsByOrg.set(row.organization_id, list);
     }
     const openNcrsByOrg = new Map<string, number>();
+    const openNcrsByProject = new Map<string, number>();
     for (const row of openNcrRows ?? []) {
+      openNcrsByProject.set(row.project_id, (openNcrsByProject.get(row.project_id) ?? 0) + 1);
       const orgId = row.projects?.organization_id;
       if (!orgId) continue;
       openNcrsByOrg.set(orgId, (openNcrsByOrg.get(orgId) ?? 0) + 1);
     }
-    orgPortfolio = (organizations ?? []).map((org) => ({
-      id: org.id,
-      name: org.name,
-      engagementMode: org.engagement_mode,
-      activeProjects: activeProjectsByOrg.get(org.id) ?? 0,
-      openNcrs: openNcrsByOrg.get(org.id) ?? 0,
-    }));
+    orgPortfolio = (organizations ?? []).map((org) => {
+      const projects = projectsByOrg.get(org.id) ?? [];
+      return {
+        id: org.id,
+        name: org.name,
+        engagementMode: org.engagement_mode,
+        activeProjects: projects.length,
+        openNcrs: openNcrsByOrg.get(org.id) ?? 0,
+        // Redesign (less page-hopping, same philosophy as the NCR/Observations/Punch-List
+        // workspaces): lets "Your organisations" expand a row inline to its real project list
+        // instead of every click navigating to /inspect/projects?org=X.
+        projects: projects
+          .map((p) => ({ id: p.id, projectNumber: p.project_number, name: p.name, openNcrs: openNcrsByProject.get(p.id) ?? 0 }))
+          .sort((a, b) => a.projectNumber.localeCompare(b.projectNumber)),
+      };
+    });
   }
 
   // "My pending actions" (matches the prototype's Inspector Dashboard reference) — a real worklist

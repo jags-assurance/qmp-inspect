@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { PageGuide } from "@/components/domain/page-guide";
+import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
 
 export interface PendingProposalItem {
   id: string;
@@ -20,6 +22,9 @@ export interface OrgPortfolioItem {
   engagementMode: string;
   activeProjects: number;
   openNcrs: number;
+  /** This org's real active projects, for the inline "expand to see projects" row below —
+   *  not just the aggregate counts above. */
+  projects: { id: string; projectNumber: string; name: string; openNcrs: number }[];
 }
 
 const ENGAGEMENT_MODE_LABEL: Record<string, string> = {
@@ -68,6 +73,12 @@ export function AdminDashboard({
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  // Redesign (new purpose: less page-hopping, more in place): reviewing a proposal used to mean
+  // navigating to /inspect/itp-master/proposals — same "expand inline instead of leaving the page"
+  // pattern already applied to the NCR raise flow (Observations) and punch-list resolve/verify.
+  // Only one row's form is open at a time, closing on submit via key remount below.
+  const [expandedProposalId, setExpandedProposalId] = useState<string | null>(null);
+  const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
 
   return (
     <div>
@@ -215,15 +226,30 @@ export function AdminDashboard({
                 {
                   key: "action",
                   header: "",
-                  render: () => (
-                    <Link href="/inspect/itp-master/proposals" className="font-medium text-burgundy hover:underline">
-                      Review →
-                    </Link>
-                  ),
+                  render: (r) =>
+                    expandedProposalId === r.id ? (
+                      <div className="min-w-64">
+                        <ProposalReviewForm proposalId={r.id} />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedProposalId(r.id)}
+                        className="font-medium text-burgundy hover:underline"
+                      >
+                        Review
+                      </button>
+                    ),
                 },
               ]}
             />
           </div>
+          <p className="mt-2 text-xs text-muted">
+            <Link href="/inspect/itp-master/proposals" className="text-burgundy hover:underline">
+              Open the full proposals queue →
+            </Link>{" "}
+            if you need to see the source ITP for one of these.
+          </p>
         </div>
       )}
 
@@ -254,7 +280,42 @@ export function AdminDashboard({
                 header: "Engagement mode",
                 render: (r) => <span className="text-muted">{ENGAGEMENT_MODE_LABEL[r.engagementMode] ?? r.engagementMode}</span>,
               },
-              { key: "projects", header: "Active projects", render: (r) => r.activeProjects },
+              {
+                key: "activeProjects",
+                header: "Active projects",
+                render: (r) =>
+                  r.activeProjects === 0 ? (
+                    <span className="text-muted">0</span>
+                  ) : expandedOrgId === r.id ? (
+                    <div className="min-w-56">
+                      <ul className="space-y-1">
+                        {r.projects.map((p) => (
+                          <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                            <Link href={`/inspect/projects/${p.id}`} className="truncate text-burgundy hover:underline">
+                              {p.projectNumber} — {p.name}
+                            </Link>
+                            {p.openNcrs > 0 && <Badge tone="danger">{p.openNcrs}</Badge>}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedOrgId(null)}
+                        className="mt-1.5 text-xs text-muted hover:text-ink"
+                      >
+                        Collapse
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedOrgId(r.id)}
+                      className="font-medium text-burgundy hover:underline"
+                    >
+                      {r.activeProjects} →
+                    </button>
+                  ),
+              },
               {
                 key: "ncrs",
                 header: "Open NCRs",
