@@ -16,6 +16,26 @@ export interface PendingProposalItem {
   submittedOn: string;
 }
 
+export interface RecentActivityItem {
+  id: string;
+  summary: string;
+  actorName: string | null;
+  projectLabel: string | null;
+  createdAt: string;
+}
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(iso).toLocaleDateString("en-GB");
+}
+
 export interface OrgPortfolioItem {
   id: string;
   name: string;
@@ -61,6 +81,7 @@ export function AdminDashboard({
   openNcrs,
   pendingProposals,
   orgPortfolio,
+  recentActivity,
 }: {
   firstName: string;
   today: string;
@@ -70,6 +91,7 @@ export function AdminDashboard({
   openNcrs: number;
   pendingProposals: PendingProposalItem[];
   orgPortfolio: OrgPortfolioItem[];
+  recentActivity: RecentActivityItem[];
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -185,6 +207,29 @@ export function AdminDashboard({
           }
         />
       </div>
+
+      {/* Fieldwire-style "Activity" log (new purpose: daily-use, in-place navigation) — real
+          audit_log events across every organisation this Admin can see, so what's happening on the
+          portfolio is visible here directly instead of needing to open each project's own Audit Log
+          page to find out. */}
+      {recentActivity.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <h2 className="font-medium text-ink">Recent activity across your portfolio</h2>
+          <ul className="mt-3 divide-y divide-border">
+            {recentActivity.map((event) => (
+              <li key={event.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm">
+                <span className="text-ink">
+                  {event.actorName && <span className="font-medium">{event.actorName}</span>}
+                  {event.actorName ? " — " : ""}
+                  {event.summary}
+                  {event.projectLabel && <span className="text-muted"> · {event.projectLabel}</span>}
+                </span>
+                <span className="shrink-0 text-xs text-muted">{timeAgo(event.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {pendingProposals.length > 0 && (
         <div className="mt-8">

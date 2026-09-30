@@ -7,6 +7,7 @@ import {
   type ActivitySignoffProgressRow,
 } from "@/lib/signoff/db-types";
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
+import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { sortByDynamicPriority } from "@/lib/checklists/priority-routing";
@@ -231,8 +232,15 @@ export default async function InspectDashboardPage() {
     openNcrs: number;
     projects: { id: string; projectNumber: string; name: string; openNcrs: number }[];
   }[] = [];
+  let recentActivity: {
+    id: string;
+    summary: string;
+    actorName: string | null;
+    projectLabel: string | null;
+    createdAt: string;
+  }[] = [];
   if (isAdminStaff(session)) {
-    const [{ data: proposals }, { data: activeProjectRows }, { data: openNcrRows }] = await Promise.all([
+    const [{ data: proposals }, { data: activeProjectRows }, { data: openNcrRows }, { data: activityRows }] = await Promise.all([
       supabase
         .from(ITP_MASTER_PROPOSALS_TABLE)
         .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)")
@@ -251,8 +259,34 @@ export default async function InspectDashboardPage() {
         .neq("status", "closed")
         .neq("severity", "observation")
         .returns<{ project_id: string; projects: { organization_id: string } | null }[]>(),
+      // Portfolio-wide "what's been happening" feed (new purpose: less page-hopping, more in one
+      // place) — reuses the same audit_log rows every per-project Audit Log page already reads
+      // (see app/inspect/projects/[projectId]/audit-log/page.tsx), just unscoped to one project and
+      // capped to the most recent handful, so an Admin sees real recent events across every
+      // organisation without visiting each project individually.
+      supabase
+        .from(AUDIT_LOG_TABLE)
+        .select("id, summary, created_at, actor:users(full_name), projects(project_number, name)")
+        .order("created_at", { ascending: false })
+        .limit(8)
+        .returns<
+          {
+            id: string;
+            summary: string;
+            created_at: string;
+            actor: { full_name: string } | null;
+            projects: { project_number: string; name: string } | null;
+          }[]
+        >(),
     ]);
     pendingProposals = proposals ?? [];
+    recentActivity = (activityRows ?? []).map((row) => ({
+      id: row.id,
+      summary: row.summary,
+      actorName: row.actor?.full_name ?? null,
+      projectLabel: row.projects ? `${row.projects.project_number} — ${row.projects.name}` : null,
+      createdAt: row.created_at,
+    }));
 
     // Per-org portfolio counts: no GROUP BY over PostgREST, so counted client-side from the raw
     // rows above — fine at this scale (a handful of orgs/projects), and still two real, RLS-scoped
@@ -675,6 +709,7 @@ export default async function InspectDashboardPage() {
         submittedOn: p.created_at,
       }))}
       orgPortfolio={orgPortfolio}
+      recentActivity={recentActivity}
     />
   );
 }
