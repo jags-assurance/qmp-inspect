@@ -670,10 +670,17 @@ export default async function ItpDetailPage({ params }: { params: Promise<{ id: 
             <ProposeToMasterForm itpId={itp.id} itpTitle={itp.title} masterTemplates={masterTemplates ?? []} />
           )}
         </div>
-        {reviewSteps.length > 0 && (
-          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} />
-        )}
       </div>
+
+      {/* Moved out of the wrapping header row and given its own full-width line right below the
+          header (redesign target, plan Phase 4): while an ITP is under review this is the single
+          most important thing on the page — who's up next and whether it's this viewer's turn —
+          so it shouldn't be competing for space inside a flex-wrap row of action buttons. */}
+      {reviewSteps.length > 0 && (
+        <div className="mt-4">
+          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} />
+        </div>
+      )}
 
       {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
           organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S

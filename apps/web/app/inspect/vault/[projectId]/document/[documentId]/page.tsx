@@ -14,6 +14,7 @@ interface DocumentRow {
   folder_id: string;
   title: string;
   document_number: string | null;
+  document_reference: string | null;
   revision: string;
   storage_path: string;
 }
@@ -35,7 +36,7 @@ export default async function VaultDocumentPage({
 
   const { data: document } = await supabase
     .from(VAULT_DOCUMENTS_TABLE)
-    .select("id, folder_id, title, document_number, revision, storage_path")
+    .select("id, folder_id, title, document_number, document_reference, revision, storage_path")
     .eq("id", documentId)
     .maybeSingle()
     .returns<DocumentRow | null>();
@@ -86,6 +87,14 @@ export default async function VaultDocumentPage({
       </div>
       <p className="mt-1 text-sm text-muted">
         {document.document_number ?? "—"} · Rev. {document.revision}
+        {document.document_reference && (
+          <>
+            {" · "}
+            <Link href={`/inspect/vault/${projectId}/document/${documentId}/compare`} className="text-burgundy hover:underline">
+              Compare revisions →
+            </Link>
+          </>
+        )}
       </p>
 
       <div className="mt-6">

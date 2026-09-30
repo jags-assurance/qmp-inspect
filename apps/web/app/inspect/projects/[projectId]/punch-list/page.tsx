@@ -31,7 +31,7 @@ export default async function PunchListPage({
   const [{ data: items }, { data: projectParties }] = await Promise.all([
     supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, source, location, due_date, status, project_parties(name)")
+      .select("id, description, source, location, due_date, status, closing_evidence, project_parties(name)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .returns<PunchListItemDisplayRow[]>(),

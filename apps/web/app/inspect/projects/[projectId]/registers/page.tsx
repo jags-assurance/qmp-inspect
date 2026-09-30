@@ -9,15 +9,12 @@ import {
   WELDER_QUALIFICATION_REGISTER_TABLE,
   PERSONNEL_CERTIFICATIONS_TABLE,
 } from "@/lib/registers/types";
-import { AddCalibrationForm } from "./add-calibration-form";
-import { AddWelderQualificationForm } from "./add-welder-qualification-form";
-import { AddMaterialForm } from "./add-material-form";
-import { AddPersonnelCertificationForm } from "./add-personnel-certification-form";
-import { CalibrationTable, type CalibrationRegisterDisplayRow } from "./calibration-table";
-import { WelderQualificationTable, type WelderQualificationDisplayRow } from "./welder-qualification-table";
-import { MaterialTable, type MaterialRegisterDisplayRow } from "./material-table";
-import { PersonnelCertificationTable, type PersonnelCertificationDisplayRow } from "./personnel-certification-table";
-import { ExtractRegisterPanel, type ExtractState, type AddState } from "./extract-register-panel";
+import type { CalibrationRegisterDisplayRow } from "./calibration-table";
+import type { WelderQualificationDisplayRow } from "./welder-qualification-table";
+import type { MaterialRegisterDisplayRow } from "./material-table";
+import type { PersonnelCertificationDisplayRow } from "./personnel-certification-table";
+import type { ExtractState, AddState } from "./extract-register-panel";
+import { RegistersTabs } from "./registers-tabs";
 import {
   extractCalibrationRowsAction,
   addExtractedCalibrationRowsAction,
@@ -122,93 +119,20 @@ export default async function RegistersPage({ params }: { params: Promise<{ proj
         </p>
       </div>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-medium text-ink">Calibration Register</h2>
-        <div className="mt-3">
-          <AddCalibrationForm projectId={projectId} />
-        </div>
-        <ExtractRegisterPanel
-          projectId={projectId}
-          title="Calibration Register"
-          description="Extract instrument, certificate number, calibration date and due date from calibration certificate text."
-          placeholder={"e.g. \"Instrument: Megger MIT430 insulation tester. Certificate CAL-2291. Calibrated 14 Mar 2026. Next due 13 Mar 2027.\""}
-          fields={[
-            { key: "instrumentName", label: "Instrument" },
-            { key: "certNumber", label: "Cert no." },
-            { key: "calDate", label: "Cal. date" },
-            { key: "dueDate", label: "Due date" },
-          ]}
-          extractAction={extractCalibrationRowsAction as unknown as GenericExtractAction}
-          addAction={addExtractedCalibrationRowsAction as unknown as GenericAddAction}
-        />
-        <div className="mt-3">
-          <CalibrationTable rows={calibrationRows ?? []} />
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-lg font-medium text-ink">Welder Qualification Register</h2>
-        <div className="mt-3">
-          <AddWelderQualificationForm projectId={projectId} />
-        </div>
-        <ExtractRegisterPanel
-          projectId={projectId}
-          title="Welder Qualification Register"
-          description="Extract welder ID, process/position, qualified range and expiry from WPQ (welder performance qualification) text. A range or continuity record not confirmed in the source stays flagged as unconfirmed, never guessed."
-          placeholder={"e.g. \"Welder: M. Rahman. ID W-014. Process GTAW/SMAW. Position 6G. Record WPQ-014. Continuity log not attached.\""}
-          fields={[
-            { key: "welderIdentifier", label: "Welder ID" },
-            { key: "qualifiedWps", label: "Process / position" },
-            { key: "qualifiedRanges", label: "Range / continuity" },
-            { key: "expiryDate", label: "Expiry date" },
-          ]}
-          extractAction={extractWelderRowsAction as unknown as GenericExtractAction}
-          addAction={addExtractedWelderRowsAction as unknown as GenericAddAction}
-        />
-        <div className="mt-3">
-          <WelderQualificationTable rows={welderRows ?? []} />
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-lg font-medium text-ink">Material Register</h2>
-        <div className="mt-3">
-          <AddMaterialForm projectId={projectId} />
-        </div>
-        <ExtractRegisterPanel
-          projectId={projectId}
-          title="Material Register"
-          description="Extract material description, submittal reference, heat/batch number and certificate reference from a submittal or certificate. Added rows land quarantined pending disposition — extraction never sets a release status; that stays a document-controller decision."
-          placeholder={"e.g. \"LV cable 0.6/1 kV, batch CB-084. Certificate of Conformity CoC-1884. Approved submittal MS-071 Rev 2.\""}
-          fields={[
-            { key: "materialDescription", label: "Material" },
-            { key: "submittalReference", label: "Submittal ref." },
-            { key: "heatNumber", label: "Heat no." },
-            { key: "batchNumber", label: "Batch no." },
-            { key: "poReference", label: "PO ref." },
-            { key: "certificateReference", label: "CoC / MTC ref." },
-          ]}
-          extractAction={extractMaterialRowsAction as unknown as GenericExtractAction}
-          addAction={addExtractedMaterialRowsAction as unknown as GenericAddAction}
-        />
-        <div className="mt-3">
-          <MaterialTable rows={materialRows ?? []} />
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-lg font-medium text-ink">Personnel Certifications</h2>
-        <p className="mt-1 text-sm text-muted">
-          Whether the person performing/signing off an inspection holds a current qualification for
-          that activity type (e.g. AWS CWI, ASNT NDT Level II, CSWIP 3.1).
-        </p>
-        <div className="mt-3">
-          <AddPersonnelCertificationForm projectId={projectId} projectParties={projectParties ?? []} />
-        </div>
-        <div className="mt-3">
-          <PersonnelCertificationTable rows={personnelCertRows ?? []} />
-        </div>
-      </section>
+      <RegistersTabs
+        projectId={projectId}
+        calibrationRows={calibrationRows ?? []}
+        welderRows={welderRows ?? []}
+        materialRows={materialRows ?? []}
+        personnelCertRows={personnelCertRows ?? []}
+        projectParties={projectParties ?? []}
+        extractCalibrationRowsAction={extractCalibrationRowsAction as unknown as GenericExtractAction}
+        addExtractedCalibrationRowsAction={addExtractedCalibrationRowsAction as unknown as GenericAddAction}
+        extractWelderRowsAction={extractWelderRowsAction as unknown as GenericExtractAction}
+        addExtractedWelderRowsAction={addExtractedWelderRowsAction as unknown as GenericAddAction}
+        extractMaterialRowsAction={extractMaterialRowsAction as unknown as GenericExtractAction}
+        addExtractedMaterialRowsAction={addExtractedMaterialRowsAction as unknown as GenericAddAction}
+      />
     </div>
   );
 }

@@ -6,7 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { listMonthlyReportPacks } from "@/lib/reports/actions";
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
+import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { PageGuide } from "@/components/domain/page-guide";
+
+interface HandoverAttentionRow {
+  id: string;
+  certificate_number: string;
+  acknowledged_at: string | null;
+  data_books: { book_number: string; title: string } | null;
+}
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -73,7 +81,7 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
     redirect(`/inspect/projects/${projectId}`);
   }
 
-  const [reportPacks, { data: itps }] = await Promise.all([
+  const [reportPacks, { data: itps }, { data: handoverAttentionRows }] = await Promise.all([
     listMonthlyReportPacks(project.organization_id),
     supabase
       .from("itps")
@@ -81,6 +89,17 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
       .eq("project_id", projectId)
       .order("itp_number")
       .returns<ItpSummary[]>(),
+    // "Needs attention" — a handover certificate missing its package file (a pre-fix legacy row;
+    // issuing one without a package is blocked server-side now, see issueHandoverAction) is
+    // otherwise only ever surfaced on the client-facing Handover Portal — merged onto this hub too
+    // (plan Phase 9) so staff/anyone reviewing this project's reports sees it without a separate
+    // destination.
+    supabase
+      .from(HANDOVER_CERTIFICATES_TABLE)
+      .select("id, certificate_number, acknowledged_at, package_storage_path, data_books!inner(project_id, book_number, title)")
+      .eq("data_books.project_id", projectId)
+      .is("package_storage_path", null)
+      .returns<(HandoverAttentionRow & { package_storage_path: string | null })[]>(),
   ]);
 
   return (
@@ -105,6 +124,42 @@ export default async function ProjectReportsPage({ params }: { params: Promise<{
           {project.organizations?.name ?? "—"} · <span className="doc-id">{project.project_number}</span> {project.name}
         </p>
       </div>
+
+      {(handoverAttentionRows ?? []).length > 0 && (
+        <div className="mt-8 rounded-lg border-2 border-warning bg-warning/5 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-medium text-ink">Needs attention — Handover</h2>
+            <Badge tone="warning">{(handoverAttentionRows ?? []).length} open</Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            No package file is attached to these handover certificates — the client sees a warning
+            in their place of a download on the Handover Portal.
+          </p>
+          <ul className="mt-3 space-y-1.5 text-sm">
+            {(handoverAttentionRows ?? []).map((cert) => (
+              <li key={cert.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2">
+                <span>
+                  <span className="doc-id text-burgundy">{cert.certificate_number}</span>
+                  <span className="ml-2 text-muted">
+                    {cert.data_books?.book_number} — {cert.data_books?.title}
+                  </span>
+                </span>
+                <span className="text-xs text-muted">
+                  {cert.acknowledged_at ? "Already acknowledged by the client" : "Not yet acknowledged"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">
+            Resolved from the project&rsquo;s{" "}
+            <Link href={`/inspect/projects/${projectId}/data-book`} className="text-burgundy hover:underline">
+              Data Book
+            </Link>{" "}
+            page, where the Data Book this certificate belongs to can be re-compiled and its package
+            uploaded.
+          </p>
+        </div>
+      )}
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
         <h2 className="font-medium text-ink">Monthly report packs</h2>

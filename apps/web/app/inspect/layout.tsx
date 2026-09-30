@@ -149,68 +149,79 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // opened. Split into 6 smaller theme groups instead, so opening one only ever shows the 2-4
     // items actually related to what you're looking for. Every href below is unchanged from the
     // single-group version — this only changes how they're grouped.
+    // Redesign (plan Phase 8): flatten the top-level nav further by folding all 6 admin theme
+    // groups under one "Settings" entry, rather than 6 separate top-level group headers competing
+    // with Projects/ITPs/NCRs for attention. No page moves or is deleted — every href below is
+    // identical to the previous flat-group version, this only changes how the groups are reached
+    // (Settings > theme group > page, instead of theme group > page directly in the sidebar).
     ...(isAdminStaff(session)
       ? [
           {
-            label: "Client Management",
-            href: "/inspect/organisation/clients",
-            children: [
-              { label: "Client Organisations", href: "/inspect/organisation/clients" },
-              { label: "Client Teams", href: "/inspect/organisation/client-teams" },
-            ],
-          },
-          {
-            label: "Libraries",
-            href: "/inspect/itp-master",
-            children: [
-              { label: "Master ITP Library", href: "/inspect/itp-master" },
-              { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
-            ],
-          },
-          // Reordered to read as one story instead of four unrelated screens bolted together:
-          // 1) Staff Access — who has an account and which org/project they can reach at all.
-          // 2) Custom Roles — what a specific person is additionally allowed to DO, on top of that.
-          // 3) Teams — how staff are grouped for delegation (a team lead can reassign/provision on
-          //    the projects their team is assigned to — see isTeamLeadForProject).
-          // 4) Module Licensing — which modules exist for an org's people to be given any of the
-          //    above access to in the first place. See staff-access/page.tsx's intro paragraph for
-          //    the one-paragraph version of this same relationship.
-          {
-            label: "Access & Roles",
+            label: "Settings",
             href: "/inspect/organisation/staff-access",
             children: [
-              { label: "Staff Access", href: "/inspect/organisation/staff-access" },
-              { label: "Custom Roles", href: "/inspect/organisation/roles" },
-              { label: "Teams", href: "/inspect/organisation/teams" },
-              { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
-            ],
-          },
-          {
-            label: "Numbering & Branding",
-            href: "/inspect/organisation/numbering",
-            children: [
-              { label: "Numbering", href: "/inspect/organisation/numbering" },
-              { label: "Brand Colors", href: "/inspect/organisation/branding" },
-              { label: "Automation Rules", href: "/inspect/organisation/automation" },
-            ],
-          },
-          {
-            label: "Insights & Usage",
-            href: "/inspect/organisation/insights",
-            children: [
-              { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
-              { label: "Usage & Cost", href: "/inspect/organisation/usage" },
-              { label: "Reporting", href: "/inspect/organisation/reporting" },
-            ],
-          },
-          {
-            label: "Sync & Traceability",
-            href: "/inspect/organisation/cloud-sync",
-            children: [
-              { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
-              { label: "Document Traceability", href: "/inspect/organisation/traceability" },
-              { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
-              { label: "Plans & Seats", href: "/inspect/organisation/plans" },
+              {
+                label: "Client Management",
+                href: "/inspect/organisation/clients",
+                children: [
+                  { label: "Client Organisations", href: "/inspect/organisation/clients" },
+                  { label: "Client Teams", href: "/inspect/organisation/client-teams" },
+                ],
+              },
+              {
+                label: "Libraries",
+                href: "/inspect/itp-master",
+                children: [
+                  { label: "Master ITP Library", href: "/inspect/itp-master" },
+                  { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
+                ],
+              },
+              // Reordered to read as one story instead of four unrelated screens bolted together:
+              // 1) Staff Access — who has an account and which org/project they can reach at all.
+              // 2) Custom Roles — what a specific person is additionally allowed to DO, on top of that.
+              // 3) Teams — how staff are grouped for delegation (a team lead can reassign/provision on
+              //    the projects their team is assigned to — see isTeamLeadForProject).
+              // 4) Module Licensing — which modules exist for an org's people to be given any of the
+              //    above access to in the first place. See staff-access/page.tsx's intro paragraph for
+              //    the one-paragraph version of this same relationship.
+              {
+                label: "Access & Roles",
+                href: "/inspect/organisation/staff-access",
+                children: [
+                  { label: "Staff Access", href: "/inspect/organisation/staff-access" },
+                  { label: "Custom Roles", href: "/inspect/organisation/roles" },
+                  { label: "Teams", href: "/inspect/organisation/teams" },
+                  { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
+                ],
+              },
+              {
+                label: "Numbering & Branding",
+                href: "/inspect/organisation/numbering",
+                children: [
+                  { label: "Numbering", href: "/inspect/organisation/numbering" },
+                  { label: "Brand Colors", href: "/inspect/organisation/branding" },
+                  { label: "Automation Rules", href: "/inspect/organisation/automation" },
+                ],
+              },
+              {
+                label: "Insights & Usage",
+                href: "/inspect/organisation/insights",
+                children: [
+                  { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
+                  { label: "Usage & Cost", href: "/inspect/organisation/usage" },
+                  { label: "Reporting", href: "/inspect/organisation/reporting" },
+                ],
+              },
+              {
+                label: "Sync & Traceability",
+                href: "/inspect/organisation/cloud-sync",
+                children: [
+                  { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
+                  { label: "Document Traceability", href: "/inspect/organisation/traceability" },
+                  { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
+                  { label: "Plans & Seats", href: "/inspect/organisation/plans" },
+                ],
+              },
             ],
           },
         ]

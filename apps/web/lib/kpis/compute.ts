@@ -39,10 +39,22 @@ export interface FailedInspectionItem {
 
 export type OpenItem = OpenNcrItem | FailedInspectionItem;
 
+export interface FirstAttemptRecordRow {
+  id: string;
+  recordNumber: string;
+  activity: string;
+  itpNumber: string | null;
+  result: "pass" | "fail" | "partial" | null;
+  recordedAt: string;
+}
+
 export interface ProjectKpis {
   /** % of itp_items whose earliest inspection_record (by created_at) passed on the first attempt. */
   firstTimePassRate: number | null;
   firstTimePassCounts: { firstAttempts: number; firstTimePasses: number };
+  /** The actual first-attempt records behind firstTimePassRate, newest first — lets the KPI tile
+   *  drill in to what it's computed from instead of just stating the number. */
+  firstAttemptRecords: FirstAttemptRecordRow[];
 
   /**
    * Average hours between an ITP's approval and completion of inspections against its Hold-type
@@ -364,9 +376,9 @@ export async function computeProjectKpis(
   const [itpsResult, ncrsResult, projectResult] = await Promise.all([
     supabase
       .from("itps")
-      .select("id, status, updated_at")
+      .select("id, itp_number, status, updated_at")
       .eq("project_id", projectId)
-      .returns<{ id: string; status: "draft" | "under_review" | "approved" | "client_accepted"; updated_at: string }[]>(),
+      .returns<{ id: string; itp_number: string; status: "draft" | "under_review" | "approved" | "client_accepted"; updated_at: string }[]>(),
     supabase
       .from(NCRS_TABLE)
       .select("id, ncr_number, description, status, created_at, closed_at")
@@ -457,6 +469,17 @@ export async function computeProjectKpis(
   const firstAttempts = [...firstAttemptByItem.values()].filter((r) => r.overall_result !== null);
   const firstTimePasses = firstAttempts.filter((r) => r.overall_result === "pass");
   const firstTimePassRate = firstAttempts.length > 0 ? (firstTimePasses.length / firstAttempts.length) * 100 : null;
+  const itpNumberByItpId = new Map(itps.map((itp) => [itp.id, itp.itp_number]));
+  const firstAttemptRecords: FirstAttemptRecordRow[] = firstAttempts
+    .map((r) => ({
+      id: r.id,
+      recordNumber: r.record_number,
+      activity: r.activity,
+      itpNumber: itpNumberByItpId.get(itemToItp.get(r.itp_item_id) ?? "") ?? null,
+      result: r.overall_result,
+      recordedAt: r.created_at,
+    }))
+    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
 
   // --- 2. Hold-point turnaround ---
   const holdItemIds = new Set(itpItems.filter((item) => holdSignoffs.some((s) => s.itp_item_id === item.id)).map((i) => i.id));
@@ -542,6 +565,7 @@ export async function computeProjectKpis(
   return {
     firstTimePassRate,
     firstTimePassCounts: { firstAttempts: firstAttempts.length, firstTimePasses: firstTimePasses.length },
+    firstAttemptRecords,
     holdPointTurnaroundHours,
     holdPointTurnaroundSource,
     ncrCloseOutHours,

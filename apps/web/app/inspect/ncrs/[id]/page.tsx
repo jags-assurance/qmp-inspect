@@ -211,9 +211,16 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
 
   const isClosed = ncr.status === "closed";
   const nextStatus = NEXT_STATUS[ncr.status];
+  // Real cascading effects of closing this NCR (see the CAPA form's own logic) — surfaced directly
+  // near the close action now, not just documented in the collapsed PageGuide, since the guide text
+  // itself calls this out as something people miss.
+  const closeConsequences: string[] = ["Closes the punch-list item this NCR created when it was raised"];
+  if (ncr.inspection_record_id) {
+    closeConsequences.push("Notifies the original inspector the activity is ready to re-inspect");
+  }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <RealtimeRefresh table="ncrs" filter={`id=eq.${id}`} />
       <Link
         href={ncr.severity === "observation" ? "/inspect/observations" : "/inspect/ncrs"}
@@ -231,25 +238,16 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
               title="NCR detail — how this works"
               points={[
                 "\"Start progress\" / \"Send for verification\" are quick, no-validation status moves along the timeline above — closing is deliberately not one of them.",
-                "Closing only happens from the corrective action close-out form below, and requires root cause, corrective action and verification notes to be filled in (preventive action stays optional).",
+                "Closing only happens from the corrective action close-out form, and requires root cause, corrective action and verification notes to be filled in (preventive action stays optional) — see \"Closing this will also…\" next to the form for its real side effects.",
                 "\"Pending verification\" is just a status label on the timeline, not an independent approval gate — the same close-out form can close the NCR directly from Open or In progress too, and anyone with project access can fill in the CAPA fields and close it (no separate JAGS/reviewer sign-off is enforced here).",
                 "\"Save progress\" (without closing) always sets the status back to In progress, even from Pending verification.",
-                "Closing this NCR also closes the punch-list item it created when raised, reusing the same verification notes as closing evidence, and (if linked to a failed inspection record) notifies the original inspector the activity is ready to re-inspect.",
                 "The assignee and responsible-party pickers are built from real people with access to this NCR's project (access grants plus linked project parties) — not free text.",
               ]}
             />
           </div>
           <p className="mt-1 text-sm text-muted">
             {ncr.projects?.organizations?.name} · {ncr.projects?.name}
-            {ncr.itp_items ? ` · ITP item ${ncr.itp_items.item_number}: ${ncr.itp_items.activity}` : ""}
           </p>
-          {ncr.inspection_record_id && (
-            <p className="mt-1 text-sm">
-              <Link href={`/inspect/inspections/${ncr.inspection_record_id}`} className="text-burgundy hover:underline">
-                ← View the inspection record this was raised from
-              </Link>
-            </p>
-          )}
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -274,54 +272,91 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
         <StatusTimeline status={ncr.status} />
       </div>
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink">Description</h2>
-        <p className="mt-1 text-sm text-ink">{ncr.description}</p>
-        {ncr.requirement_not_met && (
-          <>
-            <h2 className="mt-4 text-sm font-medium text-ink">Requirement not met</h2>
-            <p className="mt-1 text-sm text-muted">{ncr.requirement_not_met}</p>
-          </>
-        )}
-      </div>
+      {/* Split-pane: the CAPA record itself on the left, everything linked to it inline on the
+          right — no separate page hop to check the source checklist item, referenced document, or
+          activity history while working the close-out form. */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <div className="flex flex-col gap-6">
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium text-ink">Description</h2>
+            <p className="mt-1 text-sm text-ink">{ncr.description}</p>
+            {ncr.requirement_not_met && (
+              <>
+                <h2 className="mt-4 text-sm font-medium text-ink">Requirement not met</h2>
+                <p className="mt-1 text-sm text-muted">{ncr.requirement_not_met}</p>
+              </>
+            )}
+          </div>
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {(photos ?? []).map((photo) => (
-            <div key={photo.id}>
-              <PhotoThumbnail url={photoUrls.get(photo.storage_path) ?? null} caption={photo.caption} />
-              {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-base font-medium text-ink">Corrective action close-out</h2>
+            <p className="mt-1 text-sm text-muted">
+              {isClosed
+                ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString("en-GB") : ""}.`
+                : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
+            </p>
+            {!isClosed && (
+              <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
+                <p className="font-medium">Closing this will also:</p>
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
+                  {closeConsequences.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="mt-4">
+              <CloseOutForm
+                ncrId={ncr.id}
+                assignedTo={ncr.assigned_to}
+                people={people}
+                responsiblePartyId={ncr.responsible_party_id}
+                parties={responsibleParties ?? []}
+                dueDate={ncr.due_date}
+                rootCause={ncr.root_cause}
+                correctiveAction={ncr.corrective_action}
+                preventiveAction={ncr.preventive_action}
+                verificationNotes={ncr.verification_notes}
+                isClosed={isClosed}
+              />
             </div>
-          ))}
-          {(photos ?? []).length === 0 && (
-            <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>
-          )}
+          </div>
         </div>
-        {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} />}
-      </div>
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-base font-medium text-ink">Corrective action close-out</h2>
-        <p className="mt-1 text-sm text-muted">
-          {isClosed
-            ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString("en-GB") : ""}.`
-            : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
-        </p>
-        <div className="mt-4">
-          <CloseOutForm
-            ncrId={ncr.id}
-            assignedTo={ncr.assigned_to}
-            people={people}
-            responsiblePartyId={ncr.responsible_party_id}
-            parties={responsibleParties ?? []}
-            dueDate={ncr.due_date}
-            rootCause={ncr.root_cause}
-            correctiveAction={ncr.corrective_action}
-            preventiveAction={ncr.preventive_action}
-            verificationNotes={ncr.verification_notes}
-            isClosed={isClosed}
-          />
+        <div className="flex flex-col gap-6">
+          {ncr.itp_items && (
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <h2 className="text-sm font-medium text-ink">Linked Checklist Item</h2>
+              <div className="mt-2 flex items-center gap-3 rounded-md border border-border bg-off-white px-3 py-2">
+                <span className="doc-id text-xs text-muted">{ncr.itp_items.item_number}</span>
+                <span className="flex-grow truncate text-sm text-ink">{ncr.itp_items.activity}</span>
+              </div>
+              {ncr.inspection_record_id && (
+                <Link
+                  href={`/inspect/inspections/${ncr.inspection_record_id}`}
+                  className="mt-2 inline-block text-xs text-burgundy hover:underline"
+                >
+                  ← View the inspection record this was raised from
+                </Link>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {(photos ?? []).map((photo) => (
+                <div key={photo.id}>
+                  <PhotoThumbnail url={photoUrls.get(photo.storage_path) ?? null} caption={photo.caption} />
+                  {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
+                </div>
+              ))}
+              {(photos ?? []).length === 0 && (
+                <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>
+              )}
+            </div>
+            {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} />}
+          </div>
         </div>
       </div>
     </div>

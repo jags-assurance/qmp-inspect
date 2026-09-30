@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
@@ -11,6 +10,39 @@ import { isOverdue } from "../ncrs/is-overdue";
 import { DisciplineFilterForm } from "../ncrs/discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { RaiseObservationPanel } from "./raise-observation-panel";
+
+interface ProjectRow {
+  id: string;
+  project_number: string;
+  name: string;
+  organization_id: string;
+}
+
+interface UserRow {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
+interface GrantRow {
+  user_id: string;
+  scope_type: "global" | "organization" | "project";
+  organization_id: string | null;
+  project_id: string | null;
+}
+
+interface PartyRow {
+  project_id: string;
+  user_id: string | null;
+}
+
+interface ResponsiblePartyRow {
+  id: string;
+  project_id: string;
+  name: string;
+  party_type: string;
+}
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -31,6 +63,63 @@ export default async function ObservationsPage({
   const supabase = await createSupabaseServerClient();
 
   const disciplines = await getActiveMasterDisciplines();
+
+  // Same "real people with access" resolution as /inspect/ncrs/new (see that page for the full
+  // rationale) — fetched here too so "+ Raise Observation" can open the identical form inline
+  // instead of navigating to that separate page.
+  const [{ data: raiseProjects }, { data: raiseUsers }, { data: raiseGrants }, { data: raiseParties }, { data: raiseResponsibleParties }] =
+    await Promise.all([
+      supabase.from("projects").select("id, project_number, name, organization_id").order("name").returns<ProjectRow[]>(),
+      supabase.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<UserRow[]>(),
+      supabase.from("access_grants").select("user_id, scope_type, organization_id, project_id").returns<GrantRow[]>(),
+      supabase
+        .from("project_parties")
+        .select("project_id, user_id")
+        .eq("is_active", true)
+        .not("user_id", "is", null)
+        .returns<PartyRow[]>(),
+      supabase
+        .from("project_parties")
+        .select("id, project_id, name, party_type")
+        .eq("is_active", true)
+        .order("name")
+        .returns<ResponsiblePartyRow[]>(),
+    ]);
+
+  const raiseUserById = new Map((raiseUsers ?? []).map((u) => [u.id, u]));
+  const peopleByProject: Record<string, { id: string; name: string }[]> = {};
+  for (const p of raiseProjects ?? []) peopleByProject[p.id] = [];
+
+  const addPerson = (projectId: string, userId: string) => {
+    const list = peopleByProject[projectId];
+    const user = raiseUserById.get(userId);
+    if (!list || !user) return;
+    if (list.some((existing) => existing.id === userId)) return;
+    list.push({ id: user.id, name: user.full_name || user.email });
+  };
+
+  for (const grant of raiseGrants ?? []) {
+    if (grant.scope_type === "global") {
+      for (const p of raiseProjects ?? []) addPerson(p.id, grant.user_id);
+    } else if (grant.scope_type === "organization" && grant.organization_id) {
+      for (const p of raiseProjects ?? []) {
+        if (p.organization_id === grant.organization_id) addPerson(p.id, grant.user_id);
+      }
+    } else if (grant.scope_type === "project" && grant.project_id) {
+      addPerson(grant.project_id, grant.user_id);
+    }
+  }
+  for (const party of raiseParties ?? []) {
+    if (party.user_id) addPerson(party.project_id, party.user_id);
+  }
+  for (const list of Object.values(peopleByProject)) list.sort((a, b) => a.name.localeCompare(b.name));
+
+  const partiesByProject: Record<string, { id: string; name: string; party_type: string }[]> = {};
+  for (const p of raiseProjects ?? []) partiesByProject[p.id] = [];
+  for (const party of raiseResponsibleParties ?? []) {
+    const list = partiesByProject[party.project_id];
+    if (list) list.push({ id: party.id, name: party.name, party_type: party.party_type });
+  }
 
   // Same shape as apps/web/app/inspect/ncrs/page.tsx: observations reuse the ncrs table (graded
   // by severity), so they reach a discipline the same indirect way — via the optional itp_item_id
@@ -115,9 +204,11 @@ export default async function ObservationsPage({
             </Link>
           </p>
         </div>
-        <Link href="/inspect/ncrs/new">
-          <Button>+ Raise Observation</Button>
-        </Link>
+        <RaiseObservationPanel
+          projects={(raiseProjects ?? []).map(({ id, project_number, name }) => ({ id, project_number, name }))}
+          peopleByProject={peopleByProject}
+          partiesByProject={partiesByProject}
+        />
       </div>
 
       {projectId && (

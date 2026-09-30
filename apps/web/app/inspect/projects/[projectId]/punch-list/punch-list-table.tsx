@@ -14,6 +14,9 @@ export interface PunchListItemDisplayRow {
   due_date: string | null;
   status: PunchListStatus;
   project_parties: { name: string } | null;
+  /** Captured by ResolvePunchItemForm's "Mark resolved" step, but previously never shown anywhere
+   *  again afterward — including to the verifier deciding whether to close it. */
+  closing_evidence: string | null;
 }
 
 const STATUS_TONE: Record<PunchListStatus, "success" | "neutral" | "warning"> = {
@@ -70,10 +73,21 @@ export function PunchListTable({
       header: "",
       render: (row) => {
         if (row.status === "open") return <ResolvePunchItemForm projectId={projectId} punchItemId={row.id} />;
-        if (row.status === "resolved" && canVerifyClose) {
-          return <VerifyClosePunchItemForm projectId={projectId} punchItemId={row.id} />;
+        if (row.status === "resolved") {
+          return (
+            <div className="flex min-w-56 flex-col gap-1.5">
+              <div className="rounded-md border border-border bg-off-white px-2 py-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Resolver's evidence</p>
+                <p className="mt-0.5 text-xs text-ink">{row.closing_evidence || "—"}</p>
+              </div>
+              {canVerifyClose ? (
+                <VerifyClosePunchItemForm projectId={projectId} punchItemId={row.id} />
+              ) : (
+                <span className="text-xs text-muted">Awaiting verification</span>
+              )}
+            </div>
+          );
         }
-        if (row.status === "resolved") return <span className="text-xs text-muted">Awaiting verification</span>;
         return null;
       },
     },

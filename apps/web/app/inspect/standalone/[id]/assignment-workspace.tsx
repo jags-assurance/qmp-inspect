@@ -84,6 +84,7 @@ export function AssignmentWorkspace({
   punchItems,
   signatures,
   linkedOpenPunchCount,
+  linkedTotalPunchCount,
   canManage,
 }: {
   assignment: Assignment;
@@ -100,6 +101,9 @@ export function AssignmentWorkspace({
    *  created — the real R16 clearance gate, distinct from `punchItems` above (the assignment's own
    *  internal punch tab, a separate table with no bearing on clearance). */
   linkedOpenPunchCount: number;
+  /** Total linked punch-list items (open + closed) behind the same clearance gate — lets the banner
+   *  below read as an explicit "N of M closed" ratio rather than just a remaining-open count. */
+  linkedTotalPunchCount: number;
   /** Every mutating control below (add measurement/punch item/photo/signature, finalize, issue
    * clearance) is gated server-side by requireStandaloneAccess/canRunStandaloneAssignment
    * (lib/standalone/actions.ts): true for JAGS staff, or for anyone specifically granted the
@@ -140,11 +144,17 @@ export function AssignmentWorkspace({
       </div>
 
       {isConditionalOpen && (
-        <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
-          {linkedOpenPunchCount > 0
-            ? `Conditionally passed — ${linkedOpenPunchCount} linked punch item(s) still open on the project punch list. This stays open until they're closed and clearance is issued.`
-            : "Conditionally passed — the linked punch item(s) are closed. Ready to issue clearance below."}
-        </p>
+        <div className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
+          <p className="font-medium">
+            {linkedTotalPunchCount - linkedOpenPunchCount} of {linkedTotalPunchCount} linked punch items closed
+            {linkedOpenPunchCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
+          </p>
+          <p className="mt-0.5 text-warning/90">
+            {linkedOpenPunchCount > 0
+              ? "This assignment stays conditionally open until every linked punch item on the project punch list is closed."
+              : "All linked punch items are closed. Issue clearance below to complete this assignment."}
+          </p>
+        </div>
       )}
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">

@@ -90,6 +90,7 @@ export default async function StandaloneAssignmentDetailPage({
     { data: punchItems },
     { data: signatures },
     { count: linkedOpenPunchCount },
+    { count: linkedTotalPunchCount },
   ] = await Promise.all([
       supabase
         .from("standalone_assignment_measurements" as any)
@@ -138,6 +139,12 @@ export default async function StandaloneAssignmentDetailPage({
         .select("id", { count: "exact", head: true })
         .eq("source_standalone_assignment_id", id)
         .neq("status", "closed"),
+      // Same linkage as linkedOpenPunchCount above, unfiltered by status — lets the clearance banner
+      // read as a real "N of M closed" ratio instead of just the remaining-open count.
+      supabase
+        .from("punch_list_items" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("source_standalone_assignment_id", id),
     ]);
 
   // Real gap found in a wiring audit: the Photos tab only ever showed each photo's filename text —
@@ -202,6 +209,7 @@ export default async function StandaloneAssignmentDetailPage({
           punchItems={punchItems ?? []}
           signatures={signatures ?? []}
           linkedOpenPunchCount={linkedOpenPunchCount ?? 0}
+          linkedTotalPunchCount={linkedTotalPunchCount ?? 0}
           canManage={canManage}
         />
       </div>

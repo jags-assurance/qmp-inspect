@@ -16,6 +16,7 @@ import {
 } from "@/lib/kpis/compute";
 import { NCRS_TABLE, NCR_SEVERITIES, type NcrSeverity } from "@/lib/ncrs/types";
 import { OpenItemsTable } from "./open-items-table";
+import { KpiDrilldown } from "./kpi-drilldown";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -331,10 +332,15 @@ export default async function ProjectKpisPage({ params }: { params: Promise<{ pr
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="First-time pass rate"
-          value={formatPercent(kpis.firstTimePassRate)}
-          icon={<KpiToneBadge tone={tonePercent(kpis.firstTimePassRate, { good: 90, ok: 70 })} />}
+        <KpiDrilldown
+          records={kpis.firstAttemptRecords}
+          trigger={
+            <StatCard
+              label="First-time pass rate"
+              value={formatPercent(kpis.firstTimePassRate)}
+              icon={<KpiToneBadge tone={tonePercent(kpis.firstTimePassRate, { good: 90, ok: 70 })} />}
+            />
+          }
         />
         <StatCard
           label="Hold-point turnaround"
