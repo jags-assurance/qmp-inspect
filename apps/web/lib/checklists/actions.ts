@@ -7,6 +7,7 @@ import {
   CHECKLIST_ITEMS_TABLE,
   CHECKLIST_RESPONSES_TABLE,
   CHECKLIST_TEMPLATES_TABLE,
+  INSPECTION_EVIDENCE_DOCUMENTS_TABLE,
   INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
   IRNS_TABLE,
@@ -14,6 +15,7 @@ import {
   type ChecklistResponseResult,
   type ChecklistResponseRow,
   type ChecklistTemplateRow,
+  type InspectionEvidenceDocumentRow,
   type InspectionRecordRow,
   type OverallResult,
 } from "./db-types";
@@ -605,16 +607,19 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const supabase = await createSupabaseServerClient();
 
   // Real gap found live: the "Photo evidence" section looked optional (no enforcement client- or
-  // server-side), even though a completed inspection with zero evidence photos is close to
-  // worthless in a dispute or ISO audit. At least one photo — attached to the inspection as a
-  // whole, or to any individual item — is now required to complete, mirroring the signature check
-  // just above.
-  const { count: photoCount } = await supabase
-    .from(INSPECTION_PHOTOS_TABLE)
-    .select("id", { count: "exact", head: true })
-    .eq("inspection_record_id", inspectionRecordId);
-  if (!photoCount) {
-    return { error: "At least one evidence photo is required to complete the inspection." };
+  // server-side), even though a completed inspection with zero evidence is close to worthless in a
+  // dispute or ISO audit. At least one photo OR one linked Vault document — attached to the
+  // inspection as a whole, or to any individual item — is now required to complete, mirroring the
+  // signature check just above.
+  const [{ count: photoCount }, { count: evidenceDocCount }] = await Promise.all([
+    supabase.from(INSPECTION_PHOTOS_TABLE).select("id", { count: "exact", head: true }).eq("inspection_record_id", inspectionRecordId),
+    supabase
+      .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("inspection_record_id", inspectionRecordId),
+  ]);
+  if (!photoCount && !evidenceDocCount) {
+    return { error: "At least one evidence photo or linked document is required to complete the inspection." };
   }
 
   const { data: recordForAuth } = await supabase
@@ -1001,4 +1006,116 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
 
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
   return { error: null };
+}
+
+export interface LinkInspectionEvidenceDocumentState {
+  error: string | null;
+}
+
+/**
+ * Links an existing Document Vault file as this inspection's own evidence — the gap flagged live:
+ * photo evidence was device-upload only, with no way to attach a controlled document (a prior
+ * cert, a client-supplied drawing) the way itp_item_evidence_documents/
+ * standalone_assignment_evidence_documents already let other record types do. Mirrors
+ * linkAssignmentEvidenceDocumentAction exactly — upload to the project's Vault first, link here —
+ * rather than a second upload path. Optionally scoped to one checklist item (null links it to the
+ * whole inspection, same convention inspection_photos.checklist_item_id already uses).
+ */
+export async function linkInspectionEvidenceDocumentAction(
+  _prev: LinkInspectionEvidenceDocumentState,
+  formData: FormData
+): Promise<LinkInspectionEvidenceDocumentState> {
+  const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
+  const vaultDocumentId = String(formData.get("vault_document_id") ?? "").trim();
+  const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim() || null;
+  if (!inspectionRecordId || !vaultDocumentId) return { error: "Choose a document to link." };
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: record } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("itp_item_id, record_number, project_id, checklist_template_id")
+    .eq("id", inspectionRecordId)
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "record_number" | "project_id" | "checklist_template_id">>();
+  if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
+    return { error: "Only JAGS staff or the party assigned to this activity can link evidence." };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE).insert({
+    inspection_record_id: inspectionRecordId,
+    checklist_item_id: checklistItemId,
+    vault_document_id: vaultDocumentId,
+    linked_by: user?.id ?? null,
+  });
+
+  if (error) {
+    return {
+      error: error.code === "23505" ? "That document is already linked as evidence for this inspection." : "Could not link the document.",
+    };
+  }
+
+  try {
+    const { data: project } = await supabase.from("projects").select("organization_id").eq("id", record.project_id).maybeSingle();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId: record.project_id,
+        entityType: "inspection_evidence_document",
+        entityId: inspectionRecordId,
+        action: "linked",
+        actorId: user?.id ?? null,
+        summary: `Evidence document linked to inspection ${record.record_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  if (record.checklist_template_id) revalidatePath(`/inspect/checklists/${record.checklist_template_id}`);
+  return { error: null };
+}
+
+/** Unlink is deliberately void-returning + no client confirmation state, same as every sibling
+ *  unlink action (unlinkAssignmentEvidenceDocumentAction) — a plain fire-and-forget form submit. */
+export async function unlinkInspectionEvidenceDocumentAction(formData: FormData): Promise<void> {
+  const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
+  const linkId = String(formData.get("link_id") ?? "").trim();
+  if (!inspectionRecordId || !linkId) return;
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: record } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("itp_item_id, record_number, project_id, checklist_template_id")
+    .eq("id", inspectionRecordId)
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "record_number" | "project_id" | "checklist_template_id">>();
+  if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) return;
+
+  await supabase.from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE).delete().eq("id", linkId);
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: project } = await supabase.from("projects").select("organization_id").eq("id", record.project_id).maybeSingle();
+    if (project?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId: record.project_id,
+        entityType: "inspection_evidence_document",
+        entityId: inspectionRecordId,
+        action: "unlinked",
+        actorId: user?.id ?? null,
+        summary: `Evidence document unlinked from inspection ${record.record_number}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  if (record.checklist_template_id) revalidatePath(`/inspect/checklists/${record.checklist_template_id}`);
 }

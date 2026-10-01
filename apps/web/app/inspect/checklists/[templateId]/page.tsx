@@ -7,6 +7,7 @@ import {
   CHECKLIST_ITEMS_TABLE,
   CHECKLIST_RESPONSES_TABLE,
   CHECKLIST_TEMPLATES_TABLE,
+  INSPECTION_EVIDENCE_DOCUMENTS_TABLE,
   INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
   type ChecklistItemRow,
@@ -14,6 +15,8 @@ import {
   type InspectionPhotoRow,
   type InspectionRecordRow,
 } from "@/lib/checklists/db-types";
+import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
+import { InspectionEvidenceDocuments } from "./inspection-evidence-documents";
 import {
   checkPersonnelCertification,
   checkRegisterVerification,
@@ -199,12 +202,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   let registerVerification: RegisterVerificationResult | null = null;
   let personnelCertVerification: RegisterVerificationResult | null = null;
   let calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[] = [];
-  // At least one evidence photo (whole-inspection or item-linked) is required to complete — see
-  // completeInspectionCore's matching server-side check, this only drives which slot renders.
+  // At least one evidence photo OR linked Vault document (whole-inspection or item-linked) is
+  // required to complete — see completeInspectionCore's matching server-side check, this only
+  // drives which slot renders.
   let hasEvidencePhoto = false;
+  let evidenceDocuments: { id: string; vaultDocumentId: string; title: string; documentReference: string | null }[] = [];
+  let vaultDocumentOptions: { id: string; title: string; documentReference: string | null; folderName: string }[] = [];
 
   if (draft) {
-    const [{ data: responses }, { data: photoRows }] = await Promise.all([
+    const [{ data: responses }, { data: photoRows }, { data: evidenceDocRows }, { data: rawVaultDocuments }] = await Promise.all([
       supabase
         .from(CHECKLIST_RESPONSES_TABLE)
         .select("checklist_item_id, result, comment, calibration_asset_id")
@@ -215,7 +221,30 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .select("id, storage_path, caption, checklist_item_id")
         .eq("inspection_record_id", draft.id)
         .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>(),
+      supabase
+        .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
+        .select("id, vault_document_id, vault_documents(title, document_reference)")
+        .eq("inspection_record_id", draft.id)
+        .returns<{ id: string; vault_document_id: string; vault_documents: { title: string; document_reference: string | null } | null }[]>(),
+      supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .select("id, title, document_reference, vault_folders!inner(project_id, name)")
+        .eq("vault_folders.project_id", project.id)
+        .order("title")
+        .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
     ]);
+    evidenceDocuments = (evidenceDocRows ?? []).map((d) => ({
+      id: d.id,
+      vaultDocumentId: d.vault_document_id,
+      title: d.vault_documents?.title ?? "Untitled document",
+      documentReference: d.vault_documents?.document_reference ?? null,
+    }));
+    vaultDocumentOptions = (rawVaultDocuments ?? []).map((d) => ({
+      id: d.id,
+      title: d.title,
+      documentReference: d.document_reference,
+      folderName: d.vault_folders?.name ?? "Document Vault",
+    }));
     responseByItem = new Map(
       (responses ?? []).map((r) => [
         r.checklist_item_id,
@@ -242,7 +271,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       existing.push(withUrl(p));
       itemPhotos.set(p.checklist_item_id, existing);
     }
-    hasEvidencePhoto = (photoRows ?? []).length > 0;
+    hasEvidencePhoto = (photoRows ?? []).length > 0 || evidenceDocuments.length > 0;
 
     // R92-R100: register-fed auto-verification — a soft-stop assist, not a hard block. Computed
     // once per checklist (the same itp_items row backs every checklist_items row here), then shown
@@ -462,10 +491,21 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
                   Photo evidence <span className="text-danger">*</span>
                 </h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  At least one photo (here or on an individual item above) is required to complete this inspection.
+                  At least one photo or linked document (here or on an individual item above) is required to complete this inspection.
                 </p>
                 <div className="mt-3">
                   <PhotoUpload projectId={project.id} inspectionRecordId={draft.id} photos={photos} readOnly={!canExecute} />
+                </div>
+                <div className="mt-4 border-t border-border pt-3">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted">From Document Vault</h3>
+                  <div className="mt-2">
+                    <InspectionEvidenceDocuments
+                      inspectionRecordId={draft.id}
+                      documents={evidenceDocuments}
+                      vaultDocuments={vaultDocumentOptions}
+                      canEdit={canExecute}
+                    />
+                  </div>
                 </div>
               </div>
             }
@@ -478,7 +518,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             }
             missingPhotoSlot={
               <p className="rounded-md bg-warning/10 p-4 text-sm text-ink">
-                Attach at least one evidence photo (★ required, above) before completing this inspection.
+                Attach at least one evidence photo or linked document (★ required, above) before completing this inspection.
               </p>
             }
             incompleteSlot={

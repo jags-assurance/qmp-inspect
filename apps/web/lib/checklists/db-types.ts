@@ -13,6 +13,7 @@ export const CHECKLIST_ITEMS_TABLE = "checklist_items" as any;
 export const INSPECTION_RECORDS_TABLE = "inspection_records" as any;
 export const CHECKLIST_RESPONSES_TABLE = "checklist_responses" as any;
 export const INSPECTION_PHOTOS_TABLE = "inspection_photos" as any;
+export const INSPECTION_EVIDENCE_DOCUMENTS_TABLE = "inspection_evidence_documents" as any;
 export const IRNS_TABLE = "irns" as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -90,6 +91,15 @@ export interface InspectionPhotoRow {
   /** Optional link to the specific checklist item/finding this photo documents. Null for photos
    *  attached generically to the whole inspection (the original, still-supported behaviour). */
   checklist_item_id: string | null;
+  created_at: string;
+}
+
+export interface InspectionEvidenceDocumentRow {
+  id: string;
+  inspection_record_id: string;
+  checklist_item_id: string | null;
+  vault_document_id: string;
+  linked_by: string | null;
   created_at: string;
 }
 
