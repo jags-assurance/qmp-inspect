@@ -727,8 +727,25 @@ export default async function InspectDashboardPage() {
 
     return (
       <ExternalPartyDashboard
-        orgName={ownParties && ownParties.length > 0 ? ownParties[0].name : null}
-        roleKey={ownParties && ownParties.length > 0 ? ownParties[0].party_type : null}
+        // The grant role is the login's real role; the first linked party row is only a fallback
+        // (a login linked to several parties used to show whichever happened to sort first — a
+        // client login rendered as "Subcontractor" with another company's name).
+        orgName={
+          isClientRole
+            ? ((organizations ?? []).find((o) => o.id === ownOrgId)?.name ?? ownParties?.[0]?.name ?? null)
+            : ownParties && ownParties.length > 0
+              ? ownParties[0].name
+              : null
+        }
+        roleKey={
+          isClientRole
+            ? "client"
+            : isMainContractorRole
+              ? "main_contractor"
+              : ownParties && ownParties.length > 0
+                ? ownParties[0].party_type
+                : null
+        }
         today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         activeProjects={activeProjects ?? 0}
         activeItps={activeItps ?? 0}

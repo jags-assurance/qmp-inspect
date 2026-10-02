@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXTERNAL_WIDGET_ORDER, resolveDashboardRole } from "../widgets";
+import { EXTERNAL_WIDGET_ORDER, resolveDashboardRole, widgetOrderFor } from "../widgets";
 
 describe("resolveDashboardRole", () => {
   it("maps party types to roles", () => {
@@ -30,5 +30,26 @@ describe("EXTERNAL_WIDGET_ORDER", () => {
       expect(order.slice(-2)).toEqual(["stats", "projects"]);
       expect(new Set(order).size).toBe(order.length);
     }
+  });
+});
+
+describe("widgetOrderFor", () => {
+  it("never drops a widget — everything the attention count covers still renders", () => {
+    for (const role of Object.keys(EXTERNAL_WIDGET_ORDER) as (keyof typeof EXTERNAL_WIDGET_ORDER)[]) {
+      const order = widgetOrderFor(role);
+      for (const w of ["acceptance", "review", "signoffs", "ncrs", "stats", "projects"]) expect(order).toContain(w);
+      expect(new Set(order).size).toBe(order.length);
+      expect(order.slice(-2)).toEqual(["stats", "projects"]);
+    }
+  });
+
+  it("only shows organisation health to a client org admin", () => {
+    expect(widgetOrderFor("client_org_admin")[0]).toBe("orgHealth");
+    expect(widgetOrderFor("client")).not.toContain("orgHealth");
+  });
+
+  it("keeps the role's own lead widget first", () => {
+    expect(widgetOrderFor("subcontractor")[0]).toBe("signoffs");
+    expect(widgetOrderFor("client")[0]).toBe("acceptance");
   });
 });

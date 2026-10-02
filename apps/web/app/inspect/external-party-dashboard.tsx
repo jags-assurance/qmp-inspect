@@ -10,7 +10,7 @@ import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { useUrlPanel } from "@/components/ui/side-panel";
 import { ItpReviewPanel } from "./itp-review-panel";
-import { EXTERNAL_WIDGET_ORDER, resolveDashboardRole, type ExternalWidget, type OrgHealth } from "@/lib/dashboard/widgets";
+import { widgetOrderFor, resolveDashboardRole, type ExternalWidget, type OrgHealth } from "@/lib/dashboard/widgets";
 
 export interface DashboardLevelOption {
   code: string;
@@ -420,7 +420,7 @@ export function ExternalPartyDashboard({
       </>
     ),
   };
-  const widgetOrder = EXTERNAL_WIDGET_ORDER[resolveDashboardRole(roleKey, managesOwnOrg)];
+  const widgetOrder = widgetOrderFor(resolveDashboardRole(roleKey, managesOwnOrg));
 
   return (
     <div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 /**
@@ -9,7 +9,6 @@ import { cn } from "@/lib/cn";
  * returns to the previous one. Falls back to the first tab for a missing/unknown value.
  */
 export function useUrlTab<K extends string>(param: string, keys: readonly K[]) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const raw = searchParams.get(param);
@@ -17,11 +16,12 @@ export function useUrlTab<K extends string>(param: string, keys: readonly K[]) {
 
   const select = useCallback(
     (key: K) => {
-      const params = new URLSearchParams(searchParams.toString());
+      // history API, not router.push — instant, no server re-render (see useUrlPanel).
+      const params = new URLSearchParams(window.location.search);
       params.set(param, key);
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      window.history.pushState(null, "", `${pathname}?${params.toString()}`);
     },
-    [param, pathname, router, searchParams]
+    [param, pathname]
   );
 
   return [active, select] as const;

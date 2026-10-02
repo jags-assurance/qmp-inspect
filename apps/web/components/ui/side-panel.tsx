@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 const FOCUSABLE =
@@ -144,26 +144,28 @@ export function SidePanel({
  * Opening pushes a history entry; closing replaces it away, so Back never re-opens a closed panel.
  */
 export function useUrlPanel(param: string) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const value = searchParams.get(param);
 
+  // window.history (not router.push): Next.js syncs usePathname/useSearchParams with pushState and
+  // replaceState, so the panel opens instantly instead of waiting for a full server re-render of the
+  // (dynamic) page just to flip a query string — which took seconds on a slow connection.
   const open = useCallback(
     (next: string = "1") => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       params.set(param, next);
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      window.history.pushState(null, "", `${pathname}?${params.toString()}`);
     },
-    [param, pathname, router, searchParams]
+    [param, pathname]
   );
 
   const close = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search);
     params.delete(param);
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [param, pathname, router, searchParams]);
+    window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+  }, [param, pathname]);
 
   return { value, open, close };
 }

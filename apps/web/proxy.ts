@@ -9,6 +9,13 @@ const PUBLIC_PATHS = [
   "/reset-password",
   // Health check must be reachable by uptime monitors / load balancers with no session.
   "/api/health",
+  // PWA / offline-support assets: the browser fetches the service worker script (and installs the
+  // manifest + offline fallback) without being able to follow a login redirect — "The script
+  // resource is behind a redirect, which is disallowed" — so redirecting these to /login silently
+  // broke offline mode on every device. They hold no user data.
+  "/sw.js",
+  "/manifest.webmanifest",
+  "/offline.html",
 ];
 
 /**
