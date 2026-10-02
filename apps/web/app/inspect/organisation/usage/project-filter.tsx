@@ -12,7 +12,7 @@ export function ProjectFilter({ projects }: { projects: { id: string; label: str
   const current = searchParams.get("project") ?? "";
 
   return (
-    <label className="flex flex-wrap items-center gap-2 text-sm">
+    <label className="flex w-full min-w-0 items-center gap-2 text-sm sm:w-auto">
       <span className="font-medium text-ink">Project</span>
       <select
         value={current}
@@ -24,7 +24,7 @@ export function ProjectFilter({ projects }: { projects: { id: string; label: str
           const query = params.toString();
           router.push(query ? `${pathname}?${query}` : pathname);
         }}
-        className="rounded-md border border-border bg-off-white px-3 py-1.5 text-sm outline-none focus:border-burgundy"
+        className="min-w-0 flex-1 rounded-md border border-border bg-off-white px-3 py-1.5 text-sm outline-none focus:border-burgundy sm:flex-none"
       >
         <option value="">All projects</option>
         {projects.map((p) => (

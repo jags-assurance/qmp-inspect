@@ -132,7 +132,7 @@ export async function ReportingView({ searchParams, embedded }: {
           <ul className="mt-3 space-y-2">
             {VIEWS.map((v) => (
               <li key={v.name} className="rounded-md border border-border bg-off-white p-2.5 text-sm">
-                <span className="doc-id text-ink">{v.name}</span>
+                <span className="doc-id text-ink [overflow-wrap:anywhere]">{v.name}</span>
                 <span className="ml-2 text-muted">— {v.covers}</span>
               </li>
             ))}

@@ -33,7 +33,25 @@ export default async function PlatformHomePage() {
         they&apos;re enabled for your organisation.
       </p>
 
-      <div className={`relative mx-auto mt-4 flex ${RING_SIZE} w-full max-w-2xl items-center justify-center`}>
+      {/* Phone: the orbit diagram is laid out in fixed pixels and cannot fit a 390px screen, so the same
+          modules show as a card list instead (tablet and up keep the orbit). */}
+      <ul className="mt-4 grid gap-3 md:hidden">
+        {MODULES.map((mod) => (
+          <li key={mod.key} className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{mod.name}</p>
+              <div className="mt-1">{mod.active ? <Badge tone="gold">Active</Badge> : <Badge tone="neutral">Not enabled</Badge>}</div>
+            </div>
+            {mod.active && mod.href && (
+              <Link href={mod.href} className="inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-burgundy hover:underline">
+                Open →
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <div className={`relative mx-auto mt-4 hidden md:flex ${RING_SIZE} w-full max-w-2xl items-center justify-center`}>
         {/* Guide ring */}
         <div
           className="pointer-events-none absolute rounded-full border border-border"
@@ -106,7 +124,7 @@ export default async function PlatformHomePage() {
         })}
       </div>
 
-      <div className="mx-auto mt-2 flex max-w-2xl items-center justify-center gap-6 text-xs text-muted">
+      <div className="mx-auto mt-2 hidden max-w-2xl items-center justify-center gap-6 text-xs text-muted md:flex">
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full border-2 border-gold bg-burgundy" /> Active module
         </span>
