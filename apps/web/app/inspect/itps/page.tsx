@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { ItpDetailView } from "./[id]/itp-detail-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
@@ -14,10 +16,10 @@ import { ExportLink } from "@/components/domain/export-link";
 export default async function ItpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string; itp?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp } = await searchParams;
   // R23: optional phase filter — only a recognised phase value is honoured, anything else is
   // treated as "no filter" rather than silently matching zero rows.
   const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
@@ -129,6 +131,15 @@ export default async function ItpsPage({
   if (q) exportParams.set("q", q);
   const exportQuery = exportParams.toString();
 
+  const backParams = new URLSearchParams();
+  if (disciplineId) backParams.set("discipline", disciplineId);
+  if (projectId) backParams.set("project", projectId);
+  if (phaseParam) backParams.set("phase", phaseParam);
+  if (q) backParams.set("q", q);
+  if (pageParam) backParams.set("page", pageParam);
+  const backQuery = backParams.toString();
+  const backHref = `/inspect/itps${backQuery ? `?${backQuery}` : ""}`;
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -176,8 +187,37 @@ export default async function ItpsPage({
         <PhaseFilterForm selectedPhase={phase} />
       </div>
 
-      <div className="mt-6">
-        <ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />
+      <div className="mt-6 grid gap-4 md:grid-cols-[2fr_3fr] lg:grid-cols-[minmax(320px,2fr)_3fr]">
+        <div className={`min-w-0 md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto ${itp ? "hidden md:block" : ""}`}>
+          <ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />
+        </div>
+        <div className={`min-w-0 md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto ${itp ? "" : "hidden md:block"}`}>
+          {itp ? (
+            <>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <Link href={backHref} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline md:hidden">
+                  ← Back to list
+                </Link>
+                <Link
+                  href={`/inspect/itps/${itp}`}
+                  className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline md:ml-auto"
+                >
+                  Open full page →
+                </Link>
+              </div>
+              <Suspense
+                key={itp}
+                fallback={<div className="h-64 animate-pulse rounded-lg border border-border bg-surface" aria-label="Loading ITP" />}
+              >
+                <ItpDetailView id={itp} embedded />
+              </Suspense>
+            </>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
+              Select an ITP to see it here
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

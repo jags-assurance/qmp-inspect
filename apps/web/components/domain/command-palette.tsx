@@ -18,6 +18,7 @@ function flatten(items: NavItem[], trail: string[] = []): Entry[] {
     if (item.children && item.children.length > 0) {
       out.push(...flatten(item.children, [...trail, item.label]));
     } else {
+      if (item.palette) out.push(...flatten(item.palette, [...trail, item.label]));
       out.push({ label: item.label, href: item.href, path: [...trail, item.label].join(" › ") });
     }
   }

@@ -471,6 +471,7 @@ export async function updateNcrAction(
   }
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");
+  revalidatePath("/inspect/observations");
   return { error: null };
 }
 
@@ -724,6 +725,7 @@ export async function setNcrStatusAction(formData: FormData) {
 
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");
+  revalidatePath("/inspect/observations");
 }
 
 export interface AddNcrPhotoState {
@@ -760,5 +762,7 @@ export async function addNcrPhotoAction(
   }
 
   revalidatePath(`/inspect/ncrs/${ncrId}`);
+  revalidatePath("/inspect/ncrs");
+  revalidatePath("/inspect/observations");
   return { error: null };
 }

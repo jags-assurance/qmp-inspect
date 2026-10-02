@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { useUrlPanel } from "@/components/ui/side-panel";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
@@ -50,13 +51,22 @@ const STATUS_LABEL: Record<NcrStatus, string> = {
 // Round-table finding: this column header was hardcoded "NCR No." even when reused on the
 // Observation Register (observations/page.tsx renders the same NcrsTable), which is confusing on a
 // register whose rows are actually all Observations. Parameterized by the caller instead.
-function buildColumns(idColumnHeader: string) {
+function buildColumns(idColumnHeader: string, openPanel: (id: string) => void) {
   const columns: DataTableColumn<NcrRegisterRow>[] = [
   {
     key: "ncr_number",
     header: idColumnHeader,
     render: (row) => (
-      <Link href={`/inspect/ncrs/${row.id}`} className="doc-id text-burgundy hover:underline">
+      <Link
+        href={`/inspect/ncrs/${row.id}`}
+        onClick={(e) => {
+          // Plain left-click opens the side panel; modified clicks keep the real link behaviour.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          openPanel(row.id);
+        }}
+        className="doc-id inline-flex min-h-11 items-center text-burgundy hover:underline"
+      >
         {row.ncr_number}
       </Link>
     ),
@@ -118,7 +128,9 @@ export function NcrsTable({
 }) {
   const serverDriven = totalCount !== undefined;
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(serverDriven);
-  const columns = useMemo(() => buildColumns(idColumnHeader), [idColumnHeader]);
+  const panel = useUrlPanel("ncr");
+  const openPanel = panel.open;
+  const columns = useMemo(() => buildColumns(idColumnHeader, openPanel), [idColumnHeader, openPanel]);
 
   return (
     <DataTable

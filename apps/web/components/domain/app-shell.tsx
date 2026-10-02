@@ -18,6 +18,9 @@ export interface NavItem {
    *  (Numbering, Staff Access, Teams, ...) into one "Organisation Settings" section instead of a
    *  single long flat list. A group with no children is never rendered (see SidebarNav). */
   children?: NavItem[];
+  /** Extra destinations reachable only through the Ctrl+K page search (e.g. the sections of the
+   *  Settings workspace) — not shown as sidebar rows. */
+  palette?: NavItem[];
 }
 
 export interface OrgBrandingInfo {

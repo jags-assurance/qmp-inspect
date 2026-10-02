@@ -10,7 +10,7 @@ import { compressImageFile } from "@/lib/media/compress-image";
  * once that succeeds, addNcrPhotoAction is called directly (Server Actions can be invoked like any
  * async function from a Client Component, not only via a <form>) to record where it landed.
  */
-export function NcrPhotoUpload({ ncrId, projectId }: { ncrId: string; projectId: string }) {
+export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string; projectId: string; onUploaded?: () => void }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,6 +55,7 @@ export function NcrPhotoUpload({ ncrId, projectId }: { ncrId: string; projectId:
     if (lastError) setError(lastError);
 
     setUploading(false);
+    onUploaded?.();
     if (inputRef.current) inputRef.current.value = "";
   }
 

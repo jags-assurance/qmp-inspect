@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { SetApproversForm } from "./set-approvers-form";
@@ -10,6 +11,7 @@ import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documen
 import { VaultUploadForm } from "./upload-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
+import { VaultDocumentView } from "../document/[documentId]/vault-document-view";
 
 interface DocumentWithUploader {
   id: string;
@@ -25,11 +27,14 @@ interface DocumentWithUploader {
 
 export default async function VaultFolderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; folderId: string }>;
+  searchParams: Promise<{ doc?: string }>;
 }) {
   const session = await requireSession();
   const { projectId, folderId } = await params;
+  const { doc: selectedDocId } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   // High authority by default (JAGS Admin), delegatable per person via the approve_vault_document
@@ -167,24 +172,60 @@ export default async function VaultFolderPage({
         the previous one superseded rather than replacing it.
       </p>
 
-      <div className="mt-6">
-        <VaultDocumentsTable rows={rows} canApprove={canApprove} />
+      {/* Master-detail: with ?doc= the document viewer opens beside the list (desktop/tablet) or in
+          place of it (phone, with a way back) — no navigation to a separate viewer page. */}
+      <div className={selectedDocId ? "mt-6 grid gap-4 lg:grid-cols-[minmax(300px,2fr)_3fr]" : ""}>
+        <div className={selectedDocId ? "hidden min-w-0 lg:block" : ""}>
+          <div className="mt-6">
+            <VaultDocumentsTable rows={rows} canApprove={canApprove} />
+          </div>
+
+          <VaultUploadForm projectId={projectId} folderId={folderId} folderKey={folder.folder_key} />
+
+          {isAdminStaff(session) && reviewDocIds.length > 0 && (
+            <SetApproversForm
+              documentOptions={(documents ?? [])
+                .filter((d) => d.status === "for_review")
+                .map((d) => ({
+                  id: d.id,
+                  label: `${d.document_number ?? d.title} — Rev. ${d.revision}`,
+                  currentApproverIds: (approversByDoc.get(d.id) ?? []).map((a) => a.approver_user_id),
+                }))}
+              approverOptions={approverOptions}
+            />
+          )}
+        </div>
+        {selectedDocId && (
+          <section className="min-w-0 rounded-lg border border-border bg-surface p-3 sm:p-4" aria-label="Document preview">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Link
+                href={`/inspect/vault/${projectId}/${folderId}`}
+                scroll={false}
+                className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline lg:hidden"
+              >
+                ← Back to documents
+              </Link>
+              <Link
+                href={`/inspect/vault/${projectId}/${folderId}`}
+                scroll={false}
+                className="hidden min-h-11 items-center text-sm text-muted hover:text-ink lg:inline-flex"
+              >
+                ✕ Close preview
+              </Link>
+              <Link
+                href={`/inspect/vault/${projectId}/document/${selectedDocId}`}
+                className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline"
+              >
+                Open full page →
+              </Link>
+            </div>
+            <Suspense key={selectedDocId} fallback={<div className="mt-4 h-64 animate-pulse rounded-md bg-off-white" aria-busy="true" />}>
+              <VaultDocumentView projectId={projectId} documentId={selectedDocId} embedded />
+            </Suspense>
+          </section>
+        )}
       </div>
 
-      <VaultUploadForm projectId={projectId} folderId={folderId} folderKey={folder.folder_key} />
-
-      {isAdminStaff(session) && reviewDocIds.length > 0 && (
-        <SetApproversForm
-          documentOptions={(documents ?? [])
-            .filter((d) => d.status === "for_review")
-            .map((d) => ({
-              id: d.id,
-              label: `${d.document_number ?? d.title} — Rev. ${d.revision}`,
-              currentApproverIds: (approversByDoc.get(d.id) ?? []).map((a) => a.approver_user_id),
-            }))}
-          approverOptions={approverOptions}
-        />
-      )}
     </div>
   );
 }

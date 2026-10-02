@@ -1,0 +1,147 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
+import { CreateTeamForm } from "./create-team-form";
+import { TeamCard, type TeamCardData, type StaffOption, type ProjectOption } from "./team-card";
+import { PageGuide } from "@/components/domain/page-guide";
+import { StatCard } from "@/components/ui/stat-card";
+
+interface StaffRow {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
+interface TeamMemberJoinRow {
+  team_id: string;
+  user_id: string;
+  is_team_lead: boolean;
+  users: { id: string; full_name: string; email: string } | null;
+}
+
+interface TeamAssignmentJoinRow {
+  team_id: string;
+  project_id: string;
+  projects: { id: string; name: string } | null;
+}
+
+/**
+ * JAGS-internal team management: who's on which team, who leads it, and which projects it's
+ * responsible for. Visible to a JAGS Admin (full control over every team) or anyone who leads at
+ * least one team (control over their own team's membership/assignments only) — matches the RLS
+ * (teams_select is any staff, the write policies are admin-or-own-team-lead). A plain Inspector
+ * with no lead role of their own has no reason to be here, same boundary as Staff Access.
+ */
+export async function TeamsView({ embedded }: { embedded?: boolean }) {
+  const Heading = embedded ? "h2" : "h1";
+  const session = await requireSession();
+  if (!session.isJagsStaff) redirect("/inspect");
+
+  const supabase = await createSupabaseServerClient();
+  const admin = isAdminStaff(session);
+  const leadsAnyTeam = admin ? true : await isLeadOfAnyTeam(supabase, session.userId);
+  if (!admin && !leadsAnyTeam) redirect("/inspect");
+
+  const [{ data: teams }, { data: memberRows }, { data: assignmentRows }, { data: staff }, { data: projects }] =
+    await Promise.all([
+      supabase.from("teams").select("id, name, created_at").order("name"),
+      supabase
+        .from("team_members")
+        .select("team_id, user_id, is_team_lead, users(id, full_name, email)")
+        .returns<TeamMemberJoinRow[]>(),
+      supabase
+        .from("team_project_assignments")
+        .select("team_id, project_id, projects(id, name)")
+        .returns<TeamAssignmentJoinRow[]>(),
+      supabase.from("users").select("id, full_name, email").eq("is_jags_staff", true).order("full_name").returns<StaffRow[]>(),
+      supabase.from("projects").select("id, name").order("name").returns<ProjectOption[]>(),
+    ]);
+
+  const membersByTeam = new Map<string, TeamMemberJoinRow[]>();
+  for (const row of memberRows ?? []) {
+    const list = membersByTeam.get(row.team_id) ?? [];
+    list.push(row);
+    membersByTeam.set(row.team_id, list);
+  }
+
+  const assignmentsByTeam = new Map<string, TeamAssignmentJoinRow[]>();
+  for (const row of assignmentRows ?? []) {
+    const list = assignmentsByTeam.get(row.team_id) ?? [];
+    list.push(row);
+    assignmentsByTeam.set(row.team_id, list);
+  }
+
+  const myLeadTeamIds = new Set(
+    (memberRows ?? []).filter((r) => r.user_id === session.userId && r.is_team_lead).map((r) => r.team_id)
+  );
+
+  const staffOptions: StaffOption[] = (staff ?? []).map((s) => ({ id: s.id, full_name: s.full_name, email: s.email }));
+
+  const teamCards: TeamCardData[] = (teams ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    canManage: admin || myLeadTeamIds.has(t.id),
+    members: (membersByTeam.get(t.id) ?? []).map((m) => ({
+      userId: m.user_id,
+      fullName: m.users?.full_name ?? "Unknown",
+      email: m.users?.email ?? "",
+      isTeamLead: m.is_team_lead,
+    })),
+    assignedProjects: (assignmentsByTeam.get(t.id) ?? []).map((a) => ({
+      projectId: a.project_id,
+      name: a.projects?.name ?? "Unknown project",
+    })),
+  }));
+
+  const totalMembers = new Set((memberRows ?? []).map((r) => r.user_id)).size;
+  const totalAssignedProjects = new Set((assignmentRows ?? []).map((r) => r.project_id)).size;
+
+  return (
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      {!embedded && (
+<Link href="/inspect" className="text-sm text-burgundy hover:underline">
+        ← Back to Dashboard
+      </Link>
+)}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Heading className="text-2xl font-semibold text-ink">Teams</Heading>
+        <PageGuide
+          title="Teams — how this works"
+          points={[
+            "JAGS-internal staff groupings only — who's on which team, who leads it, which projects it's responsible for. Every JAGS staff account can see every team; only a JAGS Admin or that team's own lead can manage one.",
+            "Visible only to a JAGS Admin (full control over every team) or a staff account that leads at least one team (control over their own team's membership/assignments only) — a plain Inspector with no lead role is redirected away.",
+            "Separate, parallel structure to Client Teams (organisation/client-teams) — that page groups a client's own people, not JAGS staff.",
+            "Only a JAGS Admin can create a new team; a lead can only manage the membership/project assignments of a team that already exists.",
+          ]}
+        />
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        JAGS-internal staff groupings — which staff belong to which team, who leads it, and which
+        projects that team is responsible for. A team lead can manage their own team&apos;s
+        membership and project assignments; a JAGS Admin can manage every team.
+      </p>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Teams" value={teamCards.length} />
+        <StatCard label="Staff assigned" value={totalMembers} />
+        <StatCard label="Projects covered" value={totalAssignedProjects} />
+        <StatCard label="Unassigned staff" value={Math.max(0, (staff ?? []).length - totalMembers)} />
+      </div>
+
+      {admin && (
+        <div className="mt-6">
+          <CreateTeamForm />
+        </div>
+      )}
+
+      <div className="mt-8 space-y-6">
+        {teamCards.map((team) => (
+          <TeamCard key={team.id} team={team} staff={staffOptions} projects={projects ?? []} />
+        ))}
+        {teamCards.length === 0 && <p className="text-sm text-muted">No teams yet.</p>}
+      </div>
+    </div>
+  );
+}

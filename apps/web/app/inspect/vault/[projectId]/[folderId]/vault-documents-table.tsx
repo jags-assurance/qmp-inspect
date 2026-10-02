@@ -46,7 +46,7 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
       key: "title",
       header: "Title",
       render: (row) => (
-        <Link href={`/inspect/vault/${row.project_id}/document/${row.id}`} className="text-burgundy hover:underline">
+        <Link href={`/inspect/vault/${row.project_id}/${row.folder_id}?doc=${row.id}`} scroll={false} className="inline-flex min-h-11 items-center text-burgundy hover:underline">
           {row.title}
         </Link>
       ),

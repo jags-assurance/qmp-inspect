@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 export interface OrgOption {
   id: string;
   name: string;
@@ -9,8 +11,12 @@ export interface OrgOption {
 // inline event handler is still a function, so it can't be defined directly in a Server Component
 // even on a plain HTML element.
 export function OrgPickerForm({ organizations, selectedOrgId }: { organizations: OrgOption[]; selectedOrgId: string | null }) {
+  // Inside the Settings workspace the active tab lives in ?section=; a GET form replaces the whole
+  // query string, so carry it through or the picker would bounce back to the first section.
+  const section = useSearchParams().get("section");
   return (
     <form className="mt-6 max-w-xs">
+      {section && <input type="hidden" name="section" value={section} />}
       <label htmlFor="org" className="block text-sm font-medium text-ink">
         Organisation
       </label>

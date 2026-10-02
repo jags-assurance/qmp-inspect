@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
@@ -33,12 +35,14 @@ export const ITP_STATUS_LABEL: Record<string, string> = {
   client_accepted: "Client accepted",
 };
 
-const COLUMNS: DataTableColumn<ItpRow>[] = [
+function buildColumns(hrefFor: (id: string) => string, selectedId: string | null): DataTableColumn<ItpRow>[] {
+  const cur = (id: string) => (id === selectedId ? "page" : undefined);
+  return [
   {
     key: "itp_number",
     header: "ITP No.",
     render: (row) => (
-      <Link href={`/inspect/itps/${row.id}`} className="doc-id text-burgundy hover:underline">
+      <Link href={hrefFor(row.id)} scroll={false} aria-current={cur(row.id)} className={`doc-id inline-flex min-h-11 items-center text-burgundy hover:underline ${row.id === selectedId ? "font-semibold" : ""}`}>
         {row.itp_number}
       </Link>
     ),
@@ -49,7 +53,7 @@ const COLUMNS: DataTableColumn<ItpRow>[] = [
     // Round-table field-usability finding: only the (small, monospace) ITP number was clickable —
     // the title, the more visually prominent and legible column, was plain text.
     render: (row) => (
-      <Link href={`/inspect/itps/${row.id}`} className="text-ink hover:underline">
+      <Link href={hrefFor(row.id)} scroll={false} aria-current={cur(row.id)} className={`inline-flex min-h-11 items-center text-ink hover:underline ${row.id === selectedId ? "font-semibold" : ""}`}>
         {row.title}
       </Link>
     ),
@@ -71,7 +75,8 @@ const COLUMNS: DataTableColumn<ItpRow>[] = [
       return <Badge tone={ITP_PHASE_TONE[phase]}>{ITP_PHASE_LABEL[phase]}</Badge>;
     },
   },
-];
+  ];
+}
 
 /**
  * Round-table performance finding (same as apps/web/app/inspect/ncrs/ncrs-table.tsx): this
@@ -81,12 +86,23 @@ const COLUMNS: DataTableColumn<ItpRow>[] = [
  * back to the original all-client-side behavior when `totalCount` is omitted.
  */
 export function ItpsTable({ rows, totalCount }: { rows: ItpRow[]; totalCount?: number }) {
+  const searchParams = useSearchParams();
+  const selectedId = searchParams.get("itp");
+  const columns = useMemo(
+    () =>
+      buildColumns((id) => {
+        const p = new URLSearchParams(searchParams.toString());
+        p.set("itp", id);
+        return `?${p.toString()}`;
+      }, selectedId),
+    [searchParams, selectedId]
+  );
   const serverDriven = totalCount !== undefined;
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(serverDriven);
 
   return (
     <DataTable
-      columns={COLUMNS}
+      columns={columns}
       rows={rows}
       searchPlaceholder="Search ITPs…"
       searchKeys={(row) => `${row.itp_number} ${row.title}`}

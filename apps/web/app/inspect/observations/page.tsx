@@ -5,6 +5,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "../ncrs/ncrs-table";
+import { NcrPanel } from "../ncrs/ncr-panel";
 import { NCR_TABLE_PAGE_SIZE } from "../ncrs/constants";
 import { isOverdue } from "../ncrs/is-overdue";
 import { DisciplineFilterForm } from "../ncrs/discipline-filter-form";
@@ -151,6 +152,7 @@ export default async function ObservationsPage({
           emptyMessage="No observations raised yet."
         />
       </div>
+      <NcrPanel />
     </div>
   );
 }

@@ -154,74 +154,33 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // with Projects/ITPs/NCRs for attention. No page moves or is deleted — every href below is
     // identical to the previous flat-group version, this only changes how the groups are reached
     // (Settings > theme group > page, instead of theme group > page directly in the sidebar).
+    // One "Settings" entry for the whole organisation-settings area: it opens the tabbed Settings
+    // workspace (/inspect/settings) where every section is a tab, instead of a three-level nested
+    // sidebar group. Every section stays one Ctrl+K search away via `palette`.
     ...(isAdminStaff(session)
       ? [
           {
             label: "Settings",
-            href: "/inspect/organisation/staff-access",
-            children: [
-              {
-                label: "Client Management",
-                href: "/inspect/organisation/clients",
-                children: [
-                  { label: "Client Organisations", href: "/inspect/organisation/clients" },
-                  { label: "Client Teams", href: "/inspect/organisation/client-teams" },
-                ],
-              },
-              {
-                label: "Libraries",
-                href: "/inspect/itp-master",
-                children: [
-                  { label: "Master ITP Library", href: "/inspect/itp-master" },
-                  { label: "Checklist Library", href: "/inspect/organisation/checklist-library" },
-                ],
-              },
-              // Reordered to read as one story instead of four unrelated screens bolted together:
-              // 1) Staff Access — who has an account and which org/project they can reach at all.
-              // 2) Custom Roles — what a specific person is additionally allowed to DO, on top of that.
-              // 3) Teams — how staff are grouped for delegation (a team lead can reassign/provision on
-              //    the projects their team is assigned to — see isTeamLeadForProject).
-              // 4) Module Licensing — which modules exist for an org's people to be given any of the
-              //    above access to in the first place. See staff-access/page.tsx's intro paragraph for
-              //    the one-paragraph version of this same relationship.
-              {
-                label: "Access & Roles",
-                href: "/inspect/organisation/staff-access",
-                children: [
-                  { label: "Staff Access", href: "/inspect/organisation/staff-access" },
-                  { label: "Custom Roles", href: "/inspect/organisation/roles" },
-                  { label: "Teams", href: "/inspect/organisation/teams" },
-                  { label: "Module Licensing", href: "/inspect/organisation/module-licensing" },
-                ],
-              },
-              {
-                label: "Numbering & Branding",
-                href: "/inspect/organisation/numbering",
-                children: [
-                  { label: "Numbering", href: "/inspect/organisation/numbering" },
-                  { label: "Brand Colors", href: "/inspect/organisation/branding" },
-                  { label: "Automation Rules", href: "/inspect/organisation/automation" },
-                ],
-              },
-              {
-                label: "Insights & Usage",
-                href: "/inspect/organisation/insights",
-                children: [
-                  { label: "Portfolio Insights", href: "/inspect/organisation/insights" },
-                  { label: "Usage & Cost", href: "/inspect/organisation/usage" },
-                  { label: "Reporting", href: "/inspect/organisation/reporting" },
-                ],
-              },
-              {
-                label: "Sync & Traceability",
-                href: "/inspect/organisation/cloud-sync",
-                children: [
-                  { label: "Cloud Folder Sync", href: "/inspect/organisation/cloud-sync" },
-                  { label: "Document Traceability", href: "/inspect/organisation/traceability" },
-                  { label: "Intervention Levels", href: "/inspect/organisation/intervention-levels" },
-                  { label: "Plans & Seats", href: "/inspect/organisation/plans" },
-                ],
-              },
+            href: "/inspect/settings",
+            palette: [
+              { label: "Client Organisations", href: "/inspect/settings?section=clients" },
+              { label: "Client Teams", href: "/inspect/settings?section=client-teams" },
+              { label: "Master ITP Library", href: "/inspect/itp-master" },
+              { label: "Checklist Library", href: "/inspect/settings?section=checklist-library" },
+              { label: "Staff Access", href: "/inspect/settings?section=staff-access" },
+              { label: "Custom Roles", href: "/inspect/settings?section=roles" },
+              { label: "Teams", href: "/inspect/settings?section=teams" },
+              { label: "Module Licensing", href: "/inspect/settings?section=module-licensing" },
+              { label: "Numbering", href: "/inspect/settings?section=numbering" },
+              { label: "Brand Colors", href: "/inspect/settings?section=branding" },
+              { label: "Automation Rules", href: "/inspect/settings?section=automation" },
+              { label: "Portfolio Insights", href: "/inspect/settings?section=insights" },
+              { label: "Usage & Cost", href: "/inspect/organisation/usage" },
+              { label: "Reporting", href: "/inspect/settings?section=reporting" },
+              { label: "Cloud Folder Sync", href: "/inspect/settings?section=cloud-sync" },
+              { label: "Document Traceability", href: "/inspect/organisation/traceability" },
+              { label: "Intervention Levels", href: "/inspect/settings?section=intervention-levels" },
+              { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
             ],
           },
         ]
@@ -234,17 +193,18 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // doesn't manage its own org keeps the single flat Client Teams link (when it has one).
     ...(isSelfManagedOrg && !isAdminStaff(session)
       ? [
+          { label: "Manage", href: "/inspect/manage" },
           {
             label: "Settings",
-            href: "/inspect/manage",
-            children: [
+            href: "/inspect/settings",
+            palette: [
               { label: "Manage", href: "/inspect/manage" },
               ...(showClientTeamsNav && isLicensed("client_teams")
-                ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
+                ? [{ label: "Client Teams", href: "/inspect/settings?section=client-teams" }]
                 : []),
-              { label: "Numbering", href: "/inspect/organisation/numbering" },
-              { label: "Brand Colors", href: "/inspect/organisation/branding" },
-              ...(isLicensed("custom_roles") ? [{ label: "Custom Roles", href: "/inspect/organisation/roles" }] : []),
+              { label: "Numbering", href: "/inspect/settings?section=numbering" },
+              { label: "Brand Colors", href: "/inspect/settings?section=branding" },
+              ...(isLicensed("custom_roles") ? [{ label: "Custom Roles", href: "/inspect/settings?section=roles" }] : []),
             ],
           },
         ]

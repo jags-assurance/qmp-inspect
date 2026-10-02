@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { updateNcrAction, suggestNcrRootCauseAction, type UpdateNcrState, type SuggestRootCauseState } from "@/lib/ncrs/actions";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +19,7 @@ export function CloseOutForm({
   preventiveAction,
   verificationNotes,
   isClosed,
+  onSaved,
 }: {
   ncrId: string;
   assignedTo: string | null;
@@ -33,8 +34,17 @@ export function CloseOutForm({
   preventiveAction: string | null;
   verificationNotes: string | null;
   isClosed: boolean;
+  /** Called after a successful save (used by the register side panel to refetch). */
+  onSaved?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(updateNcrAction, initialState);
+  const onSavedRef = useRef(onSaved);
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+  });
+  useEffect(() => {
+    if (state !== initialState && !state.error) onSavedRef.current?.();
+  }, [state]);
   const [suggestState, suggestFormAction, suggestPending] = useActionState(suggestNcrRootCauseAction, suggestInitialState);
   const [fields, setFields] = useState({
     rootCause: rootCause ?? "",
@@ -63,7 +73,7 @@ export function CloseOutForm({
       <input type="hidden" name="root_cause_ai_log_id" value={aiLogId ?? ""} />
       <input type="hidden" name="root_cause_ai_original" value={aiOriginalRootCause ?? ""} />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="assigned_to" className="block text-sm font-medium text-ink">
             Assigned to

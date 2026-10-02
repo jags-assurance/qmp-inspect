@@ -6,6 +6,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
+import { NcrPanel } from "./ncr-panel";
 import { NCR_TABLE_PAGE_SIZE } from "./constants";
 import { isOverdue } from "./is-overdue";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -166,6 +167,7 @@ export default async function NcrsPage({
       <div className="mt-6">
         <NcrsTable rows={rows} totalCount={totalCount ?? 0} />
       </div>
+      <NcrPanel />
     </div>
   );
 }
