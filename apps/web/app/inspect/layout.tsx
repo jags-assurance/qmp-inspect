@@ -229,17 +229,28 @@ export default async function InspectLayout({ children }: { children: React.Reac
     ...(showTeamsNav && !isAdminStaff(session)
       ? [{ label: "Teams", href: "/inspect/organisation/teams" }]
       : []),
-    ...(showClientTeamsNav && !isAdminStaff(session) && isLicensed("client_teams")
-      ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
-      : []),
+    // A self-/client-managed org's own admin gets the same "Settings" shape a JAGS Admin has,
+    // instead of four-to-five flat top-level items competing with Projects/ITPs/NCRs. A client that
+    // doesn't manage its own org keeps the single flat Client Teams link (when it has one).
     ...(isSelfManagedOrg && !isAdminStaff(session)
       ? [
-          { label: "Manage", href: "/inspect/manage" },
-          { label: "Numbering", href: "/inspect/organisation/numbering" },
-          { label: "Brand Colors", href: "/inspect/organisation/branding" },
-          ...(isLicensed("custom_roles") ? [{ label: "Custom Roles", href: "/inspect/organisation/roles" }] : []),
+          {
+            label: "Settings",
+            href: "/inspect/manage",
+            children: [
+              { label: "Manage", href: "/inspect/manage" },
+              ...(showClientTeamsNav && isLicensed("client_teams")
+                ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
+                : []),
+              { label: "Numbering", href: "/inspect/organisation/numbering" },
+              { label: "Brand Colors", href: "/inspect/organisation/branding" },
+              ...(isLicensed("custom_roles") ? [{ label: "Custom Roles", href: "/inspect/organisation/roles" }] : []),
+            ],
+          },
         ]
-      : []),
+      : showClientTeamsNav && !isAdminStaff(session) && isLicensed("client_teams")
+        ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
+        : []),
   ];
 
   const grant = session.grants[0];

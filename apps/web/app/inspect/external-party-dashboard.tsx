@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
@@ -9,6 +10,7 @@ import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { useUrlPanel } from "@/components/ui/side-panel";
 import { ItpReviewPanel } from "./itp-review-panel";
+import { EXTERNAL_WIDGET_ORDER, resolveDashboardRole, type ExternalWidget, type OrgHealth } from "@/lib/dashboard/widgets";
 
 export interface DashboardLevelOption {
   code: string;
@@ -131,6 +133,8 @@ export function ExternalPartyDashboard({
   pendingSignoffs,
   levels,
   ncrsAssignedToMe,
+  managesOwnOrg,
+  orgHealth,
 }: {
   orgName: string | null;
   /** project_parties.party_type of the user's own linked party, e.g. "client" | "subcontractor". */
@@ -151,6 +155,9 @@ export function ExternalPartyDashboard({
    *  H/W/R/S tone/label maps so a custom level renders with its real label and a sensible tone. */
   levels: DashboardLevelOption[];
   ncrsAssignedToMe: AssignedNcrRow[];
+  /** True for a client login whose organisation is self-/client-managed — they get the org-health widget. */
+  managesOwnOrg: boolean;
+  orgHealth: OrgHealth | null;
 }) {
   const panel = useUrlPanel("panel");
   const [panelKind, panelId] = (panel.value ?? "").split(":");
@@ -159,67 +166,146 @@ export function ExternalPartyDashboard({
   const needsAttention =
     itpsAwaitingAcceptance.length + workAwaitingReview.length + pendingSignoffs.length + ncrsAssignedToMe.length;
 
-  return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">{orgName ? `${orgName} Dashboard` : "Dashboard"}</h1>
-        <PageGuide
-          title="Dashboard — how this works"
-          points={[
-            "The stat cards and queues below are scoped to your organisation's own access — RLS decides what you see, not this page.",
-            "\"Needs attention\" combines ITPs awaiting your acceptance, work awaiting your review, sign-offs pending on you, and NCRs assigned to you — click any row to act on it directly.",
-            "Accepting an ITP is a whole-ITP client step, separate from signing off an individual intervention grid cell (that's the contractor/subcontractor/TPI's job on that activity).",
-            "\"Your projects\" links straight into each project's Reports, Data Book, Activity and KPIs — no need to go through the Projects register first.",
-            ...(roleKey && ROLE_GUIDE[roleKey] ? ROLE_GUIDE[roleKey] : []),
-          ]}
-        />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {roleLabel} · {today}
-      </p>
-
-      {myProjects.length > 0 && (
+  const widgets: Record<ExternalWidget, ReactNode> = {
+    orgHealth: (
+      <>
+      {orgHealth && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Your projects — reports &amp; documents</h2>
+          <h2 className="font-medium text-ink">Your organisation at a glance</h2>
           <p className="mt-1 text-sm text-muted">
-            Data books, PDF/Excel report packs and the live activity timeline for each project you have access to.
+            You manage this organisation&apos;s own settings, so its health sits first.
           </p>
-          <ul className="mt-4 space-y-3">
-            {myProjects.map((project) => (
-              <li key={project.id} className="rounded-md border border-border p-3">
-                <p className="truncate text-sm font-medium text-ink">{project.name}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                  <Link
-                    href={`/inspect/projects/${project.id}/reports`}
-                    className="font-medium text-burgundy hover:underline"
-                  >
-                    Reports &amp; downloads →
-                  </Link>
-                  <Link
-                    href={`/inspect/projects/${project.id}/data-book`}
-                    className="font-medium text-burgundy hover:underline"
-                  >
-                    Data book →
-                  </Link>
-                  <Link
-                    href={`/inspect/projects/${project.id}/activity`}
-                    className="font-medium text-burgundy hover:underline"
-                  >
-                    Activity →
-                  </Link>
-                  <Link
-                    href={`/inspect/projects/${project.id}/kpis`}
-                    className="font-medium text-burgundy hover:underline"
-                  >
-                    KPIs →
-                  </Link>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Link href="/inspect/manage" className="rounded-md border border-border p-3 hover:bg-off-white">
+              <p className="text-xs text-muted">Parties with a login</p>
+              <p className="mt-1 text-xl font-semibold text-ink">
+                {orgHealth.partiesWithLogin} <span className="text-sm font-normal text-muted">of {orgHealth.activeParties}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-burgundy">Manage access →</p>
+            </Link>
+            <Link href="/inspect/ncrs" className="rounded-md border border-border p-3 hover:bg-off-white">
+              <p className="text-xs text-muted">Overdue NCRs</p>
+              <p className={"mt-1 text-xl font-semibold " + (orgHealth.overdueNcrs > 0 ? "text-danger" : "text-ink")}>
+                {orgHealth.overdueNcrs}
+              </p>
+              <p className="mt-0.5 text-xs text-burgundy">Open NCRs →</p>
+            </Link>
+            <Link href="/inspect/projects" className="rounded-md border border-border p-3 hover:bg-off-white">
+              <p className="text-xs text-muted">Open punch-list items</p>
+              <p className="mt-1 text-xl font-semibold text-ink">{orgHealth.openPunchItems}</p>
+              <p className="mt-0.5 text-xs text-burgundy">Projects →</p>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      </>
+    ),
+    acceptance: (
+      <>
+      {itpsAwaitingAcceptance.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-medium text-ink">ITPs awaiting your acceptance</h2>
+          <p className="mt-1 text-sm text-muted">
+            JAGS has approved these — your acceptance is the last step before field work begins.
+          </p>
+          <div className="mt-3">
+            <DataTable
+              rows={itpsAwaitingAcceptance}
+              searchPlaceholder="Search ITPs…"
+              searchKeys={(r) => `${r.itpNumber} ${r.title} ${r.projectName}`}
+              emptyMessage="Nothing awaiting your acceptance."
+              columns={[
+                { key: "number", header: "ITP", render: (r) => <span className="doc-id text-ink">{r.itpNumber}</span> },
+                { key: "title", header: "Title", render: (r) => r.title },
+                { key: "project", header: "Project", render: (r) => <span className="text-muted">{r.projectName}</span> },
+                { key: "status", header: "Status", render: () => <Badge tone="gold">Awaiting acceptance</Badge> },
+                {
+                  key: "action",
+                  header: "",
+                  render: (r) => (
+                    <button
+                      type="button"
+                      onClick={() => panel.open(`itp:${r.id}`)}
+                      className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
+                    >
+                      Review & accept →
+                    </button>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        </div>
+      )}
+
+      </>
+    ),
+    review: (
+      <>
+      {workAwaitingReview.length > 0 && (
+        <SignoffQueuePanel
+          title="Work awaiting your review"
+          description="Activities where a subcontractor has already signed off their part, and your own sign-off on the same activity is still pending or notified."
+          rows={workAwaitingReview}
+          levels={levels}
+        />
+      )}
+
+      </>
+    ),
+    signoffs: (
+      <>
+      <SignoffQueuePanel
+        title="Awaiting your sign-off"
+        description="Points on your own party's column that still need a Notify or Sign off — only what your login is linked to, not the whole project."
+        rows={pendingSignoffs}
+        levels={levels}
+        emptyMessage="Nothing awaiting your sign-off right now."
+      />
+
+      </>
+    ),
+    ncrs: (
+      <>
+      {ncrsAssignedToMe.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">NCRs assigned to you</h2>
+          <p className="mt-1 text-sm text-muted">
+            Non-conformances raised against your organisation that still need corrective action.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {ncrsAssignedToMe.map((ncr) => (
+              <li
+                key={ncr.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={NCR_SEVERITY_TONE[ncr.severity]}>{NCR_SEVERITY_LABEL[ncr.severity]}</Badge>
+                    <span className="doc-id text-ink">{ncr.ncrNumber}</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted">
+                    {ncr.projectName} — {ncr.description}
+                    {ncr.dueDate && <span className="ml-2">Due {ncr.dueDate}</span>}
+                  </div>
                 </div>
+                <Link
+                  href={`/inspect/ncrs/${ncr.id}`}
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
+                >
+                  Close out →
+                </Link>
               </li>
             ))}
           </ul>
         </div>
       )}
 
+      </>
+    ),
+    stats: (
+      <>
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard
           label="Active projects"
@@ -285,92 +371,79 @@ export function ExternalPartyDashboard({
         />
       </div>
 
-      {itpsAwaitingAcceptance.length > 0 && (
-        <div className="mt-8">
-          <h2 className="font-medium text-ink">ITPs awaiting your acceptance</h2>
+      </>
+    ),
+    projects: (
+      <>
+      {myProjects.length > 0 && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Your projects — reports &amp; documents</h2>
           <p className="mt-1 text-sm text-muted">
-            JAGS has approved these — your acceptance is the last step before field work begins.
+            Data books, PDF/Excel report packs and the live activity timeline for each project you have access to.
           </p>
-          <div className="mt-3">
-            <DataTable
-              rows={itpsAwaitingAcceptance}
-              searchPlaceholder="Search ITPs…"
-              searchKeys={(r) => `${r.itpNumber} ${r.title} ${r.projectName}`}
-              emptyMessage="Nothing awaiting your acceptance."
-              columns={[
-                { key: "number", header: "ITP", render: (r) => <span className="doc-id text-ink">{r.itpNumber}</span> },
-                { key: "title", header: "Title", render: (r) => r.title },
-                { key: "project", header: "Project", render: (r) => <span className="text-muted">{r.projectName}</span> },
-                { key: "status", header: "Status", render: () => <Badge tone="gold">Awaiting acceptance</Badge> },
-                {
-                  key: "action",
-                  header: "",
-                  render: (r) => (
-                    <button
-                      type="button"
-                      onClick={() => panel.open(`itp:${r.id}`)}
-                      className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
-                    >
-                      Review & accept →
-                    </button>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        </div>
-      )}
-
-      {workAwaitingReview.length > 0 && (
-        <SignoffQueuePanel
-          title="Work awaiting your review"
-          description="Activities where a subcontractor has already signed off their part, and your own sign-off on the same activity is still pending or notified."
-          rows={workAwaitingReview}
-          levels={levels}
-        />
-      )}
-
-      <SignoffQueuePanel
-        title="Awaiting your sign-off"
-        description="Points on your own party's column that still need a Notify or Sign off — only what your login is linked to, not the whole project."
-        rows={pendingSignoffs}
-        levels={levels}
-        emptyMessage="Nothing awaiting your sign-off right now."
-      />
-
-      {ncrsAssignedToMe.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">NCRs assigned to you</h2>
-          <p className="mt-1 text-sm text-muted">
-            Non-conformances raised against your organisation that still need corrective action.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {ncrsAssignedToMe.map((ncr) => (
-              <li
-                key={ncr.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={NCR_SEVERITY_TONE[ncr.severity]}>{NCR_SEVERITY_LABEL[ncr.severity]}</Badge>
-                    <span className="doc-id text-ink">{ncr.ncrNumber}</span>
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-muted">
-                    {ncr.projectName} — {ncr.description}
-                    {ncr.dueDate && <span className="ml-2">Due {ncr.dueDate}</span>}
-                  </div>
+          <ul className="mt-4 space-y-3">
+            {myProjects.map((project) => (
+              <li key={project.id} className="rounded-md border border-border p-3">
+                <p className="truncate text-sm font-medium text-ink">{project.name}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                  <Link
+                    href={`/inspect/projects/${project.id}/reports`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Reports &amp; downloads →
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/data-book`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Data book →
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/activity`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Activity →
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/kpis`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    KPIs →
+                  </Link>
                 </div>
-                <Link
-                  href={`/inspect/ncrs/${ncr.id}`}
-                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
-                >
-                  Close out →
-                </Link>
               </li>
             ))}
           </ul>
         </div>
       )}
+
+      </>
+    ),
+  };
+  const widgetOrder = EXTERNAL_WIDGET_ORDER[resolveDashboardRole(roleKey, managesOwnOrg)];
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold text-ink">{orgName ? `${orgName} Dashboard` : "Dashboard"}</h1>
+        <PageGuide
+          title="Dashboard — how this works"
+          points={[
+            "The stat cards and queues below are scoped to your organisation's own access — RLS decides what you see, not this page.",
+            "\"Needs attention\" combines ITPs awaiting your acceptance, work awaiting your review, sign-offs pending on you, and NCRs assigned to you — click any row to act on it directly.",
+            "Accepting an ITP is a whole-ITP client step, separate from signing off an individual intervention grid cell (that's the contractor/subcontractor/TPI's job on that activity).",
+            "\"Your projects\" links straight into each project's Reports, Data Book, Activity and KPIs — no need to go through the Projects register first.",
+            ...(roleKey && ROLE_GUIDE[roleKey] ? ROLE_GUIDE[roleKey] : []),
+          ]}
+        />
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        {roleLabel} · {today}
+      </p>
+
+      {(widgetOrder).map((key) => (
+        <Fragment key={key}>{widgets[key]}</Fragment>
+      ))}
 
       <ItpReviewPanel itpId={reviewItpId} onClose={panel.close} />
     </div>

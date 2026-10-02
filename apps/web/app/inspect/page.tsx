@@ -21,6 +21,7 @@ import { AdminDashboard } from "./admin-dashboard";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
 import { StatCard } from "@/components/ui/stat-card";
+import type { OrgHealth } from "@/lib/dashboard/widgets";
 
 interface PendingSignoffRow {
   id: string;
@@ -679,6 +680,36 @@ export default async function InspectDashboardPage() {
     ncrsAssignedToMe = data ?? [];
   }
 
+  // A client login whose own organisation is self-/client-managed runs that org's settings — they
+  // get an organisation-health widget leading their dashboard (lib/dashboard/widgets.ts). Only the
+  // cheap RLS-scoped head counts below run, and only for that role.
+  let managesOwnOrg = false;
+  let orgHealth: OrgHealth | null = null;
+  if (!session.isJagsStaff && ownOrgId) {
+    const { data: ownOrg } = await supabase
+      .from("organizations")
+      .select("engagement_scope")
+      .eq("id", ownOrgId)
+      .maybeSingle<{ engagement_scope: string | null }>();
+    managesOwnOrg = ownOrg?.engagement_scope === "self_managed" || ownOrg?.engagement_scope === "client_managed";
+    if (managesOwnOrg) {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const [{ count: activeParties }, { count: partiesWithLogin }, { count: openPunchItems }, { count: overdueNcrs }] =
+        await Promise.all([
+          supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true),
+          supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true).not("user_id", "is", null),
+          supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
+          supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").lt("due_date", todayIso),
+        ]);
+      orgHealth = {
+        activeParties: activeParties ?? 0,
+        partiesWithLogin: partiesWithLogin ?? 0,
+        openPunchItems: openPunchItems ?? 0,
+        overdueNcrs: overdueNcrs ?? 0,
+      };
+    }
+  }
+
   if (!session.isJagsStaff) {
     const toSignoffQueueRow = (row: PendingSignoffRow): SignoffQueueRow => {
       const itp = row.itp_items?.itp_sections?.itps;
@@ -713,6 +744,8 @@ export default async function InspectDashboardPage() {
         workAwaitingReview={workAwaitingReview.map(toSignoffQueueRow)}
         pendingSignoffs={pendingSignoffs.map(toSignoffQueueRow)}
         levels={ownOrgLevelTypes ?? []}
+        managesOwnOrg={managesOwnOrg}
+        orgHealth={orgHealth}
         ncrsAssignedToMe={ncrsAssignedToMe.map((n) => ({
           id: n.id,
           ncrNumber: n.ncr_number,
