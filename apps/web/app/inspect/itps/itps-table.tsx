@@ -120,6 +120,7 @@ export function ItpsTable({ rows, totalCount }: { rows: ItpRow[]; totalCount?: n
       buildColumns((id) => {
         const p = new URLSearchParams(searchParams.toString());
         p.set("itp", id);
+        p.delete("pane");
         return `?${p.toString()}`;
       }, selectedId),
     [searchParams, selectedId]

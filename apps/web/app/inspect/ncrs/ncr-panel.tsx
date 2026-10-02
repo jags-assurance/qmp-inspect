@@ -23,6 +23,16 @@ import {
   StatusTimeline,
 } from "./ncr-shared";
 
+type TabId = "overview" | "closeout" | "evidence" | "history" | "related";
+const TABS: { id: TabId; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "closeout", label: "Close-out" },
+  { id: "evidence", label: "Evidence" },
+  { id: "history", label: "History" },
+  { id: "related", label: "Related" },
+];
+const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-GB") : "—");
+
 /**
  * Opens an NCR / Observation beside its register (`?ncr=<id>`) so it can be reviewed, edited and
  * closed out without leaving the list. Same sections as /inspect/ncrs/[id], which stays the
@@ -36,6 +46,7 @@ export function NcrPanel() {
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [tab, setTab] = useState<TabId>("overview");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -68,6 +79,17 @@ export function NcrPanel() {
   const isClosed = ncr?.status === "closed";
   const nextStatus = ncr ? NEXT_STATUS[ncr.status] : undefined;
 
+  const personName = (id: string | null) => (id ? detail?.people.find((p) => p.id === id)?.name ?? null : null);
+  const onTabKey = (e: React.KeyboardEvent, id: TabId) => {
+    const i = TABS.findIndex((t) => t.id === id);
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const next = TABS[(i + d + TABS.length) % TABS.length].id;
+    setTab(next);
+    document.getElementById(`ncr-tab-${next}`)?.focus();
+  };
+
   return (
     <SidePanel
       open={Boolean(ncrId)}
@@ -90,7 +112,7 @@ export function NcrPanel() {
         </div>
       )}
       {!loading && detail && ncr && (
-        <div className="mt-4 space-y-4">
+        <div className="@container mt-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={SEVERITY_TONE[ncr.severity]}>{SEVERITY_LABEL[ncr.severity]}</Badge>
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
@@ -102,112 +124,294 @@ export function NcrPanel() {
             </Link>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <NcrPdfButton ncrId={ncr.id} latest={detail.latestNcrPdf} />
-            {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={detail.latestCloseoutCertificate} />}
-            {nextStatus && (
-              <form
-                action={(formData) => {
-                  startTransition(async () => {
-                    await setNcrStatusAction(formData);
-                    refresh();
-                  });
-                }}
+          <div
+            role="tablist"
+            aria-label="NCR sections"
+            className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1"
+          >
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                id={`ncr-tab-${t.id}`}
+                aria-selected={tab === t.id}
+                aria-controls={`ncr-section-${t.id}`}
+                onClick={() => setTab(t.id)}
+                onKeyDown={(e) => onTabKey(e, t.id)}
+                className={`min-h-11 shrink-0 border-b-2 px-3 text-sm font-medium ${
+                  tab === t.id ? "border-burgundy text-burgundy" : "border-transparent text-muted hover:text-ink"
+                }`}
               >
-                <input type="hidden" name="ncr_id" value={ncr.id} />
-                <input type="hidden" name="status" value={nextStatus} />
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white disabled:opacity-50"
-                >
-                  {NEXT_STATUS_LABEL[ncr.status]}
-                </button>
-              </form>
-            )}
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          <div className="rounded-lg border border-border bg-surface p-3">
-            <StatusTimeline status={ncr.status} />
-          </div>
-
-          <div className="rounded-lg border border-border bg-surface p-4">
-            <h3 className="text-sm font-medium text-ink">Description</h3>
-            <p className="mt-1 break-words text-sm text-ink">{ncr.description}</p>
-            {ncr.requirement_not_met && (
-              <>
-                <h3 className="mt-4 text-sm font-medium text-ink">Requirement not met</h3>
-                <p className="mt-1 break-words text-sm text-muted">{ncr.requirement_not_met}</p>
-              </>
-            )}
-          </div>
-
-          <div className="rounded-lg border border-border bg-surface p-4">
-            <h3 className="text-base font-medium text-ink">Corrective action close-out</h3>
-            <p className="mt-1 text-sm text-muted">
-              {isClosed
-                ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString("en-GB") : ""}.`
-                : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
-            </p>
-            {!isClosed && (
-              <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
-                <p className="font-medium">Closing this will also:</p>
-                <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
-                  {detail.closeConsequences.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
+          <div className="grid gap-4 @3xl:grid-cols-2">
+            {/* Overview */}
+            <section
+              id="ncr-section-overview"
+              role="tabpanel"
+              aria-labelledby="ncr-tab-overview"
+              className={`min-w-0 space-y-4 ${tab === "overview" ? "block" : tab === "closeout" ? "hidden @3xl:block" : "hidden"}`}
+            >
+              <div className="rounded-lg border border-border bg-surface p-3">
+                <StatusTimeline status={ncr.status} />
               </div>
-            )}
-            <div className="mt-4">
-              <CloseOutForm
-                key={`${ncr.id}-${ncr.status}-${ncr.closed_at ?? ""}-${ncr.root_cause ?? ""}-${ncr.corrective_action ?? ""}-${ncr.verification_notes ?? ""}-${ncr.assigned_to ?? ""}-${ncr.due_date ?? ""}`}
-                ncrId={ncr.id}
-                assignedTo={ncr.assigned_to}
-                people={detail.people}
-                responsiblePartyId={ncr.responsible_party_id}
-                parties={detail.responsibleParties}
-                dueDate={ncr.due_date}
-                rootCause={ncr.root_cause}
-                correctiveAction={ncr.corrective_action}
-                preventiveAction={ncr.preventive_action}
-                verificationNotes={ncr.verification_notes}
-                isClosed={isClosed}
-                onSaved={refresh}
-              />
-            </div>
-          </div>
-
-          {ncr.itp_items && (
-            <div className="rounded-lg border border-border bg-surface p-4">
-              <h3 className="text-sm font-medium text-ink">Linked Checklist Item</h3>
-              <div className="mt-2 flex items-center gap-3 rounded-md border border-border bg-off-white px-3 py-2">
-                <span className="doc-id text-xs text-muted">{ncr.itp_items.item_number}</span>
-                <span className="min-w-0 flex-grow truncate text-sm text-ink">{ncr.itp_items.activity}</span>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-medium text-ink">Description</h3>
+                <p className="mt-1 break-words text-sm text-ink">{ncr.description}</p>
+                {ncr.requirement_not_met && (
+                  <>
+                    <h3 className="mt-4 text-sm font-medium text-ink">Requirement not met</h3>
+                    <p className="mt-1 break-words text-sm text-muted">{ncr.requirement_not_met}</p>
+                  </>
+                )}
               </div>
-              {ncr.inspection_record_id && (
-                <Link
-                  href={`/inspect/inspections/${ncr.inspection_record_id}`}
-                  className="mt-2 inline-flex min-h-11 items-center text-xs text-burgundy hover:underline"
-                >
-                  ← View the inspection record this was raised from
-                </Link>
-              )}
-            </div>
-          )}
-
-          <div className="rounded-lg border border-border bg-surface p-4">
-            <h3 className="text-sm font-medium text-ink">Photo evidence</h3>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              {detail.photos.map((photo) => (
-                <div key={photo.id} className="min-w-0">
-                  <PhotoThumbnail url={photo.signedUrl} caption={photo.caption} />
-                  {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
+              <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 text-sm">
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">Assigned to</dt>
+                  <dd className="break-words text-ink">{personName(ncr.assigned_to) ?? "Unassigned"}</dd>
                 </div>
-              ))}
-              {detail.photos.length === 0 && <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>}
-            </div>
-            {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} onUploaded={refresh} />}
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">Responsible party</dt>
+                  <dd className="break-words text-ink">
+                    {detail.responsibleParties.find((p) => p.id === ncr.responsible_party_id)?.name ?? "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Due</dt>
+                  <dd className="text-ink">{fmtDate(ncr.due_date)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Raised</dt>
+                  <dd className="text-ink">{fmtDate(ncr.created_at)}</dd>
+                </div>
+                {ncr.closed_at && (
+                  <div>
+                    <dt className="text-xs text-muted">Closed</dt>
+                    <dd className="text-ink">{fmtDate(ncr.closed_at)}</dd>
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">Project</dt>
+                  <dd className="break-words text-ink">{ncr.projects?.name ?? "—"}</dd>
+                </div>
+              </dl>
+            </section>
+
+            {/* Close-out */}
+            <section
+              id="ncr-section-closeout"
+              role="tabpanel"
+              aria-labelledby="ncr-tab-closeout"
+              className={`min-w-0 space-y-4 ${tab === "closeout" || tab === "overview" ? (tab === "closeout" ? "block" : "hidden @3xl:block") : "hidden"}`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <NcrPdfButton ncrId={ncr.id} latest={detail.latestNcrPdf} />
+                {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={detail.latestCloseoutCertificate} />}
+                {nextStatus && (
+                  <form
+                    action={(formData) => {
+                      startTransition(async () => {
+                        await setNcrStatusAction(formData);
+                        refresh();
+                      });
+                    }}
+                  >
+                    <input type="hidden" name="ncr_id" value={ncr.id} />
+                    <input type="hidden" name="status" value={nextStatus} />
+                    <button
+                      type="submit"
+                      disabled={pending}
+                      className="min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+                    >
+                      {NEXT_STATUS_LABEL[ncr.status]}
+                    </button>
+                  </form>
+                )}
+              </div>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-base font-medium text-ink">Corrective action close-out</h3>
+                <p className="mt-1 text-sm text-muted">
+                  {isClosed
+                    ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString("en-GB") : ""}.`
+                    : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
+                </p>
+                {!isClosed && (
+                  <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
+                    <p className="font-medium">Closing this will also:</p>
+                    <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
+                      {detail.closeConsequences.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-4">
+                  <CloseOutForm
+                    key={`${ncr.id}-${ncr.status}-${ncr.closed_at ?? ""}-${ncr.root_cause ?? ""}-${ncr.corrective_action ?? ""}-${ncr.verification_notes ?? ""}-${ncr.assigned_to ?? ""}-${ncr.due_date ?? ""}`}
+                    ncrId={ncr.id}
+                    assignedTo={ncr.assigned_to}
+                    people={detail.people}
+                    responsiblePartyId={ncr.responsible_party_id}
+                    parties={detail.responsibleParties}
+                    dueDate={ncr.due_date}
+                    rootCause={ncr.root_cause}
+                    correctiveAction={ncr.corrective_action}
+                    preventiveAction={ncr.preventive_action}
+                    verificationNotes={ncr.verification_notes}
+                    isClosed={isClosed}
+                    onSaved={refresh}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Evidence */}
+            <section
+              id="ncr-section-evidence"
+              role="tabpanel"
+              aria-labelledby="ncr-tab-evidence"
+              className={`min-w-0 space-y-4 @3xl:col-span-2 ${tab === "evidence" ? "block" : "hidden"}`}
+            >
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-medium text-ink">Photo evidence</h3>
+                <div className="mt-3 grid grid-cols-2 gap-3 @3xl:grid-cols-4">
+                  {detail.photos.map((photo) => (
+                    <div key={photo.id} className="min-w-0">
+                      <PhotoThumbnail url={photo.signedUrl} caption={photo.caption} />
+                      {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
+                    </div>
+                  ))}
+                  {detail.photos.length === 0 && <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>}
+                </div>
+                {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} onUploaded={refresh} />}
+              </div>
+              {detail.punchItems.some((p) => p.closing_evidence) && (
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <h3 className="text-sm font-medium text-ink">Punch item closing evidence</h3>
+                  <ul className="mt-2 space-y-2">
+                    {detail.punchItems
+                      .filter((p) => p.closing_evidence)
+                      .map((p) => (
+                        <li key={p.id} className="break-words rounded-md bg-off-white px-3 py-2 text-sm text-ink">
+                          {p.closing_evidence}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            {/* History */}
+            <section
+              id="ncr-section-history"
+              role="tabpanel"
+              aria-labelledby="ncr-tab-history"
+              className={`min-w-0 space-y-4 @3xl:col-span-2 ${tab === "history" ? "block" : "hidden"}`}
+            >
+              <div className="rounded-lg border border-border bg-surface p-3">
+                <StatusTimeline status={ncr.status} />
+              </div>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-medium text-ink">Activity</h3>
+                {detail.history.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted">No recorded activity yet.</p>
+                ) : (
+                  <ul className="mt-2 divide-y divide-border">
+                    {detail.history.map((e) => (
+                      <li key={e.id} className="py-2 text-sm">
+                        <p className="break-words text-ink">{e.summary}</p>
+                        <p className="text-xs text-muted">
+                          {e.actor_name ?? "System"} · {new Date(e.created_at).toLocaleString("en-GB")}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            {/* Related */}
+            <section
+              id="ncr-section-related"
+              role="tabpanel"
+              aria-labelledby="ncr-tab-related"
+              className={`min-w-0 space-y-4 @3xl:col-span-2 ${tab === "related" ? "block" : "hidden"}`}
+            >
+              {ncr.itp_items && (
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <h3 className="text-sm font-medium text-ink">Linked Checklist Item</h3>
+                  <div className="mt-2 flex items-center gap-3 rounded-md border border-border bg-off-white px-3 py-2">
+                    <span className="doc-id text-xs text-muted">{ncr.itp_items.item_number}</span>
+                    <span className="min-w-0 flex-grow truncate text-sm text-ink">{ncr.itp_items.activity}</span>
+                  </div>
+                </div>
+              )}
+              {detail.inspectionRecord && (
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <h3 className="text-sm font-medium text-ink">Inspection record</h3>
+                  <p className="mt-2 break-words text-sm text-ink">
+                    <span className="doc-id text-xs text-muted">{detail.inspectionRecord.record_number}</span>{" "}
+                    {detail.inspectionRecord.activity}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Result: {detail.inspectionRecord.overall_result ?? "pending"} · {fmtDate(detail.inspectionRecord.inspection_date)}
+                  </p>
+                  <Link
+                    href={`/inspect/inspections/${detail.inspectionRecord.id}`}
+                    className="mt-1 inline-flex min-h-11 items-center text-xs text-burgundy hover:underline"
+                  >
+                    ← View the inspection record this was raised from
+                  </Link>
+                </div>
+              )}
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-medium text-ink">Punch list items</h3>
+                {detail.punchItems.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted">None linked.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {detail.punchItems.map((p) => (
+                      <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-md bg-off-white px-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1 break-words text-ink">{p.description}</span>
+                        <Badge tone={p.status === "closed" ? "success" : p.status === "resolved" ? "gold" : "warning"}>
+                          {p.status}
+                        </Badge>
+                        {p.due_date && <span className="text-xs text-muted">Due {fmtDate(p.due_date)}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-medium text-ink">Also on this project</h3>
+                {detail.otherNcrs.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted">No other open NCRs.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {detail.otherNcrs.map((o) => (
+                      <li key={o.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTab("overview");
+                            panel.open(o.id);
+                          }}
+                          className="flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-off-white px-3 text-left text-sm hover:bg-surface"
+                        >
+                          <span className="doc-id text-ink">{o.ncr_number}</span>
+                          <Badge tone={SEVERITY_TONE[o.severity]}>{SEVERITY_LABEL[o.severity]}</Badge>
+                          <Badge tone={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
           </div>
         </div>
       )}

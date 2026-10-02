@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
+import { cn } from "@/lib/cn";
+import { ChecklistsView } from "./checklists/checklists-view";
+import { StatusView } from "./status/status-view";
+import { ApprovalRoadmapView } from "./approval-roadmap/approval-roadmap-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
@@ -102,7 +107,7 @@ const EVIDENCE_LABEL: Record<number, string> = {
   3: "Measurement record",
 };
 
-export async function ItpDetailView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: boolean }) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -639,25 +644,29 @@ export async function ItpDetailView({ id, embedded = false }: { id: string; embe
               </>
             }
           />
-          {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
-          <Link
-            href={`/inspect/itps/${itp.id}/checklists`}
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-          >
-            Checklists →
-          </Link>
-          <Link
-            href={`/inspect/itps/${itp.id}/status`}
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-          >
-            Completion roadmap →
-          </Link>
-          <Link
-            href={`/inspect/itps/${itp.id}/approval-roadmap`}
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-          >
-            Approval roadmap →
-          </Link>
+          {!embedded && (
+            <>
+              {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
+              <Link
+                href={`/inspect/itps/${itp.id}/checklists`}
+                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+              >
+                Checklists →
+              </Link>
+              <Link
+                href={`/inspect/itps/${itp.id}/status`}
+                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+              >
+                Completion roadmap →
+              </Link>
+              <Link
+                href={`/inspect/itps/${itp.id}/approval-roadmap`}
+                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+              >
+                Approval roadmap →
+              </Link>
+            </>
+          )}
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
           {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" />
@@ -861,6 +870,93 @@ export async function ItpDetailView({ id, embedded = false }: { id: string; embe
       </div>
 
       {canEditContent && <AddSectionForm itpId={itp.id} isIssued={isIssued} />}
+    </div>
+  );
+}
+
+export type ItpPane = "details" | "checklists" | "status" | "approval-roadmap";
+
+const PANES: { key: ItpPane; label: string }[] = [
+  { key: "details", label: "Details" },
+  { key: "checklists", label: "Checklists" },
+  { key: "status", label: "Completion" },
+  { key: "approval-roadmap", label: "Approval" },
+];
+
+function PaneSkeleton() {
+  return (
+    <div className="mt-4 space-y-3" aria-busy="true" aria-label="Loading section">
+      <div className="h-8 w-56 animate-pulse rounded bg-off-white" />
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="h-14 animate-pulse rounded-md bg-off-white" />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The ITP detail. Full page: just the details (with links to the sub-pages). Embedded in the
+ * register split: a tab strip (`?pane=`) switches between details, checklists, completion and
+ * approval roadmaps inside the same window, so nothing navigates away.
+ */
+export async function ItpDetailView({
+  id,
+  embedded = false,
+  pane = "details",
+  baseQuery = "",
+}: {
+  id: string;
+  embedded?: boolean;
+  pane?: ItpPane;
+  /** Embedded only: the register's current query string (filters, `itp`), without `pane`. */
+  baseQuery?: string;
+}) {
+  if (!embedded) return <ItpDetailBody id={id} />;
+  const active: ItpPane = PANES.some((p) => p.key === pane) ? pane : "details";
+  const hrefFor = (key: ItpPane) => {
+    const sp = new URLSearchParams(baseQuery);
+    sp.delete("pane");
+    if (key !== "details") sp.set("pane", key);
+    const q = sp.toString();
+    return `/inspect/itps${q ? `?${q}` : ""}`;
+  };
+  return (
+    <div>
+      <nav aria-label="ITP sections" className="border-b border-border">
+        <ul className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]">
+          {PANES.map((p) => {
+            const isActive = p.key === active;
+            return (
+              <li key={p.key} className="snap-start">
+                <Link
+                  href={hrefFor(p.key)}
+                  scroll={false}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors sm:px-4",
+                    isActive ? "border-burgundy text-burgundy" : "border-transparent text-muted hover:text-ink"
+                  )}
+                >
+                  {p.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      <div className="mt-4">
+        <Suspense key={`${id}:${active}`} fallback={<PaneSkeleton />}>
+          {active === "checklists" ? (
+            <ChecklistsView id={id} embedded />
+          ) : active === "status" ? (
+            <StatusView id={id} embedded />
+          ) : active === "approval-roadmap" ? (
+            <ApprovalRoadmapView id={id} embedded />
+          ) : (
+            <ItpDetailBody id={id} embedded />
+          )}
+        </Suspense>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { SplitLayout } from "@/components/ui/split-layout";
 import { ItpDetailView } from "./[id]/itp-detail-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -16,10 +17,10 @@ import { ExportLink } from "@/components/domain/export-link";
 export default async function ItpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string; itp?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string; itp?: string; pane?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam } = await searchParams;
   // R23: optional phase filter — only a recognised phase value is honoured, anything else is
   // treated as "no filter" rather than silently matching zero rows.
   const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
@@ -138,6 +139,11 @@ export default async function ItpsPage({
   if (q) backParams.set("q", q);
   if (pageParam) backParams.set("page", pageParam);
   const backQuery = backParams.toString();
+  const PANE_KEYS = ["details", "checklists", "status", "approval-roadmap"] as const;
+  const pane = PANE_KEYS.find((k) => k === paneParam);
+  const detailParams = new URLSearchParams(backParams);
+  if (itp) detailParams.set("itp", itp);
+  const detailQuery = detailParams.toString();
   const backHref = `/inspect/itps${backQuery ? `?${backQuery}` : ""}`;
 
   return (
@@ -187,20 +193,20 @@ export default async function ItpsPage({
         <PhaseFilterForm selectedPhase={phase} />
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-[2fr_3fr] lg:grid-cols-[minmax(320px,2fr)_3fr]">
-        <div className={`min-w-0 md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto ${itp ? "hidden md:block" : ""}`}>
-          <ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />
-        </div>
-        <div className={`min-w-0 md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto ${itp ? "" : "hidden md:block"}`}>
-          {itp ? (
+      <SplitLayout
+        storageKey="itps"
+        showDetail={!!itp}
+        list={<ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />}
+        detail={
+          itp ? (
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <Link href={backHref} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline md:hidden">
+                <Link href={backHref} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline lg:hidden">
                   ← Back to list
                 </Link>
                 <Link
                   href={`/inspect/itps/${itp}`}
-                  className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline md:ml-auto"
+                  className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline sm:ml-auto"
                 >
                   Open full page →
                 </Link>
@@ -209,16 +215,12 @@ export default async function ItpsPage({
                 key={itp}
                 fallback={<div className="h-64 animate-pulse rounded-lg border border-border bg-surface" aria-label="Loading ITP" />}
               >
-                <ItpDetailView id={itp} embedded />
+                <ItpDetailView id={itp} embedded pane={pane} baseQuery={detailQuery} />
               </Suspense>
             </>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
-              Select an ITP to see it here
-            </div>
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+      />
     </div>
   );
 }

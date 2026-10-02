@@ -1,5 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NCRS_TABLE, NCR_PHOTOS_TABLE, type NcrPhotoRow, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
+import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { getLatestNcrPdf, getLatestNcrCloseoutCertificate } from "@/lib/reports/actions";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
@@ -25,6 +28,33 @@ export interface NcrDetail {
   itp_items: { item_number: string; activity: string } | null;
 }
 
+export interface NcrRelatedPunchItem {
+  id: string;
+  description: string;
+  status: string;
+  due_date: string | null;
+  closing_evidence: string | null;
+}
+export interface NcrHistoryEntry {
+  id: string;
+  summary: string;
+  created_at: string;
+  actor_name: string | null;
+}
+export interface NcrInspectionSummary {
+  id: string;
+  record_number: string;
+  activity: string;
+  overall_result: string | null;
+  inspection_date: string | null;
+}
+export interface NcrSiblingNcr {
+  id: string;
+  ncr_number: string;
+  severity: NcrSeverity;
+  status: NcrStatus;
+}
+
 /** Everything the NCR detail page / side panel renders — plain serializable data. */
 export interface NcrDetailData {
   ncr: NcrDetail;
@@ -34,6 +64,10 @@ export interface NcrDetailData {
   people: { id: string; name: string }[];
   responsibleParties: { id: string; name: string; party_type: string }[];
   closeConsequences: string[];
+  punchItems: NcrRelatedPunchItem[];
+  history: NcrHistoryEntry[];
+  inspectionRecord: NcrInspectionSummary | null;
+  otherNcrs: NcrSiblingNcr[];
 }
 
 /** Returns null when the NCR does not exist / is not visible. Callers handle auth. */
@@ -54,6 +88,73 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
 
   const latestNcrPdf = await getLatestNcrPdf(id);
   const latestCloseoutCertificate = ncr.status === "closed" ? await getLatestNcrCloseoutCertificate(id) : null;
+
+  // Related context — each query is non-fatal: a failure just yields an empty list / null.
+  const [punchItems, history, inspectionRecord, otherNcrs] = await Promise.all([
+    (async (): Promise<NcrRelatedPunchItem[]> => {
+      try {
+        const { data } = await supabase
+          .from(PUNCH_LIST_ITEMS_TABLE)
+          .select("id, description, status, due_date, closing_evidence")
+          .eq("source_ncr_id", id)
+          .returns<NcrRelatedPunchItem[]>();
+        return data ?? [];
+      } catch {
+        return [];
+      }
+    })(),
+    (async (): Promise<NcrHistoryEntry[]> => {
+      try {
+        const { data } = await supabase
+          .from(AUDIT_LOG_TABLE)
+          .select("id, summary, created_at, actor:users(full_name, email)")
+          .eq("entity_type", "ncr")
+          .eq("entity_id", id)
+          .order("created_at", { ascending: false })
+          .limit(20)
+          .returns<
+            { id: string; summary: string; created_at: string; actor: { full_name: string | null; email: string | null } | null }[]
+          >();
+        return (data ?? []).map((e) => ({
+          id: e.id,
+          summary: e.summary,
+          created_at: e.created_at,
+          actor_name: e.actor?.full_name || e.actor?.email || null,
+        }));
+      } catch {
+        return [];
+      }
+    })(),
+    (async (): Promise<NcrInspectionSummary | null> => {
+      if (!ncr.inspection_record_id) return null;
+      try {
+        const { data } = await supabase
+          .from(INSPECTION_RECORDS_TABLE)
+          .select("id, record_number, activity, overall_result, inspection_date")
+          .eq("id", ncr.inspection_record_id)
+          .maybeSingle<NcrInspectionSummary>();
+        return data ?? null;
+      } catch {
+        return null;
+      }
+    })(),
+    (async (): Promise<NcrSiblingNcr[]> => {
+      try {
+        const { data } = await supabase
+          .from(NCRS_TABLE)
+          .select("id, ncr_number, severity, status")
+          .eq("project_id", ncr.project_id)
+          .neq("id", id)
+          .neq("status", "closed")
+          .order("created_at", { ascending: false })
+          .limit(5)
+          .returns<NcrSiblingNcr[]>();
+        return data ?? [];
+      } catch {
+        return [];
+      }
+    })(),
+  ]);
 
   const { data: photos } = await supabase
     .from(NCR_PHOTOS_TABLE)
@@ -129,5 +230,9 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     people,
     responsibleParties: responsibleParties ?? [],
     closeConsequences,
+    punchItems,
+    history,
+    inspectionRecord,
+    otherNcrs,
   };
 }
