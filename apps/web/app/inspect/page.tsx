@@ -115,17 +115,24 @@ export default async function InspectDashboardPage() {
   // party is scoped to one organisation in practice (same assumption ownParties[0].name already
   // makes for orgName below), so the first linked party's org is used.
   const ownOrgId = ownParties?.[0]?.projects?.organization_id ?? null;
-  const { data: ownOrgLevelTypes } = ownOrgId
-    ? await supabase
-        .from(INTERVENTION_LEVEL_TYPES_TABLE)
-        .select("code, label, sort_order, is_blocking")
-        .eq("organization_id", ownOrgId)
-        .order("sort_order")
-        .returns<Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[]>()
-    : { data: [] as Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[] };
 
-  let pendingSignoffs: PendingSignoffRow[] = [];
-  if (ownParties && ownParties.length > 0) {
+  // Perf: everything an external party's dashboard needs beyond ownParties is independent of each
+  // other (level types, own sign-off queue, client "awaiting acceptance", main-contractor review
+  // chain) — they used to run as four sequential awaits. They're declared as loaders here and run
+  // together in one Promise.all below, so the page waits for the slowest chain, not the sum.
+  const loadOwnOrgLevelTypes = async () => {
+    if (!ownOrgId) return [] as Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[];
+    const { data } = await supabase
+      .from(INTERVENTION_LEVEL_TYPES_TABLE)
+      .select("code, label, sort_order, is_blocking")
+      .eq("organization_id", ownOrgId)
+      .order("sort_order")
+      .returns<Pick<InterventionLevelTypeRow, "code" | "label" | "sort_order" | "is_blocking">[]>();
+    return data ?? [];
+  };
+
+  const loadPendingSignoffs = async (): Promise<PendingSignoffRow[]> => {
+    if (!ownParties || ownParties.length === 0) return [];
     const { data } = await supabase
       .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
       .select("id, intervention, status, notified_at, itp_items(activity, itp_sections(itps(id, itp_number, title)))")
@@ -136,8 +143,8 @@ export default async function InspectDashboardPage() {
       .in("status", ["pending", "notified"])
       .limit(5)
       .returns<PendingSignoffRow[]>();
-    pendingSignoffs = data ?? [];
-  }
+    return data ?? [];
+  };
 
   // A client's own action isn't signing off an intervention grid cell (that's the contractor/
   // subcontractor/TPI's job) — it's the whole-ITP "Accept" step once JAGS has approved it. Only
@@ -145,16 +152,17 @@ export default async function InspectDashboardPage() {
   // not every non-staff party.
   const isClientRole = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
   const isMainContractorRole = !session.isJagsStaff && session.grants.some((g) => g.role === "main_contractor");
-  let itpsAwaitingAcceptance: { id: string; itp_number: string; title: string; projects: { name: string } | null }[] = [];
-  if (isClientRole) {
+  type AwaitingAcceptanceRow = { id: string; itp_number: string; title: string; projects: { name: string } | null };
+  const loadItpsAwaitingAcceptance = async (): Promise<AwaitingAcceptanceRow[]> => {
+    if (!isClientRole) return [];
     const { data } = await supabase
       .from("itps")
       .select("id, itp_number, title, projects(name)")
       .eq("status", "approved")
       .limit(5)
-      .returns<{ id: string; itp_number: string; title: string; projects: { name: string } | null }[]>();
-    itpsAwaitingAcceptance = data ?? [];
-  }
+      .returns<AwaitingAcceptanceRow[]>();
+    return data ?? [];
+  };
 
   // Main Contractor "review subcontractor work" panel: a Main Contractor's real queue item is an
   // activity where a subcontractor has already done their part (signed off their own H/W/R/S cell)
@@ -166,8 +174,8 @@ export default async function InspectDashboardPage() {
   // undercounts a case where a subcontractor party has no intervention row at all on the activity
   // (nothing to detect), and overcounts one where the two parties' sign-offs are unrelated in intent
   // but happen to land on the same activity — both acceptable given no richer state exists to query.
-  let workAwaitingReview: PendingSignoffRow[] = [];
-  if (isMainContractorRole) {
+  const loadWorkAwaitingReview = async (): Promise<PendingSignoffRow[]> => {
+    if (!isMainContractorRole) return [];
     const { data: ownMcParties } = await supabase
       .from("project_parties")
       .select("id, project_id")
@@ -212,12 +220,79 @@ export default async function InspectDashboardPage() {
           (subSignedOff ?? []).filter((r) => subcontractorPartyIds.has(r.project_party_id)).map((r) => r.itp_item_id)
         );
 
-        workAwaitingReview = (mcPending ?? [])
+        return (mcPending ?? [])
           .filter((row) => itemsWithSubcontractorSignoff.has(row.itp_item_id))
           .slice(0, 5);
       }
     }
+    return [];
+  };
+
+  interface AssignedNcrRow {
+    id: string;
+    ncr_number: string;
+    severity: "observation" | "minor_ncr" | "major_ncr";
+    description: string;
+    due_date: string | null;
+    projects: { name: string } | null;
   }
+  const loadNcrsAssignedToMe = async (): Promise<AssignedNcrRow[]> => {
+    if (session.isJagsStaff) return [];
+    // Mirrors the sign-off queue's own reasoning: a notification is how a party first hears about
+    // an assigned NCR, but if it's missed or dismissed there was previously no dashboard path back
+    // to it — only the aggregate "Open NCRs" count, which isn't actionable.
+    const { data } = await supabase
+      .from("ncrs" as never)
+      .select("id, ncr_number, severity, description, due_date, projects(name)")
+      .eq("assigned_to", session.userId)
+      .neq("status", "closed")
+      .order("due_date", { nullsFirst: false })
+      .limit(5)
+      .returns<AssignedNcrRow[]>();
+    return data ?? [];
+  };
+
+  // A client login whose own organisation is self-/client-managed runs that org's settings — they
+  // get an organisation-health widget leading their dashboard (lib/dashboard/widgets.ts). Only the
+  // cheap RLS-scoped head counts below run, and only for that role.
+  const loadOrgHealth = async (): Promise<{ managesOwnOrg: boolean; orgHealth: OrgHealth | null }> => {
+    if (session.isJagsStaff || !ownOrgId) return { managesOwnOrg: false, orgHealth: null };
+    const { data: ownOrg } = await supabase
+      .from("organizations")
+      .select("engagement_scope")
+      .eq("id", ownOrgId)
+      .maybeSingle<{ engagement_scope: string | null }>();
+    const managesOwnOrg = ownOrg?.engagement_scope === "self_managed" || ownOrg?.engagement_scope === "client_managed";
+    if (!managesOwnOrg) return { managesOwnOrg, orgHealth: null };
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const [{ count: activeParties }, { count: partiesWithLogin }, { count: openPunchItems }, { count: overdueNcrs }] =
+      await Promise.all([
+        supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true),
+        supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true).not("user_id", "is", null),
+        supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
+        supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").lt("due_date", todayIso),
+      ]);
+    return {
+      managesOwnOrg,
+      orgHealth: {
+        activeParties: activeParties ?? 0,
+        partiesWithLogin: partiesWithLogin ?? 0,
+        openPunchItems: openPunchItems ?? 0,
+        overdueNcrs: overdueNcrs ?? 0,
+      },
+    };
+  };
+
+  const [ownOrgLevelTypes, pendingSignoffs, itpsAwaitingAcceptance, workAwaitingReview, ncrsAssignedToMe, orgHealthResult] =
+    await Promise.all([
+      loadOwnOrgLevelTypes(),
+      loadPendingSignoffs(),
+      loadItpsAwaitingAcceptance(),
+      loadWorkAwaitingReview(),
+      loadNcrsAssignedToMe(),
+      loadOrgHealth(),
+    ]);
+  const { managesOwnOrg, orgHealth } = orgHealthResult;
 
   // An Admin's own queue item: proposals to the Tier-1 library waiting on their decision (an
   // Inspector can submit one, per lib/itp-master/actions.ts, but only an Admin can approve it).
@@ -658,59 +733,9 @@ export default async function InspectDashboardPage() {
   const pendingToday = pendingActions.filter((a) => isSameDay(a.createdAt));
   const pendingOverdue = pendingActions.filter((a) => a.ageDays >= OVERDUE_DAYS);
 
-  interface AssignedNcrRow {
-    id: string;
-    ncr_number: string;
-    severity: "observation" | "minor_ncr" | "major_ncr";
-    description: string;
-    due_date: string | null;
-    projects: { name: string } | null;
-  }
-  let ncrsAssignedToMe: AssignedNcrRow[] = [];
-  if (!session.isJagsStaff) {
-    // Mirrors the sign-off queue's own reasoning: a notification is how a party first hears about
-    // an assigned NCR, but if it's missed or dismissed there was previously no dashboard path back
-    // to it — only the aggregate "Open NCRs" count, which isn't actionable.
-    const { data } = await supabase
-      .from("ncrs" as never)
-      .select("id, ncr_number, severity, description, due_date, projects(name)")
-      .eq("assigned_to", session.userId)
-      .neq("status", "closed")
-      .order("due_date", { nullsFirst: false })
-      .limit(5)
-      .returns<AssignedNcrRow[]>();
-    ncrsAssignedToMe = data ?? [];
-  }
-
-  // A client login whose own organisation is self-/client-managed runs that org's settings — they
-  // get an organisation-health widget leading their dashboard (lib/dashboard/widgets.ts). Only the
-  // cheap RLS-scoped head counts below run, and only for that role.
-  let managesOwnOrg = false;
-  let orgHealth: OrgHealth | null = null;
-  if (!session.isJagsStaff && ownOrgId) {
-    const { data: ownOrg } = await supabase
-      .from("organizations")
-      .select("engagement_scope")
-      .eq("id", ownOrgId)
-      .maybeSingle<{ engagement_scope: string | null }>();
-    managesOwnOrg = ownOrg?.engagement_scope === "self_managed" || ownOrg?.engagement_scope === "client_managed";
-    if (managesOwnOrg) {
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const [{ count: activeParties }, { count: partiesWithLogin }, { count: openPunchItems }, { count: overdueNcrs }] =
-        await Promise.all([
-          supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true),
-          supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true).not("user_id", "is", null),
-          supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
-          supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").lt("due_date", todayIso),
-        ]);
-      orgHealth = {
-        activeParties: activeParties ?? 0,
-        partiesWithLogin: partiesWithLogin ?? 0,
-        openPunchItems: openPunchItems ?? 0,
-        overdueNcrs: overdueNcrs ?? 0,
-      };
-    }
-  }
+  // ncrsAssignedToMe / managesOwnOrg / orgHealth are loaded concurrently with the other external-
+  // party queries near the top of this function (see the Promise.all there) — nothing left to
+  // await for them here.
 
   if (!session.isJagsStaff) {
     const toSignoffQueueRow = (row: PendingSignoffRow): SignoffQueueRow => {
