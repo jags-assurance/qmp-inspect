@@ -12,6 +12,7 @@ import { VaultUploadForm } from "./upload-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SplitLayout } from "@/components/ui/split-layout";
+import { vaultDocKind, vaultFileType } from "@/lib/vault/doc-kind";
 import { VaultDocumentView } from "../document/[documentId]/vault-document-view";
 
 interface DocumentWithUploader {
@@ -23,6 +24,7 @@ interface DocumentWithUploader {
   document_date: string | null;
   status: string;
   created_at: string;
+  storage_path: string;
   users: { full_name: string } | null;
 }
 
@@ -61,7 +63,7 @@ export default async function VaultFolderPage({
   const { data: documents, error: documentsError } = await supabase
     .from(VAULT_DOCUMENTS_TABLE)
     .select(
-      "id, title, document_number, document_reference, revision, document_date, status, created_at, users!uploaded_by(full_name)"
+      "id, title, document_number, document_reference, revision, document_date, status, created_at, storage_path, users!uploaded_by(full_name)"
     )
     .eq("folder_id", folderId)
     .order("created_at", { ascending: false })
@@ -101,6 +103,8 @@ export default async function VaultFolderPage({
       status: d.status,
       created_at: d.created_at,
       uploader_name: d.users?.full_name ?? null,
+      kind: vaultDocKind({ storagePath: d.storage_path, title: d.title }),
+      fileType: vaultFileType(d.storage_path),
       approverProgress: approvers
         ? [
             approvers.filter((a) => a.status === "approved").length,

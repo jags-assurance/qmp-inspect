@@ -15,6 +15,8 @@ import { ReviewChainStatus } from "./review-chain-status";
 import { getItpReviewProgress } from "@/lib/itps/review-chain";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
+import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
+import { loadItpChecklistPreview } from "@/lib/checklists/preview";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
 import { notifyAllPendingForItpAction } from "@/lib/signoff/actions";
 import { ExportLink } from "@/components/domain/export-link";
@@ -743,6 +745,21 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           ))}
         </nav>
       )}
+
+      {/* The checklist is part of the ITP, not a separate thing: whoever reviews/approves/accepts this
+          ITP can open it right here (real checklists once approved; before that, what each activity's
+          checklist will start from). Open by default while the ITP is waiting on a decision. */}
+      <details className="mt-6 rounded-lg border border-border bg-surface px-4 py-2" open={itp.status === "under_review" || itp.status === "approved"}>
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink">
+          Checklists that go with this ITP
+        </summary>
+        <div className="pb-3">
+          <ItpChecklistPreview
+            items={await loadItpChecklistPreview(supabase, itp.id)}
+            approved={itp.status === "approved" || itp.status === "client_accepted"}
+          />
+        </div>
+      </details>
 
       <div className="mt-8 space-y-8">
         {(sections ?? []).map((section, sectionIndex) => (

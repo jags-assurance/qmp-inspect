@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { ApproveDocumentButton } from "./approve-document-button";
+import type { VaultDocKind, VaultFileType } from "@/lib/vault/doc-kind";
 
 export interface VaultDocumentTableRow {
   id: string;
@@ -17,6 +18,9 @@ export interface VaultDocumentTableRow {
   status: string;
   created_at: string;
   uploader_name: string | null;
+  /** What the document is (generated ITP/NCR/inspection report vs. an upload) and its file type — both colour-coded. */
+  kind: VaultDocKind;
+  fileType: VaultFileType;
   /** Set only when this document has a configured multi-approver requirement — [approvedCount,
    *  totalCount, amIAPendingApprover]. Undefined means "no requirement configured", the plain
    *  single-click approval path. */
@@ -51,7 +55,21 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
         </Link>
       ),
     },
-    { key: "revision", header: "Rev.", render: (row) => row.revision },
+    {
+      key: "kind",
+      header: "Type",
+      render: (row) => (
+        <span className="flex flex-wrap items-center gap-1">
+          <Badge tone={row.kind.tone}>{row.kind.label}</Badge>
+          <Badge tone={row.fileType.tone}>{row.fileType.label}</Badge>
+        </span>
+      ),
+    },
+    {
+      key: "revision",
+      header: "Rev.",
+      render: (row) => <span className="doc-id text-ink">Rev {row.revision}</span>,
+    },
     {
       key: "status",
       header: "Status",
@@ -73,10 +91,19 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
     },
     {
       key: "created_at",
-      header: "Uploaded",
+      header: "Date",
       render: (row) => new Date(row.created_at).toLocaleDateString("en-GB"),
     },
-    { key: "uploader_name", header: "Uploaded by", render: (row) => row.uploader_name ?? "—" },
+    {
+      key: "uploader_name",
+      header: "Added by",
+      render: (row) => (
+        <span className="flex flex-col">
+          <span className="text-ink">{row.uploader_name ?? (row.kind.generated ? "System" : "—")}</span>
+          <span className="text-xs text-muted">{row.kind.generated ? "Generated" : "Uploaded"}</span>
+        </span>
+      ),
+    },
   ];
 
   columns.push({

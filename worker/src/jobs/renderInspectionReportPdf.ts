@@ -201,6 +201,7 @@ export async function renderInspectionReportPdf(
     revision: String(record.revision ?? 0),
     storagePath,
     fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
   });
 
   return { resultStoragePath: storagePath };

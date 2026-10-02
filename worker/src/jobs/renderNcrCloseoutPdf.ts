@@ -140,6 +140,8 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     revision: "0",
     storagePath,
     fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+    autoRevision: true,
   });
 
   return { resultStoragePath: storagePath };

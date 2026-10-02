@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { SidePanel } from "@/components/ui/side-panel";
 import { loadItpPreviewAction, type ItpPreview } from "@/lib/itps/preview-actions";
 import { AcceptItpForm } from "./itps/[id]/accept-itp-form";
+import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
 
 /**
  * Review an ITP and accept it without leaving the dashboard: the full activity list with acceptance
@@ -68,6 +69,12 @@ export function ItpReviewPanel({ itpId, onClose }: { itpId: string | null; onClo
             ))}
             {preview.sections.length === 0 && <p className="text-sm text-muted">This ITP has no sections yet.</p>}
           </div>
+          <section className="mt-6" aria-label="Checklist">
+            <h3 className="text-sm font-semibold text-ink">Checklist that goes with this ITP</h3>
+            <div className="mt-2">
+              <ItpChecklistPreview items={preview.checklists} approved={preview.status === "approved" || preview.status === "client_accepted"} />
+            </div>
+          </section>
           <div className="sticky bottom-0 -mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-5 py-3 sm:-mx-6 sm:px-6">
             <Link href={`/inspect/itps/${itpId}`} className="text-sm text-burgundy hover:underline">
               Open full ITP page →

@@ -315,6 +315,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     revision: String(itp.revision),
     storagePath,
     fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
   });
 
   return { resultStoragePath: storagePath };

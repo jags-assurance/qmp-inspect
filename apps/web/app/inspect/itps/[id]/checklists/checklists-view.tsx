@@ -1,3 +1,5 @@
+import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
+import { loadItpChecklistPreview } from "@/lib/checklists/preview";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -185,10 +187,18 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
       </div>
 
       {itp.status !== "approved" && (
-        <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-          Checklists are generated once this ITP is approved. Current status:{" "}
-          <Badge tone="neutral">{ITP_STATUS_LABEL[itp.status] ?? itp.status}</Badge>
-        </p>
+        <>
+          <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
+            Checklists are generated once this ITP is approved. Current status:{" "}
+            <Badge tone="neutral">{ITP_STATUS_LABEL[itp.status] ?? itp.status}</Badge>
+          </p>
+          <section className="mt-4" aria-label="Checklist preview">
+            <h2 className="text-sm font-semibold text-ink">Checklist preview — review it with the ITP</h2>
+            <div className="mt-2">
+              <ItpChecklistPreview items={await loadItpChecklistPreview(supabase, itp.id)} approved={false} />
+            </div>
+          </section>
+        </>
       )}
 
       {canGenerate && (

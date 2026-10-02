@@ -2,12 +2,15 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { loadItpChecklistPreview, type ItpChecklistPreviewItem } from "@/lib/checklists/preview";
 
 export interface ItpPreview {
   itpNumber: string;
   title: string;
   status: string;
   projectName: string | null;
+  /** The checklist(s) belonging to this ITP (real ones once approved, otherwise what they start from). */
+  checklists: ItpChecklistPreviewItem[];
   sections: {
     id: string;
     number: string;
@@ -46,12 +49,14 @@ export async function loadItpPreviewAction(itpId: string): Promise<ItpPreview | 
         | null;
     }>();
   if (!data) return null;
+  const checklists = await loadItpChecklistPreview(supabase, itpId);
 
   return {
     itpNumber: data.itp_number,
     title: data.title,
     status: data.status,
     projectName: data.projects?.name ?? null,
+    checklists,
     sections: (data.itp_sections ?? [])
       .slice()
       .sort((a, b) => String(a.section_number).localeCompare(String(b.section_number), undefined, { numeric: true }))

@@ -146,6 +146,8 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     revision: "0",
     storagePath,
     fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+    autoRevision: true,
   });
 
   return { resultStoragePath: storagePath };
