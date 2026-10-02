@@ -2,8 +2,6 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
-  DEFAULT_NOTICE_PERIOD_HOURS,
-  NOTICE_PERIOD_CONFIGS_TABLE,
   type ActivitySignoffProgressRow,
 } from "@/lib/signoff/db-types";
 import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
@@ -65,6 +63,75 @@ function timeAgo(iso: string | null): string | null {
 export default async function InspectDashboardPage() {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
+
+  // Perf: the Admin queries below depend only on the session, not on anything the first batch
+  // returns, so they start now — in the same round trip as that batch — instead of waiting for it
+  // to finish. One fewer sequential stage on the Admin dashboard. They are awaited further down,
+  // where their results are used.
+  const adminBatchPromise = isAdminStaff(session)
+    ? Promise.all([
+      supabase
+        .from(ITP_MASTER_PROPOSALS_TABLE)
+        .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)", { count: "exact" })
+        .eq("status", "pending")
+        .order("created_at")
+        .limit(5)
+        .returns<PendingProposalRow[]>(),
+      supabase
+        .from("projects")
+        .select("id, project_number, name, organization_id")
+        .eq("status", "active")
+        .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
+      // All open minor/major NCRs, but ONLY the two ids the per-organisation / per-project counts
+      // need — the full rows for the visible list come from the capped query right after.
+      supabase
+        .from("ncrs")
+        .select("id, project_id, projects(organization_id)")
+        .neq("status", "closed")
+        .neq("severity", "observation")
+        .returns<{ id: string; project_id: string; projects: { organization_id: string } | null }[]>(),
+      // The 8 most recent, with everything the list and its side panel show.
+      supabase
+        .from("ncrs")
+        .select("id, ncr_number, severity, description, status, due_date, created_at, project_id, projects(project_number, name)")
+        .neq("status", "closed")
+        .neq("severity", "observation")
+        .order("created_at", { ascending: false })
+        .limit(8)
+        .returns<
+          {
+            id: string;
+            ncr_number: string;
+            severity: "minor_ncr" | "major_ncr";
+            description: string;
+            status: string;
+            due_date: string | null;
+            created_at: string;
+            project_id: string;
+            projects: { project_number: string; name: string } | null;
+          }[]
+        >(),
+      // Portfolio-wide "what's been happening" feed (new purpose: less page-hopping, more in one
+      // place) — reuses the same audit_log rows every per-project Audit Log page already reads
+      // (see app/inspect/projects/[projectId]/audit-log/page.tsx), just unscoped to one project and
+      // capped to the most recent handful, so an Admin sees real recent events across every
+      // organisation without visiting each project individually.
+      supabase
+        .from(AUDIT_LOG_TABLE)
+        .select("id, summary, created_at, actor:users(full_name), projects(project_number, name)")
+        .order("created_at", { ascending: false })
+        .limit(8)
+        .returns<
+          {
+            id: string;
+            summary: string;
+            created_at: string;
+            actor: { full_name: string } | null;
+            projects: { project_number: string; name: string } | null;
+          }[]
+        >(),
+    ])
+    : null;
 
   // These six queries are mutually independent (none consumes another's result), so they're fired
   // together as a single Promise.all instead of four separate sequential round-trips.
@@ -334,68 +401,8 @@ export default async function InspectDashboardPage() {
   }[] = [];
   let openNcrTotal = 0;
   if (isAdminStaff(session)) {
-    const [{ data: proposals, count: proposalCount }, { data: activeProjectRows }, { data: openNcrRows }, { data: openNcrListRows }, { data: activityRows }] = await Promise.all([
-      supabase
-        .from(ITP_MASTER_PROPOSALS_TABLE)
-        .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)", { count: "exact" })
-        .eq("status", "pending")
-        .order("created_at")
-        .limit(5)
-        .returns<PendingProposalRow[]>(),
-      supabase
-        .from("projects")
-        .select("id, project_number, name, organization_id")
-        .eq("status", "active")
-        .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
-      // All open minor/major NCRs, but ONLY the two ids the per-organisation / per-project counts
-      // need — the full rows for the visible list come from the capped query right after.
-      supabase
-        .from("ncrs")
-        .select("id, project_id, projects(organization_id)")
-        .neq("status", "closed")
-        .neq("severity", "observation")
-        .returns<{ id: string; project_id: string; projects: { organization_id: string } | null }[]>(),
-      // The 8 most recent, with everything the list and its side panel show.
-      supabase
-        .from("ncrs")
-        .select("id, ncr_number, severity, description, status, due_date, created_at, project_id, projects(project_number, name)")
-        .neq("status", "closed")
-        .neq("severity", "observation")
-        .order("created_at", { ascending: false })
-        .limit(8)
-        .returns<
-          {
-            id: string;
-            ncr_number: string;
-            severity: "minor_ncr" | "major_ncr";
-            description: string;
-            status: string;
-            due_date: string | null;
-            created_at: string;
-            project_id: string;
-            projects: { project_number: string; name: string } | null;
-          }[]
-        >(),
-      // Portfolio-wide "what's been happening" feed (new purpose: less page-hopping, more in one
-      // place) — reuses the same audit_log rows every per-project Audit Log page already reads
-      // (see app/inspect/projects/[projectId]/audit-log/page.tsx), just unscoped to one project and
-      // capped to the most recent handful, so an Admin sees real recent events across every
-      // organisation without visiting each project individually.
-      supabase
-        .from(AUDIT_LOG_TABLE)
-        .select("id, summary, created_at, actor:users(full_name), projects(project_number, name)")
-        .order("created_at", { ascending: false })
-        .limit(8)
-        .returns<
-          {
-            id: string;
-            summary: string;
-            created_at: string;
-            actor: { full_name: string } | null;
-            projects: { project_number: string; name: string } | null;
-          }[]
-        >(),
-    ]);
+    const [{ data: proposals, count: proposalCount }, { data: activeProjectRows }, { data: openNcrRows }, { data: openNcrListRows }, { data: activityRows }] =
+      await adminBatchPromise!;
     pendingProposals = proposals ?? [];
     pendingProposalTotal = proposalCount ?? pendingProposals.length;
     openNcrTotal = (openNcrRows ?? []).length;
@@ -515,14 +522,9 @@ export default async function InspectDashboardPage() {
         } | null;
       } | null;
     }
-    // Perf: these three top-level fetches don't depend on each other at all (notifiedRows and
-    // standaloneAssignments never touch checklist templates), so run them together instead of one
+    // Perf: these top-level fetches don't depend on each other at all (standaloneAssignments
+    // never touches checklist templates), so run them together instead of one
     // at a time — was previously the first 3 of 8 fully sequential round-trips on this page.
-    interface NotifiedRow {
-      intervention: string;
-      notified_at: string | null;
-      itp_items: { itp_sections: { itps: { project_id: string; projects: { organization_id: string } | null } | null } | null } | null;
-    }
     interface StandaloneAssignmentRow {
       id: string;
       assignment_number: string;
@@ -532,7 +534,7 @@ export default async function InspectDashboardPage() {
       updated_at: string;
       projects: { name: string } | null;
     }
-    const [{ data: templates }, { data: notifiedRows }, { data: standaloneAssignments }] = await Promise.all([
+    const [{ data: templates }, { data: standaloneAssignments }] = await Promise.all([
       supabase
         .from(CHECKLIST_TEMPLATES_TABLE)
         .select(
@@ -541,16 +543,6 @@ export default async function InspectDashboardPage() {
         .order("created_at", { ascending: false })
         .limit(20)
         .returns<TemplateRow[]>(),
-      // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
-      // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
-      // been notified but not yet signed off, past its project's notice period (falling back to that
-      // organisation's configured default, then the original hardcoded 48h, same three-tier precedence
-      // lib/signoff/actions.ts uses to gate everything else Hold-related).
-      supabase
-        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-        .select("intervention, notified_at, itp_items(itp_sections(itps(project_id, projects(organization_id))))")
-        .eq("status", "notified")
-        .returns<NotifiedRow[]>(),
       supabase
         .from(STANDALONE_ASSIGNMENTS)
         .select("id, assignment_number, assignment_type, equipment_description, status, updated_at, projects(name)")
@@ -560,8 +552,8 @@ export default async function InspectDashboardPage() {
         .returns<StandaloneAssignmentRow[]>(),
     ]);
 
-    // Perf: these two chains share no data dependency (one starts from `templates`, the other from
-    // `notifiedRows`, both already fetched above) — run them concurrently as two async closures
+    // Perf: these two chains share no data dependency (pending actions starts from `templates`, overdue
+    // holds is a single database function call) — run them concurrently as two async closures
     // instead of one long sequential chain. Was previously 4 more sequential round-trips after the
     // first 3; now the whole page's critical path is 3 round-trips deep instead of 8.
     const computePendingActions = async (): Promise<PendingActionRow[]> => {
@@ -647,66 +639,17 @@ export default async function InspectDashboardPage() {
       ).slice(0, 8);
     };
 
-    // "Overdue hold points": a blocking-level row (Hold-equivalent, per each activity's own
-    // organisation's intervention_level_types.is_blocking — no longer a hardcoded "H" check) that's
-    // been notified but not yet signed off, past its project's notice period (falling back to that
-    // organisation's configured default, then the original hardcoded 48h, same three-tier precedence
-    // lib/signoff/actions.ts uses to gate everything else Hold-related).
+    // "Overdue hold points": a blocking-level row notified but not signed off past its notice period.
+    // One database function call (overdue_hold_points(), 20261002140000_overdue_hold_points_function
+    // .sql) — the same list the Admin dashboard shows, which replaced a nested embed plus two
+    // dependent lookups filtered here in JavaScript (~1.2s under row-level security, now ~12ms).
     const computeOverdueHoldPoints = async (): Promise<{ overdueHoldPoints: number; oldestHoldPointDays: number }> => {
-      const orgIdsForOverdue = [
-        ...new Set(
-          (notifiedRows ?? [])
-            .map((r) => r.itp_items?.itp_sections?.itps?.projects?.organization_id)
-            .filter((id): id is string => !!id)
-        ),
-      ];
-      const { data: levelTypesForOverdue } = orgIdsForOverdue.length
-        ? await supabase
-            .from(INTERVENTION_LEVEL_TYPES_TABLE)
-            .select("organization_id, code, is_blocking, default_notice_hours")
-            .in("organization_id", orgIdsForOverdue)
-            .eq("is_blocking", true)
-            .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
-        : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
-      const blockingLevelByOrgCode = new Map(
-        (levelTypesForOverdue ?? []).map((l) => [`${l.organization_id}:${l.code}`, l])
-      );
-
-      const notifiedHolds = (notifiedRows ?? []).filter((row) => {
-        const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-        return orgId && blockingLevelByOrgCode.has(`${orgId}:${row.intervention}`);
-      });
-
-      const projectIds = [
-        ...new Set((notifiedHolds ?? []).map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
-      ];
-      const { data: noticeConfigs } = projectIds.length
-        ? await supabase
-            .from(NOTICE_PERIOD_CONFIGS_TABLE)
-            .select("project_id, intervention, hours")
-            .in("intervention", ["H", ...[...blockingLevelByOrgCode.values()].map((l) => l.code)])
-            .in("project_id", projectIds)
-            .returns<{ project_id: string; intervention: string; hours: number }[]>()
-        : { data: [] as { project_id: string; intervention: string; hours: number }[] };
-      const hoursByProjectIntervention = new Map((noticeConfigs ?? []).map((c) => [`${c.project_id}:${c.intervention}`, c.hours]));
-
-      const overdueAgeDays: number[] = [];
-      for (const row of notifiedHolds ?? []) {
-        if (!row.notified_at) continue;
-        const projectId = row.itp_items?.itp_sections?.itps?.project_id;
-        const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-        const levelType = orgId ? blockingLevelByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
-        const noticeHours =
-          (projectId ? hoursByProjectIntervention.get(`${projectId}:${row.intervention}`) : undefined) ??
-          levelType?.default_notice_hours ??
-          DEFAULT_NOTICE_PERIOD_HOURS[row.intervention] ??
-          48;
-        const ageMs = today.getTime() - new Date(row.notified_at).getTime();
-        if (ageMs > noticeHours * 60 * 60 * 1000) overdueAgeDays.push(Math.floor(ageMs / 86_400_000));
-      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.rpc as any)("overdue_hold_points");
+      const rows = (data ?? []) as { days_open: number }[];
       return {
-        overdueHoldPoints: overdueAgeDays.length,
-        oldestHoldPointDays: overdueAgeDays.length > 0 ? Math.max(...overdueAgeDays) : 0,
+        overdueHoldPoints: rows.length,
+        oldestHoldPointDays: rows.length > 0 ? Math.max(...rows.map((r) => r.days_open)) : 0,
       };
     };
 

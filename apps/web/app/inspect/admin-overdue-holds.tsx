@@ -3,12 +3,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { Watchlist } from "@/components/ui/watchlist";
 import { TodayQueue, type TodayItem } from "@/components/domain/today-queue";
-import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
-import {
-  ACTIVITY_SIGNOFF_PROGRESS_TABLE,
-  DEFAULT_NOTICE_PERIOD_HOURS,
-  NOTICE_PERIOD_CONFIGS_TABLE,
-} from "@/lib/signoff/db-types";
 
 export interface OverdueHoldPointItem {
   id: string;
@@ -19,102 +13,28 @@ export interface OverdueHoldPointItem {
 }
 
 /**
- * Portfolio-wide overdue hold points — the slowest part of the Admin dashboard (a 4-level nested
- * join, then two dependent lookups). Lives in its own server module so the dashboard can stream it
- * behind <Suspense> instead of every tile waiting for it. React `cache` dedupes the work so the KPI
- * tile and the watchlist card, rendered separately, share one computation per request.
+ * Portfolio-wide overdue hold points — one database round trip. This used to be a 4-level nested
+ * embed plus two dependent lookups filtered in JavaScript (~1.2s under row-level security); the
+ * overdue_hold_points() function (20261002140000_overdue_hold_points_function.sql) does the access
+ * check once per project and returns the finished list in ~12ms. Lives in its own server module so
+ * the dashboard can stream it behind <Suspense> instead of every tile waiting for it. React `cache`
+ * dedupes the work so the KPI tile and the watchlist card, rendered separately, share one call.
  */
 export const getOverdueHoldPoints = cache(async (): Promise<OverdueHoldPointItem[]> => {
   const supabase = await createSupabaseServerClient();
-  const items: OverdueHoldPointItem[] = [];
-  // Portfolio-wide "Overdue hold points" (new purpose: daily/actionable, real data already
-  // computed for the Inspector dashboard below — same blocking-level/notice-period logic, just
-  // unscoped across every organisation instead of one Inspector's own worklist, since work stuck
-  // behind a hold point is exactly the kind of thing an Admin needs to watch daily too).
-  interface AdminNotifiedRow {
-    id: string;
-    itp_item_id: string;
-    intervention: string;
-    notified_at: string | null;
-    itp_items: {
-      activity: string;
-      itp_sections: {
-        itps: {
-          itp_number: string;
-          project_id: string;
-          projects: { organization_id: string; project_number: string; name: string } | null;
-        } | null;
-      } | null;
-    } | null;
-  }
-  const { data: adminNotifiedRows } = await supabase
-    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .select(
-      "id, itp_item_id, intervention, notified_at, itp_items(activity, itp_sections(itps(itp_number, project_id, projects(organization_id, project_number, name))))"
-    )
-    .eq("status", "notified")
-    .returns<AdminNotifiedRow[]>();
-
-  const orgIdsForOverdue = [
-    ...new Set(
-      (adminNotifiedRows ?? []).map((r) => r.itp_items?.itp_sections?.itps?.projects?.organization_id).filter((id): id is string => !!id)
-    ),
-  ];
-  const { data: levelTypesForOverdue } = orgIdsForOverdue.length
-    ? await supabase
-        .from(INTERVENTION_LEVEL_TYPES_TABLE)
-        .select("organization_id, code, is_blocking, default_notice_hours")
-        .in("organization_id", orgIdsForOverdue)
-        .eq("is_blocking", true)
-        .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
-    : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
-  const blockingLevelByOrgCode = new Map((levelTypesForOverdue ?? []).map((l) => [`${l.organization_id}:${l.code}`, l]));
-
-  const adminNotifiedHolds = (adminNotifiedRows ?? []).filter((row) => {
-    const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-    return orgId && blockingLevelByOrgCode.has(`${orgId}:${row.intervention}`);
-  });
-
-  const overdueProjectIds = [
-    ...new Set(adminNotifiedHolds.map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
-  ];
-  const { data: adminNoticeConfigs } = overdueProjectIds.length
-    ? await supabase
-        .from(NOTICE_PERIOD_CONFIGS_TABLE)
-        .select("project_id, intervention, hours")
-        .in("intervention", ["H", ...[...blockingLevelByOrgCode.values()].map((l) => l.code)])
-        .in("project_id", overdueProjectIds)
-        .returns<{ project_id: string; intervention: string; hours: number }[]>()
-    : { data: [] as { project_id: string; intervention: string; hours: number }[] };
-  const hoursByProjectIntervention = new Map((adminNoticeConfigs ?? []).map((c) => [`${c.project_id}:${c.intervention}`, c.hours]));
-
-  const nowMs = Date.now();
-  for (const row of adminNotifiedHolds) {
-    if (!row.notified_at) continue;
-    const projectId = row.itp_items?.itp_sections?.itps?.project_id;
-    const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-    const levelType = orgId ? blockingLevelByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
-    const noticeHours =
-      (projectId ? hoursByProjectIntervention.get(`${projectId}:${row.intervention}`) : undefined) ??
-      levelType?.default_notice_hours ??
-      DEFAULT_NOTICE_PERIOD_HOURS[row.intervention] ??
-      48;
-    const ageMs = nowMs - new Date(row.notified_at).getTime();
-    if (ageMs <= noticeHours * 60 * 60 * 1000) continue;
-    const itp = row.itp_items?.itp_sections?.itps;
-    items.push({
-      // The row's own primary key, not itp_item_id/intervention — more than one project party
-      // can each have their own notified row for the same activity+level, which collided as a
-      // duplicate-key React warning when keyed on the composite instead (found live testing).
+  // The function isn't in the generated Database type yet — same narrow, documented escape hatch
+  // used for acknowledge_handover().
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase.rpc as any)("overdue_hold_points");
+  return ((data ?? []) as { id: string; activity: string; itp_number: string; project_label: string; days_open: number }[]).map(
+    (row) => ({
       id: row.id,
-      activity: row.itp_items?.activity ?? "—",
-      itpNumber: itp?.itp_number ?? "—",
-      projectLabel: itp?.projects ? `${itp.projects.project_number} — ${itp.projects.name}` : "—",
-      daysOpen: Math.floor(ageMs / 86_400_000),
-    });
-  }
-  items.sort((a, b) => b.daysOpen - a.daysOpen);
-  return items;
+      activity: row.activity ?? "—",
+      itpNumber: row.itp_number ?? "—",
+      projectLabel: row.project_label,
+      daysOpen: row.days_open,
+    })
+  );
 });
 
 const CLOCK_ICON = (
