@@ -421,7 +421,7 @@ export async function ActivityView({ projectId, range, embedded = false }: { pro
       )}
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Activity</Heading>
+          <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Activity" : `${project.project_number} — Activity`}</Heading>
           <PageGuide
             title="Activity — how this works"
             points={[

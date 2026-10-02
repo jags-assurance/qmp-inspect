@@ -71,6 +71,8 @@ export function TodayQueue({
 }) {
   const panel = useUrlPanel("panel");
   const [kind, setKind] = useState<TodayKind | "all">("all");
+  // Long days stay scannable: each group shows its first few rows and expands on request.
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   const kinds = [...new Set(items.map((i) => i.kind))];
   const visible = items.filter((i) => kind === "all" || i.kind === kind);
@@ -113,8 +115,11 @@ export function TodayQueue({
       ) : (
         <div className="mt-4 space-y-4">
           {GROUPS.map((group) => {
-            const rows = visible.filter((i) => i.urgency === group.urgency);
-            if (rows.length === 0) return null;
+            const all = visible.filter((i) => i.urgency === group.urgency);
+            if (all.length === 0) return null;
+            const LIMIT = 6;
+            const open = expanded[group.urgency] || all.length <= LIMIT + 1;
+            const rows = open ? all : all.slice(0, LIMIT);
             return (
               <div key={group.urgency}>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -124,20 +129,27 @@ export function TodayQueue({
                   {rows.map((item) => {
                     const row = (
                       <>
-                        <Badge tone={KIND_TONE[item.kind]}>{KIND_LABEL[item.kind]}</Badge>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm text-ink">{item.title}</span>
-                          {item.meta && <span className="block truncate text-xs text-muted">{item.meta}</span>}
+                        <span className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+                          <Badge tone={KIND_TONE[item.kind]}>{KIND_LABEL[item.kind]}</Badge>
+                          {item.badge && (
+                            <span className={cn("text-xs font-semibold sm:hidden", item.urgency === 2 ? "text-danger" : "text-muted")}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1 basis-[12rem]">
+                          <span className="block text-sm text-ink [overflow-wrap:anywhere] sm:truncate">{item.title}</span>
+                          {item.meta && <span className="block text-xs text-muted [overflow-wrap:anywhere] sm:truncate">{item.meta}</span>}
                         </span>
                         {item.badge && (
-                          <span className={cn("shrink-0 text-xs font-semibold", item.urgency === 2 ? "text-danger" : "text-muted")}>
+                          <span className={cn("hidden shrink-0 text-xs font-semibold sm:inline", item.urgency === 2 ? "text-danger" : "text-muted")}>
                             {item.badge}
                           </span>
                         )}
                         <span className="shrink-0 text-sm font-medium text-burgundy">{item.actionLabel ?? "Open"} →</span>
                       </>
                     );
-                    const cls = "flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left hover:bg-off-white";
+                    const cls = "flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-off-white";
                     return (
                       <li key={`${item.kind}-${item.id}`}>
                         {item.panel ? (
@@ -153,6 +165,15 @@ export function TodayQueue({
                     );
                   })}
                 </ul>
+                {all.length > LIMIT + 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((e) => ({ ...e, [group.urgency]: !open }))}
+                    className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline"
+                  >
+                    {open ? "Show fewer" : `Show ${all.length - LIMIT} more`}
+                  </button>
+                )}
               </div>
             );
           })}

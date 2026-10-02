@@ -102,7 +102,7 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
     <div>
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Registers</Heading>
+          <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Registers" : `${project.project_number} — Registers`}</Heading>
           <PageGuide
             title="Registers — how this works"
             points={[

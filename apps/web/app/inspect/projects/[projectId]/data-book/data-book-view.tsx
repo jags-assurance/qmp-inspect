@@ -186,7 +186,7 @@ export async function DataBookView({ projectId, embedded = false }: { projectId:
       )}
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Data Book</Heading>
+          <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Data book" : `${project.project_number} — Data Book`}</Heading>
           <PageGuide
             title="Data Book — how this works"
             points={[

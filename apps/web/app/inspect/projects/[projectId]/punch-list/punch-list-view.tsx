@@ -49,7 +49,7 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Heading className="doc-id text-2xl font-semibold text-ink">{project.project_number} — Punch List</Heading>
+            <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Punch list" : `${project.project_number} — Punch List`}</Heading>
             <PageGuide
               title="Punch List — how this works"
               points={[

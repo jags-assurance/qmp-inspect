@@ -37,6 +37,33 @@ export const ITP_STATUS_LABEL: Record<string, string> = {
 
 function buildColumns(hrefFor: (id: string) => string, selectedId: string | null): DataTableColumn<ItpRow>[] {
   const cur = (id: string) => (id === selectedId ? "page" : undefined);
+  // With an ITP open beside the list the table only has ~400px, and six columns wrapped word by word
+  // into towers of text. In that split view each ITP is one compact, whole-row-tappable cell instead:
+  // number + status on top, title (max two lines), project underneath.
+  if (selectedId) {
+    return [
+      {
+        key: "itp",
+        header: "ITPs",
+        render: (row) => (
+          <Link
+            prefetch={false}
+            href={hrefFor(row.id)}
+            scroll={false}
+            aria-current={cur(row.id)}
+            className={`-mx-4 -my-3 block min-h-14 px-4 py-3 hover:bg-off-white ${row.id === selectedId ? "bg-off-white" : ""}`}
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className={`doc-id text-sm text-burgundy ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
+              <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
+            </span>
+            <span className="mt-0.5 line-clamp-2 block text-sm text-ink">{row.title}</span>
+            {row.projects?.name && <span className="mt-0.5 block truncate text-xs text-muted">{row.projects.name}</span>}
+          </Link>
+        ),
+      },
+    ];
+  }
   return [
   {
     key: "itp_number",

@@ -73,7 +73,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
         </ul>
       </nav>
 
-      <nav aria-label="Settings sections" className="hidden lg:block lg:w-60 lg:shrink-0">
+      <nav aria-label="Settings sections" className="hidden lg:mt-6 lg:block lg:w-60 lg:shrink-0">
         <div className="sticky top-[73px] max-h-[calc(100vh-6rem)] space-y-5 overflow-y-auto pr-2">
           {groups.map((g) => (
             <div key={g.label}>
