@@ -80,3 +80,17 @@ body {
     display: none !important;
   }
 }
+
+/* Fluid by default: form controls and media never push a page wider than the screen, so a long
+   <select> option or wide image shrinks to fit a phone instead of causing sideways page scroll.
+   Wide data tables scroll inside their own wrapper (see DataTable / overflow-x-auto), not the page. */
+main select,
+main input:not([type="checkbox"]):not([type="radio"]),
+main textarea {
+  max-width: 100%;
+}
+main img,
+main video {
+  max-width: 100%;
+  height: auto;
+}

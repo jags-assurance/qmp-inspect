@@ -90,6 +90,7 @@ export async function AuditLogView({ projectId, range, embedded = false }: { pro
         {(events ?? []).length === 0 ? (
           <p className="text-sm text-muted">No audit events recorded for this project yet.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -123,6 +124,7 @@ export async function AuditLogView({ projectId, range, embedded = false }: { pro
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
