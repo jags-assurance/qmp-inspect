@@ -18,7 +18,9 @@ import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-d
 import { InspectorDashboard } from "./inspector-dashboard";
 import { Suspense } from "react";
 import { AdminDashboard } from "./admin-dashboard";
-import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
+import { AdminTodayWithHolds, OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
+import { TodayQueue } from "@/components/domain/today-queue";
+import { buildAdminToday } from "@/lib/dashboard/today";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
 import { StatCard } from "@/components/ui/stat-card";
 import type { OrgHealth } from "@/lib/dashboard/widgets";
@@ -793,6 +795,26 @@ export default async function InspectDashboardPage() {
     );
   }
 
+  const adminTodayItems = buildAdminToday({
+    ncrs: openNcrItems.map((n) => ({
+      id: n.id,
+      ncrNumber: n.ncrNumber,
+      severity: n.severity,
+      description: n.description,
+      projectLabel: n.projectLabel,
+      dueDate: n.dueDate,
+    })),
+    proposals: pendingProposals.map((p) => ({
+      id: p.id,
+      title:
+        p.proposed_action === "new_template"
+          ? `New template: ${p.proposed_title || p.itps?.title || "Untitled"}`
+          : "Update existing template",
+    })),
+  });
+  const adminTodayDescription =
+    "Overdue hold points, NCRs and library proposals waiting on you. Click a row to act on it here, without leaving the dashboard.";
+
   // Only JAGS Admin reaches this point — external parties and Inspectors both returned their own
   // dedicated dashboard component above.
   return (
@@ -818,6 +840,12 @@ export default async function InspectDashboardPage() {
       recentActivity={recentActivity}
       openNcrItems={openNcrItems}
       // Streamed: the slowest dashboard query no longer blocks every other tile and list.
+      todayQueue={
+        // Shows NCRs and proposals immediately; the overdue hold points (the slow query) stream in.
+        <Suspense fallback={<TodayQueue description={adminTodayDescription} items={adminTodayItems} />}>
+          <AdminTodayWithHolds baseItems={adminTodayItems} description={adminTodayDescription} />
+        </Suspense>
+      }
       overdueHoldsTile={
         <Suspense fallback={<StatCard label="Overdue hold points" value="…" />}>
           <OverdueHoldsTile />

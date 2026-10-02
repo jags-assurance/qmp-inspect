@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
 import { Watchlist } from "@/components/ui/watchlist";
-import { TodayQueue } from "@/components/domain/today-queue";
-import { buildAdminToday } from "@/lib/dashboard/today";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
 
@@ -101,6 +99,7 @@ export function AdminDashboard({
   openNcrItems,
   overdueHoldsTile,
   overdueHoldsCard,
+  todayQueue,
 }: {
   firstName: string;
   today: string;
@@ -118,6 +117,8 @@ export function AdminDashboard({
   /** Streamed server pieces (see admin-overdue-holds.tsx) so the slowest query doesn't block the page. */
   overdueHoldsTile: ReactNode;
   overdueHoldsCard: ReactNode;
+  /** The Today queue, built by the page so the slow hold-point query can stream into it. */
+  todayQueue: ReactNode;
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -159,21 +160,7 @@ export function AdminDashboard({
         </Link>
       </div>
 
-      <TodayQueue
-        description="NCRs and library proposals waiting on you. Click a row to act on it here, without leaving the dashboard."
-        items={buildAdminToday({
-          ncrs: openNcrItems.map((n) => ({
-            id: n.id,
-            ncrNumber: n.ncrNumber,
-            severity: n.severity,
-            description: n.description,
-            projectLabel: n.projectLabel,
-            dueDate: n.dueDate,
-          })),
-          proposals: pendingProposals.map((p) => ({ id: p.id, title: p.title })),
-        })}
-        emptyText="No NCRs or proposals waiting on you."
-      />
+      {todayQueue}
 
       {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
