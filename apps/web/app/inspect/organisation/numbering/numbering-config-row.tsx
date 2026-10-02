@@ -61,7 +61,7 @@ export function NumberingConfigRow({
   return (
     <form
       action={formAction}
-      className="grid grid-cols-[120px_1fr_100px_80px_90px_90px_100px_auto] items-end gap-2 border-b border-border py-3 last:border-0"
+      className="grid grid-cols-2 items-end gap-2 border-b border-border py-3 last:border-0 sm:grid-cols-4 xl:grid-cols-[120px_1fr_100px_80px_90px_90px_100px_auto]"
     >
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="doc_type" value={docType} />

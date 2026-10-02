@@ -14,7 +14,7 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
   const [state, formAction, pending] = useActionState(addInterventionLevelAction, initialState);
 
   return (
-    <form action={formAction} className="grid grid-cols-[90px_1fr_90px_110px_auto] items-end gap-2">
+    <form action={formAction} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-[90px_1fr_90px_110px_auto]">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <label className="block text-xs text-muted">Code</label>

@@ -130,7 +130,7 @@ export function MonthlyReportPackForm({
       {reportPacks.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No report packs generated yet for this organisation.</p>
       ) : (
-        <table className="mt-2 w-full text-sm">
+        <div className="overflow-x-auto"><table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
               <th className="py-2">Period</th>
@@ -173,7 +173,7 @@ export function MonthlyReportPackForm({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

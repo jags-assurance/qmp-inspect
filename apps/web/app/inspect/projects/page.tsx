@@ -119,7 +119,7 @@ export default async function ProjectsPage({
               : "Projects your organisation is engaged on."}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {orgFilterOptions.length > 0 && <OrgFilter organizations={orgFilterOptions} />}
           {canCreateProject && (
             <Link href="/inspect/projects/new">

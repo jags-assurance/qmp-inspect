@@ -12,7 +12,7 @@ export function ProjectFilter({ projects }: { projects: { id: string; label: str
   const current = searchParams.get("project") ?? "";
 
   return (
-    <label className="flex items-center gap-2 text-sm">
+    <label className="flex flex-wrap items-center gap-2 text-sm">
       <span className="font-medium text-ink">Project</span>
       <select
         value={current}

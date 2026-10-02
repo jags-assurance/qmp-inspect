@@ -105,8 +105,8 @@ function MemberRow({
   const [removeState, removeAction, removePending] = useActionState(removeTeamMemberAction, initialState);
 
   return (
-    <li className="flex items-center justify-between text-sm">
-      <span className="text-ink">
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+      <span className="min-w-0 text-ink [overflow-wrap:anywhere]">
         {member.fullName} <span className="text-muted">({member.email})</span>
       </span>
       <span className="flex items-center gap-2">
@@ -178,8 +178,8 @@ function AssignedProjectRow({
   const [state, formAction, pending] = useActionState(unassignTeamFromProjectAction, initialState);
 
   return (
-    <li className="flex items-center justify-between text-sm">
-      <span className="text-ink">{project.name}</span>
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+      <span className="min-w-0 text-ink [overflow-wrap:anywhere]">{project.name}</span>
       {canManage && (
         <form action={formAction} className="inline">
           <input type="hidden" name="team_id" value={teamId} />

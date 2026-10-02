@@ -20,7 +20,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
 
   return (
     <div className="py-3">
-      <form action={formAction} className="grid grid-cols-[60px_1fr_90px_90px_110px_auto] items-end gap-2">
+      <form action={formAction} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
         <input type="hidden" name="id" value={level.id} />
         <div>
           <label className="block text-xs text-muted">Code</label>

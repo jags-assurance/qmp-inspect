@@ -60,7 +60,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks }: { organiz
       {weeklyReportPacks.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No report packs generated yet for this organisation.</p>
       ) : (
-        <table className="mt-2 w-full text-sm">
+        <div className="overflow-x-auto"><table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
               <th className="py-2">Week</th>
@@ -101,7 +101,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks }: { organiz
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );
