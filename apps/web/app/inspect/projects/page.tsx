@@ -100,8 +100,8 @@ export default async function ProjectsPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">Projects</h1>
             <PageGuide
@@ -119,7 +119,7 @@ export default async function ProjectsPage({
               : "Projects your organisation is engaged on."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
           {orgFilterOptions.length > 0 && <OrgFilter organizations={orgFilterOptions} />}
           {canCreateProject && (
             <Link href="/inspect/projects/new">
