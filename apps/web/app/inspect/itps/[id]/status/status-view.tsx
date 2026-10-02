@@ -30,7 +30,24 @@ const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
  *   evidence_type=2 (Document upload): at least one linked itp_item_evidence_documents row.
  *   evidence_type=3 (Measurement record): every itp_item_measurements row has a result, none failed.
  */
-export async function StatusView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+export async function StatusView({
+  id,
+  embedded = false,
+  baseQuery = "",
+}: {
+  id: string;
+  embedded?: boolean;
+  /** Embedded only: the register's current query string (filters, `itp`), so links can switch the
+   *  pane tab in place instead of navigating to the full page. */
+  baseQuery?: string;
+}) {
+  const paneHref = (pane: "details" | "checklists", fullHref: string) => {
+    if (!embedded) return fullHref;
+    const sp = new URLSearchParams(baseQuery);
+    sp.delete("pane");
+    if (pane !== "details") sp.set("pane", pane);
+    return `?${sp.toString()}`;
+  };
   await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -406,7 +423,7 @@ export async function StatusView({ id, embedded = false }: { id: string; embedde
                     // this page — the only place to actually generate one is the ITP's own
                     // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
                     // ITP is approved). Points there instead of leaving it unclickable.
-                    <Link href={`/inspect/itps/${itp.id}/checklists`} className="ml-2 font-medium text-burgundy hover:underline">
+                    <Link href={paneHref("checklists", `/inspect/itps/${itp.id}/checklists`)} scroll={false} className="ml-2 font-medium text-burgundy hover:underline">
                       Generate checklist →
                     </Link>
                   ) : (
@@ -415,7 +432,7 @@ export async function StatusView({ id, embedded = false }: { id: string; embedde
                     // ItpItemMeasurementsSection/ItpItemEvidenceDocumentsSection there), not on
                     // this roadmap page — same "roadmap links out, doesn't duplicate the form"
                     // pattern the Checklist link above already follows.
-                    <Link href={`/inspect/itps/${itp.id}`} className="ml-2 font-medium text-burgundy hover:underline">
+                    <Link href={paneHref("details", `/inspect/itps/${itp.id}`)} scroll={false} className="ml-2 font-medium text-burgundy hover:underline">
                       Manage evidence →
                     </Link>
                   )}

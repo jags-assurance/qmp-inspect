@@ -949,7 +949,7 @@ export async function ItpDetailView({
           {active === "checklists" ? (
             <ChecklistsView id={id} embedded />
           ) : active === "status" ? (
-            <StatusView id={id} embedded />
+            <StatusView id={id} embedded baseQuery={baseQuery} />
           ) : active === "approval-roadmap" ? (
             <ApprovalRoadmapView id={id} embedded />
           ) : (
