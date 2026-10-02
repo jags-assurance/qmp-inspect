@@ -9,6 +9,7 @@
 // exports ONLY Server Actions, so those two functions need their own file; the plain data helpers
 // and type exports stay in review-chain.ts, safely importable from both Server and Client Components.
 
+import { checklistReviewError } from "@/lib/itps/checklist-review";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -222,6 +223,9 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
+
+  const gate = await checklistReviewError(supabase, itpId, formData);
+  if (gate) return { error: gate };
 
   const { data: steps } = await supabase
     .from(ITP_REVIEW_PROGRESS_TABLE)

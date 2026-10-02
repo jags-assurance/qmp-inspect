@@ -527,6 +527,11 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // has no way to be granted this permission key (see CLIENT_MANAGED_ONLY_PERMISSION_KEYS).
   const canApproveItp = session.isJagsStaff || (await hasPermission(session.userId, "approve_itp", itp.projects?.id));
 
+  // The checklist is part of the ITP: it is loaded once and used both to show it and to gate
+  // approval/acceptance on the reviewer confirming they have looked at it.
+  const checklistPreview = await loadItpChecklistPreview(supabase, itp.id);
+  const requiresChecklistReview = checklistPreview.some((i) => i.hasChecklist);
+
   return (
     <div>
       {/* Live cross-party updates: another party's sign-off, or a status/section change, refreshes
@@ -671,7 +676,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           )}
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
           {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
-            <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" />
+            <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
           )}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
               activity_signoff_progress row for this ITP in one click. Stays staff-only even on a
@@ -685,7 +690,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
               </button>
             </form>
           )}
-          {canAccept && <AcceptItpForm itpId={itp.id} />}
+          {canAccept && <AcceptItpForm itpId={itp.id} requiresChecklistReview={requiresChecklistReview} />}
           {/* Added for the "propose to master library" action (Reqs R31) — only shown once the ITP
               has reached approved/client_accepted, matching this file's existing status gating. */}
           {canPropose && (
@@ -700,7 +705,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           so it shouldn't be competing for space inside a flex-wrap row of action buttons. */}
       {reviewSteps.length > 0 && (
         <div className="mt-4">
-          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} />
+          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} requiresChecklistReview={requiresChecklistReview} />
         </div>
       )}
 
@@ -755,7 +760,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         </summary>
         <div className="pb-3">
           <ItpChecklistPreview
-            items={await loadItpChecklistPreview(supabase, itp.id)}
+            items={checklistPreview}
             approved={itp.status === "approved" || itp.status === "client_accepted"}
           />
         </div>

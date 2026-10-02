@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
 import { advanceItpStatusAction, type AdvanceItpStatusState } from "@/lib/itps/actions";
 
 const initialState: AdvanceItpStatusState = { error: null };
@@ -16,17 +17,29 @@ const LABEL: Record<"draft" | "under_review", { pending: string; idle: string; p
  * `<form action={advanceItpStatusAction}>` in the server component with useActionState, the same
  * pattern AddItemForm already uses for addItpItemAction.
  */
-export function AdvanceStatusForm({ itpId, fromStatus }: { itpId: string; fromStatus: "draft" | "under_review" }) {
+export function AdvanceStatusForm({
+  itpId,
+  fromStatus,
+  requiresChecklistReview = false,
+}: {
+  itpId: string;
+  fromStatus: "draft" | "under_review";
+  /** Approving (under_review → approved) needs the reviewer to confirm they reviewed the checklist. */
+  requiresChecklistReview?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(advanceItpStatusAction, initialState);
   const copy = LABEL[fromStatus];
+  const needsAck = requiresChecklistReview && fromStatus === "under_review";
+  const [reviewed, setReviewed] = useState(false);
 
   return (
     <form action={formAction}>
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="from_status" value={fromStatus} />
+      {needsAck && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || (needsAck && !reviewed)}
         className={
           copy.primary
             ? "rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"

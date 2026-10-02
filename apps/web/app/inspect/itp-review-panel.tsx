@@ -79,7 +79,7 @@ export function ItpReviewPanel({ itpId, onClose }: { itpId: string | null; onClo
             <Link href={`/inspect/itps/${itpId}`} className="text-sm text-burgundy hover:underline">
               Open full ITP page →
             </Link>
-            <AcceptItpForm itpId={itpId!} />
+            <AcceptItpForm itpId={itpId!} requiresChecklistReview={preview.checklists.some((c) => c.hasChecklist)} />
           </div>
         </div>
       )}

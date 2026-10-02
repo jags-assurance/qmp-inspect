@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
 import { approveReviewStepAction, type ApproveReviewStepState } from "@/lib/itps/review-chain-actions";
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 
@@ -11,13 +12,16 @@ export function ReviewChainStatus({
   steps,
   currentUserId,
   isAdminStaff,
+  requiresChecklistReview = false,
 }: {
+  requiresChecklistReview?: boolean;
   itpId: string;
   steps: ReviewProgressStep[];
   currentUserId: string;
   isAdminStaff: boolean;
 }) {
   const [state, formAction, pending] = useActionState(approveReviewStepAction, initialState);
+  const [reviewed, setReviewed] = useState(false);
   const firstPending = steps.find((s) => s.status === "pending");
   const canActNow = !!firstPending && (isAdminStaff || firstPending.reviewerUserId === currentUserId);
 
@@ -28,9 +32,10 @@ export function ReviewChainStatus({
         {canActNow && (
           <form action={formAction}>
             <input type="hidden" name="itp_id" value={itpId} />
+            {requiresChecklistReview && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || (requiresChecklistReview && !reviewed)}
               className="rounded-md border border-info bg-surface px-3 py-1.5 text-xs font-medium text-info hover:bg-info/10 disabled:opacity-50"
             >
               {pending ? "Approving…" : `Approve review step ${(steps.findIndex((s) => s.id === firstPending!.id) ?? 0) + 1}`}

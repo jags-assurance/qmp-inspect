@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
 import { acceptItpAction, type AcceptItpState } from "@/lib/itps/actions";
 
 const initialState: AcceptItpState = { error: null };
@@ -11,15 +12,17 @@ const initialState: AcceptItpState = { error: null };
  * return one — clicking "Accept ITP" while it was rejected server-side just silently did nothing.
  * Same fix pattern as AdvanceStatusForm's own doc comment for advanceItpStatusAction.
  */
-export function AcceptItpForm({ itpId }: { itpId: string }) {
+export function AcceptItpForm({ itpId, requiresChecklistReview = false }: { itpId: string; requiresChecklistReview?: boolean }) {
   const [state, formAction, pending] = useActionState(acceptItpAction, initialState);
+  const [reviewed, setReviewed] = useState(false);
 
   return (
     <form action={formAction}>
       <input type="hidden" name="itp_id" value={itpId} />
+      {requiresChecklistReview && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || (requiresChecklistReview && !reviewed)}
         className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
       >
         {pending ? "Accepting…" : "Accept ITP"}

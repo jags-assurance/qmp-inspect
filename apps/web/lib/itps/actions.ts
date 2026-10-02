@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { checklistReviewError } from "@/lib/itps/checklist-review";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -574,6 +575,11 @@ export async function advanceItpStatusAction(
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (nextStatus === "approved") {
+    const gate = await checklistReviewError(supabase, itpId, formData);
+    if (gate) return { error: gate };
+  }
+
   // Look up this org's approval-workflow config (if any) before writing the status change — a
   // missing row (the common case: no org has configured this) means "unrestricted", identical to
   // today's behaviour, exactly like intervention levels' three-tier notice-hours fallback pattern
@@ -779,6 +785,9 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const gate = await checklistReviewError(supabase, itpId, formData);
+  if (gate) return { error: gate };
 
   const { error: rpcError } = await supabase.rpc("accept_itp", { target_itp_id: itpId });
   if (rpcError) {
