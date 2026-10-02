@@ -70,7 +70,7 @@ export async function AppShell({
           orgBranding={orgBranding}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-3 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <MobileSidebarToggle />
             <span className="text-sm text-muted">{breadcrumb}</span>
@@ -95,7 +95,7 @@ export async function AppShell({
           </div>
         </header>
         <OfflineBanner />
-        <main className="flex-1 bg-background p-6">{children}</main>
+        <main className="min-w-0 flex-1 bg-background p-3 sm:p-4 lg:p-6">{children}</main>
         </div>
       </div>
     </SidebarMobileProvider>

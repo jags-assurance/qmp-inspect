@@ -56,7 +56,7 @@ export function RegistersTabs({
   extractMaterialRowsAction: GenericExtractAction;
   addExtractedMaterialRowsAction: GenericAddAction;
 }) {
-  const [activeTab, setActiveTab] = useUrlTab<TabKey>("tab", TABS.map((t) => t.key));
+  const [activeTab, setActiveTab] = useUrlTab<TabKey>("reg", TABS.map((t) => t.key));
 
   return (
     <div className="mt-8">
