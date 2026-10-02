@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
 import { Watchlist } from "@/components/ui/watchlist";
+import { TodayQueue } from "@/components/domain/today-queue";
+import { buildAdminToday } from "@/lib/dashboard/today";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
 
@@ -156,6 +158,22 @@ export function AdminDashboard({
           New project
         </Link>
       </div>
+
+      <TodayQueue
+        description="NCRs and library proposals waiting on you. Click a row to act on it here, without leaving the dashboard."
+        items={buildAdminToday({
+          ncrs: openNcrItems.map((n) => ({
+            id: n.id,
+            ncrNumber: n.ncrNumber,
+            severity: n.severity,
+            description: n.description,
+            projectLabel: n.projectLabel,
+            dueDate: n.dueDate,
+          })),
+          proposals: pendingProposals.map((p) => ({ id: p.id, title: p.title })),
+        })}
+        emptyText="No NCRs or proposals waiting on you."
+      />
 
       {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">

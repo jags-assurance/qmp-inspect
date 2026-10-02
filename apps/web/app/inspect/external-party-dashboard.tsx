@@ -9,6 +9,8 @@ import { SignoffCell } from "@/components/domain/signoff-cell";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { useUrlPanel } from "@/components/ui/side-panel";
+import { TodayQueue } from "@/components/domain/today-queue";
+import { buildExternalToday } from "@/lib/dashboard/today";
 import { ItpReviewPanel } from "./itp-review-panel";
 import { widgetOrderFor, resolveDashboardRole, type ExternalWidget, type OrgHealth } from "@/lib/dashboard/widgets";
 
@@ -440,6 +442,16 @@ export function ExternalPartyDashboard({
       <p className="mt-1 text-sm text-muted">
         {roleLabel} · {today}
       </p>
+
+      <TodayQueue
+        description="What needs your response, most urgent first. Accepting an ITP opens right here."
+        items={buildExternalToday({
+          acceptance: itpsAwaitingAcceptance,
+          review: workAwaitingReview,
+          signoffs: pendingSignoffs,
+          ncrs: ncrsAssignedToMe,
+        })}
+      />
 
       {(widgetOrder).map((key) => (
         <Fragment key={key}>{widgets[key]}</Fragment>

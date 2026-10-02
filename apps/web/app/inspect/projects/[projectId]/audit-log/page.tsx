@@ -4,7 +4,8 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { PageGuide } from "@/components/domain/page-guide";
-import { DateRangeFilter, parseDateRange, dateRangeToFromIso } from "@/components/domain/date-range-filter";
+import { DateRangeFilter } from "@/components/domain/date-range-filter";
+import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
 
 interface ProjectSummary {
   id: string;

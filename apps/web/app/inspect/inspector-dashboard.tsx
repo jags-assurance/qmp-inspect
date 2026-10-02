@@ -5,6 +5,8 @@ import { PendingActionsTable, type PendingActionItem } from "@/components/domain
 import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
 import { PageGuide } from "@/components/domain/page-guide";
 import { QuickRaiseObservation } from "@/components/domain/quick-raise-observation";
+import { TodayQueue } from "@/components/domain/today-queue";
+import { buildInspectorToday } from "@/lib/dashboard/today";
 
 export interface PendingStandaloneAssignmentItem {
   id: string;
@@ -111,6 +113,19 @@ export function InspectorDashboard({
           </Link>
         </div>
       </div>
+
+      <TodayQueue
+        description="Everything on your plate across checklists, hold points and assignments, most urgent first."
+        items={buildInspectorToday({
+          pendingActions,
+          pendingToday,
+          pendingOverdue,
+          overdueHoldPoints,
+          oldestHoldPointDays,
+          standaloneAssignments: pendingStandaloneAssignments,
+        })}
+        emptyText="Nothing waiting — start a new inspection or check the registers."
+      />
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

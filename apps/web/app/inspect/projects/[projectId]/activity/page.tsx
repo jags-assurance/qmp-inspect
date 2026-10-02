@@ -11,7 +11,8 @@ import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/ty
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { VAULT_FOLDERS_TABLE, VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { PageGuide } from "@/components/domain/page-guide";
-import { DateRangeFilter, parseDateRange, dateRangeToFromIso } from "@/components/domain/date-range-filter";
+import { DateRangeFilter } from "@/components/domain/date-range-filter";
+import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
 
 const EVENT_DOT_TONE: Record<ActivityEvent["kind"], string> = {
   itp_created: "bg-info",
