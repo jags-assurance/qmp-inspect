@@ -1,58 +1,86 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { SidePanel, Toast, useToast, useUrlPanel } from "@/components/ui/side-panel";
+import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
+import type { RaiseOptions } from "@/lib/ncrs/raise-options";
 import { NewNcrForm } from "../ncrs/new/new-ncr-form";
 
 /**
- * The one real "less page navigation" win for this register (see plan Phase 2): raising an
- * observation reuses the exact same NewNcrForm + createNcrAction as /inspect/ncrs/new, just opened
- * inline over the register instead of navigating to a separate page. Severity still defaults to
- * "Observation" (NCR_SEVERITIES[0]) and remains fully editable, same as today.
+ * Raising an observation without leaving the register: the same NewNcrForm + createNcrAction as
+ * /inspect/ncrs/new, opened in the shared SidePanel. Open state lives in the URL (`?raise=1`) so the
+ * Back button closes the panel and a refresh keeps it open; the people/party lists are fetched only
+ * when the panel actually opens. After submitting, the user stays on the register, the new row
+ * appears (the action revalidates it) and a toast links to the new record.
  */
-export function RaiseObservationPanel({
-  projects,
-  peopleByProject,
-  partiesByProject,
-}: {
-  projects: { id: string; project_number: string; name: string }[];
-  peopleByProject: Record<string, { id: string; name: string }[]>;
-  partiesByProject: Record<string, { id: string; name: string; party_type: string }[]>;
-}) {
-  const [open, setOpen] = useState(false);
+export function RaiseObservationPanel() {
+  const router = useRouter();
+  const panel = useUrlPanel("raise");
+  const isOpen = panel.value !== null;
+  const { message, show, dismiss } = useToast();
+
+  const [options, setOptions] = useState<RaiseOptions | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  // Remounts the form after each successful raise so the next one starts blank.
+  const [formKey, setFormKey] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen || options) return;
+    let cancelled = false;
+    loadRaiseOptionsAction()
+      .then((o) => !cancelled && setOptions(o))
+      .catch(() => !cancelled && setLoadError(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, options]);
+
+  const handleCreated = useCallback(
+    (created: { id: string; ncrNumber: string }) => {
+      panel.close();
+      setFormKey((k) => k + 1);
+      show(
+        <>
+          {created.ncrNumber} raised.{" "}
+          <Link href={`/inspect/ncrs/${created.id}`} className="font-medium underline">
+            View it →
+          </Link>
+        </>
+      );
+      router.refresh();
+    },
+    [panel, router, show]
+  );
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>+ Raise Observation</Button>
-      {open && (
-        <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true">
-          <button
-            aria-label="Close"
-            className="absolute inset-0 bg-ink/30"
-            onClick={() => setOpen(false)}
+      <Button onClick={() => panel.open()} className="min-h-11">
+        + Raise Observation
+      </Button>
+      <SidePanel
+        open={isOpen}
+        onClose={panel.close}
+        title="Raise Observation"
+        description="The register stays open behind this panel. After you raise it you stay here."
+      >
+        {loadError ? (
+          <p className="mt-6 text-sm text-danger">Couldn&rsquo;t load the project and people lists. Close and try again.</p>
+        ) : !options ? (
+          <p className="mt-6 text-sm text-muted">Loading…</p>
+        ) : (
+          <NewNcrForm
+            key={formKey}
+            projects={options.projects}
+            peopleByProject={options.peopleByProject}
+            partiesByProject={options.partiesByProject}
+            onCreated={handleCreated}
           />
-          <div className="relative z-10 h-full w-full max-w-md overflow-y-auto border-l border-border bg-surface p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">Raise Observation</h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-md px-2 py-1 text-sm text-muted hover:bg-off-white hover:text-ink"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="mt-1 text-sm text-muted">
-              The register stays open behind this panel — closing it (or submitting) returns you here.
-            </p>
-            <NewNcrForm
-              projects={projects}
-              peopleByProject={peopleByProject}
-              partiesByProject={partiesByProject}
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </SidePanel>
+      <Toast message={message} onDismiss={dismiss} />
     </>
   );
 }

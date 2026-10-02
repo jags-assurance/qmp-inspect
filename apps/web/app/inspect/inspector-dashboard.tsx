@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { PendingActionsTable, type PendingActionItem } from "@/components/domain/pending-actions-table";
 import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
 import { PageGuide } from "@/components/domain/page-guide";
+import { QuickRaiseObservation } from "@/components/domain/quick-raise-observation";
 
 export interface PendingStandaloneAssignmentItem {
   id: string;
@@ -100,12 +101,15 @@ export function InspectorDashboard({
           </div>
           <p className="mt-1 text-sm text-muted">{today}</p>
         </div>
-        <Link
-          href="/inspect/start-work"
-          className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
-        >
-          New inspection
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <QuickRaiseObservation />
+          <Link
+            href="/inspect/start-work"
+            className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
+          >
+            New inspection
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

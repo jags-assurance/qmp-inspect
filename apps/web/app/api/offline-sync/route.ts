@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
+import { createNcrAction } from "@/lib/ncrs/actions";
 import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
 
 /**
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
 
       case "complete_inspection": {
         const result = await completeInspectionCore(formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        return NextResponse.json({ ok: true });
+      }
+
+      case "raise_observation": {
+        // Queued by QuickRaiseObservation: same validated createNcrAction the register's form uses
+        // (due date, severity, punch-list item, notification, audit), told to return instead of
+        // redirect since there's no page to navigate when replaying from the outbox.
+        formData.set("severity", "observation");
+        formData.set("stay_on_page", "true");
+        const result = await createNcrAction({ error: null }, formData);
         if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
         return NextResponse.json({ ok: true });
       }

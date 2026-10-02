@@ -10,7 +10,7 @@ const DB_NAME = "qmp-inspect-offline";
 const DB_VERSION = 1;
 const STORE_NAME = "outbox";
 
-export type OutboxKind = "checklist_response" | "photo" | "complete_inspection";
+export type OutboxKind = "checklist_response" | "photo" | "complete_inspection" | "raise_observation";
 
 export interface OutboxItem {
   id: string;

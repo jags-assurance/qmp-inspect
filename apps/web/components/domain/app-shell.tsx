@@ -8,6 +8,7 @@ import { NotificationsBell } from "./notifications-bell";
 import { SidebarMobileProvider } from "./sidebar-mobile-context";
 import { MobileSidebarToggle } from "./mobile-sidebar-toggle";
 import { IdleTimeout } from "./idle-timeout";
+import { CommandPalette } from "./command-palette";
 
 export interface NavItem {
   label: string;
@@ -75,22 +76,7 @@ export async function AppShell({
             <span className="text-sm text-muted">{breadcrumb}</span>
           </div>
           <div className="flex flex-1 items-center justify-end gap-4">
-            <div className="relative hidden w-full max-w-xs sm:block">
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-              >
-                <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <input
-                type="search"
-                placeholder="Search..."
-                className="w-full rounded-md border border-border bg-off-white py-1.5 pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-burgundy focus:outline-none"
-              />
-            </div>
+            <CommandPalette navItems={navItems} />
             <NotificationsBell userId={userId} initialNotifications={initialNotifications} />
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">

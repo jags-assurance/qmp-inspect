@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { cn } from "@/lib/cn";
+import { TabStrip, useUrlTab } from "@/components/ui/tabs";
 import { AddCalibrationForm } from "./add-calibration-form";
 import { AddWelderQualificationForm } from "./add-welder-qualification-form";
 import { AddMaterialForm } from "./add-material-form";
@@ -57,31 +56,13 @@ export function RegistersTabs({
   extractMaterialRowsAction: GenericExtractAction;
   addExtractedMaterialRowsAction: GenericAddAction;
 }) {
-  const [activeTab, setActiveTab] = useState<TabKey>("calibration");
+  const [activeTab, setActiveTab] = useUrlTab<TabKey>("tab", TABS.map((t) => t.key));
 
   return (
     <div className="mt-8">
-      <div className="border-b border-border">
-        <nav className="flex flex-wrap gap-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "-mb-px rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === tab.key
-                  ? "border-burgundy bg-surface text-burgundy"
-                  : "border-transparent text-muted hover:text-ink"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+      <TabStrip tabs={TABS} active={activeTab} onSelect={setActiveTab} label="Project registers" idPrefix="register" />
 
-      <div className="mt-4">
+      <div className="mt-4" role="tabpanel" id={`register-panel-${activeTab}`} aria-labelledby={`register-${activeTab}`}>
         {activeTab === "calibration" && (
           <section>
             <div className="mt-3">

@@ -16,7 +16,11 @@ import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions"
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 import { InspectorDashboard } from "./inspector-dashboard";
+import { Suspense } from "react";
 import { AdminDashboard } from "./admin-dashboard";
+import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
+import { WatchlistSkeleton } from "@/components/ui/watchlist";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface PendingSignoffRow {
   id: string;
@@ -224,6 +228,7 @@ export default async function InspectDashboardPage() {
     itps: { id: string; itp_number: string; title: string } | null;
   }
   let pendingProposals: PendingProposalRow[] = [];
+  let pendingProposalTotal = 0;
   let orgPortfolio: {
     id: string;
     name: string;
@@ -245,19 +250,16 @@ export default async function InspectDashboardPage() {
     severity: "minor_ncr" | "major_ncr";
     createdAt: string;
     projectLabel: string;
+    description: string;
+    dueDate: string | null;
+    status: string;
   }[] = [];
-  const overdueHoldPointItems: {
-    id: string;
-    activity: string;
-    itpNumber: string;
-    projectLabel: string;
-    daysOpen: number;
-  }[] = [];
+  let openNcrTotal = 0;
   if (isAdminStaff(session)) {
-    const [{ data: proposals }, { data: activeProjectRows }, { data: openNcrRows }, { data: activityRows }] = await Promise.all([
+    const [{ data: proposals, count: proposalCount }, { data: activeProjectRows }, { data: openNcrRows }, { data: activityRows }] = await Promise.all([
       supabase
         .from(ITP_MASTER_PROPOSALS_TABLE)
-        .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)")
+        .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)", { count: "exact" })
         .eq("status", "pending")
         .order("created_at")
         .limit(5)
@@ -269,7 +271,7 @@ export default async function InspectDashboardPage() {
         .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
       supabase
         .from("ncrs")
-        .select("id, ncr_number, severity, created_at, project_id, projects(organization_id, project_number, name)")
+        .select("id, ncr_number, severity, description, status, due_date, created_at, project_id, projects(organization_id, project_number, name)")
         .neq("status", "closed")
         .neq("severity", "observation")
         .order("created_at", { ascending: false })
@@ -278,6 +280,9 @@ export default async function InspectDashboardPage() {
             id: string;
             ncr_number: string;
             severity: "minor_ncr" | "major_ncr";
+            description: string;
+            status: string;
+            due_date: string | null;
             created_at: string;
             project_id: string;
             projects: { organization_id: string; project_number: string; name: string } | null;
@@ -304,6 +309,8 @@ export default async function InspectDashboardPage() {
         >(),
     ]);
     pendingProposals = proposals ?? [];
+    pendingProposalTotal = proposalCount ?? pendingProposals.length;
+    openNcrTotal = (openNcrRows ?? []).length;
     // The real list behind the "Open NCRs" KPI tile (new purpose: less page-hopping) — same rows
     // the org-portfolio aggregation below already fetched, just kept in full instead of only
     // counted, so the tile can expand inline to the actual NCRs instead of only a number.
@@ -314,6 +321,9 @@ export default async function InspectDashboardPage() {
         ncrNumber: row.ncr_number,
         severity: row.severity,
         createdAt: row.created_at,
+        description: row.description,
+        dueDate: row.due_date,
+        status: row.status,
         projectLabel: row.projects ? `${row.projects.project_number} — ${row.projects.name}` : "—",
       }));
     recentActivity = (activityRows ?? []).map((row) => ({
@@ -357,94 +367,6 @@ export default async function InspectDashboardPage() {
           .sort((a, b) => a.projectNumber.localeCompare(b.projectNumber)),
       };
     });
-
-    // Portfolio-wide "Overdue hold points" (new purpose: daily/actionable, real data already
-    // computed for the Inspector dashboard below — same blocking-level/notice-period logic, just
-    // unscoped across every organisation instead of one Inspector's own worklist, since work stuck
-    // behind a hold point is exactly the kind of thing an Admin needs to watch daily too).
-    interface AdminNotifiedRow {
-      id: string;
-      itp_item_id: string;
-      intervention: string;
-      notified_at: string | null;
-      itp_items: {
-        activity: string;
-        itp_sections: {
-          itps: {
-            itp_number: string;
-            project_id: string;
-            projects: { organization_id: string; project_number: string; name: string } | null;
-          } | null;
-        } | null;
-      } | null;
-    }
-    const { data: adminNotifiedRows } = await supabase
-      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select(
-        "id, itp_item_id, intervention, notified_at, itp_items(activity, itp_sections(itps(itp_number, project_id, projects(organization_id, project_number, name))))"
-      )
-      .eq("status", "notified")
-      .returns<AdminNotifiedRow[]>();
-
-    const orgIdsForOverdue = [
-      ...new Set(
-        (adminNotifiedRows ?? []).map((r) => r.itp_items?.itp_sections?.itps?.projects?.organization_id).filter((id): id is string => !!id)
-      ),
-    ];
-    const { data: levelTypesForOverdue } = orgIdsForOverdue.length
-      ? await supabase
-          .from(INTERVENTION_LEVEL_TYPES_TABLE)
-          .select("organization_id, code, is_blocking, default_notice_hours")
-          .in("organization_id", orgIdsForOverdue)
-          .eq("is_blocking", true)
-          .returns<Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[]>()
-      : { data: [] as Pick<InterventionLevelTypeRow, "organization_id" | "code" | "is_blocking" | "default_notice_hours">[] };
-    const blockingLevelByOrgCode = new Map((levelTypesForOverdue ?? []).map((l) => [`${l.organization_id}:${l.code}`, l]));
-
-    const adminNotifiedHolds = (adminNotifiedRows ?? []).filter((row) => {
-      const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-      return orgId && blockingLevelByOrgCode.has(`${orgId}:${row.intervention}`);
-    });
-
-    const overdueProjectIds = [
-      ...new Set(adminNotifiedHolds.map((r) => r.itp_items?.itp_sections?.itps?.project_id).filter((id): id is string => !!id)),
-    ];
-    const { data: adminNoticeConfigs } = overdueProjectIds.length
-      ? await supabase
-          .from(NOTICE_PERIOD_CONFIGS_TABLE)
-          .select("project_id, intervention, hours")
-          .in("intervention", ["H", ...[...blockingLevelByOrgCode.values()].map((l) => l.code)])
-          .in("project_id", overdueProjectIds)
-          .returns<{ project_id: string; intervention: string; hours: number }[]>()
-      : { data: [] as { project_id: string; intervention: string; hours: number }[] };
-    const hoursByProjectIntervention = new Map((adminNoticeConfigs ?? []).map((c) => [`${c.project_id}:${c.intervention}`, c.hours]));
-
-    const nowMs = Date.now();
-    for (const row of adminNotifiedHolds) {
-      if (!row.notified_at) continue;
-      const projectId = row.itp_items?.itp_sections?.itps?.project_id;
-      const orgId = row.itp_items?.itp_sections?.itps?.projects?.organization_id;
-      const levelType = orgId ? blockingLevelByOrgCode.get(`${orgId}:${row.intervention}`) : undefined;
-      const noticeHours =
-        (projectId ? hoursByProjectIntervention.get(`${projectId}:${row.intervention}`) : undefined) ??
-        levelType?.default_notice_hours ??
-        DEFAULT_NOTICE_PERIOD_HOURS[row.intervention] ??
-        48;
-      const ageMs = nowMs - new Date(row.notified_at).getTime();
-      if (ageMs <= noticeHours * 60 * 60 * 1000) continue;
-      const itp = row.itp_items?.itp_sections?.itps;
-      overdueHoldPointItems.push({
-        // The row's own primary key, not itp_item_id/intervention — more than one project party
-        // can each have their own notified row for the same activity+level, which collided as a
-        // duplicate-key React warning when keyed on the composite instead (found live testing).
-        id: row.id,
-        activity: row.itp_items?.activity ?? "—",
-        itpNumber: itp?.itp_number ?? "—",
-        projectLabel: itp?.projects ? `${itp.projects.project_number} — ${itp.projects.name}` : "—",
-        daysOpen: Math.floor(ageMs / 86_400_000),
-      });
-    }
-    overdueHoldPointItems.sort((a, b) => b.daysOpen - a.daysOpen);
   }
 
   // "My pending actions" (matches the prototype's Inspector Dashboard reference) — a real worklist
@@ -821,7 +743,8 @@ export default async function InspectDashboardPage() {
       activeProjects={activeProjects ?? 0}
       activeItps={activeItps ?? 0}
       pendingInspections={pendingInspections ?? 0}
-      openNcrs={openNcrs ?? 0}
+      openNcrTotal={openNcrTotal}
+      pendingProposalTotal={pendingProposalTotal}
       pendingProposals={pendingProposals.map((p) => ({
         id: p.id,
         title:
@@ -835,7 +758,17 @@ export default async function InspectDashboardPage() {
       orgPortfolio={orgPortfolio}
       recentActivity={recentActivity}
       openNcrItems={openNcrItems}
-      overdueHoldPointItems={overdueHoldPointItems}
+      // Streamed: the slowest dashboard query no longer blocks every other tile and list.
+      overdueHoldsTile={
+        <Suspense fallback={<StatCard label="Overdue hold points" value="…" />}>
+          <OverdueHoldsTile />
+        </Suspense>
+      }
+      overdueHoldsCard={
+        <Suspense fallback={<WatchlistSkeleton title="Overdue hold points" />}>
+          <OverdueHoldsCard />
+        </Suspense>
+      }
     />
   );
 }

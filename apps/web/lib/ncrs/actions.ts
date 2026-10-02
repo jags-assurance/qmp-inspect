@@ -25,6 +25,8 @@ import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
 
 export interface CreateNcrState {
   error: string | null;
+  /** Set only when the caller asked to stay on its page (`stay_on_page`) — see createNcrAction. */
+  created?: { id: string; ncrNumber: string };
 }
 
 export async function createNcrAction(
@@ -212,6 +214,14 @@ export async function createNcrAction(
     actorId: user?.id ?? null,
     summary: `NCR ${ncrNumber} raised`,
   });
+
+  // Opened from a side panel on a register: stay where the user is (they can see the new row and
+  // follow the link) instead of navigating away from the list they were working in.
+  if (formData.get("stay_on_page") === "true") {
+    revalidatePath("/inspect/observations");
+    revalidatePath("/inspect/ncrs");
+    return { error: null, created: { id: ncr.id, ncrNumber } };
+  }
 
   redirect(`/inspect/ncrs/${ncr.id}`);
 }

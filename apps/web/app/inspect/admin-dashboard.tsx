@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
+import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
+import { Watchlist } from "@/components/ui/watchlist";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
 
@@ -22,14 +24,9 @@ export interface OpenNcrItem {
   severity: "minor_ncr" | "major_ncr";
   createdAt: string;
   projectLabel: string;
-}
-
-export interface OverdueHoldPointItem {
-  id: string;
-  activity: string;
-  itpNumber: string;
-  projectLabel: string;
-  daysOpen: number;
+  description: string;
+  dueDate: string | null;
+  status: string;
 }
 
 export interface RecentActivityItem {
@@ -94,39 +91,48 @@ export function AdminDashboard({
   activeProjects,
   activeItps,
   pendingInspections,
-  openNcrs,
+  openNcrTotal,
+  pendingProposalTotal,
   pendingProposals,
   orgPortfolio,
   recentActivity,
   openNcrItems,
-  overdueHoldPointItems,
+  overdueHoldsTile,
+  overdueHoldsCard,
 }: {
   firstName: string;
   today: string;
   activeProjects: number;
   activeItps: number;
   pendingInspections: number;
-  openNcrs: number;
+  /** True count of open minor/major NCRs (the list below is a capped slice of it). */
+  openNcrTotal: number;
+  /** True count of pending proposals (the table below is a capped slice of it). */
+  pendingProposalTotal: number;
   pendingProposals: PendingProposalItem[];
   orgPortfolio: OrgPortfolioItem[];
   recentActivity: RecentActivityItem[];
   openNcrItems: OpenNcrItem[];
-  overdueHoldPointItems: OverdueHoldPointItem[];
+  /** Streamed server pieces (see admin-overdue-holds.tsx) so the slowest query doesn't block the page. */
+  overdueHoldsTile: ReactNode;
+  overdueHoldsCard: ReactNode;
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  // Redesign (new purpose: less page-hopping, more in place): reviewing a proposal used to mean
-  // navigating to /inspect/itp-master/proposals — same "expand inline instead of leaving the page"
-  // pattern already applied to the NCR raise flow (Observations) and punch-list resolve/verify.
-  // Only one row's form is open at a time, closing on submit via key remount below.
-  const [expandedProposalId, setExpandedProposalId] = useState<string | null>(null);
-  const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
+  // One shared side panel for every "open this row" action on the page (proposal review, NCR
+  // preview, organisation projects). State lives in the URL (?panel=kind:id) so a panel is
+  // deep-linkable, survives refresh and the Back button closes it; the list stays in place behind it.
+  const panel = useUrlPanel("panel");
+  const [panelKind, panelId] = (panel.value ?? "").split(":");
+  const openProposal = panelKind === "proposal" ? pendingProposals.find((p) => p.id === panelId) : undefined;
+  const openNcr = panelKind === "ncr" ? openNcrItems.find((n) => n.id === panelId) : undefined;
+  const openOrg = panelKind === "org" ? orgPortfolio.find((o) => o.id === panelId) : undefined;
 
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted" suppressHydrationWarning>
             {greeting}, {firstName}
           </p>
           <div className="flex flex-wrap items-center gap-2">
@@ -190,7 +196,8 @@ export function AdminDashboard({
         />
         <StatCard
           label="Library proposals"
-          value={pendingProposals.length}
+          value={pendingProposalTotal}
+          href="/inspect/itp-master/proposals"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -200,18 +207,7 @@ export function AdminDashboard({
             </span>
           }
         />
-        <StatCard
-          label="Overdue hold points"
-          value={overdueHoldPointItems.length}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M10 6v4.5l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          }
-        />
+        {overdueHoldsTile}
       </div>
 
       {/* Window-grid layout (new purpose: every section as its own window, not one column of
@@ -220,83 +216,54 @@ export function AdminDashboard({
           never pushes the others down the page, with the two wide DataTables (Proposals,
           Organisations) as their own full-width windows below. */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        {/* Real blocking sign-off points notified past their notice period, across every
-            organisation — same logic the Inspector dashboard already computes for its own
-            worklist, an Admin needs the portfolio-wide view of it too. */}
-        <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Overdue hold points</h2>
-          <p className="mt-1 text-xs text-muted">Blocking sign-offs notified past their notice period.</p>
-          <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
-            {overdueHoldPointItems.map((item) => (
-              <li key={item.id} className="py-2 text-sm">
-                <p className="text-ink">
-                  <span className="doc-id mr-1 text-muted">{item.itpNumber}</span>
-                  {item.activity}
-                </p>
-                <p className="mt-0.5 flex items-center justify-between text-xs">
-                  <span className="text-muted">{item.projectLabel}</span>
-                  <span className="font-semibold text-danger">{item.daysOpen}d overdue</span>
-                </p>
-              </li>
-            ))}
-            {overdueHoldPointItems.length === 0 && <li className="py-2 text-sm text-muted">No overdue hold points.</li>}
-          </ul>
-        </div>
+        {overdueHoldsCard}
 
-        {/* The real open NCRs behind the KPI tile above, inline, instead of always needing a
-            navigation to /inspect/ncrs just to see what they are. */}
-        <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Open NCRs</h2>
-          <p className="mt-1 text-xs text-muted">Minor and major, across every project you have access to.</p>
-          <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
-            {openNcrItems.map((item) => (
-              <li key={item.id} className="py-2 text-sm">
-                <p className="flex items-center gap-2">
-                  <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
-                    {item.severity === "major_ncr" ? "Major" : "Minor"}
-                  </Badge>
-                  <Link href={`/inspect/ncrs/${item.id}`} className="doc-id text-burgundy hover:underline">
-                    {item.ncrNumber}
-                  </Link>
-                </p>
-                <p className="mt-0.5 flex items-center justify-between text-xs text-muted">
-                  <span>{item.projectLabel}</span>
-                  <span>Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
-                </p>
-              </li>
-            ))}
-            {openNcrItems.length === 0 && <li className="py-2 text-sm text-muted">No open NCRs.</li>}
-          </ul>
-          {openNcrs > openNcrItems.length && (
-            <Link href="/inspect/ncrs" className="mt-2 text-xs text-burgundy hover:underline">
-              See all {openNcrs} →
-            </Link>
+        <Watchlist
+          title="Open NCRs"
+          description="Minor and major, across every project you have access to."
+          items={openNcrItems}
+          total={openNcrTotal}
+          seeAllHref="/inspect/ncrs"
+          emptyText="No open NCRs."
+          renderItem={(item) => (
+            <button
+              type="button"
+              onClick={() => panel.open(`ncr:${item.id}`)}
+              className="-mx-1 block w-[calc(100%+0.5rem)] rounded-md px-1 py-0.5 text-left hover:bg-off-white"
+            >
+              <span className="flex items-center gap-2">
+                <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
+                  {item.severity === "major_ncr" ? "Major" : "Minor"}
+                </Badge>
+                <span className="doc-id text-burgundy">{item.ncrNumber}</span>
+              </span>
+              <span className="mt-0.5 flex items-center justify-between text-xs text-muted">
+                <span>{item.projectLabel}</span>
+                <span>Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
+              </span>
+            </button>
           )}
-        </div>
+        />
 
-        {/* Fieldwire-style "Activity" log — real audit_log events across every organisation this
-            Admin can see, so what's happening on the portfolio is visible here directly instead of
-            needing to open each project's own Audit Log page to find out. */}
-        <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Recent activity</h2>
-          <p className="mt-1 text-xs text-muted">Across every organisation your access reaches.</p>
-          <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
-            {recentActivity.map((event) => (
-              <li key={event.id} className="py-2 text-sm">
-                <p className="text-ink">
-                  {event.actorName && <span className="font-medium">{event.actorName}</span>}
-                  {event.actorName ? " — " : ""}
-                  {event.summary}
-                </p>
-                <p className="mt-0.5 flex items-center justify-between text-xs text-muted">
-                  <span>{event.projectLabel ?? "—"}</span>
-                  <span>{timeAgo(event.createdAt)}</span>
-                </p>
-              </li>
-            ))}
-            {recentActivity.length === 0 && <li className="py-2 text-sm text-muted">No recent activity.</li>}
-          </ul>
-        </div>
+        <Watchlist
+          title="Recent activity"
+          description="Across every organisation your access reaches."
+          items={recentActivity}
+          emptyText="No recent activity."
+          renderItem={(event) => (
+            <>
+              <p className="text-ink">
+                {event.actorName && <span className="font-medium">{event.actorName}</span>}
+                {event.actorName ? " — " : ""}
+                {event.summary}
+              </p>
+              <p className="mt-0.5 flex items-center justify-between text-xs text-muted">
+                <span>{event.projectLabel ?? "—"}</span>
+                <span suppressHydrationWarning>{timeAgo(event.createdAt)}</span>
+              </p>
+            </>
+          )}
+        />
       </div>
 
       {/* Full-width window below the 3-up grid — a wide DataTable (5 columns plus the inline
@@ -309,7 +276,7 @@ export function AdminDashboard({
               <p className="mt-1 text-sm text-muted">Submitted by staff, waiting on your decision.</p>
             </div>
             <Link href="/inspect/itp-master/proposals" className="text-sm font-medium text-burgundy hover:underline">
-              View all →
+              View all{pendingProposalTotal > pendingProposals.length ? ` ${pendingProposalTotal}` : ""} →
             </Link>
           </div>
           <div className="mt-3">
@@ -341,20 +308,15 @@ export function AdminDashboard({
                 {
                   key: "action",
                   header: "",
-                  render: (r) =>
-                    expandedProposalId === r.id ? (
-                      <div className="min-w-64">
-                        <ProposalReviewForm proposalId={r.id} />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedProposalId(r.id)}
-                        className="font-medium text-burgundy hover:underline"
-                      >
-                        Review
-                      </button>
-                    ),
+                  render: (r) => (
+                    <button
+                      type="button"
+                      onClick={() => panel.open(`proposal:${r.id}`)}
+                      className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline"
+                    >
+                      Review
+                    </button>
+                  ),
                 },
               ]}
             />
@@ -402,31 +364,11 @@ export function AdminDashboard({
                 render: (r) =>
                   r.activeProjects === 0 ? (
                     <span className="text-muted">0</span>
-                  ) : expandedOrgId === r.id ? (
-                    <div className="min-w-56">
-                      <ul className="space-y-1">
-                        {r.projects.map((p) => (
-                          <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                            <Link href={`/inspect/projects/${p.id}`} className="truncate text-burgundy hover:underline">
-                              {p.projectNumber} — {p.name}
-                            </Link>
-                            {p.openNcrs > 0 && <Badge tone="danger">{p.openNcrs}</Badge>}
-                          </li>
-                        ))}
-                      </ul>
-                      <button
-                        type="button"
-                        onClick={() => setExpandedOrgId(null)}
-                        className="mt-1.5 text-xs text-muted hover:text-ink"
-                      >
-                        Collapse
-                      </button>
-                    </div>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setExpandedOrgId(r.id)}
-                      className="font-medium text-burgundy hover:underline"
+                      onClick={() => panel.open(`org:${r.id}`)}
+                      className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline"
                     >
                       {r.activeProjects} →
                     </button>
@@ -441,6 +383,83 @@ export function AdminDashboard({
           />
         </div>
       </div>
+
+      <SidePanel
+        open={!!openProposal}
+        onClose={panel.close}
+        title="Review proposal"
+        description={openProposal?.title}
+        guardUnsaved={false}
+      >
+        {openProposal && (
+          <div className="mt-4 text-sm">
+            <p className="text-muted">Submitted {new Date(openProposal.submittedOn).toLocaleDateString("en-GB")}</p>
+            {openProposal.sourceItpId && (
+              <p className="mt-2">
+                Source ITP:{" "}
+                <Link href={`/inspect/itps/${openProposal.sourceItpId}`} className="text-burgundy hover:underline">
+                  {openProposal.sourceItpLabel}
+                </Link>
+              </p>
+            )}
+            <ProposalReviewForm proposalId={openProposal.id} />
+          </div>
+        )}
+      </SidePanel>
+
+      <SidePanel open={!!openNcr} onClose={panel.close} title={openNcr?.ncrNumber ?? "NCR"} guardUnsaved={false}>
+        {openNcr && (
+          <div className="mt-4 space-y-3 text-sm">
+            <p className="flex items-center gap-2">
+              <Badge tone={openNcr.severity === "major_ncr" ? "danger" : "gold"}>
+                {openNcr.severity === "major_ncr" ? "Major NCR" : "Minor NCR"}
+              </Badge>
+              <span className="text-muted capitalize">{openNcr.status.replace(/_/g, " ")}</span>
+            </p>
+            <p className="text-ink">{openNcr.description}</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+              <dt className="text-muted">Project</dt>
+              <dd className="text-ink">{openNcr.projectLabel}</dd>
+              <dt className="text-muted">Raised</dt>
+              <dd className="text-ink">{new Date(openNcr.createdAt).toLocaleDateString("en-GB")}</dd>
+              <dt className="text-muted">Due</dt>
+              <dd className="text-ink">{openNcr.dueDate ? new Date(openNcr.dueDate).toLocaleDateString("en-GB") : "—"}</dd>
+            </dl>
+            <Link
+              href={`/inspect/ncrs/${openNcr.id}`}
+              className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 text-sm font-medium text-white hover:bg-burgundy-dark"
+            >
+              Open full NCR →
+            </Link>
+          </div>
+        )}
+      </SidePanel>
+
+      <SidePanel
+        open={!!openOrg}
+        onClose={panel.close}
+        title={openOrg?.name ?? "Organisation"}
+        description={openOrg ? `${ENGAGEMENT_MODE_LABEL[openOrg.engagementMode] ?? openOrg.engagementMode} · ${openOrg.activeProjects} active project${openOrg.activeProjects === 1 ? "" : "s"}` : undefined}
+        guardUnsaved={false}
+      >
+        {openOrg && (
+          <div className="mt-4">
+            <ul className="divide-y divide-border">
+              {openOrg.projects.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <Link href={`/inspect/projects/${p.id}`} className="min-w-0 truncate text-burgundy hover:underline">
+                    {p.projectNumber} — {p.name}
+                  </Link>
+                  {p.openNcrs > 0 && <Badge tone="danger">{p.openNcrs} NCR{p.openNcrs === 1 ? "" : "s"}</Badge>}
+                </li>
+              ))}
+            </ul>
+            <Link href={`/inspect/projects?org=${openOrg.id}`} className="mt-3 inline-block text-sm text-burgundy hover:underline">
+              Open in Projects →
+            </Link>
+          </div>
+        )}
+      </SidePanel>
     </div>
   );
 }

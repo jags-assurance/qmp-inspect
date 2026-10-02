@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   createNcrAction,
   draftNcrDescriptionAction,
@@ -40,6 +40,7 @@ export function NewNcrForm({
   itpItemId,
   inspectionRecordId,
   initialDescription,
+  onCreated,
 }: {
   projects: { id: string; project_number: string; name: string }[];
   peopleByProject: Record<string, { id: string; name: string }[]>;
@@ -52,12 +53,24 @@ export function NewNcrForm({
   itpItemId?: string;
   inspectionRecordId?: string;
   initialDescription?: string;
+  /** When given, the form is hosted in a side panel: it stays on the page after raising and reports
+   *  the new record here instead of redirecting to the NCR's own page. */
+  onCreated?: (created: { id: string; ncrNumber: string }) => void;
 }) {
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
   const [draftState, draftFormAction, draftPending] = useActionState(
     draftNcrDescriptionAction,
     initialDraftState
   );
+
+  // Report each created record once, even if the parent hands us a new onCreated every render.
+  const reportedId = useRef<string | null>(null);
+  useEffect(() => {
+    if (state.created && reportedId.current !== state.created.id) {
+      reportedId.current = state.created.id;
+      onCreated?.(state.created);
+    }
+  }, [state.created, onCreated]);
 
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
   const [notes, setNotes] = useState("");
@@ -82,6 +95,7 @@ export function NewNcrForm({
 
   return (
     <form action={formAction} className="mt-6 space-y-6">
+      {onCreated && <input type="hidden" name="stay_on_page" value="true" />}
       <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
       <input type="hidden" name="ai_original_description" value={aiOriginalDescription ?? ""} />
       {itpItemId && <input type="hidden" name="itp_item_id" value={itpItemId} />}

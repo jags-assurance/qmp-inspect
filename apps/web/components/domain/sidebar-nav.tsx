@@ -1,10 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { NavIcon } from "./nav-icons";
 import { useSidebarMobile } from "./sidebar-mobile-context";
+
+const NAV_STATE_EVENT = "jags-nav-state";
+
+function subscribeNavState(onChange: () => void) {
+  window.addEventListener(NAV_STATE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(NAV_STATE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+// In-memory mirror so the toggle still works when storage is blocked (it just won't persist).
+const memoryNavState = new Map<string, string>();
+
+function readNavState(key: string): string | null {
+  try {
+    return localStorage.getItem(key) ?? memoryNavState.get(key) ?? null;
+  } catch {
+    return memoryNavState.get(key) ?? null;
+  }
+}
+
+function writeNavState(key: string, value: string) {
+  memoryNavState.set(key, value);
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable — the in-memory mirror above keeps this page load consistent.
+  }
+  window.dispatchEvent(new Event(NAV_STATE_EVENT));
+}
 
 function isItemActive(pathname: string, href: string): boolean {
   return href === "/inspect" || href === "/platform" ? pathname === href : pathname.startsWith(href);
@@ -56,7 +88,21 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
   const pathname = usePathname();
   const children = item.children ?? [];
   const hasActiveChild = children.some((c) => hasActiveDescendant(pathname, c));
-  const [open, setOpen] = useState(hasActiveChild);
+  // The sidebar's links are full page loads, so plain state resets on every navigation — Settings
+  // would snap shut each time. The open/closed choice lives in localStorage (read through
+  // useSyncExternalStore so server and first client render agree); with no saved choice, a group
+  // opens only when it holds the current page.
+  const storageKey = `jags.nav.open.${item.label}`;
+  const saved = useSyncExternalStore(
+    subscribeNavState,
+    () => readNavState(storageKey),
+    () => null
+  );
+  const open = saved === null ? hasActiveChild : saved === "1";
+
+  function toggle() {
+    writeNavState(storageKey, open ? "0" : "1");
+  }
 
   if (children.length === 0) return null;
 
@@ -81,7 +127,7 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
     <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-expanded={open}
         style={depth > 0 ? { paddingLeft: `${12 + depth * 20}px` } : undefined}
         className={
