@@ -11,6 +11,7 @@ import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documen
 import { VaultUploadForm } from "./upload-form";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SplitLayout } from "@/components/ui/split-layout";
 import { VaultDocumentView } from "../document/[documentId]/vault-document-view";
 
 interface DocumentWithUploader {
@@ -174,8 +175,12 @@ export default async function VaultFolderPage({
 
       {/* Master-detail: with ?doc= the document viewer opens beside the list (desktop/tablet) or in
           place of it (phone, with a way back) — no navigation to a separate viewer page. */}
-      <div className={selectedDocId ? "mt-6 grid gap-4 lg:grid-cols-[minmax(300px,2fr)_3fr]" : ""}>
-        <div className={selectedDocId ? "hidden min-w-0 lg:block" : ""}>
+      <SplitLayout
+        storageKey="vault-folder"
+        showDetail={!!selectedDocId}
+        defaultListWidth={460}
+        list={
+          <>
           <div className="mt-6">
             <VaultDocumentsTable rows={rows} canApprove={canApprove} />
           </div>
@@ -194,8 +199,10 @@ export default async function VaultFolderPage({
               approverOptions={approverOptions}
             />
           )}
-        </div>
-        {selectedDocId && (
+          </>
+        }
+        detail={
+          selectedDocId ? (
           <section className="min-w-0 rounded-lg border border-border bg-surface p-3 sm:p-4" aria-label="Document preview">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Link
@@ -223,9 +230,9 @@ export default async function VaultFolderPage({
               <VaultDocumentView projectId={projectId} documentId={selectedDocId} embedded />
             </Suspense>
           </section>
-        )}
-      </div>
-
+          ) : null
+        }
+      />
     </div>
   );
 }

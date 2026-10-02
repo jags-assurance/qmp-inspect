@@ -7,6 +7,8 @@ import { cn } from "@/lib/cn";
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const EXPANDED_CLASS = "max-w-[min(1200px,100vw)]";
+
 const WIDTH_CLASS = {
   md: "max-w-md",
   lg: "max-w-xl",
@@ -43,6 +45,26 @@ export function SidePanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const dirtyRef = useRef(false);
+  // Stretchable: a button grows the panel to (almost) the full screen and back, remembered per user.
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setExpanded(localStorage.getItem("sidepanel:expanded") === "1");
+    } catch {
+      // storage unavailable
+    }
+  }, []);
+  function toggleExpanded() {
+    setExpanded((v) => {
+      try {
+        localStorage.setItem("sidepanel:expanded", v ? "0" : "1");
+      } catch {
+        // ignore
+      }
+      return !v;
+    });
+  }
 
   const requestClose = useCallback(() => {
     if (guardUnsaved && dirtyRef.current && !window.confirm("Discard what you've typed?")) return;
@@ -113,7 +135,7 @@ export function SidePanel({
         }}
         className={cn(
           "relative z-10 h-full w-full overflow-y-auto border-l border-border bg-surface p-5 shadow-xl outline-none sm:p-6",
-          WIDTH_CLASS[width]
+          expanded ? EXPANDED_CLASS : WIDTH_CLASS[width]
         )}
       >
         <div className="flex items-start justify-between gap-3">
@@ -123,14 +145,26 @@ export function SidePanel({
             </h2>
             {description && <p className="mt-1 text-sm text-muted">{description}</p>}
           </div>
+          <div className="-mr-2 -mt-1 flex shrink-0 items-center">
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              aria-pressed={expanded}
+              aria-label={expanded ? "Shrink panel" : "Expand panel"}
+              title={expanded ? "Shrink panel" : "Expand panel"}
+              className="hidden h-11 w-11 items-center justify-center rounded-md text-lg text-muted hover:bg-off-white hover:text-ink sm:inline-flex"
+            >
+              {expanded ? "⤡" : "⤢"}
+            </button>
           <button
             type="button"
             onClick={requestClose}
             aria-label="Close panel"
-            className="-mr-2 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-lg text-muted hover:bg-off-white hover:text-ink"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-lg text-muted hover:bg-off-white hover:text-ink"
           >
             ✕
           </button>
+          </div>
         </div>
         {children}
       </div>
