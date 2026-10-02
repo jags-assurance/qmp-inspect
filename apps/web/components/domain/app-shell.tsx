@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { signOutAction } from "@/lib/auth/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listRecentNotifications } from "@/lib/notifications/helpers";
@@ -58,9 +58,6 @@ export async function AppShell({
   orgBranding?: OrgBrandingInfo | null;
   children: ReactNode;
 }) {
-  const supabase = await createSupabaseServerClient();
-  const initialNotifications = await listRecentNotifications(supabase, userId);
-
   return (
     <SidebarMobileProvider>
       <IdleTimeout />
@@ -80,7 +77,11 @@ export async function AppShell({
           </div>
           <div className="flex flex-1 items-center justify-end gap-4">
             <CommandPalette navItems={navItems} />
-            <NotificationsBell userId={userId} initialNotifications={initialNotifications} />
+            {/* Streamed: the bell used to be fetched before ANYTHING rendered, adding a round-trip to every
+                page's first byte. The page now paints immediately and the bell fills in. */}
+            <Suspense fallback={<NotificationsBell userId={userId} initialNotifications={[]} />}>
+              <NotificationsBellLoader userId={userId} />
+            </Suspense>
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
                 {userName
@@ -103,4 +104,10 @@ export async function AppShell({
       </div>
     </SidebarMobileProvider>
   );
+}
+
+async function NotificationsBellLoader({ userId }: { userId: string }) {
+  const supabase = await createSupabaseServerClient();
+  const initialNotifications = await listRecentNotifications(supabase, userId);
+  return <NotificationsBell userId={userId} initialNotifications={initialNotifications} />;
 }

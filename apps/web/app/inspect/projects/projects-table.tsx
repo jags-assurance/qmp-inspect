@@ -39,7 +39,7 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
     key: "project_number",
     header: "Project No.",
     render: (row) => (
-      <Link href={`/inspect/projects/${row.id}`} className="doc-id text-burgundy hover:underline">
+      <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="doc-id text-burgundy hover:underline">
         {row.project_number}
       </Link>
     ),
@@ -48,7 +48,7 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
     key: "name",
     header: "Name",
     render: (row) => (
-      <Link href={`/inspect/projects/${row.id}`} className="hover:underline">
+      <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="hover:underline">
         {row.name}
       </Link>
     ),

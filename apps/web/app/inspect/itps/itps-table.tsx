@@ -42,7 +42,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
     key: "itp_number",
     header: "ITP No.",
     render: (row) => (
-      <Link href={hrefFor(row.id)} scroll={false} aria-current={cur(row.id)} className={`doc-id inline-flex min-h-11 items-center text-burgundy hover:underline ${row.id === selectedId ? "font-semibold" : ""}`}>
+      <Link prefetch={false} href={hrefFor(row.id)} scroll={false} aria-current={cur(row.id)} className={`doc-id inline-flex min-h-11 items-center text-burgundy hover:underline ${row.id === selectedId ? "font-semibold" : ""}`}>
         {row.itp_number}
       </Link>
     ),
@@ -53,7 +53,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
     // Round-table field-usability finding: only the (small, monospace) ITP number was clickable —
     // the title, the more visually prominent and legible column, was plain text.
     render: (row) => (
-      <Link href={hrefFor(row.id)} scroll={false} aria-current={cur(row.id)} className={`inline-flex min-h-11 items-center text-ink hover:underline ${row.id === selectedId ? "font-semibold" : ""}`}>
+      <Link prefetch={false} href={hrefFor(row.id)} scroll={false} aria-current={cur(row.id)} className={`inline-flex min-h-11 items-center text-ink hover:underline ${row.id === selectedId ? "font-semibold" : ""}`}>
         {row.title}
       </Link>
     ),

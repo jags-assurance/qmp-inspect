@@ -39,11 +39,15 @@ export interface SessionContext {
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const supabase = await createSupabaseServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
+  // The proxy (proxy.ts) already validates this request's session against the Auth server with
+  // getUser(). Here we only need to know WHO it is, so verify the JWT locally with getClaims()
+  // (JWKS-cached, no network round-trip when the project uses asymmetric signing keys; it falls
+  // back to a server check otherwise) instead of paying for a second Auth round-trip per request.
+  // Every query below is still RLS-scoped to this user, which remains the real boundary.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (!userId) return null;
+  const user = { id: userId };
 
   const [{ data: profile }, { data: grants }] = await Promise.all([
     supabase
