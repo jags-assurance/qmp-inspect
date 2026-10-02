@@ -1,5 +1,6 @@
 "use client";
 
+import { RaiseNcrDrawer } from "./raise-ncr-drawer";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { saveChecklistResponseAction } from "@/lib/checklists/actions";
@@ -275,12 +276,12 @@ export function ResponseRow({
         {result === "no" && comment.trim() && (
           <p className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
             <span>Marked as No.</span>
-            <Link
-              href={`/inspect/ncrs/new?project_id=${projectId}&itp_item_id=${itpItemId}&inspection_record_id=${inspectionRecordId}&description=${encodeURIComponent(`${itemNumber} ${description}: ${comment.trim()}`)}`}
-              className="font-medium underline hover:no-underline"
-            >
-              Raise NCR for this item →
-            </Link>
+            <RaiseNcrDrawer
+              projectId={projectId}
+              itpItemId={itpItemId}
+              inspectionRecordId={inspectionRecordId}
+              initialDescription={`${itemNumber} ${description}: ${comment.trim()}`}
+            />
           </p>
         )}
 

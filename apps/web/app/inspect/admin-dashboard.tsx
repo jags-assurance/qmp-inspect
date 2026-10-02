@@ -157,7 +157,47 @@ export function AdminDashboard({
         </Link>
       </div>
 
+      {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
+        {overdueHoldsTile}
+        <StatCard
+          label="Open NCRs"
+          value={openNcrTotal}
+          href="/inspect/ncrs"
+          icon={
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                <path d="M10 3l7.5 13h-15L10 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                <path d="M10 8.5v3.5M10 14.2v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </span>
+          }
+        />
+        <StatCard
+          label="Library proposals"
+          value={pendingProposalTotal}
+          href="/inspect/itp-master/proposals"
+          icon={
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                <rect x="4" y="3" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M7 7h6M7 10h6M7 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </span>
+          }
+        />
+        <StatCard
+          label="Pending inspections"
+          value={pendingInspections}
+          icon={
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          }
+        />
         <StatCard
           label="Active projects"
           value={activeProjects}
@@ -182,32 +222,6 @@ export function AdminDashboard({
             </span>
           }
         />
-        <StatCard
-          label="Pending inspections"
-          value={pendingInspections}
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          }
-        />
-        <StatCard
-          label="Library proposals"
-          value={pendingProposalTotal}
-          href="/inspect/itp-master/proposals"
-          icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="4" y="3" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 7h6M7 10h6M7 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </span>
-          }
-        />
-        {overdueHoldsTile}
       </div>
 
       {/* Window-grid layout (new purpose: every section as its own window, not one column of

@@ -816,6 +816,8 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+  // The dashboard's "awaiting your acceptance" list shows this ITP too.
+  revalidatePath("/inspect");
   return { error: null };
 }
 

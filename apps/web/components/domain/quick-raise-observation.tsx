@@ -6,6 +6,7 @@ import { SidePanel, Toast, useToast } from "@/components/ui/side-panel";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
+import { compressImageFile } from "@/lib/media/compress-image";
 
 const PROJECTS_CACHE_KEY = "jags.quickRaise.projects";
 
@@ -71,9 +72,18 @@ export function QuickRaiseObservation() {
     setSaving(true);
     setError(null);
     try {
+      const rawPhoto = form.get("photo");
+      const photo = rawPhoto instanceof File && rawPhoto.size > 0 ? await compressImageFile(rawPhoto) : null;
       await enqueueOutboxItem({
         kind: "raise_observation",
-        fields: { kind: "raise_observation", project_id: projectId, description, due_date: dueDate },
+        fields: {
+          kind: "raise_observation",
+          project_id: projectId,
+          description,
+          due_date: dueDate,
+          ...(photo ? { file_name: photo.name } : {}),
+        },
+        ...(photo ? { file: photo, fileName: photo.name } : {}),
       });
       notifyOutboxChanged();
       setOpen(false);
@@ -140,8 +150,21 @@ export function QuickRaiseObservation() {
               className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
+          <div>
+            <label htmlFor="qr-photo" className="block text-sm font-medium text-ink">
+              Photo (optional)
+            </label>
+            <input
+              id="qr-photo"
+              name="photo"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="mt-1 block min-h-11 w-full text-sm text-muted file:mr-3 file:min-h-11 file:rounded-md file:border file:border-border file:bg-surface file:px-4 file:text-sm file:font-medium file:text-ink"
+            />
+          </div>
           <p className="text-xs text-muted">
-            Severity is set to Observation. Add the assignee, responsible party and photos afterwards from the NCR itself.
+            Severity is set to Observation. Add the assignee and responsible party afterwards from the NCR itself.
           </p>
           {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={saving} className="min-h-11 w-full">

@@ -256,7 +256,7 @@ export default async function InspectDashboardPage() {
   }[] = [];
   let openNcrTotal = 0;
   if (isAdminStaff(session)) {
-    const [{ data: proposals, count: proposalCount }, { data: activeProjectRows }, { data: openNcrRows }, { data: activityRows }] = await Promise.all([
+    const [{ data: proposals, count: proposalCount }, { data: activeProjectRows }, { data: openNcrRows }, { data: openNcrListRows }, { data: activityRows }] = await Promise.all([
       supabase
         .from(ITP_MASTER_PROPOSALS_TABLE)
         .select("id, proposed_action, proposed_title, created_at, itps(id, itp_number, title)", { count: "exact" })
@@ -269,12 +269,22 @@ export default async function InspectDashboardPage() {
         .select("id, project_number, name, organization_id")
         .eq("status", "active")
         .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
+      // All open minor/major NCRs, but ONLY the two ids the per-organisation / per-project counts
+      // need — the full rows for the visible list come from the capped query right after.
       supabase
         .from("ncrs")
-        .select("id, ncr_number, severity, description, status, due_date, created_at, project_id, projects(organization_id, project_number, name)")
+        .select("id, project_id, projects(organization_id)")
+        .neq("status", "closed")
+        .neq("severity", "observation")
+        .returns<{ id: string; project_id: string; projects: { organization_id: string } | null }[]>(),
+      // The 8 most recent, with everything the list and its side panel show.
+      supabase
+        .from("ncrs")
+        .select("id, ncr_number, severity, description, status, due_date, created_at, project_id, projects(project_number, name)")
         .neq("status", "closed")
         .neq("severity", "observation")
         .order("created_at", { ascending: false })
+        .limit(8)
         .returns<
           {
             id: string;
@@ -285,7 +295,7 @@ export default async function InspectDashboardPage() {
             due_date: string | null;
             created_at: string;
             project_id: string;
-            projects: { organization_id: string; project_number: string; name: string } | null;
+            projects: { project_number: string; name: string } | null;
           }[]
         >(),
       // Portfolio-wide "what's been happening" feed (new purpose: less page-hopping, more in one
@@ -314,8 +324,7 @@ export default async function InspectDashboardPage() {
     // The real list behind the "Open NCRs" KPI tile (new purpose: less page-hopping) — same rows
     // the org-portfolio aggregation below already fetched, just kept in full instead of only
     // counted, so the tile can expand inline to the actual NCRs instead of only a number.
-    openNcrItems = (openNcrRows ?? [])
-      .slice(0, 8)
+    openNcrItems = (openNcrListRows ?? [])
       .map((row) => ({
         id: row.id,
         ncrNumber: row.ncr_number,

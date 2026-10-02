@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
-import { createNcrAction } from "@/lib/ncrs/actions";
+import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
 
 /**
@@ -43,7 +43,26 @@ export async function POST(request: Request) {
         formData.set("severity", "observation");
         formData.set("stay_on_page", "true");
         const result = await createNcrAction({ error: null }, formData);
-        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        if (result.error || !result.created) {
+          return NextResponse.json({ ok: false, error: result.error ?? "Could not raise the observation." }, { status: 422 });
+        }
+
+        // Optional photo taken with the quick form. Best-effort AFTER the NCR exists: failing the
+        // whole item here would leave it in the outbox and a retry would raise a duplicate NCR.
+        const photo = formData.get("file");
+        if (photo instanceof Blob) {
+          const projectId = String(formData.get("project_id") ?? "").trim();
+          const safeName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
+          const path = `${projectId}/ncrs/${result.created.id}/${Date.now()}-${safeName}`;
+          const supabase = await createSupabaseServerClient();
+          const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, photo);
+          if (!uploadError) {
+            const photoForm = new FormData();
+            photoForm.set("ncr_id", result.created.id);
+            photoForm.set("storage_path", path);
+            await addNcrPhotoAction({ error: null }, photoForm);
+          }
+        }
         return NextResponse.json({ ok: true });
       }
 

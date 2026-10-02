@@ -595,10 +595,16 @@ export interface CompleteInspectionState {
  * same rules (Hold gating, every item answered) instead of the sync path re-implementing — and
  * potentially drifting from — the real one.
  */
+const MIN_NO_EVIDENCE_REASON_LENGTH = 15;
+
 export async function completeInspectionCore(formData: FormData): Promise<CompleteInspectionState & { inspectionRecordId?: string }> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   const templateId = String(formData.get("template_id") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
+  const rawNotes = String(formData.get("notes") ?? "").trim();
+  // Explicit, written waiver for the rare inspection with genuinely nothing to attach (e.g. a pure
+  // document-review check) — never silent: a real reason is required and is stamped into the
+  // record's notes (so it shows on the report) and the audit trail below.
+  const noEvidenceReason = String(formData.get("no_evidence_reason") ?? "").trim();
   const signature = String(formData.get("signature") ?? "").trim();
 
   if (!inspectionRecordId || !templateId) return { error: "Missing inspection record." };
@@ -618,9 +624,15 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       .select("id", { count: "exact", head: true })
       .eq("inspection_record_id", inspectionRecordId),
   ]);
-  if (!photoCount && !evidenceDocCount) {
-    return { error: "At least one evidence photo or linked document is required to complete the inspection." };
+  const evidenceWaived = !photoCount && !evidenceDocCount && noEvidenceReason.length >= MIN_NO_EVIDENCE_REASON_LENGTH;
+  if (!photoCount && !evidenceDocCount && !evidenceWaived) {
+    return {
+      error: noEvidenceReason
+        ? `Explain why no evidence applies (at least ${MIN_NO_EVIDENCE_REASON_LENGTH} characters), or attach a photo or document.`
+        : "At least one evidence photo or linked document is required to complete the inspection.",
+    };
   }
+  const notes = evidenceWaived ? `[No evidence attached — reason: ${noEvidenceReason}]${rawNotes ? `\n${rawNotes}` : ""}` : rawNotes;
 
   const { data: recordForAuth } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
@@ -719,7 +731,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
           entityId: inspectionRecordId,
           action: "inspection_completed",
           actorId: user?.id ?? null,
-          summary: `Inspection ${recordForHoldCheck.record_number} (${recordForHoldCheck.activity}) completed — ${overallResult}`,
+          summary: `Inspection ${recordForHoldCheck.record_number} (${recordForHoldCheck.activity}) completed — ${overallResult}${evidenceWaived ? ` (completed with NO evidence attached: ${noEvidenceReason})` : ""}`,
         });
       }
     } catch {

@@ -31,7 +31,7 @@ export default async function PunchListPage({
   const [{ data: items }, { data: projectParties }] = await Promise.all([
     supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, source, location, due_date, status, closing_evidence, project_parties(name)")
+      .select("id, description, source, location, due_date, status, closing_evidence, project_parties(name, user_id)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .returns<PunchListItemDisplayRow[]>(),
@@ -66,7 +66,7 @@ export default async function PunchListPage({
           </div>
           <p className="mt-1 text-sm text-muted">
             {project.organizations?.name} · {project.name}. {openCount} open item{openCount === 1 ? "" : "s"}{" "}
-            outstanding before this project's Data Book can compile without an override.
+            outstanding before this project&apos;s Data Book can compile without an override.
           </p>
         </div>
         <Link
@@ -83,7 +83,7 @@ export default async function PunchListPage({
       </div>
 
       <div className="mt-6">
-        <PunchListTable projectId={projectId} rows={items ?? []} canVerifyClose={canVerifyClose} />
+        <PunchListTable projectId={projectId} rows={items ?? []} canVerifyClose={canVerifyClose} currentUserId={session.userId} />
       </div>
     </div>
   );

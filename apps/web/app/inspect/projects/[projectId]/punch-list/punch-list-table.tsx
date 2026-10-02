@@ -15,7 +15,7 @@ export interface PunchListItemDisplayRow {
   location: string | null;
   due_date: string | null;
   status: PunchListStatus;
-  project_parties: { name: string } | null;
+  project_parties: { name: string; user_id: string | null } | null;
   /** Captured by ResolvePunchItemForm's "Mark resolved" step, but previously never shown anywhere
    *  again afterward — including to the verifier deciding whether to close it. */
   closing_evidence: string | null;
@@ -38,6 +38,7 @@ const PUNCH_LIST_STATUS_LABELS: Record<PunchListStatus, string> = {
 // down, same pattern as ProjectsTable/NcrsTable.
 const VIEWS = [
   { key: "all", label: "All" },
+  { key: "mine", label: "Mine" },
   { key: "open", label: "Open" },
   { key: "verify", label: "Needs verification" },
 ] as const;
@@ -47,21 +48,31 @@ export function PunchListTable({
   projectId,
   rows,
   canVerifyClose,
+  currentUserId,
 }: {
   projectId: string;
   rows: PunchListItemDisplayRow[];
   /** Whether THIS viewer can do the independent verify-and-close step (JAGS Admin, or a
    *  close_punch_item permission holder) — computed once on the server page, not re-derived here. */
   canVerifyClose: boolean;
+  /** "Mine" = items whose responsible party is the one linked to this viewer's own login. */
+  currentUserId: string;
 }) {
   const panel = useUrlPanel("item");
   const [view, setView] = useUrlTab<ViewKey>("view", VIEWS.map((v) => v.key));
   const counts = {
     all: rows.length,
+    mine: rows.filter((r) => r.project_parties?.user_id === currentUserId).length,
     open: rows.filter((r) => r.status === "open").length,
     verify: rows.filter((r) => r.status === "resolved").length,
   };
-  const visibleRows = rows.filter((r) => (view === "open" ? r.status === "open" : view === "verify" ? r.status === "resolved" : true));
+  const visibleRows = rows.filter((r) => (view === "open"
+      ? r.status === "open"
+      : view === "verify"
+        ? r.status === "resolved"
+        : view === "mine"
+          ? r.project_parties?.user_id === currentUserId
+          : true));
   const openRow = panel.value ? rows.find((r) => r.id === panel.value) : undefined;
 
   // The resolve / verify forms used to expand inside the table cell and shove every row around;

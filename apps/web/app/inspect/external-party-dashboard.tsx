@@ -7,6 +7,8 @@ import { StatCard } from "@/components/ui/stat-card";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { useUrlPanel } from "@/components/ui/side-panel";
+import { ItpReviewPanel } from "./itp-review-panel";
 
 export interface DashboardLevelOption {
   code: string;
@@ -150,6 +152,9 @@ export function ExternalPartyDashboard({
   levels: DashboardLevelOption[];
   ncrsAssignedToMe: AssignedNcrRow[];
 }) {
+  const panel = useUrlPanel("panel");
+  const [panelKind, panelId] = (panel.value ?? "").split(":");
+  const reviewItpId = panelKind === "itp" ? (itpsAwaitingAcceptance.find((i) => i.id === panelId)?.id ?? null) : null;
   const roleLabel = roleKey ? (ROLE_LABEL[roleKey] ?? roleKey) : "Project party";
   const needsAttention =
     itpsAwaitingAcceptance.length + workAwaitingReview.length + pendingSignoffs.length + ncrsAssignedToMe.length;
@@ -301,9 +306,13 @@ export function ExternalPartyDashboard({
                   key: "action",
                   header: "",
                   render: (r) => (
-                    <Link href={`/inspect/itps/${r.id}`} className="font-medium text-burgundy hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => panel.open(`itp:${r.id}`)}
+                      className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
+                    >
                       Review & accept →
-                    </Link>
+                    </button>
                   ),
                 },
               ]}
@@ -362,6 +371,8 @@ export function ExternalPartyDashboard({
           </ul>
         </div>
       )}
+
+      <ItpReviewPanel itpId={reviewItpId} onClose={panel.close} />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 } from "@/lib/checklists/db-types";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { InspectionEvidenceDocuments } from "./inspection-evidence-documents";
+import { EvidenceMissingNotice } from "./evidence-missing-notice";
 import {
   checkPersonnelCertification,
   checkRegisterVerification,
@@ -486,7 +487,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             itpItemId={itpItem.id}
             itemPhotos={itemPhotos}
             photoSlot={
-              <div className="rounded-lg border border-border bg-surface p-4">
+              <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-medium text-ink">
                   Photo evidence <span className="text-danger">*</span>
                 </h2>
@@ -517,9 +518,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
               </>
             }
             missingPhotoSlot={
-              <p className="rounded-md bg-warning/10 p-4 text-sm text-ink">
-                Attach at least one evidence photo or linked document (★ required, above) before completing this inspection.
-              </p>
+              <EvidenceMissingNotice
+                templateId={template.id}
+                inspectionRecordId={draft.id}
+                consistencySlot={<ConsistencyCheck templateId={template.id} inspectionRecordId={draft.id} />}
+              />
             }
             incompleteSlot={
               <p className="rounded-md bg-off-white p-4 text-sm text-muted">

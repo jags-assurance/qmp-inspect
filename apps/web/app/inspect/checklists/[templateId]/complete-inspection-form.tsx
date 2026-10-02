@@ -12,9 +12,12 @@ const initialState: CompleteInspectionState = { error: null };
 export function CompleteInspectionForm({
   templateId,
   inspectionRecordId,
+  noEvidenceReason,
 }: {
   templateId: string;
   inspectionRecordId: string;
+  /** Set only when the inspector explicitly waived the evidence requirement with a written reason. */
+  noEvidenceReason?: string;
 }) {
   const [state, formAction, pending] = useActionState(completeInspectionAction, initialState);
   const [signature, setSignature] = useState<string | null>(null);
@@ -47,6 +50,7 @@ export function CompleteInspectionForm({
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="signature" value={signature ?? ""} />
+      {noEvidenceReason && <input type="hidden" name="no_evidence_reason" value={noEvidenceReason} />}
 
       <h2 className="text-base font-medium text-ink">
         Inspector sign-off <span className="text-danger">*</span>
