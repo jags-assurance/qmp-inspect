@@ -18,17 +18,24 @@ export function SplitLayout({
   detail,
   showDetail,
   storageKey,
-  defaultListWidth = 420,
+  defaultListWidth,
+  detailActions,
 }: {
   list: ReactNode;
   detail: ReactNode;
   /** True when something is selected — drives the phone view and the expand control. */
   showDetail: boolean;
   storageKey: string;
+  /** Fixed px override for the list column; when omitted the list takes ~38% of the width (380-560px). */
   defaultListWidth?: number;
+  /** Optional controls shown in the detail toolbar next to the Expand button (e.g. "Open full page"). */
+  detailActions?: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(defaultListWidth);
+  const listRef = useRef<HTMLDivElement>(null);
+  // null = not user-sized yet: the CSS clamp() default applies so the list scales with the viewport.
+  const [stored, setWidth] = useState<number | null>(defaultListWidth ?? null);
+  const widthNow = () => stored ?? listRef.current?.getBoundingClientRect().width ?? 420;
   const [expanded, setExpanded] = useState(false);
   const [dragging, setDragging] = useState(false);
 
@@ -74,11 +81,11 @@ export function SplitLayout({
   function onPointerUp() {
     if (!dragging) return;
     setDragging(false);
-    commit(width);
+    commit(widthNow());
   }
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "ArrowLeft") commit(width - 40);
-    else if (e.key === "ArrowRight") commit(width + 40);
+    if (e.key === "ArrowLeft") commit(widthNow() - 40);
+    else if (e.key === "ArrowRight") commit(widthNow() + 40);
     else if (e.key === "Home") commit(MIN);
     else if (e.key === "End") commit(9999);
     else if (e.key === "Enter") setExpanded((v) => !v);
@@ -92,10 +99,11 @@ export function SplitLayout({
     <div
       ref={containerRef}
       className={cn("mt-4", showDetail ? "lg:flex lg:items-start" : "")}
-      style={{ ["--split-list" as string]: `${width}px` }}
+      style={{ ["--split-list" as string]: stored === null ? "clamp(380px, 38%, 560px)" : `${stored}px` }}
     >
       {/* List: hidden on phones/tablets while a detail is open; on lg it is the left column (or hidden when the detail is expanded). */}
       <div
+        ref={listRef}
         className={cn(
           "min-w-0",
           showDetail ? (expanded ? "hidden" : "hidden lg:block lg:w-[var(--split-list)] lg:shrink-0") : "w-full"
@@ -109,7 +117,7 @@ export function SplitLayout({
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize list and detail panes (arrow keys; Enter expands the detail)"
-          aria-valuenow={Math.round(width)}
+          aria-valuenow={stored === null ? undefined : Math.round(stored)}
           aria-valuemin={MIN}
           tabIndex={0}
           onPointerDown={onPointerDown}
@@ -117,18 +125,19 @@ export function SplitLayout({
           onPointerUp={onPointerUp}
           onKeyDown={onKeyDown}
           className={cn(
-            "mx-1 hidden w-3 shrink-0 cursor-col-resize touch-none self-stretch rounded lg:block",
+            "mx-0.5 hidden w-3 shrink-0 cursor-col-resize touch-none self-stretch rounded lg:block",
             "hover:bg-burgundy/20 focus-visible:bg-burgundy/30 focus-visible:outline-none",
             dragging && "bg-burgundy/30"
           )}
         >
-          <span className="mx-auto mt-24 block h-10 w-0.5 rounded bg-border" aria-hidden="true" />
+          <span className="mx-auto mt-16 block h-10 w-0.5 rounded bg-border" aria-hidden="true" />
         </div>
       )}
 
       {showDetail && (
         <div className="min-w-0 flex-1">
-          <div className="hidden justify-end lg:flex">
+          <div className="mb-3 hidden items-center justify-end gap-3 lg:flex">
+            {detailActions}
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}

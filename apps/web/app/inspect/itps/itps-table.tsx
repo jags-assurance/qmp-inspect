@@ -51,14 +51,19 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
             href={hrefFor(row.id)}
             scroll={false}
             aria-current={cur(row.id)}
-            className={`block min-h-14 min-w-0 rounded-md px-1 py-1 hover:bg-off-white ${row.id === selectedId ? "bg-off-white" : ""}`}
+            className={`-mx-2 -my-1.5 block min-w-0 rounded-md border-l-2 px-2 py-2 hover:bg-off-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-burgundy ${row.id === selectedId ? "border-burgundy bg-off-white" : "border-transparent"}`}
           >
-            <span className="flex flex-wrap items-center justify-between gap-2">
-              <span className={`doc-id text-sm text-burgundy ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
-              <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
+            <span className="flex items-start justify-between gap-2">
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                <span className={`doc-id text-sm text-burgundy ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
+                <span className="text-xs text-muted">Rev {row.revision}</span>
+              </span>
+              <span className="shrink-0 whitespace-nowrap">
+                <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
+              </span>
             </span>
-            <span className="mt-0.5 line-clamp-2 block text-sm text-ink">{row.title}</span>
-            {row.projects?.name && <span className="mt-0.5 block truncate text-xs text-muted" title={row.projects.name}>{row.projects.name}</span>}
+            <span className="mt-1 line-clamp-2 block break-words text-sm text-ink" title={row.title}>{row.title}</span>
+            {row.projects?.name && <span className="mt-0.5 line-clamp-2 block break-words text-xs text-muted" title={row.projects.name}>{row.projects.name}</span>}
           </Link>
         ),
       },
@@ -134,7 +139,7 @@ export function ItpsTable({ rows, totalCount }: { rows: ItpRow[]; totalCount?: n
       rows={rows}
       searchPlaceholder="Search ITPs…"
       searchKeys={(row) => `${row.itp_number} ${row.title}`}
-      emptyMessage="No ITPs yet."
+      emptyMessage={searchValue ? "No ITPs match your search." : "No ITPs yet."}
       serverSearch={serverDriven ? { value: searchValue, onChange: setSearchValue } : undefined}
       pagination={
         serverDriven

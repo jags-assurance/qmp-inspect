@@ -148,7 +148,7 @@ export default async function ItpsPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">ITP Register</h1>
@@ -188,7 +188,7 @@ export default async function ItpsPage({
         </p>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-4">
+      <div className="mt-5 flex flex-wrap items-end gap-x-4 gap-y-3">
         <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
         <PhaseFilterForm selectedPhase={phase} />
       </div>
@@ -196,19 +196,20 @@ export default async function ItpsPage({
       <SplitLayout
         storageKey="itps"
         showDetail={!!itp}
+        detailActions={
+          itp ? (
+            <Link href={`/inspect/itps/${itp}`} className="inline-flex min-h-9 items-center text-sm text-burgundy hover:underline">
+              Open full page →
+            </Link>
+          ) : undefined
+        }
         list={<ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />}
         detail={
           itp ? (
             <>
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <Link href={backHref} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline lg:hidden">
+              <div className="mb-3 lg:hidden">
+                <Link href={backHref} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
                   ← Back to list
-                </Link>
-                <Link
-                  href={`/inspect/itps/${itp}`}
-                  className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline sm:ml-auto"
-                >
-                  Open full page →
                 </Link>
               </div>
               <Suspense
