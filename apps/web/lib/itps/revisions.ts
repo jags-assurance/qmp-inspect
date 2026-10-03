@@ -94,17 +94,38 @@ export async function bumpRevisionIfIssued(
   if (!itp) return { bumped: false, error: null };
   if (itp.status !== "approved" && itp.status !== "client_accepted") return { bumped: false, error: null };
 
-  const sections = await buildSectionsSnapshot(supabase, itpId);
-  const { error: snapshotError } = await supabase.from(ITP_REVISIONS_TABLE).insert({
-    itp_id: itpId,
-    revision: itp.revision,
-    title: itp.title,
-    scope: itp.scope,
-    applicable_standard: itp.applicable_standard,
-    sections_snapshot: sections,
-    reason,
-    created_by: userId,
-  });
+  // itp_revisions is UNIQUE (itp_id, revision), and revision 0's baseline row is already written at
+  // initial approval (snapshotInitialIssue). Inserting "the current revision" again on the first
+  // post-issue edit therefore violated that constraint and blocked EVERY first edit of an issued
+  // ITP. Where the row for the current revision already exists, it IS the frozen content (nothing
+  // can change an issued ITP without passing through here), so keep its snapshot and append the
+  // reason for moving on instead of inserting a duplicate.
+  const { data: existing } = await supabase
+    .from(ITP_REVISIONS_TABLE)
+    .select("id, reason")
+    .eq("itp_id", itpId)
+    .eq("revision", itp.revision)
+    .maybeSingle<{ id: string; reason: string | null }>();
+
+  let snapshotError: unknown = null;
+  if (existing) {
+    ({ error: snapshotError } = await supabase
+      .from(ITP_REVISIONS_TABLE)
+      .update({ reason: `${existing.reason ?? "Issued"} → Rev ${itp.revision + 1}: ${reason}` })
+      .eq("id", existing.id));
+  } else {
+    const sections = await buildSectionsSnapshot(supabase, itpId);
+    ({ error: snapshotError } = await supabase.from(ITP_REVISIONS_TABLE).insert({
+      itp_id: itpId,
+      revision: itp.revision,
+      title: itp.title,
+      scope: itp.scope,
+      applicable_standard: itp.applicable_standard,
+      sections_snapshot: sections,
+      reason,
+      created_by: userId,
+    }));
+  }
   if (snapshotError) {
     return { bumped: false, error: "Could not record revision history. The edit was not applied — try again." };
   }

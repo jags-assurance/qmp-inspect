@@ -46,7 +46,7 @@ function modelFor(tier: GeminiTier): string {
 // multi-section ITP; every "light" feature is a short structured draft/suggestion/extraction and
 // has no legitimate reason to ever generate a multi-thousand-token response.
 const MAX_OUTPUT_TOKENS: Record<GeminiTier, number> = {
-  heavy: 8192,
+  heavy: 16384,
   // Not 2048: several "light" features return bulk JSON arrays (checklist generation, register
   // extraction can legitimately list dozens of rows) — 4096 still caps runaway generation while
   // leaving real headroom for a genuinely large but valid extraction.
