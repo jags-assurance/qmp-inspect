@@ -2,7 +2,6 @@ import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { Watchlist } from "@/components/ui/watchlist";
-import { TodayQueue, type TodayItem } from "@/components/domain/today-queue";
 
 export interface OverdueHoldPointItem {
   id: string;
@@ -74,37 +73,4 @@ export async function OverdueHoldsCard() {
       )}
     />
   );
-}
-
-/**
- * The admin "Today" queue with the portfolio's overdue hold points merged in. The holds are the slow
- * query, so this streams (the dashboard shows the queue without them first); getOverdueHoldPoints is
- * cached, so the tile, the card and this share one computation per request.
- */
-export async function AdminTodayWithHolds({ baseItems, description }: { baseItems: TodayItem[]; description: string }) {
-  const holds = await getOverdueHoldPoints();
-  const TODAY_HOLD_LIMIT = 3;
-  const shown = holds.slice(0, TODAY_HOLD_LIMIT).map<TodayItem>((h) => ({
-    id: h.id,
-    kind: "hold",
-    title: `${h.itpNumber} — ${h.activity}`,
-    meta: h.projectLabel,
-    badge: `${h.daysOpen}d overdue`,
-    urgency: 2,
-    href: "/inspect/itps",
-    actionLabel: "Review",
-  }));
-  if (holds.length > shown.length) {
-    shown.push({
-      id: "more-holds",
-      kind: "hold",
-      title: `+ ${holds.length - shown.length} more overdue hold points`,
-      meta: "The full list is in the Overdue hold points window below",
-      urgency: 2,
-      href: "#overdue-holds",
-      actionLabel: "Show list",
-    });
-  }
-  const items = [...shown, ...baseItems].sort((a, b) => b.urgency - a.urgency);
-  return <TodayQueue description={description} items={items} emptyText="No NCRs, hold points or proposals waiting on you." />;
 }

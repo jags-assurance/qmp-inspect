@@ -16,7 +16,7 @@ import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-d
 import { InspectorDashboard } from "./inspector-dashboard";
 import { Suspense } from "react";
 import { AdminDashboard } from "./admin-dashboard";
-import { AdminTodayWithHolds, OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
+import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
 import { TodayQueue } from "@/components/domain/today-queue";
 import { buildAdminToday } from "@/lib/dashboard/today";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
@@ -791,7 +791,7 @@ export default async function InspectDashboardPage() {
     })),
   });
   const adminTodayDescription =
-    "Overdue hold points, NCRs and library proposals waiting on you. Click a row to act on it here, without leaving the dashboard.";
+    "NCRs and library proposals waiting on you. Click a row to act on it here, without leaving the dashboard. Overdue hold points have their own window below.";
 
   // Only JAGS Admin reaches this point — external parties and Inspectors both returned their own
   // dedicated dashboard component above.
@@ -817,12 +817,14 @@ export default async function InspectDashboardPage() {
       orgPortfolio={orgPortfolio}
       recentActivity={recentActivity}
       openNcrItems={openNcrItems}
-      // Streamed: the slowest dashboard query no longer blocks every other tile and list.
+      // Overdue hold points are deliberately NOT repeated here: they have their own tile and an
+      // anchored "Overdue hold points" window below. Today lists only what needs the admin's decision.
       todayQueue={
-        // Shows NCRs and proposals immediately; the overdue hold points (the slow query) stream in.
-        <Suspense fallback={<TodayQueue description={adminTodayDescription} items={adminTodayItems} />}>
-          <AdminTodayWithHolds baseItems={adminTodayItems} description={adminTodayDescription} />
-        </Suspense>
+        <TodayQueue
+          description={adminTodayDescription}
+          items={adminTodayItems}
+          emptyText="No NCRs or library proposals waiting on you."
+        />
       }
       overdueHoldsTile={
         <Suspense fallback={<StatCard label="Overdue hold points" value="…" />}>
