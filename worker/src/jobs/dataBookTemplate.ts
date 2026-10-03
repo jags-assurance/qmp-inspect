@@ -307,7 +307,9 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     <p class="note">${
       data.status === "issued"
         ? "FINAL ISSUE. Contents are the frozen records listed in the master register. Printed copies are uncontrolled."
-        : "DRAFT — NOT FOR ISSUE. Records are listed as they stand at generation time; unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
+        : data.status === "compiled"
+          ? "FOR REVIEW — NOT ISSUED. Compiled for review; it becomes final only when issued. Unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
+          : "DRAFT — NOT FOR ISSUE. Records are listed as they stand at generation time; unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
     }</p>
     ${renderPoweredByFooter(data)}
   </section>`;
@@ -531,7 +533,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     data.punchItems.map((p) => [escapeHtml(p.description), cell(p.location), escapeHtml(p.status), fmtDate(p.dueDate), fmtDate(p.closedAt)]),
     "No punch-list items on this project.",
     "Resolver's closing evidence and the verifier's closure record for every item.",
-    `${data.openPunchItems} open item${data.openPunchItems === 1 ? "" : "s"} at generation.`
+    `${data.openPunchItems} open item${data.openPunchItems === 1 ? "" : "s"} at generation; ${data.punchItems.filter((p) => p.status !== "closed").length} not yet verified closed.`
   );
 
   // ── Part D — release controls ───────────────────────────────────────────────────────────────
@@ -570,7 +572,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     ["Applicable records", `${planned}`],
     ["Accepted records", `${accepted} of ${planned} | ${pct(accepted, planned)}`],
     ["Unresolved deliverables", `${inReview} in review; ${rejected} rejected; ${missing} missing; ${draft} draft`],
-    ["Open exceptions", `${data.openPunchItems} open punch item${data.openPunchItems === 1 ? "" : "s"}; ${data.ncrs.filter((n) => n.status !== "closed").length} open NCR${data.ncrs.filter((n) => n.status !== "closed").length === 1 ? "" : "s"}`],
+    ["Open exceptions", `${data.punchItems.filter((p) => p.status !== "closed").length} punch item${data.punchItems.filter((p) => p.status !== "closed").length === 1 ? "" : "s"} not verified closed; ${data.ncrs.filter((n) => n.status !== "closed").length} open NCR${data.ncrs.filter((n) => n.status !== "closed").length === 1 ? "" : "s"}`],
     ["Final issue decision", data.isReady && data.status === "issued" ? "READY | Issued" : data.isReady ? "READY | Awaiting issue" : "NOT READY | Certificate unsigned"],
   ];
   const certification = page(
