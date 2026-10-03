@@ -346,7 +346,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     irns: { irn_number: string }[] | { irn_number: string } | null;
   };
 
-  const [{ data: itpRows }, { data: calRows }, { data: welderRows }, { data: matRows }, { data: ncrRows }, { data: punchRows }] =
+  const [itpRes, calRes, welderRes, matRes, ncrRes, punchRes] =
     await Promise.all([
       supabase
         .from("itps")
@@ -398,6 +398,24 @@ async function gatherDataBookContent(projectId: string): Promise<{
         .returns<{ description: string; location: string | null; status: string; due_date: string | null; closed_at: string | null }[]>(),
     ]);
 
+  // A data book is a controlled record: a failed read must fail the render, never produce a book that
+  // silently lists "0 ITPs" (a transient database error previously did exactly that).
+  const failed = [
+    ["itps", itpRes.error],
+    ["calibration_register", calRes.error],
+    ["welder_qualification_register", welderRes.error],
+    ["material_register", matRes.error],
+    ["ncrs", ncrRes.error],
+    ["punch_list_items", punchRes.error],
+  ].find(([, error]) => error);
+  if (failed) throw new Error(`Data book render aborted — could not read ${failed[0] as string}: ${(failed[1] as { message: string }).message}`);
+  const itpRows = itpRes.data;
+  const calRows = calRes.data;
+  const welderRows = welderRes.data;
+  const matRows = matRes.data;
+  const ncrRows = ncrRes.data;
+  const punchRows = punchRes.data;
+
   const itpIds = (itpRows ?? []).map((i) => i.id);
   const sections: SectionRow[] = itpIds.length
     ? ((await supabase.from("itp_sections").select("id, itp_id, sort_order").in("itp_id", itpIds).returns<SectionRow[]>()).data ?? [])
@@ -430,6 +448,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
         .order("created_at", { ascending: false })
         .returns<RecordRow[]>(),
     ]);
+    if (signoffRes.error || recordRes.error) throw new Error(`Data book render aborted — could not read sign-offs or inspection records: ${(signoffRes.error ?? recordRes.error)!.message}`);
     signoffs = signoffRes.data ?? [];
     records = recordRes.data ?? [];
   }

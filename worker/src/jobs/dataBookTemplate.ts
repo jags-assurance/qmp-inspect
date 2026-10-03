@@ -152,6 +152,9 @@ export interface DataBookPdfData {
 export interface DataBookPdfBranding {
   engagementMode: "jags_led" | "co_branded" | "white_label";
   logoUrl: string | null;
+  /** The organisation's own colours (co-branded / white-label only); replace the default navy table headers. */
+  brandPrimaryColor?: string | null;
+  brandAccentColor?: string | null;
 }
 
 const ISSUE_PURPOSE: Record<DataBookPdfData["status"], string> = {
@@ -625,7 +628,8 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   @page { size: A4 portrait; margin: 15mm; }
 
   :root {
-    --navy: #173b53;
+    --navy: ${safeHex(data.branding?.brandPrimaryColor) ?? "#173b53"};
+    --accent: ${safeHex(data.branding?.brandAccentColor) ?? "#173b53"};
     --band: #f1f5f8;
     --rule: #cfd8de;
     --ink: #1c1c1e;
@@ -655,7 +659,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   .page { break-before: page; position: relative; z-index: 1; }
   .page:first-of-type { break-before: auto; }
 
-  .part { font-size: 8.5px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 4px; }
+  .part { color: var(--navy); font-size: 8.5px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 4px; }
   h1 { font-size: 24px; margin: 6px 0 10px 0; line-height: 1.15; }
   h3 { font-size: 12px; margin: 16px 0 6px 0; }
   .lead { font-size: 11px; margin: 0 0 12px 0; }
@@ -682,7 +686,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   table.grid { width: 100%; border-collapse: collapse; font-size: 9.5px; margin: 6px 0 10px 0; }
   table.grid th {
     background: var(--navy); color: #fff; text-align: left; font-weight: bold; padding: 6px 8px;
-    border: 1px solid var(--navy);
+    border: 1px solid var(--navy); border-bottom: 3px solid var(--accent);
   }
   table.grid td { border: 1px solid var(--rule); padding: 5px 8px; vertical-align: top; }
   table.grid tbody tr:nth-child(even) { background: var(--band); }
@@ -721,4 +725,9 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   <p class="small" style="text-align:right;margin-top:10px">Generated ${escapeHtml(generatedAtLabel)} &middot; Uncontrolled when printed</p>
 </body>
 </html>`;
+}
+
+/** Only a plain #rrggbb value is ever interpolated into the stylesheet. */
+function safeHex(value: string | null | undefined): string | null {
+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null;
 }
