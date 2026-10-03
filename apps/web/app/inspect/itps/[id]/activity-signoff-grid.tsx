@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { InterventionSelect, type InterventionLevelOption } from "@/components/domain/intervention-select";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import { ItemControls } from "./item-controls";
+import { ActivityChecklistToggle, type ActivityChecklist } from "./activity-checklist-toggle";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { cn } from "@/lib/cn";
@@ -23,6 +24,9 @@ export interface GridRow {
   /** Raw evidence_type (1/2/3) and discipline_id, alongside their display-only evidenceLabel/
    *  disciplineCode above — ItemControls' edit form needs the raw values to pre-fill its selects. */
   evidenceType: number;
+  /** Checklist-type activities only: the checklist (or the draft it will start from) shown when the
+   *  evidence pill is clicked. */
+  checklist: ActivityChecklist | null;
   disciplineId: string | null;
   disciplineCode: string | null;
   /** R25: this activity's own notice-period override (itp_items.notice_hours_override), if set —
@@ -136,7 +140,7 @@ export function ActivitySignoffGrid({
                 )}
                 {!canEditContent && row.acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{row.acceptanceCriteria}</p>}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Badge tone="neutral">{row.evidenceLabel}</Badge>
+                  <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
                   {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}
                   {row.noticeHoursOverride != null && (
                     <Badge tone="neutral">Notice: {row.noticeHoursOverride}h</Badge>

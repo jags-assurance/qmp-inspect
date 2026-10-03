@@ -531,6 +531,18 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // approval/acceptance on the reviewer confirming they have looked at it.
   const checklistPreview = await loadItpChecklistPreview(supabase, itp.id);
   const requiresChecklistReview = checklistPreview.some((i) => i.hasChecklist);
+  // Per-activity checklist for the clickable "Checklist" pill in the grid below.
+  const checklistByItem = new Map(
+    checklistPreview
+      .filter((i) => i.hasChecklist)
+      .map((i) => [
+        i.itemId,
+        {
+          number: i.generated?.number ?? null,
+          lines: i.generated?.lines.length ? i.generated.lines : i.previewLines.map((text) => ({ text, mandatory: true })),
+        },
+      ])
+  );
 
   return (
     <div>
@@ -801,6 +813,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 acceptanceCriteria: item.acceptance_criteria,
                 evidenceLabel: EVIDENCE_LABEL[item.evidence_type],
                 evidenceType: item.evidence_type,
+                checklist: checklistByItem.get(item.id) ?? null,
                 disciplineId: item.discipline_id,
                 disciplineCode: item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null,
                 // R25: per-activity override, checked before the level-keyed noticeHours map below.
