@@ -1,10 +1,12 @@
 import { cache } from "react";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { Watchlist } from "@/components/ui/watchlist";
 
 export interface OverdueHoldPointItem {
   id: string;
+  itpId: string | null;
   activity: string;
   itpNumber: string;
   projectLabel: string;
@@ -25,9 +27,10 @@ export const getOverdueHoldPoints = cache(async (): Promise<OverdueHoldPointItem
   // used for acknowledge_handover().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase.rpc as any)("overdue_hold_points");
-  return ((data ?? []) as { id: string; activity: string; itp_number: string; project_label: string; days_open: number }[]).map(
+  return ((data ?? []) as { id: string; itp_id: string | null; activity: string; itp_number: string; project_label: string; days_open: number }[]).map(
     (row) => ({
       id: row.id,
+      itpId: row.itp_id,
       activity: row.activity ?? "—",
       itpNumber: row.itp_number ?? "—",
       projectLabel: row.project_label,
@@ -61,15 +64,19 @@ export async function OverdueHoldsCard() {
       items={items}
       emptyText="No overdue hold points."
       renderItem={(item) => (
-        <>
-          <p className="text-ink">{item.activity}</p>
-          <p className="mt-0.5 flex items-center justify-between gap-3 text-xs">
+        <Link
+          href={item.itpId ? `/inspect/itps?itp=${item.itpId}` : "/inspect/itps"}
+          className="block rounded-md px-1.5 py-1 hover:bg-off-white"
+        >
+          <span className="block text-ink">{item.activity}</span>
+          <span className="mt-0.5 flex items-center justify-between gap-3 text-xs">
             <span className="min-w-0 truncate text-muted" title={`${item.itpNumber} · ${item.projectLabel}`}>
               {item.projectLabel}
             </span>
             <span className="shrink-0 whitespace-nowrap font-semibold text-danger">{item.daysOpen}d overdue</span>
-          </p>
-        </>
+          </span>
+          <span className="mt-1 block text-xs font-medium text-burgundy">Review →</span>
+        </Link>
       )}
     />
   );

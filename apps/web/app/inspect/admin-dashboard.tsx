@@ -264,6 +264,7 @@ export function AdminDashboard({
                 </span>
                 <span className="shrink-0 whitespace-nowrap">Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
               </span>
+              <span className="mt-1 block text-xs font-medium text-burgundy">Preview →</span>
             </button>
           )}
         />
