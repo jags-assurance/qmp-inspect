@@ -29,6 +29,7 @@ export function InterventionSelect({
   value,
   editable,
   levels,
+  isIssued = false,
 }: {
   itpId: string;
   itpItemId: string;
@@ -36,8 +37,27 @@ export function InterventionSelect({
   value: InterventionLevel | null;
   editable: boolean;
   levels: InterventionLevelOption[];
+  /** The ITP is approved/client-accepted: a level change is an edit-after-issue, so it asks for a
+   *  reason and the server records it as a new revision (same rule as adding/editing an activity). */
+  isIssued?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const reasonRef = useRef<HTMLInputElement>(null);
+
+  function handleChange() {
+    if (isIssued) {
+      const reason = window
+        .prompt("This ITP has already been issued. Changing a sign-off level creates a new revision — enter the reason for this change:")
+        ?.trim();
+      if (!reason) {
+        if (selectRef.current) selectRef.current.value = value ?? "";
+        return;
+      }
+      if (reasonRef.current) reasonRef.current.value = reason;
+    }
+    formRef.current?.requestSubmit();
+  }
 
   const indexOf = (code: string) => levels.findIndex((l) => l.code === code);
   const labelOf = (code: string) => levels.find((l) => l.code === code)?.label ?? code;
@@ -61,6 +81,7 @@ export function InterventionSelect({
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="project_party_id" value={projectPartyId} />
+      <input type="hidden" name="revision_reason" ref={reasonRef} />
       {value && (
         <span
           title={labelOf(value)}
@@ -70,9 +91,10 @@ export function InterventionSelect({
         </span>
       )}
       <select
+        ref={selectRef}
         name="intervention"
         defaultValue={value ?? ""}
-        onChange={() => formRef.current?.requestSubmit()}
+        onChange={handleChange}
         title={value ? labelOf(value) : "No intervention"}
         aria-label="Intervention level"
         className="h-7 w-14 rounded border border-border bg-surface text-center text-xs font-semibold text-muted outline-none focus:border-burgundy"

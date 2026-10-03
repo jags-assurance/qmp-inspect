@@ -159,6 +159,7 @@ export function ActivitySignoffGrid({
                       value={intervention}
                       editable={canEditContent}
                       levels={levels}
+                      isIssued={isIssued}
                     />
                     {intervention && signoff && (
                       <SignoffCell

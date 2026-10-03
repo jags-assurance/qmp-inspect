@@ -409,8 +409,43 @@ export async function setInterventionAction(formData: FormData) {
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
   const projectPartyId = String(formData.get("project_party_id") ?? "").trim();
   const intervention = String(formData.get("intervention") ?? "").trim();
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
 
   const supabase = await createSupabaseServerClient();
+
+  // Changing a sign-off level on an issued ITP is an edit-after-issue like adding/editing an
+  // activity: freeze the pre-change content and bump the revision (with the reason) BEFORE applying
+  // it. A no-op change (same level as already stored) is not an edit and never bumps.
+  const { data: currentLevel } = await supabase
+    .from("activity_party_intervention")
+    .select("intervention")
+    .eq("itp_item_id", itpItemId)
+    .eq("project_party_id", projectPartyId)
+    .maybeSingle<{ intervention: string }>();
+  if ((currentLevel?.intervention ?? "") === intervention) {
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return;
+  }
+  const { data: itpForRevisionCheck } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
+  if (itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted") {
+    if (!revisionReason) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return;
+    }
+    const {
+      data: { user: revisionUser },
+    } = await supabase.auth.getUser();
+    const { error: revisionError } = await bumpRevisionIfIssued(
+      supabase,
+      itpId,
+      `Sign-off level ${intervention || "cleared"} (was ${currentLevel?.intervention ?? "none"}) — ${revisionReason}`,
+      revisionUser?.id ?? null
+    );
+    if (revisionError) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return;
+    }
+  }
 
   if (!intervention) {
     await supabase
