@@ -194,8 +194,6 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     latestPdf,
     { data: sections },
     { data: parties },
-    { data: interventions },
-    { data: signoffs },
     { data: noticeConfigs },
     { data: masterTemplates },
     disciplines,
@@ -222,20 +220,6 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         .eq("project_id", itp.projects?.id ?? "")
         .order("party_type")
         .returns<{ id: string; party_type: string; name: string; user_id: string | null; is_active: boolean }[]>(),
-      supabase
-        .from("activity_party_intervention")
-        .select("itp_item_id, project_party_id, intervention"),
-      // Sign-off state alongside the H/W/R/S grid (R66-R81) — same query-building pattern as the
-      // activity_party_intervention query above, just against the sibling progress table.
-      supabase
-        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-        .select("id, itp_item_id, project_party_id, intervention, status, notified_at, updated_at")
-        .returns<
-          Pick<
-            ActivitySignoffProgressRow,
-            "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "updated_at"
-          >[]
-        >(),
       supabase
         .from("notice_period_configs")
         .select("intervention, hours")
@@ -304,14 +288,82 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
   // item ids that come out of the `sections` query first.
   const allItemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
-  const { data: expectedRecords } = allItemIds.length
-    ? await supabase
-        .from(ACTIVITY_EXPECTED_RECORDS_TABLE)
-        .select("id, itp_item_id, provider, record_type, document_number, storage_path, received_at, created_at")
-        .in("itp_item_id", allItemIds)
-        .order("created_at")
-        .returns<ActivityExpectedRecordRow[]>()
-    : { data: [] as ActivityExpectedRecordRow[] };
+
+  // Everything below needs only `allItemIds` (or nothing), so it runs as ONE parallel wave. These used
+  // to be six or seven sequential awaits — and the intervention/sign-off queries had no item filter at
+  // all, so every page view pulled every ITP's rows in the organisation (each row policy-checked)
+  // only to discard them afterwards. Scoping them to this ITP's activities here is what takes the
+  // page from ~a minute to a few seconds once an ITP has real sign-off data.
+  type EvidenceDocRow = ItpItemEvidenceDocumentRow & {
+    vault_documents: { title: string; document_reference: string | null; status: string } | null;
+  };
+  const noItems = allItemIds.length === 0;
+  const [
+    { data: interventions },
+    { data: signoffs },
+    { data: expectedRecords },
+    { data: measurements },
+    { data: evidenceDocuments },
+    executingPartyTypes,
+    reviewSteps,
+    canApproveItp,
+    checklistPreview,
+  ] = await Promise.all([
+    noItems
+      ? Promise.resolve({ data: [] as { itp_item_id: string; project_party_id: string; intervention: string }[] })
+      : supabase
+          .from("activity_party_intervention")
+          .select("itp_item_id, project_party_id, intervention")
+          .in("itp_item_id", allItemIds),
+    // Sign-off state alongside the H/W/R/S grid (R66-R81).
+    noItems
+      ? Promise.resolve({
+          data: [] as Pick<
+            ActivitySignoffProgressRow,
+            "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "updated_at"
+          >[],
+        })
+      : supabase
+          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+          .select("id, itp_item_id, project_party_id, intervention, status, notified_at, updated_at")
+          .in("itp_item_id", allItemIds)
+          .returns<
+            Pick<
+              ActivitySignoffProgressRow,
+              "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "updated_at"
+            >[]
+          >(),
+    noItems
+      ? Promise.resolve({ data: [] as ActivityExpectedRecordRow[] })
+      : supabase
+          .from(ACTIVITY_EXPECTED_RECORDS_TABLE)
+          .select("id, itp_item_id, provider, record_type, document_number, storage_path, received_at, created_at")
+          .in("itp_item_id", allItemIds)
+          .order("created_at")
+          .returns<ActivityExpectedRecordRow[]>(),
+    // evidence_type=3 ("Measurement record") / evidence_type=2 ("Document upload") field-execution —
+    // see lib/itps/evidence-actions.ts.
+    noItems
+      ? Promise.resolve({ data: [] as ItpItemMeasurementRow[] })
+      : supabase
+          .from(ITP_ITEM_MEASUREMENTS_TABLE)
+          .select("id, itp_item_id, description, nominal_value, tolerance, actual_value, unit, result, sort_order, recorded_by, created_at")
+          .in("itp_item_id", allItemIds)
+          .order("sort_order")
+          .returns<ItpItemMeasurementRow[]>(),
+    noItems
+      ? Promise.resolve({ data: [] as EvidenceDocRow[] })
+      : supabase
+          .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
+          .select("id, itp_item_id, vault_document_id, linked_by, created_at, vault_documents(title, document_reference, status)")
+          .in("itp_item_id", allItemIds)
+          .order("created_at")
+          .returns<EvidenceDocRow[]>(),
+    getExecutingPartyTypes(supabase, itp.projects?.id ?? ""),
+    itp.status === "under_review" ? getItpReviewProgress(supabase, itp.id) : Promise.resolve([]),
+    session.isJagsStaff ? Promise.resolve(true) : hasPermission(session.userId, "approve_itp", itp.projects?.id),
+    loadItpChecklistPreview(supabase, itp.id),
+  ]);
 
   const expectedRecordsByItem = new Map<string, ActivityExpectedRecordRow[]>();
   for (const record of expectedRecords ?? []) {
@@ -319,26 +371,6 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     list.push(record);
     expectedRecordsByItem.set(record.itp_item_id, list);
   }
-
-  // evidence_type=3 ("Measurement record") / evidence_type=2 ("Document upload") field-execution —
-  // see lib/itps/evidence-actions.ts. Fetched the same way as expectedRecords above (needs
-  // allItemIds first).
-  const [{ data: measurements }, { data: evidenceDocuments }] = allItemIds.length
-    ? await Promise.all([
-        supabase
-          .from(ITP_ITEM_MEASUREMENTS_TABLE)
-          .select("id, itp_item_id, description, nominal_value, tolerance, actual_value, unit, result, sort_order, recorded_by, created_at")
-          .in("itp_item_id", allItemIds)
-          .order("sort_order")
-          .returns<ItpItemMeasurementRow[]>(),
-        supabase
-          .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
-          .select("id, itp_item_id, vault_document_id, linked_by, created_at, vault_documents(title, document_reference, status)")
-          .in("itp_item_id", allItemIds)
-          .order("created_at")
-          .returns<(ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null; status: string } | null })[]>(),
-      ])
-    : [{ data: [] as ItpItemMeasurementRow[] }, { data: [] as (ItpItemEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null; status: string } | null })[] }];
 
   const measurementsByItem = new Map<string, ItpItemMeasurementRow[]>();
   for (const row of measurements ?? []) {
@@ -362,7 +394,6 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     evidenceDocumentsByItem.set(row.itp_item_id, list);
   }
 
-  const executingPartyTypes = await getExecutingPartyTypes(supabase, itp.projects?.id ?? "");
 
   const vaultDocuments: VaultDocumentOption[] = (rawVaultDocuments ?? []).map((d) => ({
     id: d.id,
@@ -517,7 +548,6 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   const canSignOffFor = (partyUserId: string | null, partyIsActive: boolean) =>
     session.isJagsStaff || (partyIsActive && !!partyUserId && partyUserId === session.userId);
 
-  const reviewSteps = itp.status === "under_review" ? await getItpReviewProgress(supabase, itp.id) : [];
   const hasActiveReviewChain = reviewSteps.length > 0 && reviewSteps.some((s) => s.status === "pending");
 
   // Full Client-Managed tier's approval half: a non-staff person can Approve only when they hold
@@ -525,11 +555,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // 20260930050000_client_managed_engagement_scope.sql) is the real gate; this only decides whether
   // the button renders at all. Never true for a plain Self-Managed ("Hybrid") org, since that tier
   // has no way to be granted this permission key (see CLIENT_MANAGED_ONLY_PERMISSION_KEYS).
-  const canApproveItp = session.isJagsStaff || (await hasPermission(session.userId, "approve_itp", itp.projects?.id));
 
   // The checklist is part of the ITP: it is loaded once and used both to show it and to gate
   // approval/acceptance on the reviewer confirming they have looked at it.
-  const checklistPreview = await loadItpChecklistPreview(supabase, itp.id);
   const requiresChecklistReview = checklistPreview.some((i) => i.hasChecklist);
   // Per-activity checklist for the clickable "Checklist" pill in the grid below.
   const checklistByItem = new Map(
