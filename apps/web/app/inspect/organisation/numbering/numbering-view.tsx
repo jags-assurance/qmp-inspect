@@ -14,6 +14,7 @@ import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config
 import { OrgPickerForm } from "./org-picker-form";
 import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -108,11 +109,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">
           {numberingOnly ? "Document numbering" : "Numbering & engagement mode"}

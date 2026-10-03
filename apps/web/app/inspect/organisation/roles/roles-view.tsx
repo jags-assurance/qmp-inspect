@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CUSTOM_ROLES_TABLE, CUSTOM_ROLE_PERMISSIONS_TABLE, CUSTOM_ROLE_ASSIGNMENTS_TABLE, type PermissionKey } from "@/lib/rbac/types";
@@ -8,6 +7,7 @@ import { CreateRoleForm } from "./create-role-form";
 import { RoleCard, type RoleCardData } from "./role-card";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface RoleRow {
   id: string;
@@ -131,11 +131,7 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Custom roles</Heading>
         <PageGuide

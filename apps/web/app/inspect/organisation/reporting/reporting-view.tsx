@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -8,6 +7,7 @@ import { OrgPickerForm } from "../numbering/org-picker-form";
 import { MonthlyReportPackForm } from "../numbering/monthly-report-pack-form";
 import { WeeklyReportPackForm } from "../numbering/weekly-report-pack-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 const VIEWS: { name: string; covers: string }[] = [
   { name: "vw_powerbi_inspections_completed_vs_planned", covers: "Inspections completed vs planned, per project" },
@@ -58,12 +58,8 @@ export async function ReportingView({ searchParams, embedded }: {
     : [[], []];
 
   return (
-    <div className={embedded ? undefined : "max-w-3xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Reporting</Heading>
         <PageGuide

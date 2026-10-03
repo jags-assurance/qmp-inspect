@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
@@ -7,6 +6,7 @@ import { CreateTeamForm } from "./create-team-form";
 import { TeamCard, type TeamCardData, type StaffOption, type ProjectOption } from "./team-card";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface StaffRow {
   id: string;
@@ -100,11 +100,7 @@ export async function TeamsView({ embedded }: { embedded?: boolean }) {
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Teams</Heading>
         <PageGuide

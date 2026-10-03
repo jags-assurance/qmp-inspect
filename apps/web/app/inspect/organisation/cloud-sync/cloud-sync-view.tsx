@@ -7,6 +7,7 @@ import { isCloudSyncConfigured } from "@/lib/cloud-sync/gate";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { CloudFolderSyncForm } from "./cloud-folder-sync-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -47,7 +48,8 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
   const syncConfigured = isCloudSyncConfigured();
 
   return (
-    <div className={embedded ? undefined : "max-w-3xl"}>
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Cloud folder sync</Heading>
         <PageGuide

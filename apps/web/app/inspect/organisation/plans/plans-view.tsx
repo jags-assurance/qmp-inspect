@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrgPlanForm } from "./org-plan-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationRow {
   id: string;
@@ -57,6 +58,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Plans & seats</Heading>
         <PageGuide

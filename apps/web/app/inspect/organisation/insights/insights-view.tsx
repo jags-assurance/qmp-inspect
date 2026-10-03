@@ -11,6 +11,7 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { getLatestPortfolioSummaryPdf } from "@/lib/reports/actions";
 import { PortfolioSummaryPdfButton } from "./portfolio-summary-pdf-button";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 /**
  * A lightweight in-app equivalent of the vw_powerbi_* views (see
@@ -125,11 +126,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
   if (projectIds.length === 0) {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
-        {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-          ← Back to Dashboard
-        </Link>
-)}
+      <SettingsBackLink embedded={embedded} />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <Heading className="text-2xl font-semibold text-ink">Portfolio Insights</Heading>
@@ -332,11 +329,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">

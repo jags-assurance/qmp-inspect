@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -14,6 +13,7 @@ import { ImportPanel } from "./import-panel";
 import { ExportButton } from "./export-button";
 import { EditTemplateForm } from "./edit-template-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 /**
  * R46: staff get the full builder (edit details incl. client scope, add/import/export items).
@@ -52,9 +52,7 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
 
   return (
     <div>
-      <Link href="/inspect/organisation/checklist-library" className="text-sm text-burgundy hover:underline">
-        ← Back to Checklist / Form Template Library
-      </Link>
+      <SettingsBackLink href="/inspect/settings?section=checklist-library" label="Checklist / Form Template Library" />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

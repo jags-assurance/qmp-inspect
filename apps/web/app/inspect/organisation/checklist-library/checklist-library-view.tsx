@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
@@ -6,6 +5,7 @@ import { TemplatesTable, type LibraryTemplateRow } from "./templates-table";
 import { CreateTemplateForm } from "./create-template-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 /**
  * R44/R47: standalone checklist/form template builder — a reusable library of check-item sets,
@@ -45,12 +45,8 @@ export async function ChecklistLibraryView({ embedded }: { embedded?: boolean })
   const totalItems = (templates ?? []).reduce((sum, t) => sum + (t.checklist_library_items?.[0]?.count ?? 0), 0);
 
   return (
-    <div>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <Heading className="text-2xl font-semibold text-ink">Checklist / Form Template Library</Heading>

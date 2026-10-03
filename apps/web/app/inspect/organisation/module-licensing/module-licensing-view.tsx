@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -12,6 +11,7 @@ import { OrgPickerForm } from "../numbering/org-picker-form";
 import { ModuleLicenseToggle } from "./module-license-toggle";
 import { PageGuide } from "@/components/domain/page-guide";
 import { Badge } from "@/components/ui/badge";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -64,12 +64,8 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
   const offCount = selectedOrg ? MODULE_KEYS.filter((k) => (licenseByModule.get(k) ?? true) === false).length : 0;
 
   return (
-    <div className={embedded ? undefined : "max-w-2xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Module licensing</Heading>
         <PageGuide

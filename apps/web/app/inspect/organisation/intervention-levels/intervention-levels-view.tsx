@@ -6,6 +6,7 @@ import { OrgPickerForm } from "../numbering/org-picker-form";
 import { LevelRowForm } from "./level-row-form";
 import { AddLevelForm } from "./add-level-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -54,6 +55,7 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Intervention (sign-off) levels</Heading>
         <PageGuide

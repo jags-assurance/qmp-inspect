@@ -9,6 +9,7 @@ import {
 } from "@/lib/itp-master/types";
 import { ProposalReviewForm } from "./proposal-review-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface ProposalWithSourceItp {
   id: string;
@@ -40,6 +41,7 @@ export default async function ItpMasterProposalsPage() {
 
   return (
     <div>
+      <SettingsBackLink href="/inspect/itp-master" label="Master ITP Library" />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -13,6 +12,7 @@ import {
   AUTOMATION_RULE_DESCRIPTION,
   type AutomationRuleRow,
 } from "@/lib/automation/types";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -58,12 +58,8 @@ export async function AutomationRulesView({ searchParams, embedded }: {
   const enabledCount = AUTOMATION_RULE_TYPES.filter((t) => rulesByType.get(t)?.enabled ?? true).length;
 
   return (
-    <div className={embedded ? undefined : "max-w-3xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Automation rules</Heading>
         <PageGuide

@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +10,7 @@ import {
 import { ITP_MASTER_REVISIONS_TABLE, type ItpMasterRevisionRow } from "@/lib/itp-master/revision-types";
 import { VersionHistoryPanel } from "./version-history-panel";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -71,9 +71,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
 
   return (
     <div>
-      <Link href="/inspect/itp-master" className="text-sm text-burgundy hover:underline">
-        ← Back to ITP Master Library
-      </Link>
+      <SettingsBackLink href="/inspect/itp-master" label="Master ITP Library" />
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
         <Badge tone={template.is_active ? "success" : "neutral"}>{template.is_active ? "Active" : "Inactive"}</Badge>

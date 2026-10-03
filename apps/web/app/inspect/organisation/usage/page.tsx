@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
@@ -17,6 +16,7 @@ import {
 } from "@/lib/reports/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProjectFilter } from "./project-filter";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 /**
  * Admin-only "Usage & Cost" view — a CEO-level strategy review flagged that this app has real
@@ -302,9 +302,7 @@ export default async function UsageAndCostPage({
 
   return (
     <div className="max-w-6xl">
-      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
+      <SettingsBackLink />
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">

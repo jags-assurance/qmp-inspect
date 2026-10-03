@@ -6,6 +6,7 @@ import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
 import { TemplatesTable, type MasterTemplateRow } from "./templates-table";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 // Tier 1 master library is JAGS-staff-only at every level (RLS-enforced) — this redirect is a UX
 // nicety, not the actual boundary; a non-staff user's query would come back empty regardless.
@@ -25,9 +26,7 @@ export default async function ItpMasterLibraryPage() {
 
   return (
     <div>
-      <Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
+      <SettingsBackLink />
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">

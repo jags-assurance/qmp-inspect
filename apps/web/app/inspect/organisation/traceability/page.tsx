@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { ITP_REVISIONS_TABLE } from "@/lib/itps/revision-types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -154,6 +155,7 @@ export default async function DocumentTraceabilityPage({
 
   return (
     <div>
+      <SettingsBackLink />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Document Traceability</h1>
         <PageGuide

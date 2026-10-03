@@ -5,6 +5,7 @@ import { OrgPickerForm } from "../numbering/org-picker-form";
 import { CreateClientTeamForm } from "./create-client-team-form";
 import { ClientTeamCard, type ClientTeamCardData, type UserOption, type ProjectOption } from "./client-team-card";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -80,6 +81,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
   if (!organizationId || !selectedOrg) {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
         <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
         <p className="mt-1 text-sm text-muted">No organisation found.</p>
       </div>
@@ -177,6 +179,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
         <PageGuide

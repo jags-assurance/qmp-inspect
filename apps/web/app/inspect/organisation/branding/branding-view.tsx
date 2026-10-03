@@ -6,6 +6,7 @@ import { OrgPickerForm } from "../numbering/org-picker-form";
 import { BrandingForm } from "./branding-form";
 import { LogoUploadForm } from "./logo-upload-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface OrganizationOption {
   id: string;
@@ -83,7 +84,8 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
   };
 
   return (
-    <div className={embedded ? undefined : "max-w-3xl"}>
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Brand colors &amp; logo</Heading>
         <PageGuide

@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffGrantForm, type StaffOption, type OrgOption, type ProjectOption } from "./staff-grant-form";
@@ -7,6 +6,7 @@ import { RemoveGrantButton } from "./remove-grant-button";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
+import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 interface StaffRow {
   id: string;
@@ -80,11 +80,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
-      {!embedded && (
-<Link href="/inspect" className="text-sm text-burgundy hover:underline">
-        ← Back to Dashboard
-      </Link>
-)}
+      <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-2xl font-semibold text-ink">Staff access</Heading>
         <PageGuide
