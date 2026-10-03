@@ -164,8 +164,14 @@ const ISSUE_PURPOSE: Record<DataBookPdfData["status"], string> = {
 };
 
 /** Footer/header wording — also used by renderDataBookPdf.ts for the Puppeteer page footer. */
-export function dataBookIssueLabel(status: DataBookPdfData["status"]): string {
-  return status === "issued" ? "FINAL" : status === "compiled" ? "FOR REVIEW — NOT ISSUED" : "DRAFT — NOT ISSUED";
+export function dataBookIssueLabel(status: DataBookPdfData["status"], conditional = false): string {
+  if (status === "issued") return conditional ? "FINAL — CONDITIONAL HANDOVER" : "FINAL";
+  return status === "compiled" ? "FOR REVIEW — NOT ISSUED" : "DRAFT — NOT ISSUED";
+}
+
+/** An issued book that was compiled with outstanding items is a Conditional Handover, never an unqualified Final. */
+function issuePurpose(data: Pick<DataBookPdfData, "status" | "overrideReason">): string {
+  return data.status === "issued" && data.overrideReason ? "Final — Conditional handover" : ISSUE_PURPOSE[data.status];
 }
 
 function escapeHtml(value: string): string {
@@ -246,7 +252,7 @@ function renderPoweredByFooter(data: DataBookPdfData): string {
 }
 
 export function buildDataBookPdfHtml(data: DataBookPdfData): string {
-  const issueLabel = dataBookIssueLabel(data.status);
+  const issueLabel = dataBookIssueLabel(data.status, !!data.overrideReason);
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 16) + " UTC";
   const issueDate = fmtDate(data.compiledAt ?? data.generatedAt.toISOString());
   const projectLabel = `${data.projectNumber} | ${data.projectName}`;
@@ -290,13 +296,13 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     <div class="part">${escapeHtml(data.organizationName ?? "JAGS ASSURANCE")}</div>
     <h1 class="cover-title">Project Data Book</h1>
     <p class="lead">${escapeHtml(data.title)}. Controlled package of inspection, test and completion records with an index, traceability and release evidence.</p>
-    <h3>${escapeHtml(ISSUE_PURPOSE[data.status])} issue</h3>
+    <h3>${escapeHtml(issuePurpose(data))} issue</h3>
     ${table(
       ["Document control", "Value"],
       [
         ["Document number", escapeHtml(data.bookNumber)],
         ["Revision and issue date", `R00 | ${issueDate}`],
-        ["Issue purpose", escapeHtml(ISSUE_PURPOSE[data.status])],
+        ["Issue purpose", escapeHtml(issuePurpose(data))],
         ["Project", escapeHtml(projectLabel)],
         ["Records in book", `${planned} activity records across ${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}`],
         ["Volume", "1 of 1"],
@@ -306,7 +312,9 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     )}
     <p class="note">${
       data.status === "issued"
-        ? "FINAL ISSUE. Contents are the frozen records listed in the master register. Printed copies are uncontrolled."
+        ? data.overrideReason
+          ? "CONDITIONAL HANDOVER. Issued with the outstanding conditions listed in Part D; this is not an unqualified final completeness certificate. Printed copies are uncontrolled."
+          : "FINAL ISSUE. Contents are the frozen records listed in the master register. Printed copies are uncontrolled."
         : data.status === "compiled"
           ? "FOR REVIEW — NOT ISSUED. Compiled for review; it becomes final only when issued. Unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
           : "DRAFT — NOT FOR ISSUE. Records are listed as they stand at generation time; unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
@@ -365,10 +373,10 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     "Revision distribution and issue status",
     "Book revisions and individual record revisions are controlled independently. Issuing a new book must not rewrite the history of its source records.",
     `
-    ${table(["Revision", "Date", "Description", "Authorization"], [["R00", issueDate, `${escapeHtml(ISSUE_PURPOSE[data.status])} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
+    ${table(["Revision", "Date", "Description", "Authorization"], [["R00", issueDate, `${escapeHtml(issuePurpose(data))} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
     <h3>Independent status dimensions</h3>
     <ul>
-      <li>Issue purpose: Draft, For Review, For Acceptance, Final or As-Built. <b>This book: ${escapeHtml(ISSUE_PURPOSE[data.status])}.</b></li>
+      <li>Issue purpose: Draft, For Review, For Acceptance, Final or As-Built. <b>This book: ${escapeHtml(issuePurpose(data))}.</b></li>
       <li>Record lifecycle: Draft, In review, Accepted, Rejected or Missing — the state column of the master register.</li>
       <li>Package gate: ${data.isReady ? "All gating categories complete." : "Not ready — see Readiness calculations and hard gates."}</li>
     </ul>
@@ -605,12 +613,12 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     "Record the receiving party's decision for a defined scope and issue. Acceptance conditions and contract consequences must be explicit.",
     `
     <h3>Record header</h3>
-    <p class="header-line">Book ${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)} | ${escapeHtml(ISSUE_PURPOSE[data.status])} issue R00</p>
+    <p class="header-line">Book ${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)} | ${escapeHtml(issuePurpose(data))} issue R00</p>
     ${table(
       ["Acceptance field", "Entry"],
       [
         ["Scope", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}, ${planned} records, issue R00`],
-        ["Decision", data.status === "issued" ? "Issued — see signed acceptance" : "Not requested — book not issued"],
+        ["Decision", data.status === "issued" ? (data.overrideReason ? "Issued as a Conditional handover — client acceptance of the conditions pending" : "Issued — see signed acceptance") : "Not requested — book not issued"],
         ["Conditions", data.overrideReason ? escapeHtml(data.overrideReason) : "None recorded"],
         ["Custody and effective date", "&nbsp;"],
         ["Handover certificate", data.handoverCertificate.ready > 0 ? "Issued" : "Not issued"],

@@ -609,7 +609,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
           </div>`,
         footerTemplate: `
           <div style="width:100%;font-size:7.5px;color:#444;padding:0 15mm;display:flex;justify-content:flex-end;gap:14px;font-family:Calibri,Arial,Helvetica,sans-serif;">
-            <span>${dataBook.book_number} | R00 | ${dataBookIssueLabel(dataBook.status)}</span>
+            <span>${dataBook.book_number} | R00 | ${dataBookIssueLabel(dataBook.status, !!dataBook.override_reason)}</span>
             <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
           </div>`,
       })
