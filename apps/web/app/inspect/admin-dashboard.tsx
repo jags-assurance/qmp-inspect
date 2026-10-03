@@ -163,7 +163,7 @@ export function AdminDashboard({
       {todayQueue}
 
       {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
         {overdueHoldsTile}
         <StatCard
           label="Open NCRs"
@@ -238,6 +238,7 @@ export function AdminDashboard({
         {overdueHoldsCard}
 
         <Watchlist
+          anchorId="open-ncrs"
           title="Open NCRs"
           description="Minor and major, across every project you have access to."
           items={openNcrItems}
@@ -248,17 +249,20 @@ export function AdminDashboard({
             <button
               type="button"
               onClick={() => panel.open(`ncr:${item.id}`)}
-              className="-mx-1 block w-[calc(100%+0.5rem)] rounded-md px-1 py-0.5 text-left hover:bg-off-white"
+              className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-off-white"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
                   {item.severity === "major_ncr" ? "Major" : "Minor"}
                 </Badge>
                 <span className="doc-id text-burgundy">{item.ncrNumber}</span>
               </span>
-              <span className="mt-0.5 flex items-center justify-between text-xs text-muted">
-                <span>{item.projectLabel}</span>
-                <span>Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
+              {item.description && <span className="mt-1 line-clamp-2 block text-xs text-ink">{item.description}</span>}
+              <span className="mt-1 flex items-center justify-between gap-3 text-xs text-muted">
+                <span className="min-w-0 truncate" title={item.projectLabel}>
+                  {item.projectLabel}
+                </span>
+                <span className="shrink-0 whitespace-nowrap">Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
               </span>
             </button>
           )}
@@ -276,9 +280,13 @@ export function AdminDashboard({
                 {event.actorName ? " — " : ""}
                 {event.summary}
               </p>
-              <p className="mt-0.5 flex items-center justify-between text-xs text-muted">
-                <span>{event.projectLabel ?? "—"}</span>
-                <span suppressHydrationWarning>{timeAgo(event.createdAt)}</span>
+              <p className="mt-0.5 flex items-center justify-between gap-3 text-xs text-muted">
+                <span className="min-w-0 truncate" title={event.projectLabel ?? undefined}>
+                  {event.projectLabel ?? ""}
+                </span>
+                <span className="shrink-0 whitespace-nowrap" suppressHydrationWarning>
+                  {timeAgo(event.createdAt)}
+                </span>
               </p>
             </>
           )}

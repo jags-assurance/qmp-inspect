@@ -7,6 +7,7 @@ import Link from "next/link";
  * list is capped it shows "See all N →" instead of silently dropping rows.
  */
 export function Watchlist<T extends { id: string }>({
+  anchorId,
   title,
   description,
   items,
@@ -15,6 +16,8 @@ export function Watchlist<T extends { id: string }>({
   emptyText,
   seeAllHref,
 }: {
+  /** DOM id so another part of the page (e.g. a "+15 more" row) can scroll straight to this window. */
+  anchorId?: string;
   title: string;
   description?: string;
   items: T[];
@@ -26,13 +29,13 @@ export function Watchlist<T extends { id: string }>({
 }) {
   const hidden = total !== undefined ? total - items.length : 0;
   return (
-    <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
+    <div id={anchorId} className="flex scroll-mt-24 flex-col rounded-lg border border-border bg-surface p-4">
       <h2 className="text-sm font-medium text-ink">
         {title}
         {total !== undefined && total > 0 && <span className="ml-1.5 text-xs font-normal text-muted">({total})</span>}
       </h2>
       {description && <p className="mt-1 text-xs text-muted">{description}</p>}
-      <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto">
+      <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto overflow-x-hidden">
         {items.map((item) => (
           <li key={item.id} className="py-2 text-sm">
             {renderItem(item)}

@@ -55,19 +55,20 @@ export async function OverdueHoldsCard() {
   const items = await getOverdueHoldPoints();
   return (
     <Watchlist
+      anchorId="overdue-holds"
       title="Overdue hold points"
+      total={items.length}
       description="Blocking sign-offs notified past their notice period."
       items={items}
       emptyText="No overdue hold points."
       renderItem={(item) => (
         <>
-          <p className="text-ink">
-            <span className="doc-id mr-1 text-muted">{item.itpNumber}</span>
-            {item.activity}
-          </p>
-          <p className="mt-0.5 flex items-center justify-between text-xs">
-            <span className="text-muted">{item.projectLabel}</span>
-            <span className="font-semibold text-danger">{item.daysOpen}d overdue</span>
+          <p className="text-ink">{item.activity}</p>
+          <p className="mt-0.5 flex items-center justify-between gap-3 text-xs">
+            <span className="min-w-0 truncate text-muted" title={`${item.itpNumber} · ${item.projectLabel}`}>
+              {item.projectLabel}
+            </span>
+            <span className="shrink-0 whitespace-nowrap font-semibold text-danger">{item.daysOpen}d overdue</span>
           </p>
         </>
       )}
@@ -82,7 +83,8 @@ export async function OverdueHoldsCard() {
  */
 export async function AdminTodayWithHolds({ baseItems, description }: { baseItems: TodayItem[]; description: string }) {
   const holds = await getOverdueHoldPoints();
-  const shown = holds.slice(0, 5).map<TodayItem>((h) => ({
+  const TODAY_HOLD_LIMIT = 3;
+  const shown = holds.slice(0, TODAY_HOLD_LIMIT).map<TodayItem>((h) => ({
     id: h.id,
     kind: "hold",
     title: `${h.itpNumber} — ${h.activity}`,
@@ -97,9 +99,10 @@ export async function AdminTodayWithHolds({ baseItems, description }: { baseItem
       id: "more-holds",
       kind: "hold",
       title: `+ ${holds.length - shown.length} more overdue hold points`,
-      meta: "See the Overdue hold points list below",
+      meta: "The full list is in the Overdue hold points window below",
       urgency: 2,
-      href: "/inspect/itps",
+      href: "#overdue-holds",
+      actionLabel: "Show list",
     });
   }
   const items = [...shown, ...baseItems].sort((a, b) => b.urgency - a.urgency);

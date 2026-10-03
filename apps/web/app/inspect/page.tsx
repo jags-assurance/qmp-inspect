@@ -420,9 +420,19 @@ export default async function InspectDashboardPage() {
         status: row.status,
         projectLabel: row.projects ? `${row.projects.project_number} — ${row.projects.name}` : "—",
       }));
+    // Some audit summaries were written with a raw user id baked in ("access revoked from
+    // bf24ffc2-…"), which reads as noise on a dashboard. Resolve any id in the visible rows to that
+    // person's name in one lookup; an id we can't resolve becomes "a user" rather than a UUID.
+    const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    const mentionedIds = [...new Set((activityRows ?? []).flatMap((row) => row.summary.match(UUID_PATTERN) ?? []))];
+    const { data: mentionedUsers } = mentionedIds.length
+      ? await supabase.from("users").select("id, full_name").in("id", mentionedIds).returns<{ id: string; full_name: string }[]>()
+      : { data: [] as { id: string; full_name: string }[] };
+    const nameById = new Map((mentionedUsers ?? []).map((u) => [u.id.toLowerCase(), u.full_name]));
+    const humanise = (text: string) => text.replace(UUID_PATTERN, (id) => nameById.get(id.toLowerCase()) ?? "a user");
     recentActivity = (activityRows ?? []).map((row) => ({
       id: row.id,
-      summary: row.summary,
+      summary: humanise(row.summary),
       actorName: row.actor?.full_name ?? null,
       projectLabel: row.projects ? `${row.projects.project_number} — ${row.projects.name}` : null,
       createdAt: row.created_at,
