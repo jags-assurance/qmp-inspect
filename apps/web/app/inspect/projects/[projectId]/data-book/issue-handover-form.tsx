@@ -40,6 +40,11 @@ export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string
       return;
     }
 
+    // Snapshot the fields BEFORE disabling them: disabled inputs are left out of FormData, so building
+    // it after setPending(true) (as this used to) dropped the certificate number and every issue
+    // attempt failed with "Certificate number is required."
+    const formData = new FormData(form);
+
     setPending(true);
     setError(null);
 
@@ -57,7 +62,6 @@ export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string
       return;
     }
 
-    const formData = new FormData(form);
     formData.set("data_book_id", dataBookId);
     formData.set("project_id", projectId);
     formData.set("package_storage_path", path);
