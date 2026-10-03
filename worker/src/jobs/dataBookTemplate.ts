@@ -1,10 +1,16 @@
-// Renders the printable HTML for a project's Data Book (R86, R108) — a branded cover page followed
-// by a compiled readiness summary: every ITP/inspection-record/register/NCR/punch-list category the
-// data book's completion gate checks (see apps/web/lib/databook/readiness.ts, whose category
-// definitions and percentage formula this mirrors exactly — the worker can't import that file
-// directly, since it depends on the Next.js server-only Supabase client, so the same computation is
-// re-derived from the same tables in renderDataBookPdf.ts instead). Puppeteer renders this to
-// portrait A4 PDF in renderDataBookPdf.ts; this module only builds the markup.
+// Renders the printable HTML for a project's Data Book (R86, R108) in the Jags Assurance Data Book
+// reference layout (Jags_Assurance_Data_Book_Reference.pdf), in the reference's order:
+//   Part A  Document control — cover, control & authorization, revision/distribution/status,
+//           contents, scope and terminology
+//   Part B  Evidence register — master record register (one row per ITP activity record) + totals
+//   Part C  Records — per-ITP inspection & test records, then materials, welding, calibration,
+//           nonconformance, punch list / completion
+//   Part D  Release controls — readiness & hard gates, final completeness certification,
+//           final acceptance & handover
+// The same template renders every issue state: a Draft/compiled book carries a DRAFT watermark and
+// "NOT READY"/unsigned wording until the book is issued; an issued book reads FINAL. Everything is
+// real project data — nothing here is illustrative placeholder text. Readiness figures mirror
+// apps/web/lib/databook/readiness.ts (the worker can't import it — see renderDataBookPdf.ts).
 
 export interface DataBookPdfCategory {
   label: string;
@@ -14,9 +20,7 @@ export interface DataBookPdfCategory {
 }
 
 /** R88 — one row of the "Breakdown by service / discipline" table, mirroring
- *  apps/web/lib/databook/discipline-breakdown.ts's DataBookDisciplineRow exactly (the worker can't
- *  import that file directly — same reason renderDataBookPdf.ts re-derives readiness.ts instead of
- *  importing it, see that file's header comment). */
+ *  apps/web/lib/databook/discipline-breakdown.ts's DataBookDisciplineRow exactly. */
 export interface DataBookPdfDisciplineRow {
   disciplineCode: string;
   disciplineName: string;
@@ -27,6 +31,86 @@ export interface DataBookPdfDisciplineRow {
   firstTimePassRate: number | null;
 }
 
+export type DataBookRecordState = "Accepted" | "Accepted with comments" | "In review" | "Draft" | "Rejected" | "Missing";
+
+export interface DataBookPdfIntervention {
+  code: string;
+  partyName: string;
+  status: string;
+  signedBy: string | null;
+  signedAt: string | null;
+}
+
+export interface DataBookPdfActivity {
+  itemNumber: string;
+  activity: string;
+  criteria: string | null;
+  reference: string | null;
+  method: string | null;
+  interventions: DataBookPdfIntervention[];
+  recordNumber: string | null;
+  result: string | null;
+  inspectionDate: string | null;
+  inspector: string | null;
+  irnNumber: string | null;
+  state: DataBookRecordState;
+}
+
+export interface DataBookPdfItp {
+  itpNumber: string;
+  title: string;
+  revision: number;
+  status: string;
+  phase: string;
+  standard: string | null;
+  preparedBy: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  acceptedBy: string | null;
+  acceptedAt: string | null;
+  activities: DataBookPdfActivity[];
+}
+
+export interface DataBookPdfCalibration {
+  instrument: string;
+  certNumber: string;
+  calDate: string | null;
+  dueDate: string;
+  status: string;
+}
+export interface DataBookPdfWelder {
+  welder: string;
+  wps: string;
+  ranges: string | null;
+  expiry: string;
+  status: string;
+}
+export interface DataBookPdfMaterial {
+  description: string;
+  heat: string | null;
+  batch: string | null;
+  po: string | null;
+  certificate: string | null;
+  approval: string;
+  receipt: string;
+}
+export interface DataBookPdfNcr {
+  number: string;
+  description: string;
+  severity: string;
+  status: string;
+  closedAt: string | null;
+}
+export interface DataBookPdfPunch {
+  description: string;
+  location: string | null;
+  status: string;
+  dueDate: string | null;
+  closedAt: string | null;
+}
+
 export interface DataBookPdfData {
   bookNumber: string;
   title: string;
@@ -35,21 +119,27 @@ export interface DataBookPdfData {
   projectNumber: string;
   organizationName: string | null;
 
-  /** The gating categories, in display order (ITPs, inspection records, checklists, calibration,
-   *  welder, material, NCRs) — same set readiness.ts's `isReady`/`overallPercentage` are computed
-   *  from. */
+  /** The gating categories, in display order — same set readiness.ts's `isReady`/`overallPercentage`
+   *  are computed from. */
   categories: DataBookPdfCategory[];
-  /** Informational only, same as readiness.ts's handoverCertificate — excluded from overallPercentage. */
+  /** Informational only, excluded from overallPercentage. */
   handoverCertificate: DataBookPdfCategory;
-  /** R88 — per-discipline subtotals, in display order. Empty when nothing on the project is
-   *  discipline-tagged yet (see discipline-breakdown.ts's honesty rule). */
   disciplineBreakdown: DataBookPdfDisciplineRow[];
   openPunchItems: number;
   overallPercentage: number;
   isReady: boolean;
 
   compiledAt: string | null;
+  compiledBy: string | null;
   overrideReason: string | null;
+  overrideBy: string | null;
+
+  itps: DataBookPdfItp[];
+  calibrations: DataBookPdfCalibration[];
+  welders: DataBookPdfWelder[];
+  materials: DataBookPdfMaterial[];
+  ncrs: DataBookPdfNcr[];
+  punchItems: DataBookPdfPunch[];
 
   generatedAt: Date;
   /**
@@ -64,11 +154,16 @@ export interface DataBookPdfBranding {
   logoUrl: string | null;
 }
 
-const STATUS_LABEL: Record<DataBookPdfData["status"], string> = {
+const ISSUE_PURPOSE: Record<DataBookPdfData["status"], string> = {
   draft: "Draft",
-  compiled: "Compiled",
-  issued: "Issued",
+  compiled: "For Review",
+  issued: "Final",
 };
+
+/** Footer/header wording — also used by renderDataBookPdf.ts for the Puppeteer page footer. */
+export function dataBookIssueLabel(status: DataBookPdfData["status"]): string {
+  return status === "issued" ? "FINAL" : status === "compiled" ? "FOR REVIEW — NOT ISSUED" : "DRAFT — NOT ISSUED";
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -79,77 +174,58 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function cell(value: string | null | undefined): string {
-  return value ? escapeHtml(value) : "&mdash;";
+function cell(value: string | number | null | undefined): string {
+  return value === null || value === undefined || value === "" ? "&mdash;" : escapeHtml(String(value));
 }
 
-function renderCategoryRow(category: DataBookPdfCategory): string {
-  const toneClass = category.percentage === 100 ? "cat-ready" : category.percentage === 0 ? "cat-empty" : "cat-partial";
-  return `
-    <tr>
-      <td>${escapeHtml(category.label)}</td>
-      <td class="cat-count">${category.ready} / ${category.total}</td>
-      <td class="cat-pct ${toneClass}">${category.percentage}%</td>
-    </tr>`;
+function fmtDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toISOString().slice(0, 10);
 }
 
-function renderCategoryTable(title: string, categories: DataBookPdfCategory[]): string {
-  const rows = categories.map(renderCategoryRow).join("");
-  return `
-    <div class="section">
-      <h2>${escapeHtml(title)}</h2>
-      <table class="category-table">
-        <thead>
-          <tr><th>Category</th><th>Provided / Required</th><th>Complete</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+function table(headers: string[], rows: string[][], widths?: string[]): string {
+  const head = headers.map((h, i) => `<th${widths?.[i] ? ` style="width:${widths[i]}"` : ""}>${escapeHtml(h)}</th>`).join("");
+  const body = rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
+  return `<table class="grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-function renderDisciplineRow(row: DataBookPdfDisciplineRow): string {
-  const rateLabel = row.firstTimePassRate === null ? "&mdash;" : `${row.firstTimePassRate}%`;
-  const rateToneClass =
-    row.firstTimePassRate === null
-      ? ""
-      : row.firstTimePassRate === 100
-        ? "cat-ready"
-        : row.firstTimePassRate >= 80
-          ? "cat-partial"
-          : "cat-empty";
+function page(id: string, part: string, title: string, intro: string | null, body: string): string {
   return `
-    <tr>
-      <td>${escapeHtml(row.disciplineName)} <span class="discipline-code">${escapeHtml(row.disciplineCode)}</span></td>
-      <td class="cat-count">${row.itpCount}</td>
-      <td class="cat-count">${row.ncrCount}</td>
-      <td class="cat-pct ${rateToneClass}">${rateLabel}${row.firstAttempts > 0 ? ` <span class="discipline-code">(${row.firstTimePasses}/${row.firstAttempts})</span>` : ""}</td>
-    </tr>`;
+  <section class="page" id="${id}">
+    <div class="part">${escapeHtml(part)}</div>
+    <h1>${escapeHtml(title)}</h1>
+    ${intro ? `<p class="lead">${escapeHtml(intro)}</p>` : ""}
+    ${body}
+  </section>`;
 }
 
-function renderDisciplineBreakdownTable(rows: DataBookPdfDisciplineRow[]): string {
-  if (rows.length === 0) {
-    return `
-    <div class="section">
-      <h2>Breakdown by service / discipline</h2>
-      <p class="discipline-empty">No ITP activities on this project are tagged with a discipline yet.</p>
-    </div>`;
-  }
+function signLines(prepared: string | null, preparedAt: string | null, reviewed: string | null, reviewedAt: string | null, approver: string | null): string {
   return `
-    <div class="section">
-      <h2>Breakdown by service / discipline</h2>
-      <table class="category-table">
-        <thead>
-          <tr><th>Discipline</th><th>ITPs</th><th>NCRs</th><th>First-time pass rate</th></tr>
-        </thead>
-        <tbody>${rows.map(renderDisciplineRow).join("")}</tbody>
-      </table>
-    </div>`;
+    <p class="sign">
+      Prepared or performed by: <b>${cell(prepared)}</b> &nbsp; Date: <b>${fmtDate(preparedAt)}</b><br />
+      Reviewed by: <b>${cell(reviewed)}</b> &nbsp; Date: <b>${fmtDate(reviewedAt)}</b><br />
+      Approver: <b>${approver ? escapeHtml(approver) : "Not performed"}</b>
+    </p>`;
+}
+
+const STATE_CLASS: Record<DataBookRecordState, string> = {
+  Accepted: "ok",
+  "Accepted with comments": "ok",
+  "In review": "warn",
+  Draft: "warn",
+  Rejected: "bad",
+  Missing: "bad",
+};
+
+function stateBadge(state: DataBookRecordState): string {
+  return `<span class="state ${STATE_CLASS[state]}">${escapeHtml(state)}</span>`;
 }
 
 const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
 
-/** See ncrTemplate.ts's renderBrandBlock — identical semantics, duplicated rather than shared since
- *  the templates don't share a lib (same convention as elsewhere in this file). */
+/** See ncrTemplate.ts's renderBrandBlock — identical semantics. */
 function renderBrandBlock(data: DataBookPdfData): string {
   const mode = data.branding?.engagementMode ?? "jags_led";
   const logoUrl = data.branding?.logoUrl ?? null;
@@ -161,16 +237,384 @@ function renderBrandBlock(data: DataBookPdfData): string {
   return JAGS_BRAND_BLOCK;
 }
 
-/** The literal R113 requirement — small print in white_label mode only. */
 function renderPoweredByFooter(data: DataBookPdfData): string {
   if ((data.branding?.engagementMode ?? "jags_led") !== "white_label") return "";
   return '<div class="powered-by">Powered by JAGS Assurance</div>';
 }
 
 export function buildDataBookPdfHtml(data: DataBookPdfData): string {
-  const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 19) + " UTC";
-  const statusLabel = STATUS_LABEL[data.status];
-  const readinessLabel = data.isReady ? "READY FOR HANDOVER" : "NOT YET READY";
+  const issueLabel = dataBookIssueLabel(data.status);
+  const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const issueDate = fmtDate(data.compiledAt ?? data.generatedAt.toISOString());
+  const projectLabel = `${data.projectNumber} | ${data.projectName}`;
+  const allActivities = data.itps.flatMap((itp) => itp.activities.map((a) => ({ itp, a })));
+
+  // ── Master register totals (the reference's "Scenario totals" paragraph, from real data) ─────
+  const planned = allActivities.length;
+  const count = (s: DataBookRecordState) => allActivities.filter(({ a }) => a.state === s).length;
+  const accepted = count("Accepted") + count("Accepted with comments");
+  const inReview = count("In review");
+  const draft = count("Draft");
+  const rejected = count("Rejected");
+  const missing = count("Missing");
+  const received = planned - missing;
+  const pct = (n: number, d: number) => (d === 0 ? "n/a" : `${((n / d) * 100).toFixed(1)}%`);
+
+  // ── Contents ────────────────────────────────────────────────────────────────────────────────
+  const itpSectionIds = data.itps.map((_, i) => `rec-itp-${i}`);
+  const toc: Array<[string, string]> = [
+    ["cover", "Data Book"],
+    ["control", "Document control and authorization"],
+    ["revision", "Revision distribution and issue status"],
+    ["contents", "Contents and navigation"],
+    ["scope", "Scope terminology and configuration"],
+    ["register", "Master record register"],
+    ...data.itps.map((itp, i): [string, string] => [itpSectionIds[i], `Inspection and testing records — ${itp.itpNumber}`]),
+    ["materials", "Materials and traceability"],
+    ["welding", "Welding and joining records"],
+    ["calibration", "Calibration and regulated certificates"],
+    ["ncrs", "Nonconformance deviation and exceptions"],
+    ["punch", "Mechanical completion and punch list"],
+    ["readiness", "Readiness calculations and hard gates"],
+    ["certification", "Final completeness certification"],
+    ["acceptance", "Final acceptance and handover record"],
+  ];
+
+  // ── Part A ──────────────────────────────────────────────────────────────────────────────────
+  const cover = `
+  <section class="page cover" id="cover">
+    <div class="letterhead"><div class="brand">${renderBrandBlock(data)}</div></div>
+    <div class="part">${escapeHtml(data.organizationName ?? "JAGS ASSURANCE")}</div>
+    <h1 class="cover-title">Project Data Book</h1>
+    <p class="lead">${escapeHtml(data.title)}. Controlled package of inspection, test and completion records with an index, traceability and release evidence.</p>
+    <h3>${escapeHtml(ISSUE_PURPOSE[data.status])} issue</h3>
+    ${table(
+      ["Document control", "Value"],
+      [
+        ["Document number", escapeHtml(data.bookNumber)],
+        ["Revision and issue date", `R00 | ${issueDate}`],
+        ["Issue purpose", escapeHtml(ISSUE_PURPOSE[data.status])],
+        ["Project", escapeHtml(projectLabel)],
+        ["Records in book", `${planned} activity records across ${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}`],
+        ["Volume", "1 of 1"],
+        ["Document owner", "Jags Assurance"],
+      ],
+      ["32%", "68%"]
+    )}
+    <p class="note">${
+      data.status === "issued"
+        ? "FINAL ISSUE. Contents are the frozen records listed in the master register. Printed copies are uncontrolled."
+        : "DRAFT — NOT FOR ISSUE. Records are listed as they stand at generation time; unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
+    }</p>
+    ${renderPoweredByFooter(data)}
+  </section>`;
+
+  const itpApprovalRows = data.itps.map((itp) => [
+    escapeHtml(itp.itpNumber) + ` Rev ${itp.revision}`,
+    cell(itp.preparedBy),
+    itp.reviewedBy ? `${escapeHtml(itp.reviewedBy)}<br /><small>${fmtDate(itp.reviewedAt)}</small>` : "Not performed",
+    itp.approvedBy ? `${escapeHtml(itp.approvedBy)}<br /><small>${fmtDate(itp.approvedAt)}</small>` : "Not performed",
+    itp.acceptedBy ? `${escapeHtml(itp.acceptedBy)}<br /><small>${fmtDate(itp.acceptedAt)}</small>` : "Not requested",
+  ]);
+
+  const control = page(
+    "control",
+    "PART A  DOCUMENT CONTROL",
+    "Document control and authorization",
+    "The cover identifies the book. This control sheet identifies the accountable organizations and the approval route.",
+    `
+    ${table(
+      ["Metadata field", "Value"],
+      [
+        ["Client and project", `${cell(data.organizationName)} | ${escapeHtml(projectLabel)}`],
+        ["Data book", `${escapeHtml(data.bookNumber)} | ${escapeHtml(data.title)}`],
+        ["Package", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}: ${data.itps.map((i) => escapeHtml(i.itpNumber)).join(", ") || "none"}`],
+        ["Language and classification", "English | Project distribution"],
+        ["Requirements baseline", "Approved ITPs listed in Part C at their stated revision"],
+      ],
+      ["32%", "68%"]
+    )}
+    <h3>Prepared, reviewed and approved — book</h3>
+    ${table(
+      ["Function", "Name and title", "Decision and signature", "Date"],
+      [
+        ["Prepared by (compiled)", cell(data.compiledBy), data.compiledBy ? "Compiled in QMP Inspect" : "Not compiled", fmtDate(data.compiledAt)],
+        [
+          "Release approved by",
+          cell(data.overrideBy),
+          data.status === "issued" ? "Issued" : "Not performed",
+          data.status === "issued" ? fmtDate(data.compiledAt) : "—",
+        ],
+        ["Client acceptance", "—", data.status === "issued" ? "Per handover record" : "Not requested", "—"],
+      ],
+      ["24%", "28%", "30%", "18%"]
+    )}
+    <h3>ITP approval chain — each ITP behind this book</h3>
+    ${itpApprovalRows.length > 0 ? table(["ITP", "Prepared by", "Reviewed", "Approved", "Client accepted"], itpApprovalRows) : "<p>No ITPs on this project.</p>"}
+    <p class="small">Preparation, technical approval and client acceptance are separate decisions. Each records the person, role and date; a typed name alone is not verified approval.</p>`
+  );
+
+  const revision = page(
+    "revision",
+    "PART A  DOCUMENT CONTROL",
+    "Revision distribution and issue status",
+    "Book revisions and individual record revisions are controlled independently. Issuing a new book must not rewrite the history of its source records.",
+    `
+    ${table(["Revision", "Date", "Description", "Authorization"], [["R00", issueDate, `${escapeHtml(ISSUE_PURPOSE[data.status])} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
+    <h3>Independent status dimensions</h3>
+    <ul>
+      <li>Issue purpose: Draft, For Review, For Acceptance, Final or As-Built. <b>This book: ${escapeHtml(ISSUE_PURPOSE[data.status])}.</b></li>
+      <li>Record lifecycle: Draft, In review, Accepted, Rejected or Missing — the state column of the master register.</li>
+      <li>Package gate: ${data.isReady ? "All gating categories complete." : "Not ready — see Readiness calculations and hard gates."}</li>
+    </ul>
+    <p>Freeze each issued version with a manifest and transmittal. Retain prior issues under the agreed retention policy. Printed copies are uncontrolled unless the project registers and controls them.</p>`
+  );
+
+  const contents = page(
+    "contents",
+    "PART A  DOCUMENT CONTROL",
+    "Contents and navigation",
+    "This index is the reading route for the book. The master record register separately controls individual deliverables.",
+    `<ol class="toc">${toc.map(([id, label]) => `<li><a href="#${id}">${escapeHtml(label)}</a></li>`).join("")}</ol>`
+  );
+
+  const scope = page(
+    "scope",
+    "PART A  DOCUMENT CONTROL",
+    "Scope terminology and configuration",
+    "One configurable evidence system. Core controls apply to every book; conditional sections appear when the project has records of that kind.",
+    `${table(
+      ["Term", "Meaning in this book"],
+      [
+        ["Data Book", "Controlled package of records with an index, traceability and release evidence."],
+        ["ITP", "Inspection and Test Plan — the approved list of activities, intervention points (H/W/R/S) and acceptance criteria."],
+        ["IRN", "Inspection Release Notice — issued once an inspection record is released."],
+        ["Record state", "Accepted = record exists with a pass result and an issued IRN. In review = record exists, release pending. Draft = record opened with no result. Rejected = failed result. Missing = no record yet."],
+        ["Core and conditional", "ITP, register and readiness sections are core. Materials, welding, calibration, NCR and punch-list sections list whatever the project has recorded."],
+      ],
+      ["24%", "76%"]
+    )}
+    <p>Unknown applicability is unresolved, not Not Applicable. A record that is missing is shown as missing — it is never hidden or counted as complete.</p>`
+  );
+
+  // ── Part B — master register ────────────────────────────────────────────────────────────────
+  const registerRows = allActivities.map(({ itp, a }, i) => [
+    `R${String(i + 1).padStart(2, "0")}`,
+    a.recordNumber ? escapeHtml(a.recordNumber) : `${escapeHtml(itp.itpNumber)} / ${escapeHtml(a.itemNumber)}`,
+    escapeHtml(a.activity),
+    escapeHtml(itp.itpNumber),
+    String(itp.revision),
+    stateBadge(a.state),
+  ]);
+
+  const register = page(
+    "register",
+    "PART B  EVIDENCE REGISTER",
+    "Master record register",
+    "The register is the control point for every expected deliverable: one row per ITP activity. A folder inventory cannot reveal records that were never submitted — missing records appear here.",
+    `
+    ${registerRows.length > 0 ? table(["Req", "Record", "Deliverable", "ITP", "Rev", "State"], registerRows, ["7%", "22%", "41%", "13%", "6%", "11%"]) : "<p>No ITP activities on this project yet.</p>"}
+    <p>Totals at generation: ${planned} planned records; ${accepted} accepted; ${inReview} in review; ${draft} draft; ${rejected} rejected; ${missing} missing. Records with a file or entry received: ${received} of ${planned} (${pct(received, planned)}). Accepted completeness: ${accepted} of ${planned} (${pct(accepted, planned)}). Book readiness: <b>${data.isReady ? "READY" : "NOT READY"}</b>.</p>`
+  );
+
+  // ── Part C — per-ITP inspection and test records ────────────────────────────────────────────
+  const itpPages = data.itps.map((itp, i) => {
+    const rows = itp.activities.map((a) => {
+      const intervention = a.interventions.length
+        ? a.interventions
+            .map((iv) => `<div><b>${escapeHtml(iv.code)}</b> ${escapeHtml(iv.partyName)} — ${escapeHtml(iv.status.replace(/_/g, " "))}${iv.signedBy ? ` (${escapeHtml(iv.signedBy)}, ${fmtDate(iv.signedAt)})` : ""}</div>`)
+            .join("")
+        : "<div>No intervention points</div>";
+      const criteria = a.criteria ? `<div>Criteria: ${escapeHtml(a.criteria)}</div>` : "";
+      const reference = a.reference ? `<div>Ref: ${escapeHtml(a.reference)}</div>` : "";
+      const evidence = a.recordNumber
+        ? `<div><b>${escapeHtml(a.recordNumber)}</b> — ${escapeHtml(a.result ?? "no result")}</div><div>${fmtDate(a.inspectionDate)}${a.inspector ? ` · ${escapeHtml(a.inspector)}` : ""}</div><div>${a.irnNumber ? `IRN ${escapeHtml(a.irnNumber)}` : "IRN not issued"}</div>`
+        : "<div>No inspection record</div>";
+      return [`${escapeHtml(a.itemNumber)} ${escapeHtml(a.activity)}${reference}`, `${intervention}${criteria}`, `${evidence}<div>${stateBadge(a.state)}</div>`];
+    });
+    return page(
+      itpSectionIds[i],
+      "PART C  RECORDS",
+      "Inspection and testing records",
+      "Approved ITP activities are the source of expected evidence. Actual observations, results and releases are shown beside each activity.",
+      `
+      <h3>Record header</h3>
+      <p class="header-line">${escapeHtml(itp.itpNumber)} Rev ${itp.revision} | ${escapeHtml(itp.title)} | Phase ${escapeHtml(itp.phase)} | Status ${escapeHtml(itp.status.replace(/_/g, " "))}${itp.standard ? ` | Standard ${escapeHtml(itp.standard)}` : ""}</p>
+      ${rows.length > 0 ? table(["ITP point", "Intervention and criteria", "Evidence or result"], rows, ["33%", "37%", "30%"]) : "<p>This ITP has no activities.</p>"}
+      <h3>Evidence to attach</h3>
+      <p>Approved ITP, inspection requests, hold/witness releases, measurements, test equipment calibration and release notices.</p>
+      <h3>Review and release check</h3>
+      <p>A missed hold point requires disposition. Record notification, attendance and any authorized waiver of an intervention separately.</p>
+      ${signLines(itp.preparedBy, null, itp.reviewedBy, itp.reviewedAt, itp.approvedBy ? `${itp.approvedBy} (${fmtDate(itp.approvedAt)})` : null)}`
+    );
+  });
+
+  const registerPage = (
+    id: string,
+    title: string,
+    intro: string,
+    headers: string[],
+    rows: string[][],
+    emptyText: string,
+    evidence: string,
+    check: string
+  ) =>
+    page(
+      id,
+      "PART C  RECORDS",
+      title,
+      intro,
+      `${rows.length > 0 ? table(headers, rows) : `<p>${escapeHtml(emptyText)}</p>`}
+      <h3>Evidence to attach</h3><p>${escapeHtml(evidence)}</p>
+      <h3>Review and release check</h3><p>${escapeHtml(check)}</p>`
+    );
+
+  const materials = registerPage(
+    "materials",
+    "Materials and traceability",
+    "Connect incoming material identity and certification to the installed component. Preserve traceability through cutting, assembly, substitution and repair.",
+    ["Material", "Heat / batch", "PO", "Certificate", "Approval", "Receipt"],
+    data.materials.map((m) => [
+      escapeHtml(m.description),
+      `${cell(m.heat)}${m.batch ? ` / ${escapeHtml(m.batch)}` : ""}`,
+      cell(m.po),
+      cell(m.certificate),
+      escapeHtml(m.approval),
+      escapeHtml(m.receipt.replace(/_/g, " ")),
+    ]),
+    "No materials recorded in the project material register.",
+    "MTC/MTR or material certificate, receiving inspection, heat/lot transfer record, PMI and substitutions.",
+    "Check certificate authenticity, material identity and traceability continuity. Only materials approved (A/B) and released count as complete."
+  );
+
+  const welding = registerPage(
+    "welding",
+    "Welding and joining records",
+    "Track procedure qualification and personnel qualification for the joints made on this project.",
+    ["Welder / operator", "WPS", "Qualified range", "Expiry", "Status"],
+    data.welders.map((w) => [escapeHtml(w.welder), escapeHtml(w.wps), cell(w.ranges), fmtDate(w.expiry), escapeHtml(w.status)]),
+    "No welder qualifications recorded in the project register.",
+    "Approved WPS/PQR, welder/operator qualifications and continuity, weld map/log, consumable certificates, repair records and linked NDT.",
+    "Confirm qualification coverage for the actual work at the work date. Possession of a WPS is not proof that each joint followed it."
+  );
+
+  const calibration = registerPage(
+    "calibration",
+    "Calibration and regulated certificates",
+    "Calibration status of the instruments used on this project, checked against their due dates.",
+    ["Instrument", "Certificate", "Calibrated", "Due", "Status"],
+    data.calibrations.map((c) => [escapeHtml(c.instrument), escapeHtml(c.certNumber), fmtDate(c.calDate), fmtDate(c.dueDate), escapeHtml(c.status)]),
+    "No calibration certificates recorded in the project register.",
+    "Original calibration certificates, traceability to national standards and the instrument-to-activity mapping.",
+    "Check calibration at the date of use. An expired instrument requires impact assessment and retest before the activity is satisfied."
+  );
+
+  const ncrs = registerPage(
+    "ncrs",
+    "Nonconformance deviation and exceptions",
+    "Every nonconformance raised on the project with its disposition. A book cannot be final while an NCR remains open.",
+    ["NCR", "Description", "Severity", "Status", "Closed"],
+    data.ncrs.map((n) => [escapeHtml(n.number), escapeHtml(n.description), escapeHtml(n.severity), escapeHtml(n.status.replace(/_/g, " ")), fmtDate(n.closedAt)]),
+    "No nonconformances raised on this project.",
+    "NCR forms with root cause, corrective action, verification notes and closure evidence.",
+    "A blocking NCR prevents release regardless of the completion percentage."
+  );
+
+  const punch = registerPage(
+    "punch",
+    "Mechanical completion and punch list",
+    "Open punch-list items are completion exceptions; they must be verified closed or carried as listed conditions.",
+    ["Item", "Location", "Status", "Due", "Closed"],
+    data.punchItems.map((p) => [escapeHtml(p.description), cell(p.location), escapeHtml(p.status), fmtDate(p.dueDate), fmtDate(p.closedAt)]),
+    "No punch-list items on this project.",
+    "Resolver's closing evidence and the verifier's closure record for every item.",
+    `${data.openPunchItems} open item${data.openPunchItems === 1 ? "" : "s"} at generation.`
+  );
+
+  // ── Part D — release controls ───────────────────────────────────────────────────────────────
+  const readiness = page(
+    "readiness",
+    "PART D  RELEASE CONTROLS",
+    "Readiness calculations and hard gates",
+    "Completeness and readiness are shown together. A high percentage never hides an open exception.",
+    `
+    <p><b>Overall completion ${data.overallPercentage}%</b> | Open punch-list items ${data.openPunchItems} | Book readiness <b>${data.isReady ? "READY FOR HANDOVER" : "NOT READY"}</b></p>
+    ${table(
+      ["Category", "Provided / Required", "Complete"],
+      data.categories.map((c) => [escapeHtml(c.label), `${c.ready} / ${c.total}`, `<b class="${c.percentage === 100 ? "okc" : c.percentage === 0 ? "badc" : "warnc"}">${c.percentage}%</b>`]),
+      ["60%", "22%", "18%"]
+    )}
+    <h3>Breakdown by service / discipline</h3>
+    ${
+      data.disciplineBreakdown.length > 0
+        ? table(
+            ["Discipline", "ITPs", "NCRs", "First-time pass rate"],
+            data.disciplineBreakdown.map((r) => [
+              `${escapeHtml(r.disciplineName)} <small>${escapeHtml(r.disciplineCode)}</small>`,
+              String(r.itpCount),
+              String(r.ncrCount),
+              r.firstTimePassRate === null ? "&mdash;" : `${r.firstTimePassRate}% <small>(${r.firstTimePasses}/${r.firstAttempts})</small>`,
+            ])
+          )
+        : "<p>No ITP activities on this project are tagged with a discipline yet.</p>"
+    }
+    ${data.overrideReason ? `<h3>Conditional handover</h3><p>${escapeHtml(data.overrideReason)}</p>` : ""}
+    <p class="small">Applicable count = expected records. Accepted completeness = accepted ÷ applicable. A missing record is never removed from the denominator.</p>`
+  );
+
+  const certRows: string[][] = [
+    ["Book", `${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)}`],
+    ["Applicable records", `${planned}`],
+    ["Accepted records", `${accepted} of ${planned} | ${pct(accepted, planned)}`],
+    ["Unresolved deliverables", `${inReview} in review; ${rejected} rejected; ${missing} missing; ${draft} draft`],
+    ["Open exceptions", `${data.openPunchItems} open punch item${data.openPunchItems === 1 ? "" : "s"}; ${data.ncrs.filter((n) => n.status !== "closed").length} open NCR${data.ncrs.filter((n) => n.status !== "closed").length === 1 ? "" : "s"}`],
+    ["Final issue decision", data.isReady && data.status === "issued" ? "READY | Issued" : data.isReady ? "READY | Awaiting issue" : "NOT READY | Certificate unsigned"],
+  ];
+  const certification = page(
+    "certification",
+    "PART D  RELEASE CONTROLS",
+    "Final completeness certification",
+    "This certification is a form generated after rule checks and attested only by authorized reviewers against the same frozen issue.",
+    `
+    ${table(["Certification field", "Outcome"], certRows, ["32%", "68%"])}
+    <h3>Certification wording for a complete issue</h3>
+    <p>We confirm that the records listed in the identified issue manifest have been checked against the approved requirements baseline; applicable requirements are satisfied by the accepted current evidence; required approvals are recorded; and no unresolved item prohibits this release. This statement applies only to the named scope and frozen issue.</p>
+    <p>If outstanding items are permitted by the contract, issue a separately titled Conditional Handover Record listing every condition.</p>
+    ${table(
+      ["Attestation", "Name and authority", "Signature and date"],
+      [
+        ["Compiled by", cell(data.compiledBy), data.compiledBy ? `${fmtDate(data.compiledAt)}` : "Unsigned"],
+        ["QA verified by", "&nbsp;", "Unsigned"],
+        ["Release approved by", cell(data.overrideBy), data.status === "issued" ? "Issued" : "Unsigned"],
+        ["Client accepted (if required)", "&nbsp;", "Unsigned"],
+      ],
+      ["30%", "40%", "30%"]
+    )}
+    <p class="small">The software supplies calculations and evidence links. Only an authorized person can make an attestation.</p>`
+  );
+
+  const acceptance = page(
+    "acceptance",
+    "PART D  RELEASE CONTROLS",
+    "Final acceptance and handover record",
+    "Record the receiving party's decision for a defined scope and issue. Acceptance conditions and contract consequences must be explicit.",
+    `
+    <h3>Record header</h3>
+    <p class="header-line">Book ${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)} | ${escapeHtml(ISSUE_PURPOSE[data.status])} issue R00</p>
+    ${table(
+      ["Acceptance field", "Entry"],
+      [
+        ["Scope", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}, ${planned} records, issue R00`],
+        ["Decision", data.status === "issued" ? "Issued — see signed acceptance" : "Not requested — book not issued"],
+        ["Conditions", data.overrideReason ? escapeHtml(data.overrideReason) : "None recorded"],
+        ["Custody and effective date", "&nbsp;"],
+        ["Handover certificate", data.handoverCertificate.ready > 0 ? "Issued" : "Not issued"],
+        ["Signatures", "Contractor authorized approval and client/operator acceptance evidence — unsigned in a draft"],
+      ],
+      ["30%", "70%"]
+    )}
+    <p>${data.isReady ? "All gating categories complete." : "Decision: NOT READY — no acceptance signature is valid or supplied."} Conditional acceptance is not final complete status.</p>`
+  );
 
   return `<!doctype html>
 <html lang="en">
@@ -181,11 +625,12 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   @page { size: A4 portrait; margin: 15mm; }
 
   :root {
-    --burgundy: #6B1E2C;
-    --gold: #F5C518;
-    --off-white: #F9F7F4;
-    --ink: #1C1C1E;
+    --navy: #173b53;
+    --band: #f1f5f8;
+    --rule: #cfd8de;
+    --ink: #1c1c1e;
     --success: #1f7a4d;
+    --warn: #a86b00;
     --danger: #b3261e;
   }
 
@@ -193,172 +638,87 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
 
   body {
     margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: Calibri, "Segoe UI", Arial, Helvetica, sans-serif;
     color: var(--ink);
     background: #fff;
-    font-size: 10px;
+    font-size: 10.5px;
+    line-height: 1.45;
   }
 
-  .letterhead {
-    display: flex;
-    justify-content: space-between;
-    align-items: stretch;
-    gap: 14px;
-    background: var(--burgundy);
-    border-bottom: 2px solid var(--gold);
-    border-radius: 4px;
-    padding: 10px 16px;
-    margin-bottom: 10px;
-  }
+  ${data.status === "issued" ? "" : `body::before {
+    content: "${data.status === "compiled" ? "FOR REVIEW" : "DRAFT"}";
+    position: fixed; top: 42%; left: 0; right: 0; text-align: center;
+    font-size: 110px; font-weight: bold; letter-spacing: 8px;
+    color: rgba(23, 59, 83, 0.06); transform: rotate(-30deg); z-index: 0; pointer-events: none;
+  }`}
 
+  .page { break-before: page; position: relative; z-index: 1; }
+  .page:first-of-type { break-before: auto; }
+
+  .part { font-size: 8.5px; font-weight: bold; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 4px; }
+  h1 { font-size: 24px; margin: 6px 0 10px 0; line-height: 1.15; }
+  h3 { font-size: 12px; margin: 16px 0 6px 0; }
+  .lead { font-size: 11px; margin: 0 0 12px 0; }
+  .small { font-size: 9px; color: #444; }
+  small { font-size: 8px; color: #666; }
+  .note { margin-top: 14px; font-weight: bold; }
+  .header-line { font-weight: bold; }
+  ul, ol { margin: 6px 0 10px 18px; padding: 0; }
+  li { margin-bottom: 3px; }
+
+  .cover-title { font-size: 34px; margin-top: 14px; }
+  .letterhead { display: flex; align-items: center; margin-bottom: 18px; }
   .brand { display: flex; align-items: center; gap: 10px; }
-
   .brand-mark {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--gold); color: var(--burgundy);
-    font-weight: bold; font-size: 14px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: #fff;
+    font-weight: bold; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
-
-  .wordmark { font-size: 16px; font-weight: bold; color: #fff; letter-spacing: 0.5px; }
-  .wordmark small {
-    display: block; font-size: 8px; font-weight: normal;
-    color: var(--gold); letter-spacing: 1.5px; text-transform: uppercase;
-  }
-
-  /* Client org logo (Reqs R113-R118) — see renderBrandBlock. */
+  .wordmark { font-size: 15px; font-weight: bold; color: var(--navy); letter-spacing: 0.5px; }
+  .wordmark small { display: block; font-size: 8px; font-weight: normal; letter-spacing: 1.5px; text-transform: uppercase; color: #666; }
   .org-logo { max-height: 34px; max-width: 160px; object-fit: contain; }
-  .org-logo-co-branded { padding-left: 10px; border-left: 1px solid rgba(255, 255, 255, 0.3); }
-  .powered-by { margin-top: 4px; font-size: 7px; color: #999; text-align: right; }
+  .org-logo-co-branded { padding-left: 10px; border-left: 1px solid var(--rule); }
+  .powered-by { margin-top: 10px; font-size: 7px; color: #999; text-align: right; }
 
-  .doc-control {
-    background: var(--off-white); border: 1px solid var(--gold); border-radius: 3px; min-width: 190px;
+  table.grid { width: 100%; border-collapse: collapse; font-size: 9.5px; margin: 6px 0 10px 0; }
+  table.grid th {
+    background: var(--navy); color: #fff; text-align: left; font-weight: bold; padding: 6px 8px;
+    border: 1px solid var(--navy);
   }
-  .doc-control-title {
-    background: var(--gold); color: var(--ink); font-size: 7.5px; font-weight: bold;
-    letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 8px;
-  }
-  .doc-control-body {
-    display: grid; grid-template-columns: auto 1fr; gap: 1px 8px;
-    padding: 4px 8px 5px 8px; font-size: 9px; color: var(--ink);
-  }
-  .doc-control-body dt { color: #666; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
-  .doc-control-body dd { margin: 0; font-weight: bold; font-family: "Courier New", monospace; }
+  table.grid td { border: 1px solid var(--rule); padding: 5px 8px; vertical-align: top; }
+  table.grid tbody tr:nth-child(even) { background: var(--band); }
+  table.grid tr { break-inside: avoid; }
+  table.grid thead { display: table-header-group; }
+  table.grid td div + div { margin-top: 1px; }
 
-  /* Cover page: its own page, everything below flows onto the summary page(s) that follow. */
-  .cover { page-break-after: always; padding-top: 60mm; text-align: center; }
-  .cover .cover-title { font-size: 26px; font-weight: bold; color: var(--burgundy); margin: 0 0 4px 0; }
-  .cover .cover-subtitle { font-size: 13px; color: #666; margin: 0 0 30px 0; }
-  .cover .cover-book-number { font-family: "Courier New", monospace; font-size: 16px; font-weight: bold; margin-bottom: 6px; }
-  .cover .cover-project { font-size: 14px; color: var(--ink); margin-bottom: 3px; }
-  .cover .cover-org { font-size: 11px; color: #666; }
-  .cover .cover-status { display: inline-block; margin-top: 26px; padding: 5px 16px; border-radius: 3px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; }
-  .cover .cover-status.status-issued { background: var(--success); color: #fff; }
-  .cover .cover-status.status-compiled { background: var(--gold); color: var(--ink); }
-  .cover .cover-status.status-draft { background: #ddd; color: #444; }
+  .state { font-weight: bold; white-space: nowrap; }
+  .state.ok, .okc { color: var(--success); }
+  .state.warn, .warnc { color: var(--warn); }
+  .state.bad, .badc { color: var(--danger); }
 
-  h1 { margin: 4px 0 10px 0; font-size: 18px; color: var(--ink); }
+  .sign { margin-top: 12px; line-height: 1.8; }
 
-  .readiness-banner {
-    display: flex; flex-direction: column; gap: 3px; margin-bottom: 14px;
-    border: 1px solid var(--gold); border-left: 5px solid var(--burgundy);
-    background: var(--off-white); border-radius: 3px; padding: 8px 12px; font-size: 11px;
-  }
-  .readiness-banner strong { font-size: 13px; letter-spacing: 0.2px; }
-  .readiness-banner.ready strong { color: var(--success); }
-  .readiness-banner.not-ready strong { color: var(--danger); }
-
-  .section { margin-bottom: 16px; break-inside: avoid; }
-  .section h2 {
-    font-size: 12px; color: var(--burgundy); border-bottom: 1px solid var(--burgundy);
-    padding-bottom: 3px; margin: 0 0 6px 0;
-  }
-
-  table.category-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-  table.category-table th, table.category-table td {
-    border: 1px solid #ccc; padding: 5px 8px; text-align: left; vertical-align: top;
-  }
-  table.category-table th {
-    background: var(--burgundy); color: var(--off-white); font-weight: bold; font-size: 8px;
-    text-transform: uppercase; border-bottom: 2px solid var(--gold);
-  }
-  table.category-table tbody tr:nth-child(even) { background: var(--off-white); }
-  td.cat-count { white-space: nowrap; }
-  td.cat-pct { font-weight: bold; text-align: right; white-space: nowrap; }
-  td.cat-pct.cat-ready { color: var(--success); }
-  td.cat-pct.cat-partial { color: #b8860b; }
-  td.cat-pct.cat-empty { color: var(--danger); }
-  .discipline-code { color: #888; font-size: 8px; }
-  .discipline-empty { font-size: 9.5px; color: #666; }
-
-  .overall-stat-bar {
-    display: flex; align-items: center; gap: 18px; margin-bottom: 14px;
-    border: 1px solid #e2dcd6; padding: 8px 12px; border-radius: 3px;
-  }
-  .overall-stat { font-size: 10px; color: #444; }
-  .overall-stat b { display: block; font-size: 16px; color: var(--ink); }
-
-  .footer-note {
-    margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc;
-    font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
-  }
+  ol.toc { list-style: none; margin: 8px 0; }
+  ol.toc li { padding: 6px 0; border-bottom: 1px dotted var(--rule); }
+  ol.toc a { color: var(--navy); text-decoration: none; }
 </style>
 </head>
 <body>
-  <div class="cover">
-    <div class="cover-title">Project Data Book</div>
-    <p class="cover-subtitle">${escapeHtml(data.title)}</p>
-    <p class="cover-book-number">${escapeHtml(data.bookNumber)}</p>
-    <p class="cover-project">${escapeHtml(data.projectNumber)} &middot; ${escapeHtml(data.projectName)}</p>
-    ${data.organizationName ? `<p class="cover-org">${escapeHtml(data.organizationName)}</p>` : ""}
-    <div class="cover-status status-${data.status}">${escapeHtml(statusLabel)}</div>
-  </div>
-
-  <div class="letterhead">
-    <div class="brand">
-      ${renderBrandBlock(data)}
-    </div>
-    <div class="doc-control">
-      <div class="doc-control-title">DOCUMENT CONTROL</div>
-      <dl class="doc-control-body">
-        <dt>DOC NO.</dt><dd>${escapeHtml(data.bookNumber)}</dd>
-        <dt>REV</dt><dd>0</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
-      </dl>
-    </div>
-  </div>
-
-  <h1>Compiled Summary</h1>
-
-  <div class="readiness-banner ${data.isReady ? "ready" : "not-ready"}">
-    <strong>${escapeHtml(readinessLabel)}</strong>
-    <span>${
-      data.isReady
-        ? "Every gating category is complete and there are no open punch-list items."
-        : "One or more gating categories are incomplete, or open punch-list items remain."
-    }</span>
-  </div>
-
-  <div class="overall-stat-bar">
-    <div class="overall-stat"><b>${data.overallPercentage}%</b>Overall completion</div>
-    <div class="overall-stat"><b>${data.openPunchItems}</b>Open punch-list items</div>
-    <div class="overall-stat"><b>${cell(data.compiledAt)}</b>Compiled</div>
-  </div>
-
-  ${data.overrideReason ? `<div class="section"><h2>Conditional handover</h2><p>${escapeHtml(data.overrideReason)}</p></div>` : ""}
-
-  ${renderCategoryTable("Readiness by category", data.categories)}
-
-  ${renderDisciplineBreakdownTable(data.disciplineBreakdown)}
-
-  ${renderCategoryTable("Handover", [data.handoverCertificate])}
-
-  <div class="footer-note">
-    <span>Doc No. ${escapeHtml(data.bookNumber)} &middot; Uncontrolled when printed &middot; jagsassurance.com</span>
-    <span>Generated ${escapeHtml(generatedAtLabel)}</span>
-  </div>
-  ${renderPoweredByFooter(data)}
+  ${cover}
+  ${control}
+  ${revision}
+  ${contents}
+  ${scope}
+  ${register}
+  ${itpPages.join("")}
+  ${materials}
+  ${welding}
+  ${calibration}
+  ${ncrs}
+  ${punch}
+  ${readiness}
+  ${certification}
+  ${acceptance}
+  <p class="small" style="text-align:right;margin-top:10px">Generated ${escapeHtml(generatedAtLabel)} &middot; Uncontrolled when printed</p>
 </body>
 </html>`;
 }

@@ -2,9 +2,13 @@ import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
   buildDataBookPdfHtml,
+  dataBookIssueLabel,
+  type DataBookPdfActivity,
   type DataBookPdfCategory,
   type DataBookPdfData,
   type DataBookPdfDisciplineRow,
+  type DataBookPdfItp,
+  type DataBookRecordState,
 } from "./dataBookTemplate";
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
@@ -18,7 +22,9 @@ interface DataBookRow {
   title: string;
   status: "draft" | "compiled" | "issued";
   compiled_at: string | null;
+  compiled_by: string | null;
   override_reason: string | null;
+  override_by: string | null;
 }
 
 function toCategory(label: string, ready: number, total: number): DataBookPdfCategory {
@@ -283,57 +289,287 @@ async function computeDataBookDisciplineBreakdownForWorker(projectId: string): P
 }
 
 /**
+ * Every record the book lists, in the reference's order: ITPs (sections → activities → intervention
+ * sign-offs → latest inspection record → IRN, plus the people on each approval step), then the
+ * materials, welder, calibration, NCR and punch-list registers. Reads only.
+ */
+async function gatherDataBookContent(projectId: string): Promise<{
+  itps: DataBookPdfItp[];
+  calibrations: DataBookPdfData["calibrations"];
+  welders: DataBookPdfData["welders"];
+  materials: DataBookPdfData["materials"];
+  ncrs: DataBookPdfData["ncrs"];
+  punchItems: DataBookPdfData["punchItems"];
+  nameById: Map<string, string>;
+}> {
+  type ItpRow = {
+    id: string;
+    itp_number: string;
+    title: string;
+    revision: number;
+    status: string;
+    phase: string;
+    applicable_standard: string | null;
+    prepared_by: string | null;
+    reviewed_by: string | null;
+    reviewed_at: string | null;
+    approved_by: string | null;
+    approved_at: string | null;
+    client_accepted_by: string | null;
+    client_accepted_at: string | null;
+  };
+  type SectionRow = { id: string; itp_id: string; sort_order: number };
+  type ItemRow = {
+    id: string;
+    section_id: string;
+    item_number: string;
+    activity: string;
+    acceptance_criteria: string | null;
+    reference_spec: string | null;
+    method: string | null;
+    sort_order: number;
+  };
+  type SignoffRow = {
+    itp_item_id: string;
+    intervention: string;
+    status: string;
+    signed_off_at: string | null;
+    signed_off_by: string | null;
+    project_party_id: string;
+  };
+  type RecordRow = {
+    itp_item_id: string;
+    record_number: string;
+    overall_result: string | null;
+    inspection_date: string;
+    inspector_id: string | null;
+    irns: { irn_number: string }[] | { irn_number: string } | null;
+  };
+
+  const [{ data: itpRows }, { data: calRows }, { data: welderRows }, { data: matRows }, { data: ncrRows }, { data: punchRows }] =
+    await Promise.all([
+      supabase
+        .from("itps")
+        .select(
+          "id, itp_number, title, revision, status, phase, applicable_standard, prepared_by, reviewed_by, reviewed_at, approved_by, approved_at, client_accepted_by, client_accepted_at"
+        )
+        .eq("project_id", projectId)
+        .order("itp_number", { ascending: true })
+        .returns<ItpRow[]>(),
+      supabase
+        .from("calibration_register" as never)
+        .select("instrument_name, cert_number, cal_date, due_date, status")
+        .eq("project_id", projectId)
+        .order("due_date", { ascending: true })
+        .returns<{ instrument_name: string; cert_number: string; cal_date: string | null; due_date: string; status: string }[]>(),
+      supabase
+        .from("welder_qualification_register" as never)
+        .select("welder_identifier, qualified_wps, qualified_ranges, expiry_date, status")
+        .eq("project_id", projectId)
+        .order("welder_identifier", { ascending: true })
+        .returns<{ welder_identifier: string; qualified_wps: string; qualified_ranges: string | null; expiry_date: string; status: string }[]>(),
+      supabase
+        .from("material_register" as never)
+        .select("material_description, heat_number, batch_number, po_reference, certificate_reference, approval_status, receipt_status")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true })
+        .returns<
+          {
+            material_description: string;
+            heat_number: string | null;
+            batch_number: string | null;
+            po_reference: string | null;
+            certificate_reference: string | null;
+            approval_status: string;
+            receipt_status: string;
+          }[]
+        >(),
+      supabase
+        .from("ncrs" as never)
+        .select("ncr_number, description, severity, status, closed_at")
+        .eq("project_id", projectId)
+        .order("ncr_number", { ascending: true })
+        .returns<{ ncr_number: string; description: string; severity: string; status: string; closed_at: string | null }[]>(),
+      supabase
+        .from("punch_list_items" as never)
+        .select("description, location, status, due_date, closed_at")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true })
+        .returns<{ description: string; location: string | null; status: string; due_date: string | null; closed_at: string | null }[]>(),
+    ]);
+
+  const itpIds = (itpRows ?? []).map((i) => i.id);
+  const sections: SectionRow[] = itpIds.length
+    ? ((await supabase.from("itp_sections").select("id, itp_id, sort_order").in("itp_id", itpIds).returns<SectionRow[]>()).data ?? [])
+    : [];
+  const sectionIds = sections.map((s) => s.id);
+  const items: ItemRow[] = sectionIds.length
+    ? ((
+        await supabase
+          .from("itp_items")
+          .select("id, section_id, item_number, activity, acceptance_criteria, reference_spec, method, sort_order")
+          .in("section_id", sectionIds)
+          .returns<ItemRow[]>()
+      ).data ?? [])
+    : [];
+  const itemIds = items.map((i) => i.id);
+
+  let signoffs: SignoffRow[] = [];
+  let records: RecordRow[] = [];
+  if (itemIds.length) {
+    const [signoffRes, recordRes] = await Promise.all([
+      supabase
+        .from("activity_signoff_progress")
+        .select("itp_item_id, intervention, status, signed_off_at, signed_off_by, project_party_id")
+        .in("itp_item_id", itemIds)
+        .returns<SignoffRow[]>(),
+      supabase
+        .from("inspection_records")
+        .select("itp_item_id, record_number, overall_result, inspection_date, inspector_id, irns(irn_number)")
+        .in("itp_item_id", itemIds)
+        .order("created_at", { ascending: false })
+        .returns<RecordRow[]>(),
+    ]);
+    signoffs = signoffRes.data ?? [];
+    records = recordRes.data ?? [];
+  }
+
+  const partyIds = [...new Set(signoffs.map((s) => s.project_party_id))];
+  const parties: { id: string; name: string }[] = partyIds.length
+    ? ((await supabase.from("project_parties").select("id, name").in("id", partyIds).returns<{ id: string; name: string }[]>()).data ?? [])
+    : [];
+  const partyName = new Map(parties.map((p) => [p.id, p.name]));
+
+  const userIds = new Set<string>();
+  for (const i of itpRows ?? []) {
+    for (const id of [i.prepared_by, i.reviewed_by, i.approved_by, i.client_accepted_by]) if (id) userIds.add(id);
+  }
+  for (const s of signoffs) if (s.signed_off_by) userIds.add(s.signed_off_by);
+  for (const r of records) if (r.inspector_id) userIds.add(r.inspector_id);
+  const users: { id: string; full_name: string }[] = userIds.size
+    ? ((await supabase.from("users").select("id, full_name").in("id", [...userIds]).returns<{ id: string; full_name: string }[]>()).data ?? [])
+    : [];
+  const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+  const name = (id: string | null) => (id ? (nameById.get(id) ?? null) : null);
+
+  // Newest inspection record per activity is the one the book presents (a re-inspection supersedes).
+  const latestRecord = new Map<string, RecordRow>();
+  for (const r of records) if (!latestRecord.has(r.itp_item_id)) latestRecord.set(r.itp_item_id, r);
+
+  const sectionOrder = new Map(sections.map((s) => [s.id, s.sort_order]));
+  const sectionItp = new Map(sections.map((s) => [s.id, s.itp_id]));
+
+  function recordState(overall: string | null, irn: string | null): DataBookRecordState {
+    if (overall === null) return "Draft";
+    if (overall === "fail") return "Rejected";
+    if (irn) return overall === "pass" ? "Accepted" : "Accepted with comments";
+    return "In review";
+  }
+
+  const itps: DataBookPdfItp[] = (itpRows ?? []).map((itp) => {
+    const itpItems = items
+      .filter((i) => sectionItp.get(i.section_id) === itp.id)
+      .sort(
+        (a, b) =>
+          (sectionOrder.get(a.section_id) ?? 0) - (sectionOrder.get(b.section_id) ?? 0) ||
+          a.sort_order - b.sort_order ||
+          a.item_number.localeCompare(b.item_number, undefined, { numeric: true })
+      );
+    const activities: DataBookPdfActivity[] = itpItems.map((item) => {
+      const rec = latestRecord.get(item.id);
+      const irn = rec ? (Array.isArray(rec.irns) ? (rec.irns[0]?.irn_number ?? null) : (rec.irns?.irn_number ?? null)) : null;
+      return {
+        itemNumber: item.item_number,
+        activity: item.activity,
+        criteria: item.acceptance_criteria,
+        reference: item.reference_spec,
+        method: item.method,
+        interventions: signoffs
+          .filter((s) => s.itp_item_id === item.id)
+          .map((s) => ({
+            code: s.intervention,
+            partyName: partyName.get(s.project_party_id) ?? "Party",
+            status: s.status,
+            signedBy: name(s.signed_off_by),
+            signedAt: s.signed_off_at,
+          })),
+        recordNumber: rec?.record_number ?? null,
+        result: rec?.overall_result ?? null,
+        inspectionDate: rec?.inspection_date ?? null,
+        inspector: name(rec?.inspector_id ?? null),
+        irnNumber: irn,
+        state: rec ? recordState(rec.overall_result, irn) : "Missing",
+      };
+    });
+    return {
+      itpNumber: itp.itp_number,
+      title: itp.title,
+      revision: itp.revision,
+      status: itp.status,
+      phase: itp.phase,
+      standard: itp.applicable_standard,
+      preparedBy: name(itp.prepared_by),
+      reviewedBy: name(itp.reviewed_by),
+      reviewedAt: itp.reviewed_at,
+      approvedBy: name(itp.approved_by),
+      approvedAt: itp.approved_at,
+      acceptedBy: name(itp.client_accepted_by),
+      acceptedAt: itp.client_accepted_at,
+      activities,
+    };
+  });
+
+  return {
+    itps,
+    calibrations: (calRows ?? []).map((c) => ({
+      instrument: c.instrument_name,
+      certNumber: c.cert_number,
+      calDate: c.cal_date,
+      dueDate: c.due_date,
+      status: c.status,
+    })),
+    welders: (welderRows ?? []).map((w) => ({
+      welder: w.welder_identifier,
+      wps: w.qualified_wps,
+      ranges: w.qualified_ranges,
+      expiry: w.expiry_date,
+      status: w.status,
+    })),
+    materials: (matRows ?? []).map((m) => ({
+      description: m.material_description,
+      heat: m.heat_number,
+      batch: m.batch_number,
+      po: m.po_reference,
+      certificate: m.certificate_reference,
+      approval: m.approval_status,
+      receipt: m.receipt_status,
+    })),
+    ncrs: (ncrRows ?? []).map((n) => ({
+      number: n.ncr_number,
+      description: n.description,
+      severity: n.severity,
+      status: n.status,
+      closedAt: n.closed_at,
+    })),
+    punchItems: (punchRows ?? []).map((p) => ({
+      description: p.description,
+      location: p.location,
+      status: p.status,
+      dueDate: p.due_date,
+      closedAt: p.closed_at,
+    })),
+    nameById,
+  };
+}
+
+/**
  * Fetches everything needed for the branded, cover-page-plus-summary Data Book PDF (R86, R108),
  * renders it via Puppeteer, uploads the result to Storage, and returns the path the caller records
  * on the job row. Mirrors renderNcrPdf.ts's structure exactly, for Data Book data instead of NCR
  * data.
  */
 export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Promise<{ resultStoragePath: string }> {
-  const { data: dataBook, error: dataBookError } = await supabase
-    .from("data_books" as never)
-    .select("id, project_id, book_number, title, status, compiled_at, override_reason")
-    .eq("id", payload.data_book_id)
-    .single<DataBookRow>();
-
-  if (dataBookError || !dataBook) {
-    throw new Error(`Data book ${payload.data_book_id} not found: ${dataBookError?.message ?? "no row"}`);
-  }
-
-  const [{ data: project }, readiness, disciplineBreakdown] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("organization_id, project_number, name, organizations(name)")
-      .eq("id", dataBook.project_id)
-      .maybeSingle<{
-        organization_id: string;
-        project_number: string;
-        name: string;
-        organizations: { name: string } | null;
-      }>(),
-    computeDataBookReadinessForWorker(dataBook.project_id),
-    computeDataBookDisciplineBreakdownForWorker(dataBook.project_id),
-  ]);
-
-  const templateData: DataBookPdfData = {
-    bookNumber: dataBook.book_number,
-    title: dataBook.title,
-    status: dataBook.status,
-    projectName: project?.name ?? "",
-    projectNumber: project?.project_number ?? "",
-    organizationName: project?.organizations?.name ?? null,
-    categories: readiness.categories,
-    handoverCertificate: readiness.handoverCertificate,
-    disciplineBreakdown,
-    openPunchItems: readiness.openPunchItems,
-    overallPercentage: readiness.overallPercentage,
-    isReady: readiness.isReady,
-    compiledAt: dataBook.compiled_at,
-    overrideReason: dataBook.override_reason,
-    generatedAt: new Date(),
-    branding: await getOrgBranding(supabase, project?.organization_id),
-  };
-
-  const html = buildDataBookPdfHtml(templateData);
+  const { dataBook, html } = await buildDataBookHtml(payload.data_book_id);
 
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
@@ -346,12 +582,15 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
         landscape: false,
         printBackground: true,
         preferCSSPageSize: true,
-        margin: { top: "15mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        margin: { top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" },
         displayHeaderFooter: true,
-        headerTemplate: "<div></div>",
+        headerTemplate: `
+          <div style="width:100%;font-size:8px;color:#444;padding:0 15mm;display:flex;gap:60px;font-family:Calibri,Arial,Helvetica,sans-serif;">
+            <span>JAGS ASSURANCE</span><span>DATA BOOK</span>
+          </div>`,
         footerTemplate: `
-          <div style="width:100%;font-size:7.5px;color:#666;padding:0 15mm;display:flex;justify-content:space-between;font-family:Arial,Helvetica,sans-serif;">
-            <span>Generated by QMP Inspect — JAGS Assurance</span>
+          <div style="width:100%;font-size:7.5px;color:#444;padding:0 15mm;display:flex;justify-content:flex-end;gap:14px;font-family:Calibri,Arial,Helvetica,sans-serif;">
+            <span>${dataBook.book_number} | R00 | ${dataBookIssueLabel(dataBook.status)}</span>
             <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
           </div>`,
       })
@@ -371,4 +610,63 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
   }
 
   return { resultStoragePath: storagePath };
+}
+
+/** Loads the book + project + every record and builds the printable HTML. Exported for local previews. */
+export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook: DataBookRow; html: string }> {
+  const { data: dataBook, error: dataBookError } = await supabase
+    .from("data_books" as never)
+    .select("id, project_id, book_number, title, status, compiled_at, compiled_by, override_reason, override_by")
+    .eq("id", dataBookId)
+    .single<DataBookRow>();
+
+  if (dataBookError || !dataBook) {
+    throw new Error(`Data book ${dataBookId} not found: ${dataBookError?.message ?? "no row"}`);
+  }
+
+  const [{ data: project }, readiness, disciplineBreakdown, content] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("organization_id, project_number, name, organizations(name)")
+      .eq("id", dataBook.project_id)
+      .maybeSingle<{
+        organization_id: string;
+        project_number: string;
+        name: string;
+        organizations: { name: string } | null;
+      }>(),
+    computeDataBookReadinessForWorker(dataBook.project_id),
+    computeDataBookDisciplineBreakdownForWorker(dataBook.project_id),
+    gatherDataBookContent(dataBook.project_id),
+  ]);
+
+  const templateData: DataBookPdfData = {
+    bookNumber: dataBook.book_number,
+    title: dataBook.title,
+    status: dataBook.status,
+    projectName: project?.name ?? "",
+    projectNumber: project?.project_number ?? "",
+    organizationName: project?.organizations?.name ?? null,
+    categories: readiness.categories,
+    handoverCertificate: readiness.handoverCertificate,
+    disciplineBreakdown,
+    openPunchItems: readiness.openPunchItems,
+    overallPercentage: readiness.overallPercentage,
+    isReady: readiness.isReady,
+    compiledAt: dataBook.compiled_at,
+    compiledBy: dataBook.compiled_by ? (content.nameById.get(dataBook.compiled_by) ?? null) : null,
+    overrideReason: dataBook.override_reason,
+    overrideBy: dataBook.override_by ? (content.nameById.get(dataBook.override_by) ?? null) : null,
+    itps: content.itps,
+    calibrations: content.calibrations,
+    welders: content.welders,
+    materials: content.materials,
+    ncrs: content.ncrs,
+    punchItems: content.punchItems,
+    generatedAt: new Date(),
+    branding: await getOrgBranding(supabase, project?.organization_id),
+  };
+
+  const html = buildDataBookPdfHtml(templateData);
+  return { dataBook, html };
 }
