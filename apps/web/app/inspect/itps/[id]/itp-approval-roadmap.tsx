@@ -1,19 +1,5 @@
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  notified: "Notified",
-  signed_off: "Signed off",
-  proceeded_no_response: "Proceeded (no response)",
-};
-
-const STATUS_TONE: Record<string, string> = {
-  pending: "text-muted",
-  notified: "text-warning",
-  signed_off: "text-success",
-  proceeded_no_response: "text-info",
-};
-
 /**
  * The round-table ask: "a separate roadmap for permission and approval — accept, who will approve,
  * what stage" — distinct from the existing Completion Roadmap (/inspect/itps/[id]/status, which
@@ -35,7 +21,6 @@ export function ItpApprovalRoadmap({
   clientAcceptedAt,
   signoffTotal,
   signoffComplete,
-  holderDetail,
 }: {
   status: "draft" | "under_review" | "approved" | "client_accepted";
   reviewSteps: ReviewProgressStep[];
@@ -47,16 +32,6 @@ export function ItpApprovalRoadmap({
   clientAcceptedAt: string | null;
   signoffTotal: number;
   signoffComplete: number;
-  /** "Who holds what" across the whole ITP, person-wise: one entry per project party holding at
-   *  least one intervention point, each with its own full list of points (activity, level, current
-   *  notify/sign-off status) — not just a per-level count, per the round-table's own follow-up ask
-   *  ("who will, how many, person wise detail, what intervention/notify/signoff, remaining in
-   *  detail"). Each party collapses behind a native <details> disclosure to keep the page scannable
-   *  on an ITP with many points, rather than always rendering every point open. */
-  holderDetail: {
-    partyName: string;
-    points: { itemNumber: string; activity: string; levelCode: string; isBlocking: boolean; status: string; notifiedAt: string | null }[];
-  }[];
 }) {
   const pastDraft = status !== "draft";
   const pastReview = status === "approved" || status === "client_accepted";
@@ -93,7 +68,7 @@ export function ItpApprovalRoadmap({
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">Approval &amp; acceptance roadmap</h2>
+      <h3 className="text-sm font-semibold text-ink">Approval &amp; acceptance roadmap</h3>
       <ol className="mt-3 space-y-2.5">
         {stages.map((stage) => (
           <li key={stage.key} className="flex items-start gap-2.5">
@@ -109,7 +84,7 @@ export function ItpApprovalRoadmap({
             >
               {stage.done ? "✓" : ""}
             </span>
-            <div>
+            <div className="min-w-0">
               <p className={`text-sm ${stage.done || stage.current ? "font-medium text-ink" : "text-muted"}`}>
                 {stage.label}
                 {stage.current && <span className="ml-1.5 text-xs font-normal text-warning">— current stage</span>}
@@ -129,52 +104,8 @@ export function ItpApprovalRoadmap({
       </ol>
       {signoffTotal > 0 && (
         <p className="mt-3 border-t border-border pt-2.5 text-xs text-muted">
-          Intervention grid (H/W/R/S): {signoffComplete} of {signoffTotal} sign-off points complete
+          Intervention points: {signoffComplete} of {signoffTotal} signed off — details in section 3 below
         </p>
-      )}
-      {holderDetail.length > 0 && (
-        <div className={signoffTotal > 0 ? "mt-1.5" : "mt-3 border-t border-border pt-2.5"}>
-          <p className="text-xs font-medium text-muted">Who holds what</p>
-          <div className="mt-1 space-y-1">
-            {holderDetail.map((holder) => {
-              const remaining = holder.points.filter((p) => p.status !== "signed_off" && p.status !== "proceeded_no_response").length;
-              const counts = new Map<string, number>();
-              for (const p of holder.points) counts.set(p.levelCode, (counts.get(p.levelCode) ?? 0) + 1);
-              return (
-                <details key={holder.partyName} className="group rounded-md border border-border">
-                  <summary className="cursor-pointer list-none px-2 py-1.5 text-xs marker:content-none">
-                    <span className="text-ink">{holder.partyName}</span>{" "}
-                    <span className="text-muted">
-                      —{" "}
-                      {[...counts.entries()].map(([code, count], i) => (
-                        <span key={code}>
-                          {i > 0 && ", "}
-                          {code} ×{count}
-                        </span>
-                      ))}
-                      {remaining > 0 && ` · ${remaining} still to notify/sign off`}
-                    </span>
-                    <span className="ml-1 text-muted group-open:hidden">▸</span>
-                    <span className="ml-1 hidden text-muted group-open:inline">▾</span>
-                  </summary>
-                  <ul className="space-y-1 border-t border-border px-2 py-1.5">
-                    {holder.points.map((p, i) => (
-                      <li key={i} className="text-xs">
-                        <span className="doc-id text-muted">{p.itemNumber}</span>{" "}
-                        <span className="text-ink">{p.activity}</span>{" "}
-                        <span className={p.isBlocking ? "font-medium text-burgundy" : "text-muted"}>({p.levelCode})</span> —{" "}
-                        <span className={STATUS_TONE[p.status] ?? "text-muted"}>{STATUS_LABEL[p.status] ?? p.status}</span>
-                        {p.status === "notified" && p.notifiedAt && (
-                          <span className="text-muted"> ({new Date(p.notifiedAt).toLocaleDateString("en-GB")})</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              );
-            })}
-          </div>
-        </div>
       )}
     </div>
   );

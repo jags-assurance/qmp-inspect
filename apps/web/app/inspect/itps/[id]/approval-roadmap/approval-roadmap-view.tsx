@@ -8,8 +8,13 @@ import {
   getItpReviewChainOverride,
   getProjectReviewChain,
 } from "@/lib/itps/review-chain";
-import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
-import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
+import { INTERVENTION_LEVEL_TYPES_TABLE, FALLBACK_NOTICE_PERIOD_HOURS, sortLevels } from "@/lib/intervention-levels/types";
+import {
+  ACTIVITY_SIGNOFF_PROGRESS_TABLE,
+  NOTICE_PERIOD_CONFIGS_TABLE,
+  type ActivitySignoffProgressRow,
+} from "@/lib/signoff/db-types";
+import { HwrsSection, type HwrsPoint } from "./hwrs-section";
 import { ItpReviewChainForm } from "../itp-review-chain-form";
 import { ItpAcceptorPicker } from "../itp-acceptor-picker";
 import { ItpApprovalRoadmap } from "../itp-approval-roadmap";
@@ -62,6 +67,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     { data: sections },
     { data: parties },
     { data: levelTypes },
+    { data: noticeConfigs },
     itpReviewChainOverride,
     projectReviewChain,
     reviewSteps,
@@ -79,9 +85,14 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
       .returns<{ id: string; party_type: string; name: string; user_id: string | null; is_active: boolean }[]>(),
     supabase
       .from(INTERVENTION_LEVEL_TYPES_TABLE)
-      .select("code, is_blocking")
+      .select("code, label, sort_order, is_blocking, default_notice_hours")
       .eq("organization_id", itp.projects?.organization_id ?? "")
-      .returns<{ code: string; is_blocking: boolean }[]>(),
+      .returns<{ code: string; label: string; sort_order: number; is_blocking: boolean; default_notice_hours: number | null }[]>(),
+    supabase
+      .from(NOTICE_PERIOD_CONFIGS_TABLE)
+      .select("intervention, hours")
+      .eq("project_id", itp.project_id)
+      .returns<{ intervention: string; hours: number }[]>(),
     getItpReviewChainOverride(supabase, itp.id),
     getProjectReviewChain(supabase, itp.project_id),
     itp.status !== "draft" ? getItpReviewProgress(supabase, itp.id) : Promise.resolve([]),
@@ -95,63 +106,66 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => [it.id, { itemNumber: it.item_number, activity: it.activity }] as const))
   );
 
-  const [{ data: signoffs }, { data: approvalNamesRows }] = await Promise.all([
+  const { data: signoffs } = await (
     // activity_signoff_progress already carries the intervention code per row (kept in lockstep with
-    // activity_party_intervention by a DB trigger — one row per (item, party) pair that has a level
-    // set) — no need for a separate query against activity_party_intervention just to know who holds
-    // what; this one table has everything the per-person detail below needs.
-    itemIds.length > 0
-      ? supabase
-          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-          .select("id, itp_item_id, project_party_id, intervention, status, notified_at")
-          .in("itp_item_id", itemIds)
-          .returns<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at">[]>()
-      : Promise.resolve({
-          data: [] as Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at">[],
-        }),
+  // activity_party_intervention by a DB trigger — one row per (item, party) pair that has a level
+  // set) — no need for a separate query against activity_party_intervention just to know who holds
+  // what; this one table has everything the per-person detail below needs.
+  itemIds.length > 0
+    ? supabase
+        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+        .select("id, itp_item_id, project_party_id, intervention, status, notified_at, signed_off_at, signed_off_by, proceeded_reason")
+        .in("itp_item_id", itemIds)
+        .returns<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "signed_off_at" | "signed_off_by" | "proceeded_reason">[]>()
+    : Promise.resolve({
+        data: [] as Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "signed_off_at" | "signed_off_by" | "proceeded_reason">[],
+      })
+  );
+
+  const { data: approvalNamesRows } = await (
     supabase
       .from("users")
       .select("id, full_name")
-      .in("id", [itp.approved_by, itp.client_accepted_by, itp.assigned_acceptor_user_id].filter((v): v is string => Boolean(v)))
-      .returns<{ id: string; full_name: string }[]>(),
-  ]);
+      .in("id", [itp.approved_by, itp.client_accepted_by, itp.assigned_acceptor_user_id, ...(signoffs ?? []).map((r) => r.signed_off_by)].filter((v): v is string => Boolean(v)))
+      .returns<{ id: string; full_name: string }[]>()
+  );
 
   const nameById = new Map((approvalNamesRows ?? []).map((u) => [u.id, u.full_name]));
-  const partyNameById = new Map((parties ?? []).map((p) => [p.id, p.name]));
-  const blockingCodes = new Set((levelTypes ?? []).filter((l) => l.is_blocking).map((l) => l.code));
 
   const signoffTotal = (signoffs ?? []).length;
   const signoffComplete = (signoffs ?? []).filter((s) => s.status === "signed_off").length;
 
-  // Person-wise detail (round-table ask: "who will, how many, sign up person wise detail, what
-  // intervention/notify/sign-off he has, remaining in detail") — one entry per party, each carrying
-  // its own full list of points (which activity, which level, current status) instead of just a
-  // per-level count. Sorted by item number within each party so it reads top-to-bottom like the ITP
-  // itself.
-  const pointsByParty = new Map<
-    string,
-    { itemNumber: string; activity: string; levelCode: string; isBlocking: boolean; status: string; notifiedAt: string | null }[]
-  >();
-  for (const row of signoffs ?? []) {
+  const levels = sortLevels(levelTypes ?? []).map((l) => ({
+    code: l.code,
+    label: l.label,
+    isBlocking: l.is_blocking,
+    // Same precedence as overdue_hold_points(): project override > level default > H/W fallback > 48h.
+    noticeHours:
+      (noticeConfigs ?? []).find((n) => n.intervention === l.code)?.hours ??
+      l.default_notice_hours ??
+      FALLBACK_NOTICE_PERIOD_HOURS[l.code] ??
+      48,
+  }));
+  const hwrsPoints: HwrsPoint[] = (signoffs ?? []).flatMap((row) => {
     const item = itemById.get(row.itp_item_id);
-    if (!item) continue;
-    const list = pointsByParty.get(row.project_party_id) ?? [];
-    list.push({
-      itemNumber: item.itemNumber,
-      activity: item.activity,
-      levelCode: row.intervention,
-      isBlocking: blockingCodes.has(row.intervention),
-      status: row.status,
-      notifiedAt: row.notified_at,
-    });
-    pointsByParty.set(row.project_party_id, list);
-  }
-  const holderDetail = [...pointsByParty.entries()]
-    .map(([partyId, points]) => ({
-      partyName: partyNameById.get(partyId) ?? "Unknown party",
-      points: points.sort((a, b) => a.itemNumber.localeCompare(b.itemNumber, undefined, { numeric: true })),
-    }))
-    .sort((a, b) => a.partyName.localeCompare(b.partyName));
+    if (!item) return [];
+    return [
+      {
+        id: row.id,
+        itemId: row.itp_item_id,
+        itemNumber: item.itemNumber,
+        activity: item.activity,
+        partyId: row.project_party_id,
+        levelCode: row.intervention,
+        status: row.status,
+        notifiedAt: row.notified_at,
+        signedOffAt: row.signed_off_at,
+        signedOffByName: row.signed_off_by ? (nameById.get(row.signed_off_by) ?? null) : null,
+        proceededReason: row.proceeded_reason,
+      },
+    ];
+  });
+  const hwrsParties = (parties ?? []).map((p) => ({ id: p.id, name: p.name, partyType: p.party_type, isActive: p.is_active }));
 
   const clientPartyUsers = (parties ?? [])
     .filter((p) => p.party_type === "client" && p.is_active && p.user_id)
@@ -186,7 +200,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
             ]}
           />
         </div>
-        <p className="mt-1 text-sm text-muted">{itp.title}</p>
+        <p className="mt-1 break-words text-sm text-muted">{itp.title}</p>
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
@@ -199,7 +213,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
             {plannedChain.length > 0 ? (
               <ol className="mt-1 space-y-0.5">
                 {plannedChain.map((member, i) => (
-                  <li key={member.id} className="text-sm text-ink">
+                  <li key={member.id} className="break-words text-sm text-ink">
                     {i + 1}. {member.reviewerName}
                   </li>
                 ))}
@@ -248,9 +262,10 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
           clientAcceptedAt={itp.client_accepted_at}
           signoffTotal={signoffTotal}
           signoffComplete={signoffComplete}
-          holderDetail={holderDetail}
         />
       </div>
+
+      <HwrsSection levels={levels} parties={hwrsParties} points={hwrsPoints} nowMs={Date.now()} />
     </div>
   );
 }
