@@ -162,6 +162,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           {
             label: "Settings",
             href: "/inspect/settings",
+            activePrefixes: ["/inspect/organisation", "/inspect/itp-master"],
             palette: [
               { label: "Client Organisations", href: "/inspect/settings?section=clients" },
               { label: "Client Teams", href: "/inspect/settings?section=client-teams" },
@@ -197,6 +198,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           {
             label: "Settings",
             href: "/inspect/settings",
+            activePrefixes: ["/inspect/organisation", "/inspect/manage"],
             palette: [
               { label: "Manage", href: "/inspect/manage" },
               ...(showClientTeamsNav && isLicensed("client_teams")

@@ -26,7 +26,7 @@ export default async function ItpMasterLibraryPage() {
 
   return (
     <div>
-      <SettingsBackLink />
+      <SettingsBackLink href="/inspect/settings?section=checklist-library" />
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">

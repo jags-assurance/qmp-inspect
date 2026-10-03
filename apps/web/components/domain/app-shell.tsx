@@ -21,6 +21,9 @@ export interface NavItem {
   /** Extra destinations reachable only through the Ctrl+K page search (e.g. the sections of the
    *  Settings workspace) — not shown as sidebar rows. */
   palette?: NavItem[];
+  /** Extra path prefixes that also mark this item active — e.g. the standalone Settings pages
+   *  (/inspect/organisation/usage, /inspect/itp-master) that live outside /inspect/settings. */
+  activePrefixes?: string[];
 }
 
 export interface OrgBrandingInfo {

@@ -155,7 +155,7 @@ export default async function DocumentTraceabilityPage({
 
   return (
     <div>
-      <SettingsBackLink />
+      <SettingsBackLink href="/inspect/settings?section=cloud-sync" />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Document Traceability</h1>
         <PageGuide

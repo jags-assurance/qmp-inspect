@@ -38,14 +38,15 @@ function writeNavState(key: string, value: string) {
   window.dispatchEvent(new Event(NAV_STATE_EVENT));
 }
 
-function isItemActive(pathname: string, href: string): boolean {
+function isItemActive(pathname: string, href: string, activePrefixes: string[] = []): boolean {
+  if (activePrefixes.some((p) => pathname.startsWith(p))) return true;
   return href === "/inspect" || href === "/platform" ? pathname === href : pathname.startsWith(href);
 }
 
 function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed: boolean; indent?: boolean }) {
   const pathname = usePathname();
   const { setOpen } = useSidebarMobile();
-  const isActive = isItemActive(pathname, item.href);
+  const isActive = isItemActive(pathname, item.href, item.activePrefixes);
 
   return (
     <a
@@ -69,7 +70,7 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
  *  group nested two levels deep (Settings > Access & Roles > Staff Access) still auto-expands both
  *  ancestor groups on landing, not just the immediate parent. */
 function hasActiveDescendant(pathname: string, item: NavItem): boolean {
-  if (isItemActive(pathname, item.href)) return true;
+  if (isItemActive(pathname, item.href, item.activePrefixes)) return true;
   return (item.children ?? []).some((c) => hasActiveDescendant(pathname, c));
 }
 
