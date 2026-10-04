@@ -1,3 +1,4 @@
+import { brandColorStyle } from "./orgBranding";
 // Renders the printable HTML for a single NCR close-out CERTIFICATE (R83) — the branded A4 document
 // that attests an NCR has actually been closed: root cause, corrective action, responsible party
 // (when set) and who closed it, when. Puppeteer renders this to portrait A4 PDF in
@@ -36,6 +37,8 @@ export interface NcrCloseoutPdfData {
 export interface NcrCloseoutPdfBranding {
   engagementMode: "jags_led" | "co_branded" | "white_label";
   logoUrl: string | null;
+  brandPrimaryColor?: string | null;
+  brandAccentColor?: string | null;
 }
 
 const SEVERITY_LABEL: Record<NcrCloseoutSeverity, string> = {
@@ -227,6 +230,7 @@ export function buildNcrCloseoutPdfHtml(data: NcrCloseoutPdfData): string {
 </style>
 </head>
 <body>
+${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
       ${renderBrandBlock(data)}

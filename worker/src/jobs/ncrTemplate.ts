@@ -1,3 +1,4 @@
+import { brandColorStyle } from "./orgBranding";
 // Renders the printable HTML for a single NCR (Non-Conformance Report) — the branded A4 dossier
 // page a client receives for one finding and its human close-out, matching the client's sample
 // dossier format ("4 / NCR and human close-out"). Puppeteer renders this to portrait A4 PDF in
@@ -42,6 +43,8 @@ export interface NcrPdfData {
 export interface NcrPdfBranding {
   engagementMode: "jags_led" | "co_branded" | "white_label";
   logoUrl: string | null;
+  brandPrimaryColor?: string | null;
+  brandAccentColor?: string | null;
 }
 
 const SEVERITY_LABEL: Record<NcrPdfSeverity, string> = {
@@ -235,6 +238,7 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
 </style>
 </head>
 <body>
+${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
       ${renderBrandBlock(data)}

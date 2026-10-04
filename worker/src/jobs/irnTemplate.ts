@@ -1,3 +1,4 @@
+import { brandColorStyle } from "./orgBranding";
 // Renders the printable HTML for a single IRN (Inspection Release Note) certificate — the branded
 // A4 document that confirms an activity has passed inspection and its hold has been released.
 // Puppeteer renders this to portrait A4 PDF in renderIrnPdf.ts; this module only builds the markup.
@@ -34,6 +35,8 @@ export interface IrnPdfData {
 export interface IrnPdfBranding {
   engagementMode: "jags_led" | "co_branded" | "white_label";
   logoUrl: string | null;
+  brandPrimaryColor?: string | null;
+  brandAccentColor?: string | null;
 }
 
 function escapeHtml(value: string): string {
@@ -222,6 +225,7 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
 </style>
 </head>
 <body>
+${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
       ${renderBrandBlock(data)}
@@ -244,7 +248,7 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
     <span>This certificate confirms the activity below has been inspected, passed, and its hold released for the next stage of work.</span>
   </div>
 
-  ${renderFieldValueTable("Activity &amp; inspection", activityRows)}
+  ${renderFieldValueTable("Activity & inspection", activityRows)}
 
   ${renderFieldValueTable("Release", releaseRows)}
 

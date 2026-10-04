@@ -1,3 +1,4 @@
+import { brandColorStyle } from "./orgBranding";
 // Renders the printable HTML for an ITP (Inspection & Test Plan) — the controlled document JAGS
 // issues to a project, prepared/reviewed/approved by JAGS staff then accepted by the client
 // (Reqs R66-R81). Puppeteer renders this to landscape A4 PDF in renderItpPdf.ts; this module only
@@ -122,6 +123,8 @@ export interface ItpTemplateBranding {
   engagementMode: "jags_led" | "co_branded" | "white_label";
   /** Signed URL for the client org's uploaded logo, or null when there's none to show. */
   logoUrl: string | null;
+  brandPrimaryColor?: string | null;
+  brandAccentColor?: string | null;
 }
 
 // Swatch/text colors assigned by POSITION in the organisation's own sorted level list, not by a
@@ -851,6 +854,7 @@ export function buildItpHtml(data: ItpTemplateData): string {
 </style>
 </head>
 <body>
+${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
       ${renderBrandBlock(data)}

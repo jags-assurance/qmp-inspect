@@ -78,3 +78,23 @@ export async function getOrgBranding(
 
   return { engagementMode, logoUrl: signed.signedUrl, brandPrimaryColor, brandAccentColor };
 }
+
+const BRAND_HEX = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+
+/**
+ * A `<style>` block that swaps the default burgundy/gold CSS variables for the organisation's own
+ * colours (co-branded / white-label only — getOrgBranding already nulls them for jags_led). Emits
+ * nothing when neither colour is a valid hex value, so the default palette is untouched. Placed
+ * right after `<body>` in each PDF template so it overrides the `:root` defaults in `<head>`.
+ */
+export function brandColorStyle(branding: { brandPrimaryColor?: string | null; brandAccentColor?: string | null } | undefined): string {
+  const primary = branding?.brandPrimaryColor;
+  const accent = branding?.brandAccentColor;
+  const decl = [
+    primary && BRAND_HEX.test(primary) ? `--burgundy: ${primary};` : "",
+    accent && BRAND_HEX.test(accent) ? `--gold: ${accent};` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return decl ? `<style>:root { ${decl} }</style>` : "";
+}
