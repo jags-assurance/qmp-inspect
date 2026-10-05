@@ -70,7 +70,7 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
           irns: { id: string }[] | { id: string } | null;
         }[]
       >(),
-    supabase.from("ncrs" as never).select("id, status").eq("project_id", projectId).returns<{ id: string; status: string }[]>(),
+    supabase.from("ncrs" as never).select("id, status").eq("project_id", projectId).neq("severity", "observation").returns<{ id: string; status: string }[]>(),
     supabase
       .from("punch_list_items" as never)
       .select("id", { count: "exact", head: true })
