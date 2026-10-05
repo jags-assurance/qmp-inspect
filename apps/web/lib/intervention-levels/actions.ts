@@ -192,12 +192,13 @@ export async function updateInterventionLevelAction(
     .eq("id", id)
     .maybeSingle<{ organization_id: string }>();
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from(INTERVENTION_LEVEL_TYPES_TABLE)
     .update({ label, is_blocking: isBlocking, default_notice_hours: defaultNoticeHours, sort_order: sortOrder })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id");
 
-  if (error) {
+  if (error || !updatedRows?.length) {
     return { error: "Could not update the intervention level. Check you have permission and try again." };
   }
 
@@ -242,8 +243,11 @@ export async function deleteInterventionLevelAction(
     .eq("id", id)
     .maybeSingle<{ organization_id: string; label: string }>();
 
-  const { error } = await supabase.from(INTERVENTION_LEVEL_TYPES_TABLE).delete().eq("id", id);
+  const { data: deletedRows, error } = await supabase.from(INTERVENTION_LEVEL_TYPES_TABLE).delete().eq("id", id).select("id");
 
+  if (!error && !deletedRows?.length) {
+    return { error: "Could not remove the intervention level. Check you have permission and try again." };
+  }
   if (error) {
     if (error.code === "P0001" || /in use/i.test(error.message ?? "")) {
       return { error: "This level is in use on at least one activity and cannot be removed." };

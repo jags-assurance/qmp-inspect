@@ -50,6 +50,8 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
         "organizations(id, name, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode, branding_logo_path, engagement_mode, engagement_scope)"
       )
       .eq("user_id", session.userId)
+      // Organisation-wide grants only — a project-scoped (contractor/party) grant must not unlock settings.
+      .in("scope_type", ["organization", "global"])
       .returns<{ organizations: (OrganizationOption & { engagement_scope: string }) | null }[]>();
 
     const seen = new Set<string>();

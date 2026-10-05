@@ -17,6 +17,7 @@ export async function getSelfManagedOrgIdsForUser(supabase: SupabaseClient, user
     .from("access_grants")
     .select("organization_id, organizations(id, engagement_scope)")
     .eq("user_id", userId)
+    .in("scope_type", ["organization", "global"])
     .returns<{ organization_id: string | null; organizations: { id: string; engagement_scope: string } | null }[]>();
 
   const ids = new Set<string>();
@@ -37,6 +38,7 @@ export async function getClientManagedOrgIdsForUser(supabase: SupabaseClient, us
     .from("access_grants")
     .select("organization_id, organizations(id, engagement_scope)")
     .eq("user_id", userId)
+    .in("scope_type", ["organization", "global"])
     .returns<{ organization_id: string | null; organizations: { id: string; engagement_scope: string } | null }[]>();
 
   const ids = new Set<string>();

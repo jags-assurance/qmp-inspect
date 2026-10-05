@@ -54,6 +54,8 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
       .from("access_grants")
       .select("organizations(id, name, engagement_mode, engagement_scope, itp_sequencing_mode)")
       .eq("user_id", session.userId)
+      // Organisation-wide grants only — a project-scoped (contractor/party) grant must not unlock settings.
+      .in("scope_type", ["organization", "global"])
       .returns<{ organizations: OrganizationOption | null }[]>();
 
     const seen = new Set<string>();

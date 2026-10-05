@@ -67,7 +67,7 @@ export async function updateOrgBrandColorsAction(
     return { error: "The color combo needs at least one extra color beyond primary/accent — add one, or turn the combo off." };
   }
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("organizations")
     .update({
       brand_primary_color: primaryRaw || null,
@@ -75,9 +75,10 @@ export async function updateOrgBrandColorsAction(
       brand_extra_colors: extraColorsRaw,
       brand_multi_color_mode: multiColor,
     })
-    .eq("id", organizationId);
+    .eq("id", organizationId)
+    .select("id");
 
-  if (error) {
+  if (error || !updatedRows?.length) {
     return { error: "Could not save the brand colors. Check you have permission and try again." };
   }
 
