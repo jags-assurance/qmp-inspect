@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { startInspectionAction, type StartInspectionState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
 
@@ -21,70 +21,58 @@ export function StartInspectionForm({
   projectName: string;
   itpNumber: string;
   activity: string;
-  /** Org/project-configured preset location names — see lib/checklists/location-presets.ts. Empty
-   *  when none are configured; the free-text input below always still works either way. */
+  /** This project's own location names (project settings → locations — see
+   *  lib/checklists/location-presets.ts). They differ per project; empty when none are set up. */
   locationPresets?: string[];
 }) {
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
-  const locationRef = useRef<HTMLInputElement>(null);
-  const selectedPresetRef = useRef<string | null>(null);
+  // One location at a time: either a live GPS reading (latitude/longitude only) or one of this
+  // project's own locations. Choosing one replaces the other — they are never combined.
+  const [source, setSource] = useState<"none" | "gps" | "preset">("none");
+  const [value, setValue] = useState("");
+  const [presetChoice, setPresetChoice] = useState("");
   const [locating, setLocating] = useState(false);
-  const [resolvingAddress, setResolvingAddress] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  // Real device GPS, not a fabricated value. Previously only ever appended raw "lat, lng" text —
-  // real gap found live: the app stored coordinates but never resolved them to an actual street
-  // address, even though the field (and the generated report) is meant to read as a human location.
-  // Reverse-geocodes via OpenStreetMap's Nominatim (free, no API key/account needed — the right
-  // choice here since it needs no secret this session could set up on the user's behalf) and
-  // prefixes the resolved address ahead of the coordinates; falls back to coordinates alone if the
-  // lookup fails (offline, rate-limited, or genuinely no match) — never blocks starting the
-  // inspection over it. Appends to whatever's already typed rather than replacing it, since a free-
-  // text description ("Block C, Level 2") is still useful alongside a real address.
-  async function useMyLocation() {
+  function useLiveLocation() {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation isn't available on this device/browser.");
+      setLocationError("Live location isn't available on this device or browser.");
       return;
     }
     setLocating(true);
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
+      (position) => {
         const { latitude, longitude } = position.coords;
-        const coords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        setValue(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+        setSource("gps");
+        setPresetChoice("");
         setLocating(false);
-        setResolvingAddress(true);
-
-        let locationText = coords;
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=0`,
-            { signal: controller.signal, headers: { Accept: "application/json" } }
-          );
-          clearTimeout(timeout);
-          if (res.ok) {
-            const data = (await res.json()) as { display_name?: string };
-            if (data.display_name) locationText = `${data.display_name} (${coords})`;
-          }
-        } catch {
-          // Best-effort — offline or the lookup failed; the raw coordinates alone are still useful
-          // and already what this field stored before reverse geocoding existed.
-        }
-
-        if (locationRef.current) {
-          const existing = locationRef.current.value.trim();
-          locationRef.current.value = existing ? `${existing} (${locationText})` : locationText;
-        }
-        setResolvingAddress(false);
       },
       () => {
-        setLocationError("Could not get your location — enter it manually instead.");
+        setLocationError("Could not read your live location — allow location access, or choose a project location instead.");
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  }
+
+  function choosePreset(name: string) {
+    setPresetChoice(name);
+    if (name) {
+      setValue(name);
+      setSource("preset");
+    } else {
+      setValue("");
+      setSource("none");
+    }
+  }
+
+  function clearLocation() {
+    setValue("");
+    setSource("none");
+    setPresetChoice("");
+    setLocationError(null);
   }
 
   return (
@@ -95,58 +83,60 @@ export function StartInspectionForm({
       <input type="hidden" name="project_name" value={projectName} />
       <input type="hidden" name="itp_number" value={itpNumber} />
       <input type="hidden" name="activity" value={activity} />
+      <input type="hidden" name="location" value={value} />
 
-      <label htmlFor="location" className="block text-sm font-medium text-ink">
-        Location (optional)
-      </label>
-      {locationPresets.length > 0 && (
-        <select
-          aria-label="Preset location"
-          defaultValue=""
-          onChange={(e) => {
-            const value = e.target.value;
-            if (!value || !locationRef.current) return;
-            // Picking a preset replaces the PREVIOUSLY picked preset (not whatever was manually
-            // typed or added via "Use my location") — otherwise picking a second preset just piled
-            // both onto the field instead of swapping the choice.
-            let existing = locationRef.current.value.trim();
-            const prevPreset = selectedPresetRef.current;
-            if (prevPreset && existing.endsWith(prevPreset)) {
-              existing = existing.slice(0, existing.length - prevPreset.length).replace(/,\s*$/, "").trim();
-            }
-            locationRef.current.value = existing ? `${existing}, ${value}` : value;
-            selectedPresetRef.current = value;
-            e.target.value = "";
-          }}
-          className="mt-1 w-full max-w-md rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
-        >
-          <option value="">— Pick a preset location —</option>
-          {locationPresets.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      )}
-      <div className="mt-1 flex max-w-md gap-2">
-        <input
-          ref={locationRef}
-          id="location"
-          name="location"
-          placeholder="e.g. Block C, Level 2"
-          className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
-        />
+      <p className="block text-sm font-medium text-ink">Location (optional)</p>
+      <p className="mt-0.5 text-xs text-muted">
+        Use your live location, or pick one of this project&apos;s own locations. Choosing one replaces the other.
+      </p>
+
+      <div className="mt-2 flex max-w-xl flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={useMyLocation}
-          disabled={locating || resolvingAddress}
-          className="shrink-0 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-off-white disabled:opacity-50"
+          onClick={useLiveLocation}
+          disabled={locating}
+          className={`rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
+            source === "gps" ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border bg-surface text-ink hover:bg-off-white"
+          }`}
         >
-          {locating ? "Locating…" : resolvingAddress ? "Resolving address…" : "📍 Use my location"}
+          {locating ? "Locating…" : "📍 Use live location"}
         </button>
+        {locationPresets.length > 0 && (
+          <select
+            aria-label="Project location"
+            value={presetChoice}
+            onChange={(e) => choosePreset(e.target.value)}
+            className={`min-w-48 flex-1 rounded-md border px-3 py-2 text-sm outline-none focus:border-burgundy ${
+              source === "preset" ? "border-burgundy bg-burgundy/5" : "border-border bg-off-white"
+            }`}
+          >
+            <option value="">— Project location —</option>
+            {locationPresets.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
+      {locationPresets.length === 0 && (
+        <p className="mt-1 text-xs text-muted">
+          No project locations are set up yet — an admin can add them in the project&apos;s location settings.
+        </p>
+      )}
+
+      {value ? (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink">
+          <span className="font-medium">{source === "gps" ? "Live location (latitude, longitude):" : "Project location:"}</span>
+          <span className="doc-id">{value}</span>
+          <button type="button" onClick={clearLocation} className="text-xs text-burgundy hover:underline">
+            Clear
+          </button>
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-muted">No location selected.</p>
+      )}
       {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
-      <p className="mt-1 text-xs text-muted">Resolves your coordinates to a street address automatically (via OpenStreetMap) — the coordinates are always kept too.</p>
 
       <Button type="submit" disabled={pending} className="mt-4">
         {pending ? "Starting…" : "Start inspection"}
