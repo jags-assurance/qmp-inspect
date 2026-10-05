@@ -301,6 +301,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
   ncrs: DataBookPdfData["ncrs"];
   punchItems: DataBookPdfData["punchItems"];
   nameById: Map<string, string>;
+  parties: { name: string; partyType: string }[];
 }> {
   type ItpRow = {
     id: string;
@@ -458,6 +459,12 @@ async function gatherDataBookContent(projectId: string): Promise<{
     ? ((await supabase.from("project_parties").select("id, name").in("id", partyIds).returns<{ id: string; name: string }[]>()).data ?? [])
     : [];
   const partyName = new Map(parties.map((p) => [p.id, p.name]));
+  const { data: projectPartyRows } = await supabase
+    .from("project_parties")
+    .select("name, party_type")
+    .eq("project_id", projectId)
+    .order("party_type")
+    .returns<{ name: string; party_type: string }[]>();
 
   const userIds = new Set<string>();
   for (const i of itpRows ?? []) {
@@ -578,6 +585,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
       closedAt: p.closed_at,
     })),
     nameById,
+    parties: (projectPartyRows ?? []).map((p) => ({ name: p.name, partyType: p.party_type })),
   };
 }
 
@@ -587,15 +595,13 @@ async function gatherDataBookContent(projectId: string): Promise<{
  * on the job row. Mirrors renderNcrPdf.ts's structure exactly, for Data Book data instead of NCR
  * data.
  */
-export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Promise<{ resultStoragePath: string }> {
-  const { dataBook, html } = await buildDataBookHtml(payload.data_book_id);
-
+/** Prints the book. Shared by both passes so the page count of pass 1 matches the final PDF. */
+async function printBookPdf(html: string, dataBook: DataBookRow): Promise<Buffer> {
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
-  let pdfBuffer: Buffer;
   try {
     await page.setContent(html, { waitUntil: "networkidle0" });
-    pdfBuffer = Buffer.from(
+    return Buffer.from(
       await page.pdf({
         format: "A4",
         landscape: false,
@@ -617,6 +623,37 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
   } finally {
     await page.close();
   }
+}
+
+/** Reads a printed PDF back and returns the physical page each section starts on, using the
+ *  invisible "§id§" markers the template puts at the top of every section. */
+async function sectionPageMap(pdf: Buffer): Promise<Record<string, number>> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(pdf), useSystemFonts: true, isEvalSupported: false }).promise;
+  const map: Record<string, number> = {};
+  for (let p = 1; p <= doc.numPages; p++) {
+    const text = (await (await doc.getPage(p)).getTextContent()).items.map((i) => ("str" in i ? i.str : "")).join("");
+    for (const m of text.matchAll(/§([a-z0-9-]+)§/g)) if (map[m[1]] === undefined) map[m[1]] = p;
+  }
+  await doc.destroy();
+  return map;
+}
+
+export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Promise<{ resultStoragePath: string }> {
+  const { dataBook, data } = await buildDataBookHtml(payload.data_book_id);
+
+  // Pass 1 prints without page numbers to learn where each section lands; pass 2 prints the contents
+  // page and the register's "Form page" column with those real numbers. The placeholders occupy the
+  // same space, so the page count is stable; if it ever shifts, one more pass settles it.
+  let pageMap: Record<string, number> = {};
+  let pdfBuffer = await printBookPdf(buildDataBookPdfHtml(data, pageMap), dataBook);
+  for (let pass = 0; pass < 2; pass++) {
+    const next = await sectionPageMap(pdfBuffer);
+    const stable = JSON.stringify(next) === JSON.stringify(pageMap);
+    pageMap = next;
+    if (stable) break;
+    pdfBuffer = await printBookPdf(buildDataBookPdfHtml(data, pageMap), dataBook);
+  }
 
   const storagePath = `databooks/${dataBook.id}/${dataBook.book_number}.pdf`;
 
@@ -632,7 +669,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
 }
 
 /** Loads the book + project + every record and builds the printable HTML. Exported for local previews. */
-export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook: DataBookRow; html: string }> {
+export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook: DataBookRow; html: string; data: DataBookPdfData }> {
   const { data: dataBook, error: dataBookError } = await supabase
     .from("data_books" as never)
     .select("id, project_id, book_number, title, status, compiled_at, compiled_by, override_reason, override_by")
@@ -646,12 +683,13 @@ export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook:
   const [{ data: project }, readiness, disciplineBreakdown, content] = await Promise.all([
     supabase
       .from("projects")
-      .select("organization_id, project_number, name, organizations(name)")
+      .select("organization_id, project_number, name, site_location, organizations(name)")
       .eq("id", dataBook.project_id)
       .maybeSingle<{
         organization_id: string;
         project_number: string;
         name: string;
+        site_location: string | null;
         organizations: { name: string } | null;
       }>(),
     computeDataBookReadinessForWorker(dataBook.project_id),
@@ -676,6 +714,8 @@ export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook:
     compiledBy: dataBook.compiled_by ? (content.nameById.get(dataBook.compiled_by) ?? null) : null,
     overrideReason: dataBook.override_reason,
     overrideBy: dataBook.override_by ? (content.nameById.get(dataBook.override_by) ?? null) : null,
+    siteLocation: project?.site_location ?? null,
+    parties: content.parties,
     itps: content.itps,
     calibrations: content.calibrations,
     welders: content.welders,
@@ -687,5 +727,5 @@ export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook:
   };
 
   const html = buildDataBookPdfHtml(templateData);
-  return { dataBook, html };
+  return { dataBook, html, data: templateData };
 }

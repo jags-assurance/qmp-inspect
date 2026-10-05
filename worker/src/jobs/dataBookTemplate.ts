@@ -135,6 +135,9 @@ export interface DataBookPdfData {
   overrideBy: string | null;
 
   itps: DataBookPdfItp[];
+  /** Project site / location text, and the parties on the project (for the distribution register). */
+  siteLocation: string | null;
+  parties: { name: string; partyType: string }[];
   calibrations: DataBookPdfCalibration[];
   welders: DataBookPdfWelder[];
   materials: DataBookPdfMaterial[];
@@ -201,8 +204,11 @@ function table(headers: string[], rows: string[][], widths?: string[]): string {
 }
 
 function page(id: string, part: string, title: string, intro: string | null, body: string): string {
+  // `.mk` is an invisible 1px marker: the renderer reads it back from a first-pass PDF to learn which
+  // physical page each section starts on, so the contents page can print real page numbers.
   return `
   <section class="page" id="${id}">
+    <span class="mk">§${id}§</span>
     <div class="part">${escapeHtml(part)}</div>
     <h1>${escapeHtml(title)}</h1>
     ${intro ? `<p class="lead">${escapeHtml(intro)}</p>` : ""}
@@ -232,6 +238,11 @@ function stateBadge(state: DataBookRecordState): string {
   return `<span class="state ${STATE_CLASS[state]}">${escapeHtml(state)}</span>`;
 }
 
+function distinct(values: Array<string | null | undefined>): string | null {
+  const v = [...new Set(values.filter(Boolean) as string[])];
+  return v.length ? v.join(", ") : null;
+}
+
 const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
 
 /** See ncrTemplate.ts's renderBrandBlock — identical semantics. */
@@ -251,7 +262,7 @@ function renderPoweredByFooter(data: DataBookPdfData): string {
   return '<div class="powered-by">Powered by JAGS Assurance</div>';
 }
 
-export function buildDataBookPdfHtml(data: DataBookPdfData): string {
+export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<string, number> = {}): string {
   const issueLabel = dataBookIssueLabel(data.status, !!data.overrideReason);
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 16) + " UTC";
   const issueDate = fmtDate(data.compiledAt ?? data.generatedAt.toISOString());
@@ -269,15 +280,23 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   const received = planned - missing;
   const pct = (n: number, d: number) => (d === 0 ? "n/a" : `${((n / d) * 100).toFixed(1)}%`);
 
+  const partyNames = (type: string) => data.parties.filter((p) => p.partyType === type).map((p) => escapeHtml(p.name)).join(", ");
+
   // ── Contents ────────────────────────────────────────────────────────────────────────────────
   const itpSectionIds = data.itps.map((_, i) => `rec-itp-${i}`);
+  const registerChunks: Array<{ id: string; from: number; to: number }> = [];
+  for (let i = 0; i < Math.max(allActivities.length, 1); i += 10) {
+    registerChunks.push({ id: `register-${i / 10}`, from: i + 1, to: Math.min(i + 10, Math.max(allActivities.length, 1)) });
+  }
   const toc: Array<[string, string]> = [
     ["cover", "Data Book"],
     ["control", "Document control and authorization"],
     ["revision", "Revision distribution and issue status"],
     ["contents", "Contents and navigation"],
     ["scope", "Scope terminology and configuration"],
-    ["register", "Master record register"],
+    ["applicability", "Applicability and governing requirements"],
+    ["schema", "Master record register and record schema"],
+    ...registerChunks.map((c): [string, string] => [c.id, `Master record register entries ${String(c.from).padStart(2, "0")} to ${String(c.to).padStart(2, "0")}`]),
     ...data.itps.map((itp, i): [string, string] => [itpSectionIds[i], `Inspection and testing records — ${itp.itpNumber}`]),
     ["materials", "Materials and traceability"],
     ["welding", "Welding and joining records"],
@@ -292,6 +311,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   // ── Part A ──────────────────────────────────────────────────────────────────────────────────
   const cover = `
   <section class="page cover" id="cover">
+    <span class="mk">§cover§</span>
     <div class="letterhead"><div class="brand">${renderBrandBlock(data)}</div></div>
     <div class="part">${escapeHtml(data.organizationName ?? "JAGS ASSURANCE")}</div>
     <h1 class="cover-title">Project Data Book</h1>
@@ -303,7 +323,8 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
         ["Document number", escapeHtml(data.bookNumber)],
         ["Revision and issue date", `R00 | ${issueDate}`],
         ["Issue purpose", escapeHtml(issuePurpose(data))],
-        ["Project", escapeHtml(projectLabel)],
+        ["Project and package", `${escapeHtml(projectLabel)} | ${data.itps.map((i) => escapeHtml(i.itpNumber)).join(", ") || "no ITP"}`],
+        ["Equipment scope", data.itps.map((i) => escapeHtml(i.title)).join("; ") || "—"],
         ["Records in book", `${planned} activity records across ${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}`],
         ["Volume", "1 of 1"],
         ["Document owner", "Jags Assurance"],
@@ -340,25 +361,26 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
       ["Metadata field", "Value"],
       [
         ["Client and project", `${cell(data.organizationName)} | ${escapeHtml(projectLabel)}`],
-        ["Data book", `${escapeHtml(data.bookNumber)} | ${escapeHtml(data.title)}`],
-        ["Package", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}: ${data.itps.map((i) => escapeHtml(i.itpNumber)).join(", ") || "none"}`],
+        ["Site and jurisdiction", cell(data.siteLocation)],
+        ["EPC or EPCM and contractor", partyNames("main_contractor") || "—"],
+        ["Vendor and purchase order", [...new Set(data.materials.map((m) => m.po).filter(Boolean))].map((p) => escapeHtml(p as string)).join(", ") || "—"],
+        ["Area and system", "—"],
+        ["Package and asset identifiers", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}: ${data.itps.map((i) => escapeHtml(i.itpNumber)).join(", ") || "none"}`],
+        ["Scope boundary", data.itps.map((i) => escapeHtml(i.title)).join("; ") || "—"],
         ["Language and classification", "English | Project distribution"],
         ["Requirements baseline", "Approved ITPs listed in Part C at their stated revision"],
       ],
       ["32%", "68%"]
     )}
-    <h3>Prepared, reviewed and approved — book</h3>
+    <h3>Prepared reviewed and approved</h3>
     ${table(
       ["Function", "Name and title", "Decision and signature", "Date"],
       [
-        ["Prepared by (compiled)", cell(data.compiledBy), data.compiledBy ? "Compiled in QMP Inspect" : "Not compiled", fmtDate(data.compiledAt)],
-        [
-          "Release approved by",
-          cell(data.overrideBy),
-          data.status === "issued" ? "Issued" : "Not performed",
-          data.status === "issued" ? fmtDate(data.compiledAt) : "—",
-        ],
-        ["Client acceptance", "—", data.status === "issued" ? "Per handover record" : "Not requested", "—"],
+        ["Prepared by", cell(data.compiledBy), data.compiledBy ? "Compiled in QMP Inspect" : "Unsigned", fmtDate(data.compiledAt)],
+        ["QA review", cell(distinct(data.itps.map((i) => i.reviewedBy))), data.itps.some((i) => i.reviewedBy) ? "Reviewed (ITP review step)" : "Not performed", fmtDate(data.itps.map((i) => i.reviewedAt).filter(Boolean).sort().pop() ?? null)],
+        ["Technical review", cell(distinct(data.itps.map((i) => i.approvedBy))), data.itps.some((i) => i.approvedBy) ? "Approved (ITPs)" : "Not performed", fmtDate(data.itps.map((i) => i.approvedAt).filter(Boolean).sort().pop() ?? null)],
+        ["Contractor approval", cell(data.overrideBy), data.status === "issued" ? "Issued" : "Not performed", data.status === "issued" ? fmtDate(data.compiledAt) : "—"],
+        ["Client acceptance", cell(distinct(data.itps.map((i) => i.acceptedBy))), data.itps.some((i) => i.acceptedBy) ? "Accepted (ITPs)" : data.status === "issued" ? "Per handover record" : "Not requested", fmtDate(data.itps.map((i) => i.acceptedAt).filter(Boolean).sort().pop() ?? null)],
       ],
       ["24%", "28%", "30%", "18%"]
     )}
@@ -374,11 +396,25 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     "Book revisions and individual record revisions are controlled independently. Issuing a new book must not rewrite the history of its source records.",
     `
     ${table(["Revision", "Date", "Description", "Authorization"], [["R00", issueDate, `${escapeHtml(issuePurpose(data))} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
+    <h3>Distribution register</h3>
+    ${table(
+      ["Recipient role", "Purpose", "Issue reference", "Receipt"],
+      data.parties.length > 0
+        ? data.parties.map((p) => [
+            `${escapeHtml(p.name)}<br /><small>${escapeHtml(p.partyType.replace(/_/g, " "))}</small>`,
+            data.status === "issued" ? "Project handover issue" : "Review of output and records",
+            data.status === "issued" ? escapeHtml(data.bookNumber) : "Not issued",
+            "[Acknowledgment]",
+          ])
+        : [["—", "—", "Not issued", "Not applicable"]],
+      ["30%", "30%", "20%", "20%"]
+    )}
     <h3>Independent status dimensions</h3>
     <ul>
       <li>Issue purpose: Draft, For Review, For Acceptance, Final or As-Built. <b>This book: ${escapeHtml(issuePurpose(data))}.</b></li>
       <li>Record lifecycle: Draft, In review, Accepted, Rejected or Missing — the state column of the master register.</li>
-      <li>Package gate: ${data.isReady ? "All gating categories complete." : "Not ready — see Readiness calculations and hard gates."}</li>
+      <li>Review decision: Pending, Accepted, Accepted with Comments, Revise and Resubmit or Rejected — recorded per ITP review step and client acceptance.</li>
+      <li>Package gate: Not Ready, Ready for QA, Ready for Client, Ready for Release, Released or Superseded. <b>This book: ${data.isReady ? "Ready for release" : "Not ready — see Readiness calculations and hard gates"}.</b></li>
     </ul>
     <p>Freeze each issued version with a manifest and transmittal. Retain prior issues under the agreed retention policy. Printed copies are uncontrolled unless the project registers and controls them.</p>`
   );
@@ -388,7 +424,10 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     "PART A  DOCUMENT CONTROL",
     "Contents and navigation",
     "This index is the reading route for the book. The master record register separately controls individual deliverables.",
-    `<ol class="toc">${toc.map(([id, label]) => `<li><a href="#${id}">${escapeHtml(label)}</a></li>`).join("")}</ol>`
+    `<ol class="toc">${toc
+      .map(([id, label]) => `<li><a href="#${id}"><span>${escapeHtml(label)}</span><i></i><b>${pageMap[id] ?? ""}</b></a></li>`)
+      .join("")}</ol>
+    <p class="small">All page references use the physical page count, including the cover. They are regenerated on every export.</p>`
   );
 
   const scope = page(
@@ -410,24 +449,65 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
     <p>Unknown applicability is unresolved, not Not Applicable. A record that is missing is shown as missing — it is never hidden or counted as complete.</p>`
   );
 
+  const categoryRows: string[][] = [
+    ["Inspection and testing records (ITP activities)", String(allActivities.length), allActivities.length ? "Applicable" : "Unresolved", "Part C — Inspection and testing records"],
+    ["Materials and traceability", String(data.materials.length), data.materials.length ? "Applicable" : "No records yet", "Part C — Materials and traceability"],
+    ["Welding and joining (welder qualifications)", String(data.welders.length), data.welders.length ? "Applicable" : "No records yet", "Part C — Welding and joining records"],
+    ["Calibration and regulated certificates", String(data.calibrations.length), data.calibrations.length ? "Applicable" : "No records yet", "Part C — Calibration"],
+    ["Nonconformance, deviation and exceptions", String(data.ncrs.length), data.ncrs.length ? "Applicable" : "None raised", "Part C — Nonconformance"],
+    ["Mechanical completion and punch list", String(data.punchItems.length), data.punchItems.length ? "Applicable" : "None raised", "Part C — Mechanical completion"],
+  ];
+  const applicability = page(
+    "applicability",
+    "PART A  RESEARCH AND APPLICABILITY",
+    "Applicability and governing requirements",
+    "Treat applicability as an approved decision against a requirement instance. Hiding a section is not evidence that the requirement was evaluated.",
+    `${table(["Record category", "Records", "Applicability", "Where recorded"], categoryRows, ["38%", "10%", "18%", "34%"])}
+    <h3>Applicability decision record</h3>
+    <p>Requirement ID [ ] | Scope [ ] | Source and edition [ ] | Applicable / Not Applicable / Unresolved [ ] | Reason [ ] | Evidence [ ] | Decided by [ ] | Approved by [ ] | Date [ ]</p>
+    <p>Not Applicable removes an approved instance from the denominator and remains visible in the applicability register. A waiver, concession or deferred deliverable remains a distinct exception; it must not silently disappear from completeness reporting. Regulatory obligations cannot be waived by an ordinary project approver.</p>`
+  );
+
+  const schema = page(
+    "schema",
+    "PART B  EVIDENCE REGISTER",
+    "Master record register and record schema",
+    "The register is the control point for every expected deliverable. A folder inventory cannot reveal records that were never submitted.",
+    `${table(
+      ["Field group", "Required fields"],
+      [
+        ["Identity", "Requirement instance ID; record number; title (activity); discipline; record type; section; organization."],
+        ["Traceability", "Project; package (ITP); intervention points per party; related IRN and NCR references."],
+        ["Requirement", "Reference clause and standard; acceptance criteria; responsible party."],
+        ["Version and review", "ITP revision; lifecycle state; reviewer decision; superseded version."],
+        ["Files and issue", "Inspection record and IRN; attachments; book and volume; form page."],
+        ["Completion", "Evidence satisfaction; approvals; unresolved exceptions; included-in-manifest flag."],
+      ],
+      ["24%", "76%"]
+    )}
+    <p>Each row represents one expected deliverable instance — here one ITP activity. Requirements may need multiple records, and one record may satisfy several mapped requirements; relationships are stored, not duplicated as files. The following pages list the register in groups of ten; "Form page" is the page where that activity's record layout starts.</p>`
+  );
+
   // ── Part B — master register ────────────────────────────────────────────────────────────────
-  const registerRows = allActivities.map(({ itp, a }, i) => [
+  const formPageOf = (itpIndex: number) => pageMap[itpSectionIds[itpIndex]] ?? "";
+  const registerRowsAll = allActivities.map(({ itp, a }, i) => [
     `R${String(i + 1).padStart(2, "0")}`,
     a.recordNumber ? escapeHtml(a.recordNumber) : `${escapeHtml(itp.itpNumber)} / ${escapeHtml(a.itemNumber)}`,
     escapeHtml(a.activity),
-    escapeHtml(itp.itpNumber),
     String(itp.revision),
     stateBadge(a.state),
+    String(formPageOf(data.itps.indexOf(itp))),
   ]);
-
-  const register = page(
-    "register",
-    "PART B  EVIDENCE REGISTER",
-    "Master record register",
-    "The register is the control point for every expected deliverable: one row per ITP activity. A folder inventory cannot reveal records that were never submitted — missing records appear here.",
-    `
-    ${registerRows.length > 0 ? table(["Req", "Record", "Deliverable", "ITP", "Rev", "State"], registerRows, ["7%", "22%", "41%", "13%", "6%", "11%"]) : "<p>No ITP activities on this project yet.</p>"}
-    <p>Totals at generation: ${planned} planned records; ${accepted} accepted; ${inReview} in review; ${draft} draft; ${rejected} rejected; ${missing} missing. Records with a file or entry received: ${received} of ${planned} (${pct(received, planned)}). Accepted completeness: ${accepted} of ${planned} (${pct(accepted, planned)}). Book readiness: <b>${data.isReady ? "READY" : "NOT READY"}</b>.</p>`
+  const registerTotals = `<p>Totals at generation: ${planned} planned records; ${accepted} accepted; ${inReview} in review; ${draft} draft; ${rejected} rejected; ${missing} missing. Records with a file or entry received: ${received} of ${planned} (${pct(received, planned)}). Accepted completeness: ${accepted} of ${planned} (${pct(accepted, planned)}). Book readiness: <b>${data.isReady ? "READY" : "NOT READY"}</b>.</p>`;
+  const registerPages = registerChunks.map((c) =>
+    page(
+      c.id,
+      "PART B  EVIDENCE REGISTER",
+      `Master record register entries ${String(c.from).padStart(2, "0")} to ${String(c.to).padStart(2, "0")}`,
+      `${data.status === "issued" ? "ISSUED RECORDS" : "WORKING DATA — NOT FINAL"} | All records link to ${projectLabel}.`,
+      `${registerRowsAll.length > 0 ? table(["Req", "Document", "Deliverable", "Rev", "State", "Form page"], registerRowsAll.slice(c.from - 1, c.to), ["7%", "22%", "42%", "6%", "13%", "10%"]) : "<p>No ITP activities on this project yet.</p>"}
+      ${registerTotals}`
+    )
   );
 
   // ── Part C — per-ITP inspection and test records ────────────────────────────────────────────
@@ -713,7 +793,10 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
 
   ol.toc { list-style: none; margin: 8px 0; }
   ol.toc li { padding: 6px 0; border-bottom: 1px dotted var(--rule); }
-  ol.toc a { color: var(--navy); text-decoration: none; }
+  ol.toc a { color: var(--navy); text-decoration: none; display: flex; align-items: baseline; gap: 6px; }
+  ol.toc a i { flex: 1; border-bottom: 1px dotted #9aa8b2; transform: translateY(-3px); }
+  ol.toc a b { font-weight: normal; min-width: 18px; text-align: right; }
+  .mk { position: absolute; font-family: "Courier New", monospace; font-variant-ligatures: none; font-size: 1px; line-height: 1px; color: #fff; }
 </style>
 </head>
 <body>
@@ -722,7 +805,9 @@ export function buildDataBookPdfHtml(data: DataBookPdfData): string {
   ${revision}
   ${contents}
   ${scope}
-  ${register}
+  ${applicability}
+  ${schema}
+  ${registerPages.join("")}
   ${itpPages.join("")}
   ${materials}
   ${welding}
