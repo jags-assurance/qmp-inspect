@@ -896,8 +896,8 @@ export async function linkAssignmentEvidenceDocumentAction(
   const session = await requireSession();
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
-  const vaultDocumentId = String(formData.get("vault_document_id") ?? "").trim();
-  if (!assignmentId || !vaultDocumentId) return { error: "Choose a document to link." };
+  const vaultDocumentIds = [...new Set(formData.getAll("vault_document_id").map((v) => String(v).trim()).filter(Boolean))];
+  if (!assignmentId || vaultDocumentIds.length === 0) return { error: "Select at least one file to link." };
 
   const supabase = await createSupabaseServerClient();
   const access = await requireStandaloneAccess(session, supabase, assignmentId);
@@ -905,13 +905,12 @@ export async function linkAssignmentEvidenceDocumentAction(
 
   const { error } = await supabase
     .from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS)
-    .insert({ assignment_id: assignmentId, vault_document_id: vaultDocumentId, linked_by: session.userId });
+    .upsert(
+      vaultDocumentIds.map((id) => ({ assignment_id: assignmentId, vault_document_id: id, linked_by: session.userId })),
+      { onConflict: "assignment_id,vault_document_id", ignoreDuplicates: true }
+    );
 
-  if (error) {
-    return {
-      error: error.code === "23505" ? "That document is already linked as evidence for this assignment." : "Could not link the document.",
-    };
-  }
+  if (error) return { error: "Could not link the selected files." };
 
   try {
     const { data: assignmentRow } = await supabase
@@ -928,7 +927,7 @@ export async function linkAssignmentEvidenceDocumentAction(
         action: "linked",
         actorId: session.userId,
         summary: `Evidence document linked to assignment ${assignmentRow.assignment_number}`,
-        changes: { vault_document_id: vaultDocumentId },
+        changes: { vault_document_ids: vaultDocumentIds },
       });
     }
   } catch {

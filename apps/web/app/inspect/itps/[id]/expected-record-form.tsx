@@ -244,11 +244,17 @@ function MarkReceivedForm({
           className="w-full rounded border border-border bg-surface px-2 py-1 text-xs"
         >
           <option value="">Select a document already in the vault…</option>
-          {vaultDocuments.map((doc) => (
-            <option key={doc.id} value={doc.id}>
-              {doc.folderName} — {doc.title}
-              {doc.documentReference ? ` (${doc.documentReference})` : ""}
-            </option>
+          {[...new Set(vaultDocuments.map((d) => d.folderName))].sort().map((folder) => (
+            <optgroup key={folder} label={folder}>
+              {vaultDocuments
+                .filter((d) => d.folderName === folder)
+                .map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.title}
+                    {doc.documentReference ? ` (${doc.documentReference})` : ""}
+                  </option>
+                ))}
+            </optgroup>
           ))}
         </select>
       ) : (

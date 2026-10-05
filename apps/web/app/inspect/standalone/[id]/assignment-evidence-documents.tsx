@@ -8,6 +8,7 @@ import {
   type StandaloneAssignmentEvidenceDocumentRow,
 } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
+import { VaultFilePicker } from "@/components/domain/vault-file-picker";
 
 const initialState: LinkEvidenceDocumentState = { error: null };
 
@@ -88,19 +89,11 @@ function LinkDocumentForm({ assignmentId, availableDocuments }: { assignmentId: 
   return (
     <form action={formAction} className="mt-3 space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
       <input type="hidden" name="assignment_id" value={assignmentId} />
-      <select name="vault_document_id" required defaultValue="" className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm">
-        <option value="">Select a document from the vault…</option>
-        {availableDocuments.map((doc) => (
-          <option key={doc.id} value={doc.id}>
-            {doc.folderName} — {doc.title}
-            {doc.documentReference ? ` (${doc.documentReference})` : ""}
-          </option>
-        ))}
-      </select>
+      <VaultFilePicker documents={availableDocuments} />
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
-          {pending ? "Linking…" : "Link"}
+          {pending ? "Linking…" : "Link selected files"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
           Cancel

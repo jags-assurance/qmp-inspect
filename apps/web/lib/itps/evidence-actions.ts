@@ -381,8 +381,8 @@ export async function deleteItpItemMeasurementAction(formData: FormData): Promis
  */
 export async function linkItpItemEvidenceDocumentAction(_prev: EvidenceActionState, formData: FormData): Promise<EvidenceActionState> {
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
-  const vaultDocumentId = String(formData.get("vault_document_id") ?? "").trim();
-  if (!itpItemId || !vaultDocumentId) return { error: "Choose a document to link." };
+  const vaultDocumentIds = [...new Set(formData.getAll("vault_document_id").map((v) => String(v).trim()).filter(Boolean))];
+  if (!itpItemId || vaultDocumentIds.length === 0) return { error: "Select at least one file to link." };
 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -392,26 +392,27 @@ export async function linkItpItemEvidenceDocumentAction(_prev: EvidenceActionSta
   }
 
   const itemProjectId = await findProjectIdForItpItem(supabase, itpItemId);
-  const { data: vaultDoc } = await supabase
+  const { data: vaultDocs } = await supabase
     .from("vault_documents")
-    .select("status, vault_folders(project_id)")
-    .eq("id", vaultDocumentId)
-    .maybeSingle<{ status: string; vault_folders: { project_id: string } | null }>();
+    .select("id, status, vault_folders(project_id)")
+    .in("id", vaultDocumentIds)
+    .returns<{ id: string; status: string; vault_folders: { project_id: string } | null }[]>();
 
-  if (!vaultDoc || !itemProjectId || vaultDoc.vault_folders?.project_id !== itemProjectId) {
-    return { error: "That document isn't in this activity's own project." };
+  if (!itemProjectId || (vaultDocs ?? []).length !== vaultDocumentIds.length || (vaultDocs ?? []).some((d) => d.vault_folders?.project_id !== itemProjectId)) {
+    return { error: "One of the selected files isn't in this activity's own project." };
   }
-  if (vaultDoc.status !== "approved") {
-    return { error: "Only an approved document can be linked as evidence — get it approved in the Document Vault first." };
+  if ((vaultDocs ?? []).some((d) => d.status !== "approved")) {
+    return { error: "Only approved files can be linked as evidence — get the others approved in the Document Vault first." };
   }
 
   const { error } = await supabase
     .from(ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE)
-    .insert({ itp_item_id: itpItemId, vault_document_id: vaultDocumentId, linked_by: session.userId });
+    .upsert(
+      vaultDocumentIds.map((id) => ({ itp_item_id: itpItemId, vault_document_id: id, linked_by: session.userId })),
+      { onConflict: "itp_item_id,vault_document_id", ignoreDuplicates: true }
+    );
 
-  if (error) {
-    return { error: error.code === "23505" ? "That document is already linked as evidence for this activity." : "Could not link the document." };
-  }
+  if (error) return { error: "Could not link the selected files." };
 
   const itpId = await findItpIdForItem(supabase, itpItemId);
   if (itpId) {
@@ -427,7 +428,7 @@ export async function linkItpItemEvidenceDocumentAction(_prev: EvidenceActionSta
           action: "linked",
           actorId: session.userId,
           summary: "Evidence document linked to activity",
-          changes: { vault_document_id: vaultDocumentId },
+          changes: { vault_document_ids: vaultDocumentIds },
         });
       }
     } catch {

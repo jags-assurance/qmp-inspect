@@ -1038,9 +1038,9 @@ export async function linkInspectionEvidenceDocumentAction(
   formData: FormData
 ): Promise<LinkInspectionEvidenceDocumentState> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
-  const vaultDocumentId = String(formData.get("vault_document_id") ?? "").trim();
+  const vaultDocumentIds = [...new Set(formData.getAll("vault_document_id").map((v) => String(v).trim()).filter(Boolean))];
   const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim() || null;
-  if (!inspectionRecordId || !vaultDocumentId) return { error: "Choose a document to link." };
+  if (!inspectionRecordId || vaultDocumentIds.length === 0) return { error: "Select at least one file to link." };
 
   const supabase = await createSupabaseServerClient();
 
@@ -1057,18 +1057,17 @@ export async function linkInspectionEvidenceDocumentAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE).insert({
-    inspection_record_id: inspectionRecordId,
-    checklist_item_id: checklistItemId,
-    vault_document_id: vaultDocumentId,
-    linked_by: user?.id ?? null,
-  });
+  const { error } = await supabase.from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE).upsert(
+    vaultDocumentIds.map((id) => ({
+      inspection_record_id: inspectionRecordId,
+      checklist_item_id: checklistItemId,
+      vault_document_id: id,
+      linked_by: user?.id ?? null,
+    })),
+    { onConflict: "inspection_record_id,vault_document_id", ignoreDuplicates: true }
+  );
 
-  if (error) {
-    return {
-      error: error.code === "23505" ? "That document is already linked as evidence for this inspection." : "Could not link the document.",
-    };
-  }
+  if (error) return { error: "Could not link the selected files." };
 
   try {
     const { data: project } = await supabase.from("projects").select("organization_id").eq("id", record.project_id).maybeSingle();
