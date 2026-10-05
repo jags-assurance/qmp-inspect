@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
+import { RenameDocumentForm } from "./rename-document-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { DRAWING_MARKUPS_TABLE, type DrawingMarkupRow } from "@/lib/drawing-markups/types";
@@ -89,6 +90,7 @@ export async function VaultDocumentView({
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Heading className="text-xl font-semibold text-ink sm:text-2xl [overflow-wrap:anywhere]">{document.title}</Heading>
+        <RenameDocumentForm projectId={projectId} documentId={documentId} title={document.title} />
         <PageGuide
           title="Document viewer — how this works"
           points={[

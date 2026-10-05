@@ -755,6 +755,23 @@ export async function reassignSignoffPartyAction(
     return { error: "Could not reassign the party. Check you have permission and try again." };
   }
 
+  // The new login must be a real, active user — never repoint a party at a deactivated or unknown id.
+  const { data: newUser } = await supabase
+    .from("users")
+    .select("id, is_active")
+    .eq("id", newUserId)
+    .maybeSingle<{ id: string; is_active: boolean }>();
+  if (!newUser || newUser.is_active === false) {
+    return { error: "That user doesn't exist or is deactivated, so the party can't be reassigned to them." };
+  }
+
+  const { data: previousLink } = await supabase
+    .from("project_parties")
+    .select("user_id, name")
+    .eq("id", projectPartyId)
+    .maybeSingle<{ user_id: string | null; name: string }>();
+  const previousUserId = previousLink?.user_id ?? null;
+
   const { error } = await supabase
     .from("project_parties")
     .update({ user_id: newUserId })
@@ -804,6 +821,48 @@ export async function reassignSignoffPartyAction(
       });
     } catch {
       // Best-effort — see recordAuditEvent's own doc comment.
+    }
+  }
+
+  // Take the previous login's project access away (only when it isn't still linked to another party
+  // on this project) and tell both people. Best-effort: the reassignment itself already succeeded.
+  if (partyWithType?.projects?.organization_id) {
+    const organizationId = partyWithType.projects.organization_id;
+    try {
+      if (previousUserId && previousUserId !== newUserId) {
+        const { count: stillLinked } = await supabase
+          .from("project_parties")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", party.project_id)
+          .eq("user_id", previousUserId);
+        if (!stillLinked) {
+          await supabase
+            .from("access_grants")
+            .delete()
+            .eq("user_id", previousUserId)
+            .eq("scope_type", "project")
+            .eq("project_id", party.project_id)
+            .eq("role", partyWithType.party_type);
+        }
+        await createNotification(supabase, {
+          organizationId,
+          projectId: party.project_id,
+          recipientUserId: previousUserId,
+          title: "You've been replaced on a project party",
+          body: `${previousLink?.name ?? "A party"} on this project is now linked to someone else.`,
+          link: `/inspect/projects/${party.project_id}`,
+        });
+      }
+      await createNotification(supabase, {
+        organizationId,
+        projectId: party.project_id,
+        recipientUserId: newUserId,
+        title: "You've been linked to a project party",
+        body: `You now act for ${previousLink?.name ?? "a party"} on this project.`,
+        link: `/inspect/projects/${party.project_id}`,
+      });
+    } catch {
+      // Best-effort.
     }
   }
 

@@ -26,6 +26,15 @@ export async function createProjectAction(
   const projectNumber = String(formData.get("project_number") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const siteLocation = String(formData.get("site_location") ?? "").trim();
+  const country = String(formData.get("country") ?? "").trim();
+  const contractNumber = String(formData.get("contract_number") ?? "").trim();
+  const startDate = String(formData.get("start_date") ?? "").trim();
+  const endDate = String(formData.get("end_date") ?? "").trim();
+  const statusRaw = String(formData.get("status") ?? "active").trim();
+  const status = ["draft", "active", "on_hold"].includes(statusRaw) ? statusRaw : "active";
+  if (startDate && endDate && endDate < startDate) {
+    return { error: "The end date can't be before the start date." };
+  }
 
   if (!organizationId || !projectNumber || !name) {
     return { error: "Organisation, project number and name are required." };
@@ -55,6 +64,11 @@ export async function createProjectAction(
       project_number: projectNumber,
       name,
       site_location: siteLocation || null,
+      country: country || null,
+      contract_number: contractNumber || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      status,
       created_by: user?.id ?? null,
     })
     .select("id")

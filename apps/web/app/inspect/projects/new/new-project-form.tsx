@@ -87,6 +87,46 @@ export function NewProjectForm({
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="country" className="block text-sm font-medium text-ink">
+            Country (optional)
+          </label>
+          <input id="country" name="country" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+        <div>
+          <label htmlFor="contract_number" className="block text-sm font-medium text-ink">
+            Contract number (optional)
+          </label>
+          <input id="contract_number" name="contract_number" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+        <div>
+          <label htmlFor="start_date" className="block text-sm font-medium text-ink">
+            Start date (optional)
+          </label>
+          <input id="start_date" name="start_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+        <div>
+          <label htmlFor="end_date" className="block text-sm font-medium text-ink">
+            End date (optional)
+          </label>
+          <input id="end_date" name="end_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+        <div>
+          <label htmlFor="status" className="block text-sm font-medium text-ink">
+            Status
+          </label>
+          <select id="status" name="status" defaultValue="active" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
+            <option value="draft">Draft</option>
+            <option value="active">Active</option>
+            <option value="on_hold">On hold</option>
+          </select>
+        </div>
+      </div>
+      <p className="text-xs text-muted">
+        More site locations and the responsible person are set on the project page after it is created.
+      </p>
+
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>

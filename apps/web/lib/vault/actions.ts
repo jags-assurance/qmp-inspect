@@ -88,17 +88,17 @@ export async function uploadVaultDocumentCore(
     projectNumber: project.project_number,
   });
 
-  let previousLatest: { id: string } | null = null;
+  let previousLatest: { id: string; status: string } | null = null;
   if (documentReference) {
     const { data: existing } = await supabase
       .from(VAULT_DOCUMENTS_TABLE)
-      .select("id")
+      .select("id, status")
       .eq("folder_id", folderId)
       .eq("document_reference", documentReference)
       .neq("status", "superseded")
       .order("created_at", { ascending: false })
       .limit(1)
-      .returns<{ id: string }[]>();
+      .returns<{ id: string; status: string }[]>();
     previousLatest = existing?.[0] ?? null;
   }
 
@@ -124,7 +124,10 @@ export async function uploadVaultDocumentCore(
     return { error: "Could not save the document record. Check you have permission and try again." };
   }
 
-  if (previousLatest) {
+  // A previous revision that is still only "for review" is simply replaced. One that is already
+  // APPROVED stays current until this new revision is itself approved (see approveDocumentAction),
+  // so evidence links and the download pack never lose their approved copy in the meantime.
+  if (previousLatest && previousLatest.status !== "approved") {
     await supabase
       .from(VAULT_DOCUMENTS_TABLE)
       .update({ status: "superseded", superseded_by: document.id })
@@ -138,7 +141,7 @@ export async function uploadVaultDocumentCore(
     entityId: document.id,
     action: "uploaded",
     actorId: uploadedBy,
-    summary: `Document "${title}" uploaded (${documentNumber})${previousLatest ? " — supersedes a prior revision" : ""}`,
+    summary: `Document "${title}" uploaded (${documentNumber})${previousLatest ? (previousLatest.status === "approved" ? " — new revision of an approved document (the approved one stays current until this is approved)" : " — replaces a prior draft revision") : ""}`,
   });
 
   // Best-effort: this is what makes the document usable as AI generation input later (see
@@ -229,3 +232,68 @@ export async function uploadVaultDocumentAction(
 // file's doc comment.
 
 export type { VaultDocumentRow };
+
+export interface RenameVaultDocumentState {
+  error: string | null;
+}
+
+/** Renames a document's title (the upload screen promises "renameable after upload"). Only the
+ *  person who uploaded it, or JAGS staff, may rename. The file, number and revision never change. */
+export async function renameVaultDocumentAction(
+  _prev: RenameVaultDocumentState,
+  formData: FormData
+): Promise<RenameVaultDocumentState> {
+  const documentId = String(formData.get("document_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  if (!documentId || !title) return { error: "A title is required." };
+  if (title.length > 200) return { error: "Title must be 200 characters or fewer." };
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You need to be signed in." };
+
+  const { data: doc } = await supabase
+    .from(VAULT_DOCUMENTS_TABLE)
+    .select("id, title, uploaded_by, vault_folders(project_id, projects(organization_id))")
+    .eq("id", documentId)
+    .maybeSingle<{
+      id: string;
+      title: string;
+      uploaded_by: string | null;
+      vault_folders: { project_id: string; projects: { organization_id: string } | null } | null;
+    }>();
+  if (!doc) return { error: "Document not found, or you don't have access to it." };
+
+  const { data: profile } = await supabase.from("users").select("staff_role").eq("id", user.id).maybeSingle<{ staff_role: string | null }>();
+  const isStaff = !!profile?.staff_role;
+  if (!isStaff && doc.uploaded_by !== user.id) {
+    return { error: "Only the person who uploaded this document, or JAGS staff, can rename it." };
+  }
+
+  const { data: updated, error } = await supabase
+    .from(VAULT_DOCUMENTS_TABLE)
+    .update({ title })
+    .eq("id", documentId)
+    .select("id");
+  if (error || !updated?.length) return { error: "Could not rename the document. Check you have permission and try again." };
+
+  const organizationId = doc.vault_folders?.projects?.organization_id;
+  if (organizationId) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      projectId: doc.vault_folders?.project_id ?? null,
+      entityType: "vault_document",
+      entityId: documentId,
+      action: "renamed",
+      actorId: user.id,
+      summary: `Document renamed from "${doc.title}" to "${title}"`,
+    });
+  }
+
+  revalidatePath(`/inspect/vault/${projectId}/document/${documentId}`);
+  revalidatePath(`/inspect/vault`);
+  return { error: null };
+}

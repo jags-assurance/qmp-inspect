@@ -140,6 +140,26 @@ export async function approveDocumentAction(
     }
   }
 
+  // Once THIS revision is approved, retire any earlier revision of the same document reference.
+  try {
+    const { data: approvedDoc } = await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select("id, folder_id, document_reference, status")
+      .eq("id", documentId)
+      .maybeSingle<{ id: string; folder_id: string; document_reference: string | null; status: string }>();
+    if (approvedDoc?.status === "approved" && approvedDoc.document_reference) {
+      await supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .update({ status: "superseded", superseded_by: approvedDoc.id })
+        .eq("folder_id", approvedDoc.folder_id)
+        .eq("document_reference", approvedDoc.document_reference)
+        .neq("id", approvedDoc.id)
+        .neq("status", "superseded");
+    }
+  } catch {
+    // Best-effort — the approval itself already succeeded.
+  }
+
   try {
     const { data: document } = await supabase
       .from(VAULT_DOCUMENTS_TABLE)
