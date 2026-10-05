@@ -18,6 +18,7 @@ import { CreateDataBookForm } from "./create-databook-form";
 import { CompileDataBookForm, type OpenPunchItemPreview } from "./compile-databook-form";
 import { IssueHandoverForm } from "./issue-handover-form";
 import { DataBookPdfButton } from "./data-book-pdf-button";
+import { DataBookStructurePanel } from "./structure-panel";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -201,6 +202,17 @@ export async function DataBookView({ projectId, embedded = false }: { projectId:
           {project.organizations?.name} · {project.name}
         </p>
       </div>
+
+      <DataBookStructurePanel
+        readiness={readiness}
+        partyCount={(parties ?? []).length}
+        ncrTotal={ncrTotal}
+        ncrClosed={ncrClosed}
+        punchTotal={punchTotal}
+        punchClosed={punchClosed}
+        latestStatus={((dataBooks ?? [])[0]?.status as "draft" | "compiled" | "issued" | undefined) ?? null}
+        handoverIssued={dataBookCertificates.some(Boolean)}
+      />
 
       {/* Project completion dossier summary — "what was done, who did it, how, when" per the client's
           own framing of what a Data Book is meant to be, not just a readiness meter. */}
