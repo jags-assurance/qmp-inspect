@@ -83,7 +83,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
           irns: { id: string }[] | { id: string } | null;
         }[]
       >(),
-    supabase.from("ncrs" as any).select("id, status").eq("project_id", projectId).returns<
+    // Observations are advisory notes, not nonconformances — they must not hold the book at "not ready".
+    supabase.from("ncrs" as any).select("id, status").eq("project_id", projectId).neq("severity", "observation").returns<
       { id: string; status: string }[]
     >(),
     supabase

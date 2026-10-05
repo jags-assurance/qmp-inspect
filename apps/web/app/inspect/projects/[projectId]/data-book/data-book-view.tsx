@@ -162,8 +162,10 @@ export async function DataBookView({ projectId, embedded = false }: { projectId:
   // What was actually done, by severity/status — real counts pulled together here rather than
   // fabricated, so the page answers "what was done" at a glance the way the PDF's own summary does.
   const ncrRows = ncrs ?? [];
-  const ncrTotal = ncrRows.length;
-  const ncrClosed = ncrRows.filter((n) => n.status === "closed").length;
+  // Observations are advisory, not nonconformances — excluded from the closed-out count (matches readiness).
+  const countedNcrs = ncrRows.filter((n) => n.severity !== "observation");
+  const ncrTotal = countedNcrs.length;
+  const ncrClosed = countedNcrs.filter((n) => n.status === "closed").length;
   const ncrBySeverity = (["observation", "minor_ncr", "major_ncr"] as const).map((severity) => ({
     severity,
     label: NCR_SEVERITY_LABEL[severity],
