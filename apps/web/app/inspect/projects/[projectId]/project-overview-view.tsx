@@ -318,6 +318,10 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
         ) : (
           <span className="text-sm text-muted">Not set</span>
         )}
+        <span className="w-full text-xs text-muted">
+          The one named person to go to for this project overall — who the client and parties contact first. It is separate from
+          the Hold / Witness / Review assignments, which are per activity.
+        </span>
       </div>
       {isAdminStaff(session) && (
         <ResponsiblePersonPicker

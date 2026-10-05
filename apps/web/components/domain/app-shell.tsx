@@ -9,6 +9,8 @@ import { SidebarMobileProvider } from "./sidebar-mobile-context";
 import { MobileSidebarToggle } from "./mobile-sidebar-toggle";
 import { IdleTimeout } from "./idle-timeout";
 import { CommandPalette } from "./command-palette";
+import { UserMenu } from "./user-menu";
+import { BackNavigation } from "./back-navigation";
 
 export interface NavItem {
   label: string;
@@ -51,6 +53,7 @@ export async function AppShell({
   userRole,
   breadcrumb,
   orgBranding = null,
+  userMenuLinks = [],
   children,
 }: {
   navItems: NavItem[];
@@ -59,11 +62,14 @@ export async function AppShell({
   userRole: string;
   breadcrumb: string;
   orgBranding?: OrgBrandingInfo | null;
+  /** Extra entries for the top-right account menu (Sign out is always last). */
+  userMenuLinks?: { label: string; href: string }[];
   children: ReactNode;
 }) {
   return (
     <SidebarMobileProvider>
       <IdleTimeout />
+      <BackNavigation />
       <div className="flex min-h-screen">
         <SidebarShell
           navItems={navItems}
@@ -85,20 +91,7 @@ export async function AppShell({
             <Suspense fallback={<NotificationsBell userId={userId} initialNotifications={[]} />}>
               <NotificationsBellLoader userId={userId} />
             </Suspense>
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
-                {userName
-                  .split(" ")
-                  .map((part) => part[0])
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase()}
-              </div>
-              <div className="hidden leading-tight sm:block">
-                <div className="text-sm font-medium text-ink">{userName}</div>
-                <div className="text-xs text-muted">{userRole}</div>
-              </div>
-            </div>
+            <UserMenu userName={userName} userRole={userRole} signOutAction={signOutAction} links={userMenuLinks} />
           </div>
         </header>
         <OfflineBanner />

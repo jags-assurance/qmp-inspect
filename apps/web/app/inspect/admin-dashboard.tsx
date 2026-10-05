@@ -35,6 +35,8 @@ export interface RecentActivityItem {
   actorName: string | null;
   projectLabel: string | null;
   createdAt: string;
+  /** Where the event's own record lives; the row opens it directly. */
+  href: string | null;
 }
 
 function timeAgo(iso: string): string {
@@ -99,7 +101,6 @@ export function AdminDashboard({
   openNcrItems,
   overdueHoldsTile,
   overdueHoldsCard,
-  todayQueue,
 }: {
   firstName: string;
   today: string;
@@ -117,8 +118,6 @@ export function AdminDashboard({
   /** Streamed server pieces (see admin-overdue-holds.tsx) so the slowest query doesn't block the page. */
   overdueHoldsTile: ReactNode;
   overdueHoldsCard: ReactNode;
-  /** The Today queue, built by the page so the slow hold-point query can stream into it. */
-  todayQueue: ReactNode;
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -160,8 +159,6 @@ export function AdminDashboard({
         </Link>
       </div>
 
-      {todayQueue}
-
       {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
         {overdueHoldsTile}
@@ -194,6 +191,7 @@ export function AdminDashboard({
         <StatCard
           label="Pending inspections"
           value={pendingInspections}
+          href="/inspect/start-work"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -206,6 +204,7 @@ export function AdminDashboard({
         <StatCard
           label="Active projects"
           value={activeProjects}
+          href="/inspect/projects"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -218,6 +217,7 @@ export function AdminDashboard({
         <StatCard
           label="Active ITPs"
           value={activeItps}
+          href="/inspect/itps"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-[color:var(--color-burgundy-dark)]">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -246,11 +246,7 @@ export function AdminDashboard({
           seeAllHref="/inspect/ncrs"
           emptyText="No open NCRs."
           renderItem={(item) => (
-            <button
-              type="button"
-              onClick={() => panel.open(`ncr:${item.id}`)}
-              className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-off-white"
-            >
+            <Link href={`/inspect/ncrs/${item.id}`} className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-off-white">
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
                   {item.severity === "major_ncr" ? "Major" : "Minor"}
@@ -264,8 +260,8 @@ export function AdminDashboard({
                 </span>
                 <span className="shrink-0 whitespace-nowrap">Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
               </span>
-              <span className="mt-1 block text-xs font-medium text-burgundy">Preview →</span>
-            </button>
+              <span className="mt-1 block text-xs font-medium text-burgundy">Open NCR →</span>
+            </Link>
           )}
         />
 
@@ -274,7 +270,8 @@ export function AdminDashboard({
           description="Across every organisation your access reaches."
           items={recentActivity}
           emptyText="No recent activity."
-          renderItem={(event) => (
+          renderItem={(event) => {
+            const body = (
             <>
               <p className="text-ink">
                 {event.actorName && <span className="font-medium">{event.actorName}</span>}
@@ -290,7 +287,16 @@ export function AdminDashboard({
                 </span>
               </p>
             </>
-          )}
+            );
+            return event.href ? (
+              <Link href={event.href} className="block rounded-md px-1.5 py-1 hover:bg-off-white">
+                {body}
+                <span className="mt-1 block text-xs font-medium text-burgundy">Open →</span>
+              </Link>
+            ) : (
+              body
+            );
+          }}
         />
       </div>
 
@@ -393,13 +399,9 @@ export function AdminDashboard({
                   r.activeProjects === 0 ? (
                     <span className="text-muted">0</span>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => panel.open(`org:${r.id}`)}
-                      className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline"
-                    >
-                      {r.activeProjects} →
-                    </button>
+                    <Link href={`/inspect/projects?org=${r.id}`} className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline">
+                      {r.activeProjects} project{r.activeProjects === 1 ? "" : "s"} →
+                    </Link>
                   ),
               },
               {

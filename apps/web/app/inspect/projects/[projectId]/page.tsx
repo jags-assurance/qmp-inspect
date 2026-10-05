@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { ProjectStatusControl } from "./project-status-control";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -110,7 +111,11 @@ export default async function ProjectWorkspacePage({
             {project.country && `, ${project.country}`}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
+        {isAdminStaff(session) ? (
+          <ProjectStatusControl projectId={project.id} status={project.status} />
+        ) : (
+          <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
+        )}
       </div>
 
       {tabBar}

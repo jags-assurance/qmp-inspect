@@ -17,8 +17,6 @@ import { InspectorDashboard } from "./inspector-dashboard";
 import { Suspense } from "react";
 import { AdminDashboard } from "./admin-dashboard";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
-import { TodayQueue } from "@/components/domain/today-queue";
-import { buildAdminToday } from "@/lib/dashboard/today";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
 import { StatCard } from "@/components/ui/stat-card";
 import type { OrgHealth } from "@/lib/dashboard/widgets";
@@ -60,6 +58,50 @@ function timeAgo(iso: string | null): string | null {
  * the JAGS Admin view still rendered inline below. Each was designed against its own UI reference
  * screen rather than sharing one generic layout, so they're built and reviewed one at a time.
  */
+/**
+ * Where a recent-activity row should open: the record the event is about when it has its own page,
+ * otherwise the right tab of its project. Null only when there is nothing sensible to open.
+ */
+function activityHref(entityType: string, entityId: string | null, projectId: string | null): string | null {
+  const project = (tab?: string) => (projectId ? `/inspect/projects/${projectId}${tab ? `?tab=${tab}` : ""}` : null);
+  switch (entityType) {
+    case "ncr":
+      return entityId ? `/inspect/ncrs/${entityId}` : project("ncrs");
+    case "itp":
+      return entityId ? `/inspect/itps?itp=${entityId}` : project("itps");
+    case "itp_item":
+    case "itp_item_measurement":
+    case "itp_item_evidence_document":
+    case "activity_party_intervention":
+    case "signoff":
+    case "expected_record":
+      return project("itps");
+    case "inspection_record":
+      return entityId ? `/inspect/inspections/${entityId}` : project();
+    case "punch_list_item":
+      return projectId ? `/inspect/projects/${projectId}?tab=punch-list${entityId ? `&item=${entityId}` : ""}` : null;
+    case "standalone_assignment":
+      return entityId ? `/inspect/standalone/${entityId}` : "/inspect/standalone";
+    case "handover_certificate":
+    case "data_book":
+      return project("data-book");
+    case "calibration_entry":
+    case "welder_qualification_entry":
+    case "material_register_entry":
+      return project("registers");
+    case "vault_document":
+      return "/inspect/vault";
+    case "itp_master_proposal":
+      return "/inspect/itp-master/proposals";
+    case "organization_branding":
+      return "/inspect/settings?section=branding";
+    case "staff_access_grant":
+      return "/inspect/settings?section=staff-access";
+    default:
+      return project();
+  }
+}
+
 export default async function InspectDashboardPage() {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -118,7 +160,7 @@ export default async function InspectDashboardPage() {
       // organisation without visiting each project individually.
       supabase
         .from(AUDIT_LOG_TABLE)
-        .select("id, summary, created_at, actor:users(full_name), projects(project_number, name)")
+        .select("id, summary, created_at, entity_type, entity_id, project_id, actor:users(full_name), projects(project_number, name)")
         .order("created_at", { ascending: false })
         .limit(8)
         .returns<
@@ -126,6 +168,9 @@ export default async function InspectDashboardPage() {
             id: string;
             summary: string;
             created_at: string;
+            entity_type: string;
+            entity_id: string | null;
+            project_id: string | null;
             actor: { full_name: string } | null;
             projects: { project_number: string; name: string } | null;
           }[]
@@ -388,6 +433,7 @@ export default async function InspectDashboardPage() {
     actorName: string | null;
     projectLabel: string | null;
     createdAt: string;
+    href: string | null;
   }[] = [];
   let openNcrItems: {
     id: string;
@@ -436,6 +482,7 @@ export default async function InspectDashboardPage() {
       actorName: row.actor?.full_name ?? null,
       projectLabel: row.projects ? `${row.projects.project_number} — ${row.projects.name}` : null,
       createdAt: row.created_at,
+      href: activityHref(row.entity_type, row.entity_id, row.project_id),
     }));
 
     // Per-org portfolio counts: no GROUP BY over PostgREST, so counted client-side from the raw
@@ -773,26 +820,6 @@ export default async function InspectDashboardPage() {
     );
   }
 
-  const adminTodayItems = buildAdminToday({
-    ncrs: openNcrItems.map((n) => ({
-      id: n.id,
-      ncrNumber: n.ncrNumber,
-      severity: n.severity,
-      description: n.description,
-      projectLabel: n.projectLabel,
-      dueDate: n.dueDate,
-    })),
-    proposals: pendingProposals.map((p) => ({
-      id: p.id,
-      title:
-        p.proposed_action === "new_template"
-          ? `New template: ${p.proposed_title || p.itps?.title || "Untitled"}`
-          : "Update existing template",
-    })),
-  });
-  const adminTodayDescription =
-    "NCRs and library proposals waiting on you. Click a row to act on it here, without leaving the dashboard. Overdue hold points have their own window below.";
-
   // Only JAGS Admin reaches this point — external parties and Inspectors both returned their own
   // dedicated dashboard component above.
   return (
@@ -817,15 +844,6 @@ export default async function InspectDashboardPage() {
       orgPortfolio={orgPortfolio}
       recentActivity={recentActivity}
       openNcrItems={openNcrItems}
-      // Overdue hold points are deliberately NOT repeated here: they have their own tile and an
-      // anchored "Overdue hold points" window below. Today lists only what needs the admin's decision.
-      todayQueue={
-        <TodayQueue
-          description={adminTodayDescription}
-          items={adminTodayItems}
-          emptyText="No NCRs or library proposals waiting on you."
-        />
-      }
       overdueHoldsTile={
         <Suspense fallback={<StatCard label="Overdue hold points" value="…" />}>
           <OverdueHoldsTile />

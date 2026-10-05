@@ -230,6 +230,11 @@ export default async function InspectLayout({ children }: { children: React.Reac
       userRole={userRole}
       breadcrumb="QMP Inspect"
       orgBranding={orgBranding}
+      userMenuLinks={[
+        { label: "Dashboard", href: "/inspect" },
+        ...(isAdminStaff(session) ? [{ label: "Settings", href: "/inspect/settings" }] : []),
+        { label: "Guide", href: "/inspect/guide" },
+      ]}
     >
       {children}
     </AppShell>

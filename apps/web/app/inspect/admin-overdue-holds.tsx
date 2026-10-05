@@ -50,7 +50,7 @@ const CLOCK_ICON = (
 
 export async function OverdueHoldsTile() {
   const items = await getOverdueHoldPoints();
-  return <StatCard label="Overdue hold points" value={items.length} icon={CLOCK_ICON} />;
+  return <StatCard label="Overdue hold points" value={items.length} href="#overdue-holds" icon={CLOCK_ICON} />;
 }
 
 export async function OverdueHoldsCard() {
