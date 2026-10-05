@@ -1,3 +1,4 @@
+import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
 import { supabase } from "../supabase";
@@ -105,6 +106,7 @@ export async function generateWeeklyReportPack(
 
   const templateData: WeeklyReportTemplateData = {
     organizationName: agg.organizationName,
+    branding: await getOrgBranding(supabase, organizationId),
     weekStartIso: weekStart,
     weekEndIso: endDate.toISOString().slice(0, 10),
     weekLabel,

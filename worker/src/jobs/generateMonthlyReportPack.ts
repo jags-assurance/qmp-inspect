@@ -1,3 +1,4 @@
+import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
 import { supabase } from "../supabase";
@@ -92,6 +93,7 @@ export async function generateMonthlyReportPack(
 
   const templateData: MonthlyReportTemplateData = {
     organizationName: agg.organizationName,
+    branding: await getOrgBranding(supabase, organizationId),
     year,
     month,
     monthLabel,

@@ -1,3 +1,4 @@
+import { brandColorStyle } from "./orgBranding";
 // Renders the printable HTML for a FAT / Standalone Assignment Report (R14) — the client
 // deliverable for a Factory Acceptance Test, witness inspection, specific test or pre-shipment
 // check run without a full ITP. Puppeteer renders this to portrait A4 PDF in
@@ -31,6 +32,8 @@ export interface FatReportSignature {
 }
 
 export interface FatReportData {
+  /** Organisation brand colours (co-branded / white-label only) — see orgBranding.ts. */
+  branding?: { brandPrimaryColor?: string | null; brandAccentColor?: string | null };
   assignmentNumber: string;
   assignmentType: string;
   equipmentDescription: string;
@@ -254,6 +257,7 @@ export function buildFatReportHtml(data: FatReportData): string {
 </style>
 </head>
 <body>
+${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>

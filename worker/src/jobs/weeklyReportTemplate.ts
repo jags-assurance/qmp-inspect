@@ -1,3 +1,4 @@
+import { brandColorStyle } from "./orgBranding";
 // Renders the printable HTML for the weekly client report pack — the same KPI set as the monthly
 // pack (monthlyReportTemplate.ts) but scoped to a 7-day window instead of a calendar month. Kept as
 // its own template file (rather than parameterising buildMonthlyReportHtml) to match this
@@ -9,6 +10,8 @@
 import type { MonthlyReportProjectRow } from "./monthlyReportTemplate";
 
 export interface WeeklyReportTemplateData {
+  /** Organisation brand colours (co-branded / white-label only) — see orgBranding.ts. */
+  branding?: { brandPrimaryColor?: string | null; brandAccentColor?: string | null };
   organizationName: string;
   weekStartIso: string; // YYYY-MM-DD, inclusive
   weekEndIso: string; // YYYY-MM-DD, inclusive (weekStart + 6 days)
@@ -289,6 +292,7 @@ export function buildWeeklyReportHtml(data: WeeklyReportTemplateData): string {
 </style>
 </head>
 <body>
+${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>

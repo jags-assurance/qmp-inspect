@@ -1,3 +1,4 @@
+import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { autoFileVaultDocument } from "./vaultAutoFile";
@@ -112,6 +113,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     notes: a.notes,
     narrative: a.narrative,
     organizationName: organization.name,
+    branding: await getOrgBranding(supabase, project.organization_id),
     projectName: project.name,
     measurements: ((measurements ?? []) as unknown as {
       description: string;
