@@ -1053,6 +1053,20 @@ export async function linkInspectionEvidenceDocumentAction(
     return { error: "Only JAGS staff or the party assigned to this activity can link evidence." };
   }
 
+  {
+    const { data: linkDocs } = await supabase
+      .from("vault_documents")
+      .select("id, status, vault_folders(project_id)")
+      .in("id", vaultDocumentIds)
+      .returns<{ id: string; status: string; vault_folders: { project_id: string } | null }[]>();
+    if ((linkDocs ?? []).length !== vaultDocumentIds.length || (linkDocs ?? []).some((d) => d.vault_folders?.project_id !== record.project_id)) {
+      return { error: "One of the selected files isn't in this project's own Document Vault." };
+    }
+    if ((linkDocs ?? []).some((d) => d.status !== "approved")) {
+      return { error: "Only approved files can be linked as evidence — get the others approved in the Document Vault first." };
+    }
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -114,6 +114,7 @@ export default async function StandaloneAssignmentDetailPage({
         .from(VAULT_DOCUMENTS_TABLE)
         .select("id, title, document_reference, vault_folders!inner(project_id, name)")
         .eq("vault_folders.project_id", assignment.project_id)
+        .eq("status", "approved")
         .order("title")
         .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
       supabase

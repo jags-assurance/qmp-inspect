@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { INSPECTION_LOCATION_PRESETS_TABLE } from "./location-presets";
 
 async function canManagePresets(
@@ -16,7 +17,9 @@ async function canManagePresets(
     .select("engagement_scope")
     .eq("id", organizationId)
     .maybeSingle<{ engagement_scope: string }>();
-  return org?.engagement_scope === "self_managed" || org?.engagement_scope === "client_managed";
+  if (org?.engagement_scope !== "self_managed" && org?.engagement_scope !== "client_managed") return false;
+  // Organisation-wide members only — not a project-scoped contractor/TPI.
+  return (await getSelfManagedOrgIdsForUser(supabase, session.userId)).has(organizationId);
 }
 
 export interface AddLocationPresetState {

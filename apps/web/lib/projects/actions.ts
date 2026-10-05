@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
@@ -34,6 +35,18 @@ export async function createProjectAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const session = await requireSession();
+  if (!isAdminStaff(session)) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("engagement_scope")
+      .eq("id", organizationId)
+      .maybeSingle<{ engagement_scope: string }>();
+    if (org?.engagement_scope !== "self_managed" && org?.engagement_scope !== "client_managed") {
+      return { error: "Only a JAGS Admin can create a project for this organisation." };
+    }
+  }
 
   const { data: project, error } = await supabase
     .from("projects")
@@ -67,7 +80,7 @@ export async function createProjectAction(
     summary: `Project ${projectNumber} "${name}" created`,
   });
 
-  redirect("/inspect/projects");
+  redirect(`/inspect/projects/${project.id}`);
 }
 
 export interface AddProjectPartyState {
@@ -130,6 +143,18 @@ export async function addProjectPartyAction(
     (await hasPermission(session.userId, "add_project_party", projectId));
   if (!allowed) {
     return { error: "Only a JAGS Admin, a lead of a team assigned to this project, or someone granted this permission, can add a project party." };
+  }
+
+  const { data: duplicate } = await supabase
+    .from("project_parties")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("party_type", partyType)
+    .ilike("name", name.replace(/[%_\\]/g, (m) => `\\${m}`))
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+  if (duplicate) {
+    return { error: `A ${partyType.replace(/_/g, " ")} party named "${name}" is already on this project.` };
   }
 
   const { data: party, error } = await supabase
@@ -235,6 +260,14 @@ export async function addSelfManagedPartyAction(
   }
   if (project.organizations?.engagement_scope !== "self_managed" && project.organizations?.engagement_scope !== "client_managed") {
     return { error: "This is only available on projects belonging to a self-managed or client-managed client organisation." };
+  }
+  // Only the organisation's own organisation-wide members may onboard parties — a project-scoped
+  // (contractor / TPI) user must not be able to grant access.
+  if (!isAdminStaff(session)) {
+    const orgIds = await getSelfManagedOrgIdsForUser(supabase, session.userId);
+    if (!orgIds.has(project.organization_id)) {
+      return { error: "Only your organisation's own members can add parties to this project." };
+    }
   }
 
   // Escape ILIKE's own wildcard characters so a literal email is matched, not a pattern — email is

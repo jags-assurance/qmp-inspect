@@ -231,6 +231,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .from(VAULT_DOCUMENTS_TABLE)
         .select("id, title, document_reference, vault_folders!inner(project_id, name)")
         .eq("vault_folders.project_id", project.id)
+        .eq("status", "approved")
         .order("title")
         .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
     ]);

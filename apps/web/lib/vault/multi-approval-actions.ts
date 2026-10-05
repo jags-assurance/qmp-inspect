@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
@@ -43,7 +44,8 @@ export async function setDocumentApproversAction(
     return { error: "This document is already approved — the approver list can't be changed after the fact." };
   }
 
-  await supabase.from(VAULT_DOCUMENT_APPROVERS_TABLE).delete().eq("document_id", documentId);
+  const { error: clearError } = await supabase.from(VAULT_DOCUMENT_APPROVERS_TABLE).delete().eq("document_id", documentId);
+  if (clearError) return { error: "Could not update the approver list. Check you have permission and try again." };
 
   if (approverUserIds.length > 0) {
     const { error } = await supabase.from(VAULT_DOCUMENT_APPROVERS_TABLE).insert(
@@ -78,10 +80,13 @@ export async function approveDocumentAction(
   const documentId = String(formData.get("document_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
   const folderId = String(formData.get("folder_id") ?? "").trim();
-  const canApproveGenerally = formData.get("can_approve_generally") === "true";
   if (!documentId) return { error: "Missing document." };
 
   const supabase = await createSupabaseServerClient();
+
+  // Never trust a client-posted flag: work out server-side whether this caller may approve outright.
+  const canApproveGenerally =
+    isAdminStaff(session) || (await hasPermission(session.userId, "approve_vault_document", projectId || undefined));
 
   const { data: approvers } = await supabase
     .from(VAULT_DOCUMENT_APPROVERS_TABLE)
@@ -94,12 +99,14 @@ export async function approveDocumentAction(
     if (!canApproveGenerally) {
       return { error: "Only a JAGS Admin, or someone granted this permission, can approve a document." };
     }
-    const { error } = await supabase
+    const { data: approvedRows, error } = await supabase
       .from(VAULT_DOCUMENTS_TABLE)
       .update({ status: "approved", approved_by: session.userId, approved_at: new Date().toISOString() })
       .eq("id", documentId)
-      .eq("status", "for_review");
+      .eq("status", "for_review")
+      .select("id");
     if (error) return { error: "Could not approve the document. Check you have permission and try again." };
+    if (!approvedRows?.length) return { error: "This document is no longer awaiting review (it may already be approved or superseded)." };
   } else {
     const myRow = approvers.find((a) => a.approver_user_id === session.userId);
     if (!myRow) {

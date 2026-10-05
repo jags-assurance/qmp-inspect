@@ -903,6 +903,25 @@ export async function linkAssignmentEvidenceDocumentAction(
   const access = await requireStandaloneAccess(session, supabase, assignmentId);
   if (access.error) return { error: access.error };
 
+  const { data: assignmentProject } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .select("project_id")
+    .eq("id", assignmentId)
+    .maybeSingle<{ project_id: string }>();
+  {
+    const { data: linkDocs } = await supabase
+      .from("vault_documents")
+      .select("id, status, vault_folders(project_id)")
+      .in("id", vaultDocumentIds)
+      .returns<{ id: string; status: string; vault_folders: { project_id: string } | null }[]>();
+    if ((linkDocs ?? []).length !== vaultDocumentIds.length || (linkDocs ?? []).some((d) => d.vault_folders?.project_id !== assignmentProject?.project_id)) {
+      return { error: "One of the selected files isn't in this project's own Document Vault." };
+    }
+    if ((linkDocs ?? []).some((d) => d.status !== "approved")) {
+      return { error: "Only approved files can be linked as evidence — get the others approved in the Document Vault first." };
+    }
+  }
+
   const { error } = await supabase
     .from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS)
     .upsert(

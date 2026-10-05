@@ -77,11 +77,23 @@ export default async function VaultRevisionComparePage({
         .returns<RevisionRow[]>()
     : { data: [] as RevisionRow[] };
 
-  const signedUrls = await getSignedPhotoUrls(
+  // Manually uploaded files live in "inspection-evidence" with a bare path; worker auto-filed PDFs
+  // are stored as "generated-documents:<path>" in a separate bucket.
+  const GENERATED_PREFIX = "generated-documents:";
+  const allPaths = (revisionRows ?? []).map((r) => r.storage_path);
+  const uploadedUrls = await getSignedPhotoUrls(
     supabase,
     "inspection-evidence",
-    (revisionRows ?? []).map((r) => r.storage_path)
+    allPaths.filter((p) => !p.startsWith(GENERATED_PREFIX))
   );
+  const generatedUrls = await getSignedPhotoUrls(
+    supabase,
+    "generated-documents",
+    allPaths.filter((p) => p.startsWith(GENERATED_PREFIX)).map((p) => p.slice(GENERATED_PREFIX.length))
+  );
+  const signedUrls = {
+    get: (p: string) => (p.startsWith(GENERATED_PREFIX) ? generatedUrls.get(p.slice(GENERATED_PREFIX.length)) : uploadedUrls.get(p)),
+  };
 
   const revisions: CompareRevisionRow[] = (revisionRows ?? []).map((r) => ({
     id: r.id,

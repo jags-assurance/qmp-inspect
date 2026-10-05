@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -181,7 +182,9 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
   // regardless of the org's scope.
   const canAddSelfManagedParty =
     !session.isJagsStaff &&
-    (project.organizations?.engagement_scope === "self_managed" || project.organizations?.engagement_scope === "client_managed");
+    (project.organizations?.engagement_scope === "self_managed" || project.organizations?.engagement_scope === "client_managed") &&
+    // Organisation-wide members only — a project-scoped contractor/TPI must not see (or use) this.
+    (await getSelfManagedOrgIdsForUser(supabase, session.userId)).has(project.organization_id);
 
   // "Full Client-Managed" tier's whole point: this org's own people can provision brand-new logins
   // for their own team without a JAGS Admin, via the provision_party_login custom-role grant (see

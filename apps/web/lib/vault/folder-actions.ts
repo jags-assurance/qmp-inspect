@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { VAULT_FOLDERS_TABLE } from "@/lib/vault/types";
@@ -37,12 +38,16 @@ export async function createCustomVaultFolderAction(
   if (!isAdminStaff(session)) {
     const { data: project } = await supabase
       .from("projects")
-      .select("organizations(engagement_scope)")
+      .select("organization_id, organizations(engagement_scope)")
       .eq("id", projectId)
-      .maybeSingle<{ organizations: { engagement_scope: string } | null }>();
+      .maybeSingle<{ organization_id: string; organizations: { engagement_scope: string } | null }>();
     const scope = project?.organizations?.engagement_scope;
     if (scope !== "self_managed" && scope !== "client_managed") {
       return { error: "Only a JAGS Admin, or a self-managed/client-managed organisation's own admin, can add a category." };
+    }
+    // Organisation-wide members only; a project-scoped contractor/TPI cannot add categories.
+    if (!project || !(await getSelfManagedOrgIdsForUser(supabase, session.userId)).has(project.organization_id)) {
+      return { error: "Only your organisation's own members can add a category." };
     }
   }
 

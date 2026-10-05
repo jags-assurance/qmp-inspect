@@ -74,7 +74,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .from(VAULT_DOCUMENTS_TABLE)
     .select("id, folder_id, title, document_number, revision, storage_path, status")
     .in("folder_id", folderIds)
-    .neq("status", "superseded")
+    // Approved, current documents only — a handover pack must not include drafts still in review.
+    .eq("status", "approved")
     .returns<DocumentRow[]>();
 
   if (documentsError) {
@@ -95,6 +96,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // finalizes. Errors reading an individual file are logged and skipped rather than failing the
   // whole zip — one bad/missing object shouldn't block downloading everything else.
   (async () => {
+   try {
     // Name collisions within the same folder (e.g. two revisions with the same title) are
     // disambiguated with a numeric suffix rather than silently overwriting one in the zip.
     const usedNames = new Set<string>();
@@ -119,7 +121,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       const buffer = Buffer.from(await fileBlob.arrayBuffer());
       archive.append(buffer, { name: entryName });
     }
+   } catch (err) {
+    console.error("[vault download-all] aborted:", err);
+   } finally {
     void archive.finalize();
+   }
   })();
 
   const webStream = Readable.toWeb(archive as unknown as Readable) as ReadableStream;
