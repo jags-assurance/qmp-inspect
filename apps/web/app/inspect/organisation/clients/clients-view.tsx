@@ -46,7 +46,7 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
     supabase
       .from("organizations")
       .select("id, name, slug, engagement_mode, engagement_scope, is_active, ai_consent, created_at")
-      .order("name")
+      .order("created_at", { ascending: false })
       .returns<OrganizationRow[]>(),
     supabase.from("projects").select("organization_id").returns<{ organization_id: string }[]>(),
   ]);

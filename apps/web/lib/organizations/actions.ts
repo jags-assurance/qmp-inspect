@@ -7,6 +7,8 @@ import { recordAuditEvent } from "@/lib/audit/log";
 
 export interface CreateOrganizationState {
   error: string | null;
+  /** Name of the organisation that was just created — drives the success message. */
+  created?: string | null;
 }
 
 function slugify(name: string): string {
@@ -85,5 +87,6 @@ export async function createOrganizationAction(
   revalidatePath("/inspect/projects/new");
   revalidatePath("/inspect/organisation/numbering");
   revalidatePath("/inspect/organisation/staff-access");
-  return { error: null };
+  revalidatePath("/inspect/settings");
+  return { error: null, created: name };
 }
