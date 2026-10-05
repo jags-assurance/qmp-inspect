@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { ApproveDocumentButton } from "./approve-document-button";
+import { RejectDocumentButton } from "./reject-document-button";
 import type { VaultDocKind, VaultFileType } from "@/lib/vault/doc-kind";
 
 export interface VaultDocumentTableRow {
@@ -16,6 +17,7 @@ export interface VaultDocumentTableRow {
   revision: string;
   document_date: string | null;
   status: string;
+  rejection_reason?: string | null;
   created_at: string;
   uploader_name: string | null;
   /** What the document is (generated ITP/NCR/inspection report vs. an upload) and its file type — both colour-coded. */
@@ -31,12 +33,14 @@ const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> 
   approved: "success",
   for_review: "warning",
   superseded: "neutral",
+  rejected: "danger",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   approved: "Approved",
   for_review: "For review",
   superseded: "Superseded",
+  rejected: "Rejected",
 };
 
 function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRow>[] {
@@ -76,6 +80,11 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
       render: (row) => (
         <span className="flex items-center gap-1.5">
           <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
+          {row.status === "rejected" && row.rejection_reason && (
+            <span className="text-xs text-muted" title={row.rejection_reason}>
+              {row.rejection_reason.length > 40 ? `${row.rejection_reason.slice(0, 40)}…` : row.rejection_reason}
+            </span>
+          )}
           {row.approverProgress && row.status === "for_review" && (
             <span className="text-xs text-muted" title="Custom approvers required for this document">
               {row.approverProgress[0]}/{row.approverProgress[1]} agreed
@@ -117,13 +126,16 @@ function buildColumns(canApprove: boolean): DataTableColumn<VaultDocumentTableRo
       const isNamedApprover = row.approverProgress ? row.approverProgress[2] : false;
       if (!canApprove && !isNamedApprover) return null;
       return (
-        <ApproveDocumentButton
-          documentId={row.id}
-          projectId={row.project_id}
-          folderId={row.folder_id}
-          canApproveGenerally={canApprove}
-          label={row.approverProgress ? "Agree" : "Approve"}
-        />
+        <span className="flex flex-wrap items-center gap-2">
+          <ApproveDocumentButton
+            documentId={row.id}
+            projectId={row.project_id}
+            folderId={row.folder_id}
+            canApproveGenerally={canApprove}
+            label={row.approverProgress ? "Agree" : "Approve"}
+          />
+          <RejectDocumentButton documentId={row.id} projectId={row.project_id} folderId={row.folder_id} />
+        </span>
       );
     },
   });

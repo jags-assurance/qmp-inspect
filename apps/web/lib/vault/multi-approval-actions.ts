@@ -189,3 +189,87 @@ export async function approveDocumentAction(
   if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
   return { error: null };
 }
+
+export interface RejectDocumentState {
+  error: string | null;
+}
+
+/**
+ * Sends a document back with a written reason. Same authority as approving: a JAGS Admin, someone
+ * granted approve_vault_document, or, when an approver list is configured, one of the named
+ * approvers. A rejected document can't be linked as evidence and isn't in the download pack; a new
+ * upload with the same document reference replaces it.
+ */
+export async function rejectDocumentAction(
+  _prev: RejectDocumentState,
+  formData: FormData
+): Promise<RejectDocumentState> {
+  const session = await requireSession();
+  const documentId = String(formData.get("document_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const folderId = String(formData.get("folder_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!documentId) return { error: "Missing document." };
+  if (reason.length < 5) return { error: "Give a reason for rejecting (at least 5 characters)." };
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: approvers } = await supabase
+    .from(VAULT_DOCUMENT_APPROVERS_TABLE)
+    .select("id, approver_user_id")
+    .eq("document_id", documentId)
+    .returns<{ id: string; approver_user_id: string }[]>();
+
+  const isNamedApprover = (approvers ?? []).some((a) => a.approver_user_id === session.userId);
+  const allowed =
+    isAdminStaff(session) ||
+    isNamedApprover ||
+    (await hasPermission(session.userId, "approve_vault_document", projectId || undefined));
+  if (!allowed) {
+    return { error: "Only a JAGS Admin, a named approver, or someone granted the approve permission can reject a document." };
+  }
+
+  const { data: rejectedRows, error } = await supabase
+    .from(VAULT_DOCUMENTS_TABLE)
+    .update({
+      status: "rejected",
+      rejected_by: session.userId,
+      rejected_at: new Date().toISOString(),
+      rejection_reason: reason,
+    })
+    .eq("id", documentId)
+    .eq("status", "for_review")
+    .select("id, title, vault_folders(project_id, projects(organization_id))")
+    .returns<{ id: string; title: string; vault_folders: { project_id: string; projects: { organization_id: string } | null } | null }[]>();
+  if (error) return { error: "Could not reject the document. Check you have permission and try again." };
+  if (!rejectedRows?.length) return { error: "This document is no longer awaiting review." };
+
+  if (isNamedApprover) {
+    await supabase
+      .from(VAULT_DOCUMENT_APPROVERS_TABLE)
+      .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+      .eq("document_id", documentId)
+      .eq("approver_user_id", session.userId);
+  }
+
+  try {
+    const doc = rejectedRows[0];
+    const organizationId = doc.vault_folders?.projects?.organization_id;
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: doc.vault_folders?.project_id ?? null,
+        entityType: "vault_document",
+        entityId: documentId,
+        action: "rejected",
+        actorId: session.userId,
+        summary: `Document "${doc.title}" rejected: ${reason}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
+  return { error: null };
+}

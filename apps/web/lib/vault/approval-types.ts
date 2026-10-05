@@ -7,6 +7,6 @@ export interface VaultDocumentApproverRow {
   id: string;
   document_id: string;
   approver_user_id: string;
-  status: "pending" | "approved";
+  status: "pending" | "approved" | "rejected";
   reviewed_at: string | null;
 }

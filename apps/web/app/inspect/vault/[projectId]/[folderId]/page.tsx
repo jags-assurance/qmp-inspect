@@ -23,6 +23,7 @@ interface DocumentWithUploader {
   revision: string;
   document_date: string | null;
   status: string;
+  rejection_reason: string | null;
   created_at: string;
   storage_path: string;
   users: { full_name: string } | null;
@@ -63,7 +64,7 @@ export default async function VaultFolderPage({
   const { data: documents, error: documentsError } = await supabase
     .from(VAULT_DOCUMENTS_TABLE)
     .select(
-      "id, title, document_number, document_reference, revision, document_date, status, created_at, storage_path, users!uploaded_by(full_name)"
+      "id, title, document_number, document_reference, revision, document_date, status, rejection_reason, created_at, storage_path, users!uploaded_by(full_name)"
     )
     .eq("folder_id", folderId)
     .order("created_at", { ascending: false })
@@ -101,6 +102,7 @@ export default async function VaultFolderPage({
       revision: d.revision,
       document_date: d.document_date,
       status: d.status,
+      rejection_reason: d.rejection_reason,
       created_at: d.created_at,
       uploader_name: d.users?.full_name ?? null,
       kind: vaultDocKind({ storagePath: d.storage_path, title: d.title }),

@@ -26,7 +26,7 @@ export const VAULT_FOLDER_KEYS = [
 ] as const;
 export type VaultFolderKey = (typeof VAULT_FOLDER_KEYS)[number];
 
-export const VAULT_DOCUMENT_STATUSES = ["for_review", "approved", "superseded"] as const;
+export const VAULT_DOCUMENT_STATUSES = ["for_review", "approved", "superseded", "rejected"] as const;
 export type VaultDocumentStatus = (typeof VAULT_DOCUMENT_STATUSES)[number];
 
 export const VAULT_DOCUMENT_EXTRACTION_STATUSES = ["pending", "done", "empty", "unsupported", "failed"] as const;
