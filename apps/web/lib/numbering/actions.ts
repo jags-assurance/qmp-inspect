@@ -153,31 +153,40 @@ export async function upsertNumberingConfigAction(
 
   const sequencePadding = Number.parseInt(sequencePaddingRaw, 10);
 
-  if (!organizationId || !docType || !clientCode || Number.isNaN(sequencePadding)) {
-    return { error: "Client code and a valid sequence padding are required." };
+  if (!organizationId || !docType || !clientCode || Number.isNaN(sequencePadding) || sequencePadding < 1 || sequencePadding > 10) {
+    return { error: "Client code and a sequence padding between 1 and 10 are required." };
   }
 
   const supabase = await createSupabaseServerClient();
   // Org-level config only (project_id null) — per-project overrides aren't exposed in this
   // settings screen, only the org-wide default per doc type.
-  const { data: config, error } = await supabase
+  // A plain upsert can't target the org-level row: project_id is NULL, and NULLs never collide on
+  // the (organization_id, project_id, doc_type) unique key, so each save inserted a duplicate.
+  // Find the org-level row first, then update it, or insert if none exists.
+  const values = {
+    client_code: clientCode,
+    originator_code: originatorCode,
+    separator,
+    sequence_padding: sequencePadding,
+    include_year: includeYear,
+    include_discipline: includeDiscipline,
+  };
+  const { data: existing } = await supabase
     .from(NUMBERING_CONFIGS_TABLE)
-    .upsert(
-      {
-        organization_id: organizationId,
-        project_id: null,
-        doc_type: docType,
-        client_code: clientCode,
-        originator_code: originatorCode,
-        separator,
-        sequence_padding: sequencePadding,
-        include_year: includeYear,
-        include_discipline: includeDiscipline,
-      },
-      { onConflict: "organization_id,project_id,doc_type" }
-    )
     .select("id")
-    .single<{ id: string }>();
+    .eq("organization_id", organizationId)
+    .is("project_id", null)
+    .eq("doc_type", docType)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+  const { data: config, error } = existing
+    ? await supabase.from(NUMBERING_CONFIGS_TABLE).update(values).eq("id", existing.id).select("id").single<{ id: string }>()
+    : await supabase
+        .from(NUMBERING_CONFIGS_TABLE)
+        .insert({ organization_id: organizationId, project_id: null, doc_type: docType, ...values })
+        .select("id")
+        .single<{ id: string }>();
 
   if (error) {
     return { error: "Could not save the numbering config. Check you have permission and try again." };
