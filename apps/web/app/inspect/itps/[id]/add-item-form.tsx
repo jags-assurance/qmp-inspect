@@ -11,6 +11,8 @@ export function AddItemForm({
   disciplines,
   isIssued,
   drawingDocuments,
+  parties = [],
+  levels = [],
 }: {
   itpId: string;
   sectionId: string;
@@ -22,6 +24,9 @@ export function AddItemForm({
   /** Vault documents from this project's "Drawings" folder — optional governing-drawing picker
    *  (R103/R125). Empty when the project has no drawings uploaded yet. */
   drawingDocuments: { id: string; title: string; revision: string }[];
+  /** This project's parties and this organisation's intervention levels — so each party's Hold / Witness / Review / Surveillance can be set while the activity is being created, not only afterwards in the grid. */
+  parties?: { id: string; name: string }[];
+  levels?: { code: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState(addItpItemAction, initialState);
   // Was always rendered fully open, one 7-field row per section, whether or not anyone was
@@ -124,6 +129,33 @@ export function AddItemForm({
             ))}
           </select>
         </div>
+      )}
+      {parties.length > 0 && levels.length > 0 && (
+        <fieldset className="w-full rounded-md border border-border bg-surface px-3 py-2">
+          <legend className="px-1 text-xs font-medium text-muted">Sign-off level per party (optional — leave blank for no intervention)</legend>
+          <div className="mt-1 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {parties.map((party) => (
+              <label key={party.id} className="flex items-center justify-between gap-2 text-sm text-ink">
+                <span className="min-w-0 truncate" title={party.name}>
+                  {party.name}
+                </span>
+                <select
+                  name={`intervention__${party.id}`}
+                  defaultValue=""
+                  aria-label={`Sign-off level for ${party.name}`}
+                  className="rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+                >
+                  <option value="">—</option>
+                  {levels.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.code} — {l.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       )}
       {isIssued && (
         <div className="min-w-64 flex-1">

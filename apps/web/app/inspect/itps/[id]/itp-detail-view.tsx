@@ -926,6 +926,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 disciplines={disciplines ?? []}
                 isIssued={isIssued}
                 drawingDocuments={drawingDocuments}
+                parties={(parties ?? []).filter((p) => p.is_active).map((p) => ({ id: p.id, name: p.name }))}
+                levels={levels.map((l) => ({ code: l.code, label: l.label }))}
               />
             )}
           </div>

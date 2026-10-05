@@ -188,7 +188,7 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     .maybeSingle<{ sort_order: number }>();
   const nextSortOrder = (lastItem?.sort_order ?? -1) + 1;
 
-  const { error } = await supabase.from("itp_items").insert({
+  const { data: newItem, error } = await supabase.from("itp_items").insert({
     section_id: sectionId,
     item_number: itemNumber,
     activity,
@@ -201,10 +201,27 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     governing_drawing_document_id: governingDrawingDocumentId || null,
     notice_hours_override: noticeHoursOverride,
     sort_order: nextSortOrder,
-  });
+  }).select("id").single<{ id: string }>();
 
-  if (error) {
+  if (error || !newItem) {
     return { error: "Could not add the activity. Check you have permission and try again." };
+  }
+
+  // Sign-off levels chosen on the add form (one optional select per party). The database validates
+  // each code against the organisation's configured levels and creates the sign-off rows itself.
+  const chosenInterventions = [...formData.entries()]
+    .filter(([key, value]) => key.startsWith("intervention__") && String(value).trim() !== "")
+    .map(([key, value]) => ({
+      itp_item_id: newItem.id,
+      project_party_id: key.slice("intervention__".length),
+      intervention: String(value).trim(),
+    }));
+  if (chosenInterventions.length > 0) {
+    const { error: interventionError } = await supabase.from("activity_party_intervention").insert(chosenInterventions);
+    if (interventionError) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return { error: "The activity was added, but its sign-off levels could not be saved — set them in the grid below." };
+    }
   }
 
   // Found missing in a self-review audit: ITP content-authoring actions (add/edit/delete item, set
