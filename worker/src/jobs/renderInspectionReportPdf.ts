@@ -202,6 +202,7 @@ export async function renderInspectionReportPdf(
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
+    autoRevision: true,
   });
 
   return { resultStoragePath: storagePath };

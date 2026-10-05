@@ -1,5 +1,6 @@
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 import { buildFatReportHtml, type FatReportData, type FatReportPhoto } from "./fatReportTemplate";
 import type { RenderFatReportPdfPayload } from "./types";
 
@@ -177,6 +178,18 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  await autoFileVaultDocument(supabase, {
+    projectId: a.project_id,
+    folderKey: "test_reports",
+    title: `FAT/SAT report ${a.assignment_number} — ${a.equipment_description}`,
+    documentReference: a.assignment_number,
+    revision: "0",
+    storagePath,
+    fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+    autoRevision: true,
+  });
 
   return { resultStoragePath: storagePath };
 }

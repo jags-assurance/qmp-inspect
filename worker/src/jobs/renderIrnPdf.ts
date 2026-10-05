@@ -2,6 +2,7 @@ import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildIrnPdfHtml, type IrnPdfData } from "./irnTemplate";
 import type { RenderIrnPdfPayload } from "./types";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 import { getOrgBranding } from "./orgBranding";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -128,6 +129,19 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  // Filed in the vault like every other generated record; each regeneration becomes the next revision.
+  await autoFileVaultDocument(supabase, {
+    projectId: record.project_id,
+    folderKey: "certificates",
+    title: `Inspection Release Note ${irn.irn_number} — ${record.activity}`,
+    documentReference: irn.irn_number,
+    revision: "0",
+    storagePath,
+    fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+    autoRevision: true,
+  });
 
   return { resultStoragePath: storagePath };
 }

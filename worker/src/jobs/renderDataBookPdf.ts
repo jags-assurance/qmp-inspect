@@ -12,6 +12,7 @@ import {
 } from "./dataBookTemplate";
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
+import { autoFileVaultDocument } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -664,6 +665,18 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
   if (uploadError) {
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
+
+  await autoFileVaultDocument(supabase, {
+    projectId: dataBook.project_id,
+    folderKey: "certificates",
+    title: `Data Book ${dataBook.book_number} — ${dataBook.title} (${dataBook.status})`,
+    documentReference: dataBook.book_number,
+    revision: "0",
+    storagePath,
+    fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+    autoRevision: true,
+  });
 
   return { resultStoragePath: storagePath };
 }
