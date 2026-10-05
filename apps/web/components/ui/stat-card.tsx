@@ -26,7 +26,7 @@ export function StatCard({
         <span className="text-sm leading-snug text-muted">{label}</span>
         {icon && <span className="shrink-0">{icon}</span>}
       </div>
-      <div className="mt-auto pt-3">
+      <div className="mt-auto pt-2">
         <div className="text-2xl font-semibold leading-none text-ink">{value}</div>
         {caption && <div className="mt-1.5 text-xs text-muted">{caption}</div>}
       </div>
@@ -37,12 +37,12 @@ export function StatCard({
     return (
       <Link
         href={href}
-        className="flex h-full min-h-[5.5rem] flex-col rounded-lg border border-border bg-surface p-4 transition-colors hover:border-burgundy hover:bg-off-white"
+        className="flex h-full min-h-[4.25rem] flex-col rounded-lg border border-border bg-surface px-3.5 py-3 transition-colors hover:border-burgundy hover:bg-off-white"
       >
         {content}
       </Link>
     );
   }
 
-  return <div className="flex h-full min-h-[5.5rem] flex-col rounded-lg border border-border bg-surface p-4">{content}</div>;
+  return <div className="flex h-full min-h-[4.25rem] flex-col rounded-lg border border-border bg-surface px-3.5 py-3">{content}</div>;
 }
