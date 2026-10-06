@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useOptimistic, useState, useTransition } from "react";
-import { notifyPartyAction, proceedWithoutResponseAction, signOffAction } from "@/lib/signoff/actions";
+import { notifyPartyAction, proceedWithoutResponseAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 
 /** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
@@ -22,6 +22,13 @@ const STATUS_LABEL: Record<SignoffStatus, string> = {
   notified: "Notified",
   signed_off: "Signed off",
   proceeded_no_response: "Proceeded (no response)",
+};
+
+const STATUS_HELP: Record<SignoffStatus, string> = {
+  pending: "Not yet notified. The party has not been told this inspection is due.",
+  notified: "Party notified. The notice period is running.",
+  signed_off: "Released / signed off by the party.",
+  proceeded_no_response: "Notice period elapsed with no response; work proceeded with a recorded reason.",
 };
 
 const STATUS_TONE: Record<SignoffStatus, string> = {
@@ -62,6 +69,9 @@ export function SignoffCell({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Which action is collecting a mandatory written reason (proceed / withdraw) before it runs.
+  const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | null>(null);
+  const [reason, setReason] = useState("");
 
   // Real bug found live: clicking Notify/Sign off/Proceed didn't visibly change anything until the
   // full page re-fetched after revalidatePath — on this page (a lot of data) that round trip is
@@ -103,12 +113,23 @@ export function SignoffCell({
       setOptimisticStatus(nextStatus);
       const result = await action();
       if (result.error) setError(result.error);
+      else {
+        setReasonFor(null);
+        setReason("");
+      }
     });
   }
 
+  const btn = "min-h-8 rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-off-white disabled:opacity-50";
+  const canWithdraw = isJagsStaff && (optimisticStatus === "signed_off" || optimisticStatus === "proceeded_no_response");
+  const canRenotify = optimisticStatus === "notified" && canSignOffForThisParty;
+
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[optimisticStatus]}`}>
+      <span
+        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[optimisticStatus]}`}
+        title={STATUS_HELP[optimisticStatus]}
+      >
         {STATUS_LABEL[optimisticStatus]}
       </span>
       {deadlineMs != null && now != null && (
@@ -125,9 +146,20 @@ export function SignoffCell({
             type="button"
             disabled={isPending}
             onClick={() => run(() => notifyPartyAction(progressId), "notified")}
-            className="rounded border border-border px-1 py-0.5 text-[10px] font-medium hover:bg-off-white disabled:opacity-50"
+            className={btn}
           >
             Notify
+          </button>
+        )}
+        {canRenotify && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => run(() => notifyPartyAction(progressId), "notified")}
+            className={btn}
+            title="Send the reminder again (restarts the notice period)"
+          >
+            Re-notify
           </button>
         )}
         {canSignOff && (
@@ -135,7 +167,7 @@ export function SignoffCell({
             type="button"
             disabled={isPending}
             onClick={() => run(() => signOffAction(progressId), "signed_off")}
-            className="rounded border border-border px-1 py-0.5 text-[10px] font-medium hover:bg-off-white disabled:opacity-50"
+            className={btn}
           >
             Sign off
           </button>
@@ -149,13 +181,46 @@ export function SignoffCell({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => run(() => proceedWithoutResponseAction(progressId), "proceeded_no_response")}
-            className="rounded border border-border px-1 py-0.5 text-[10px] font-medium hover:bg-off-white disabled:opacity-50"
+            onClick={() => setReasonFor("proceed")}
+            className={btn}
           >
             Proceed
           </button>
         )}
+        {canWithdraw && reasonFor === null && (
+          <button type="button" disabled={isPending} onClick={() => setReasonFor("withdraw")} className={btn}>
+            Withdraw
+          </button>
+        )}
       </div>
+      {reasonFor && (
+        <div className="flex w-full min-w-40 flex-col gap-1">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder={reasonFor === "proceed" ? "Reason for proceeding without response" : "Reason for withdrawing sign-off"}
+            className="w-full rounded border border-border bg-surface px-1.5 py-1 text-[11px]"
+          />
+          <div className="flex justify-center gap-1">
+            <button
+              type="button"
+              disabled={isPending || reason.trim().length < 5}
+              onClick={() =>
+                reasonFor === "proceed"
+                  ? run(() => proceedWithoutResponseAction(progressId, reason), "proceeded_no_response")
+                  : run(() => withdrawSignoffAction(progressId, reason), "pending")
+              }
+              className={btn}
+            >
+              Confirm
+            </button>
+            <button type="button" onClick={() => { setReasonFor(null); setReason(""); }} className={btn}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {error && <span className="text-[10px] text-danger">{error}</span>}
     </div>
   );

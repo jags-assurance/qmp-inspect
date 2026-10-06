@@ -3,10 +3,91 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
 import { PageGuide } from "@/components/domain/page-guide";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 
-export default async function StartWorkPage() {
+type StatusKey = "not_started" | "in_progress" | "completed";
+const STATUS_LABEL: Record<StatusKey, string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  completed: "Completed",
+};
+const STATUS_CLASS: Record<StatusKey, string> = {
+  not_started: "bg-off-white text-muted",
+  in_progress: "bg-gold/30 text-[color:var(--color-burgundy-dark)]",
+  completed: "bg-green-100 text-green-800",
+};
+
+interface TemplateRow {
+  id: string;
+  checklist_number: string;
+  itp_item_id: string;
+  itp_items: {
+    id: string;
+    item_number: string;
+    activity: string;
+    itp_sections: { itps: { id: string; itp_number: string; status: string; projects: { id: string; name: string; enforce_hold_blocks_start: boolean } | null } | null } | null;
+  } | null;
+}
+
+export default async function StartWorkPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string; project?: string }>;
+}) {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim().toLowerCase();
+  const statusFilter = (["not_started", "in_progress", "completed"] as const).find((k) => k === sp.status) ?? "";
+  const projectFilter = sp.project ?? "";
+
+  const supabase = await createSupabaseServerClient();
+  const [{ data: templates }, { data: records }] = await Promise.all([
+    supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select(
+        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, itp_sections(itps(id, itp_number, status, projects(id, name, enforce_hold_blocks_start))))"
+      )
+      .limit(1000)
+      .returns<TemplateRow[]>(),
+    supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("itp_item_id, checklist_template_id, overall_result")
+      .limit(5000)
+      .returns<{ itp_item_id: string; checklist_template_id: string; overall_result: string | null }[]>(),
+  ]);
+
+  const stateByTemplate = new Map<string, StatusKey>();
+  for (const r of records ?? []) {
+    const cur = stateByTemplate.get(r.checklist_template_id);
+    if (r.overall_result === null) stateByTemplate.set(r.checklist_template_id, "in_progress");
+    else if (cur !== "in_progress") stateByTemplate.set(r.checklist_template_id, "completed");
+  }
+
+  const activities = (templates ?? [])
+    .filter((t) => {
+      const st = t.itp_items?.itp_sections?.itps?.status;
+      return t.itp_items && (st === "approved" || st === "client_accepted");
+    })
+    .map((t) => ({
+      templateId: t.id,
+      checklistNumber: t.checklist_number,
+      itemNumber: t.itp_items!.item_number,
+      activity: t.itp_items!.activity,
+      itpNumber: t.itp_items!.itp_sections!.itps!.itp_number,
+      projectId: t.itp_items!.itp_sections!.itps!.projects?.id ?? "",
+      projectName: t.itp_items!.itp_sections!.itps!.projects?.name ?? "—",
+      status: stateByTemplate.get(t.id) ?? ("not_started" as StatusKey),
+    }));
+  const projectOptions = [...new Map(activities.map((a) => [a.projectId, a.projectName])).entries()];
+  const rank: Record<StatusKey, number> = { in_progress: 0, not_started: 1, completed: 2 };
+  const visible = activities
+    .filter((a) => !statusFilter || a.status === statusFilter)
+    .filter((a) => !projectFilter || a.projectId === projectFilter)
+    .filter((a) => !q || `${a.activity} ${a.itpNumber} ${a.checklistNumber} ${a.projectName}`.toLowerCase().includes(q))
+    .sort((a, b) => rank[a.status] - rank[b.status])
+    .slice(0, 100);
 
   return (
     <div className="max-w-4xl">
@@ -56,6 +137,59 @@ export default async function StartWorkPage() {
           cta="Start standalone assignment"
         />
       </div>
+
+      <section className="mt-10" aria-labelledby="activities-heading">
+        <h2 id="activities-heading" className="text-lg font-semibold text-ink">Activities ready for site work</h2>
+        <p className="mt-1 text-sm text-muted">
+          Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.
+        </p>
+        <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <input
+            type="search"
+            name="q"
+            defaultValue={sp.q ?? ""}
+            placeholder="Search activity, ITP or checklist"
+            className="min-h-11 flex-1 rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy sm:min-w-56"
+          />
+          <select name="project" defaultValue={projectFilter} aria-label="Project" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">All projects</option>
+            {projectOptions.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+          <select name="status" defaultValue={statusFilter} aria-label="Status" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">Any status</option>
+            {(Object.keys(STATUS_LABEL) as StatusKey[]).map((k) => (
+              <option key={k} value={k}>{STATUS_LABEL[k]}</option>
+            ))}
+          </select>
+          <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">Filter</button>
+        </form>
+
+        {visible.length === 0 ? (
+          <p className="mt-4 rounded-md bg-off-white p-4 text-sm text-muted">
+            {activities.length === 0
+              ? "No activities are ready yet — an ITP must be approved and have a checklist before site work can start."
+              : "No activities match these filters."}
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+            {visible.map((a) => (
+              <li key={a.templateId}>
+                <Link href={`/inspect/checklists/${a.templateId}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-off-white">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}</span>
+                    <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
+                  </span>
+                  <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>
+                    {STATUS_LABEL[a.status]}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

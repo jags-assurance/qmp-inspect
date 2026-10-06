@@ -55,10 +55,12 @@ export function PhotoUpload({
   // lets them select a batch at once (e.g. from their camera roll after shooting several), uploaded
   // sequentially here so each one still gets its own compress/upload-or-queue handling.
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length === 0 || uploading) return;
+    const files = picked.filter((f) => f.type.startsWith("image/") && f.size <= 25 * 1024 * 1024).slice(0, 20);
+    const rejected = picked.length - files.length;
     setUploading(true);
-    setError(null);
+    setError(rejected > 0 ? `${rejected} file${rejected === 1 ? "" : "s"} skipped (images only, max 25 MB each).` : null);
 
     let failedCount = 0;
     for (const file of files) {

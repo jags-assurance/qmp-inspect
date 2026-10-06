@@ -108,10 +108,18 @@ async function notifySignoffRow(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   progress: Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">
 ): Promise<SignoffActionResult> {
-  const { error } = await supabase
+  // Only an open (pending/notified) row can be (re-)notified — never reopen a signed-off or
+  // proceeded row. select() lets us detect 0 rows affected (already cleared by someone else).
+  const { data: updated, error } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
     .update({ status: "notified", notified_at: new Date().toISOString() })
-    .eq("id", progress.id);
+    .eq("id", progress.id)
+    .in("status", ["pending", "notified"])
+    .select("id");
+
+  if (!error && (!updated || updated.length === 0)) {
+    return { error: "This sign-off has already been cleared, so it can't be notified again." };
+  }
 
   if (error) {
     // Real gap found live: this DB error was silently discarded — every caller only ever saw the
@@ -469,14 +477,21 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
     return { error: `${blockedByLevel} must be signed off (or proceeded without response) before this level can be.` };
   }
 
-  const { error } = await supabase
+  const { data: signedRows, error } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
     .update({
       status: "signed_off",
       signed_off_at: new Date().toISOString(),
       signed_off_by: user?.id ?? null,
     })
-    .eq("id", progressId);
+    .eq("id", progressId)
+    .neq("status", "signed_off")
+    .select("id");
+
+  if (!error && (!signedRows || signedRows.length === 0)) {
+    // Double click / second user: already signed, never overwrite the original signer + time.
+    return { error: "This was already signed off." };
+  }
 
   if (error) {
     console.error(`[signoff] signOffAction failed for progress ${progressId} (user ${user?.id ?? "unknown"}):`, error);
@@ -544,8 +559,12 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
  * indefinitely). Rejected for anything other than a notified, non-blocking level whose notice period
  * has actually passed.
  */
-export async function proceedWithoutResponseAction(progressId: string): Promise<SignoffActionResult> {
+export async function proceedWithoutResponseAction(progressId: string, reason?: string): Promise<SignoffActionResult> {
   if (!progressId) return { error: "Missing sign-off record." };
+  const cleanReason = (reason ?? "").trim();
+  if (cleanReason.length < 5) {
+    return { error: "Give a reason (at least 5 characters) for proceeding without a response." };
+  }
 
   // Proceeding without a response is the originator's (JAGS's) discretion call, not any party's —
   // previously ungated here, so the very party that failed to respond (or an unrelated third party)
@@ -583,14 +602,20 @@ export async function proceedWithoutResponseAction(progressId: string): Promise<
     return { error: "The notice period has not elapsed yet." };
   }
 
-  const { error } = await supabase
+  const { data: proceededRows, error } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
     .update({
       status: "proceeded_no_response",
-      proceeded_reason: `Party notified ${progress.notified_at}; no response within notice period; proceeded at originator's discretion.`,
+      proceeded_reason: `Party notified ${progress.notified_at}; no response within ${noticeHours}h notice period. Reason: ${cleanReason}`,
       proceeded_at: new Date().toISOString(),
     })
-    .eq("id", progressId);
+    .eq("id", progressId)
+    .eq("status", "notified")
+    .select("id");
+
+  if (!error && (!proceededRows || proceededRows.length === 0)) {
+    return { error: "This sign-off changed in the meantime. Refresh and check its status." };
+  }
 
   if (error) {
     console.error(`[signoff] proceedWithoutResponseAction failed for progress ${progressId}:`, error);
@@ -918,4 +943,88 @@ async function getNoticePeriodHours(
   if (levelType?.default_notice_hours != null) return levelType.default_notice_hours;
 
   return DEFAULT_NOTICE_PERIOD_HOURS[intervention] ?? 24;
+}
+
+/**
+ * Withdraws a recorded sign-off (or proceed-without-response), returning the row to Pending.
+ * Industry practice: a signed Hold is never silently reversible — JAGS staff only, a written
+ * reason is mandatory, and the original signer/time/reason are preserved in the audit trail.
+ */
+export async function withdrawSignoffAction(progressId: string, reason: string): Promise<SignoffActionResult> {
+  if (!progressId) return { error: "Missing sign-off record." };
+  const cleanReason = (reason ?? "").trim();
+  if (cleanReason.length < 5) return { error: "Give a reason (at least 5 characters) for withdrawing this sign-off." };
+
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: "Only JAGS staff can withdraw a recorded sign-off." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: progress } = await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .select("id, itp_item_id, intervention, status, signed_off_at, signed_off_by, proceeded_reason")
+    .eq("id", progressId)
+    .maybeSingle<
+      Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "intervention" | "status" | "signed_off_at" | "signed_off_by" | "proceeded_reason">
+    >();
+  if (!progress) return { error: "Sign-off record not found." };
+  if (progress.status !== "signed_off" && progress.status !== "proceeded_no_response") {
+    return { error: "Only a recorded sign-off can be withdrawn." };
+  }
+
+  const { data: rows, error } = await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .update({
+      status: "pending",
+      notified_at: null,
+      signed_off_at: null,
+      signed_off_by: null,
+      proceeded_reason: null,
+      proceeded_at: null,
+    })
+    .eq("id", progressId)
+    .eq("status", progress.status)
+    .select("id");
+  if (error) {
+    console.error(`[signoff] withdrawSignoffAction failed for ${progressId}:`, error);
+    return { error: "Could not withdraw the sign-off. Check you have permission and try again." };
+  }
+  if (!rows || rows.length === 0) return { error: "This sign-off changed in the meantime. Refresh and try again." };
+
+  try {
+    const { data: context } = await supabase
+      .from("itp_items")
+      .select("activity, itp_sections(itps(itp_number, project_id, projects(organization_id)))")
+      .eq("id", progress.itp_item_id)
+      .maybeSingle<{
+        activity: string;
+        itp_sections: { itps: { itp_number: string; project_id: string; projects: { organization_id: string } | null } | null } | null;
+      }>();
+    const itp = context?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+    if (itp && organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "signoff",
+        entityId: progressId,
+        action: "withdrawn",
+        actorId: session.userId,
+        summary: `${progress.intervention} sign-off withdrawn on ${itp.itp_number} — ${context?.activity ?? "an activity"}. Reason: ${cleanReason}`,
+        changes: {
+          previous_status: progress.status,
+          previous_signed_off_at: progress.signed_off_at,
+          previous_signed_off_by: progress.signed_off_by,
+          previous_proceeded_reason: progress.proceeded_reason,
+          reason: cleanReason,
+        },
+      });
+    }
+  } catch {
+    // Best-effort audit.
+  }
+
+  const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
+  if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
+  return { error: null };
 }

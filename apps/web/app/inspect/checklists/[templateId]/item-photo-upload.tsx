@@ -36,6 +36,7 @@ export function ItemPhotoUpload({
   readOnly?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [queuedPreviews, setQueuedPreviews] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,13 +52,19 @@ export function ItemPhotoUpload({
   const hasPhotos = photos.length > 0 || queuedPreviews.length > 0;
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length === 0) return;
+    if (uploading) return;
+    // Type / size limits (before compression): images only, 25 MB each, 10 per batch.
+    const files = picked.filter((f) => f.type.startsWith("image/") && f.size <= 25 * 1024 * 1024).slice(0, 10);
+    const rejected = picked.length - files.length;
     setUploading(true);
-    setError(null);
+    setError(rejected > 0 ? `${rejected} file${rejected === 1 ? "" : "s"} skipped (images only, max 25 MB each, 10 at a time).` : null);
 
     let failedCount = 0;
+    let done = 0;
     for (const file of files) {
+      setProgress(`${++done} of ${files.length}`);
       try {
         const { queuedPreviewUrl } = await uploadOrQueuePhoto({ projectId, inspectionRecordId, checklistItemId, file });
         if (queuedPreviewUrl) setQueuedPreviews((prev) => [...prev, queuedPreviewUrl]);
@@ -67,11 +74,12 @@ export function ItemPhotoUpload({
     }
 
     if (failedCount > 0) {
-      setError(`Could not upload ${failedCount} of ${files.length} photo${files.length === 1 ? "" : "s"}.`);
+      setError(`Could not upload ${failedCount} of ${files.length} photo${files.length === 1 ? "" : "s"}. Check your connection and try again.`);
     }
 
     router.refresh();
     setUploading(false);
+    setProgress("");
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -114,12 +122,12 @@ export function ItemPhotoUpload({
             title={hasPhotos ? "Add another photo to this item" : "Attach a photo to this item"}
             aria-label={hasPhotos ? "Add another photo to this item" : "Attach a photo to this item"}
             className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted transition-colors hover:bg-off-white disabled:opacity-60",
+              "inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-off-white disabled:opacity-60",
               hasPhotos && "border-dashed"
             )}
           >
             <span aria-hidden="true">📷</span>
-            {uploading ? "Uploading…" : hasPhotos ? "+" : "+ Photo"}
+            {uploading ? `Uploading ${progress}…` : hasPhotos ? "+ Add" : "+ Photo"}
           </button>
         </>
       )}

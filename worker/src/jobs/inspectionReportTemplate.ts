@@ -23,7 +23,20 @@ export interface InspectionReportSignoff {
   date: string | null;
 }
 
+export interface VerifiedInstrument { name: string; tag: string | null; cert: string | null; due: string | null }
+export interface VerifiedMaterial { description: string; heat: string | null; batch: string | null; cert: string | null }
+export interface VerifiedWelder { id: string; wpq: string | null; expiry: string | null }
+
 export interface InspectionReportData {
+  /** Signing details (inspection_records.signed_by_name / signed_at / witness_*). */
+  signedByName?: string | null;
+  signedAt?: Date | null;
+  witnessName?: string | null;
+  /** Data URL (drawn signature) or plain text. */
+  witnessSignature?: string | null;
+  instruments?: VerifiedInstrument[];
+  materials?: VerifiedMaterial[];
+  welders?: VerifiedWelder[];
   recordNumber: string;
   /** Attempt count for this activity (0-indexed) — drives the Document Control "REV" cell, same
    *  idea as the ITP PDF's own `itps.revision`, scoped to re-inspections of this one activity. */
@@ -227,6 +240,49 @@ function buildFieldResultBanner(data: InspectionReportData): string {
       <strong>FIELD RESULT: ${resultWord}${holdClause}</strong>
       <span class="field-result-reason">${reason}</span>
     </div>`;
+}
+
+function renderVerifiedAgainst(data: InspectionReportData): string {
+  const inst = data.instruments ?? [];
+  const mats = data.materials ?? [];
+  const wel = data.welders ?? [];
+  if (inst.length + mats.length + wel.length === 0) return "";
+  const table = (title: string, heads: string[], rows: (string | null)[][]): string =>
+    rows.length === 0
+      ? ""
+      : `<h3 class="va-title">${escapeHtml(title)}</h3><table class="items-table"><thead><tr>${heads.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${rows
+          .map((r) => `<tr>${r.map((c) => `<td>${cell(c)}</td>`).join("")}</tr>`)
+          .join("")}</tbody></table>`;
+  return `
+    <div class="section">
+      <h2>Verified against</h2>
+      ${table("Instruments", ["Instrument", "Tag", "Certificate", "Calibration due"], inst.map((i) => [i.name, i.tag, i.cert, i.due]))}
+      ${table("Materials", ["Description", "Heat no.", "Batch no.", "Certificate"], mats.map((m) => [m.description, m.heat, m.batch, m.cert]))}
+      ${table("Welders", ["Welder ID", "WPQ", "Qualification expiry"], wel.map((w) => [w.id, w.wpq, w.expiry]))}
+    </div>`;
+}
+
+function renderStatusBanner(data: InspectionReportData): string {
+  if (data.overallResult) return "";
+  return '<div class="draft-banner">DRAFT &mdash; inspection not completed</div><div class="draft-watermark">DRAFT</div>';
+}
+
+function renderSigning(data: InspectionReportData): string {
+  const rows: string[] = [];
+  if (data.signedByName || data.signedAt) {
+    const when = data.signedAt ? data.signedAt.toISOString().replace("T", " ").slice(0, 16) + " UTC" : null;
+    rows.push(`<tr><th>Signed by</th><td>${cell(data.signedByName)}</td></tr><tr><th>Signed at</th><td>${cell(when)}</td></tr>`);
+  }
+  if (data.witnessName || data.witnessSignature) {
+    const sig = data.witnessSignature
+      ? data.witnessSignature.startsWith("data:image/")
+        ? `<img class="witness-sig" src="${escapeHtml(data.witnessSignature)}" alt="Witness signature" />`
+        : escapeHtml(data.witnessSignature)
+      : "&mdash;";
+    rows.push(`<tr><th>Witness</th><td>${cell(data.witnessName)}</td></tr><tr><th>Witness signature</th><td>${sig}</td></tr>`);
+  }
+  if (rows.length === 0) return "";
+  return `<table class="traceability-table"><tbody>${rows.join("")}</tbody></table>`;
 }
 
 function renderPhotos(photos: InspectionReportPhoto[]): string {
@@ -456,6 +512,11 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   .signoff-card-date { font-size: 8px; color: #444; }
   .signoff-card-date span.label { color: #888; text-transform: uppercase; font-size: 7px; margin-right: 4px; }
 
+  .draft-banner { background: var(--danger); color: #fff; font-weight: bold; font-size: 14px; text-align: center; padding: 8px; margin-bottom: 10px; border-radius: 3px; letter-spacing: 1px; }
+  .draft-watermark { position: fixed; top: 40%; left: 0; right: 0; text-align: center; font-size: 120px; font-weight: bold; color: rgba(179, 38, 30, 0.12); transform: rotate(-30deg); z-index: 0; pointer-events: none; }
+  h3.va-title { font-size: 10px; margin: 8px 0 4px 0; color: #444; }
+  .witness-sig { max-height: 50px; max-width: 220px; display: block; }
+
   .footer-note {
     margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc;
     font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
@@ -478,6 +539,7 @@ ${renderBrandColorOverride(data)}
     </div>
   </div>
 
+  ${renderStatusBanner(data)}
   <h1>Inspection Report</h1>
 
   ${renderTraceabilityTable(data)}
@@ -505,6 +567,8 @@ ${renderBrandColorOverride(data)}
     ${renderResultsTable(data.results)}
   </div>
 
+  ${renderVerifiedAgainst(data)}
+
   ${renderPhotos(data.photos)}
 
   ${buildFieldResultBanner(data)}
@@ -518,6 +582,7 @@ ${renderBrandColorOverride(data)}
 
   <div class="section">
     <h2>Signatures</h2>
+    ${renderSigning(data)}
     ${renderSignoffs(data.signoffs)}
   </div>
 

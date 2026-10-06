@@ -107,6 +107,19 @@ export function ChecklistExecutionPanel({
   // though the server (validateChecklistItemsAnswered) always rejects that completion attempt.
   const allAnswered = totalCount > 0 && answeredCount === totalCount;
 
+  const mandatoryTotal = items.filter((i) => i.is_mandatory).length;
+  const mandatoryRemaining = items.filter((i) => i.is_mandatory && !answeredIds.has(i.id)).length;
+
+  // Warn before leaving the page while a save is still in flight.
+  useEffect(() => {
+    if (savingCount === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [savingCount]);
+
   const syncStatus = !isOnline
     ? { label: "Offline — will sync when reconnected", className: "text-warning" }
     : savingCount > 0
@@ -116,10 +129,15 @@ export function ChecklistExecutionPanel({
   return (
     <>
       {totalCount > 0 && (
-        <div>
+        <div className="sticky top-0 z-10 -mx-1 bg-surface/95 px-1 py-2 backdrop-blur" aria-live="polite">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-ink">
               {answeredCount} of {totalCount} answered
+              {mandatoryTotal > 0 && (
+                <span className={mandatoryRemaining > 0 ? "ml-2 text-danger" : "ml-2 text-success"}>
+                  {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory remaining` : "all mandatory done"}
+                </span>
+              )}
             </span>
             <span className="text-muted">{answeredPct}%</span>
           </div>

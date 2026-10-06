@@ -113,4 +113,6 @@ export interface IrnRow {
   release_date: string;
   issued_by: string | null;
   created_at: string;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }

@@ -35,7 +35,7 @@ export async function renderInspectionReportPdf(
   const { data: rawRecord, error: recordError } = await supabase
     .from("inspection_records")
     .select(
-      "id, record_number, revision, project_id, project_name, itp_number, itp_item_id, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, inspector_id"
+      "id, record_number, revision, project_id, project_name, itp_number, itp_item_id, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, inspector_id, signed_by_name, signed_at, witness_name, witness_signature"
     )
     .eq("id", payload.inspection_record_id)
     .single();
@@ -60,6 +60,10 @@ export async function renderInspectionReportPdf(
     narrative: string | null;
     inspector_signature: string | null;
     inspector_id: string | null;
+    signed_by_name: string | null;
+    signed_at: string | null;
+    witness_name: string | null;
+    witness_signature: string | null;
   } | null;
 
   if (recordError || !record) {
@@ -84,10 +88,10 @@ export async function renderInspectionReportPdf(
         : Promise.resolve({ data: null }),
       supabase
         .from("checklist_responses")
-        .select("result, comment, checklist_items(item_number, description)")
+        .select("result, comment, calibration_asset_id, material_id, welder_id, checklist_items(item_number, description)")
         .eq("inspection_record_id", record.id)
         .returns<
-          { result: "yes" | "no" | "na"; comment: string | null; checklist_items: { item_number: string; description: string } | null }[]
+          { result: "yes" | "no" | "na"; comment: string | null; calibration_asset_id: string | null; material_id: string | null; welder_id: string | null; checklist_items: { item_number: string; description: string } | null }[]
         >(),
       supabase
         .from("inspection_photos")
@@ -112,6 +116,31 @@ export async function renderInspectionReportPdf(
       comment: r.comment,
     }))
     .sort((a, b) => a.itemNumber.localeCompare(b.itemNumber, undefined, { numeric: true }));
+
+  const uniq = (ids: (string | null)[]) => [...new Set(ids.filter((x): x is string => Boolean(x)))];
+  const calIds = uniq((responses ?? []).map((r) => r.calibration_asset_id));
+  const matIds = uniq((responses ?? []).map((r) => r.material_id));
+  const welIds = uniq((responses ?? []).map((r) => r.welder_id));
+  const [calRes, matRes, welRes] = await Promise.all([
+    calIds.length
+      ? supabase.from("calibration_register").select("instrument_name, instrument_tag, cert_number, due_date").in("id", calIds)
+      : Promise.resolve({ data: [] }),
+    matIds.length
+      ? supabase.from("material_register").select("material_description, heat_number, batch_number, certificate_reference").in("id", matIds)
+      : Promise.resolve({ data: [] }),
+    welIds.length
+      ? supabase.from("welder_qualification_register").select("welder_identifier, wpq_number, expiry_date").in("id", welIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const instruments = ((calRes.data ?? []) as unknown as { instrument_name: string; instrument_tag: string | null; cert_number: string | null; due_date: string | null }[]).map((c) => ({
+    name: c.instrument_name, tag: c.instrument_tag, cert: c.cert_number, due: c.due_date,
+  }));
+  const materials = ((matRes.data ?? []) as unknown as { material_description: string; heat_number: string | null; batch_number: string | null; certificate_reference: string | null }[]).map((m) => ({
+    description: m.material_description, heat: m.heat_number, batch: m.batch_number, cert: m.certificate_reference,
+  }));
+  const welders = ((welRes.data ?? []) as unknown as { welder_identifier: string; wpq_number: string | null; expiry_date: string | null }[]).map((w) => ({
+    id: w.welder_identifier, wpq: w.wpq_number, expiry: w.expiry_date,
+  }));
 
   const photoDataUris = await Promise.all((photoRows ?? []).map((p) => toDataUri(p.storage_path)));
   const photos: InspectionReportPhoto[] = (photoRows ?? [])
@@ -139,6 +168,13 @@ export async function renderInspectionReportPdf(
     irnNumber: irn?.irn_number ?? null,
     results,
     photos,
+    signedByName: record.signed_by_name,
+    signedAt: record.signed_at ? new Date(record.signed_at) : null,
+    witnessName: record.witness_name,
+    witnessSignature: record.witness_signature,
+    instruments,
+    materials,
+    welders,
     signoffs: [
       { label: "INSPECTOR", name: inspector?.full_name ?? null, date: record.overall_result ? record.inspection_date : null },
       { label: "CONTRACTOR WITNESS", name: null, date: null },

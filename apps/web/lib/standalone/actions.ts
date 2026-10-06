@@ -73,14 +73,18 @@ export async function canRunStandaloneAssignment(session: Session, supabase: Sup
 async function requireStandaloneAccess(
   session: Session,
   supabase: SupabaseClient,
-  assignmentId: string
+  assignmentId: string,
+  opts: { requireDraft?: boolean } = {}
 ): Promise<{ error: string | null; projectId: string | null }> {
   const { data } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
-    .select("project_id")
+    .select("project_id, status")
     .eq("id", assignmentId)
-    .maybeSingle<{ project_id: string }>();
+    .maybeSingle<{ project_id: string; status: string }>();
   if (!data) return { error: "Assignment not found.", projectId: null };
+  if (opts.requireDraft && data.status !== "draft") {
+    return { error: "This assignment is finalized and locked. Records can no longer be added or changed.", projectId: data.project_id };
+  }
   if (!(await canRunStandaloneAssignment(session, supabase, data.project_id))) {
     return { error: STAFF_ONLY_ERROR, projectId: data.project_id };
   }
@@ -267,6 +271,25 @@ export async function createAssignmentAction(
   redirect(`/inspect/standalone/${assignment.id}`);
 }
 
+function parseMeasurementNumber(raw: string): number | null {
+  const m = raw.replace(/,/g, ".").match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** nominal +/- tolerance (e.g. "12.0", "±0.5"; a "%" tolerance is relative) against the actual
+ *  reading. Returns null when any of the three cannot be parsed as a number. */
+function computeMeasurementResult(nominal: string, tolerance: string, actual: string): "pass" | "fail" | null {
+  const n = parseMeasurementNumber(nominal);
+  const a = parseMeasurementNumber(actual);
+  let t = parseMeasurementNumber(tolerance);
+  if (n == null || a == null || t == null) return null;
+  t = Math.abs(t);
+  if (tolerance.includes("%")) t = Math.abs(n) * (t / 100);
+  return Math.abs(a - n) <= t + 1e-9 ? "pass" : "fail";
+}
+
 export interface AddMeasurementState {
   error: string | null;
 }
@@ -283,14 +306,22 @@ export async function addMeasurementAction(
   const tolerance = String(formData.get("tolerance") ?? "").trim();
   const actualValue = String(formData.get("actual_value") ?? "").trim();
   const unit = String(formData.get("unit") ?? "").trim();
-  const result = String(formData.get("result") ?? "").trim();
+  const manualResult = String(formData.get("result") ?? "").trim();
 
   if (!assignmentId || !description) {
     return { error: "Description is required." };
   }
 
+  // Tolerance pass/fail is computed from the numbers when they parse; a manual choice is only the
+  // fallback for non-numeric readings (e.g. "OK", "no leaks").
+  const parsedActual = parseMeasurementNumber(actualValue);
+  if (actualValue && parsedActual == null && manualResult !== "pass" && manualResult !== "fail") {
+    return { error: "Actual value isn't a number. Enter a number (e.g. 12.0) or choose Pass/Fail manually." };
+  }
+  const result = computeMeasurementResult(nominalValue, tolerance, actualValue) ?? manualResult;
+
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
   if (access.error) return { error: access.error };
 
   const { count } = await supabase
@@ -571,9 +602,12 @@ export async function addPhotoAction(_prev: AddPhotoState, formData: FormData): 
   if (!assignmentId || !storagePath) {
     return { error: "Upload failed — no file path was returned." };
   }
+  if (!storagePath.startsWith(`standalone/${assignmentId}/`) || storagePath.includes("..")) {
+    return { error: "Invalid photo path." };
+  }
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
   if (access.error) return { error: access.error };
 
   const {
@@ -614,8 +648,12 @@ export async function addSignatureAction(
     return { error: "Role, signatory name and a captured signature are required." };
   }
 
+  if (!signatureData.startsWith("data:image/") || signatureData.length > 500_000) {
+    return { error: "The captured signature is invalid or too large. Clear it and sign again." };
+  }
+
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
   if (access.error) return { error: access.error };
 
   const { error } = await supabase.from(STANDALONE_ASSIGNMENT_SIGNATURES).insert({
@@ -651,7 +689,7 @@ export async function updateNotesAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
   if (access.error) return { error: access.error };
 
   const { error } = await supabase
@@ -703,6 +741,18 @@ export async function finalizeAssignmentAction(
   }
   if (!signatureCount) {
     return { error: "Capture at least one signature (e.g. the witness or vendor representative) before finalizing." };
+  }
+
+  // A clean Pass cannot stand while a recorded measurement failed its tolerance.
+  if (conclusion === "pass") {
+    const { count: failedCount } = await supabase
+      .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
+      .select("id", { count: "exact", head: true })
+      .eq("assignment_id", assignmentId)
+      .eq("result", "fail");
+    if (failedCount) {
+      return { error: `${failedCount} measurement(s) failed. Choose Conditional Pass (with a punch item) or Fail instead of Pass.` };
+    }
   }
 
   // R16: a clean pass or fail is done the moment it's finalized. A conditional pass is NOT —

@@ -352,6 +352,8 @@ export async function requestInspectionReportPdfAction(
   if (!inspectionRecordId) return { error: "Missing inspection record." };
 
   const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase.from("inspection_records").select("id").eq("id", inspectionRecordId).maybeSingle();
+  if (!existing) return { error: "Inspection not found, or you do not have access to it." };
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_inspection_report_pdf",
     payload: { inspection_record_id: inspectionRecordId, requested_by: session.userId } satisfies RenderInspectionReportPdfPayload,
@@ -608,6 +610,12 @@ export async function requestIrnPdfAction(_prev: RequestIrnPdfState, formData: F
   if (!irnId) return { error: "Missing IRN." };
 
   const supabase = await createSupabaseServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: irnRow } = await (supabase.from("irns" as never) as any).select("id, voided_at").eq("id", irnId).maybeSingle();
+  if (!irnRow) return { error: "IRN not found, or you do not have access to it." };
+  if ((irnRow as { voided_at: string | null }).voided_at) {
+    return { error: "This IRN has been voided. A PDF cannot be generated for a voided IRN." };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_irn_pdf",
     payload: { irn_id: irnId, requested_by: session.userId } satisfies RenderIrnPdfPayload,

@@ -14,7 +14,7 @@ import {
   type IrnRow,
 } from "@/lib/checklists/db-types";
 import { PhotoGallery } from "./photo-gallery";
-import { IssueIrnForm } from "./issue-irn-form";
+import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
 import {
   getLatestInspectionReportPdf,
   getLatestIrnPdf,
@@ -43,7 +43,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select(
-      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, users(full_name)"
+      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, signed_by_name, signed_at, witness_name, witness_signature, users(full_name)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -68,7 +68,13 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         | "inspector_signature"
         | "checklist_template_id"
         | "inspector_id"
-      > & { users: { full_name: string } | null }
+      > & {
+        users: { full_name: string } | null;
+        signed_by_name: string | null;
+        signed_at: string | null;
+        witness_name: string | null;
+        witness_signature: string | null;
+      }
     >();
 
   if (!record) notFound();
@@ -101,9 +107,9 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption">[]>(),
     supabase
       .from(IRNS_TABLE)
-      .select("id, irn_number, release_date")
+      .select("id, irn_number, release_date, voided_at, void_reason")
       .eq("inspection_record_id", id)
-      .maybeSingle<Pick<IrnRow, "id" | "irn_number" | "release_date">>(),
+      .maybeSingle<Pick<IrnRow, "id" | "irn_number" | "release_date" | "voided_at" | "void_reason">>(),
   ]);
 
   const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
@@ -148,6 +154,23 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             />
           </div>
         </div>
+        {record.overall_result && (
+          <div
+            className={`px-5 py-2 text-sm font-medium ${
+              record.overall_result === "pass"
+                ? "bg-success/10 text-success"
+                : record.overall_result === "fail"
+                  ? "bg-danger/10 text-danger"
+                  : "bg-warning/10 text-warning"
+            }`}
+          >
+            {record.overall_result === "pass"
+              ? "Inspection passed — all items satisfactory."
+              : record.overall_result === "fail"
+                ? "Inspection failed — raise/close an NCR and re-inspect before release."
+                : "Conditional result — items marked N/A; confirm they genuinely do not apply before releasing."}
+          </div>
+        )}
         <div className="bg-surface px-5 py-3">
           <InspectionReportPdfButton inspectionRecordId={record.id} latest={latestReportPdf} />
         </div>
@@ -307,9 +330,18 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           <div className="mt-2 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3">
             <img src={record.inspector_signature} alt="Inspector signature" className="h-28 w-auto" />
             <div className="mt-1 w-64 border-t border-ink/30 pt-1 text-xs text-muted">
-              {record.users?.full_name ?? "Inspector"} · {record.inspection_date}
+              {record.signed_by_name ?? record.users?.full_name ?? "Inspector"} ·{" "}
+              {record.signed_at ? new Date(record.signed_at).toLocaleString() : record.inspection_date}
             </div>
           </div>
+          {record.witness_signature && (
+            <div className="mt-3 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3 sm:ml-4">
+              <img src={record.witness_signature} alt="Witness signature" className="h-28 w-auto" />
+              <div className="mt-1 w-64 border-t border-ink/30 pt-1 text-xs text-muted">
+                Witness: {record.witness_name ?? "—"}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -318,18 +350,28 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         {irn ? (
           <div className="mt-2">
             <p className="text-sm text-ink">
-              <span className="doc-id">{irn.irn_number}</span> · Released {irn.release_date}
+              <span className="doc-id">{irn.irn_number}</span> · Released {irn.release_date}{" "}
+              {irn.voided_at && <Badge tone="danger">VOID</Badge>}
             </p>
-            <div className="mt-2">
-              <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} />
-            </div>
+            {irn.voided_at ? (
+              <p className="mt-1 text-sm text-danger">
+                Voided {new Date(irn.voided_at).toLocaleDateString()}: {irn.void_reason}
+              </p>
+            ) : (
+              <>
+                <div className="mt-2">
+                  <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} />
+                </div>
+                {session.isJagsStaff && <VoidIrnForm irnId={irn.id} />}
+              </>
+            )}
           </div>
-        ) : record.overall_result === "pass" ? (
+        ) : record.overall_result === "pass" || record.overall_result === "partial" ? (
           <div className="mt-2">
             <IssueIrnForm inspectionRecordId={record.id} />
           </div>
         ) : (
-          <p className="mt-2 text-sm text-muted">An IRN can only be issued once this inspection has passed.</p>
+          <p className="mt-2 text-sm text-muted">An IRN can only be issued once this inspection has passed (or conditionally passed).</p>
         )}
       </div>
     </div>

@@ -18,6 +18,8 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
   async function uploadOne(rawFile: File): Promise<string | null> {
     const file = await compressImageFile(rawFile);
 
+    if (!file.type.startsWith("image/")) return `${file.name} is not an image.`;
+    if (file.size > 15 * 1024 * 1024) return `${file.name} is larger than 15 MB. Use a smaller photo.`;
     const supabase = createSupabaseBrowserClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `standalone/${assignmentId}/${Date.now()}-${safeName}`;

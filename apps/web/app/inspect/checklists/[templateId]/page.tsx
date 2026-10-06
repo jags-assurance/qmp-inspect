@@ -65,7 +65,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const { data: template } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
     .select(
-      "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, projects(id, name, organization_id, enforce_hold_blocks_start, organizations(name)))))"
+      "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start, organizations(name)))))"
     )
     .eq("id", templateId)
     .maybeSingle<{
@@ -82,6 +82,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           itps: {
             id: string;
             itp_number: string;
+            status: string;
             projects: {
               id: string;
               name: string;
@@ -336,8 +337,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // (lib/checklists/actions.ts) will refuse to persist anyway once they hit "Start". Only computed
   // when it would actually matter (no draft yet, otherwise-executable) to avoid the extra query on
   // every page view.
+  const itpApproved = itp.status === "approved" || itp.status === "client_accepted";
   const holdOpen =
-    !draft && canExecute && project.enforce_hold_blocks_start ? !(await canCompleteInspection(itpItem.id)) : false;
+    !draft && canExecute && itpApproved && project.enforce_hold_blocks_start ? !(await canCompleteInspection(itpItem.id)) : false;
 
   // Named "who's holding this" instead of the old generic "the assigned party must release it" —
   // found live: nobody could tell from this message alone which specific party/person to go chase.
@@ -373,7 +375,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   }
 
   const locationPresetNames =
-    !draft && canExecute && !holdOpen
+    !draft && canExecute && itpApproved && !holdOpen
       ? (await getLocationPresetsForProject(supabase, project.organization_id, project.id)).map((p) => p.name)
       : [];
 
@@ -445,7 +447,14 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
-      {!draft && canExecute && !holdOpen && (
+      {!draft && canExecute && !itpApproved && (
+        <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
+          This ITP hasn&apos;t been approved yet, so site inspections can&apos;t start. Work opens once it is approved on the{" "}
+          <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>.
+        </p>
+      )}
+
+      {!draft && canExecute && itpApproved && !holdOpen && (
         <div className="mt-6">
           <StartInspectionForm
             templateId={template.id}

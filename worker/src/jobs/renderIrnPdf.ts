@@ -13,6 +13,8 @@ interface IrnRow {
   irn_number: string;
   release_date: string;
   issued_by: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
 }
 
 interface InspectionRecordRow {
@@ -37,7 +39,7 @@ interface InspectionRecordRow {
 export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resultStoragePath: string }> {
   const { data: irn, error: irnError } = await supabase
     .from("irns" as never)
-    .select("id, inspection_record_id, irn_number, release_date, issued_by")
+    .select("id, inspection_record_id, irn_number, release_date, issued_by, voided_at, void_reason")
     .eq("id", payload.irn_id)
     .single<IrnRow>();
 
@@ -89,6 +91,8 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     inspectorName: inspector?.full_name ?? null,
     releaseDate: irn.release_date,
     issuedByName: issuer?.full_name ?? null,
+    voidedAt: irn.voided_at,
+    voidReason: irn.void_reason,
     generatedAt: new Date(),
     branding: await getOrgBranding(supabase, project?.organization_id),
   };

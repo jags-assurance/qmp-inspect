@@ -1,7 +1,7 @@
 "use client";
 
 import { RaiseNcrDrawer } from "./raise-ncr-drawer";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { saveChecklistResponseAction } from "@/lib/checklists/actions";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
@@ -115,6 +115,16 @@ export function ResponseRow({
   const [materialId, setMaterialId] = useState(initialMaterialId ?? "");
   const [welderId, setWelderId] = useState(initialWelderId ?? "");
   const [, startTransition] = useTransition();
+  const saveSeq = useRef(0);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastPayload = useRef<{
+    nextResult: ChecklistResponseResult;
+    nextComment: string;
+    nextOverrideReason: string;
+    nextCalibrationAssetId: string;
+    nextMaterialId: string;
+    nextWelderId: string;
+  } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const showCalibrationPicker = registerVerification?.kind === "calibration" && calibrationOptions.length > 0;
   const showMaterialPicker = registerVerification?.kind === "material" && materialOptions.length > 0;
@@ -142,11 +152,18 @@ export function ResponseRow({
     nextWelderId: string = welderId
   ) {
     if (readOnly || !nextResult) return;
-    if (needsOverrideReason && !nextOverrideReason.trim()) return;
+    if (needsOverrideReason && !nextOverrideReason.trim()) {
+      onResultChange?.(null);
+      return;
+    }
     // R45: "a No requires a comment" — the pill click itself can't carry a comment yet, so this
     // simply defers the save until the comment field's onBlur re-calls save() with real text; the
     // "No" selection still shows locally (setResult already ran) so the inspector sees it's pending.
-    if (nextResult === "no" && !nextComment.trim()) return;
+    // Until it is actually saved it must NOT count as answered.
+    if (nextResult === "no" && !nextComment.trim()) {
+      onResultChange?.(null);
+      return;
+    }
     const formData = new FormData();
     formData.set("template_id", templateId);
     formData.set("inspection_record_id", inspectionRecordId);
@@ -157,29 +174,50 @@ export function ResponseRow({
     if (nextMaterialId) formData.set("material_id", nextMaterialId);
     if (nextWelderId) formData.set("welder_id", nextWelderId);
 
+    lastPayload.current = { nextResult, nextComment, nextOverrideReason, nextCalibrationAssetId, nextMaterialId, nextWelderId };
     setSaveError(null);
     onSavingChange?.(true);
-    startTransition(async () => {
+    const mySeq = ++saveSeq.current;
+    // Saves for one row run strictly in order (chained), so a slow earlier request can never land
+    // after — and overwrite — a later tap (last write wins = what the inspector last chose).
+    const run = async () => {
       try {
-        // Offline (R60): rather than let the Server Action's own fetch fail, queue the response
-        // right away when we already know there's no connection, and fall back to the queue if a
-        // "we thought we were online" attempt fails too (a dropped connection mid-save).
+        const fields = Object.fromEntries(formData) as Record<string, string>;
+        // Offline (R60): queue right away when we already know there's no connection, and fall back
+        // to the queue if a "we thought we were online" attempt throws (dropped connection mid-save).
         if (typeof navigator !== "undefined" && !navigator.onLine) {
-          await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
+          await enqueueOutboxItem({ kind: "checklist_response", fields });
           notifyOutboxChanged();
+          if (mySeq === saveSeq.current) onResultChange?.(nextResult);
           return;
         }
         try {
           const outcome = await saveChecklistResponseAction(formData);
-          if (outcome.error) setSaveError(outcome.error);
+          if (outcome.error) {
+            if (mySeq === saveSeq.current) {
+              setSaveError(outcome.error);
+              onResultChange?.(null);
+            }
+          } else if (mySeq === saveSeq.current) {
+            onResultChange?.(nextResult);
+          }
         } catch {
-          await enqueueOutboxItem({ kind: "checklist_response", fields: Object.fromEntries(formData) as Record<string, string> });
+          await enqueueOutboxItem({ kind: "checklist_response", fields });
           notifyOutboxChanged();
+          if (mySeq === saveSeq.current) onResultChange?.(nextResult);
         }
       } finally {
         onSavingChange?.(false);
       }
-    });
+    };
+    queueRef.current = queueRef.current.then(run, run);
+    startTransition(() => {});
+  }
+
+  function retry() {
+    const p = lastPayload.current;
+    if (!p) return;
+    save(p.nextResult, p.nextComment, p.nextOverrideReason, p.nextCalibrationAssetId, p.nextMaterialId, p.nextWelderId);
   }
 
   return (
@@ -188,7 +226,11 @@ export function ResponseRow({
         <div>
           <p className="text-sm font-medium text-ink">
             <span className="doc-id text-muted">{itemNumber}.</span> {description}
-            {isMandatory && <span className="ml-1 text-danger">*</span>}
+            {isMandatory && (
+              <span className="ml-1 text-danger" title="Mandatory item">
+                * <span className="sr-only">mandatory</span>
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -251,7 +293,7 @@ export function ResponseRow({
                 setCalibrationAssetId(e.target.value);
                 save(result, comment, overrideReason, e.target.value);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-base outline-none sm:text-sm focus:border-burgundy disabled:opacity-60"
             >
               <option value="">— Not recorded —</option>
               {calibrationOptions.map((opt) => (
@@ -282,7 +324,7 @@ export function ResponseRow({
                 setMaterialId(e.target.value);
                 save(result, comment, overrideReason, calibrationAssetId, e.target.value, welderId);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-base outline-none sm:text-sm focus:border-burgundy disabled:opacity-60"
             >
               <option value="">— Not recorded —</option>
               {materialOptions.map((opt) => (
@@ -309,7 +351,7 @@ export function ResponseRow({
                 setWelderId(e.target.value);
                 save(result, comment, overrideReason, calibrationAssetId, materialId, e.target.value);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-base outline-none sm:text-sm focus:border-burgundy disabled:opacity-60"
             >
               <option value="">— Not recorded —</option>
               {welderOptions.map((opt) => (
@@ -337,12 +379,14 @@ export function ResponseRow({
               disabled={readOnly || !overrideSatisfied}
               title={!overrideSatisfied ? "Enter a reason above before recording a response." : undefined}
               onClick={() => {
+                // Double-tap protection: re-tapping the already-chosen answer is a no-op unless the
+                // last save failed (then it acts as a retry).
+                if (result === pill.value && !saveError) return;
                 setResult(pill.value);
-                onResultChange?.(pill.value);
                 save(pill.value, comment, overrideReason, calibrationAssetId);
               }}
               className={cn(
-                "min-w-24 rounded-lg border-2 px-6 py-4 text-base font-bold transition-colors disabled:opacity-60",
+                "min-h-12 min-w-0 flex-1 rounded-lg border-2 px-4 py-3 text-base font-bold transition-colors disabled:opacity-60 sm:flex-none sm:min-w-24 sm:px-6",
                 result === pill.value ? pill.activeClass : "border-border bg-surface text-ink hover:bg-off-white"
               )}
             >
@@ -385,14 +429,28 @@ export function ResponseRow({
           rows={2}
           disabled={readOnly}
           defaultValue={comment}
-          placeholder="Comment (optional)"
+          maxLength={2000}
+          placeholder={result === "no" ? "Comment (required for No)" : "Comment (optional)"}
+          aria-required={result === "no"}
           onBlur={(e) => {
+            const changed = e.target.value !== comment;
             setComment(e.target.value);
-            save(result, e.target.value, overrideReason, calibrationAssetId);
+            if (changed || result === "no") save(result, e.target.value, overrideReason, calibrationAssetId);
           }}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy disabled:opacity-60 sm:text-sm"
         />
-        {saveError && <p className="text-xs text-danger">{saveError}</p>}
+        {saveError && (
+          <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-danger">
+            <span>{saveError}</span>
+            <button
+              type="button"
+              onClick={retry}
+              className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
+            >
+              Retry
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

@@ -122,6 +122,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
     { label: "Guide", href: "/inspect/guide" },
     ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
     { label: "Projects", href: "/inspect/projects" },
+    { label: "Inspections", href: "/inspect/inspections" },
     // Reports & Downloads / Data Book / Activity / KPIs are all per-project pages — no single
     // top-level href makes sense for them without a project already chosen. This is a dedicated
     // index page (the project filter lives there, not in the sidebar itself) that lists every

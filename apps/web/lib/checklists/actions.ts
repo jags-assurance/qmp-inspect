@@ -1,5 +1,6 @@
 "use server";
 
+import { requireSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { computeCalibrationStatus, computeWelderStatus } from "@/lib/registers/status";
@@ -395,8 +396,14 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
 
   // R45: "a 'No' requires a comment" — enforced server-side, not just as a UI nudge, since this is
   // the record an auditor/NCR relies on later for why the item failed.
+  if (result !== "yes" && result !== "no" && result !== "na") {
+    return { error: "Invalid response value." };
+  }
   if (result === "no" && !comment) {
     return { error: "A comment is required when marking an item as No." };
+  }
+  if (comment.length > 2000) {
+    return { error: "Comment is too long (maximum 2000 characters)." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -406,11 +413,24 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   // access answer a checklist item, so the restriction is enforced here too.
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("itp_item_id, project_id")
+    .select("itp_item_id, project_id, overall_result, checklist_template_id")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "project_id">>();
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "project_id" | "overall_result" | "checklist_template_id">>();
   if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
     return { error: "Could not save — you don't have permission to record a response for this activity." };
+  }
+  if (record.overall_result) {
+    return { error: "This inspection is already completed — responses can no longer be changed." };
+  }
+  // The item must belong to this inspection's own checklist (no cross-checklist writes).
+  if (record.checklist_template_id) {
+    const { data: itemRow } = await supabase
+      .from(CHECKLIST_ITEMS_TABLE)
+      .select("id")
+      .eq("id", checklistItemId)
+      .eq("template_id", record.checklist_template_id)
+      .maybeSingle<{ id: string }>();
+    if (!itemRow) return { error: "That item is not part of this inspection's checklist." };
   }
 
   // Traceability links must point at a row on THIS project; calibration/welder must also be in date,
@@ -503,9 +523,47 @@ export async function startInspectionAction(
     return { error: "Missing required fields to start the inspection." };
   }
 
+  if (location.length > 200) return { error: "The location is too long — keep it under 200 characters." };
+
   const supabase = await createSupabaseServerClient();
   if (!(await canExecuteItpItem(supabase, itpItemId))) {
     return { error: "Only JAGS staff or the party assigned to this activity can start a field inspection." };
+  }
+
+  // Server-side integrity: the template, activity and project must actually belong together (the
+  // hidden form fields are client-supplied), and the ITP must be approved/accepted before work
+  // starts — the same gate activity sign-off uses.
+  const { data: gate } = await supabase
+    .from(CHECKLIST_TEMPLATES_TABLE)
+    .select("id, itp_item_id, itp_items(itp_sections(itps(status, projects(id))))")
+    .eq("id", templateId)
+    .maybeSingle<{
+      id: string;
+      itp_item_id: string | null;
+      itp_items: { itp_sections: { itps: { status: string; projects: { id: string } | null } | null } | null } | null;
+    }>();
+  if (!gate || gate.itp_item_id !== itpItemId || gate.itp_items?.itp_sections?.itps?.projects?.id !== projectId) {
+    return { error: "This checklist does not belong to that activity or project." };
+  }
+  const itpStatus = gate.itp_items?.itp_sections?.itps?.status;
+  if (itpStatus !== "approved" && itpStatus !== "client_accepted") {
+    return { error: "This ITP hasn't been approved yet, so site inspections can't start. Work opens once the ITP is approved." };
+  }
+
+  // Resume rather than create a second draft for the same activity.
+  {
+    const { data: openDraft } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id")
+      .eq("itp_item_id", itpItemId)
+      .eq("checklist_template_id", templateId)
+      .is("overall_result", null)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    if (openDraft) {
+      revalidatePath(`/inspect/checklists/${templateId}`);
+      return { error: null };
+    }
   }
 
   // R71: "Hold (H): work is genuinely held for that party until they respond/release. A hold point
@@ -650,8 +708,12 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // record's notes (so it shows on the report) and the audit trail below.
   const noEvidenceReason = String(formData.get("no_evidence_reason") ?? "").trim();
   const signature = String(formData.get("signature") ?? "").trim();
+  const typedName = String(formData.get("signed_by_name") ?? "").trim().slice(0, 120);
+  const witnessName = String(formData.get("witness_name") ?? "").trim().slice(0, 120);
+  const witnessSignature = String(formData.get("witness_signature") ?? "").trim();
 
   if (!inspectionRecordId || !templateId) return { error: "Missing inspection record." };
+  if (witnessSignature && !witnessName) return { error: "Enter the witness's name alongside their signature." };
   if (!signature) return { error: "A signature is required to complete the inspection." };
 
   const supabase = await createSupabaseServerClient();
@@ -732,12 +794,24 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // above and both run, each independently creating a punch item and sending "Inspection failed"
   // notifications for the one real event. `.select("id")` lets us tell "updated" from "already
   // completed by someone/something else" apart, since a plain `error`-only check can't.
+  const {
+    data: { user: signer },
+  } = await supabase.auth.getUser();
+  let signedByName = typedName;
+  if (!signedByName && signer?.id) {
+    const { data: profile } = await supabase.from("users").select("full_name").eq("id", signer.id).maybeSingle<{ full_name: string }>();
+    signedByName = profile?.full_name ?? "";
+  }
   const { data: updated, error } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .update({
       overall_result: overallResult,
       notes: notes || null,
       inspector_signature: signature || null,
+      signed_by_name: signedByName || null,
+      signed_at: new Date().toISOString(),
+      witness_name: witnessName || null,
+      witness_signature: witnessSignature || null,
     })
     .eq("id", inspectionRecordId)
     .is("overall_result", null)
@@ -1013,7 +1087,15 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
   if (!(await canExecuteItpItem(supabase, record.itp_item_id))) {
     return { error: "Only the party assigned to execute this activity (or JAGS staff) can issue its IRN." };
   }
-  if (record.overall_result !== "pass") return { error: "An IRN can only be issued from a passed inspection." };
+  if (record.overall_result !== "pass" && record.overall_result !== "partial") {
+    return { error: "An IRN can only be issued from a passed (or conditionally passed) inspection." };
+  }
+  const { count: openNcrCount } = await supabase
+    .from("ncrs")
+    .select("id", { count: "exact", head: true })
+    .eq("inspection_record_id", inspectionRecordId)
+    .neq("status", "closed");
+  if (openNcrCount) return { error: "An NCR raised from this inspection is still open — close it before issuing the IRN." };
 
   const { data: project } = await supabase
     .from("projects")
@@ -1061,6 +1143,65 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
   }
 
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+  return { error: null };
+}
+
+/**
+ * Voids (revokes) an issued IRN with a mandatory written reason. JAGS staff only — releasing work
+ * is a controlled step, withdrawing the release must be too. The row is kept (flagged) so the
+ * numbering and audit trail stay intact; one IRN per inspection record still holds.
+ */
+export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): Promise<IssueIrnState> {
+  const irnId = String(formData.get("irn_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!irnId) return { error: "Missing IRN." };
+  if (reason.length < 15) return { error: "Give a reason for voiding the IRN (at least 15 characters)." };
+
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: "Only JAGS staff can void an IRN." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: irn } = await supabase
+    .from(IRNS_TABLE)
+    .select("id, irn_number, inspection_record_id, voided_at")
+    .eq("id", irnId)
+    .maybeSingle<{ id: string; irn_number: string; inspection_record_id: string; voided_at: string | null }>();
+  if (!irn) return { error: "IRN not found." };
+  if (irn.voided_at) return { error: "This IRN is already void." };
+
+  const { data: updated, error } = await supabase
+    .from(IRNS_TABLE)
+    .update({ voided_at: new Date().toISOString(), voided_by: session.userId, void_reason: reason })
+    .eq("id", irnId)
+    .is("voided_at", null)
+    .select("id");
+  if (error || !updated?.length) return { error: "Could not void the IRN." };
+
+  try {
+    const { data: rec } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("project_id")
+      .eq("id", irn.inspection_record_id)
+      .maybeSingle<{ project_id: string }>();
+    const { data: project } = rec
+      ? await supabase.from("projects").select("organization_id").eq("id", rec.project_id).maybeSingle<{ organization_id: string }>()
+      : { data: null };
+    if (rec && project) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId: rec.project_id,
+        entityType: "irn",
+        entityId: irn.inspection_record_id,
+        action: "voided",
+        actorId: session.userId,
+        summary: `IRN ${irn.irn_number} voided — ${reason}`,
+      });
+    }
+  } catch {
+    // Best-effort audit.
+  }
+
+  revalidatePath(`/inspect/inspections/${irn.inspection_record_id}`);
   return { error: null };
 }
 

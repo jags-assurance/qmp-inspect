@@ -24,6 +24,9 @@ export interface IrnPdfData {
   releaseDate: string;
   issuedByName: string | null;
 
+  /** Set when the IRN has been voided (row kept, flagged). */
+  voidedAt?: string | null;
+  voidReason?: string | null;
   generatedAt: Date;
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
@@ -106,7 +109,7 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
   const releaseRows: [string, string | null][] = [
     ["IRN number", data.irnNumber],
     ["Release date", data.releaseDate],
-    ["Hold status", "RELEASED"],
+    ["Hold status", data.voidedAt ? "VOID" : "RELEASED"],
   ];
 
   return `<!doctype html>
@@ -193,6 +196,11 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
   }
   .release-banner strong { font-size: 13px; letter-spacing: 0.2px; color: var(--success); }
 
+  .void-banner { border: 3px solid #c00; color: #c00; text-align: center; padding: 10px; margin-bottom: 12px; border-radius: 3px; }
+  .void-banner strong { display: block; font-size: 44px; letter-spacing: 8px; }
+  .void-banner span { font-size: 11px; color: #800; }
+  .void-watermark { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 160px; font-weight: bold; color: rgba(204, 0, 0, 0.12); transform: rotate(-30deg); z-index: 0; pointer-events: none; }
+
   .section { margin-bottom: 14px; }
   .section h2 {
     font-size: 12px; color: var(--burgundy); border-bottom: 1px solid var(--burgundy);
@@ -243,8 +251,14 @@ ${brandColorStyle(data.branding)}
   <h1>${escapeHtml(data.irnNumber)} | Inspection Release Note</h1>
   <p class="subline">${cell(projectSubline || null)}</p>
 
+  ${
+    data.voidedAt
+      ? `<div class="void-banner"><strong>VOID</strong><span>This IRN has been voided and is no longer valid. Voided ${escapeHtml(data.voidedAt.slice(0, 10))}. Reason: ${cell(data.voidReason)}</span></div><div class="void-watermark">VOID</div>`
+      : ""
+  }
+
   <div class="release-banner">
-    <strong>HOLD RELEASED — ${escapeHtml(resultLabel)}</strong>
+    <strong>${data.voidedAt ? "HOLD RELEASE VOIDED" : "HOLD RELEASED"} — ${escapeHtml(resultLabel)}</strong>
     <span>This certificate confirms the activity below has been inspected, passed, and its hold released for the next stage of work.</span>
   </div>
 

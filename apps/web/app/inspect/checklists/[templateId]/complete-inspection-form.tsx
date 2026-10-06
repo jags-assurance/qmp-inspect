@@ -21,6 +21,10 @@ export function CompleteInspectionForm({
 }) {
   const [state, formAction, pending] = useActionState(completeInspectionAction, initialState);
   const [signature, setSignature] = useState<string | null>(null);
+  const [witnessSignature, setWitnessSignature] = useState<string | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const [witnessName, setWitnessName] = useState("");
+  const [witnessOpen, setWitnessOpen] = useState(false);
   const [queued, setQueued] = useState(false);
   const [queueError, setQueueError] = useState<string | null>(null);
 
@@ -50,12 +54,26 @@ export function CompleteInspectionForm({
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="signature" value={signature ?? ""} />
+      <input type="hidden" name="witness_signature" value={witnessOpen ? (witnessSignature ?? "") : ""} />
       {noEvidenceReason && <input type="hidden" name="no_evidence_reason" value={noEvidenceReason} />}
 
       <h2 className="text-base font-medium text-ink">
         Inspector sign-off <span className="text-danger">*</span>
       </h2>
 
+      <label htmlFor="signed_by_name" className="mt-3 block text-sm font-medium text-ink">
+        Printed name
+      </label>
+      <input
+        id="signed_by_name"
+        name="signed_by_name"
+        value={signerName}
+        onChange={(e) => setSignerName(e.target.value)}
+        placeholder="Defaults to your account name"
+        maxLength={120}
+        className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+      />
+      <p className="mt-1 text-xs text-muted">The date and time are stamped automatically when you complete.</p>
       <div className="mt-3">
         <SignaturePad onChange={setSignature} />
       </div>
@@ -63,7 +81,27 @@ export function CompleteInspectionForm({
         <p className="mt-1 text-xs text-muted">Sign above — a signature is required to complete the inspection.</p>
       )}
 
-      <label htmlFor="notes" className="mt-4 block text-sm font-medium text-ink">
+      <div className="mt-4 rounded-md border border-border p-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-ink">
+          <input type="checkbox" checked={witnessOpen} onChange={(e) => setWitnessOpen(e.target.checked)} />
+          Add a witness signature (optional)
+        </label>
+        {witnessOpen && (
+          <div className="mt-3 space-y-3">
+            <input
+              name="witness_name"
+              value={witnessName}
+              onChange={(e) => setWitnessName(e.target.value)}
+              placeholder="Witness name and company"
+              maxLength={120}
+              className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+            />
+            <SignaturePad onChange={setWitnessSignature} />
+          </div>
+        )}
+      </div>
+
+      <label htmlFor="notes"className="mt-4 block text-sm font-medium text-ink">
         Notes (optional)
       </label>
       <textarea
@@ -74,7 +112,7 @@ export function CompleteInspectionForm({
         className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
       />
 
-      <Button type="submit" disabled={pending || !signature || queued} className="mt-4">
+      <Button type="submit" disabled={pending || !signature || queued || (witnessOpen && !!witnessSignature && !witnessName.trim())} className="mt-4">
         {queued ? "Queued — will complete when back online" : pending ? "Completing…" : "Complete inspection"}
       </Button>
       {queued && (
