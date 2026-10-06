@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/lib/itp-master/types";
 import { ITP_MASTER_REVISIONS_TABLE, type ItpMasterRevisionRow } from "@/lib/itp-master/revision-types";
 import { VersionHistoryPanel } from "./version-history-panel";
+import { DefaultLevels } from "./default-levels";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
@@ -58,6 +59,20 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
     .order("section_number")
     .returns<SectionWithItems[]>();
 
+  const allMasterItemIds = (sections ?? []).flatMap((s) => (s.itp_master_items ?? []).map((i) => i.id));
+  const { data: defaultRows } = allMasterItemIds.length
+    ? await supabase
+        .from("itp_master_item_interventions" as never)
+        .select("master_item_id, party_type, intervention")
+        .in("master_item_id" as never, allMasterItemIds as never)
+        .returns<{ master_item_id: string; party_type: string; intervention: string }[]>()
+    : { data: [] as { master_item_id: string; party_type: string; intervention: string }[] };
+  const defaultsByItem = new Map<string, Record<string, string>>();
+  for (const row of defaultRows ?? []) {
+    defaultsByItem.set(row.master_item_id, { ...(defaultsByItem.get(row.master_item_id) ?? {}), [row.party_type]: row.intervention });
+  }
+  const canEditDefaults = isAdminStaff(session);
+
   // R31 version history — frozen snapshots of past master template versions, newest first. See
   // lib/itp-master/revisions.ts for what writes these rows.
   const { data: revisions } = await supabase
@@ -79,7 +94,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
         <PageGuide
           title="Master template — how this works"
           points={[
-            "Read-only here — you can't edit a master template's sections or items directly on this page.",
+            "Sections and activities are read-only here. The one thing a JAGS Admin can set directly is each activity's default sign-off level per party type (Client, Main contractor, Subcontractor, TPI / Lab) — applied to the matching parties whenever a project ITP is created from this template.",
             "The only way content changes is via the proposal flow: a JAGS Admin approves a proposal (from an ITP's own \"Propose to master library\" action) to create a new template or update this one.",
             "Every approved update bumps the version number shown above and freezes a snapshot in the version history panel below, so past versions stay inspectable even after the template moves on.",
             "\"Inactive\" means this version is no longer offered when starting a new project ITP from a template, but it's kept for record-keeping.",
@@ -107,6 +122,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
                     <th className="px-3 py-2 font-medium">Activity</th>
                     <th className="px-3 py-2 font-medium">Acceptance criteria</th>
                     <th className="px-3 py-2 font-medium">Evidence</th>
+                    <th className="px-3 py-2 font-medium">Default sign-off levels</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -118,11 +134,19 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
                         <td className="px-3 py-2 text-ink">{item.activity}</td>
                         <td className="px-3 py-2 text-muted">{item.acceptance_criteria ?? "—"}</td>
                         <td className="px-3 py-2 text-muted">{EVIDENCE_LABEL[item.evidence_type]}</td>
+                        <td className="px-3 py-2">
+                          <DefaultLevels
+                            templateId={template.id}
+                            masterItemId={item.id}
+                            defaults={defaultsByItem.get(item.id) ?? {}}
+                            editable={canEditDefaults}
+                          />
+                        </td>
                       </tr>
                     ))}
                   {(section.itp_master_items ?? []).length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={5} className="px-3 py-6 text-center text-muted">
                         No activities in this section.
                       </td>
                     </tr>

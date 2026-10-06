@@ -652,3 +652,52 @@ export async function reviewProposalAction(
   revalidatePath("/inspect/itp-master/proposals");
   return { error: null };
 }
+
+export interface SetMasterDefaultLevelState {
+  error: string | null;
+}
+
+const MASTER_DEFAULT_PARTY_TYPES = ["client", "main_contractor", "subcontractor", "tpi_lab"] as const;
+const MASTER_DEFAULT_LEVEL_CODES = ["H", "W", "R", "S"] as const;
+
+/**
+ * Sets (or clears, when `intervention` is blank) a master-template activity's default sign-off level for
+ * one party TYPE. JAGS Admin only. Applied to the matching parties whenever a project ITP is created from
+ * the template; it does not touch ITPs that already exist.
+ */
+export async function setMasterDefaultLevelAction(
+  _prev: SetMasterDefaultLevelState,
+  formData: FormData
+): Promise<SetMasterDefaultLevelState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can change a master template's default sign-off levels." };
+
+  const masterItemId = String(formData.get("master_item_id") ?? "").trim();
+  const templateId = String(formData.get("template_id") ?? "").trim();
+  const partyType = String(formData.get("party_type") ?? "").trim();
+  const intervention = String(formData.get("intervention") ?? "").trim();
+  if (!masterItemId || !(MASTER_DEFAULT_PARTY_TYPES as readonly string[]).includes(partyType)) {
+    return { error: "Missing or invalid activity or party type." };
+  }
+  if (intervention && !(MASTER_DEFAULT_LEVEL_CODES as readonly string[]).includes(intervention)) {
+    return { error: "Invalid sign-off level." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (!intervention) {
+    const { error } = await supabase
+      .from("itp_master_item_interventions" as never)
+      .delete()
+      .eq("master_item_id" as never, masterItemId as never)
+      .eq("party_type" as never, partyType as never);
+    if (error) return { error: "Could not clear the default level. Check you have permission and try again." };
+  } else {
+    const { error } = await supabase
+      .from("itp_master_item_interventions" as never)
+      .upsert({ master_item_id: masterItemId, party_type: partyType, intervention } as never, { onConflict: "master_item_id,party_type" });
+    if (error) return { error: "Could not save the default level. Check you have permission and try again." };
+  }
+
+  if (templateId) revalidatePath(`/inspect/itp-master/${templateId}`);
+  return { error: null };
+}
