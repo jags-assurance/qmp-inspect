@@ -58,7 +58,7 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
     },
     { key: "cal_date", header: "Cal. date", render: (row) => formatRegisterDate(row.cal_date) },
     { key: "due_date", header: "Due", render: (row) => <ExpiryDate date={row.due_date} warnWithinDays={CALIBRATION_DUE_SOON_DAYS} /> },
-    { key: "status", header: "Status", render: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
     { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="calibration" id={row.id} hasFile={!!row.certificate_path} /> },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];
@@ -87,6 +87,8 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
 
   return (
     <DataTable
+      mobileCards
+      caption="Calibration register"
       columns={columns}
       rows={rows}
       searchPlaceholder="Search instruments, tags, certificates…"

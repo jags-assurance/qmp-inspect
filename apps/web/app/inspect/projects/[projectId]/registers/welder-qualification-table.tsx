@@ -59,7 +59,7 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
     },
     { key: "qualified_ranges", header: "Ranges", render: (row) => row.qualified_ranges ?? "—" },
     { key: "expiry_date", header: "Expiry", render: (row) => <ExpiryDate date={row.expiry_date} warnWithinDays={WELDER_EXPIRING_DAYS} /> },
-    { key: "status", header: "Status", render: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
     { key: "certificate", header: "WPQ file", render: (row) => <CertificateLink kind="welder" id={row.id} hasFile={!!row.certificate_path} /> },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];
@@ -89,6 +89,8 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
 
   return (
     <DataTable
+      mobileCards
+      caption="Welder qualification register"
       columns={columns}
       rows={rows}
       searchPlaceholder="Search welders, WPS, WPQ…"

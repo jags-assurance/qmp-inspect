@@ -201,7 +201,7 @@ export async function VaultDocumentView({
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Badge tone={STATUS_TONE[document.status] ?? "neutral"}>{STATUS_LABEL[document.status] ?? document.status}</Badge>
+        <Badge showIcon tone={STATUS_TONE[document.status] ?? "neutral"}>{STATUS_LABEL[document.status] ?? document.status}</Badge>
         <p className="text-sm text-muted">{STATUS_EXPLAIN[document.status]}</p>
       </div>
       {document.status === "rejected" && document.rejection_reason && (
@@ -279,7 +279,7 @@ export async function VaultDocumentView({
                       Rev {r.revision}
                     </Link>
                   )}
-                  <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
+                  <Badge showIcon tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
                   <span className="text-xs text-muted">
                     {fmt(r.created_at)}
                     {r.users?.full_name ? ` · ${r.users.full_name}` : ""}

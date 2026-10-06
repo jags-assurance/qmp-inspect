@@ -13,6 +13,7 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { normaliseLocation } from "@/lib/checklists/location";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -546,7 +547,7 @@ export async function suggestStandaloneMeasurementsAction(
   } catch (err) {
     return {
       ...EMPTY_SUGGEST_MEASUREMENTS_STATE,
-      error: err instanceof Error ? err.message : "Could not generate measurement suggestions.",
+      error: aiErrorMessage(err, "Could not generate measurement suggestions."),
     };
   }
 }

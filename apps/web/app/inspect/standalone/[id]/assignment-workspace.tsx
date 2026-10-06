@@ -291,7 +291,7 @@ export function AssignmentWorkspace({
                     <tr key={item.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2 text-ink">{item.description}</td>
                       <td className="px-3 py-2">
-                        <Badge tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>
+                        <Badge showIcon tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>
                       </td>
                       {canEditPunch && (
                         <td className="px-3 py-2 text-right">

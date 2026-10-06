@@ -38,7 +38,7 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
     { key: "certification_type", header: "Certification", render: (row) => row.certification_type },
     { key: "cert_number", header: "Cert No.", render: (row) => row.cert_number ?? "—" },
     { key: "expiry_date", header: "Expiry", render: (row) => <ExpiryDate date={row.expiry_date} warnWithinDays={PERSONNEL_CERTIFICATION_EXPIRING_DAYS} /> },
-    { key: "status", header: "Status", render: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
     { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="personnel" id={row.id} hasFile={!!row.certificate_path} /> },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];
@@ -65,6 +65,8 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
 
   return (
     <DataTable
+      mobileCards
+      caption="Personnel certification register"
       columns={columns}
       rows={rows}
       searchPlaceholder="Search people, certifications…"

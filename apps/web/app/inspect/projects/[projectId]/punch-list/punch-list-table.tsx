@@ -42,7 +42,9 @@ function isOverdueRow(r: { due_date: string | null; status: PunchListStatus }): 
 }
 
 function csvCell(v: string): string {
-  return `"${v.replace(/"/g, '""')}"`;
+  // Neutralise spreadsheet formula injection (leading = + - @ tab CR).
+  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
 
 const STATUS_TONE: Record<PunchListStatus, "success" | "neutral" | "warning"> = {
@@ -168,7 +170,7 @@ export function PunchListTable({
     {
       key: "status",
       header: "Status",
-      render: (row) => <Badge tone={STATUS_TONE[row.status]}>{PUNCH_LIST_STATUS_LABELS[row.status]}</Badge>,
+      render: (row) => <Badge tone={STATUS_TONE[row.status]} showIcon>{PUNCH_LIST_STATUS_LABELS[row.status]}</Badge>,
     },
     {
       key: "actions",
@@ -233,6 +235,8 @@ export function PunchListTable({
       <DataTable
         columns={columns}
         rows={visibleRows}
+        caption="Punch list items"
+        mobileCards
         searchPlaceholder="Search punch list…"
         searchKeys={(row) => `${row.description} ${row.location ?? ""} ${row.project_parties?.name ?? ""}`}
         emptyMessage={view === "all" && !partyFilter && !priorityFilter && !locationFilter ? "No punch list items yet. Use Record walk-down or Add punch item above." : "Nothing matches these filters."}
@@ -242,7 +246,7 @@ export function PunchListTable({
           <div className="mt-4 space-y-3 text-sm">
             <p className="text-ink">{openRow.description}</p>
             <p className="flex flex-wrap items-center gap-2">
-              <Badge tone={STATUS_TONE[openRow.status]}>{PUNCH_LIST_STATUS_LABELS[openRow.status]}</Badge>
+              <Badge tone={STATUS_TONE[openRow.status]} showIcon>{PUNCH_LIST_STATUS_LABELS[openRow.status]}</Badge>
               <Badge tone="neutral">{PUNCH_LIST_SOURCE_LABELS[openRow.source]}</Badge>
             </p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">

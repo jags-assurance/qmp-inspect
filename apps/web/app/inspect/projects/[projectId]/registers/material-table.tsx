@@ -63,7 +63,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       key: "approval_status",
       header: "Approval",
       render: (row) => (
-        <Badge tone={APPROVAL_TONE[row.approval_status]}>
+        <Badge showIcon tone={APPROVAL_TONE[row.approval_status]}>
           {row.approval_status} — {MATERIAL_APPROVAL_STATUS_LABELS[row.approval_status]}
         </Badge>
       ),
@@ -91,7 +91,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       header: "Receiving inspection",
       render: (row) => (
         <div>
-          <Badge tone={RECEIPT_TONE[row.receipt_status]}>{MATERIAL_RECEIPT_STATUS_LABELS[row.receipt_status]}</Badge>
+          <Badge showIcon tone={RECEIPT_TONE[row.receipt_status]}>{MATERIAL_RECEIPT_STATUS_LABELS[row.receipt_status]}</Badge>
           {row.released_at && <p className="mt-1 text-xs text-muted">Released {formatRegisterDate(row.released_at)}</p>}
           {row.disposition_notes && <p className="mt-1 text-xs text-muted">{row.disposition_notes}</p>}
         </div>
@@ -131,6 +131,8 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
 
   return (
     <DataTable
+      mobileCards
+      caption="Material register"
       columns={columns}
       rows={rows}
       searchPlaceholder="Search materials, heat, batch, PO, supplier…"

@@ -491,7 +491,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                             {book.compiled_by && compilerNames.get(book.compiled_by) ? ` by ${compilerNames.get(book.compiled_by)}` : ""}
                           </p>
                         </div>
-                        <Badge tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
+                        <Badge showIcon tone={STATUS_TONE[book.status]}>{STATUS_LABEL[book.status]}</Badge>
                       </div>
 
                       <ol className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">

@@ -65,7 +65,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
                 <span className="text-xs text-muted">Rev {row.revision}{row.signTotal ? ` · ${progressLabel(row)} signed` : ""}</span>
               </span>
               <span className="shrink-0 whitespace-nowrap">
-                <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
+                <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
               </span>
             </span>
             <span className="mt-1 line-clamp-2 block break-words text-sm text-ink" title={row.title}>{row.title}</span>
@@ -101,7 +101,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
   {
     key: "status",
     header: "Status",
-    render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
+    render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
   },
   { key: "signed", header: "% signed", render: (row) => progressLabel(row) },
   {
@@ -144,6 +144,8 @@ export function ItpsTable({ rows, totalCount }: { rows: ItpRow[]; totalCount?: n
     <DataTable
       columns={columns}
       rows={rows}
+      caption="Inspection and test plans"
+      mobileCards
       searchPlaceholder="Search ITPs…"
       searchKeys={(row) => `${row.itp_number} ${row.title}`}
       emptyMessage={searchValue ? "No ITPs match your search." : "No ITPs yet."}

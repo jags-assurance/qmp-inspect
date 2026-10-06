@@ -302,7 +302,7 @@ export async function DoneActivitiesPanel({
                       {Array.from(new Set((it.activity_party_intervention ?? []).map((p) => p.intervention))).join(" ") || "—"}
                     </td>
                     <td className="px-2 py-2">
-                      <Badge tone={STATUS_META[st].tone}>{STATUS_META[st].label}</Badge>
+                      <Badge showIcon tone={STATUS_META[st].tone}>{STATUS_META[st].label}</Badge>
                     </td>
                     <td className="whitespace-nowrap px-2 py-2">
                       {rec ? (

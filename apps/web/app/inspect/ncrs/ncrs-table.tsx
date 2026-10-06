@@ -95,7 +95,7 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void) {
     header: "Status",
     render: (row) => (
       <div className="flex items-center gap-2">
-        <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>
+        <Badge tone={STATUS_TONE[row.status]} showIcon>{STATUS_LABEL[row.status]}</Badge>
         {isOverdue(row) && <Badge tone="danger">Overdue</Badge>}
         {!isOverdue(row) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning">Due soon</Badge>}
       </div>
@@ -156,6 +156,8 @@ export function NcrsTable({
     <DataTable
       columns={columns}
       rows={rows}
+      caption="Non-conformance reports"
+      mobileCards
       searchPlaceholder={searchPlaceholder}
       searchKeys={(row) => `${row.ncr_number} ${row.description} ${row.projects?.name ?? ""}`}
       emptyMessage={emptyMessage}

@@ -28,6 +28,7 @@ import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -1203,7 +1204,7 @@ export async function checkChecklistConsistencyAction(
   } catch (err) {
     return {
       ...EMPTY_CONSISTENCY_STATE,
-      error: err instanceof Error ? err.message : "Could not run the consistency check.",
+      error: aiErrorMessage(err, "Could not run the consistency check."),
     };
   }
 }

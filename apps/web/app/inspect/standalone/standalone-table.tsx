@@ -95,6 +95,8 @@ export function StandaloneTable({ rows, totalCount }: { rows: StandaloneAssignme
 
   return (
     <DataTable
+      mobileCards
+      caption="Standalone assignments"
       columns={COLUMNS}
       rows={rows}
       searchPlaceholder="Search assignments…"

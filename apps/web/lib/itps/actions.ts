@@ -15,6 +15,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
 import { startReviewChainForItp, getItpReviewProgress, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -1716,6 +1717,6 @@ export async function translateItpContentAction(
     });
     return { error: null, translated, targetLanguage };
   } catch (err) {
-    return { ...EMPTY_TRANSLATE_STATE, error: err instanceof Error ? err.message : "Could not translate this ITP's content." };
+    return { ...EMPTY_TRANSLATE_STATE, error: aiErrorMessage(err, "Could not translate this ITP's content.") };
   }
 }

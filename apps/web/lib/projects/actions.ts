@@ -10,6 +10,7 @@ import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -1123,7 +1124,7 @@ export async function askProjectQuestionAction(
     });
     return { error: null, answer, question };
   } catch (err) {
-    return { ...EMPTY_ASK_STATE, error: err instanceof Error ? err.message : "Could not get an answer right now." };
+    return { ...EMPTY_ASK_STATE, error: aiErrorMessage(err, "Could not get an answer right now.") };
   }
 }
 

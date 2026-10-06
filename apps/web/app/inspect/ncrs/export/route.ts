@@ -7,7 +7,7 @@ import { applyNcrFilters, applyNcrSort } from "@/lib/ncrs/list-filters";
 function csvCell(v: unknown): string {
   const s = v == null ? "" : String(v);
   // Neutralise spreadsheet formula injection.
-  const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
+  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
   return `"${safe.replace(/"/g, '""')}"`;
 }
 

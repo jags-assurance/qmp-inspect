@@ -14,6 +14,7 @@ import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
@@ -604,7 +605,7 @@ export async function draftNcrDescriptionAction(
   } catch (err) {
     return {
       ...EMPTY_DRAFT_NCR_STATE,
-      error: err instanceof Error ? err.message : "Could not draft a description from those notes.",
+      error: aiErrorMessage(err, "Could not draft a description from those notes."),
     };
   }
 }
@@ -698,7 +699,7 @@ export async function suggestNcrRootCauseAction(
     });
     return { error: null, rootCause, aiLogId: logId };
   } catch (err) {
-    return { ...EMPTY_ROOT_CAUSE_STATE, error: err instanceof Error ? err.message : "Could not suggest a root cause." };
+    return { ...EMPTY_ROOT_CAUSE_STATE, error: aiErrorMessage(err, "Could not suggest a root cause.") };
   }
 }
 

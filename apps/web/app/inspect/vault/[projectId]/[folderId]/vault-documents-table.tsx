@@ -305,7 +305,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
                   </td>
                   <td className="px-3 py-3 align-top">
                     <div className="flex flex-col items-start gap-1">
-                      <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
+                      <Badge showIcon tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
                       {row.status === "rejected" && row.rejection_reason && (
                         <span className="max-w-48 text-xs text-muted" title={row.rejection_reason}>
                           {row.rejection_reason.length > 60 ? `${row.rejection_reason.slice(0, 60)}…` : row.rejection_reason}
