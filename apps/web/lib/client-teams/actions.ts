@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -41,6 +42,13 @@ export async function createClientTeamAction(
 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
+  if (!isAdminStaff(session)) {
+    // Bootstrap case only: a member of a self-managed organisation (organisation-wide access).
+    const ownOrgIds = await getSelfManagedOrgIdsForUser(supabase, session.userId);
+    if (!ownOrgIds.has(organizationId)) {
+      return { error: "Only a JAGS Admin, or a member of a self-managed organisation creating its own first team, can create a client team." };
+    }
+  }
   const { data: team, error } = await supabase
     .from("client_teams")
     .insert({ organization_id: organizationId, name })
@@ -202,9 +210,19 @@ export async function addClientTeamMemberByEmailAction(
     .insert({ user_id: targetUser.id, scope_type: "organization", organization_id: organizationId, role: "member" });
   let grantWarning: string | null = null;
   if (grantError && grantError.code !== "23505") {
-    grantWarning = grantError.message.includes("seat limit")
-      ? `${grantError.message} (the person was still added to the team.)`
-      : "Added to the team, but granting platform access failed — check with a JAGS Admin.";
+    // A team member with no platform access is useless and confusing, so undo the membership
+    // rather than leaving a half-added person behind.
+    await supabase
+      .from("client_team_members")
+      .delete()
+      .eq("client_team_id", clientTeamId)
+      .eq("user_id", targetUser.id);
+    revalidatePath(CLIENT_TEAMS_PATH);
+    return {
+      error: grantError.message.includes("seat limit")
+        ? `${grantError.message} The person was not added.`
+        : "Could not grant this person platform access, so they were not added. Ask a JAGS Admin to add them.",
+    };
   }
 
   // Found missing in a self-review audit: this is a real permission grant (organisation-scoped
@@ -255,12 +273,13 @@ export async function removeClientTeamMemberAction(
   const authError = await requireClientTeamWriteAccess(supabase, session.userId, clientTeamId);
   if (authError) return { error: authError };
 
-  const { error } = await supabase
+  const { data: removedRows, error } = await supabase
     .from("client_team_members")
     .delete()
     .eq("client_team_id", clientTeamId)
-    .eq("user_id", userId);
-  if (error) return { error: "Could not remove the member." };
+    .eq("user_id", userId)
+    .select("user_id");
+  if (error || !removedRows?.length) return { error: "Could not remove the member." };
 
   const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
   if (organizationId) {
@@ -294,12 +313,13 @@ export async function setClientTeamLeadAction(
   const authError = await requireClientTeamWriteAccess(supabase, session.userId, clientTeamId);
   if (authError) return { error: authError };
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("client_team_members")
     .update({ is_team_lead: isTeamLead })
     .eq("client_team_id", clientTeamId)
-    .eq("user_id", userId);
-  if (error) return { error: "Could not update the lead flag." };
+    .eq("user_id", userId)
+    .select("user_id");
+  if (error || !updatedRows?.length) return { error: "Could not update the lead flag." };
 
   const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
   if (organizationId) {

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { CreateClientTeamForm } from "./create-client-team-form";
@@ -84,6 +85,15 @@ export async function ClientTeamsView({ searchParams, embedded }: {
       <SettingsBackLink embedded={embedded} />
         <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
         <p className="mt-1 text-sm text-muted">No organisation found.</p>
+      </div>
+    );
+  }
+
+  if (!admin && !(await isModuleLicensed(supabase, organizationId, "client_teams"))) {
+    return (
+      <div className={embedded ? undefined : "max-w-4xl"}>
+        <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
+        <p className="mt-1 text-sm text-muted">This module isn't included in your organisation's plan. Ask a JAGS Admin to enable it.</p>
       </div>
     );
   }

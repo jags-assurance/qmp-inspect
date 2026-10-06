@@ -212,6 +212,8 @@ async function findItp(supabase: SupabaseClient, itpNumber: string): Promise<Itp
        reviewed_by_user:users!itps_reviewed_by_fkey(full_name, email)`
     )
     .eq("itp_number", itpNumber)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle<ItpMatch>();
   return data ?? null;
 }
@@ -228,6 +230,8 @@ async function findNcr(supabase: SupabaseClient, ncrNumber: string): Promise<Ncr
        closed_by_user:users!ncrs_closed_by_fkey(full_name, email)`
     )
     .eq("ncr_number", ncrNumber)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle<NcrMatch>();
   return data ?? null;
 }
@@ -242,6 +246,8 @@ async function findInspectionRecord(supabase: SupabaseClient, recordNumber: stri
        inspector:users!inspection_records_inspector_id_fkey(full_name, email)`
     )
     .eq("record_number", recordNumber)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle<InspectionRecordMatch>();
   return data ?? null;
 }

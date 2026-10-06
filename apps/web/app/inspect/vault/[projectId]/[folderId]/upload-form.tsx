@@ -65,7 +65,9 @@ export function VaultUploadForm({
     formData.set("storage_path", path);
     formData.set("file_size", String(file.size));
     formData.set("title", title);
-    formData.set("document_reference", sharedFields.document_reference);
+    // In a batch each file is matched by its title: re-uploading a same-named file in this folder
+    // becomes the next revision (the server numbers it) instead of a duplicate.
+    formData.set("document_reference", sharedFields.document_reference || title);
     formData.set("revision", sharedFields.revision);
     formData.set("document_date", sharedFields.document_date);
     formData.set("notes", sharedFields.notes);
@@ -94,7 +96,7 @@ export function VaultUploadForm({
     const baseFormData = new FormData(form);
     const sharedFields = {
       document_reference: isBatch ? "" : String(baseFormData.get("document_reference") ?? ""),
-      revision: String(baseFormData.get("revision") ?? "0"),
+      revision: isBatch ? "" : String(baseFormData.get("revision") ?? "0"),
       document_date: String(baseFormData.get("document_date") ?? ""),
       notes: String(baseFormData.get("notes") ?? ""),
     };

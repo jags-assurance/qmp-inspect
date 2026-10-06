@@ -60,6 +60,17 @@ export async function addStaffGrantAction(
     return { error: "That user is not a JAGS staff account." };
   }
 
+  if (scopeType === "project") {
+    const { data: projectRow } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (!projectRow || projectRow.organization_id !== organizationId) {
+      return { error: "That project doesn't belong to the chosen organisation." };
+    }
+  }
+
   // Matches the DB's access_grants_scope_shape check constraint exactly, so a mismatched shape
   // fails with this clear message rather than a raw constraint-violation error.
   const { data: grant, error } = await supabase
@@ -126,6 +137,21 @@ export async function removeStaffGrantAction(
     .select("user_id, organization_id, scope_type, role")
     .eq("id", grantId)
     .maybeSingle<{ user_id: string; organization_id: string | null; scope_type: string; role: string }>();
+
+  // Never let an admin lock themselves (or the last global admin) out by removing a global grant.
+  if (grant?.scope_type === "global") {
+    const { count: otherGlobalGrants } = await supabase
+      .from("access_grants")
+      .select("id", { count: "exact", head: true })
+      .eq("scope_type", "global")
+      .neq("id", grantId);
+    if (!otherGlobalGrants) {
+      return { error: "This is the only global grant, so it can't be removed — nobody would have platform-wide access." };
+    }
+    if (grant.user_id === session.userId) {
+      return { error: "You can't remove your own global access. Ask another JAGS Admin to do it." };
+    }
+  }
 
   const { data: deletedGrants, error } = await supabase.from("access_grants").delete().eq("id", grantId).select("id");
 

@@ -101,17 +101,17 @@ export async function uploadVaultDocumentCore(
     projectNumber: project.project_number,
   });
 
-  let previousLatest: { id: string; status: string } | null = null;
+  let previousLatest: { id: string; status: string; revision?: string } | null = null;
   if (documentReference) {
     const { data: existing } = await supabase
       .from(VAULT_DOCUMENTS_TABLE)
-      .select("id, status")
+      .select("id, status, revision")
       .eq("folder_id", folderId)
       .eq("document_reference", documentReference)
       .neq("status", "superseded")
       .order("created_at", { ascending: false })
       .limit(1)
-      .returns<{ id: string; status: string }[]>();
+      .returns<{ id: string; status: string; revision: string }[]>();
     previousLatest = existing?.[0] ?? null;
   }
 
@@ -121,7 +121,12 @@ export async function uploadVaultDocumentCore(
       folder_id: folderId,
       title,
       document_reference: documentReference || null,
-      revision: revision || "0",
+      // No revision given (batch uploads): continue from the previous one, else start at 0.
+      revision:
+        revision ||
+        (previousLatest?.revision !== undefined && Number.isFinite(Number.parseInt(previousLatest.revision, 10))
+          ? String(Number.parseInt(previousLatest.revision, 10) + 1)
+          : "0"),
       document_date: documentDate || null,
       storage_path: storagePath,
       file_size: fileSize ? Number(fileSize) : null,
