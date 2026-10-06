@@ -19,7 +19,8 @@
 
   --color-success: #1f7a4d;
   --color-danger: #b3261e;
-  --color-warning: #b8860b;
+  /* Darkened from #b8860b (3.3:1 on white, failed AA text) to ~5.5:1 on white. */
+  --color-warning: #8a6100;
   --color-info: #3a6ea5;
 
   --background: var(--color-off-white);
@@ -93,4 +94,47 @@ main img,
 main video {
   max-width: 100%;
   height: auto;
+}
+
+/* ---- Accessibility baseline (WCAG 2.1 AA) ---- */
+:where(a, button, input, select, textarea, summary, [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
+}
+/* Burgundy ring vanishes on dark surfaces - use gold there. */
+.on-dark :focus-visible,
+[data-surface="dark"] :focus-visible {
+  outline-color: var(--color-gold);
+}
+::placeholder {
+  color: var(--color-muted);
+  opacity: 0.8;
+}
+:disabled {
+  cursor: not-allowed;
+}
+/* Inline prose links underlined so colour is not the only cue. */
+main p a:not([class]),
+main li a:not([class]) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Horizontal-scroll affordance: edge shadows show when more columns exist off-screen. */
+.table-scroll {
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--color-surface) 30%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--color-surface) 30%, transparent) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.18), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.18), transparent) right center / 10px 100% no-repeat scroll;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

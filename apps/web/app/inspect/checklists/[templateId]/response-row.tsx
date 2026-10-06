@@ -205,9 +205,10 @@ export function ResponseRow({
     // after — and overwrite — a later tap (last write wins = what the inspector last chose).
     const run = async () => {
       try {
-        // Queued/offline replays carry no concurrency expectation (last write wins on sync).
-        const fields = Object.fromEntries(formData) as Record<string, string>;
+        // The server timestamp this answer is based on travels with the request AND with a queued
+        // offline replay, so a conflicting change is shown for review on sync instead of overwritten.
         formData.set("expected_updated_at", expectedUpdatedAt.current);
+        const fields = Object.fromEntries(formData) as Record<string, string>;
         // Offline (R60): queue right away when we already know there's no connection, and fall back
         // to the queue if a "we thought we were online" attempt throws (dropped connection mid-save).
         if (typeof navigator !== "undefined" && !navigator.onLine) {

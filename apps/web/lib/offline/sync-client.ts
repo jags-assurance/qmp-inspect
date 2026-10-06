@@ -24,37 +24,75 @@ function buildFormData(item: OutboxItem): FormData {
   return formData;
 }
 
+let syncInFlight: Promise<{ synced: number; failed: number }> | null = null;
+
 /**
- * Replays every queued item against POST /api/offline-sync, in the order it was queued (so a
- * "complete inspection" queued after its checklist responses syncs after them, matching what
- * would have happened online). Continues past a single item's failure — one bad item shouldn't
- * block everything queued behind it — and leaves failed items in the outbox with the real error
- * recorded, never silently dropped (R60: "nothing is lost offline").
+ * Replays queued items against POST /api/offline-sync in queue order. Only "pending" items are
+ * attempted automatically; rejected/conflict/auth items wait for the user (Retry / Keep mine /
+ * Discard) so a permanently-bad item is not hammered forever. If an item for an inspection is
+ * blocked, later items for the SAME inspection are held back (a "complete inspection" must never
+ * run before the answers queued ahead of it). Network/5xx errors are transient: the item stays
+ * pending and the run stops. A single run at a time (concurrent triggers share the same promise).
  */
-export async function syncOutbox(): Promise<{ synced: number; failed: number }> {
+export function syncOutbox(): Promise<{ synced: number; failed: number }> {
+  if (syncInFlight) return syncInFlight;
+  syncInFlight = runSync().finally(() => {
+    syncInFlight = null;
+  });
+  return syncInFlight;
+}
+
+async function runSync(): Promise<{ synced: number; failed: number }> {
   const items = await getOutboxItems();
   let synced = 0;
   let failed = 0;
+  const blockedInspections = new Set<string>();
 
   for (const item of items) {
+    const group = item.fields.inspection_record_id ?? "";
+    if (group && blockedInspections.has(group)) continue;
+    if (item.status && item.status !== "pending") {
+      if (group) blockedInspections.add(group);
+      continue;
+    }
     try {
-      const response = await fetch("/api/offline-sync", { method: "POST", body: buildFormData(item) });
-      const body = (await response.json().catch(() => ({ ok: false, error: "Invalid server response." }))) as {
-        ok: boolean;
-        error?: string;
-      };
-      if (response.ok && body.ok) {
+      const response = await fetch("/api/offline-sync", {
+        method: "POST",
+        body: buildFormData(item),
+        headers: { "X-Idempotency-Key": item.clientKey ?? item.id },
+        credentials: "same-origin",
+        redirect: "manual",
+      });
+      // Expired session: middleware redirects (opaque redirect) or API answers 401/403.
+      if (response.type === "opaqueredirect" || response.status === 401 || response.status === 403) {
+        await recordOutboxFailure(item.id, "Your session expired. Sign in again to finish syncing — nothing has been lost.", "auth");
+        failed++;
+        break;
+      }
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; conflict?: boolean } | null;
+      if (response.ok && body?.ok) {
         await removeOutboxItem(item.id);
         synced++;
-      } else {
-        await recordOutboxFailure(item.id, body.error ?? `Server rejected the request (${response.status}).`);
+      } else if (response.status === 409 || body?.conflict) {
+        await recordOutboxFailure(
+          item.id,
+          body?.error ?? "This answer was changed by someone else after you recorded it offline.",
+          "conflict"
+        );
+        if (group) blockedInspections.add(group);
         failed++;
+      } else if (response.status === 422 || response.status === 400) {
+        await recordOutboxFailure(item.id, body?.error ?? `The server rejected this change (${response.status}).`, "rejected");
+        if (group) blockedInspections.add(group);
+        failed++;
+      } else {
+        // 5xx / unparseable: transient, keep pending and stop this run.
+        await recordOutboxFailure(item.id, body?.error ?? `Server error (${response.status}). Will retry.`, "pending");
+        failed++;
+        break;
       }
     } catch (err) {
-      // A network error mid-sync (connection dropped again) — stop here rather than burning
-      // through the rest of the queue against a connection that's already gone; the next
-      // online/offline transition or manual retry will pick up where this left off.
-      await recordOutboxFailure(item.id, err instanceof Error ? err.message : "Network error.");
+      await recordOutboxFailure(item.id, err instanceof Error ? err.message : "Network error.", "pending");
       failed++;
       break;
     }

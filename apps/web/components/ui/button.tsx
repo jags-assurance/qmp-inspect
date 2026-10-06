@@ -11,8 +11,8 @@ const VARIANT_CLASSES: Record<Variant, string> = {
 };
 
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: "text-sm px-3 py-1.5",
-  md: "text-sm px-4 py-2",
+  sm: "text-sm px-3 py-1.5 min-h-9 [@media(pointer:coarse)]:min-h-11",
+  md: "text-sm px-4 py-2 min-h-10 [@media(pointer:coarse)]:min-h-11",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

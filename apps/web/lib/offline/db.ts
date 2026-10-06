@@ -23,6 +23,17 @@ export interface OutboxItem {
   createdAt: number;
   attempts: number;
   lastError: string | null;
+  /** Idempotency key sent with every replay (X-Idempotency-Key); the server uses it to make a retried item a no-op. */
+  clientKey?: string;
+  /**
+   * pending  = waiting (or transient network/server error — retried automatically)
+   * rejected = server refused it (422): stays queued for the user to Retry/Discard
+   * conflict = the answer changed on the server since this one was based on it (409): review required
+   * auth     = session expired; resumes after sign-in
+   */
+  status?: "pending" | "rejected" | "conflict" | "auth";
+  /** Server updated_at this queued answer was based on (checklist answers), for conflict detection. */
+  expectedUpdatedAt?: string;
 }
 
 function isBrowser(): boolean {
@@ -57,8 +68,26 @@ async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore
 /** Queues an item for later sync. Fails silently to the caller's own catch if IndexedDB is unavailable (very old/locked-down browsers) — the caller decides what "couldn't even queue it" means for its own UI. */
 export async function enqueueOutboxItem(item: Omit<OutboxItem, "id" | "createdAt" | "attempts" | "lastError">): Promise<OutboxItem> {
   if (!isBrowser()) throw new Error("Offline queue is not available in this environment.");
-  const full: OutboxItem = { ...item, id: crypto.randomUUID(), createdAt: Date.now(), attempts: 0, lastError: null };
-  await withStore("readwrite", (store) => store.put(full));
+  const id = crypto.randomUUID();
+  const full: OutboxItem = {
+    ...item,
+    id,
+    clientKey: id,
+    status: "pending",
+    expectedUpdatedAt: item.expectedUpdatedAt ?? item.fields.expected_updated_at ?? undefined,
+    createdAt: Date.now(),
+    attempts: 0,
+    lastError: null,
+  };
+  try {
+    await withStore("readwrite", (store) => store.put(full));
+  } catch (err) {
+    const name = err instanceof Error ? err.name : (err as { name?: string } | null)?.name;
+    if (name === "QuotaExceededError") {
+      throw new Error("This device is out of storage, so the change could not be saved offline. Free some space or reconnect.");
+    }
+    throw err;
+  }
   return full;
 }
 
@@ -73,7 +102,11 @@ export async function removeOutboxItem(id: string): Promise<void> {
   await withStore("readwrite", (store) => store.delete(id));
 }
 
-export async function recordOutboxFailure(id: string, error: string): Promise<void> {
+export async function recordOutboxFailure(
+  id: string,
+  error: string,
+  status: NonNullable<OutboxItem["status"]> = "pending"
+): Promise<void> {
   if (!isBrowser()) return;
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
@@ -85,11 +118,56 @@ export async function recordOutboxFailure(id: string, error: string): Promise<vo
       if (!item) return resolve();
       item.attempts += 1;
       item.lastError = error;
+      item.status = status;
       const putRequest = store.put(item);
       putRequest.onsuccess = () => resolve();
       putRequest.onerror = () => reject(putRequest.error);
     };
     getRequest.onerror = () => reject(getRequest.error);
+  });
+}
+
+/** Puts a rejected/conflicted/auth-blocked item back to pending so the next sync tries it again. */
+export async function resetOutboxItem(id: string): Promise<void> {
+  if (!isBrowser()) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const g = store.get(id);
+    g.onsuccess = () => {
+      const item = g.result as OutboxItem | undefined;
+      if (!item) return resolve();
+      item.status = "pending";
+      item.lastError = null;
+      const p = store.put(item);
+      p.onsuccess = () => resolve();
+      p.onerror = () => reject(p.error);
+    };
+    g.onerror = () => reject(g.error);
+  });
+}
+
+/** Marks a conflicted answer as "keep mine": drops the stale expectation so it overwrites on the next sync. */
+export async function forceOutboxItem(id: string): Promise<void> {
+  if (!isBrowser()) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const g = store.get(id);
+    g.onsuccess = () => {
+      const item = g.result as OutboxItem | undefined;
+      if (!item) return resolve();
+      item.status = "pending";
+      item.lastError = null;
+      item.expectedUpdatedAt = undefined;
+      delete item.fields.expected_updated_at;
+      const p = store.put(item);
+      p.onsuccess = () => resolve();
+      p.onerror = () => reject(p.error);
+    };
+    g.onerror = () => reject(g.error);
   });
 }
 

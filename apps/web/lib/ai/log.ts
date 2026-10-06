@@ -132,7 +132,9 @@ export async function recordAiReviewDecision(supabase: SupabaseClient, params: R
       reviewed_response: params.reviewedResponse ?? null,
       decision: params.decision,
     })
-    .eq("id", params.logId);
+    .eq("id", params.logId)
+    // Audit trail is write-once: a row already closed out by a review is never overwritten.
+    .is("reviewed_at", null);
 
   if (error) {
     console.error("Could not record AI review decision on ai_usage_log:", error.message);

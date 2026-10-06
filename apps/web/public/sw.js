@@ -9,7 +9,7 @@
 // Actions are POST-only and can never be meaningfully cached; the app-level offline queue in
 // lib/offline/ is what makes those resilient to being offline, not this service worker).
 
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const APP_SHELL_CACHE = `qmp-inspect-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `qmp-inspect-runtime-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -44,10 +44,14 @@ self.addEventListener("fetch", (event) => {
   // Never touch cross-origin (Supabase) or non-GET requests — see header comment.
   if (url.origin !== self.location.origin || request.method !== "GET") return;
 
+  // Authenticated HTML, RSC payloads and API responses carry personal data and may belong to a
+  // different user next time on a shared device: never store them. Navigations fall back to the
+  // static offline page only.
   if (request.mode === "navigate") {
-    event.respondWith(networkFirstNavigation(request));
+    event.respondWith(fetch(request).catch(async () => (await caches.match(OFFLINE_URL)) ?? Response.error()));
     return;
   }
+  if (url.pathname.startsWith("/api/") || request.headers.get("RSC") || url.searchParams.has("_rsc")) return;
 
   // Static build assets (_next/static, icons, etc.) rarely change per-deploy and are safe to
   // cache-first; everything else same-origin (RSC data fetches, images) gets network-first so a
@@ -55,7 +59,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/_next/static/") || APP_SHELL_URLS.includes(url.pathname)) {
     event.respondWith(cacheFirst(request));
   } else {
-    event.respondWith(networkFirstRuntime(request));
+    return; // everything else (images, data) is not cached: the network handles it
   }
 });
 

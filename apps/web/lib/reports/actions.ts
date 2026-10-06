@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
+import { sanitizeAiText } from "@/lib/ai/sanitize";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -975,7 +977,7 @@ export async function draftInspectionNarrativeAction(
     });
     return { error: null, narrative, aiLogId: logId };
   } catch (err) {
-    return { ...EMPTY_NARRATIVE_STATE, error: err instanceof Error ? err.message : "Could not draft a narrative." };
+    return { ...EMPTY_NARRATIVE_STATE, error: aiErrorMessage(err, "Could not draft a narrative.") };
   }
 }
 
@@ -989,7 +991,7 @@ export async function saveInspectionNarrativeAction(_prev: SaveNarrativeState, f
   if (!session.isJagsStaff) return { error: "Only JAGS staff can edit the report narrative." };
 
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
-  const narrative = String(formData.get("narrative") ?? "").trim();
+  const narrative = sanitizeAiText(String(formData.get("narrative") ?? ""), 4000);
   const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
   const aiOriginalNarrative = String(formData.get("ai_original_narrative") ?? "").trim();
   if (!inspectionRecordId) return { error: "Missing inspection record." };
@@ -1144,7 +1146,7 @@ export async function draftFatNarrativeAction(
     });
     return { error: null, narrative, aiLogId: logId };
   } catch (err) {
-    return { ...EMPTY_NARRATIVE_STATE, error: err instanceof Error ? err.message : "Could not draft a narrative." };
+    return { ...EMPTY_NARRATIVE_STATE, error: aiErrorMessage(err, "Could not draft a narrative.") };
   }
 }
 
@@ -1154,7 +1156,7 @@ export async function saveFatNarrativeAction(_prev: SaveNarrativeState, formData
   if (!session.isJagsStaff) return { error: "Only JAGS staff can edit the report narrative." };
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
-  const narrative = String(formData.get("narrative") ?? "").trim();
+  const narrative = sanitizeAiText(String(formData.get("narrative") ?? ""), 4000);
   const aiLogId = String(formData.get("ai_log_id") ?? "").trim() || null;
   const aiOriginalNarrative = String(formData.get("ai_original_narrative") ?? "").trim();
   if (!assignmentId) return { error: "Missing assignment." };
@@ -1437,7 +1439,7 @@ export async function generateReportPackSummaryAction(
     });
     return { error: null, summary };
   } catch (err) {
-    return { ...EMPTY_REPORT_SUMMARY_STATE, error: err instanceof Error ? err.message : "Could not generate a summary." };
+    return { ...EMPTY_REPORT_SUMMARY_STATE, error: aiErrorMessage(err, "Could not generate a summary.") };
   }
 }
 
@@ -1516,7 +1518,7 @@ export async function cleanUpNarrativeAction(
     });
     return { error: null, cleaned, aiLogId: logId };
   } catch (err) {
-    return { ...EMPTY_CLEANUP_STATE, error: err instanceof Error ? err.message : "Could not clean up this text." };
+    return { ...EMPTY_CLEANUP_STATE, error: aiErrorMessage(err, "Could not clean up this text.") };
   }
 }
 

@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { validateOfflinePhoto } from "@/lib/checklists/photo-validation";
-import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
+import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE } from "@/lib/checklists/db-types";
 
 /**
  * The server side of the offline outbox (lib/offline/db.ts, R60): replays one queued item once
@@ -21,13 +21,42 @@ import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
  * "sync" privilege.
  */
 export async function POST(request: Request) {
+  const authClient = await createSupabaseServerClient();
+  const {
+    data: { user: authUser },
+  } = await authClient.auth.getUser();
+  if (!authUser) {
+    return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
+  }
+
   const formData = await request.formData();
   const kind = String(formData.get("kind") ?? "");
+  // Stable per queued item: lets a replay after a lost response be recognised as the same item.
+  const clientKey = (request.headers.get("x-idempotency-key") ?? "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
 
   try {
     switch (kind) {
       case "checklist_response": {
         const saved = await saveChecklistResponseAction(formData);
+        if (saved && typeof saved === "object" && "conflict" in saved && saved.conflict) {
+          // Replay of an item that already landed (response lost): the stored answer equals ours.
+          const itemId = String(formData.get("checklist_item_id") ?? "");
+          const recId = String(formData.get("inspection_record_id") ?? "");
+          const { data: current } = await authClient
+            .from(CHECKLIST_RESPONSES_TABLE)
+            .select("result, comment")
+            .eq("inspection_record_id", recId)
+            .eq("checklist_item_id", itemId)
+            .maybeSingle<{ result: string; comment: string | null }>();
+          if (
+            current &&
+            current.result === String(formData.get("result") ?? "") &&
+            (current.comment ?? "") === String(formData.get("comment") ?? "").trim()
+          ) {
+            return NextResponse.json({ ok: true });
+          }
+          return NextResponse.json({ ok: false, conflict: true, error: saved.error ?? "Answer changed on the server." }, { status: 409 });
+        }
         if (saved && typeof saved === "object" && "error" in saved && saved.error) {
           return NextResponse.json({ ok: false, error: saved.error }, { status: 422 });
         }
@@ -93,9 +122,20 @@ export async function POST(request: Request) {
         const prefix = checklistItemId
           ? `${projectId}/${inspectionRecordId}/item-${checklistItemId}`
           : `${projectId}/${inspectionRecordId}`;
-        const path = `${prefix}/${Date.now()}-${fileName}`;
+        // Deterministic path when we have an idempotency key, so a retry targets the same object.
+        const path = `${prefix}/${clientKey || Date.now()}-${fileName}`;
 
-        const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
+        if (clientKey) {
+          const { data: existing } = await supabase
+            .from(INSPECTION_PHOTOS_TABLE)
+            .select("id")
+            .eq("inspection_record_id", inspectionRecordId)
+            .eq("storage_path", path)
+            .limit(1);
+          if (existing && existing.length > 0) return NextResponse.json({ ok: true });
+        }
+
+        const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file, { upsert: Boolean(clientKey) });
         if (uploadError) return NextResponse.json({ ok: false, error: uploadError.message }, { status: 422 });
 
         const { error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert({

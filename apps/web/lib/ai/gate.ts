@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
+import {
+  AI_DAILY_MAX_CALLS,
+  AI_KEY_MISSING_MESSAGE,
+  AI_RATE_LIMIT_MAX_CALLS,
+  AI_RATE_LIMIT_WINDOW_MS,
+} from "@/lib/ai/config";
 
 // Cheap abuse guard on top of the consent gate below: caps how many AI calls one organisation can
 // make in a rolling window, using the usage log that already exists for admin-visibility purposes
@@ -7,8 +13,6 @@ import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
 // restart/redeploy and is correct even if this app ever runs more than one instance, unlike an
 // in-process Map would be. Not per-user: an org sharing its seat across staff shouldn't be able to
 // bypass the cap by spreading calls across accounts.
-const AI_RATE_LIMIT_WINDOW_MS = 60_000;
-const AI_RATE_LIMIT_MAX_CALLS = 20;
 
 /**
  * The single enforcement point for the non-negotiable data-privacy rule: an organisation's real
@@ -35,13 +39,17 @@ export interface AiGateResult {
  * with no key configured never shows a control that can only ever fail.
  */
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
+  return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
 
 export async function assertAiAllowed(
   supabase: SupabaseClient,
   organizationId: string
 ): Promise<AiGateResult> {
+  if (!isAiConfigured()) {
+    return { allowed: false, reason: AI_KEY_MISSING_MESSAGE };
+  }
+
   if (process.env.AI_TIER !== "paid") {
     return {
       allowed: false,
@@ -74,6 +82,21 @@ export async function assertAiAllowed(
     return {
       allowed: false,
       reason: "AI assistance is being used heavily right now — please wait a moment and try again.",
+    };
+  }
+
+  // Daily cost ceiling per organisation (cache hits are logged too, so they count - deliberately
+  // conservative).
+  const { count: dailyCalls } = await supabase
+    .from(AI_USAGE_LOG_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+  if ((dailyCalls ?? 0) >= AI_DAILY_MAX_CALLS) {
+    return {
+      allowed: false,
+      reason: "This organisation has reached its daily AI usage limit. It resets on a rolling 24-hour basis.",
     };
   }
 

@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-type Tone = "success" | "danger" | "warning" | "info" | "neutral" | "gold";
+export type Tone = "success" | "danger" | "warning" | "info" | "neutral" | "gold";
 
-// A pale tint alone washes out completely on a tablet screen in direct sunlight — pairing it with
-// a solid-color border keeps the badge's outline (and therefore its status) visible even when the
-// tint itself is glare-crushed toward white.
+// A pale tint alone washes out on a tablet in direct sunlight — a solid-colour border keeps the
+// outline visible. All tone text colours pass WCAG AA (>=4.5:1) on white and on their own tint.
 const TONE_CLASSES: Record<Tone, string> = {
   success: "border border-success/60 bg-success/10 text-success",
   danger: "border border-danger/60 bg-danger/10 text-danger",
@@ -15,14 +14,46 @@ const TONE_CLASSES: Record<Tone, string> = {
   gold: "border border-[color:var(--color-burgundy-dark)]/50 bg-gold/20 text-[color:var(--color-burgundy-dark)]",
 };
 
-export function Badge({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
+/** Default glyph per tone so colour is never the only status signal. */
+export const TONE_ICON: Record<Tone, string> = {
+  success: "✓",
+  danger: "✕",
+  warning: "!",
+  info: "i",
+  neutral: "•",
+  gold: "★",
+};
+
+export function Badge({
+  tone = "neutral",
+  children,
+  icon,
+  showIcon = false,
+  srPrefix,
+}: {
+  tone?: Tone;
+  children: ReactNode;
+  /** Custom leading icon/text. Takes precedence over the default tone glyph. */
+  icon?: ReactNode;
+  /** Opt in to the default per-tone glyph. */
+  showIcon?: boolean;
+  /** Visually hidden text read before the label, e.g. "Status:". */
+  srPrefix?: string;
+}) {
+  const lead = icon ?? (showIcon ? TONE_ICON[tone] : null);
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
         TONE_CLASSES[tone]
       )}
     >
+      {lead != null && (
+        <span aria-hidden="true" className="leading-none">
+          {lead}
+        </span>
+      )}
+      {srPrefix && <span className="sr-only">{srPrefix} </span>}
       {children}
     </span>
   );

@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
+import { sanitizeAiLine, sanitizeAiText } from "@/lib/ai/sanitize";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -53,7 +55,7 @@ export async function generateItpDraftAction(
   formData: FormData
 ): Promise<GenerateItpDraftState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const additionalInstructions = String(formData.get("additional_instructions") ?? "").trim();
+  const additionalInstructions = String(formData.get("additional_instructions") ?? "").trim().slice(0, 4000);
   const vaultDocumentIds = formData.getAll("vault_document_ids").map(String).filter(Boolean);
   const existingSuggestedItpNumber = String(formData.get("existing_suggested_itp_number") ?? "").trim() || null;
 
@@ -148,7 +150,13 @@ export async function generateItpDraftAction(
   // "regenerate" on the exact same selected documents + instructions is a real, observed pattern
   // (a user re-clicking Generate after just looking at the form again). Cache key mirrors exactly
   // what generateItpDraft is grounded in — see lib/ai/cache.ts.
-  const inputHash = hashAiCacheInput({ sourceDocuments, additionalInstructions, projectParties, disciplines: disciplines ?? [] });
+  const inputHash = hashAiCacheInput({
+    model: getGeminiModel("itp_draft"),
+    sourceDocuments,
+    additionalInstructions,
+    projectParties,
+    disciplines: disciplines ?? [],
+  });
   let draft: ItpDraftResult;
   let servedFromCache = false;
   let usage: GeminiTokenUsage | null = null;
@@ -176,7 +184,7 @@ export async function generateItpDraftAction(
     } catch (err) {
       return {
         ...EMPTY_DRAFT_STATE,
-        error: err instanceof Error ? err.message : "Could not generate a draft from the selected documents.",
+        error: aiErrorMessage(err, "Could not generate a draft from the selected documents."),
       };
     }
   }
@@ -217,6 +225,44 @@ export async function generateItpDraftAction(
   return { error: null, draft, projectParties, interventionLevels, aiLogId: logId, suggestedItpNumber };
 }
 
+/**
+ * The draft arrives back from the browser as hidden-field JSON, so it is untrusted even though it
+ * started life as server-validated AI output: rebuild every field with a strict shape, length cap
+ * and enum check before anything is inserted.
+ */
+function normaliseSubmittedDraft(raw: unknown): ItpDraftResult {
+  const r = (raw ?? {}) as Partial<ItpDraftResult>;
+  const sections = Array.isArray(r.sections) ? r.sections.slice(0, 20) : [];
+  return {
+    suggestedTitle: null,
+    suggestedApplicableStandard: null,
+    sections: sections.map((s, si) => ({
+      sectionNumber: si + 1,
+      title: sanitizeAiLine(s?.title, 200),
+      items: (Array.isArray(s?.items) ? s.items.slice(0, 100) : []).map((i) => ({
+        itemNumber: sanitizeAiLine(i?.itemNumber, 30),
+        activity: sanitizeAiText(i?.activity, 600),
+        referenceSpec: sanitizeAiLine(i?.referenceSpec, 300),
+        acceptanceCriteria: sanitizeAiText(i?.acceptanceCriteria, 1200),
+        method: sanitizeAiText(i?.method, 400),
+        frequency: sanitizeAiLine(i?.frequency, 200),
+        evidenceType: ([1, 2, 3] as const).includes(Number(i?.evidenceType) as 1 | 2 | 3)
+          ? (Number(i.evidenceType) as 1 | 2 | 3)
+          : (1 as const),
+        disciplineCode: typeof i?.disciplineCode === "string" ? sanitizeAiLine(i.disciplineCode, 20) || null : null,
+        suggestedInterventions: (Array.isArray(i?.suggestedInterventions) ? i.suggestedInterventions.slice(0, 50) : [])
+          .filter((si2) => si2 && typeof si2.projectPartyId === "string" && typeof si2.intervention === "string")
+          .map((si2) => ({
+            projectPartyId: si2.projectPartyId,
+            // Validated against this organisation's real level codes before insert (below).
+            intervention: sanitizeAiLine(si2.intervention, 10) as "H" | "W" | "R" | "S",
+            reason: sanitizeAiLine(si2.reason, 300),
+          })),
+      })),
+    })),
+  };
+}
+
 export interface CreateItpFromDraftState {
   error: string | null;
 }
@@ -241,15 +287,18 @@ export async function createItpFromDraftAction(
   if (!projectId || !itpNumber || !title || !draftJson) {
     return { error: "Project, ITP number, title and a generated draft are required." };
   }
+  if (draftJson.length > 2_000_000) {
+    return { error: "The draft is too large to create an ITP from — please regenerate it with a narrower scope." };
+  }
 
   let draft: ItpDraftResult;
   try {
-    draft = JSON.parse(draftJson) as ItpDraftResult;
+    draft = normaliseSubmittedDraft(JSON.parse(draftJson));
   } catch {
     return { error: "The draft could not be read — please regenerate it." };
   }
 
-  if (!Array.isArray(draft.sections) || draft.sections.length === 0) {
+  if (draft.sections.length === 0) {
     return { error: "The draft has no sections to create an ITP from." };
   }
 

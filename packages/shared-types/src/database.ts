@@ -473,6 +473,9 @@ export type Database = {
           notes: string | null
           project_id: string
           status: string
+          certificate_path: string | null
+          instrument_tag: string | null
+          calibration_lab: string | null
         }
         Insert: {
           cal_date?: string | null
@@ -484,6 +487,9 @@ export type Database = {
           notes?: string | null
           project_id: string
           status?: string
+          certificate_path?: string | null
+          instrument_tag?: string | null
+          calibration_lab?: string | null
         }
         Update: {
           cal_date?: string | null
@@ -495,6 +501,9 @@ export type Database = {
           notes?: string | null
           project_id?: string
           status?: string
+          certificate_path?: string | null
+          instrument_tag?: string | null
+          calibration_lab?: string | null
         }
         Relationships: [
           {
@@ -693,6 +702,11 @@ export type Database = {
           id: string
           inspection_record_id: string
           result: string
+          material_id: string | null
+          welder_id: string | null
+          updated_at: string
+          updated_by: string | null
+          no_ncr_reason: string | null
         }
         Insert: {
           calibration_asset_id?: string | null
@@ -702,6 +716,11 @@ export type Database = {
           id?: string
           inspection_record_id: string
           result: string
+          material_id?: string | null
+          welder_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          no_ncr_reason?: string | null
         }
         Update: {
           calibration_asset_id?: string | null
@@ -711,6 +730,11 @@ export type Database = {
           id?: string
           inspection_record_id?: string
           result?: string
+          material_id?: string | null
+          welder_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          no_ncr_reason?: string | null
         }
         Relationships: [
           {
@@ -1096,6 +1120,7 @@ export type Database = {
           project_id: string
           status: string
           title: string
+          revision: number
         }
         Insert: {
           book_number: string
@@ -1110,6 +1135,7 @@ export type Database = {
           project_id: string
           status?: string
           title: string
+          revision?: number
         }
         Update: {
           book_number?: string
@@ -1124,6 +1150,7 @@ export type Database = {
           project_id?: string
           status?: string
           title?: string
+          revision?: number
         }
         Relationships: [
           {
@@ -1497,6 +1524,10 @@ export type Database = {
           project_id: string
           project_name: string
           record_number: string
+          signed_by_name: string | null
+          signed_at: string | null
+          witness_name: string | null
+          witness_signature: string | null
         }
         Insert: {
           activity: string
@@ -1519,6 +1550,10 @@ export type Database = {
           project_id: string
           project_name: string
           record_number: string
+          signed_by_name?: string | null
+          signed_at?: string | null
+          witness_name?: string | null
+          witness_signature?: string | null
         }
         Update: {
           activity?: string
@@ -1541,6 +1576,10 @@ export type Database = {
           project_id?: string
           project_name?: string
           record_number?: string
+          signed_by_name?: string | null
+          signed_at?: string | null
+          witness_name?: string | null
+          witness_signature?: string | null
         }
         Relationships: [
           {
@@ -1657,6 +1696,9 @@ export type Database = {
           irn_number: string
           issued_by: string | null
           release_date: string
+          voided_at: string | null
+          voided_by: string | null
+          void_reason: string | null
         }
         Insert: {
           created_at?: string
@@ -1665,6 +1707,9 @@ export type Database = {
           irn_number: string
           issued_by?: string | null
           release_date?: string
+          voided_at?: string | null
+          voided_by?: string | null
+          void_reason?: string | null
         }
         Update: {
           created_at?: string
@@ -1673,6 +1718,9 @@ export type Database = {
           irn_number?: string
           issued_by?: string | null
           release_date?: string
+          voided_at?: string | null
+          voided_by?: string | null
+          void_reason?: string | null
         }
         Relationships: [
           {
@@ -2286,6 +2334,11 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          returned_by: string | null
+          returned_at: string | null
+          returned_reason: string | null
+          revision_needs_approval: boolean
+          revision_changed_by: string | null
         }
         Insert: {
           applicable_standard?: string | null
@@ -2310,6 +2363,11 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          returned_by?: string | null
+          returned_at?: string | null
+          returned_reason?: string | null
+          revision_needs_approval?: boolean
+          revision_changed_by?: string | null
         }
         Update: {
           applicable_standard?: string | null
@@ -2334,6 +2392,11 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          returned_by?: string | null
+          returned_at?: string | null
+          returned_reason?: string | null
+          revision_needs_approval?: boolean
+          revision_changed_by?: string | null
         }
         Relationships: [
           {
@@ -2465,6 +2528,11 @@ export type Database = {
           project_id: string
           receipt_status: string
           submittal_reference: string | null
+          released_by: string | null
+          released_at: string | null
+          supplier: string | null
+          quantity: string | null
+          certificate_path: string | null
         }
         Insert: {
           approval_status: string
@@ -2481,6 +2549,11 @@ export type Database = {
           project_id: string
           receipt_status?: string
           submittal_reference?: string | null
+          released_by?: string | null
+          released_at?: string | null
+          supplier?: string | null
+          quantity?: string | null
+          certificate_path?: string | null
         }
         Update: {
           approval_status?: string
@@ -2497,6 +2570,11 @@ export type Database = {
           project_id?: string
           receipt_status?: string
           submittal_reference?: string | null
+          released_by?: string | null
+          released_at?: string | null
+          supplier?: string | null
+          quantity?: string | null
+          certificate_path?: string | null
         }
         Relationships: [
           {
@@ -2608,6 +2686,7 @@ export type Database = {
           status: string
           updated_at: string
           verification_notes: string | null
+          checklist_item_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -2631,6 +2710,7 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          checklist_item_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -2654,6 +2734,7 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          checklist_item_id?: string | null
         }
         Relationships: [
           {
@@ -3130,6 +3211,7 @@ export type Database = {
           project_id: string
           project_party_id: string
           status: string
+          certificate_path: string | null
         }
         Insert: {
           cert_number?: string | null
@@ -3142,6 +3224,7 @@ export type Database = {
           project_id: string
           project_party_id: string
           status?: string
+          certificate_path?: string | null
         }
         Update: {
           cert_number?: string | null
@@ -3154,6 +3237,7 @@ export type Database = {
           project_id?: string
           project_party_id?: string
           status?: string
+          certificate_path?: string | null
         }
         Relationships: [
           {
@@ -3411,6 +3495,17 @@ export type Database = {
           source_ncr_id: string | null
           source_standalone_assignment_id: string | null
           status: string
+          source_itp_item_id: string | null
+          resolved_by: string | null
+          resolved_at: string | null
+          verification_notes: string | null
+          priority: string
+          photo_paths: string[]
+          created_by: string | null
+          reopen_reason: string | null
+          reopened_by: string | null
+          reopened_at: string | null
+          reopen_count: number
         }
         Insert: {
           closed_at?: string | null
@@ -3428,6 +3523,17 @@ export type Database = {
           source_ncr_id?: string | null
           source_standalone_assignment_id?: string | null
           status?: string
+          source_itp_item_id?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          verification_notes?: string | null
+          priority?: string
+          photo_paths?: string[]
+          created_by?: string | null
+          reopen_reason?: string | null
+          reopened_by?: string | null
+          reopened_at?: string | null
+          reopen_count?: number
         }
         Update: {
           closed_at?: string | null
@@ -3445,6 +3551,17 @@ export type Database = {
           source_ncr_id?: string | null
           source_standalone_assignment_id?: string | null
           status?: string
+          source_itp_item_id?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          verification_notes?: string | null
+          priority?: string
+          photo_paths?: string[]
+          created_by?: string | null
+          reopen_reason?: string | null
+          reopened_by?: string | null
+          reopened_at?: string | null
+          reopen_count?: number
         }
         Relationships: [
           {
@@ -3706,6 +3823,8 @@ export type Database = {
           standard_reference: string | null
           status: string
           updated_at: string
+          clearance_notes: string | null
+          clearance_number: string | null
         }
         Insert: {
           assignment_date?: string | null
@@ -3730,6 +3849,8 @@ export type Database = {
           standard_reference?: string | null
           status?: string
           updated_at?: string
+          clearance_notes?: string | null
+          clearance_number?: string | null
         }
         Update: {
           assignment_date?: string | null
@@ -3754,6 +3875,8 @@ export type Database = {
           standard_reference?: string | null
           status?: string
           updated_at?: string
+          clearance_notes?: string | null
+          clearance_number?: string | null
         }
         Relationships: [
           {
@@ -4155,6 +4278,10 @@ export type Database = {
           qualified_wps: string
           status: string
           welder_identifier: string
+          certificate_path: string | null
+          wpq_number: string | null
+          process: string | null
+          position: string | null
         }
         Insert: {
           created_at?: string
@@ -4166,6 +4293,10 @@ export type Database = {
           qualified_wps: string
           status?: string
           welder_identifier: string
+          certificate_path?: string | null
+          wpq_number?: string | null
+          process?: string | null
+          position?: string | null
         }
         Update: {
           created_at?: string
@@ -4177,6 +4308,10 @@ export type Database = {
           qualified_wps?: string
           status?: string
           welder_identifier?: string
+          certificate_path?: string | null
+          wpq_number?: string | null
+          process?: string | null
+          position?: string | null
         }
         Relationships: [
           {
@@ -4222,6 +4357,150 @@ export type Database = {
             referencedColumns: ["project_id"]
           },
         ]
+      }
+      inspection_record_amendments: {
+        Row: {
+          id: string
+          record_id: string
+          amended_by: string | null
+          amended_at: string
+          reason: string
+          previous_overall_result: string | null
+          previous_signed_by_name: string | null
+          previous_signed_at: string | null
+          previous_notes: string | null
+        }
+        Insert: {
+          id?: string
+          record_id: string
+          amended_by?: string | null
+          amended_at?: string
+          reason: string
+          previous_overall_result?: string | null
+          previous_signed_by_name?: string | null
+          previous_signed_at?: string | null
+          previous_notes?: string | null
+        }
+        Update: {
+          id?: string
+          record_id?: string
+          amended_by?: string | null
+          amended_at?: string
+          reason?: string
+          previous_overall_result?: string | null
+          previous_signed_by_name?: string | null
+          previous_signed_at?: string | null
+          previous_notes?: string | null
+        }
+        Relationships: []
+      }
+      itp_master_audit: {
+        Row: {
+          id: string
+          template_id: string
+          action: string
+          actor_id: string | null
+          summary: string
+          changes: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          template_id: string
+          action: string
+          actor_id?: string | null
+          summary: string
+          changes?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          template_id?: string
+          action?: string
+          actor_id?: string | null
+          summary?: string
+          changes?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
+      itp_master_item_interventions: {
+        Row: {
+          id: string
+          master_item_id: string
+          party_type: string
+          intervention: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          master_item_id: string
+          party_type: string
+          intervention: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          master_item_id?: string
+          party_type?: string
+          intervention?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      ncr_documents: {
+        Row: {
+          id: string
+          ncr_id: string
+          vault_document_id: string
+          linked_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ncr_id: string
+          vault_document_id: string
+          linked_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ncr_id?: string
+          vault_document_id?: string
+          linked_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      register_expiry_notifications: {
+        Row: {
+          id: string
+          organization_id: string
+          entity_type: string
+          entity_id: string
+          expiry_date: string
+          threshold_days: number
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          entity_type: string
+          entity_id: string
+          expiry_date: string
+          threshold_days: number
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          entity_type?: string
+          entity_id?: string
+          expiry_date?: string
+          threshold_days?: number
+          sent_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

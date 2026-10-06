@@ -29,13 +29,13 @@ const MODULES: { category: Category; title: string; body: string; href: string }
   {
     category: "Execute",
     title: "Checklists & Inspections",
-    body: "Once an ITP is Approved, each Checklist-type activity gets a real field checklist. Start inspection → answer every item → Complete — a single \"No\" fails the whole inspection.",
-    href: "/inspect/itps",
+    body: "Once an ITP is Approved, use Start work (Execute) to open an activity's checklist. Answer every item, add photos, and use Document on an item to attach a vault or uploaded file. Complete — a single \"No\" fails the inspection. Find all runs under Inspections. Staff can re-open a completed inspection with a reason.",
+    href: "/inspect/start-work",
   },
   {
     category: "Execute",
     title: "IRNs (Inspection Release Notices)",
-    body: "A formal release stamp issued once an inspection passes — the paper trail that says \"this specific piece of work is cleared to proceed.\"",
+    body: "A formal release stamp issued once an inspection passes — the paper trail that says \"this specific piece of work is cleared to proceed.\" Only staff issue it; a wrong IRN can be voided and replaced.",
     href: "/inspect/itps",
   },
   {
@@ -71,7 +71,7 @@ const MODULES: { category: Category; title: string; body: string; href: string }
   {
     category: "Records",
     title: "Data Book",
-    body: "A weighted readiness % across every real gating category — ITPs approved, inspections with an issued IRN, completed checklists, calibration/welder/material registers in date, and NCRs closed. It won't compile while any punch list item is still open, unless a JAGS staff member explicitly overrides it with a documented reason — a deliberate, logged exception, never a silent bypass. Compiling it produces the handover package.",
+    body: "Open it from the project (Data Book index) to create, generate, view and download. A weighted readiness % across every real gating category — ITPs approved, inspections with an issued IRN, completed checklists, calibration/welder/material registers in date, and NCRs closed. It won't compile while any punch list item is still open, unless a JAGS staff member explicitly overrides it with a documented reason — a deliberate, logged exception, never a silent bypass. Compiling it produces the handover package.",
     href: "/inspect/projects",
   },
   {

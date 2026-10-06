@@ -17,6 +17,7 @@ import {
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
 import { assertAiAllowed } from "@/lib/ai/gate";
+import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
@@ -413,7 +414,7 @@ export async function extractCalibrationRowsAction(
   formData: FormData
 ): Promise<ExtractCalibrationRowsState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const sourceText = String(formData.get("source_text") ?? "").trim();
+  const sourceText = String(formData.get("source_text") ?? "").trim().slice(0, 200_000);
 
   if (!projectId || !sourceText) {
     return { ...EMPTY_EXTRACT_CALIBRATION_STATE, error: "Select a project and provide some certificate text to extract from." };
@@ -476,7 +477,7 @@ export async function extractCalibrationRowsAction(
   } catch (err) {
     return {
       ...EMPTY_EXTRACT_CALIBRATION_STATE,
-      error: err instanceof Error ? err.message : "Could not extract calibration entries from that text.",
+      error: aiErrorMessage(err, "Could not extract calibration entries from that text."),
     };
   }
 }
@@ -610,7 +611,7 @@ export async function extractWelderRowsAction(
   formData: FormData
 ): Promise<ExtractWelderRowsState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const sourceText = String(formData.get("source_text") ?? "").trim();
+  const sourceText = String(formData.get("source_text") ?? "").trim().slice(0, 200_000);
 
   if (!projectId || !sourceText) {
     return { ...EMPTY_EXTRACT_WELDER_STATE, error: "Select a project and provide some WPQ text to extract from." };
@@ -670,7 +671,7 @@ export async function extractWelderRowsAction(
   } catch (err) {
     return {
       ...EMPTY_EXTRACT_WELDER_STATE,
-      error: err instanceof Error ? err.message : "Could not extract welder entries from that text.",
+      error: aiErrorMessage(err, "Could not extract welder entries from that text."),
     };
   }
 }
@@ -784,7 +785,7 @@ export async function extractMaterialRowsAction(
   formData: FormData
 ): Promise<ExtractMaterialRowsState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const sourceText = String(formData.get("source_text") ?? "").trim();
+  const sourceText = String(formData.get("source_text") ?? "").trim().slice(0, 200_000);
 
   if (!projectId || !sourceText) {
     return { ...EMPTY_EXTRACT_MATERIAL_STATE, error: "Select a project and provide some submittal/certificate text to extract from." };
@@ -844,7 +845,7 @@ export async function extractMaterialRowsAction(
   } catch (err) {
     return {
       ...EMPTY_EXTRACT_MATERIAL_STATE,
-      error: err instanceof Error ? err.message : "Could not extract material entries from that text.",
+      error: aiErrorMessage(err, "Could not extract material entries from that text."),
     };
   }
 }
