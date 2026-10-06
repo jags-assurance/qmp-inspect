@@ -110,6 +110,8 @@ export interface ItpTemplateData {
   signoffStatuses: ItpTemplateSignoffCell[];
   signoffs: ItpTemplateSignoff[];
   levelTypes: ItpTemplateLevelType[];
+  /** Prominent notice under the title when this PDF is NOT a controlled, approved copy (draft, under review, returned, or a revision awaiting approval). */
+  statusNote?: string | null;
   generatedAt: Date;
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
@@ -874,6 +876,7 @@ ${brandColorStyle(data.branding)}
     ${renderIdentityLine(data)}
     <h1>${escapeHtml(data.title)}<span class="status-badge">${escapeHtml(statusLabel)}</span></h1>
     <div class="subline">${escapeHtml(data.organizationName)} &mdash; ${escapeHtml(data.projectName)} (${escapeHtml(data.projectNumber)})</div>
+    ${data.statusNote ? `<div style="margin-top:6px;padding:6px 10px;border:2px solid #b3261e;color:#b3261e;font-weight:bold;font-size:10px;text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(data.statusNote)}</div>` : ""}
   </div>
 
   <div class="info-grid">

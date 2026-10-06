@@ -58,6 +58,8 @@ export async function autoFileVaultDocument(
      *  already filed under the same document_reference (NCR dossiers have no revision of their own:
      *  regenerating after an edit should read Rev 1, Rev 2, …, not Rev 0 again). */
     autoRevision?: boolean;
+    /** "approved" (default) for issued records; "for_review" files the document without making it the controlled copy and without superseding the current approved one (e.g. an ITP revision still awaiting approval). */
+    status?: "approved" | "for_review";
   }
 ): Promise<void> {
   try {
@@ -120,7 +122,7 @@ export async function autoFileVaultDocument(
         revision,
         storage_path: `generated-documents:${params.storagePath}`,
         file_size: params.fileSize,
-        status: "approved",
+        status: params.status ?? "approved",
         uploaded_by: params.generatedBy ?? null,
       } as never)
       .select("id")
@@ -132,7 +134,7 @@ export async function autoFileVaultDocument(
     }
 
     // The new copy is the controlled one; earlier copies stay visible, marked superseded.
-    const stale = previous.filter((d) => d.status !== "superseded").map((d) => d.id);
+    const stale = params.status === "for_review" ? [] : previous.filter((d) => d.status !== "superseded").map((d) => d.id);
     if (stale.length > 0) {
       const { error: supersedeError } = await supabase
         .from("vault_documents" as never)

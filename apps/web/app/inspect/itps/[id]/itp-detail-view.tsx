@@ -814,7 +814,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         />
       )}
 
-      <RevisionHistoryPanel revisions={revisions ?? []} />
+      <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
 
       {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
           validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on

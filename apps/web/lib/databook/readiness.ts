@@ -68,8 +68,9 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     { data: materialRows },
     { data: issuedDataBooks },
   ] = await Promise.all([
-    supabase.from("itps").select("id, status").eq("project_id", projectId).returns<
-      { id: string; status: string }[]
+    // revision_needs_approval: an issued ITP whose latest revision hasn't been re-approved isn't "ready".
+    supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<
+      { id: string; status: string; revision_needs_approval: boolean }[]
     >(),
     supabase
       .from("inspection_records")
@@ -109,7 +110,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   ]);
 
   const itpTotal = itps?.length ?? 0;
-  const itpReady = (itps ?? []).filter((itp) => itp.status === "approved" || itp.status === "client_accepted").length;
+  const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
   const recordTotal = inspectionRecords?.length ?? 0;
   const recordReady = (inspectionRecords ?? []).filter((record) =>

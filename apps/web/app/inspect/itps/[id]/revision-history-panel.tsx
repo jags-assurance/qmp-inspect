@@ -1,4 +1,4 @@
-import type { ItpRevisionRow } from "@/lib/itps/revision-types";
+import type { ItpRevisionRow, ItpRevisionSnapshotItem, ItpRevisionSnapshotSection } from "@/lib/itps/revision-types";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -6,59 +6,138 @@ const EVIDENCE_LABEL: Record<number, string> = {
   3: "Measurement",
 };
 
+type RevisionWithUser = ItpRevisionRow & { users: { full_name: string } | null };
+
+const FIELD_LABEL: [keyof ItpRevisionSnapshotItem, string][] = [
+  ["activity", "Activity"],
+  ["acceptance_criteria", "Acceptance criteria"],
+  ["reference_spec", "Reference"],
+  ["method", "Method"],
+  ["frequency", "Frequency"],
+  ["evidence_type", "Evidence"],
+  ["notice_hours_override", "Notice hours"],
+];
+
+function itemsOf(rev: RevisionWithUser | undefined): Map<string, ItpRevisionSnapshotItem> {
+  const map = new Map<string, ItpRevisionSnapshotItem>();
+  for (const section of rev?.sections_snapshot ?? []) for (const item of section.items ?? []) map.set(item.id, item);
+  return map;
+}
+
+function levelsKey(item: ItpRevisionSnapshotItem | undefined): string {
+  return (item?.interventions ?? [])
+    .map((i) => `${i.project_party_id}:${i.intervention}`)
+    .sort()
+    .join("|");
+}
+
+/** What changed in `item` compared with the same activity in the previous (older) revision. */
+function changeSummary(item: ItpRevisionSnapshotItem, previous: ItpRevisionSnapshotItem | undefined, hasPrevious: boolean): string | null {
+  if (!hasPrevious) return null;
+  if (!previous) return "new in this revision";
+  const changed: string[] = [];
+  for (const [key, label] of FIELD_LABEL) {
+    if ((item[key] ?? null) !== (previous[key] ?? null)) changed.push(label.toLowerCase());
+  }
+  if (item.interventions !== undefined && previous.interventions !== undefined && levelsKey(item) !== levelsKey(previous)) {
+    changed.push("sign-off levels");
+  }
+  return changed.length > 0 ? `changed: ${changed.join(", ")}` : null;
+}
+
 /**
  * R101 — a visible history table for an ITP's past revisions, sourced from itp_revisions (see
  * lib/itps/revisions.ts for what writes these rows: a baseline snapshot at initial approval, then
- * one more snapshot each time content is edited after issue). Server-rendered, no client state —
- * plain <details> per revision, matching this app's existing collapsible-panel pattern.
+ * one more snapshot each time content is edited after issue). Each revision shows its full content
+ * (reference, method, frequency, notice hours, sign-off level per party) and what changed compared
+ * with the revision before it. Server-rendered, plain <details> per revision.
  */
-export function RevisionHistoryPanel({ revisions }: { revisions: (ItpRevisionRow & { users: { full_name: string } | null })[] }) {
+export function RevisionHistoryPanel({
+  revisions,
+  currentRevision,
+  awaitingApproval = false,
+}: {
+  revisions: RevisionWithUser[];
+  /** The live revision number on the ITP (it isn't a snapshot row until it is itself superseded). */
+  currentRevision?: number;
+  /** True when the live revision still needs approval. */
+  awaitingApproval?: boolean;
+}) {
   if (revisions.length === 0) return null;
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
       <h2 className="text-sm font-medium text-ink">Revision history</h2>
       <p className="mt-1 text-xs text-muted">
-        {revisions.length} recorded {revisions.length === 1 ? "revision" : "revisions"} — the content each superseded, frozen at
-        the moment it changed.
+        {revisions.length} recorded {revisions.length === 1 ? "revision" : "revisions"} — the content each superseded, frozen at the
+        moment it changed.
+        {currentRevision !== undefined && (
+          <>
+            {" "}
+            Current: <span className="doc-id text-ink">Rev {currentRevision}</span>
+            {awaitingApproval ? " (awaiting approval)" : ""}.
+          </>
+        )}
       </p>
       <ul className="mt-3 space-y-2">
-        {revisions.map((rev) => {
-          const itemCount = rev.sections_snapshot.reduce((sum, s) => sum + s.items.length, 0);
+        {revisions.map((rev, index) => {
+          const sections: ItpRevisionSnapshotSection[] = Array.isArray(rev.sections_snapshot) ? rev.sections_snapshot : [];
+          const itemCount = sections.reduce((sum, s) => sum + (s.items?.length ?? 0), 0);
+          const older = revisions[index + 1];
+          const previousItems = itemsOf(older);
+          const removedCount = older ? [...previousItems.keys()].filter((id) => !itemsOf(rev).has(id)).length : 0;
           return (
             <li key={rev.id}>
               <details className="rounded-md border border-border">
                 <summary className="cursor-pointer select-none px-3 py-2 text-sm">
                   <span className="doc-id font-medium text-ink">Rev {rev.revision}</span>{" "}
                   <span className="text-muted">
-                    — {new Date(rev.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                    — {new Date(rev.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
                     {rev.users?.full_name ? ` · ${rev.users.full_name}` : ""}
                     {rev.reason ? ` · ${rev.reason}` : ""}
                   </span>
                 </summary>
                 <div className="border-t border-border px-3 py-3 text-sm">
                   <p className="text-ink">{rev.title}</p>
+                  {rev.scope && <p className="mt-0.5 text-xs text-muted">Scope: {rev.scope}</p>}
                   {rev.applicable_standard && <p className="mt-0.5 text-xs text-muted">{rev.applicable_standard}</p>}
                   <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
-                    {rev.sections_snapshot.length} {rev.sections_snapshot.length === 1 ? "section" : "sections"}, {itemCount}{" "}
+                    {sections.length} {sections.length === 1 ? "section" : "sections"}, {itemCount}{" "}
                     {itemCount === 1 ? "activity" : "activities"} at this revision
+                    {removedCount > 0 ? ` · ${removedCount} removed since Rev ${older!.revision}` : ""}
                   </p>
                   <div className="mt-2 space-y-3">
-                    {rev.sections_snapshot.map((section) => (
+                    {sections.map((section) => (
                       <div key={section.id}>
                         <p className="text-xs font-medium text-ink">
                           {section.section_number}. {section.title}
                         </p>
-                        <ul className="mt-1 space-y-1 pl-3">
-                          {section.items.map((item) => (
-                            <li key={item.id} className="text-xs text-muted">
-                              <span className="doc-id">{item.item_number}</span> {item.activity}
-                              {item.acceptance_criteria ? ` — ${item.acceptance_criteria}` : ""}
-                              {" · "}
-                              {EVIDENCE_LABEL[item.evidence_type] ?? "Checklist"}
-                            </li>
-                          ))}
-                          {section.items.length === 0 && <li className="text-xs text-muted">No activities in this section.</li>}
+                        <ul className="mt-1 space-y-1.5 pl-3">
+                          {(section.items ?? []).map((item) => {
+                            const change = changeSummary(item, previousItems.get(item.id), Boolean(older));
+                            const detail = [
+                              item.reference_spec ? `Ref: ${item.reference_spec}` : null,
+                              item.method ? `Method: ${item.method}` : null,
+                              item.frequency ? `Frequency: ${item.frequency}` : null,
+                              item.notice_hours_override != null ? `Notice: ${item.notice_hours_override} h` : null,
+                            ].filter(Boolean);
+                            return (
+                              <li key={item.id} className="text-xs text-muted">
+                                <span className="doc-id">{item.item_number}</span> {item.activity}
+                                {item.acceptance_criteria ? ` — ${item.acceptance_criteria}` : ""}
+                                {" · "}
+                                {EVIDENCE_LABEL[item.evidence_type] ?? "Checklist"}
+                                {change && <span className="ml-1.5 rounded bg-warning/15 px-1 py-0.5 text-[10px] font-medium text-ink">{change}</span>}
+                                {detail.length > 0 && <span className="block">{detail.join(" · ")}</span>}
+                                {(item.interventions ?? []).length > 0 && (
+                                  <span className="block">
+                                    Sign-off: {(item.interventions ?? []).map((i) => `${i.party_name || "Party"} ${i.intervention}`).join(" · ")}
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                          {(section.items ?? []).length === 0 && <li className="text-xs text-muted">No activities in this section.</li>}
                         </ul>
                       </div>
                     ))}

@@ -57,7 +57,7 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
     { data: materialRows },
     { data: issuedDataBooks },
   ] = await Promise.all([
-    supabase.from("itps").select("id, status").eq("project_id", projectId).returns<{ id: string; status: string }[]>(),
+    supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<{ id: string; status: string; revision_needs_approval: boolean }[]>(),
     supabase
       .from("inspection_records")
       .select("id, checklist_template_id, overall_result, irns(id)")
@@ -95,7 +95,7 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
   ]);
 
   const itpTotal = itps?.length ?? 0;
-  const itpReady = (itps ?? []).filter((itp) => itp.status === "approved" || itp.status === "client_accepted").length;
+  const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
   const recordTotal = inspectionRecords?.length ?? 0;
   const recordReady = (inspectionRecords ?? []).filter((record) =>
@@ -356,6 +356,8 @@ async function gatherDataBookContent(projectId: string): Promise<{
           "id, itp_number, title, revision, status, phase, applicable_standard, prepared_by, reviewed_by, reviewed_at, approved_by, approved_at, client_accepted_by, client_accepted_at"
         )
         .eq("project_id", projectId)
+        // Part C lists issued ITPs only ("Approved ITPs listed in Part C at their stated revision").
+        .in("status", ["approved", "client_accepted"])
         .order("itp_number", { ascending: true })
         .returns<ItpRow[]>(),
       supabase

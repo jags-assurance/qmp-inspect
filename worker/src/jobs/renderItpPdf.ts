@@ -27,7 +27,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   const { data: itp, error: itpError } = await supabase
     .from("itps")
     .select(
-      "id, project_id, itp_number, title, scope, applicable_standard, revision, status, prepared_by, reviewed_by, approved_by, client_accepted_by, client_accepted_at"
+      "id, project_id, itp_number, title, scope, applicable_standard, revision, status, prepared_by, reviewed_by, reviewed_at, approved_by, approved_at, client_accepted_by, client_accepted_at"
     )
     .eq("id", payload.itp_id)
     .single();
@@ -212,16 +212,62 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     status: row.status,
   }));
 
+  const dateOnly = (iso: string | null | undefined) => (iso ? String(iso).slice(0, 10) : null);
+  // Columns added after the generated types were produced are read through an untyped query.
+  const { data: itpPending } = await supabase
+    .from("itps" as never)
+    .select("revision_needs_approval, returned_reason")
+    .eq("id" as never, itp.id as never)
+    .maybeSingle<{ revision_needs_approval: boolean; returned_reason: string | null }>();
+  const itpExtra = {
+    reviewed_at: itp.reviewed_at as string | null,
+    approved_at: itp.approved_at as string | null,
+    revision_needs_approval: itpPending?.revision_needs_approval ?? false,
+    returned_reason: itpPending?.returned_reason ?? null,
+  };
+
+  // A multi-step review chain: one REVIEWED card per approved reviewer (name + date), in order.
+  const { data: chainRows } = await supabase
+    .from("itp_review_progress" as never)
+    .select("reviewer_user_id, sort_order, status, reviewed_at")
+    .eq("itp_id" as never, itp.id as never)
+    .order("sort_order" as never)
+    .returns<{ reviewer_user_id: string; sort_order: number; status: string; reviewed_at: string | null }[]>();
+  const chainUserIds = (chainRows ?? []).map((r) => r.reviewer_user_id).filter((id) => !usersById.has(id));
+  if (chainUserIds.length > 0) {
+    const { data: chainUsers } = await supabase.from("users").select("id, full_name").in("id", chainUserIds).returns<{ id: string; full_name: string }[]>();
+    for (const u of chainUsers ?? []) usersById.set(u.id, u.full_name);
+  }
+  const reviewCards: ItpTemplateSignoff[] =
+    (chainRows ?? []).length > 0
+      ? (chainRows ?? []).map((r) => ({
+          label: `REVIEWED (STEP ${r.sort_order + 1})`,
+          name: r.status === "approved" ? usersById.get(r.reviewer_user_id) ?? null : null,
+          date: r.status === "approved" ? dateOnly(r.reviewed_at) : null,
+        }))
+      : [{ label: "REVIEWED", name: itp.reviewed_by ? usersById.get(itp.reviewed_by) ?? null : null, date: dateOnly(itpExtra.reviewed_at) }];
+
   const signoffs: ItpTemplateSignoff[] = [
     { label: "PREPARED", name: itp.prepared_by ? usersById.get(itp.prepared_by) ?? null : null, date: null },
-    { label: "REVIEWED", name: itp.reviewed_by ? usersById.get(itp.reviewed_by) ?? null : null, date: null },
-    { label: "APPROVED", name: itp.approved_by ? usersById.get(itp.approved_by) ?? null : null, date: null },
+    ...reviewCards,
+    { label: "APPROVED", name: itp.approved_by ? usersById.get(itp.approved_by) ?? null : null, date: dateOnly(itpExtra.approved_at) },
     {
       label: "CLIENT ACCEPTED",
       name: itp.client_accepted_by ? usersById.get(itp.client_accepted_by) ?? null : null,
-      date: itp.client_accepted_at,
+      date: dateOnly(itp.client_accepted_at),
     },
   ];
+
+  const isIssued = itp.status === "approved" || itp.status === "client_accepted";
+  const statusNote = !isIssued
+    ? itpExtra.returned_reason
+      ? `Not issued — returned for changes: ${itpExtra.returned_reason}`
+      : itp.status === "under_review"
+        ? "Not issued — under review. Uncontrolled copy."
+        : "Draft — not issued. Uncontrolled copy."
+    : itpExtra.revision_needs_approval
+      ? `Revision ${itp.revision} awaiting approval — the previously approved revision remains the controlled copy.`
+      : null;
 
   const templateData: ItpTemplateData = {
     itpNumber: itp.itp_number,
@@ -230,6 +276,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     applicableStandard: itp.applicable_standard,
     revision: itp.revision,
     status: itp.status,
+    statusNote,
     organizationName: organization.name,
     projectName: project.name,
     projectNumber: project.project_number,
@@ -297,7 +344,8 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     await page.close();
   }
 
-  const storagePath = `itps/${itp.id}/${itp.itp_number}-rev${itp.revision}.pdf`;
+  // Timestamped so regenerating the same revision never overwrites an earlier file that a vault row points at.
+  const storagePath = `itps/${itp.id}/${itp.itp_number}-rev${itp.revision}-${Date.now()}.pdf`;
 
   const { error: uploadError } = await supabase.storage
     .from(GENERATED_DOCUMENTS_BUCKET)
@@ -307,16 +355,21 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
     throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
   }
 
-  await autoFileVaultDocument(supabase, {
-    projectId: project.id,
-    folderKey: "itps_approved",
-    title: `${itp.itp_number} — ${itp.title}`,
-    documentReference: itp.itp_number,
-    revision: String(itp.revision),
-    storagePath,
-    fileSize: pdfBuffer.length,
-    generatedBy: payload.requested_by,
-  });
+  // Only an issued ITP belongs in "ITPs (Approved)". Drafts, ITPs under review and returned ITPs are not
+  // filed at all; a revision still awaiting approval is filed for review so the approved copy stays current.
+  if (isIssued) {
+    await autoFileVaultDocument(supabase, {
+      projectId: project.id,
+      folderKey: "itps_approved",
+      title: `${itp.itp_number} — ${itp.title}`,
+      documentReference: itp.itp_number,
+      revision: String(itp.revision),
+      storagePath,
+      fileSize: pdfBuffer.length,
+      generatedBy: payload.requested_by,
+      status: itpExtra.revision_needs_approval ? "for_review" : "approved",
+    });
+  }
 
   return { resultStoragePath: storagePath };
 }

@@ -132,6 +132,21 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
 
   const nameById = new Map((approvalNamesRows ?? []).map((u) => [u.id, u.full_name]));
 
+  // Columns added after the generated types: returned-to-draft, revision awaiting approval, external approval.
+  const { data: lifecycleExtra } = await supabase
+    .from("itps" as never)
+    .select("revision, returned_reason, returned_at, revision_needs_approval, external_approval_reference, external_approval_recorded_at")
+    .eq("id" as never, id as never)
+    .maybeSingle<{
+      revision: number;
+      returned_reason: string | null;
+      returned_at: string | null;
+      revision_needs_approval: boolean;
+      external_approval_reference: string | null;
+      external_approval_recorded_at: string | null;
+    }>();
+  const formatWhen = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-GB") : null);
+
   const signoffTotal = (signoffs ?? []).length;
   const signoffComplete = (signoffs ?? []).filter((s) => s.status === "signed_off").length;
 
@@ -252,6 +267,42 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
 
       <div className="mt-4">
         <h2 className="mb-2 text-sm font-semibold text-ink">2. The process — where it stands right now</h2>
+        {itp.status === "draft" && lifecycleExtra?.returned_reason && (
+          <div className="mb-3 rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink" role="status">
+            <p className="font-medium text-danger">Returned for changes</p>
+            <p className="mt-0.5 whitespace-pre-line">{lifecycleExtra.returned_reason}</p>
+            {lifecycleExtra.returned_at && <p className="mt-1 text-xs text-muted">{formatWhen(lifecycleExtra.returned_at)}</p>}
+          </div>
+        )}
+        {lifecycleExtra?.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
+          <div className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+            <p className="font-medium">Revision {lifecycleExtra.revision} is awaiting approval</p>
+            <p className="mt-0.5 text-xs text-muted">The stages below show the originally issued ITP; the latest change still needs re-approval.</p>
+          </div>
+        )}
+        {reviewSteps.length > 0 && (
+          <div className="mb-3 rounded-md border border-border bg-surface px-4 py-3">
+            <p className="text-xs font-medium text-muted">Review chain</p>
+            <ol className="mt-1 space-y-1">
+              {reviewSteps.map((step) => (
+                <li key={step.id} className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-ink">
+                  <span>
+                    {step.sortOrder + 1}. {step.reviewerName}
+                  </span>
+                  <span className={step.status === "approved" ? "text-xs font-medium text-success" : "text-xs text-muted"}>
+                    {step.status === "approved" ? `Approved${step.reviewedAt ? ` · ${formatWhen(step.reviewedAt)}` : ""}` : "Pending"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {lifecycleExtra?.external_approval_reference && (
+          <p className="mb-3 text-xs text-muted">
+            External approval recorded: <span className="text-ink">{lifecycleExtra.external_approval_reference}</span>
+            {lifecycleExtra.external_approval_recorded_at ? ` · ${formatWhen(lifecycleExtra.external_approval_recorded_at)}` : ""}
+          </p>
+        )}
         <ItpApprovalRoadmap
           status={itp.status}
           reviewSteps={reviewSteps}
