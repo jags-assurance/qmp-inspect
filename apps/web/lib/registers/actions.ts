@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { requireSession } from "@/lib/auth/session";
+import { getRegisterAccess } from "@/lib/registers/permissions";
+import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 import {
   CALIBRATION_REGISTER_TABLE,
   MATERIAL_APPROVAL_STATUSES,
@@ -47,6 +50,48 @@ async function auditRegisterEntry(
   }
 }
 
+/** Shared guard for every register write: signed in, and allowed to add entries on this project. */
+async function requireRegisterContributor(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string
+): Promise<{ error: string | null; isStaff: boolean }> {
+  const session = await requireSession();
+  const access = await getRegisterAccess(supabase, session, projectId);
+  if (!access.canAdd) {
+    return { error: "Only JAGS staff and this project's contractor, subcontractor or TPI/lab parties can add register entries.", isStaff: false };
+  }
+  return { error: null, isStaff: access.canManage };
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A user-typed date must be a real calendar date (the form's date picker guarantees the format; this guards direct posts). */
+function badDate(value: string, label: string): string | null {
+  if (!value) return null;
+  if (!ISO_DATE.test(value) || Number.isNaN(new Date(`${value}T00:00:00Z`).getTime())) return `${label} isn't a valid date.`;
+  const year = Number(value.slice(0, 4));
+  if (year < 1990 || year > 2100) return `${label} looks wrong (year ${year}).`;
+  return null;
+}
+
+/** Certificate files are uploaded straight to storage by the form; only accept a path under THIS project's registers folder (<project>/registers/…, which the storage policy already scopes to project access). */
+function certificatePathFor(projectId: string, raw: string): string | null {
+  return raw && raw.startsWith(`${projectId}/registers/`) ? raw : null;
+}
+
+async function entryExists(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  table: unknown,
+  projectId: string,
+  match: Record<string, string>
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registers tables aren't in the generated types
+  let query: any = supabase.from(table as never).select("id", { count: "exact", head: true }).eq("project_id" as never, projectId as never);
+  for (const [column, value] of Object.entries(match)) query = query.ilike(column, value.replace(/[%_\\]/g, (m) => `\\${m}`));
+  const { count } = await query;
+  return (count ?? 0) > 0;
+}
+
 export interface AddCalibrationEntryState {
   error: string | null;
 }
@@ -58,6 +103,8 @@ export async function addCalibrationEntryAction(
 ): Promise<AddCalibrationEntryState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
   const instrumentName = String(formData.get("instrument_name") ?? "").trim();
+  const instrumentTag = String(formData.get("instrument_tag") ?? "").trim();
+  const calibrationLab = String(formData.get("calibration_lab") ?? "").trim();
   const certNumber = String(formData.get("cert_number") ?? "").trim();
   const calDate = String(formData.get("cal_date") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "").trim();
@@ -66,16 +113,30 @@ export async function addCalibrationEntryAction(
   if (!projectId || !instrumentName || !certNumber || !dueDate) {
     return { error: "Instrument name, cert number, and due date are required." };
   }
+  const dateProblem = badDate(calDate, "The calibration date") ?? badDate(dueDate, "The due date");
+  if (dateProblem) return { error: dateProblem };
+  if (calDate && dueDate < calDate) return { error: "The due date can't be before the calibration date." };
 
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { error: writer.error };
+
+  if (await entryExists(supabase, CALIBRATION_REGISTER_TABLE, projectId, { cert_number: certNumber, instrument_name: instrumentName })) {
+    return { error: `${instrumentName} with certificate ${certNumber} is already in this register.` };
+  }
+
   const { data: entry, error } = await supabase
     .from(CALIBRATION_REGISTER_TABLE)
     .insert({
       project_id: projectId,
       instrument_name: instrumentName,
+      instrument_tag: instrumentTag || null,
+      calibration_lab: calibrationLab || null,
       cert_number: certNumber,
       cal_date: calDate || null,
       due_date: dueDate,
+      status: computeCalibrationStatus(dueDate),
+      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
       notes: notes || null,
     })
     .select("id")
@@ -108,6 +169,9 @@ export async function addWelderQualificationEntryAction(
 ): Promise<AddWelderQualificationEntryState> {
   const projectId = String(formData.get("project_id") ?? "").trim();
   const welderIdentifier = String(formData.get("welder_identifier") ?? "").trim();
+  const wpqNumber = String(formData.get("wpq_number") ?? "").trim();
+  const process = String(formData.get("process") ?? "").trim();
+  const position = String(formData.get("position") ?? "").trim();
   const qualifiedWps = String(formData.get("qualified_wps") ?? "").trim();
   const qualifiedRanges = String(formData.get("qualified_ranges") ?? "").trim();
   const expiryDate = String(formData.get("expiry_date") ?? "").trim();
@@ -116,16 +180,30 @@ export async function addWelderQualificationEntryAction(
   if (!projectId || !welderIdentifier || !qualifiedWps || !expiryDate) {
     return { error: "Welder identifier, qualified WPS, and expiry date are required." };
   }
+  const dateProblem = badDate(expiryDate, "The expiry date");
+  if (dateProblem) return { error: dateProblem };
 
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { error: writer.error };
+
+  if (await entryExists(supabase, WELDER_QUALIFICATION_REGISTER_TABLE, projectId, { welder_identifier: welderIdentifier, qualified_wps: qualifiedWps })) {
+    return { error: `${welderIdentifier} is already qualified on ${qualifiedWps} in this register — edit that entry instead.` };
+  }
+
   const { data: entry, error } = await supabase
     .from(WELDER_QUALIFICATION_REGISTER_TABLE)
     .insert({
       project_id: projectId,
       welder_identifier: welderIdentifier,
+      wpq_number: wpqNumber || null,
+      process: process || null,
+      position: position || null,
       qualified_wps: qualifiedWps,
       qualified_ranges: qualifiedRanges || null,
       expiry_date: expiryDate,
+      status: computeWelderStatus(expiryDate),
+      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
       notes: notes || null,
     })
     .select("id")
@@ -151,7 +229,11 @@ export interface AddMaterialEntryState {
   error: string | null;
 }
 
-/** Manual "add row" form on the project's Material Register. */
+/**
+ * Manual "add row" form on the project's Material Register. A material added by a contractor party is
+ * always recorded as "received — pending inspection" (the database enforces it too): only JAGS staff
+ * can release a material.
+ */
 export async function addMaterialEntryAction(
   _prev: AddMaterialEntryState,
   formData: FormData
@@ -164,22 +246,34 @@ export async function addMaterialEntryAction(
   const heatNumber = String(formData.get("heat_number") ?? "").trim();
   const batchNumber = String(formData.get("batch_number") ?? "").trim();
   const poReference = String(formData.get("po_reference") ?? "").trim();
+  const supplier = String(formData.get("supplier") ?? "").trim();
+  const quantity = String(formData.get("quantity") ?? "").trim();
   const certificateReference = String(formData.get("certificate_reference") ?? "").trim();
-  const receiptStatus = String(formData.get("receipt_status") ?? "released").trim() as MaterialReceiptStatus;
+  const requestedReceiptStatus = String(formData.get("receipt_status") ?? "released").trim() as MaterialReceiptStatus;
   const dispositionNotes = String(formData.get("disposition_notes") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!projectId || !materialDescription || !MATERIAL_APPROVAL_STATUSES.includes(approvalStatus)) {
     return { error: "Material description and a valid approval status are required." };
   }
-  if (!MATERIAL_RECEIPT_STATUSES.includes(receiptStatus)) {
+  if (!MATERIAL_RECEIPT_STATUSES.includes(requestedReceiptStatus)) {
     return { error: "Unrecognised receipt status." };
   }
-  if (receiptStatus !== "released" && !dispositionNotes) {
-    return { error: "A quarantined or on-hold material needs a disposition note explaining why." };
-  }
+  const dateProblem = badDate(approvedDate, "The approved date");
+  if (dateProblem) return { error: dateProblem };
 
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { error: writer.error };
+
+  const receiptStatus: MaterialReceiptStatus = writer.isStaff ? requestedReceiptStatus : "received_pending_inspection";
+  if (writer.isStaff && receiptStatus !== "released" && receiptStatus !== "received_pending_inspection" && !dispositionNotes) {
+    return { error: "A quarantined or on-hold material needs a disposition note explaining why." };
+  }
+  if (heatNumber && (await entryExists(supabase, MATERIAL_REGISTER_TABLE, projectId, { heat_number: heatNumber, material_description: materialDescription }))) {
+    return { error: `${materialDescription} with heat number ${heatNumber} is already in this register.` };
+  }
+
   const { data: entry, error } = await supabase
     .from(MATERIAL_REGISTER_TABLE)
     .insert({
@@ -191,7 +285,10 @@ export async function addMaterialEntryAction(
       heat_number: heatNumber || null,
       batch_number: batchNumber || null,
       po_reference: poReference || null,
+      supplier: supplier || null,
+      quantity: quantity || null,
       certificate_reference: certificateReference || null,
+      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
       receipt_status: receiptStatus,
       disposition_notes: dispositionNotes || null,
       notes: notes || null,
@@ -235,8 +332,33 @@ export async function addPersonnelCertificationEntryAction(
   if (!projectId || !projectPartyId || !certificationType || !expiryDate) {
     return { error: "Person, certification type, and expiry date are required." };
   }
+  const dateProblem = badDate(issuedDate, "The issue date") ?? badDate(expiryDate, "The expiry date");
+  if (dateProblem) return { error: dateProblem };
+  if (issuedDate && expiryDate < issuedDate) return { error: "The expiry date can't be before the issue date." };
 
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { error: writer.error };
+
+  const { data: partyRow } = await supabase
+    .from("project_parties")
+    .select("id")
+    .eq("id", projectPartyId)
+    .eq("project_id", projectId)
+    .maybeSingle<{ id: string }>();
+  if (!partyRow) return { error: "That person isn't a party on this project." };
+
+  if (certNumber) {
+    const { count } = await supabase
+      .from(PERSONNEL_CERTIFICATIONS_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("project_party_id", projectPartyId)
+      .eq("certification_type", certificationType)
+      .eq("cert_number", certNumber);
+    if (count) return { error: `Certificate ${certNumber} (${certificationType}) is already recorded for this person.` };
+  }
+
   const { data: entry, error } = await supabase
     .from(PERSONNEL_CERTIFICATIONS_TABLE)
     .insert({
@@ -246,6 +368,8 @@ export async function addPersonnelCertificationEntryAction(
       cert_number: certNumber || null,
       issued_date: issuedDate || null,
       expiry_date: expiryDate,
+      status: computePersonnelCertificationStatus(expiryDate),
+      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
       notes: notes || null,
     })
     .select("id")
@@ -364,6 +488,14 @@ export interface AddExtractedRowsState {
 
 const EMPTY_ADD_EXTRACTED_STATE: AddExtractedRowsState = { error: null, addedCount: 0 };
 
+function extractedSkipMessage(skipped: number, reasons: { missing: number; invalid: number; duplicate: number }): string {
+  const parts: string[] = [];
+  if (reasons.missing) parts.push(`${reasons.missing} missing a required field`);
+  if (reasons.invalid) parts.push(`${reasons.invalid} with an invalid or inconsistent date`);
+  if (reasons.duplicate) parts.push(`${reasons.duplicate} already in the register`);
+  return `${skipped} row(s) skipped: ${parts.join(", ")}.`;
+}
+
 /** Persists the (reviewed, possibly edited) calibration rows a document controller confirms after
  *  extraction — the only thing that ever writes AI-extracted calibration data to the database. */
 export async function addExtractedCalibrationRowsAction(
@@ -385,23 +517,37 @@ export async function addExtractedCalibrationRowsAction(
   if (!Array.isArray(rows) || rows.length === 0) return { ...EMPTY_ADD_EXTRACTED_STATE, error: "No rows to add." };
 
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { ...EMPTY_ADD_EXTRACTED_STATE, error: writer.error };
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // due_date is not-null on calibration_register (its own manual-add form requires it too) — a row
-  // extracted with no due date is real, protective behavior (per the sample pack: a missing due
-  // date must block use, never be inferred), but it can't be inserted as-is. Skip such rows rather
-  // than either failing the whole batch or inventing a date; the document controller is told which
-  // ones were skipped so they can chase the real certificate before adding it by hand.
-  const insertable = rows.filter((r) => r.instrumentName?.trim() && r.certNumber?.trim() && r.dueDate?.trim());
-  const skipped = rows.length - insertable.length;
+  // due_date is not-null on calibration_register — a row with no due date is never inferred; it is
+  // skipped and reported so the document controller can add it by hand once confirmed.
+  const insertable: ExtractedCalibrationRow[] = [];
+  const reasons = { missing: 0, invalid: 0, duplicate: 0 };
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const name = r.instrumentName?.trim();
+    const cert = r.certNumber?.trim();
+    const due = r.dueDate?.trim();
+    const cal = r.calDate?.trim() ?? "";
+    if (!name || !cert || !due) { reasons.missing++; continue; }
+    if (badDate(cal, "Calibration date") || badDate(due, "Due date") || (cal && due < cal)) { reasons.invalid++; continue; }
+    const key = `${cert.toLowerCase()}|${name.toLowerCase()}`;
+    if (seen.has(key) || (await entryExists(supabase, CALIBRATION_REGISTER_TABLE, projectId, { cert_number: cert, instrument_name: name }))) {
+      reasons.duplicate++;
+      continue;
+    }
+    seen.add(key);
+    insertable.push({ ...r, instrumentName: name, certNumber: cert, calDate: cal || null, dueDate: due });
+  }
+  const skipped = reasons.missing + reasons.invalid + reasons.duplicate;
+  const skipReason = extractedSkipMessage(skipped, reasons);
 
   if (insertable.length === 0) {
-    return {
-      ...EMPTY_ADD_EXTRACTED_STATE,
-      error: "None of the extracted rows had every required field (instrument, certificate number, due date) — add them manually once the missing details are confirmed.",
-    };
+    return { ...EMPTY_ADD_EXTRACTED_STATE, error: `No rows were added. ${skipReason}` };
   }
 
   const { data: inserted, error } = await supabase
@@ -413,6 +559,8 @@ export async function addExtractedCalibrationRowsAction(
         cert_number: r.certNumber,
         cal_date: r.calDate || null,
         due_date: r.dueDate,
+        status: computeCalibrationStatus(r.dueDate as string),
+        notes: ((r as { notes?: string | null }).notes ?? "").toString().trim() || null,
       }))
     )
     .select("id");
@@ -421,13 +569,15 @@ export async function addExtractedCalibrationRowsAction(
     return { ...EMPTY_ADD_EXTRACTED_STATE, error: "Could not add the extracted rows. Check you have permission and try again." };
   }
 
-  await auditRegisterEntry(supabase, {
-    projectId,
-    entityType: "calibration_register_entry",
-    entityId: projectId,
-    action: "ai_extracted_batch_added",
-    summary: `${inserted.length} AI-extracted calibration entries added${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
-  });
+  for (const row of inserted as unknown as { id: string }[]) {
+    await auditRegisterEntry(supabase, {
+      projectId,
+      entityType: "calibration_register_entry",
+      entityId: row.id,
+      action: "ai_extracted_added",
+      summary: `AI-extracted calibration entry added${skipped > 0 ? ` (batch of ${inserted.length} added, ${skipped} skipped)` : ""}`,
+    });
+  }
 
   if (aiLogId && user?.id) {
     await recordAiReviewDecision(supabase, {
@@ -442,7 +592,7 @@ export async function addExtractedCalibrationRowsAction(
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return {
-    error: skipped > 0 ? `${skipped} row(s) were skipped — missing a required field (instrument, cert number, or due date).` : null,
+    error: skipped > 0 ? `${inserted.length} row(s) added. ${skipReason}` : null,
     addedCount: inserted.length,
   };
 }
@@ -544,20 +694,35 @@ export async function addExtractedWelderRowsAction(
   if (!Array.isArray(rows) || rows.length === 0) return { ...EMPTY_ADD_EXTRACTED_STATE, error: "No rows to add." };
 
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { ...EMPTY_ADD_EXTRACTED_STATE, error: writer.error };
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // expiry_date is not-null on welder_qualification_register — same reasoning as the calibration
-  // batch above: skip a row missing it rather than inventing one.
-  const insertable = rows.filter((r) => r.welderIdentifier?.trim() && r.expiryDate?.trim());
-  const skipped = rows.length - insertable.length;
+  // expiry_date is not-null on welder_qualification_register — skip a row missing it rather than inventing one.
+  const insertable: ExtractedWelderRow[] = [];
+  const reasons = { missing: 0, invalid: 0, duplicate: 0 };
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const id = r.welderIdentifier?.trim();
+    const exp = r.expiryDate?.trim();
+    if (!id || !exp) { reasons.missing++; continue; }
+    if (badDate(exp, "Expiry date")) { reasons.invalid++; continue; }
+    const wps = r.qualifiedWps?.trim() || "Not confirmed in source";
+    const key = `${id.toLowerCase()}|${wps.toLowerCase()}`;
+    if (seen.has(key) || (await entryExists(supabase, WELDER_QUALIFICATION_REGISTER_TABLE, projectId, { welder_identifier: id, qualified_wps: wps }))) {
+      reasons.duplicate++;
+      continue;
+    }
+    seen.add(key);
+    insertable.push({ ...r, welderIdentifier: id, qualifiedWps: wps, expiryDate: exp });
+  }
+  const skipped = reasons.missing + reasons.invalid + reasons.duplicate;
+  const skipReason = extractedSkipMessage(skipped, reasons);
 
   if (insertable.length === 0) {
-    return {
-      ...EMPTY_ADD_EXTRACTED_STATE,
-      error: "None of the extracted rows had every required field (welder ID, expiry date) — add them manually once confirmed.",
-    };
+    return { ...EMPTY_ADD_EXTRACTED_STATE, error: `No rows were added. ${skipReason}` };
   }
 
   const { data: inserted, error } = await supabase
@@ -566,9 +731,10 @@ export async function addExtractedWelderRowsAction(
       insertable.map((r) => ({
         project_id: projectId,
         welder_identifier: r.welderIdentifier,
-        qualified_wps: r.qualifiedWps || "Not confirmed in source",
+        qualified_wps: r.qualifiedWps,
         qualified_ranges: r.qualifiedRanges || null,
         expiry_date: r.expiryDate,
+        status: computeWelderStatus(r.expiryDate as string),
       }))
     )
     .select("id");
@@ -577,13 +743,15 @@ export async function addExtractedWelderRowsAction(
     return { ...EMPTY_ADD_EXTRACTED_STATE, error: "Could not add the extracted rows. Check you have permission and try again." };
   }
 
-  await auditRegisterEntry(supabase, {
-    projectId,
-    entityType: "welder_qualification_entry",
-    entityId: projectId,
-    action: "ai_extracted_batch_added",
-    summary: `${inserted.length} AI-extracted welder qualification entries added${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
-  });
+  for (const row of inserted as unknown as { id: string }[]) {
+    await auditRegisterEntry(supabase, {
+      projectId,
+      entityType: "welder_qualification_entry",
+      entityId: row.id,
+      action: "ai_extracted_added",
+      summary: `AI-extracted welder qualification entry added${skipped > 0 ? ` (batch of ${inserted.length} added, ${skipped} skipped)` : ""}`,
+    });
+  }
 
   if (aiLogId && user?.id) {
     await recordAiReviewDecision(supabase, {
@@ -598,7 +766,7 @@ export async function addExtractedWelderRowsAction(
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return {
-    error: skipped > 0 ? `${skipped} row(s) were skipped — missing a required field (welder ID or expiry date).` : null,
+    error: skipped > 0 ? `${inserted.length} row(s) added. ${skipReason}` : null,
     addedCount: inserted.length,
   };
 }
@@ -699,13 +867,37 @@ export async function addExtractedMaterialRowsAction(
   }
   if (!Array.isArray(rows) || rows.length === 0) return { ...EMPTY_ADD_EXTRACTED_STATE, error: "No rows to add." };
 
-  const insertable = rows.filter((r) => r.materialDescription?.trim());
-  const skipped = rows.length - insertable.length;
-
   const supabase = await createSupabaseServerClient();
+  const writer = await requireRegisterContributor(supabase, projectId);
+  if (writer.error) return { ...EMPTY_ADD_EXTRACTED_STATE, error: writer.error };
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const insertable: ExtractedMaterialRow[] = [];
+  const reasons = { missing: 0, invalid: 0, duplicate: 0 };
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const desc = r.materialDescription?.trim();
+    if (!desc) { reasons.missing++; continue; }
+    const heat = r.heatNumber?.trim();
+    if (heat) {
+      const key = `${heat.toLowerCase()}|${desc.toLowerCase()}`;
+      if (seen.has(key) || (await entryExists(supabase, MATERIAL_REGISTER_TABLE, projectId, { heat_number: heat, material_description: desc }))) {
+        reasons.duplicate++;
+        continue;
+      }
+      seen.add(key);
+    }
+    insertable.push({ ...r, materialDescription: desc, heatNumber: heat || null });
+  }
+  const skipped = reasons.missing + reasons.invalid + reasons.duplicate;
+  const skipReason = extractedSkipMessage(skipped, reasons);
+
+  if (insertable.length === 0) {
+    return { ...EMPTY_ADD_EXTRACTED_STATE, error: `No rows were added. ${skipReason}` };
+  }
+  const receiptStatus: MaterialReceiptStatus = writer.isStaff ? "quarantined_pending_disposition" : "received_pending_inspection";
 
   // Deliberately no approval_status/receipt_status here — extraction never sets a release
   // judgement (per the sample pack's own rule: "AI extraction does not set release; authorized
@@ -724,7 +916,7 @@ export async function addExtractedMaterialRowsAction(
         batch_number: r.batchNumber || null,
         po_reference: r.poReference || null,
         certificate_reference: r.certificateReference || null,
-        receipt_status: "quarantined_pending_disposition" as const,
+        receipt_status: receiptStatus,
         disposition_notes: "AI-extracted — pending document-controller review against the source certificate.",
       }))
     )
@@ -734,13 +926,15 @@ export async function addExtractedMaterialRowsAction(
     return { ...EMPTY_ADD_EXTRACTED_STATE, error: "Could not add the extracted rows. Check you have permission and try again." };
   }
 
-  await auditRegisterEntry(supabase, {
-    projectId,
-    entityType: "material_register_entry",
-    entityId: projectId,
-    action: "ai_extracted_batch_added",
-    summary: `${inserted.length} AI-extracted material entries added${skipped > 0 ? ` (${skipped} skipped)` : ""}`,
-  });
+  for (const row of inserted as unknown as { id: string }[]) {
+    await auditRegisterEntry(supabase, {
+      projectId,
+      entityType: "material_register_entry",
+      entityId: row.id,
+      action: "ai_extracted_added",
+      summary: `AI-extracted material entry added${skipped > 0 ? ` (batch of ${inserted.length} added, ${skipped} skipped)` : ""}`,
+    });
+  }
 
   if (aiLogId && user?.id) {
     await recordAiReviewDecision(supabase, {
@@ -755,7 +949,7 @@ export async function addExtractedMaterialRowsAction(
 
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return {
-    error: skipped > 0 ? `${skipped} row(s) had no material description and were skipped.` : null,
+    error: skipped > 0 ? `${inserted.length} row(s) added. ${skipReason}` : null,
     addedCount: inserted.length,
   };
 }

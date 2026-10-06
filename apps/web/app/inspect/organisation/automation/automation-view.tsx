@@ -65,7 +65,7 @@ export async function AutomationRulesView({ searchParams, embedded }: {
         <PageGuide
           title="Automation rules — how this works"
           points={[
-            "Every notification elsewhere in this app fires because a person clicked something — these 3 rules are the only time/schedule-driven automation: a background sweep (every ~15 minutes) checks for a stuck Hold, an overdue NCR, or an overdue punch item and sends a real notification without anyone having to notice first.",
+            "Every notification elsewhere in this app fires because a person clicked something — these rules are the only time/schedule-driven automation: a background sweep (every ~15 minutes) checks for a stuck Hold, an overdue NCR, or an overdue punch item, or a register item nearing expiry, and sends a real notification without anyone having to notice first.",
             "A rule with no row here yet is ON by default at a sensible threshold — this page is for tuning or disabling, not required setup for a new organisation.",
             "\"Don't repeat within\" stops the same stuck item from re-notifying every single sweep — it fires again only once that many hours have passed since the last nudge for that specific item.",
             "Admin-only, same boundary as Numbering, Module Licensing and Staff Access.",

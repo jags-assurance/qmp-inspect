@@ -11,41 +11,7 @@ import {
   type PersonnelCertificationStatus,
 } from "./types";
 
-// Windows for the "due soon" / "expiring" bands, per the task spec (30/90 days). Calibration due
-// dates are typically tighter-cycle than welder quals, so it gets the shorter warning window.
-const CALIBRATION_DUE_SOON_DAYS = 30;
-const WELDER_EXPIRING_DAYS = 90;
-// Personal certifications (AWS CWI, ASNT NDT, CSWIP, etc.) typically carry a renewal/CPD cycle an
-// inspection body needs real lead time to act on — same warning window as welder quals.
-const PERSONNEL_CERTIFICATION_EXPIRING_DAYS = 90;
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function daysUntil(dateStr: string, today: Date): number {
-  const target = new Date(`${dateStr}T00:00:00`);
-  return Math.round((target.getTime() - today.getTime()) / MS_PER_DAY);
-}
-
-function computeCalibrationStatus(dueDate: string, today: Date): CalibrationStatus {
-  const days = daysUntil(dueDate, today);
-  if (days < 0) return "expired";
-  if (days <= CALIBRATION_DUE_SOON_DAYS) return "due_soon";
-  return "valid";
-}
-
-function computeWelderStatus(expiryDate: string, today: Date): WelderQualificationStatus {
-  const days = daysUntil(expiryDate, today);
-  if (days < 0) return "expired";
-  if (days <= WELDER_EXPIRING_DAYS) return "expiring";
-  return "valid";
-}
-
-function computePersonnelCertificationStatus(expiryDate: string, today: Date): PersonnelCertificationStatus {
-  const days = daysUntil(expiryDate, today);
-  if (days < 0) return "expired";
-  if (days <= PERSONNEL_CERTIFICATION_EXPIRING_DAYS) return "expiring_soon";
-  return "valid";
-}
+import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus, todayUtc } from "./status";
 
 /**
  * Recomputes what each register row's `status` *should* be from today's date, and updates any row
@@ -58,8 +24,7 @@ function computePersonnelCertificationStatus(expiryDate: string, today: Date): P
  * the submittal outcome), so there's nothing to refresh there.
  */
 export async function refreshRegisterStatuses(supabase: SupabaseClient, projectId: string): Promise<void> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayUtc();
 
   const [{ data: calibrationRows }, { data: welderRows }, { data: personnelCertRows }] = await Promise.all([
     supabase

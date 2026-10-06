@@ -95,6 +95,16 @@ export interface DataBookPdfMaterial {
   certificate: string | null;
   approval: string;
   receipt: string;
+  supplier?: string | null;
+  quantity?: string | null;
+  releasedAt?: string | null;
+}
+export interface DataBookPdfPersonnel {
+  name: string;
+  certification: string;
+  certNumber: string | null;
+  expiry: string;
+  status: string;
 }
 export interface DataBookPdfNcr {
   number: string;
@@ -141,6 +151,7 @@ export interface DataBookPdfData {
   calibrations: DataBookPdfCalibration[];
   welders: DataBookPdfWelder[];
   materials: DataBookPdfMaterial[];
+  personnel?: DataBookPdfPersonnel[];
   ncrs: DataBookPdfNcr[];
   punchItems: DataBookPdfPunch[];
 
@@ -189,6 +200,8 @@ function escapeHtml(value: string): string {
 function cell(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "&mdash;" : escapeHtml(String(value));
 }
+
+import { fmtDmy } from "./registerStatus";
 
 function fmtDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -301,6 +314,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     ["materials", "Materials and traceability"],
     ["welding", "Welding and joining records"],
     ["calibration", "Calibration and regulated certificates"],
+    ["personnel", "Personnel certifications"],
     ["ncrs", "Nonconformance deviation and exceptions"],
     ["punch", "Mechanical completion and punch list"],
     ["readiness", "Readiness calculations and hard gates"],
@@ -566,14 +580,15 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "materials",
     "Materials and traceability",
     "Connect incoming material identity and certification to the installed component. Preserve traceability through cutting, assembly, substitution and repair.",
-    ["Material", "Heat / batch", "PO", "Certificate", "Approval", "Receipt"],
+    ["Material", "Supplier / qty", "Heat / batch", "PO", "Certificate", "Approval", "Receipt / released"],
     data.materials.map((m) => [
       escapeHtml(m.description),
+      `${cell(m.supplier)}${m.quantity ? ` / ${escapeHtml(m.quantity)}` : ""}`,
       `${cell(m.heat)}${m.batch ? ` / ${escapeHtml(m.batch)}` : ""}`,
       cell(m.po),
       cell(m.certificate),
       escapeHtml(m.approval),
-      escapeHtml(m.receipt.replace(/_/g, " ")),
+      `${escapeHtml(m.receipt.replace(/_/g, " "))}${m.releasedAt ? `<br /><small>${fmtDmy(m.releasedAt)}</small>` : ""}`,
     ]),
     "No materials recorded in the project material register.",
     "MTC/MTR or material certificate, receiving inspection, heat/lot transfer record, PMI and substitutions.",
@@ -585,7 +600,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Welding and joining records",
     "Track procedure qualification and personnel qualification for the joints made on this project.",
     ["Welder / operator", "WPS", "Qualified range", "Expiry", "Status"],
-    data.welders.map((w) => [escapeHtml(w.welder), escapeHtml(w.wps), cell(w.ranges), fmtDate(w.expiry), escapeHtml(w.status)]),
+    data.welders.map((w) => [escapeHtml(w.welder), escapeHtml(w.wps), cell(w.ranges), fmtDmy(w.expiry), escapeHtml(w.status)]),
     "No welder qualifications recorded in the project register.",
     "Approved WPS/PQR, welder/operator qualifications and continuity, weld map/log, consumable certificates, repair records and linked NDT.",
     "Confirm qualification coverage for the actual work at the work date. Possession of a WPS is not proof that each joint followed it."
@@ -596,10 +611,21 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Calibration and regulated certificates",
     "Calibration status of the instruments used on this project, checked against their due dates.",
     ["Instrument", "Certificate", "Calibrated", "Due", "Status"],
-    data.calibrations.map((c) => [escapeHtml(c.instrument), escapeHtml(c.certNumber), fmtDate(c.calDate), fmtDate(c.dueDate), escapeHtml(c.status)]),
+    data.calibrations.map((c) => [escapeHtml(c.instrument), escapeHtml(c.certNumber), fmtDmy(c.calDate), fmtDmy(c.dueDate), escapeHtml(c.status)]),
     "No calibration certificates recorded in the project register.",
     "Original calibration certificates, traceability to national standards and the instrument-to-activity mapping.",
     "Check calibration at the date of use. An expired instrument requires impact assessment and retest before the activity is satisfied."
+  );
+
+  const personnel = registerPage(
+    "personnel",
+    "Personnel certifications",
+    "Personal certifications held by people working on this project, checked against their expiry dates.",
+    ["Name", "Certification", "Certificate no.", "Expiry", "Status"],
+    (data.personnel ?? []).map((p) => [escapeHtml(p.name), escapeHtml(p.certification), cell(p.certNumber), fmtDmy(p.expiry), escapeHtml(p.status)]),
+    "No personnel certifications recorded in the project register.",
+    "Copies of personal certificates (for example NDT, welding, electrical) and employer verification of scope.",
+    "Confirm each certificate was valid on the date the person performed the work."
   );
 
   const ncrs = registerPage(
@@ -812,6 +838,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   ${materials}
   ${welding}
   ${calibration}
+  ${personnel}
   ${ncrs}
   ${punch}
   ${readiness}

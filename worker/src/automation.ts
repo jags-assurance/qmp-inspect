@@ -10,7 +10,7 @@ const db = supabase as any;
 interface AutomationRuleRow {
   id: string;
   organization_id: string;
-  rule_type: "hold_elapsed" | "ncr_overdue" | "punch_overdue";
+  rule_type: "hold_elapsed" | "ncr_overdue" | "punch_overdue" | "register_expiry";
   enabled: boolean;
   threshold_hours: number;
   repeat_hours: number;
@@ -223,6 +223,143 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
   return sent;
 }
 
+// ---- register_expiry -------------------------------------------------------------------------
+// Alerts BEFORE a calibration / welder qualification / personnel certification lapses. Thresholds are
+// fixed (warning window, 14, 7, expiry); threshold_hours/repeat_hours do not apply. Dedupe is per
+// (item, expiry_date, threshold) in register_expiry_notifications, so a renewed certificate (new
+// expiry date) starts a fresh cycle and re-running the sweep never double-sends.
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function daysUntilDate(dateStr: string): number {
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((new Date(`${dateStr.slice(0, 10)}T00:00:00Z`).getTime() - today) / MS_PER_DAY);
+}
+
+/** Tightest threshold already reached (e.g. 7 days left -> 7), or null if still outside the window. */
+function reachedThreshold(days: number, windowDays: number): number | null {
+  const thresholds = [0, 7, 14, windowDays].sort((a, b) => a - b);
+  for (const t of thresholds) if (days <= t) return t;
+  return null;
+}
+
+interface ExpiryItem {
+  entityType: "calibration" | "welder" | "personnel";
+  id: string;
+  projectId: string;
+  label: string;
+  expiryDate: string;
+  windowDays: number;
+  extraRecipient: string | null;
+}
+
+async function sweepRegisterExpiry(organizationId: string): Promise<number> {
+  const { data: projectRows } = await db
+    .from("projects")
+    .select("id, name, responsible_person_id")
+    .eq("organization_id", organizationId);
+  const projects = (projectRows ?? []) as { id: string; name: string; responsible_person_id: string | null }[];
+  if (projects.length === 0) return 0;
+  const projectIds = projects.map((p) => p.id);
+  const projectById = new Map(projects.map((p) => [p.id, p]));
+
+  const horizon = (days: number) => new Date(Date.now() + days * MS_PER_DAY).toISOString().slice(0, 10);
+  const items: ExpiryItem[] = [];
+
+  const { data: cals } = await db
+    .from("calibration_register")
+    .select("id, project_id, instrument_name, cert_number, due_date")
+    .in("project_id", projectIds)
+    .lte("due_date", horizon(30));
+  for (const c of cals ?? []) {
+    items.push({ entityType: "calibration", id: c.id, projectId: c.project_id, label: `Calibration ${c.instrument_name} (cert ${c.cert_number})`, expiryDate: c.due_date, windowDays: 30, extraRecipient: null });
+  }
+
+  const { data: welders } = await db
+    .from("welder_qualification_register")
+    .select("id, project_id, welder_identifier, wpq_number, expiry_date")
+    .in("project_id", projectIds)
+    .lte("expiry_date", horizon(90));
+  for (const w of welders ?? []) {
+    items.push({ entityType: "welder", id: w.id, projectId: w.project_id, label: `Welder qualification ${w.welder_identifier} (WPQ ${w.wpq_number})`, expiryDate: w.expiry_date, windowDays: 90, extraRecipient: null });
+  }
+
+  const { data: certs } = await db
+    .from("personnel_certifications")
+    .select("id, project_id, certification_type, cert_number, expiry_date, project_parties(name, user_id)")
+    .in("project_id", projectIds)
+    .lte("expiry_date", horizon(90));
+  for (const c of certs ?? []) {
+    items.push({
+      entityType: "personnel",
+      id: c.id,
+      projectId: c.project_id,
+      label: `Certification ${c.certification_type}${c.cert_number ? ` (${c.cert_number})` : ""}${c.project_parties?.name ? ` — ${c.project_parties.name}` : ""}`,
+      expiryDate: c.expiry_date,
+      windowDays: 90,
+      extraRecipient: c.project_parties?.user_id ?? null,
+    });
+  }
+
+  let sent = 0;
+  let admins: string[] | null = null;
+  for (const item of items) {
+    const days = daysUntilDate(item.expiryDate);
+    const threshold = reachedThreshold(days, item.windowDays);
+    if (threshold === null) continue;
+
+    // Claim the (item, expiry, threshold) slot first; the unique constraint makes concurrent/rerun sweeps idempotent.
+    const { error: claimError } = await db.from("register_expiry_notifications").insert({
+      organization_id: organizationId,
+      entity_type: item.entityType,
+      entity_id: item.id,
+      expiry_date: item.expiryDate,
+      threshold_days: threshold,
+    });
+    if (claimError) continue; // duplicate (already sent) or ledger unavailable — skip rather than spam
+
+    const project = projectById.get(item.projectId);
+    const recipients = new Set<string>();
+    if (project?.responsible_person_id) recipients.add(project.responsible_person_id);
+    if (item.extraRecipient) recipients.add(item.extraRecipient);
+    if (recipients.size === 0) {
+      admins ??= await getOrgAdminUserIds(organizationId);
+      for (const a of admins) recipients.add(a);
+    }
+
+    const title = days < 0 ? `Expired: ${item.label}` : days === 0 ? `Expires today: ${item.label}` : `Expiring in ${days} day${days === 1 ? "" : "s"}: ${item.label}`;
+    const body = `${project?.name ?? "Project"} — expiry date ${item.expiryDate}. Renew or replace it before it is used on further inspections.`;
+    const link = `/inspect/projects/${item.projectId}/registers`;
+    for (const userId of recipients) {
+      await notify(organizationId, item.projectId, userId, title, body, link);
+    }
+    sent += 1;
+  }
+  return sent;
+}
+
+/** register_expiry is ON by default: every organisation is swept unless it has an explicit disabled row. */
+async function runRegisterExpirySweep(): Promise<number> {
+  const { data: orgs } = await db.from("organizations").select("id");
+  const { data: disabled } = await db
+    .from("automation_rules")
+    .select("organization_id")
+    .eq("rule_type", "register_expiry")
+    .eq("enabled", false);
+  const off = new Set(((disabled ?? []) as { organization_id: string }[]).map((r) => r.organization_id));
+  let total = 0;
+  for (const org of (orgs ?? []) as { id: string }[]) {
+    if (off.has(org.id)) continue;
+    try {
+      total += await sweepRegisterExpiry(org.id);
+    } catch (err) {
+      console.error(`[worker] register_expiry sweep failed for org ${org.id}:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return total;
+}
+
 /**
  * The one scheduled trigger in this whole app — everything else fires because a person clicked
  * something. Called periodically from index.ts's poll loop (not its own cron), evaluates every
@@ -237,10 +374,14 @@ export async function runAutomationSweep(): Promise<void> {
     console.error("[worker] Failed to load automation_rules:", error.message);
     return;
   }
-  if (!rules || rules.length === 0) return;
 
   let totalSent = 0;
-  for (const rule of rules) {
+  try {
+    totalSent += await runRegisterExpirySweep();
+  } catch (err) {
+    console.error("[worker] register_expiry sweep failed:", err instanceof Error ? err.message : err);
+  }
+  for (const rule of rules ?? []) {
     try {
       if (rule.rule_type === "hold_elapsed") totalSent += await sweepHoldElapsed(rule);
       else if (rule.rule_type === "ncr_overdue") totalSent += await sweepNcrOverdue(rule);

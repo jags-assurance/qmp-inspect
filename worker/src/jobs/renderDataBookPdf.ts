@@ -13,6 +13,7 @@ import {
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { autoFileVaultDocument } from "./vaultAutoFile";
+import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -78,14 +79,14 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
       .eq("status", "open"),
     supabase
       .from("calibration_register" as never)
-      .select("id, status")
+      .select("id, due_date")
       .eq("project_id", projectId)
-      .returns<{ id: string; status: string }[]>(),
+      .returns<{ id: string; due_date: string }[]>(),
     supabase
       .from("welder_qualification_register" as never)
-      .select("id, status")
+      .select("id, expiry_date")
       .eq("project_id", projectId)
-      .returns<{ id: string; status: string }[]>(),
+      .returns<{ id: string; expiry_date: string }[]>(),
     supabase
       .from("material_register" as never)
       .select("id, approval_status, receipt_status")
@@ -133,10 +134,10 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
   const ncrReady = (ncrs ?? []).filter((ncr) => ncr.status === "closed").length;
 
   const calibrationTotal = calibrationRows?.length ?? 0;
-  const calibrationReady = (calibrationRows ?? []).filter((r) => r.status !== "expired").length;
+  const calibrationReady = (calibrationRows ?? []).filter((r) => calibrationStatus(r.due_date) !== "expired").length;
 
   const welderTotal = welderRows?.length ?? 0;
-  const welderReady = (welderRows ?? []).filter((r) => r.status !== "expired").length;
+  const welderReady = (welderRows ?? []).filter((r) => welderStatus(r.expiry_date) !== "expired").length;
 
   const materialTotal = materialRows?.length ?? 0;
   const materialReady = (materialRows ?? []).filter(
@@ -299,6 +300,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
   calibrations: DataBookPdfData["calibrations"];
   welders: DataBookPdfData["welders"];
   materials: DataBookPdfData["materials"];
+  personnel: NonNullable<DataBookPdfData["personnel"]>;
   ncrs: DataBookPdfData["ncrs"];
   punchItems: DataBookPdfData["punchItems"];
   nameById: Map<string, string>;
@@ -348,7 +350,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     irns: { irn_number: string }[] | { irn_number: string } | null;
   };
 
-  const [itpRes, calRes, welderRes, matRes, ncrRes, punchRes] =
+  const [itpRes, calRes, welderRes, matRes, ncrRes, punchRes, personnelRes] =
     await Promise.all([
       supabase
         .from("itps")
@@ -374,11 +376,14 @@ async function gatherDataBookContent(projectId: string): Promise<{
         .returns<{ welder_identifier: string; qualified_wps: string; qualified_ranges: string | null; expiry_date: string; status: string }[]>(),
       supabase
         .from("material_register" as never)
-        .select("material_description, heat_number, batch_number, po_reference, certificate_reference, approval_status, receipt_status")
+        .select("material_description, heat_number, batch_number, po_reference, certificate_reference, approval_status, receipt_status, supplier, quantity, released_at")
         .eq("project_id", projectId)
         .order("created_at", { ascending: true })
         .returns<
           {
+            supplier: string | null;
+            quantity: string | null;
+            released_at: string | null;
             material_description: string;
             heat_number: string | null;
             batch_number: string | null;
@@ -400,6 +405,20 @@ async function gatherDataBookContent(projectId: string): Promise<{
         .eq("project_id", projectId)
         .order("created_at", { ascending: true })
         .returns<{ description: string; location: string | null; status: string; due_date: string | null; closed_at: string | null }[]>(),
+      supabase
+        .from("personnel_certifications" as never)
+        .select("project_party_id, certification_type, cert_number, expiry_date, project_parties(name)")
+        .eq("project_id", projectId)
+        .order("expiry_date", { ascending: true })
+        .returns<
+          {
+            project_party_id: string;
+            certification_type: string;
+            cert_number: string | null;
+            expiry_date: string;
+            project_parties: { name: string } | { name: string }[] | null;
+          }[]
+        >(),
     ]);
 
   // A data book is a controlled record: a failed read must fail the render, never produce a book that
@@ -411,6 +430,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     ["material_register", matRes.error],
     ["ncrs", ncrRes.error],
     ["punch_list_items", punchRes.error],
+    ["personnel_certifications", personnelRes.error],
   ].find(([, error]) => error);
   if (failed) throw new Error(`Data book render aborted — could not read ${failed[0] as string}: ${(failed[1] as { message: string }).message}`);
   const itpRows = itpRes.data;
@@ -555,15 +575,25 @@ async function gatherDataBookContent(projectId: string): Promise<{
       certNumber: c.cert_number,
       calDate: c.cal_date,
       dueDate: c.due_date,
-      status: c.status,
+      status: calibrationLabel(calibrationStatus(c.due_date)),
     })),
     welders: (welderRows ?? []).map((w) => ({
       welder: w.welder_identifier,
       wps: w.qualified_wps,
       ranges: w.qualified_ranges,
       expiry: w.expiry_date,
-      status: w.status,
+      status: qualificationLabel(welderStatus(w.expiry_date)),
     })),
+    personnel: (personnelRes.data ?? []).map((p) => {
+      const party = Array.isArray(p.project_parties) ? p.project_parties[0] : p.project_parties;
+      return {
+        name: party?.name ?? "—",
+        certification: p.certification_type,
+        certNumber: p.cert_number,
+        expiry: p.expiry_date,
+        status: qualificationLabel(personnelStatus(p.expiry_date)),
+      };
+    }),
     materials: (matRows ?? []).map((m) => ({
       description: m.material_description,
       heat: m.heat_number,
@@ -572,6 +602,9 @@ async function gatherDataBookContent(projectId: string): Promise<{
       certificate: m.certificate_reference,
       approval: m.approval_status,
       receipt: m.receipt_status,
+      supplier: m.supplier,
+      quantity: m.quantity,
+      releasedAt: m.released_at,
     })),
     ncrs: (ncrRows ?? []).map((n) => ({
       number: n.ncr_number,
@@ -735,6 +768,7 @@ export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook:
     calibrations: content.calibrations,
     welders: content.welders,
     materials: content.materials,
+    personnel: content.personnel,
     ncrs: content.ncrs,
     punchItems: content.punchItems,
     generatedAt: new Date(),

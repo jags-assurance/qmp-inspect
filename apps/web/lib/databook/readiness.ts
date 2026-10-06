@@ -6,6 +6,7 @@ import {
   MATERIAL_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
+import { computeCalibrationStatus, computeWelderStatus } from "@/lib/registers/status";
 
 export interface ReadinessCategory {
   label: string;
@@ -93,11 +94,11 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .neq("status", "closed"),
-    supabase.from(CALIBRATION_REGISTER_TABLE).select("id, status").eq("project_id", projectId).returns<
-      { id: string; status: string }[]
+    supabase.from(CALIBRATION_REGISTER_TABLE).select("id, due_date").eq("project_id", projectId).returns<
+      { id: string; due_date: string }[]
     >(),
-    supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).select("id, status").eq("project_id", projectId).returns<
-      { id: string; status: string }[]
+    supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).select("id, expiry_date").eq("project_id", projectId).returns<
+      { id: string; expiry_date: string }[]
     >(),
     supabase
       .from(MATERIAL_REGISTER_TABLE)
@@ -161,10 +162,10 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   // that should hold up a data book, matching the registers' own protective status logic
   // (lib/registers/refresh.ts, lib/registers/verify.ts) rather than inventing a separate rule here.
   const calibrationTotal = calibrationRows?.length ?? 0;
-  const calibrationReady = (calibrationRows ?? []).filter((r) => r.status !== "expired").length;
+  const calibrationReady = (calibrationRows ?? []).filter((r) => computeCalibrationStatus(r.due_date) !== "expired").length;
 
   const welderTotal = welderRows?.length ?? 0;
-  const welderReady = (welderRows ?? []).filter((r) => r.status !== "expired").length;
+  const welderReady = (welderRows ?? []).filter((r) => computeWelderStatus(r.expiry_date) !== "expired").length;
 
   const materialTotal = materialRows?.length ?? 0;
   const materialReady = (materialRows ?? []).filter(

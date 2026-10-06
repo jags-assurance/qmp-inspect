@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   addPersonnelCertificationEntryAction,
   type AddPersonnelCertificationEntryState,
 } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { CertificateUpload } from "./certificate-upload";
 
 const initialState: AddPersonnelCertificationEntryState = { error: null };
+const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
 
 export function AddPersonnelCertificationForm({
   projectId,
@@ -17,22 +19,40 @@ export function AddPersonnelCertificationForm({
   projectParties: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(addPersonnelCertificationEntryAction, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+  const wasPending = useRef(false);
+  const [issuedDate, setIssuedDate] = useState("");
+  const [added, setAdded] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+
+  useEffect(() => {
+    if (pending) {
+      wasPending.current = true;
+      setAdded(false);
+      return;
+    }
+    if (wasPending.current) {
+      wasPending.current = false;
+      if (!state.error) {
+        formRef.current?.reset();
+        setIssuedDate("");
+        setFormKey((k) => k + 1);
+        setAdded(true);
+        const t = setTimeout(() => setAdded(false), 3000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [pending, state]);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="min-w-40 flex-1">
         <label htmlFor="project_party_id" className="block text-xs font-medium text-ink">
           Person
         </label>
-        <select
-          id="project_party_id"
-          name="project_party_id"
-          required
-          defaultValue=""
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        >
+        <select id="project_party_id" name="project_party_id" required defaultValue="" className={inputClass}>
           <option value="" disabled>
             Select…
           </option>
@@ -53,7 +73,7 @@ export function AddPersonnelCertificationForm({
           name="certification_type"
           required
           placeholder="e.g. AWS CWI, ASNT NDT Level II"
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          className={inputClass}
         />
       </div>
 
@@ -61,11 +81,7 @@ export function AddPersonnelCertificationForm({
         <label htmlFor="cert_number" className="block text-xs font-medium text-ink">
           Cert No.
         </label>
-        <input
-          id="cert_number"
-          name="cert_number"
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
+        <input id="cert_number" name="cert_number" className={inputClass} />
       </div>
 
       <div className="w-36">
@@ -76,7 +92,9 @@ export function AddPersonnelCertificationForm({
           id="issued_date"
           name="issued_date"
           type="date"
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          value={issuedDate}
+          onChange={(e) => setIssuedDate(e.target.value)}
+          className={inputClass}
         />
       </div>
 
@@ -84,30 +102,23 @@ export function AddPersonnelCertificationForm({
         <label htmlFor="expiry_date" className="block text-xs font-medium text-ink">
           Expiry date
         </label>
-        <input
-          id="expiry_date"
-          name="expiry_date"
-          type="date"
-          required
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
+        <input id="expiry_date" name="expiry_date" type="date" required min={issuedDate || undefined} className={inputClass} />
       </div>
 
       <div className="min-w-40 flex-1">
         <label htmlFor="cert_notes" className="block text-xs font-medium text-ink">
           Notes
         </label>
-        <input
-          id="cert_notes"
-          name="notes"
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
+        <input id="cert_notes" name="notes" className={inputClass} />
       </div>
+
+      <CertificateUpload key={formKey} projectId={projectId} kind="personnel" />
 
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Adding…" : "+ Add certification"}
       </Button>
 
+      {added && <p className="text-sm text-green-700">Added</p>}
       {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );

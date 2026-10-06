@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { ITP_REVISIONS_TABLE } from "@/lib/itps/revision-types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { computeCalibrationStatus, computeWelderStatus, daysUntil, describeDays } from "@/lib/registers/status";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -143,19 +144,21 @@ export default async function DocumentTraceabilityPage({
   let ncr: NcrMatch | null = null;
   let record: InspectionRecordMatch | null = null;
   let notFoundMessage: string | null = null;
+  let registerHits: RegisterHit[] = [];
 
   if (query) {
+    registerHits = await findRegisterEntries(supabase, query);
     itp = await findItp(supabase, query);
     if (!itp) ncr = await findNcr(supabase, query);
     if (!itp && !ncr) record = await findInspectionRecord(supabase, query);
-    if (!itp && !ncr && !record) {
-      notFoundMessage = `No ITP, NCR or inspection record found with document number "${query}".`;
+    if (!itp && !ncr && !record && registerHits.length === 0) {
+      notFoundMessage = `No ITP, NCR, inspection record or register entry (heat/batch/PO/certificate/instrument/welder) found for "${query}".`;
     }
   }
 
   return (
     <div>
-      <SettingsBackLink href="/inspect/settings?section=cloud-sync" />
+      <SettingsBackLink href="/inspect/settings?section=insights" />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">Document Traceability</h1>
         <PageGuide
@@ -178,7 +181,7 @@ export default async function DocumentTraceabilityPage({
           type="text"
           name="q"
           defaultValue={query}
-          placeholder="e.g. ABC-JAGS-ITP-2026-0001 or a NCR / IRN number"
+          placeholder="ITP / NCR / IRN number, heat / batch / PO / cert number, instrument ID, welder ID / WPQ"
           className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         <button
@@ -193,6 +196,7 @@ export default async function DocumentTraceabilityPage({
         <p className="mt-6 rounded-md border border-border bg-surface p-4 text-sm text-muted">{notFoundMessage}</p>
       )}
 
+      {registerHits.length > 0 && <RegisterHits supabase={supabase} hits={registerHits} />}
       {itp && <ItpLineage supabase={supabase} itp={itp} />}
       {ncr && <NcrLineage supabase={supabase} ncr={ncr} />}
       {record && <InspectionRecordLineage supabase={supabase} record={record} />}
@@ -652,5 +656,319 @@ async function InspectionRecordLineage({ supabase, record }: { supabase: Supabas
         <AuditTrailTable events={auditEvents} />
       </SectionCard>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Register traceability (heat / batch / PO / certificate numbers, instruments, welders)
+// ---------------------------------------------------------------------------------------------
+
+type RegisterKind = "material" | "calibration" | "welder";
+type ProjectRef = { id: string; project_number: string; name: string; organizations: { name: string } | null } | null;
+
+interface RegisterHit {
+  kind: RegisterKind;
+  id: string;
+  title: string;
+  details: { label: string; value: string | null }[];
+  statusLabel: string;
+  statusTone: "ok" | "warn" | "bad";
+  expiry: string | null; // YYYY-MM-DD
+  calDate: string | null;
+  project: ProjectRef;
+}
+
+interface UsageRow {
+  id: string;
+  result: string;
+  inspection_record_id: string;
+  checklist_item: { item_number: string; description: string } | null;
+  record: {
+    id: string;
+    record_number: string;
+    activity: string;
+    overall_result: string | null;
+    inspection_date: string;
+  } | null;
+}
+
+/** Strip characters that would break a PostgREST .or() filter or act as ilike wildcards. */
+function sanitizeTerm(term: string): string {
+  return term.replace(/[,()%_*\\]/g, " ").trim();
+}
+
+async function findRegisterEntries(supabase: SupabaseClient, rawQuery: string): Promise<RegisterHit[]> {
+  const term = sanitizeTerm(rawQuery);
+  if (!term) return [];
+  const like = `%${term}%`;
+  const projectSel = "project:projects(id, project_number, name, organizations(name))";
+
+  const [materials, calibrations, welders] = await Promise.all([
+    supabase
+      .from("material_register")
+      .select(
+        `id, material_description, heat_number, batch_number, po_reference, certificate_reference, supplier, receipt_status, approval_status, ${projectSel}`
+      )
+      .or(
+        `heat_number.ilike.${like},batch_number.ilike.${like},po_reference.ilike.${like},certificate_reference.ilike.${like}`
+      )
+      .limit(25)
+      .returns<
+        {
+          id: string;
+          material_description: string;
+          heat_number: string | null;
+          batch_number: string | null;
+          po_reference: string | null;
+          certificate_reference: string | null;
+          supplier: string | null;
+          receipt_status: string | null;
+          approval_status: string;
+          project: ProjectRef;
+        }[]
+      >(),
+    supabase
+      .from("calibration_register")
+      .select(`id, instrument_name, instrument_tag, calibration_lab, cert_number, cal_date, due_date, ${projectSel}`)
+      .or(`instrument_name.ilike.${like},instrument_tag.ilike.${like},cert_number.ilike.${like}`)
+      .limit(25)
+      .returns<
+        {
+          id: string;
+          instrument_name: string;
+          instrument_tag: string | null;
+          calibration_lab: string | null;
+          cert_number: string;
+          cal_date: string | null;
+          due_date: string;
+          project: ProjectRef;
+        }[]
+      >(),
+    supabase
+      .from("welder_qualification_register")
+      .select(`id, welder_identifier, wpq_number, process, position, qualified_wps, expiry_date, ${projectSel}`)
+      .or(`welder_identifier.ilike.${like},wpq_number.ilike.${like}`)
+      .limit(25)
+      .returns<
+        {
+          id: string;
+          welder_identifier: string;
+          wpq_number: string;
+          process: string | null;
+          position: string | null;
+          qualified_wps: string | null;
+          expiry_date: string;
+          project: ProjectRef;
+        }[]
+      >(),
+  ]);
+
+  const hits: RegisterHit[] = [];
+  for (const m of materials.data ?? []) {
+    const tone = m.approval_status === "A" || m.approval_status === "B" ? "ok" : m.approval_status === "D" ? "bad" : "warn";
+    hits.push({
+      kind: "material",
+      id: m.id,
+      title: m.material_description,
+      details: [
+        { label: "Heat no.", value: m.heat_number },
+        { label: "Batch no.", value: m.batch_number },
+        { label: "PO", value: m.po_reference },
+        { label: "Certificate", value: m.certificate_reference },
+        { label: "Supplier", value: m.supplier },
+        { label: "Receipt", value: m.receipt_status },
+      ],
+      statusLabel: `Approval ${m.approval_status}`,
+      statusTone: tone,
+      expiry: null,
+      calDate: null,
+      project: m.project,
+    });
+  }
+  for (const c of calibrations.data ?? []) {
+    const st = computeCalibrationStatus(c.due_date);
+    hits.push({
+      kind: "calibration",
+      id: c.id,
+      title: c.instrument_name,
+      details: [
+        { label: "Tag / ID", value: c.instrument_tag },
+        { label: "Cert no.", value: c.cert_number },
+        { label: "Lab", value: c.calibration_lab },
+        { label: "Calibrated", value: c.cal_date },
+      ],
+      statusLabel: st === "expired" ? "Expired" : st === "due_soon" ? "Due soon" : "Valid",
+      statusTone: st === "expired" ? "bad" : st === "due_soon" ? "warn" : "ok",
+      expiry: c.due_date,
+      calDate: c.cal_date,
+      project: c.project,
+    });
+  }
+  for (const w of welders.data ?? []) {
+    const st = computeWelderStatus(w.expiry_date);
+    hits.push({
+      kind: "welder",
+      id: w.id,
+      title: `${w.welder_identifier} — WPQ ${w.wpq_number}`,
+      details: [
+        { label: "Process", value: w.process },
+        { label: "Position", value: w.position },
+        { label: "Qualified WPS", value: w.qualified_wps },
+      ],
+      statusLabel: st === "expired" ? "Expired" : st === "expiring" ? "Expiring" : "Valid",
+      statusTone: st === "expired" ? "bad" : st === "expiring" ? "warn" : "ok",
+      expiry: w.expiry_date,
+      calDate: null,
+      project: w.project,
+    });
+  }
+  return hits;
+}
+
+const KIND_LABEL: Record<RegisterKind, string> = {
+  material: "Material",
+  calibration: "Calibration instrument",
+  welder: "Welder qualification",
+};
+
+const TONE_CLASS: Record<RegisterHit["statusTone"], string> = {
+  ok: "bg-green-100 text-green-800",
+  warn: "bg-amber-100 text-amber-800",
+  bad: "bg-red-100 text-red-800",
+};
+
+async function fetchUsage(supabase: SupabaseClient, hit: RegisterHit): Promise<UsageRow[]> {
+  const column = hit.kind === "calibration" ? "calibration_asset_id" : hit.kind === "material" ? "material_id" : "welder_id";
+  const { data } = await supabase
+    .from("checklist_responses")
+    .select(
+      `id, result, inspection_record_id,
+       checklist_item:checklist_items(item_number, description),
+       record:inspection_records(id, record_number, activity, overall_result, inspection_date)`
+    )
+    .eq(column as "calibration_asset_id", hit.id)
+    .limit(500)
+    .returns<UsageRow[]>();
+  return (data ?? []).sort((a, b) =>
+    (b.record?.inspection_date ?? "").localeCompare(a.record?.inspection_date ?? "")
+  );
+}
+
+async function RegisterHits({ supabase, hits }: { supabase: SupabaseClient; hits: RegisterHit[] }) {
+  const usages = await Promise.all(hits.map((h) => fetchUsage(supabase, h)));
+  return (
+    <>
+      {hits.map((hit, i) => (
+        <RegisterHitCard key={`${hit.kind}-${hit.id}`} hit={hit} usage={usages[i]} />
+      ))}
+    </>
+  );
+}
+
+function RegisterHitCard({ hit, usage }: { hit: RegisterHit; usage: UsageRow[] }) {
+  const inspectionIds = new Set(usage.map((u) => u.record?.id).filter(Boolean));
+  const sinceCal = hit.kind === "calibration" && hit.calDate ? hit.calDate : null;
+  const impacted = sinceCal
+    ? usage.filter((u) => u.record && u.record.inspection_date.slice(0, 10) >= sinceCal)
+    : usage;
+  const impactedRecords = [...new Map(impacted.filter((u) => u.record).map((u) => [u.record!.id, u.record!])).values()];
+
+  return (
+    <SectionCard title={`${KIND_LABEL[hit.kind]} — ${hit.title}`}>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASS[hit.statusTone]}`}>{hit.statusLabel}</span>
+        {hit.expiry && (
+          <span className="text-muted">
+            {hit.kind === "calibration" ? "Due" : "Expires"} {new Date(hit.expiry).toLocaleDateString("en-GB")} (
+            {describeDays(daysUntil(hit.expiry))})
+          </span>
+        )}
+      </div>
+      <div className="mt-2">
+        <IdentityRow
+          label="Project"
+          value={
+            hit.project ? (
+              <Link href={`/inspect/projects/${hit.project.id}/registers`} className="text-burgundy hover:underline">
+                {hit.project.organizations?.name ?? "—"} · {hit.project.project_number} {hit.project.name}
+              </Link>
+            ) : null
+          }
+        />
+        {hit.details.map((d) => (
+          <IdentityRow key={d.label} label={d.label} value={d.value} />
+        ))}
+      </div>
+
+      {hit.kind === "calibration" && (
+        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          <div className="font-semibold text-ink">Impact report</div>
+          <p className="mt-1 text-ink">
+            If this instrument is found out of tolerance, these <span className="font-semibold">{impactedRecords.length}</span>{" "}
+            inspection{impactedRecords.length === 1 ? "" : "s"} used it
+            {sinceCal
+              ? ` since ${new Date(sinceCal).toLocaleDateString("en-GB")} (last calibration)`
+              : " (no calibration date recorded, so all recorded uses are listed)"}
+            .
+          </p>
+          {impactedRecords.length > 0 && (
+            <ul className="mt-2 list-disc space-y-0.5 pl-5">
+              {impactedRecords.map((r) => (
+                <li key={r.id}>
+                  <Link href={`/inspect/inspections/${r.id}`} className="text-burgundy hover:underline">
+                    {r.record_number}
+                  </Link>{" "}
+                  — {r.activity} · {new Date(r.inspection_date).toLocaleDateString("en-GB")} ({r.overall_result ?? "pending"})
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <h3 className="mt-4 text-xs font-semibold uppercase text-muted">
+        Inspection answers verified against this entry ({inspectionIds.size} inspection{inspectionIds.size === 1 ? "" : "s"})
+      </h3>
+      {usage.length === 0 ? (
+        <p className="mt-1 text-sm text-muted">No inspection checklist answer has been verified against this entry yet.</p>
+      ) : (
+        <table className="mt-2 w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase text-muted">
+              <th className="py-2">Record</th>
+              <th className="py-2">ITP activity</th>
+              <th className="py-2">Checklist item</th>
+              <th className="py-2">Date</th>
+              <th className="py-2">Answer</th>
+              <th className="py-2">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usage.map((u) => (
+              <tr key={u.id} className="border-b border-border align-top last:border-0">
+                <td className="py-2">
+                  {u.record ? (
+                    <Link href={`/inspect/inspections/${u.record.id}`} className="text-burgundy hover:underline">
+                      {u.record.record_number}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="py-2">{u.record?.activity ?? "—"}</td>
+                <td className="py-2 text-xs text-muted">
+                  {u.checklist_item ? `${u.checklist_item.item_number} ${u.checklist_item.description}` : "—"}
+                </td>
+                <td className="whitespace-nowrap py-2 text-xs text-muted">
+                  {u.record ? new Date(u.record.inspection_date).toLocaleDateString("en-GB") : "—"}
+                </td>
+                <td className="py-2 text-xs uppercase">{u.result}</td>
+                <td className="py-2">{u.record?.overall_result ?? "pending"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </SectionCard>
   );
 }

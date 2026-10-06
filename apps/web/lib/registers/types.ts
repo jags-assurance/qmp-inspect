@@ -61,11 +61,12 @@ export const MATERIAL_APPROVAL_STATUS_LABELS: Record<MaterialApprovalStatus, str
 // concept): a material can be submittal-approved and still arrive damaged, unidentified, or
 // without its certificate — receipt_status tracks that physical-delivery gate separately, per
 // supabase/migrations/20260920010000_material_traceability_and_tool_linkage.sql.
-export const MATERIAL_RECEIPT_STATUSES = ["released", "quarantined_pending_disposition", "on_hold"] as const;
+export const MATERIAL_RECEIPT_STATUSES = ["released", "quarantined_pending_disposition", "on_hold", "received_pending_inspection"] as const;
 export type MaterialReceiptStatus = (typeof MATERIAL_RECEIPT_STATUSES)[number];
 
 export const MATERIAL_RECEIPT_STATUS_LABELS: Record<MaterialReceiptStatus, string> = {
   released: "Released",
+  received_pending_inspection: "Received — pending inspection",
   quarantined_pending_disposition: "Quarantined — pending disposition",
   on_hold: "On hold",
 };

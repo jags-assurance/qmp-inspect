@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { computeCalibrationStatus, computeWelderStatus } from "@/lib/registers/status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CHECKLIST_ITEMS_TABLE,
@@ -385,6 +386,8 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   const result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
   const comment = String(formData.get("comment") ?? "").trim();
   const calibrationAssetId = String(formData.get("calibration_asset_id") ?? "").trim();
+  const materialId = String(formData.get("material_id") ?? "").trim();
+  const welderId = String(formData.get("welder_id") ?? "").trim();
 
   if (!inspectionRecordId || !checklistItemId || !result) {
     return { error: "Missing required fields — could not save your response." };
@@ -403,11 +406,50 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   // access answer a checklist item, so the restriction is enforced here too.
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("itp_item_id")
+    .select("itp_item_id, project_id")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id">>();
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "project_id">>();
   if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
     return { error: "Could not save — you don't have permission to record a response for this activity." };
+  }
+
+  // Traceability links must point at a row on THIS project; calibration/welder must also be in date,
+  // and material must be released. (Empty = not recorded, always allowed.)
+  if (calibrationAssetId) {
+    const { data: row } = await supabase
+      .from("calibration_register")
+      .select("due_date")
+      .eq("id", calibrationAssetId)
+      .eq("project_id", record.project_id)
+      .maybeSingle<{ due_date: string }>();
+    if (!row) return { error: "The selected instrument does not belong to this project." };
+    if (computeCalibrationStatus(row.due_date) === "expired") {
+      return { error: "The selected instrument's calibration has expired — choose an in-date instrument." };
+    }
+  }
+  if (welderId) {
+    const { data: row } = await supabase
+      .from("welder_qualification_register")
+      .select("expiry_date")
+      .eq("id", welderId)
+      .eq("project_id", record.project_id)
+      .maybeSingle<{ expiry_date: string }>();
+    if (!row) return { error: "The selected welder does not belong to this project." };
+    if (computeWelderStatus(row.expiry_date) === "expired") {
+      return { error: "The selected welder's qualification has expired — choose a qualified welder." };
+    }
+  }
+  if (materialId) {
+    const { data: row } = await supabase
+      .from("material_register")
+      .select("receipt_status")
+      .eq("id", materialId)
+      .eq("project_id", record.project_id)
+      .maybeSingle<{ receipt_status: string }>();
+    if (!row) return { error: "The selected material does not belong to this project." };
+    if (row.receipt_status !== "released") {
+      return { error: "The selected material has not been released at receiving inspection." };
+    }
   }
 
   const { error } = await supabase.from(CHECKLIST_RESPONSES_TABLE).upsert(
@@ -417,6 +459,8 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
       result,
       comment: comment || null,
       calibration_asset_id: calibrationAssetId || null,
+      material_id: materialId || null,
+      welder_id: welderId || null,
     },
     { onConflict: "inspection_record_id,checklist_item_id" }
   );

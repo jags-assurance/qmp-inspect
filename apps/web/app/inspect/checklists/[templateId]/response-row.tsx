@@ -56,6 +56,10 @@ export function ResponseRow({
   registerVerification,
   personnelCertVerification,
   calibrationOptions,
+  initialMaterialId,
+  initialWelderId,
+  materialOptions,
+  welderOptions,
   onResultChange,
   onSavingChange,
   projectId,
@@ -86,6 +90,12 @@ export function ResponseRow({
   /** Every calibration_register row for this project — rendered as a "which instrument did you use"
    *  picker only when registerVerification?.kind === "calibration"; ignored otherwise. */
   calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[];
+  initialMaterialId: string | null;
+  initialWelderId: string | null;
+  /** Released material rows — "Material used (heat/batch)" picker when registerVerification.kind === "material". */
+  materialOptions: { id: string; material_description: string; heat_number: string | null; batch_number: string | null }[];
+  /** Welder rows — "Welder" picker when registerVerification.kind === "welder". */
+  welderOptions: { id: string; welder_identifier: string; qualified_wps: string; status: string }[];
   /** Notifies the parent progress header immediately on tap, ahead of the save round trip. */
   onResultChange?: (result: ChecklistResponseResult | null) => void;
   /** Feeds the persistent sync-status indicator in the panel header — one row saving is enough to
@@ -102,9 +112,15 @@ export function ResponseRow({
   const [comment, setComment] = useState(initialSplit.comment);
   const [overrideReason, setOverrideReason] = useState(initialSplit.overrideReason);
   const [calibrationAssetId, setCalibrationAssetId] = useState(initialCalibrationAssetId ?? "");
+  const [materialId, setMaterialId] = useState(initialMaterialId ?? "");
+  const [welderId, setWelderId] = useState(initialWelderId ?? "");
   const [, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
   const showCalibrationPicker = registerVerification?.kind === "calibration" && calibrationOptions.length > 0;
+  const showMaterialPicker = registerVerification?.kind === "material" && materialOptions.length > 0;
+  const showWelderPicker = registerVerification?.kind === "welder" && welderOptions.length > 0;
+  const chosenCalibration = calibrationOptions.find((o) => o.id === calibrationAssetId);
+  const chosenWelder = welderOptions.find((o) => o.id === welderId);
 
   // R99: a register mismatch/not-found is a soft-stop — it never blocks recording a response
   // outright, but does require the inspector to type a short reason before the Yes/No/N-A buttons
@@ -121,7 +137,9 @@ export function ResponseRow({
     nextResult: ChecklistResponseResult | null,
     nextComment: string,
     nextOverrideReason: string,
-    nextCalibrationAssetId: string
+    nextCalibrationAssetId: string,
+    nextMaterialId: string = materialId,
+    nextWelderId: string = welderId
   ) {
     if (readOnly || !nextResult) return;
     if (needsOverrideReason && !nextOverrideReason.trim()) return;
@@ -136,6 +154,8 @@ export function ResponseRow({
     formData.set("result", nextResult);
     formData.set("comment", combineStoredComment(nextOverrideReason, nextComment));
     if (nextCalibrationAssetId) formData.set("calibration_asset_id", nextCalibrationAssetId);
+    if (nextMaterialId) formData.set("material_id", nextMaterialId);
+    if (nextWelderId) formData.set("welder_id", nextWelderId);
 
     setSaveError(null);
     onSavingChange?.(true);
@@ -240,6 +260,70 @@ export function ResponseRow({
                 </option>
               ))}
             </select>
+            {chosenCalibration?.status === "expired" && (
+              <p className="mt-1 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+                ⚠ Calibration expired — {chosenCalibration.instrument_name} (cert {chosenCalibration.cert_number}). It
+                cannot be recorded as the instrument used.
+              </p>
+            )}
+          </div>
+        )}
+
+        {showMaterialPicker && (
+          <div>
+            <label htmlFor={`material-${checklistItemId}`} className="block text-xs font-medium text-ink">
+              Material used (heat/batch)
+            </label>
+            <select
+              id={`material-${checklistItemId}`}
+              disabled={readOnly}
+              value={materialId}
+              onChange={(e) => {
+                setMaterialId(e.target.value);
+                save(result, comment, overrideReason, calibrationAssetId, e.target.value, welderId);
+              }}
+              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+            >
+              <option value="">— Not recorded —</option>
+              {materialOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.material_description}
+                  {opt.heat_number ? ` — heat ${opt.heat_number}` : ""}
+                  {opt.batch_number ? ` — batch ${opt.batch_number}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {showWelderPicker && (
+          <div>
+            <label htmlFor={`welder-${checklistItemId}`} className="block text-xs font-medium text-ink">
+              Welder
+            </label>
+            <select
+              id={`welder-${checklistItemId}`}
+              disabled={readOnly}
+              value={welderId}
+              onChange={(e) => {
+                setWelderId(e.target.value);
+                save(result, comment, overrideReason, calibrationAssetId, materialId, e.target.value);
+              }}
+              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+            >
+              <option value="">— Not recorded —</option>
+              {welderOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.welder_identifier} ({opt.qualified_wps}){opt.status === "expired" ? " — EXPIRED" : ""}
+                </option>
+              ))}
+            </select>
+            {chosenWelder?.status === "expired" && (
+              <p className="mt-1 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+                ⚠ Welder qualification expired — {chosenWelder.welder_identifier} on {chosenWelder.qualified_wps}. It
+                cannot be recorded for this response.
+              </p>
+            )}
           </div>
         )}
 

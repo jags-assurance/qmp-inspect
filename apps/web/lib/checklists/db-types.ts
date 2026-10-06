@@ -79,6 +79,9 @@ export interface ChecklistResponseRow {
    *  see supabase/migrations/20260920010000_material_traceability_and_tool_linkage.sql. Only
    *  meaningful for a calibration-kind registerVerification (registers/verify.ts). */
   calibration_asset_id: string | null;
+  /** Material (heat/batch) and welder the inspector recorded for this response, if any. */
+  material_id: string | null;
+  welder_id: string | null;
   created_at: string;
 }
 

@@ -31,6 +31,8 @@ type TabKey = (typeof TABS)[number]["key"];
  */
 export function RegistersTabs({
   projectId,
+  canAdd,
+  canManage,
   calibrationRows,
   welderRows,
   materialRows,
@@ -44,6 +46,10 @@ export function RegistersTabs({
   addExtractedMaterialRowsAction,
 }: {
   projectId: string;
+  /** May add entries (JAGS staff + contractor/subcontractor/TPI parties). */
+  canAdd: boolean;
+  /** May edit, release and delete (JAGS staff). */
+  canManage: boolean;
   calibrationRows: CalibrationRegisterDisplayRow[];
   welderRows: WelderQualificationDisplayRow[];
   materialRows: MaterialRegisterDisplayRow[];
@@ -65,10 +71,12 @@ export function RegistersTabs({
       <div className="mt-4" role="tabpanel" id={`register-panel-${activeTab}`} aria-labelledby={`register-${activeTab}`}>
         {activeTab === "calibration" && (
           <section>
-            <div className="mt-3">
-              <AddCalibrationForm projectId={projectId} />
-            </div>
-            <ExtractRegisterPanel
+            {canAdd && (
+              <div className="mt-3">
+                <AddCalibrationForm projectId={projectId} />
+              </div>
+            )}
+            {canAdd && <ExtractRegisterPanel
               projectId={projectId}
               title="Calibration Register"
               description="Extract instrument, certificate number, calibration date and due date from calibration certificate text."
@@ -81,19 +89,21 @@ export function RegistersTabs({
               ]}
               extractAction={extractCalibrationRowsAction}
               addAction={addExtractedCalibrationRowsAction}
-            />
+            />}
             <div className="mt-3">
-              <CalibrationTable rows={calibrationRows} />
+              <CalibrationTable rows={calibrationRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}
 
         {activeTab === "welder" && (
           <section>
-            <div className="mt-3">
-              <AddWelderQualificationForm projectId={projectId} />
-            </div>
-            <ExtractRegisterPanel
+            {canAdd && (
+              <div className="mt-3">
+                <AddWelderQualificationForm projectId={projectId} />
+              </div>
+            )}
+            {canAdd && <ExtractRegisterPanel
               projectId={projectId}
               title="Welder Qualification Register"
               description="Extract welder ID, process/position, qualified range and expiry from WPQ (welder performance qualification) text. A range or continuity record not confirmed in the source stays flagged as unconfirmed, never guessed."
@@ -106,19 +116,21 @@ export function RegistersTabs({
               ]}
               extractAction={extractWelderRowsAction}
               addAction={addExtractedWelderRowsAction}
-            />
+            />}
             <div className="mt-3">
-              <WelderQualificationTable rows={welderRows} />
+              <WelderQualificationTable rows={welderRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}
 
         {activeTab === "material" && (
           <section>
-            <div className="mt-3">
-              <AddMaterialForm projectId={projectId} />
-            </div>
-            <ExtractRegisterPanel
+            {canAdd && (
+              <div className="mt-3">
+                <AddMaterialForm projectId={projectId} isStaff={canManage} />
+              </div>
+            )}
+            {canAdd && <ExtractRegisterPanel
               projectId={projectId}
               title="Material Register"
               description="Extract material description, submittal reference, heat/batch number and certificate reference from a submittal or certificate. Added rows land quarantined pending disposition — extraction never sets a release status; that stays a document-controller decision."
@@ -133,9 +145,9 @@ export function RegistersTabs({
               ]}
               extractAction={extractMaterialRowsAction}
               addAction={addExtractedMaterialRowsAction}
-            />
+            />}
             <div className="mt-3">
-              <MaterialTable rows={materialRows} />
+              <MaterialTable rows={materialRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}
@@ -146,11 +158,13 @@ export function RegistersTabs({
               Whether the person performing/signing off an inspection holds a current qualification for
               that activity type (e.g. AWS CWI, ASNT NDT Level II, CSWIP 3.1).
             </p>
+            {canAdd && (
+              <div className="mt-3">
+                <AddPersonnelCertificationForm projectId={projectId} projectParties={projectParties} />
+              </div>
+            )}
             <div className="mt-3">
-              <AddPersonnelCertificationForm projectId={projectId} projectParties={projectParties} />
-            </div>
-            <div className="mt-3">
-              <PersonnelCertificationTable rows={personnelCertRows} />
+              <PersonnelCertificationTable rows={personnelCertRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}

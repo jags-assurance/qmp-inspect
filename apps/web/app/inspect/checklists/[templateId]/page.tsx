@@ -22,6 +22,8 @@ import {
   checkPersonnelCertification,
   checkRegisterVerification,
   listCalibrationOptions,
+  listMaterialOptions,
+  listWelderOptions,
   type RegisterVerificationResult,
 } from "@/lib/registers/verify";
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
@@ -194,7 +196,13 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
   let responseByItem = new Map<
     string,
-    { result: "yes" | "no" | "na"; comment: string | null; calibrationAssetId: string | null }
+    {
+      result: "yes" | "no" | "na";
+      comment: string | null;
+      calibrationAssetId: string | null;
+      materialId: string | null;
+      welderId: string | null;
+    }
   >();
   // Photos with a null checklist_item_id go to the generic whole-inspection section (unchanged
   // behaviour); photos linked to a specific item are grouped here and handed to that item's row.
@@ -203,6 +211,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   let registerVerification: RegisterVerificationResult | null = null;
   let personnelCertVerification: RegisterVerificationResult | null = null;
   let calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[] = [];
+  let materialOptions: { id: string; material_description: string; heat_number: string | null; batch_number: string | null }[] = [];
+  let welderOptions: { id: string; welder_identifier: string; qualified_wps: string; status: string }[] = [];
   // At least one evidence photo OR linked Vault document (whole-inspection or item-linked) is
   // required to complete — see completeInspectionCore's matching server-side check, this only
   // drives which slot renders.
@@ -214,9 +224,14 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     const [{ data: responses }, { data: photoRows }, { data: evidenceDocRows }, { data: rawVaultDocuments }] = await Promise.all([
       supabase
         .from(CHECKLIST_RESPONSES_TABLE)
-        .select("checklist_item_id, result, comment, calibration_asset_id")
+        .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id")
         .eq("inspection_record_id", draft.id)
-        .returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result" | "comment" | "calibration_asset_id">[]>(),
+        .returns<
+          Pick<
+            ChecklistResponseRow,
+            "checklist_item_id" | "result" | "comment" | "calibration_asset_id" | "material_id" | "welder_id"
+          >[]
+        >(),
       supabase
         .from(INSPECTION_PHOTOS_TABLE)
         .select("id, storage_path, caption, checklist_item_id")
@@ -250,7 +265,13 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     responseByItem = new Map(
       (responses ?? []).map((r) => [
         r.checklist_item_id,
-        { result: r.result, comment: r.comment, calibrationAssetId: r.calibration_asset_id },
+        {
+          result: r.result,
+          comment: r.comment,
+          calibrationAssetId: r.calibration_asset_id,
+          materialId: r.material_id,
+          welderId: r.welder_id,
+        },
       ])
     );
     // Perf: one batched Storage call for every photo's signed URL on this checklist (across both
@@ -295,6 +316,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
     if (registerVerification?.kind === "calibration") {
       calibrationOptions = await listCalibrationOptions(supabase, project.id);
+    } else if (registerVerification?.kind === "material") {
+      materialOptions = await listMaterialOptions(supabase, project.id);
+    } else if (registerVerification?.kind === "welder") {
+      welderOptions = await listWelderOptions(supabase, project.id);
     }
   }
 
@@ -483,6 +508,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             registerVerification={registerVerification}
             personnelCertVerification={personnelCertVerification}
             calibrationOptions={calibrationOptions}
+            materialOptions={materialOptions}
+            welderOptions={welderOptions}
             canExecute={canExecute}
             projectId={project.id}
             itpItemId={itpItem.id}

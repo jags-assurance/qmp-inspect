@@ -27,6 +27,8 @@ export function ChecklistExecutionPanel({
   registerVerification,
   personnelCertVerification,
   calibrationOptions,
+  materialOptions,
+  welderOptions,
   canExecute,
   photoSlot,
   hasEvidencePhoto,
@@ -40,7 +42,7 @@ export function ChecklistExecutionPanel({
   templateId: string;
   inspectionRecordId: string;
   items: ChecklistItem[];
-  initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null }>;
+  initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null; materialId: string | null; welderId: string | null }>;
   readOnly: boolean;
   registerVerification: RegisterVerificationResult | null;
   /** R92-R100 personnel-cert soft-stop for the executing party — independent of registerVerification
@@ -49,6 +51,10 @@ export function ChecklistExecutionPanel({
   /** Every calibration_register row for this project, offered as a "which instrument did you use"
    *  picker on each row when registerVerification.kind === "calibration". Empty otherwise. */
   calibrationOptions: { id: string; instrument_name: string; cert_number: string; status: string }[];
+  /** Released material rows, offered as "Material used (heat/batch)" when registerVerification.kind === "material". */
+  materialOptions: { id: string; material_description: string; heat_number: string | null; batch_number: string | null }[];
+  /** Welder rows, offered as "Welder" when registerVerification.kind === "welder". */
+  welderOptions: { id: string; welder_identifier: string; qualified_wps: string; status: string }[];
   canExecute: boolean;
   /** Rendered between the response rows and the complete/incomplete slot below. */
   photoSlot: ReactNode;
@@ -142,6 +148,10 @@ export function ChecklistExecutionPanel({
             registerVerification={registerVerification}
             personnelCertVerification={personnelCertVerification}
             calibrationOptions={calibrationOptions}
+            initialMaterialId={initialResponses.get(item.id)?.materialId ?? null}
+            initialWelderId={initialResponses.get(item.id)?.welderId ?? null}
+            materialOptions={materialOptions}
+            welderOptions={welderOptions}
             onResultChange={(result) =>
               setAnsweredIds((prev) => {
                 const next = new Set(prev);
