@@ -38,7 +38,12 @@ interface DisciplineAgg {
 export async function computeDataBookDisciplineBreakdown(projectId: string): Promise<DataBookDisciplineRow[]> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: itps } = await supabase.from("itps").select("id").eq("project_id", projectId).returns<{ id: string }[]>();
+  const { data: itps } = await supabase
+    .from("itps")
+    .select("id")
+    .eq("project_id", projectId)
+    .in("status", ["approved", "client_accepted"])
+    .returns<{ id: string }[]>();
   const itpIds = (itps ?? []).map((itp) => itp.id);
   if (itpIds.length === 0) return [];
 

@@ -121,7 +121,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   // been recorded) counts as ready — matches "Completed checklists: Required N, Provided M" in the
   // sample layout, distinct from "Inspection records with an issued IRN" above (a checklist can be
   // fully answered and still be short its IRN, e.g. while a fail is worked through an NCR).
-  const { data: itpIdsForProject } = await supabase.from("itps").select("id").eq("project_id", projectId);
+  // Only issued ITPs: a draft or under-review ITP's checklists aren't in the book yet (the ITP category above already blocks readiness for them).
+  const { data: itpIdsForProject } = await supabase.from("itps").select("id").eq("project_id", projectId).in("status", ["approved", "client_accepted"]);
   const itpIds = (itpIdsForProject ?? []).map((i) => i.id);
   let checklistTotal = 0;
   let checklistReady = 0;

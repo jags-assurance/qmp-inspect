@@ -102,7 +102,7 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
     Array.isArray(record.irns) ? record.irns.length > 0 : record.irns !== null
   ).length;
 
-  const { data: itpIdsForProject } = await supabase.from("itps").select("id").eq("project_id", projectId);
+  const { data: itpIdsForProject } = await supabase.from("itps").select("id").eq("project_id", projectId).in("status", ["approved", "client_accepted"]);
   const itpIds = (itpIdsForProject ?? []).map((i: { id: string }) => i.id);
   let checklistTotal = 0;
   let checklistReady = 0;
