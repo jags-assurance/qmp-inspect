@@ -20,9 +20,13 @@ const initialState: ProvisionPartyLoginState = { error: null, tempPassword: null
 export function ProvisionPartyLoginForm({
   projectPartyId,
   contactEmail,
+  hasLogin = false,
 }: {
   projectPartyId: string;
   contactEmail: string | null;
+  /** True once the party already has a login — the form then renders nothing unless it just
+   *  created one and still has the one-time temporary password to show. */
+  hasLogin?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(provisionPartyLoginAction, initialState);
   const [open, setOpen] = useState(false);
@@ -40,6 +44,8 @@ export function ProvisionPartyLoginForm({
       </div>
     );
   }
+
+  if (hasLogin) return null;
 
   if (!open) {
     return (

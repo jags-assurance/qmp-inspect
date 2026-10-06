@@ -437,8 +437,11 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
                   {party.users ? `${party.users.full_name} (${party.users.email})` : party.contact_email ?? "Grant access below so this party can sign in"}
                 </span>
                 <span className="flex items-center gap-2">
-                  {canProvisionPartyLogin && !party.user_id && party.is_active && (
-                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} />
+                  {canProvisionPartyLogin && party.is_active && (
+                    // Stays mounted after the login is created so the one-time temporary password
+                    // it returns can still be shown (the refresh flips user_id; the form hides
+                    // itself when there is nothing to show).
+                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} hasLogin={!!party.user_id} />
                   )}
                   {(canReassign || (isClientTeamLead && party.party_type === "client")) && party.is_active && (
                     <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />
