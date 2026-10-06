@@ -100,7 +100,8 @@ export async function generateMonthlyReportPackAction(
     return { error: backgroundJobInsertErrorMessage(error, "Could not queue the monthly report pack. Check you have permission and try again.") };
   }
 
-  revalidatePath("/inspect/organisation/numbering");
+  revalidatePath("/inspect/organisation/reporting");
+  revalidatePath("/inspect/settings");
   return { error: null, success: true };
 }
 
@@ -149,7 +150,8 @@ export async function requestWeeklyReportPackAction(
     return { error: backgroundJobInsertErrorMessage(error, "Could not queue the weekly report pack. Check you have permission and try again.") };
   }
 
-  revalidatePath("/inspect/organisation/numbering");
+  revalidatePath("/inspect/organisation/reporting");
+  revalidatePath("/inspect/settings");
   return { error: null, success: true };
 }
 

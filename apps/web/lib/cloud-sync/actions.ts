@@ -39,6 +39,9 @@ export async function saveCloudFolderSyncConfigAction(
   if (!folderReference) {
     return { error: "Paste a folder URL or ID to save." };
   }
+  if (folderReference.length > 500 || /\s/.test(folderReference)) {
+    return { error: "That doesn't look like a folder URL or ID (no spaces, up to 500 characters)." };
+  }
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from(CLOUD_FOLDER_SYNC_CONFIGS_TABLE).upsert(
