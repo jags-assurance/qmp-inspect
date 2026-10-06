@@ -1,3 +1,4 @@
+import { fileOrgPackInProjectVaults } from "./vaultAutoFile";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
@@ -165,6 +166,15 @@ export async function generateWeeklyReportPack(
   if (xlsxUploadError) {
     throw new Error(`Failed to upload weekly report Excel workbook: ${xlsxUploadError.message}`);
   }
+
+  await fileOrgPackInProjectVaults(supabase, {
+    projectIds: agg.perProject.map((p) => p.projectId),
+    title: `Weekly Report Pack ${weekLabel}`,
+    documentReference: `WEEKLY-${weekStart}`,
+    storagePath: pdfPath,
+    fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+  });
 
   // result_storage_path stores the PDF path, same convention as generateMonthlyReportPack.ts — the
   // web app derives the .xlsx path by convention (xlsxPathFromPdfPath) instead of a second DB column.

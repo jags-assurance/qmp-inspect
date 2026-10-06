@@ -1,3 +1,4 @@
+import { fileOrgPackInProjectVaults } from "./vaultAutoFile";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
@@ -155,6 +156,15 @@ export async function generateMonthlyReportPack(
   if (xlsxUploadError) {
     throw new Error(`Failed to upload monthly report Excel workbook: ${xlsxUploadError.message}`);
   }
+
+  await fileOrgPackInProjectVaults(supabase, {
+    projectIds: agg.perProject.map((p) => p.projectId),
+    title: `Monthly Report Pack ${year}-${monthTag}`,
+    documentReference: `MONTHLY-${year}-${monthTag}`,
+    storagePath: pdfPath,
+    fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+  });
 
   // result_storage_path stores the PDF path (the primary deliverable, same convention as
   // render_itp_pdf). The .xlsx lives alongside it at the same base path — see basePath above — so

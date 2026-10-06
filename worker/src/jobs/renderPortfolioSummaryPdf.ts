@@ -1,3 +1,4 @@
+import { fileOrgPackInProjectVaults } from "./vaultAutoFile";
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
@@ -226,6 +227,15 @@ export async function renderPortfolioSummaryPdf(
   if (uploadError) {
     throw new Error(`Failed to upload portfolio summary PDF: ${uploadError.message}`);
   }
+
+  await fileOrgPackInProjectVaults(supabase, {
+    projectIds: projectIds,
+    title: `Portfolio Summary ${new Date().toISOString().slice(0, 10)}`,
+    documentReference: `PORTFOLIO-${new Date().toISOString().slice(0, 10)}`,
+    storagePath: pdfPath,
+    fileSize: pdfBuffer.length,
+    generatedBy: payload.requested_by,
+  });
 
   return { resultStoragePath: pdfPath };
 }

@@ -146,3 +146,39 @@ export async function autoFileVaultDocument(
     console.error("[vaultAutoFile] Unexpected error while auto-filing to the vault:", err);
   }
 }
+
+/**
+ * Files an ORGANISATION-WIDE pack (weekly / monthly report pack, portfolio summary) into the vault
+ * of every project it covers, under "General Reference".
+ *
+ * CAUTION: these PDFs contain figures for every project in the organisation, and a project's vault is
+ * visible to its client / contractor / TPI. This is switched on for the current development and test
+ * data. Before real client data goes in, set FILE_ORG_PACKS_IN_PROJECT_VAULTS=false (or move to
+ * per-project filtered copies) so one project's parties never see another project's numbers.
+ */
+export async function fileOrgPackInProjectVaults(
+  supabase: SupabaseClient,
+  params: {
+    projectIds: string[];
+    title: string;
+    documentReference: string;
+    storagePath: string;
+    fileSize: number | null;
+    generatedBy?: string | null;
+  }
+): Promise<void> {
+  if (process.env.FILE_ORG_PACKS_IN_PROJECT_VAULTS === "false") return;
+  for (const projectId of [...new Set(params.projectIds)]) {
+    await autoFileVaultDocument(supabase, {
+      projectId,
+      folderKey: "general_reference",
+      title: params.title,
+      documentReference: params.documentReference,
+      revision: "0",
+      storagePath: params.storagePath,
+      fileSize: params.fileSize,
+      generatedBy: params.generatedBy ?? null,
+      autoRevision: true,
+    });
+  }
+}
