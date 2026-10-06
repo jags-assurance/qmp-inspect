@@ -17,6 +17,7 @@ import {
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { snapshotInitialVersion, snapshotBeforeUpdate } from "@/lib/itp-master/revisions";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { generateDocumentNumber } from "@/lib/numbering/generate";
 
 export interface CopyMasterTemplateState {
   error: string | null;
@@ -36,18 +37,51 @@ export async function copyMasterTemplateToItpAction(
 ): Promise<CopyMasterTemplateState> {
   const masterTemplateId = String(formData.get("master_template_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const itpNumber = String(formData.get("itp_number") ?? "").trim();
+  const itpNumberInput = String(formData.get("itp_number") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
   const applicableStandard = String(formData.get("applicable_standard") ?? "").trim();
 
-  if (!masterTemplateId || !projectId || !itpNumber || !title) {
-    return { error: "Template, project, ITP number and title are required." };
+  if (!masterTemplateId || !projectId || !title) {
+    return { error: "Template, project and title are required." };
+  }
+
+  const session = await requireSession();
+  if (!session.isJagsStaff) {
+    return { error: "Only JAGS staff can create an ITP from the master template library." };
   }
 
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: masterTemplate } = await supabase
+    .from(ITP_MASTER_TEMPLATES_TABLE)
+    .select("id, is_active")
+    .eq("id", masterTemplateId)
+    .maybeSingle<{ id: string; is_active: boolean }>();
+  if (!masterTemplate) return { error: "Master template not found." };
+  if (!masterTemplate.is_active) return { error: "That master template has been retired and can't be used for a new ITP." };
+
+  // The ITP number is optional: left blank, the numbering engine issues the next one (same as a
+  // manually created ITP).
+  let itpNumber = itpNumberInput;
+  if (!itpNumber) {
+    const { data: projectForNumber } = await supabase
+      .from("projects")
+      .select("project_number, organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ project_number: string; organization_id: string }>();
+    if (!projectForNumber) return { error: "Project not found." };
+    itpNumber = (
+      await generateDocumentNumber(supabase, {
+        organizationId: projectForNumber.organization_id,
+        projectId,
+        docType: "itp",
+        projectNumber: projectForNumber.project_number,
+      })
+    ).documentNumber;
+  }
 
   const { data: masterSections } = await supabase
     .from(ITP_MASTER_SECTIONS_TABLE)
@@ -103,7 +137,8 @@ export async function copyMasterTemplateToItpAction(
     .select("id, section_number");
 
   if (sectionsError || !newSections) {
-    return { error: "ITP created, but its sections could not be copied from the template." };
+    await supabase.from("itps").delete().eq("id", itp.id);
+    return { error: "The ITP could not be created because the template's sections couldn't be copied. Nothing was saved — please try again." };
   }
 
   const sectionIdByNumber = new Map(newSections.map((s) => [s.section_number, s.id]));
@@ -130,7 +165,8 @@ export async function copyMasterTemplateToItpAction(
   if (itemsToInsert.length > 0) {
     const { error: itemsError } = await supabase.from("itp_items").insert(itemsToInsert);
     if (itemsError) {
-      return { error: "ITP and sections created, but activities could not be copied from the template." };
+      await supabase.from("itps").delete().eq("id", itp.id);
+      return { error: "The ITP could not be created because the template's activities couldn't be copied. Nothing was saved — please try again." };
     }
   }
 

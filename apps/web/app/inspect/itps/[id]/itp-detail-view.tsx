@@ -181,6 +181,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       item_number: string;
       activity: string;
       acceptance_criteria: string | null;
+      reference_spec: string | null;
+      method: string | null;
+      frequency: string | null;
       evidence_type: 1 | 2 | 3;
       sort_order: number;
       discipline_id: string | null;
@@ -209,7 +212,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       supabase
         .from("itp_sections")
         .select(
-          "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, sort_order, discipline_id, notice_hours_override)"
+          "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, reference_spec, method, frequency, evidence_type, sort_order, discipline_id, notice_hours_override)"
         )
         .eq("itp_id", id)
         .order("section_number")
@@ -839,6 +842,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 itemNumber: item.item_number,
                 activity: item.activity,
                 acceptanceCriteria: item.acceptance_criteria,
+                referenceSpec: item.reference_spec,
+                method: item.method,
+                frequency: item.frequency,
                 evidenceLabel: EVIDENCE_LABEL[item.evidence_type],
                 evidenceType: item.evidence_type,
                 checklist: checklistByItem.get(item.id) ?? null,
@@ -923,6 +929,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
               <AddItemForm
                 itpId={itp.id}
                 sectionId={section.id}
+                suggestedItemNumber={`${section.section_number}.${(section.itp_items ?? []).length + 1}`}
                 disciplines={disciplines ?? []}
                 isIssued={isIssued}
                 drawingDocuments={drawingDocuments}

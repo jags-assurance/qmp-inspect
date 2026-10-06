@@ -1,13 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   createExpectedRecordAction,
+  deleteExpectedRecordAction,
   markExpectedRecordReceivedAction,
+  updateExpectedRecordAction,
+  type ExpectedRecordActionResult,
 } from "@/lib/expected-records/actions";
-import type { ActivityExpectedRecordRow, ExpectedRecordProvider } from "@/lib/expected-records/db-types";
+import { EXPECTED_RECORD_PROVIDERS, type ActivityExpectedRecordRow, type ExpectedRecordProvider } from "@/lib/expected-records/db-types";
 import { Button } from "@/components/ui/button";
 
 const PROVIDER_LABEL: Record<ExpectedRecordProvider, string> = {
@@ -64,6 +67,7 @@ export function ExpectedRecordsSection({
         {records.map((record) => (
           <ExpectedRecordRow
             key={record.id}
+            canManage={canAdd}
             record={record}
             canMarkReceived={canMarkReceivedByProvider[record.provider]}
             projectId={projectId}
@@ -77,13 +81,76 @@ export function ExpectedRecordsSection({
   );
 }
 
+function RecordManageControls({ record }: { record: ActivityExpectedRecordRow }) {
+  const [editing, setEditing] = useState(false);
+  const [updateState, updateAction, updating] = useActionState(updateExpectedRecordAction, { error: null } as ExpectedRecordActionResult);
+  const [deleteState, deleteAction, deleting] = useActionState(deleteExpectedRecordAction, { error: null } as ExpectedRecordActionResult);
+  const submittedRef = useRef(false);
+  useEffect(() => {
+    if (submittedRef.current && !updating && updateState.error === null) {
+      submittedRef.current = false;
+      setEditing(false);
+    }
+  }, [updating, updateState]);
+
+  if (editing) {
+    return (
+      <form action={updateAction} onSubmit={() => (submittedRef.current = true)} className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <input type="hidden" name="record_id" value={record.id} />
+        <input
+          name="record_type"
+          defaultValue={record.record_type}
+          required
+          className="min-w-0 flex-1 rounded border border-border bg-surface px-2 py-1 text-xs"
+        />
+        <select name="provider" defaultValue={record.provider} className="rounded border border-border bg-surface px-2 py-1 text-xs">
+          {EXPECTED_RECORD_PROVIDERS.map((p) => (
+            <option key={p} value={p}>
+              {PROVIDER_LABEL[p]}
+            </option>
+          ))}
+        </select>
+        <button type="submit" disabled={updating} className="rounded border border-border px-2 py-1 text-[10px] font-medium hover:bg-off-white">
+          {updating ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="text-[10px] text-muted hover:underline">
+          Cancel
+        </button>
+        {updateState.error && <span className="w-full text-danger">{updateState.error}</span>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <button type="button" onClick={() => setEditing(true)} className="text-[10px] text-muted hover:underline">
+        Edit
+      </button>
+      <form
+        action={deleteAction}
+        onSubmit={(e) => {
+          if (!confirm(`Remove the expected record "${record.record_type}"?`)) e.preventDefault();
+        }}
+      >
+        <input type="hidden" name="record_id" value={record.id} />
+        <button type="submit" disabled={deleting} className="text-[10px] text-danger hover:underline">
+          {deleting ? "Removing…" : "Remove"}
+        </button>
+      </form>
+      {deleteState.error && <span className="text-danger">{deleteState.error}</span>}
+    </div>
+  );
+}
+
 function ExpectedRecordRow({
   record,
+  canManage,
   canMarkReceived,
   projectId,
   vaultDocuments,
 }: {
   record: ActivityExpectedRecordRow;
+  canManage: boolean;
   canMarkReceived: boolean;
   projectId: string;
   vaultDocuments: VaultDocumentOption[];
@@ -110,7 +177,9 @@ function ExpectedRecordRow({
           Doc no. <span className="doc-id text-ink">{record.document_number}</span>
         </p>
       ) : (
-        canMarkReceived && (
+        <>
+        {canManage && <RecordManageControls record={record} />}
+        {canMarkReceived && (
           <div className="mt-1">
             {!open ? (
               <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
@@ -125,7 +194,8 @@ function ExpectedRecordRow({
               />
             )}
           </div>
-        )
+        )}
+        </>
       )}
     </li>
   );
@@ -180,7 +250,12 @@ function MarkReceivedForm({
         storagePath = vaultDocuments.find((d) => d.id === vaultDocumentId)?.storagePath ?? "";
       } else {
         const file = fileRef.current?.files?.[0];
-        if (file) {
+        if (!file) {
+          setError("Choose the file to upload, or switch to attaching one from the vault.");
+          setUploading(false);
+          return;
+        }
+        {
           const supabase = createSupabaseBrowserClient();
           const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
           storagePath = `expected-records/${projectId}/${record.itp_item_id}/${Date.now()}-${safeName}`;

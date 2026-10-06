@@ -35,6 +35,7 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   const itpNumberOverride = String(formData.get("itp_number") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
   const applicableStandard = String(formData.get("applicable_standard") ?? "").trim();
+  const scope = String(formData.get("scope") ?? "").trim();
 
   if (!projectId || !title) {
     return { error: "Project and title are required." };
@@ -44,6 +45,15 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Only JAGS staff may force a specific ITP number; everyone else gets the numbering engine's
+  // next number so the project's numbering convention can't be broken by a typed override.
+  const { data: callerProfile } = await supabase
+    .from("users")
+    .select("is_jags_staff")
+    .eq("id", user?.id ?? "")
+    .maybeSingle<{ is_jags_staff: boolean }>();
+  const effectiveNumberOverride = callerProfile?.is_jags_staff ? itpNumberOverride : "";
 
   const { data: project } = await supabase
     .from("projects")
@@ -59,7 +69,7 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   // numbering format if configured, else a sensible default) — a manual override is still accepted
   // for the rare case a specific number needs to be forced (e.g. matching a legacy/external scheme).
   const itpNumber =
-    itpNumberOverride ||
+    effectiveNumberOverride ||
     (
       await generateDocumentNumber(supabase, {
         organizationId: project.organization_id,
@@ -76,6 +86,7 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
       itp_number: itpNumber,
       title,
       applicable_standard: applicableStandard || null,
+      scope: scope || null,
       prepared_by: user?.id ?? null,
     })
     .select("id")
@@ -93,7 +104,9 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
     .insert(DEFAULT_SECTIONS.map((s, i) => ({ itp_id: itp.id, sort_order: i, ...s })));
 
   if (sectionsError) {
-    return { error: "ITP created, but default sections could not be added." };
+    // Don't leave an empty draft holding the number: remove it so the user can simply retry.
+    await supabase.from("itps").delete().eq("id", itp.id);
+    return { error: "The ITP could not be created because its default sections could not be added. Nothing was saved — please try again." };
   }
 
   // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
@@ -111,6 +124,60 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   redirect(`/inspect/itps/${itp.id}`);
 }
 
+/** Resolves an item's real ITP (never trust the posted itp_id) with its status and organisation. */
+async function resolveItemItp(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itemId: string) {
+  const { data } = await supabase
+    .from("itp_items")
+    .select("id, section_id, item_number, activity, itp_sections(itp_id, itps(status, project_id, projects(organization_id)))")
+    .eq("id", itemId)
+    .maybeSingle<{
+      id: string;
+      section_id: string;
+      item_number: string;
+      activity: string;
+      itp_sections: { itp_id: string; itps: { status: string; project_id: string; projects: { organization_id: string } | null } | null } | null;
+    }>();
+  const itp = data?.itp_sections?.itps;
+  if (!data || !itp) return null;
+  return {
+    itemId: data.id,
+    sectionId: data.section_id,
+    itemNumber: data.item_number,
+    activity: data.activity,
+    itpId: data.itp_sections!.itp_id,
+    status: itp.status,
+    projectId: itp.project_id,
+    organizationId: itp.projects?.organization_id ?? null,
+  };
+}
+
+/** Why an activity can't be deleted (it has real execution history), or null if it can. */
+async function itemDeleteBlocker(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itemId: string): Promise<string | null> {
+  const count = async (table: string, build: (q: any) => any) => {
+    const { count: c } = await build(supabase.from(table as never).select("id", { count: "exact", head: true }));
+    return c ?? 0;
+  };
+  if (await count("inspection_records", (q) => q.eq("itp_item_id", itemId))) {
+    return "This activity has inspection records, so it can't be deleted. Its history must be kept.";
+  }
+  if (await count("activity_signoff_progress", (q) => q.eq("itp_item_id", itemId).in("status", ["signed_off", "proceeded_no_response"]))) {
+    return "This activity has signed-off Hold/Witness/Review points, so it can't be deleted. Its history must be kept.";
+  }
+  if (await count("ncrs", (q) => q.eq("itp_item_id", itemId))) {
+    return "An NCR refers to this activity, so it can't be deleted.";
+  }
+  if (await count("punch_list_items", (q) => q.eq("source_itp_item_id", itemId))) {
+    return "A punch-list item refers to this activity, so it can't be deleted.";
+  }
+  if (await count("itp_item_evidence_documents", (q) => q.eq("itp_item_id", itemId))) {
+    return "Evidence documents are linked to this activity — unlink them first.";
+  }
+  if (await count("itp_item_measurements", (q) => q.eq("itp_item_id", itemId).not("actual_value", "is", null))) {
+    return "Measurements have been recorded for this activity, so it can't be deleted.";
+  }
+  return null;
+}
+
 export interface AddItemState {
   error: string | null;
 }
@@ -124,6 +191,9 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   const evidenceType = Number(formData.get("evidence_type") ?? 1);
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
   const governingDrawingDocumentId = String(formData.get("governing_drawing_document_id") ?? "").trim();
+  const referenceSpec = String(formData.get("reference_spec") ?? "").trim();
+  const method = String(formData.get("method") ?? "").trim();
+  const frequency = String(formData.get("frequency") ?? "").trim();
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
   // R25: optional per-activity override of the notice-period hours otherwise resolved from the
   // project/org/built-in fallback chain — see getNoticePeriodHours in lib/signoff/actions.ts. Blank
@@ -143,6 +213,25 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // The section must really belong to the posted ITP (the revision logic below keys on itpId), and an
+  // item number can only be used once per section.
+  const { data: sectionRow } = await supabase
+    .from("itp_sections")
+    .select("itp_id")
+    .eq("id", sectionId)
+    .maybeSingle<{ itp_id: string }>();
+  if (!sectionRow || sectionRow.itp_id !== itpId) {
+    return { error: "That section doesn't belong to this ITP." };
+  }
+  const { count: sameNumber } = await supabase
+    .from("itp_items")
+    .select("id", { count: "exact", head: true })
+    .eq("section_id", sectionId)
+    .eq("item_number", itemNumber);
+  if (sameNumber) {
+    return { error: `Activity number ${itemNumber} is already used in this section — choose a different number.` };
+  }
 
   // R101: itp_items_write RLS lets JAGS staff add an item to an ITP at any status (a client's own
   // is_client_itp_creator path is draft-only, so this is the only edit reachable after issue). Adding
@@ -199,6 +288,9 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     // onto inspection_records at inspection start (see startInspectionAction). Not enforced to
     // actually be in the drawings folder here; the picker only offers those (add-item-form.tsx).
     governing_drawing_document_id: governingDrawingDocumentId || null,
+    reference_spec: referenceSpec || null,
+    method: method || null,
+    frequency: frequency || null,
     notice_hours_override: noticeHoursOverride,
     sort_order: nextSortOrder,
   }).select("id").single<{ id: string }>();
@@ -264,12 +356,14 @@ export interface EditItemState {
  */
 export async function editItpItemAction(_prev: EditItemState, formData: FormData): Promise<EditItemState> {
   const itemId = String(formData.get("item_id") ?? "").trim();
-  const itpId = String(formData.get("itp_id") ?? "").trim();
   const itemNumber = String(formData.get("item_number") ?? "").trim();
   const activity = String(formData.get("activity") ?? "").trim();
   const acceptanceCriteria = String(formData.get("acceptance_criteria") ?? "").trim();
   const evidenceType = Number(formData.get("evidence_type") ?? 1);
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
+  const referenceSpec = String(formData.get("reference_spec") ?? "").trim();
+  const method = String(formData.get("method") ?? "").trim();
+  const frequency = String(formData.get("frequency") ?? "").trim();
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
   const noticeHoursOverrideRaw = String(formData.get("notice_hours_override") ?? "").trim();
   let noticeHoursOverride: number | null = null;
@@ -281,11 +375,25 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     noticeHoursOverride = parsed;
   }
 
-  if (!itemId || !itpId || !itemNumber || !activity) {
+  if (!itemId || !itemNumber || !activity) {
     return { error: "Item number and activity are required." };
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // Use the item's REAL ITP, not the posted one, so a forged itp_id can't dodge the revision logic.
+  const resolved = await resolveItemItp(supabase, itemId);
+  if (!resolved) return { error: "Activity not found, or you don't have access to it." };
+  const itpId = resolved.itpId;
+  const { count: duplicateNumber } = await supabase
+    .from("itp_items")
+    .select("id", { count: "exact", head: true })
+    .eq("section_id", resolved.sectionId)
+    .eq("item_number", itemNumber)
+    .neq("id", itemId);
+  if (duplicateNumber) {
+    return { error: `Activity number ${itemNumber} is already used in this section — choose a different number.` };
+  }
 
   const { data: itpForRevisionCheck } = await supabase
     .from("itps")
@@ -310,7 +418,7 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     if (revisionError) return { error: revisionError };
   }
 
-  const { error } = await supabase
+  const { data: updatedItems, error } = await supabase
     .from("itp_items")
     .update({
       item_number: itemNumber,
@@ -318,11 +426,15 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
       acceptance_criteria: acceptanceCriteria || null,
       evidence_type: evidenceType === 2 || evidenceType === 3 ? evidenceType : 1,
       discipline_id: disciplineId || null,
+      reference_spec: referenceSpec || null,
+      method: method || null,
+      frequency: frequency || null,
       notice_hours_override: noticeHoursOverride,
     })
-    .eq("id", itemId);
+    .eq("id", itemId)
+    .select("id");
 
-  if (error) {
+  if (error || !updatedItems?.length) {
     return { error: "Could not update the activity. Check you have permission and try again." };
   }
 
@@ -358,60 +470,64 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
  * shape as that function, since there's no persistent form to surface an error message in beyond
  * the confirm()/prompt() the caller already runs.
  */
-export async function deleteItpItemAction(formData: FormData) {
-  const itemId = String(formData.get("item_id") ?? "").trim();
-  const itpId = String(formData.get("itp_id") ?? "").trim();
-  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+export interface DeleteItemState {
+  error: string | null;
+}
 
-  if (!itemId || !itpId) return;
+export async function deleteItpItemAction(_prev: DeleteItemState, formData: FormData): Promise<DeleteItemState> {
+  const itemId = String(formData.get("item_id") ?? "").trim();
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  if (!itemId) return { error: "Missing activity." };
 
   const supabase = await createSupabaseServerClient();
 
-  const { data: itpForRevisionCheck } = await supabase
-    .from("itps")
-    .select("status, project_id, projects(organization_id)")
-    .eq("id", itpId)
-    .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
-  const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
+  const resolved = await resolveItemItp(supabase, itemId);
+  if (!resolved) return { error: "Activity not found, or you don't have access to it." };
+  const itpId = resolved.itpId;
 
+  // An activity with real execution history (inspections, signed points, NCRs, evidence) is never
+  // deleted — the foreign keys cascade, so deleting it would wipe signed-off QA records.
+  const blocker = await itemDeleteBlocker(supabase, itemId);
+  if (blocker) return { error: blocker };
+
+  const isIssued = resolved.status === "approved" || resolved.status === "client_accepted";
   if (isIssued) {
-    if (!revisionReason) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
-    }
+    if (!revisionReason) return { error: "This ITP has already been issued — a reason is required to delete an activity." };
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(supabase, itpId, `Deleted an activity — ${revisionReason}`, user?.id ?? null);
-    if (revisionError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
-    }
+    const { error: revisionError } = await bumpRevisionIfIssued(
+      supabase,
+      itpId,
+      `Deleted activity ${resolved.itemNumber}: ${resolved.activity} — ${revisionReason}`,
+      user?.id ?? null
+    );
+    if (revisionError) return { error: revisionError };
   }
 
-  // Grabbed before the delete below so the audit summary can still name what was removed, not just
-  // its id.
-  const { data: itemForAudit } = await supabase.from("itp_items").select("item_number, activity").eq("id", itemId).maybeSingle<{
-    item_number: string;
-    activity: string;
-  }>();
+  const { data: deletedRows, error: deleteError } = await supabase.from("itp_items").delete().eq("id", itemId).select("id");
+  if (deleteError || !deletedRows?.length) {
+    return {
+      error:
+        deleteError?.code === "P0001" || deleteError?.code === "23503"
+          ? "This activity is referenced by other records, so it can't be deleted."
+          : "Could not delete the activity. Check you have permission and try again.",
+    };
+  }
 
-  await supabase.from("itp_items").delete().eq("id", itemId);
-
-  const organizationId = itpForRevisionCheck?.projects?.organization_id;
-  if (organizationId) {
+  if (resolved.organizationId) {
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       await recordAuditEvent(supabase, {
-        organizationId,
-        projectId: itpForRevisionCheck?.project_id ?? undefined,
+        organizationId: resolved.organizationId,
+        projectId: resolved.projectId,
         entityType: "itp_item",
         entityId: itemId,
         action: "item_deleted",
         actorId: user?.id ?? null,
-        summary: itemForAudit ? `Activity ${itemForAudit.item_number} deleted: ${itemForAudit.activity}` : "Activity deleted",
+        summary: `Activity ${resolved.itemNumber} deleted: ${resolved.activity}`,
       });
     } catch {
       // Best-effort — see lib/audit/log.ts's doc comment.
@@ -419,6 +535,58 @@ export async function deleteItpItemAction(formData: FormData) {
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
+async function moveItpItem(formData: FormData, direction: "up" | "down") {
+  const itemId = String(formData.get("item_id") ?? "").trim();
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  if (!itemId) return;
+
+  const supabase = await createSupabaseServerClient();
+  const resolved = await resolveItemItp(supabase, itemId);
+  if (!resolved) return;
+
+  const { data: siblings } = await supabase
+    .from("itp_items")
+    .select("id, sort_order")
+    .eq("section_id", resolved.sectionId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .returns<{ id: string; sort_order: number }[]>();
+  const ordered = siblings ?? [];
+  const index = ordered.findIndex((s) => s.id === itemId);
+  const swapIndex = direction === "up" ? index - 1 : index + 1;
+  if (index === -1 || swapIndex < 0 || swapIndex >= ordered.length) return;
+
+  if (resolved.status === "approved" || resolved.status === "client_accepted") {
+    if (!revisionReason) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error: revisionError } = await bumpRevisionIfIssued(
+      supabase,
+      resolved.itpId,
+      `Moved activity ${resolved.itemNumber} ${direction} — ${revisionReason}`,
+      user?.id ?? null
+    );
+    if (revisionError) return;
+  }
+
+  // Re-number sort_order 0..n so equal/zero values (older manually-added items) can't tie.
+  const reordered = [...ordered];
+  [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
+  await Promise.all(reordered.map((row, i) => supabase.from("itp_items").update({ sort_order: i }).eq("id", row.id)));
+
+  revalidatePath(`/inspect/itps/${resolved.itpId}`);
+}
+
+export async function moveItemUpAction(formData: FormData) {
+  await moveItpItem(formData, "up");
+}
+
+export async function moveItemDownAction(formData: FormData) {
+  await moveItpItem(formData, "down");
 }
 
 export async function setInterventionAction(formData: FormData) {
@@ -465,11 +633,15 @@ export async function setInterventionAction(formData: FormData) {
   }
 
   if (!intervention) {
-    await supabase
+    const { error: clearError } = await supabase
       .from("activity_party_intervention")
       .delete()
       .eq("itp_item_id", itpItemId)
       .eq("project_party_id", projectPartyId);
+    if (clearError) {
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return;
+    }
 
     try {
       const { data: context } = await supabase

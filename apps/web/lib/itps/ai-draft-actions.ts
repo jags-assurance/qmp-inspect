@@ -308,12 +308,30 @@ export async function createItpFromDraftAction(
     return { error: "Could not create the ITP. Check you have permission and try again." };
   }
 
+  // The model's own section/item numbers can repeat or be zero, which would break the unique
+  // (itp, section number) key or collapse two activities into one. Number sections 1..n in order and
+  // make activity numbers unique within their section.
+  for (const [sectionIndex, section] of draft.sections.entries()) {
+    section.sectionNumber = sectionIndex + 1;
+    const seenNumbers = new Set<string>();
+    for (const item of section.items) {
+      let candidate = item.itemNumber;
+      let suffix = 2;
+      while (candidate && seenNumbers.has(candidate)) {
+        candidate = `${item.itemNumber}-${suffix++}`;
+      }
+      item.itemNumber = candidate;
+      if (candidate) seenNumbers.add(candidate);
+      item.evidenceType = item.evidenceType === 2 || item.evidenceType === 3 ? item.evidenceType : 1;
+    }
+  }
+
   const { data: newSections, error: sectionsError } = await supabase
     .from("itp_sections")
     .insert(
       draft.sections.map((s, i) => ({
         itp_id: itp.id,
-        section_number: s.sectionNumber || i + 1,
+        section_number: i + 1,
         title: s.title || `Section ${i + 1}`,
         sort_order: i,
       }))
@@ -321,7 +339,8 @@ export async function createItpFromDraftAction(
     .select("id, section_number");
 
   if (sectionsError || !newSections) {
-    return { error: "ITP created, but its sections could not be added from the draft." };
+    await supabase.from("itps").delete().eq("id", itp.id);
+    return { error: "The ITP could not be created because its sections could not be added from the draft. Nothing was saved — please try again." };
   }
 
   const disciplineCodes = [...new Set(draft.sections.flatMap((s) => s.items.map((i) => i.disciplineCode).filter(Boolean)))];
@@ -336,7 +355,7 @@ export async function createItpFromDraftAction(
   }
 
   const sectionIdByNumber = new Map(newSections.map((s) => [s.section_number, s.id]));
-  const itemsBySectionNumber = new Map(draft.sections.map((s, i) => [s.sectionNumber || i + 1, s.items]));
+  const itemsBySectionNumber = new Map(draft.sections.map((s, i) => [i + 1, s.items]));
 
   const itemsToInsert = [...sectionIdByNumber.entries()].flatMap(([sectionNumber, sectionId]) => {
     const items = itemsBySectionNumber.get(sectionNumber) ?? [];
@@ -357,7 +376,8 @@ export async function createItpFromDraftAction(
   });
 
   if (itemsToInsert.length === 0) {
-    return { error: "ITP and sections created, but the draft had no valid activities to add." };
+    await supabase.from("itps").delete().eq("id", itp.id);
+    return { error: "The draft had no valid activities to add, so no ITP was created." };
   }
 
   const { data: newItems, error: itemsError } = await supabase
@@ -366,7 +386,8 @@ export async function createItpFromDraftAction(
     .select("id, section_id, item_number");
 
   if (itemsError || !newItems) {
-    return { error: "ITP and sections created, but activities could not be added from the draft." };
+    await supabase.from("itps").delete().eq("id", itp.id);
+    return { error: "The ITP could not be created because its activities could not be added from the draft. Nothing was saved — please try again." };
   }
 
   // Suggested interventions are best-effort: an item/section not found in the freshly-inserted
@@ -388,9 +409,28 @@ export async function createItpFromDraftAction(
   });
 
   if (interventionsToInsert.length > 0) {
-    // Not treated as a hard failure — the intervention grid remains editable afterward from the
-    // normal ITP detail page regardless.
-    await supabase.from("activity_party_intervention").insert(interventionsToInsert);
+    // Only keep suggestions that point at a real party on THIS project and a level code this
+    // organisation actually has — one bad suggestion would otherwise make the database reject the
+    // whole batch and silently drop every sign-off level. Not a hard failure: the grid stays editable.
+    const { data: projectOrg } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string }>();
+    const [{ data: projectParties }, { data: levelTypes }] = await Promise.all([
+      supabase.from("project_parties").select("id").eq("project_id", projectId).returns<{ id: string }[]>(),
+      supabase
+        .from("intervention_level_types")
+        .select("code")
+        .eq("organization_id", projectOrg?.organization_id ?? "")
+        .returns<{ code: string }[]>(),
+    ]);
+    const validParties = new Set((projectParties ?? []).map((p) => p.id));
+    const validCodes = new Set((levelTypes ?? []).map((l) => l.code));
+    const validInterventions = interventionsToInsert.filter((i) => validParties.has(i.project_party_id) && validCodes.has(i.intervention));
+    if (validInterventions.length > 0) {
+      await supabase.from("activity_party_intervention").upsert(validInterventions, { onConflict: "itp_item_id,project_party_id" });
+    }
   }
 
   // Closes out the audit-trail row this draft was logged under (see generateItpDraftAction's

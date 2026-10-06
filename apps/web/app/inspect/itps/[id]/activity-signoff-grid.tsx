@@ -20,6 +20,9 @@ export interface GridRow {
   itemNumber: string;
   activity: string;
   acceptanceCriteria: string | null;
+  referenceSpec?: string | null;
+  method?: string | null;
+  frequency?: string | null;
   evidenceLabel: string;
   /** Raw evidence_type (1/2/3) and discipline_id, alongside their display-only evidenceLabel/
    *  disciplineCode above — ItemControls' edit form needs the raw values to pre-fill its selects. */
@@ -126,6 +129,9 @@ export function ActivitySignoffGrid({
                     itemNumber={row.itemNumber}
                     activity={row.activity}
                     acceptanceCriteria={row.acceptanceCriteria}
+                    referenceSpec={row.referenceSpec ?? null}
+                    method={row.method ?? null}
+                    frequency={row.frequency ?? null}
                     evidenceType={row.evidenceType}
                     disciplineId={row.disciplineId}
                     noticeHoursOverride={row.noticeHoursOverride}
@@ -139,6 +145,17 @@ export function ActivitySignoffGrid({
                   </p>
                 )}
                 {!canEditContent && row.acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{row.acceptanceCriteria}</p>}
+                {(row.referenceSpec || row.method || row.frequency) && (
+                  <p className="mt-0.5 text-xs text-muted">
+                    {[
+                      row.referenceSpec ? `Ref: ${row.referenceSpec}` : null,
+                      row.method ? `Method: ${row.method}` : null,
+                      row.frequency ? `Frequency: ${row.frequency}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                )}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
                   {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}

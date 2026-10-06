@@ -70,6 +70,19 @@ export function NewItpForm({
         />
       </div>
 
+      <div>
+        <label htmlFor="scope" className="block text-sm font-medium text-ink">
+          Scope (optional)
+        </label>
+        <textarea
+          id="scope"
+          name="scope"
+          rows={3}
+          placeholder="What work this plan covers, e.g. Structural concrete — foundations, Block A"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>

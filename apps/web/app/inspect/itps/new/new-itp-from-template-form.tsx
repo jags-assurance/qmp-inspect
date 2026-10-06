@@ -57,13 +57,12 @@ export function NewItpFromTemplateForm({
 
       <div>
         <label htmlFor="template_itp_number" className="block text-sm font-medium text-ink">
-          ITP number
+          ITP number (optional)
         </label>
         <input
           id="template_itp_number"
           name="itp_number"
-          required
-          placeholder="e.g. MER-JAGS-ITP-002"
+          placeholder="Leave blank to auto-number"
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy doc-id"
         />
       </div>

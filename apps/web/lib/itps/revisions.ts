@@ -11,6 +11,11 @@ interface SnapshotItemRow {
   evidence_type: number;
   discipline_id: string | null;
   sort_order: number;
+  reference_spec: string | null;
+  method: string | null;
+  frequency: string | null;
+  notice_hours_override: number | null;
+  governing_drawing_document_id: string | null;
 }
 
 interface SnapshotSectionRow {
@@ -24,7 +29,7 @@ interface SnapshotSectionRow {
 async function buildSectionsSnapshot(supabase: SupabaseServerClient, itpId: string): Promise<ItpRevisionSnapshotSection[]> {
   const { data: sections } = await supabase
     .from("itp_sections")
-    .select("id, section_number, title, sort_order, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, discipline_id, sort_order)")
+    .select("id, section_number, title, sort_order, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, discipline_id, sort_order, reference_spec, method, frequency, notice_hours_override, governing_drawing_document_id)")
     .eq("itp_id", itpId)
     .order("section_number")
     .returns<SnapshotSectionRow[]>();

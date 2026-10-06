@@ -12,6 +12,12 @@ export interface ItpRevisionSnapshotItem {
   evidence_type: number;
   discipline_id: string | null;
   sort_order: number;
+  // Added later: older snapshots won't have these.
+  reference_spec?: string | null;
+  method?: string | null;
+  frequency?: string | null;
+  notice_hours_override?: number | null;
+  governing_drawing_document_id?: string | null;
 }
 
 export interface ItpRevisionSnapshotSection {

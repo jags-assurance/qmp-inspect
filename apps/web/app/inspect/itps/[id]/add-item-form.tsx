@@ -8,6 +8,7 @@ const initialState: AddItemState = { error: null };
 export function AddItemForm({
   itpId,
   sectionId,
+  suggestedItemNumber,
   disciplines,
   isIssued,
   drawingDocuments,
@@ -16,6 +17,8 @@ export function AddItemForm({
 }: {
   itpId: string;
   sectionId: string;
+  /** Next free activity number in this section (e.g. "2.4"), pre-filled so numbering stays sequential. */
+  suggestedItemNumber?: string;
   disciplines: { id: string; code: string; name: string }[];
   /** True once the ITP has left draft/under_review (approved or client_accepted) — adding an
    *  activity at this point is an edit-after-issue (R101) and requires a reason, since it bumps a
@@ -56,6 +59,7 @@ export function AddItemForm({
         <input
           name="item_number"
           required
+          defaultValue={suggestedItemNumber}
           placeholder="1.1"
           className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
@@ -75,8 +79,34 @@ export function AddItemForm({
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
       </div>
+      <div className="min-w-48 flex-1">
+        <label className="block text-xs font-medium text-muted">Reference document / clause</label>
+        <input
+          name="reference_spec"
+          placeholder="e.g. Spec 03300 cl. 5.2 / API 1104"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+      <div className="min-w-32">
+        <label className="block text-xs font-medium text-muted">Method</label>
+        <input
+          name="method"
+          placeholder="e.g. Visual, UT, Hydrotest"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+      <div className="min-w-32">
+        <label className="block text-xs font-medium text-muted">Frequency / sample</label>
+        <input
+          name="frequency"
+          placeholder="e.g. 100%, each pour, 1 in 10"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
       <div>
-        <label className="block text-xs font-medium text-muted">Evidence</label>
+        <label className="block text-xs font-medium text-muted" title="Checklist: the inspector answers a checklist on site. Document upload: a record or certificate is attached. Measurement: values are recorded against nominal and tolerance.">
+          Evidence
+        </label>
         <select
           name="evidence_type"
           defaultValue="1"
