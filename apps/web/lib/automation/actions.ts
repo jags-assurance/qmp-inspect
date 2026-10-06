@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { AUTOMATION_RULES_TABLE, type AutomationRuleType } from "./types";
+import { AUTOMATION_RULES_TABLE, AUTOMATION_RULE_TYPES, type AutomationRuleType } from "./types";
 
 export interface UpsertAutomationRuleState {
   error: string | null;
@@ -32,6 +32,12 @@ export async function upsertAutomationRuleAction(
 
   if (!organizationId || !ruleType) {
     return { error: "Missing organisation or rule type." };
+  }
+  if (!AUTOMATION_RULE_TYPES.includes(ruleType)) {
+    return { error: "Unknown rule type." };
+  }
+  if (thresholdHours > 24 * 365 || repeatHours > 24 * 365) {
+    return { error: "Hours can't be more than a year (8760)." };
   }
   if (!Number.isFinite(thresholdHours) || thresholdHours <= 0) {
     return { error: "Threshold hours must be a positive number." };

@@ -8,6 +8,7 @@ import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
@@ -30,6 +31,15 @@ export async function createProjectAction(
   const contractNumber = String(formData.get("contract_number") ?? "").trim();
   const startDate = String(formData.get("start_date") ?? "").trim();
   const endDate = String(formData.get("end_date") ?? "").trim();
+  const locationNames = [
+    ...new Set(
+      String(formData.get("locations") ?? "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+    ),
+  ].slice(0, 50);
+  const responsiblePersonId = String(formData.get("responsible_person_id") ?? "").trim();
   const statusRaw = String(formData.get("status") ?? "active").trim();
   const status = ["draft", "active", "on_hold"].includes(statusRaw) ? statusRaw : "active";
   if (startDate && endDate && endDate < startDate) {
@@ -69,6 +79,7 @@ export async function createProjectAction(
       start_date: startDate || null,
       end_date: endDate || null,
       status,
+      responsible_person_id: isAdminStaff(session) && responsiblePersonId ? responsiblePersonId : null,
       created_by: user?.id ?? null,
     })
     .select("id")
@@ -93,6 +104,16 @@ export async function createProjectAction(
     actorId: user?.id ?? null,
     summary: `Project ${projectNumber} "${name}" created`,
   });
+
+  // Optional starting locations for the inspection location dropdown (best-effort: the project
+  // exists either way, and presets can be managed later on the project page).
+  if (locationNames.length > 0) {
+    await supabase
+      .from("inspection_location_presets" as never)
+      .insert(
+        locationNames.map((name, index) => ({ organization_id: organizationId, project_id: project.id, name, sort_order: index })) as never
+      );
+  }
 
   redirect(`/inspect/projects/${project.id}`);
 }
@@ -204,6 +225,23 @@ export async function addProjectPartyAction(
         actorId: session.userId,
         summary: `Party "${name}" (${partyType}) added to project`,
       });
+
+      // Tell the project's responsible person (unless they added it themselves).
+      const { data: owner } = await supabase
+        .from("projects")
+        .select("responsible_person_id")
+        .eq("id", projectId)
+        .maybeSingle<{ responsible_person_id: string | null }>();
+      if (owner?.responsible_person_id && owner.responsible_person_id !== session.userId) {
+        await createNotification(supabase, {
+          organizationId: project.organization_id,
+          projectId,
+          recipientUserId: owner.responsible_person_id,
+          title: "A party was added to your project",
+          body: `"${name}" (${partyType.replace(/_/g, " ")}) was added. They have no platform access until a login is granted.`,
+          link: `/inspect/projects/${projectId}`,
+        });
+      }
     }
   } catch {
     // Best-effort — see lib/audit/log.ts's doc comment.

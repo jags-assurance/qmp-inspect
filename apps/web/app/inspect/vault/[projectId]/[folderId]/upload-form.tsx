@@ -19,6 +19,10 @@ function titleFromFilename(filename: string): string {
   return withoutExt.replace(/[_-]+/g, " ").trim() || filename;
 }
 
+const MAX_UPLOAD_MB = 100;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const BLOCKED_EXTENSIONS = /\.(exe|bat|cmd|com|msi|scr|ps1|sh|js|vbs|jar|dll)$/i;
+
 export function VaultUploadForm({
   projectId,
   folderId,
@@ -43,6 +47,12 @@ export function VaultUploadForm({
     sharedFields: { document_reference: string; revision: string; document_date: string; notes: string }
   ): Promise<{ ok: boolean; error?: string; documentNumber?: string; internalReference?: string | null }> {
     const supabase = createSupabaseBrowserClient();
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return { ok: false, error: `${file.name}: file is larger than ${MAX_UPLOAD_MB} MB.` };
+    }
+    if (BLOCKED_EXTENSIONS.test(file.name)) {
+      return { ok: false, error: `${file.name}: this file type (executable/script) can't be stored in the vault.` };
+    }
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `vault/${projectId}/${folderKey}/${Date.now()}-${safeName}`;
 
@@ -61,7 +71,11 @@ export function VaultUploadForm({
     formData.set("notes", sharedFields.notes);
 
     const result = await uploadVaultDocumentAction({ error: null }, formData);
-    if (result.error) return { ok: false, error: `${file.name}: ${result.error}` };
+    if (result.error) {
+      // The record wasn't saved, so don't leave the already-uploaded file orphaned in storage.
+      await supabase.storage.from("inspection-evidence").remove([path]);
+      return { ok: false, error: `${file.name}: ${result.error}` };
+    }
     return { ok: true, documentNumber: result.documentNumber, internalReference: result.internalReference ?? null };
   }
 

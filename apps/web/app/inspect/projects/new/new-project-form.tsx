@@ -10,11 +10,14 @@ const initialState: CreateProjectState = { error: null };
 export function NewProjectForm({
   organizations,
   allowCreateOrg = true,
+  staffUsers = [],
 }: {
   organizations: { id: string; name: string }[];
   /** Hidden for a Self-Managed client creating their own project — they can't create a new
    *  organisation, only a project under the one they already belong to. */
   allowCreateOrg?: boolean;
+  /** JAGS staff who can be named as the project's responsible person (Admin only). */
+  staffUsers?: { id: string; full_name: string; email: string }[];
 }) {
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
 
@@ -123,9 +126,28 @@ export function NewProjectForm({
           </select>
         </div>
       </div>
-      <p className="text-xs text-muted">
-        More site locations and the responsible person are set on the project page after it is created.
-      </p>
+      <div>
+        <label htmlFor="locations" className="block text-sm font-medium text-ink">
+          Inspection locations (optional, one per line)
+        </label>
+        <textarea id="locations" name="locations" rows={3} placeholder={"Block A\nBlock B\nPump house"} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        <p className="mt-1 text-xs text-muted">These appear in the location dropdown when an inspection is started on this project.</p>
+      </div>
+      {staffUsers.length > 0 && (
+        <div>
+          <label htmlFor="responsible_person_id" className="block text-sm font-medium text-ink">
+            Responsible person (optional)
+          </label>
+          <select id="responsible_person_id" name="responsible_person_id" defaultValue="" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
+            <option value="">— none set —</option>
+            {staffUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name} ({u.email})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 

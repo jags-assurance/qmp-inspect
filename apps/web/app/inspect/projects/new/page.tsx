@@ -39,6 +39,18 @@ export default async function NewProjectPage() {
     if (organizations.length === 0) redirect("/inspect/projects");
   }
 
+  let staffUsers: { id: string; full_name: string; email: string }[] = [];
+  if (isAdminStaff(session)) {
+    const { data } = await supabase
+      .from("users")
+      .select("id, full_name, email")
+      .eq("is_jags_staff", true)
+      .eq("is_active", true)
+      .order("full_name")
+      .returns<{ id: string; full_name: string; email: string }[]>();
+    staffUsers = data ?? [];
+  }
+
   return (
     <div className="max-w-xl">
       <Link href="/inspect/projects" className="text-sm text-burgundy hover:underline">
@@ -56,7 +68,7 @@ export default async function NewProjectPage() {
         />
       </div>
       <p className="mt-1 text-sm text-muted">Set up a new project for a client organisation.</p>
-      <NewProjectForm organizations={organizations} allowCreateOrg={isAdminStaff(session)} />
+      <NewProjectForm organizations={organizations} allowCreateOrg={isAdminStaff(session)} staffUsers={staffUsers} />
     </div>
   );
 }

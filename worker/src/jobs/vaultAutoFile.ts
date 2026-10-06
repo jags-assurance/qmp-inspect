@@ -26,6 +26,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * must not fail the underlying job the user actually asked for (the PDF itself already
  * rendered/uploaded successfully by the time this runs).
  */
+const DEFAULT_FOLDER_NAMES: Record<string, string> = {
+  drawings: "Drawings",
+  specifications: "Specifications",
+  standards_codes: "Standards & Codes",
+  material_submittals: "Material Submittals",
+  rfis: "RFIs",
+  method_statements: "Method Statements",
+  itps_approved: "ITPs (Approved)",
+  checklists_forms: "Checklists & Forms",
+  approvals_correspondence: "Approvals & Correspondence",
+  certificates: "Certificates",
+  general_reference: "General Reference",
+  test_reports: "Test Reports",
+};
+
 export async function autoFileVaultDocument(
   supabase: SupabaseClient,
   params: {
@@ -46,12 +61,24 @@ export async function autoFileVaultDocument(
   }
 ): Promise<void> {
   try {
-    const { data: folder, error: folderError } = await supabase
+    let { data: folder, error: folderError } = await supabase
       .from("vault_folders" as never)
       .select("id")
       .eq("project_id", params.projectId)
       .eq("folder_key", params.folderKey)
       .maybeSingle<{ id: string }>();
+
+    // A project created before a default folder existed (or one removed since) must not make the
+    // document silently vanish: recreate the standard folder on demand.
+    if (!folder && !folderError && DEFAULT_FOLDER_NAMES[params.folderKey]) {
+      const created = await supabase
+        .from("vault_folders" as never)
+        .insert({ project_id: params.projectId, folder_key: params.folderKey, name: DEFAULT_FOLDER_NAMES[params.folderKey] } as never)
+        .select("id")
+        .single<{ id: string }>();
+      folder = created.data;
+      folderError = created.error as typeof folderError;
+    }
 
     if (folderError || !folder) {
       console.error(
@@ -61,15 +88,19 @@ export async function autoFileVaultDocument(
       return;
     }
 
+    // Without a reference a regenerated document could never supersede its earlier copy, so every
+    // regeneration piled up another "approved" row. Fall back to the title as the matching key.
+    const documentReference = params.documentReference ?? params.title;
+
     // Earlier copies of the same logical document in this folder (matched on document_reference,
     // exactly like the manual-upload revision rule in apps/web/lib/vault/actions.ts).
     let previous: { id: string; revision: string; status: string }[] = [];
-    if (params.documentReference) {
+    {
       const { data } = await supabase
         .from("vault_documents" as never)
         .select("id, revision, status")
         .eq("folder_id", folder.id)
-        .eq("document_reference", params.documentReference)
+        .eq("document_reference", documentReference)
         .returns<{ id: string; revision: string; status: string }[]>();
       previous = data ?? [];
     }
@@ -85,7 +116,7 @@ export async function autoFileVaultDocument(
       .insert({
         folder_id: folder.id,
         title: params.title,
-        document_reference: params.documentReference,
+        document_reference: documentReference,
         revision,
         storage_path: `generated-documents:${params.storagePath}`,
         file_size: params.fileSize,

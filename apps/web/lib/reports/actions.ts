@@ -81,7 +81,7 @@ export async function generateMonthlyReportPackAction(
   const year = Number.parseInt(yearRaw, 10);
   const month = Number.parseInt(monthRaw, 10);
 
-  if (!organizationId || Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) {
+  if (!organizationId || Number.isNaN(year) || year < 2020 || year > 2100 || Number.isNaN(month) || month < 1 || month > 12) {
     return { error: "Organisation, a valid year and a valid month (1-12) are required." };
   }
 

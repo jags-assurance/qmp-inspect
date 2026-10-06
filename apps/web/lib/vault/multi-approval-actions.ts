@@ -44,16 +44,69 @@ export async function setDocumentApproversAction(
     return { error: "This document is already approved — the approver list can't be changed after the fact." };
   }
 
-  const { error: clearError } = await supabase.from(VAULT_DOCUMENT_APPROVERS_TABLE).delete().eq("document_id", documentId);
-  if (clearError) return { error: "Could not update the approver list. Check you have permission and try again." };
-
+  // Every chosen approver must be a real, active person with access to this document's project.
   if (approverUserIds.length > 0) {
-    const { error } = await supabase.from(VAULT_DOCUMENT_APPROVERS_TABLE).insert(
-      approverUserIds.map((userId) => ({ document_id: documentId, approver_user_id: userId }))
+    const { data: docProject } = await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select("vault_folders(project_id, projects(organization_id))")
+      .eq("id", documentId)
+      .maybeSingle<{ vault_folders: { project_id: string; projects: { organization_id: string } | null } | null }>();
+    const projectId = docProject?.vault_folders?.project_id;
+    const organizationId = docProject?.vault_folders?.projects?.organization_id;
+    if (!projectId || !organizationId) return { error: "Document not found, or you don't have access to it." };
+
+    const { data: candidates } = await supabase
+      .from("users")
+      .select("id, is_active, is_jags_staff")
+      .in("id", approverUserIds)
+      .returns<{ id: string; is_active: boolean; is_jags_staff: boolean }[]>();
+    const { data: grants } = await supabase
+      .from("access_grants")
+      .select("user_id, scope_type, organization_id, project_id")
+      .in("user_id", approverUserIds)
+      .returns<{ user_id: string; scope_type: string; organization_id: string | null; project_id: string | null }[]>();
+    const eligible = new Set(
+      (candidates ?? [])
+        .filter((u) => u.is_active !== false)
+        .filter(
+          (u) =>
+            (grants ?? []).some(
+              (g) =>
+                g.user_id === u.id &&
+                (g.scope_type === "global" ||
+                  (g.scope_type === "organization" && g.organization_id === organizationId) ||
+                  (g.scope_type === "project" && g.project_id === projectId))
+            )
+        )
+        .map((u) => u.id)
     );
-    if (error) {
-      return { error: "Could not save the required approvers. Check you have permission and try again." };
+    const invalid = approverUserIds.filter((id) => !eligible.has(id));
+    if (invalid.length > 0) {
+      return { error: "Every approver must be an active user with access to this project." };
     }
+  }
+
+  // Diff instead of delete-all-then-insert, so approvals already recorded by people who stay on the
+  // list are kept and a failure part-way can't wipe the list.
+  const { data: existingApprovers } = await supabase
+    .from(VAULT_DOCUMENT_APPROVERS_TABLE)
+    .select("id, approver_user_id")
+    .eq("document_id", documentId)
+    .returns<{ id: string; approver_user_id: string }[]>();
+  const wanted = new Set(approverUserIds);
+  const present = new Set((existingApprovers ?? []).map((a) => a.approver_user_id));
+
+  const toAdd = approverUserIds.filter((id) => !present.has(id));
+  if (toAdd.length > 0) {
+    const { error } = await supabase
+      .from(VAULT_DOCUMENT_APPROVERS_TABLE)
+      .insert(toAdd.map((userId) => ({ document_id: documentId, approver_user_id: userId })));
+    if (error) return { error: "Could not save the required approvers. Check you have permission and try again." };
+  }
+  const removeIds = (existingApprovers ?? []).filter((a) => !wanted.has(a.approver_user_id)).map((a) => a.id);
+  if (removeIds.length > 0) {
+    const { error } = await supabase.from(VAULT_DOCUMENT_APPROVERS_TABLE).delete().in("id", removeIds);
+    if (error) return { error: "Could not update the approver list. Check you have permission and try again." };
   }
 
   revalidatePath(`/inspect/vault`);

@@ -71,6 +71,19 @@ export async function uploadVaultDocumentCore(
     return { error: "Upload failed — a title and file are required." };
   }
 
+  const { data: folderCheck } = await supabase
+    .from("vault_folders")
+    .select("id")
+    .eq("id", folderId)
+    .eq("project_id", projectId)
+    .maybeSingle<{ id: string }>();
+  if (!folderCheck) {
+    return { error: "That folder doesn't belong to this project." };
+  }
+  if (fileSize && Number(fileSize) > 100 * 1024 * 1024) {
+    return { error: "Upload failed — files larger than 100 MB can't be stored in the vault." };
+  }
+
   const { data: project } = await supabase
     .from("projects")
     .select("project_number, organization_id")

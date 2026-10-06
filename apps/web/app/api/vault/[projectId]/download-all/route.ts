@@ -96,6 +96,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // finalizes. Errors reading an individual file are logged and skipped rather than failing the
   // whole zip — one bad/missing object shouldn't block downloading everything else.
   (async () => {
+   const skipped: string[] = [];
    try {
     // Name collisions within the same folder (e.g. two revisions with the same title) are
     // disambiguated with a numeric suffix rather than silently overwriting one in the zip.
@@ -103,9 +104,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     for (const doc of documents) {
       const folderName = sanitizeFilename(folderNameById.get(doc.folder_id) ?? "General Reference");
       const { bucket, path } = resolveStorageLocation(doc.storage_path);
-      const { data: fileBlob, error: downloadError } = await supabase.storage.from(bucket).download(path);
-      if (downloadError || !fileBlob) {
-        console.error(`[vault download-all] Skipping "${doc.title}" — could not download:`, downloadError?.message);
+      const { data: signed, error: signError } = await supabase.storage.from(bucket).createSignedUrl(path, 300);
+      const fileResponse = signed?.signedUrl ? await fetch(signed.signedUrl) : null;
+      if (signError || !fileResponse?.ok || !fileResponse.body) {
+        console.error(`[vault download-all] Skipping "${doc.title}" — could not download:`, signError?.message ?? fileResponse?.status);
+        skipped.push(doc.title);
         continue;
       }
       const extMatch = /\.([a-z0-9]+)$/i.exec(path);
@@ -118,12 +121,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       }
       usedNames.add(entryName);
 
-      const buffer = Buffer.from(await fileBlob.arrayBuffer());
-      archive.append(buffer, { name: entryName });
+      // Stream the file into the zip rather than holding it all in memory.
+      const fileStream = Readable.fromWeb(fileResponse.body as unknown as import("stream/web").ReadableStream);
+      archive.append(fileStream, { name: entryName });
+      await new Promise<void>((resolve) => {
+        fileStream.once("end", () => resolve());
+        fileStream.once("error", () => resolve());
+      });
     }
    } catch (err) {
     console.error("[vault download-all] aborted:", err);
    } finally {
+    if (skipped.length > 0) {
+      archive.append(`These files could not be included:\n${skipped.join("\n")}\n`, { name: "_NOT_INCLUDED.txt" });
+    }
     void archive.finalize();
    }
   })();

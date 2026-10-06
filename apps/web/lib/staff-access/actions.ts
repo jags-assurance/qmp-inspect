@@ -127,9 +127,9 @@ export async function removeStaffGrantAction(
     .eq("id", grantId)
     .maybeSingle<{ user_id: string; organization_id: string | null; scope_type: string; role: string }>();
 
-  const { error } = await supabase.from("access_grants").delete().eq("id", grantId);
+  const { data: deletedGrants, error } = await supabase.from("access_grants").delete().eq("id", grantId).select("id");
 
-  if (error) {
+  if (error || !deletedGrants?.length) {
     return { error: "Could not remove the grant. Check you have permission and try again." };
   }
 

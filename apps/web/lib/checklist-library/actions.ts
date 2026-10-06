@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import {
   CHECKLIST_LIBRARY_TEMPLATES_TABLE,
@@ -35,7 +35,7 @@ export async function createLibraryTemplateAction(
   formData: FormData
 ): Promise<LibraryTemplateFormState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: "Only JAGS staff can build checklist library templates." };
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can build checklist library templates." };
 
   const title = String(formData.get("title") ?? "").trim();
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
@@ -83,7 +83,7 @@ export async function updateLibraryTemplateAction(
   formData: FormData
 ): Promise<LibraryTemplateFormState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: "Only JAGS staff can edit checklist library templates." };
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can edit checklist library templates." };
 
   const templateId = String(formData.get("template_id") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
@@ -135,7 +135,7 @@ export async function addLibraryItemAction(
   formData: FormData
 ): Promise<LibraryItemFormState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: "Only JAGS staff can edit checklist library templates." };
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can edit checklist library templates." };
 
   const templateId = String(formData.get("template_id") ?? "").trim();
   const itemNumber = String(formData.get("item_number") ?? "").trim();
@@ -181,7 +181,7 @@ export async function deleteLibraryItemAction(
   formData: FormData
 ): Promise<LibraryItemFormState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: "Only JAGS staff can edit checklist library templates." };
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can edit checklist library templates." };
 
   const itemId = String(formData.get("item_id") ?? "").trim();
   const templateId = String(formData.get("template_id") ?? "").trim();
@@ -209,7 +209,7 @@ export interface ParseImportState {
  */
 export async function parseLibraryImportAction(_prev: ParseImportState, formData: FormData): Promise<ParseImportState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: "Only JAGS staff can import checklist templates.", rows: null };
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can import checklist templates.", rows: null };
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -236,7 +236,7 @@ export interface CommitImportState {
  */
 export async function commitLibraryImportAction(_prev: CommitImportState, formData: FormData): Promise<CommitImportState> {
   const session = await requireSession();
-  if (!session.isJagsStaff) return { error: "Only JAGS staff can import checklist templates.", addedCount: 0 };
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can import checklist templates.", addedCount: 0 };
 
   const templateId = String(formData.get("template_id") ?? "").trim();
   const rowsJson = String(formData.get("rows_json") ?? "");

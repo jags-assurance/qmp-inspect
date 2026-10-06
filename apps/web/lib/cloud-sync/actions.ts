@@ -85,9 +85,13 @@ export async function clearCloudFolderSyncConfigAction(
   if (!organizationId) return { error: "Organisation is required." };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from(CLOUD_FOLDER_SYNC_CONFIGS_TABLE).delete().eq("organization_id", organizationId);
+  const { data: clearedRows, error } = await supabase
+    .from(CLOUD_FOLDER_SYNC_CONFIGS_TABLE)
+    .delete()
+    .eq("organization_id", organizationId)
+    .select("id");
 
-  if (error) {
+  if (error || !clearedRows?.length) {
     return { error: "Could not clear the cloud folder sync configuration. Check you have permission and try again." };
   }
 
