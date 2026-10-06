@@ -2,6 +2,7 @@ import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
   buildInspectionReportHtml,
+  type InspectionReportApproval,
   type InspectionReportData,
   type InspectionReportPhoto,
   type InspectionReportResult,
@@ -147,9 +148,72 @@ export async function renderInspectionReportPdf(
     .map((p, i) => ({ caption: p.caption, dataUri: photoDataUris[i] }))
     .filter((p): p is InspectionReportPhoto => Boolean(p.dataUri));
 
+  // Revision: number of re-open/amend events (0 = original). Falls back to the stored column.
+  const { count: amendCount } = await (supabase as unknown as { from: (t: string) => any })
+    .from("inspection_record_amendments")
+    .select("id", { count: "exact", head: true })
+    .eq("record_id", record.id);
+  const revision = typeof amendCount === "number" ? amendCount : record.revision ?? 0;
+
+  // Approvals: one box per party type present on the project, plus the JAGS inspector.
+  const { data: partyRows } = await supabase
+    .from("project_parties")
+    .select("id, party_type, name")
+    .eq("project_id", record.project_id)
+    .eq("is_active", true)
+    .returns<{ id: string; party_type: string; name: string }[]>();
+  const parties = partyRows ?? [];
+  const signoffRows = record.itp_item_id
+    ? ((
+        await supabase
+          .from("activity_signoff_progress")
+          .select("project_party_id, signed_off_at, signed_off_by, status")
+          .eq("itp_item_id", record.itp_item_id)
+          .eq("status", "signed_off")
+      ).data ?? []) as { project_party_id: string; signed_off_at: string | null; signed_off_by: string | null }[]
+    : [];
+  const signerIds = [...new Set(signoffRows.map((s) => s.signed_off_by).filter((x): x is string => Boolean(x)))];
+  const signerNames = new Map<string, string>();
+  if (signerIds.length) {
+    const { data: us } = await supabase.from("users").select("id, full_name").in("id", signerIds);
+    for (const u of (us ?? []) as { id: string; full_name: string | null }[]) if (u.full_name) signerNames.set(u.id, u.full_name);
+  }
+  const fmtDate = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : null);
+  const PARTY_BOXES: [string, string][] = [
+    ["client", "CLIENT REPRESENTATIVE"],
+    ["main_contractor", "MAIN CONTRACTOR"],
+    ["subcontractor", "SUBCONTRACTOR"],
+    ["tpi_lab", "TPI / LAB"],
+  ];
+  const approvals: InspectionReportApproval[] = [
+    {
+      label: "JAGS INSPECTOR",
+      org: "JAGS Assurance",
+      name: record.signed_by_name || inspector?.full_name || null,
+      signature: null,
+      date: record.signed_at ? fmtDate(record.signed_at) : record.overall_result ? record.inspection_date : null,
+    },
+  ];
+  let witnessUsed = false;
+  for (const [type, label] of PARTY_BOXES) {
+    const party = parties.find((p) => p.party_type === type);
+    if (!party) continue;
+    const so = signoffRows.find((s) => s.project_party_id === party.id);
+    let name = so?.signed_off_by ? signerNames.get(so.signed_off_by) ?? null : null;
+    let signature: string | null = null;
+    let date = fmtDate(so?.signed_off_at ?? null);
+    if (!so && !witnessUsed && (record.witness_name || record.witness_signature) && (type === "client" || (type === "tpi_lab" && !parties.some((p) => p.party_type === "client")))) {
+      name = record.witness_name;
+      signature = record.witness_signature;
+      date = record.signed_at ? fmtDate(record.signed_at) : null;
+      witnessUsed = true;
+    }
+    approvals.push({ label, org: party.name, name, signature, date });
+  }
+
   const templateData: InspectionReportData = {
     recordNumber: record.record_number,
-    revision: record.revision ?? 0,
+    revision,
     activity: record.activity,
     projectName: record.project_name,
     organizationName: project?.organizations?.name ?? null,
@@ -175,11 +239,8 @@ export async function renderInspectionReportPdf(
     instruments,
     materials,
     welders,
-    signoffs: [
-      { label: "INSPECTOR", name: inspector?.full_name ?? null, date: record.overall_result ? record.inspection_date : null },
-      { label: "CONTRACTOR WITNESS", name: null, date: null },
-      { label: "CLIENT REPRESENTATIVE", name: null, date: null },
-    ],
+    inspectorName: record.signed_by_name || inspector?.full_name || null,
+    approvals,
     generatedAt: new Date(),
     branding: await getOrgBranding(supabase, project?.organization_id),
   };

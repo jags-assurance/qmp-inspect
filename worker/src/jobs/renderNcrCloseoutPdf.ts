@@ -2,6 +2,7 @@ import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildNcrCloseoutPdfHtml, type NcrCloseoutPdfData, type NcrCloseoutSeverity } from "./ncrCloseoutTemplate";
 import type { RenderNcrCloseoutCertificatePayload } from "./types";
+import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
 import { autoFileVaultDocument } from "./vaultAutoFile";
 
@@ -21,6 +22,8 @@ interface NcrRow {
   verification_notes: string | null;
   closed_by: string | null;
   closed_at: string | null;
+  raised_by: string | null;
+  created_at: string;
 }
 
 /**
@@ -40,7 +43,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
   const { data: ncr, error: ncrError } = await supabase
     .from("ncrs" as never)
     .select(
-      "id, ncr_number, project_id, severity, description, status, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_by, closed_at"
+      "id, ncr_number, project_id, severity, description, status, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_by, closed_at, raised_by, created_at"
     )
     .eq("id", payload.ncr_id)
     .single<NcrRow>();
@@ -76,6 +79,19 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
       }>(),
   ]);
 
+  const parties = await loadNcrParties(supabase, ncr.project_id);
+  const raiserUser = ncr.raised_by
+    ? (await supabase.from("users").select("full_name").eq("id", ncr.raised_by).maybeSingle<{ full_name: string }>()).data
+    : null;
+  const approvals = buildNcrApprovalBoxes(
+    parties,
+    [
+      { userId: ncr.raised_by, userName: raiserUser?.full_name ?? null, action: "Raised by", date: ncr.created_at },
+      { userId: ncr.closed_by, userName: closer?.full_name ?? null, action: "Closed by", date: ncr.closed_at },
+    ].filter((a) => a.userId),
+    "JAGS Assurance"
+  );
+
   const projectName = project ? `${project.project_number} · ${project.name}` : "";
 
   const templateData: NcrCloseoutPdfData = {
@@ -92,6 +108,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     closedByName: closer?.full_name ?? null,
     closedAt: ncr.closed_at,
     generatedAt: new Date(),
+    approvals,
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 

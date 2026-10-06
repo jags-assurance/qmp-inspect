@@ -2,6 +2,7 @@ import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildNcrPdfHtml, type NcrPdfData, type NcrPdfSeverity, type NcrPdfStatus } from "./ncrTemplate";
 import type { RenderNcrPdfPayload } from "./types";
+import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
 import { autoFileVaultDocument } from "./vaultAutoFile";
 
@@ -24,6 +25,7 @@ interface NcrRow {
   raised_by: string | null;
   closed_by: string | null;
   closed_at: string | null;
+  created_at: string;
 }
 
 /**
@@ -36,7 +38,7 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
   const { data: ncr, error: ncrError } = await supabase
     .from("ncrs" as never)
     .select(
-      "id, ncr_number, project_id, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, raised_by, closed_by, closed_at"
+      "id, ncr_number, project_id, severity, description, requirement_not_met, status, assigned_to, due_date, root_cause, corrective_action, preventive_action, verification_notes, raised_by, closed_by, closed_at, created_at"
     )
     .eq("id", payload.ncr_id)
     .single<NcrRow>();
@@ -69,6 +71,20 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
       }>(),
   ]);
 
+  const parties = await loadNcrParties(supabase, ncr.project_id);
+  const raiserUser = ncr.raised_by
+    ? (await supabase.from("users").select("full_name").eq("id", ncr.raised_by).maybeSingle<{ full_name: string }>()).data
+    : null;
+  const approvals = buildNcrApprovalBoxes(
+    parties,
+    [
+      { userId: ncr.raised_by, userName: raiserUser?.full_name ?? null, action: "Raised by", date: ncr.created_at },
+      { userId: ncr.assigned_to, userName: assignee?.full_name ?? null, action: "Assigned to", date: null },
+      { userId: ncr.closed_by, userName: closer?.full_name ?? null, action: "Closed by", date: ncr.closed_at },
+    ].filter((a) => a.userId),
+    "JAGS Assurance"
+  );
+
   const evidenceItems = (photoRows ?? []).map((p) => p.caption || p.storage_path.split("/").pop() || p.storage_path);
   const evidence = evidenceItems.length > 0 ? evidenceItems.join(", ") : null;
 
@@ -92,6 +108,8 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     closedByName: closer?.full_name ?? null,
     closedAt: ncr.closed_at,
     generatedAt: new Date(),
+    issueDate: ncr.created_at,
+    approvals,
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 

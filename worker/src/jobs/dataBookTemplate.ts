@@ -335,8 +335,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       ["Document control", "Value"],
       [
         ["Document number", escapeHtml(data.bookNumber)],
-        ["Revision and issue date", `R00 | ${issueDate}`],
-        ["Issue purpose", escapeHtml(issuePurpose(data))],
+        ["Revision and issue date", `Rev 0 | ${issueDate}`],
         ["Project and package", `${escapeHtml(projectLabel)} | ${data.itps.map((i) => escapeHtml(i.itpNumber)).join(", ") || "no ITP"}`],
         ["Equipment scope", data.itps.map((i) => escapeHtml(i.title)).join("; ") || "—"],
         ["Records in book", `${planned} activity records across ${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}`],
@@ -815,7 +814,9 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   .state.warn, .warnc { color: var(--warn); }
   .state.bad, .badc { color: var(--danger); }
 
-  .sign { margin-top: 12px; line-height: 1.8; }
+  .sign { margin-top: 12px; line-height: 1.8; break-inside: avoid; page-break-inside: avoid; }
+  h3 { break-after: avoid; page-break-after: avoid; }
+  section.cover table.grid, #control table.grid, #certification table.grid { break-inside: avoid; page-break-inside: avoid; }
 
   ol.toc { list-style: none; margin: 8px 0; }
   ol.toc li { padding: 6px 0; border-bottom: 1px dotted var(--rule); }

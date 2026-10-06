@@ -383,7 +383,13 @@ function renderPoweredByFooter(data: ItpTemplateData): string {
 }
 
 function renderSignoffs(signoffs: ItpTemplateSignoff[]): string {
-  const cards = signoffs
+  const rank = (label: string): number => {
+    const l = label.toLowerCase();
+    const i = ["prepared", "reviewed", "approved", "client"].findIndex((k) => l.includes(k));
+    return i === -1 ? 99 : i;
+  };
+  const cards = [...signoffs]
+    .sort((a, b) => rank(a.label) - rank(b.label))
     .map(
       (s) => `
         <div class="signoff-card">
@@ -786,11 +792,14 @@ export function buildItpHtml(data: ItpTemplateData): string {
   }
 
   .signoff-block {
-    margin-top: 20px;
+    margin-top: 12px;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .signoff-block h2 {
+    break-after: avoid;
+    page-break-after: avoid;
     font-size: 11px;
     color: var(--burgundy);
     margin: 0 0 6px 0;
@@ -798,11 +807,15 @@ export function buildItpHtml(data: ItpTemplateData): string {
 
   .signoff-grid {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .signoff-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
     flex: 1 1 0;
     min-width: 140px;
     border: 1px solid #ccc;
@@ -865,9 +878,8 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.itpNumber)}</dd>
-        <dt>REVISION</dt><dd>${data.revision}</dd>
+        <dt>REV</dt><dd>Rev ${data.revision}</dd>
         <dt>STATUS</dt><dd>${escapeHtml(statusLabel)}</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
       </dl>
     </div>
   </div>
@@ -882,8 +894,6 @@ ${brandColorStyle(data.branding)}
   <div class="info-grid">
     <div><span class="label">SCOPE</span>${cell(data.scope)}</div>
     <div><span class="label">APPLICABLE STANDARD</span>${cell(data.applicableStandard)}</div>
-    <div><span class="label">REVISION</span>${data.revision}</div>
-    <div><span class="label">STATUS</span>${escapeHtml(statusLabel)}</div>
   </div>
 
   ${renderLegend(sortedLevelTypes)}

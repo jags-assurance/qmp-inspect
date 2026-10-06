@@ -1,6 +1,7 @@
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { buildIrnPdfHtml, type IrnPdfData } from "./irnTemplate";
+import type { IrnApproval } from "./irnTemplate";
 import type { RenderIrnPdfPayload } from "./types";
 import { autoFileVaultDocument } from "./vaultAutoFile";
 import { getOrgBranding } from "./orgBranding";
@@ -27,6 +28,7 @@ interface InspectionRecordRow {
   overall_result: "pass" | "fail" | "partial" | null;
   inspector_id: string | null;
   record_number: string;
+  itp_item_id: string | null;
 }
 
 /**
@@ -49,7 +51,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
 
   const { data: record, error: recordError } = await supabase
     .from("inspection_records")
-    .select("id, project_id, itp_number, activity, location, inspection_date, overall_result, inspector_id, record_number")
+    .select("id, project_id, itp_number, activity, location, inspection_date, overall_result, inspector_id, record_number, itp_item_id")
     .eq("id", irn.inspection_record_id)
     .single<InspectionRecordRow>();
 
@@ -76,6 +78,48 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
       }>(),
   ]);
 
+  const PARTY_BOXES: { type: string; label: string }[] = [
+    { type: "client", label: "CLIENT REPRESENTATIVE" },
+    { type: "main_contractor", label: "MAIN CONTRACTOR" },
+    { type: "subcontractor", label: "SUBCONTRACTOR" },
+    { type: "tpi_lab", label: "TPI / LAB" },
+  ];
+  const { data: partyRowsRaw } = await supabase
+    .from("project_parties")
+    .select("id, name, party_type")
+    .eq("project_id", record.project_id)
+    .returns<{ id: string; name: string; party_type: string }[]>();
+  const partyRows = partyRowsRaw ?? [];
+  let signoffRows: { project_party_id: string; signed_off_at: string | null; signed_off_by: string | null }[] = [];
+  if (record.itp_item_id) {
+    const { data } = await supabase
+      .from("activity_signoff_progress" as never)
+      .select("project_party_id, signed_off_at, signed_off_by")
+      .eq("itp_item_id", record.itp_item_id)
+      .returns<{ project_party_id: string; signed_off_at: string | null; signed_off_by: string | null }[]>();
+    signoffRows = (data ?? []).filter((r) => r.signed_off_at);
+  }
+  const signerIds = [...new Set(signoffRows.map((r) => r.signed_off_by).filter((x): x is string => Boolean(x)))];
+  const signerNames = new Map<string, string>();
+  if (signerIds.length) {
+    const { data: us } = await supabase.from("users").select("id, full_name").in("id", signerIds).returns<{ id: string; full_name: string }[]>();
+    for (const u of us ?? []) signerNames.set(u.id, u.full_name);
+  }
+  const approvals: IrnApproval[] = [];
+  for (const box of PARTY_BOXES) {
+    const parties = partyRows.filter((p) => p.party_type === box.type);
+    if (parties.length === 0) continue;
+    const ids = new Set(parties.map((p) => p.id));
+    const so = signoffRows.find((r) => ids.has(r.project_party_id));
+    approvals.push({
+      label: box.label,
+      organisation: parties.map((p) => p.name).join(", "),
+      signerName: so?.signed_off_by ? signerNames.get(so.signed_off_by) ?? null : null,
+      signatureDataUri: null,
+      date: so?.signed_off_at ? so.signed_off_at.slice(0, 10) : null,
+    });
+  }
+
   const projectName = project ? `${project.project_number} · ${project.name}` : "";
 
   const templateData: IrnPdfData = {
@@ -93,6 +137,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     issuedByName: issuer?.full_name ?? null,
     voidedAt: irn.voided_at,
     voidReason: irn.void_reason,
+    approvals,
     generatedAt: new Date(),
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
@@ -110,7 +155,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
         landscape: false,
         printBackground: true,
         preferCSSPageSize: true,
-        margin: { top: "15mm", right: "15mm", bottom: "20mm", left: "15mm" },
+        margin: { top: "12mm", right: "15mm", bottom: "18mm", left: "15mm" },
         displayHeaderFooter: true,
         headerTemplate: "<div></div>",
         footerTemplate: `

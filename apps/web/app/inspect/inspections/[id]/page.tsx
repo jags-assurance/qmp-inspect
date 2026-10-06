@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { formatLocationForDisplay, mapsUrl } from "@/lib/checklists/location";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -198,7 +199,17 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           {record.location && (
             <div>
               <p className="text-xs text-muted">Location</p>
-              <p className="mt-0.5 text-ink">{record.location}</p>
+              <p className="mt-0.5 text-ink">
+                {formatLocationForDisplay(record.location)}
+                {mapsUrl(record.location) && (
+                  <>
+                    {" "}
+                    <a href={mapsUrl(record.location)!} target="_blank" rel="noreferrer" className="text-xs text-burgundy hover:underline">
+                      Open in maps
+                    </a>
+                  </>
+                )}
+              </p>
             </div>
           )}
           <div>

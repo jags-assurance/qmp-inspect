@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { NCR_APPROVALS_CSS, renderNcrApprovalsHtml, type NcrApprovalBox } from "./ncrApprovals";
 // Renders the printable HTML for a single NCR close-out CERTIFICATE (R83) — the branded A4 document
 // that attests an NCR has actually been closed: root cause, corrective action, responsible party
 // (when set) and who closed it, when. Puppeteer renders this to portrait A4 PDF in
@@ -27,6 +28,7 @@ export interface NcrCloseoutPdfData {
   closedAt: string;
 
   generatedAt: Date;
+  approvals?: NcrApprovalBox[];
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
    * orgBranding.ts. Optional/undefined renders exactly as jags_led (today's unchanged branding).
@@ -223,6 +225,7 @@ export function buildNcrCloseoutPdfHtml(data: NcrCloseoutPdfData): string {
   .signoff-card-date { font-size: 8px; color: #444; }
   .signoff-card-date span.label { color: #888; text-transform: uppercase; font-size: 7px; margin-right: 4px; }
 
+  ${NCR_APPROVALS_CSS}
   .footer-note {
     margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc;
     font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
@@ -239,8 +242,9 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.ncrNumber)}</dd>
-        <dt>REV</dt><dd>0</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>ISSUE DATE</dt><dd>${escapeHtml(data.closedAt.slice(0, 10))}</dd>
+        <dt>STATUS</dt><dd>CLOSED</dd>
       </dl>
     </div>
   </div>
@@ -257,17 +261,7 @@ ${brandColorStyle(data.branding)}
 
   ${renderFieldValueTable("Close-out", closeOutRows)}
 
-  <div class="section">
-    <h2>Signed off by</h2>
-    <div class="signoff-grid">
-      <div class="signoff-card">
-        <div class="signoff-card-label">CLOSED BY</div>
-        <div class="signoff-card-name">${cell(data.closedByName)}</div>
-        <div class="signoff-card-line"></div>
-        <div class="signoff-card-date"><span class="label">DATE</span>${cell(data.closedAt)}</div>
-      </div>
-    </div>
-  </div>
+  ${renderNcrApprovalsHtml(data.approvals ?? [])}
 
   <div class="footer-note">
     <span>Doc No. ${escapeHtml(data.ncrNumber)} &middot; Uncontrolled when printed &middot; jagsassurance.com</span>

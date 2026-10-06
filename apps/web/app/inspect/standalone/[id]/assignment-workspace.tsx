@@ -1,4 +1,5 @@
 "use client";
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -175,7 +176,7 @@ export function AssignmentWorkspace({
           </div>
           <div>
             <dt className="text-xs text-muted">Location</dt>
-            <dd className="text-ink">{assignment.location ?? "—"}</dd>
+            <dd className="text-ink">{formatLocationForDisplay(assignment.location)}</dd>
           </div>
         </dl>
       </div>

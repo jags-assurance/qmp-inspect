@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { Badge } from "@/components/ui/badge";
 import { INSPECTION_RECORDS_TABLE, IRNS_TABLE } from "@/lib/checklists/db-types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
@@ -372,7 +373,7 @@ export async function DoneActivitiesPanel({
                   <td className="min-w-[12rem] px-2 py-2">
                     <a href={`/inspect/projects/${projectId}/punch-list`} className="text-burgundy hover:underline">{p.description}</a>
                   </td>
-                  <td className="px-2 py-2">{p.location ?? "—"}</td>
+                  <td className="px-2 py-2">{formatLocationForDisplay(p.location)}</td>
                   <td className="px-2 py-2 text-muted">{p.verification_notes ?? "—"}</td>
                   <td className="whitespace-nowrap px-2 py-2">{fmt(p.closed_at)}</td>
                 </tr>

@@ -17,9 +17,13 @@ export interface InspectionReportPhoto {
   dataUri: string;
 }
 
-export interface InspectionReportSignoff {
+export interface InspectionReportApproval {
   label: string;
+  /** Party organisation name. */
+  org: string | null;
   name: string | null;
+  /** Data URL (drawn signature) or plain text. */
+  signature: string | null;
   date: string | null;
 }
 
@@ -68,7 +72,8 @@ export interface InspectionReportData {
   irnNumber?: string | null;
   results: InspectionReportResult[];
   photos: InspectionReportPhoto[];
-  signoffs: InspectionReportSignoff[];
+  approvals: InspectionReportApproval[];
+  inspectorName?: string | null;
   generatedAt: Date;
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
@@ -128,7 +133,7 @@ function renderBrandColorOverride(data: InspectionReportData): string {
  *  never states anything the record doesn't actually show. */
 function buildConclusion(data: InspectionReportData): string {
   const resultLabel = data.overallResult === "pass" ? "PASS" : data.overallResult === "fail" ? "FAIL" : "PARTIAL";
-  const scope = data.location ? `${data.activity} within ${data.location}` : data.activity;
+  const scope = data.activity;
   const itpClause = data.itpNumber ? ` in accordance with ${data.itpNumber}` : "";
   const complianceClause =
     data.overallResult === "pass"
@@ -164,30 +169,42 @@ function renderResultsTable(results: InspectionReportResult[]): string {
 /** A simple label/value table shown near the top of the document so a reader can immediately place
  *  the record: where it was done, against what drawing/spec, and by whom/when. Rows with no data
  *  (e.g. no linked reference spec) are omitted rather than shown as "—", to keep the table tight. */
-function renderTraceabilityTable(data: InspectionReportData): string {
-  const inspectorName = data.signoffs[0]?.name ?? null;
-  const dateInspector = [data.inspectionDate, inspectorName].filter(Boolean).join(" / ") || null;
+/** Shows coordinates only: extracts the LAST decimal lat/long pair; otherwise returns the value as is. */
+export function formatLocation(loc: string | null | undefined): string | null {
+  if (!loc) return null;
+  const re = /(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/g;
+  let last: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(loc))) last = m;
+  return last ? `Lat ${last[1]}, Long ${last[2]}` : loc;
+}
 
+/** Single "Inspection details" table — each fact appears exactly once. */
+function renderTraceabilityTable(data: InspectionReportData): string {
   const governingDrawing = data.governingDrawingReference
     ? `${data.governingDrawingReference}${data.governingDrawingRevision ? ` (Rev ${data.governingDrawingRevision})` : ""}`
     : null;
+  const drawingSpec = [governingDrawing, data.referenceSpec ?? null].filter(Boolean).join(" / ") || null;
 
   const rows: [string, string | null][] = [
     ["Client", data.clientName ?? null],
-    ["Location", data.location],
+    ["Project", data.projectName],
+    ["ITP / procedure", data.itpNumber],
+    ["Activity", data.activity],
+    ["Discipline", data.discipline],
+    ["Location", formatLocation(data.location)],
     ["Applicable standard", data.applicableStandard ?? null],
-    ["Governing drawing", governingDrawing],
-    ["Drawing / specification", data.referenceSpec ?? null],
-    ["Inspection date / inspector", dateInspector],
+    ["Drawing / specification", drawingSpec],
+    ["Inspection date", data.inspectionDate || null],
+    ["Inspector", data.inspectorName ?? null],
   ].filter(([, value]) => Boolean(value)) as [string, string | null][];
-
-  if (rows.length === 0) return "";
 
   const rowsHtml = rows
     .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${cell(value)}</td></tr>`)
     .join("");
 
   return `
+    <h2 class="details-title">Inspection details</h2>
     <table class="traceability-table">
       <tbody>${rowsHtml}</tbody>
     </table>`;
@@ -325,17 +342,23 @@ function renderPoweredByFooter(data: InspectionReportData): string {
   return '<div class="powered-by">Powered by JAGS Assurance</div>';
 }
 
-function renderSignoffs(signoffs: InspectionReportSignoff[]): string {
-  const cards = signoffs
-    .map(
-      (s) => `
+function renderSignoffs(approvals: InspectionReportApproval[]): string {
+  const cards = approvals
+    .map((a) => {
+      const sig = a.signature
+        ? a.signature.startsWith("data:image/")
+          ? `<img class="witness-sig" src="${escapeHtml(a.signature)}" alt="Signature" />`
+          : `<span>${escapeHtml(a.signature)}</span>`
+        : "";
+      return `
         <div class="signoff-card">
-          <div class="signoff-card-label">${escapeHtml(s.label)}</div>
-          <div class="signoff-card-name">${cell(s.name)}</div>
-          <div class="signoff-card-line"></div>
-          <div class="signoff-card-date"><span class="label">DATE</span>${cell(s.date)}</div>
-        </div>`
-    )
+          <div class="signoff-card-label">${escapeHtml(a.label)}</div>
+          <div class="signoff-card-org">${a.org ? escapeHtml(a.org) : "&nbsp;"}</div>
+          <div class="signoff-row"><span class="label">Name</span><span class="val">${a.name ? escapeHtml(a.name) : ""}</span></div>
+          <div class="signoff-row sig"><span class="label">Signature</span><span class="val">${sig}</span></div>
+          <div class="signoff-row"><span class="label">Date</span><span class="val">${a.date ? escapeHtml(a.date) : ""}</span></div>
+        </div>`;
+    })
     .join("");
   return `<div class="signoff-grid">${cards}</div>`;
 }
@@ -451,7 +474,7 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   .summary-stat { font-size: 10px; color: #444; }
   .summary-stat b { display: block; font-size: 14px; color: var(--ink); }
 
-  .section { margin-bottom: 14px; }
+  .section { margin-bottom: 10px; }
   .section h2 {
     font-size: 12px; color: var(--burgundy); border-bottom: 1px solid var(--burgundy);
     padding-bottom: 3px; margin: 0 0 6px 0;
@@ -482,10 +505,10 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
 
   table.traceability-table { width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 10px; }
   table.traceability-table th, table.traceability-table td {
-    border: 1px solid #e2dcd6; padding: 4px 8px; text-align: left; vertical-align: top;
+    border: 1px solid #e2dcd6; padding: 3px 8px; text-align: left; vertical-align: top;
   }
   table.traceability-table th {
-    width: 220px; background: var(--off-white); color: #666; font-size: 8px; font-weight: bold;
+    width: 170px; background: var(--off-white); color: #666; font-size: 8px; font-weight: bold;
     text-transform: uppercase; letter-spacing: 0.3px;
   }
   table.traceability-table td { font-weight: bold; }
@@ -501,9 +524,17 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   .field-result-banner.field-result-partial strong { color: var(--ink); }
   .field-result-reason { font-size: 9.5px; color: #444; line-height: 1.4; }
 
-  .signoff-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+  .signatures-section { break-inside: avoid; page-break-inside: avoid; }
+  .signatures-section h2 { break-after: avoid; page-break-after: avoid; }
+  h2.details-title { font-size: 12px; color: var(--burgundy); border-bottom: 1px solid var(--burgundy); padding-bottom: 3px; margin: 0 0 6px 0; }
+  .signoff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .signoff-card-org { font-size: 8px; color: #666; margin-bottom: 4px; min-height: 10px; }
+  .signoff-row { display: flex; align-items: flex-end; gap: 6px; border-bottom: 1px solid #999; min-height: 16px; margin-top: 4px; font-size: 9px; }
+  .signoff-row.sig { min-height: 28px; }
+  .signoff-row .label { color: #888; text-transform: uppercase; font-size: 7px; width: 38px; flex-shrink: 0; }
+  .signoff-row .val { font-weight: bold; }
   .signoff-card {
-    flex: 1 1 0; min-width: 140px; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
+    break-inside: avoid; page-break-inside: avoid; min-width: 0; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
     border-radius: 2px; padding: 6px 8px 8px 8px; background: #fff;
   }
   .signoff-card-label { font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px; color: var(--burgundy); margin-bottom: 10px; }
@@ -518,7 +549,7 @@ export function buildInspectionReportHtml(data: InspectionReportData): string {
   .witness-sig { max-height: 50px; max-width: 220px; display: block; }
 
   .footer-note {
-    margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc;
+    margin-top: 8px; padding-top: 6px; break-inside: avoid; border-top: 1px solid #ccc;
     font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
   }
 </style>
@@ -533,8 +564,9 @@ ${renderBrandColorOverride(data)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.recordNumber)}</dd>
-        <dt>REV</dt><dd>${escapeHtml(String(data.revision ?? 0))}</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>REV</dt><dd>Rev ${escapeHtml(String(data.revision ?? 0))}</dd>
+        <dt>ISSUE DATE</dt><dd>${escapeHtml(data.inspectionDate || "—")}</dd>
+        <dt>STATUS</dt><dd>${data.overallResult ? "Final" : "Draft"}</dd>
       </dl>
     </div>
   </div>
@@ -543,14 +575,6 @@ ${renderBrandColorOverride(data)}
   <h1>Inspection Report</h1>
 
   ${renderTraceabilityTable(data)}
-
-  <div class="info-grid">
-    <div><span class="label">PROJECT</span>${cell(data.projectName)}</div>
-    <div><span class="label">ITP / PROCEDURE</span>${cell(data.itpNumber)}</div>
-    <div><span class="label">ACTIVITY</span>${cell(data.activity)}</div>
-    <div><span class="label">DISCIPLINE</span>${cell(data.discipline)}</div>
-    <div><span class="label">DATE</span>${cell(data.inspectionDate)}</div>
-  </div>
 
   <div class="summary-bar">
     <div>
@@ -580,10 +604,9 @@ ${renderBrandColorOverride(data)}
 
   ${data.notes ? `<div class="section"><h2>Notes</h2><p class="conclusion">${escapeHtml(data.notes)}</p></div>` : ""}
 
-  <div class="section">
+  <div class="section signatures-section">
     <h2>Signatures</h2>
-    ${renderSigning(data)}
-    ${renderSignoffs(data.signoffs)}
+    ${renderSignoffs(data.approvals)}
   </div>
 
   <div class="footer-note">

@@ -27,12 +27,21 @@ export interface IrnPdfData {
   /** Set when the IRN has been voided (row kept, flagged). */
   voidedAt?: string | null;
   voidReason?: string | null;
+  approvals?: IrnApproval[];
   generatedAt: Date;
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
    * orgBranding.ts. Optional/undefined renders exactly as jags_led (today's unchanged branding).
    */
   branding?: IrnPdfBranding;
+}
+
+export interface IrnApproval {
+  label: string;
+  organisation: string | null;
+  signerName: string | null;
+  signatureDataUri: string | null;
+  date: string | null;
 }
 
 export interface IrnPdfBranding {
@@ -49,6 +58,28 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Coordinates only when the value holds a decimal pair (last pair wins); otherwise the value as is. */
+function formatLocation(value: string | null): string | null {
+  if (!value) return null;
+  const re = /(-?\d{1,3}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)/g;
+  let last: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(value)) !== null) last = m;
+  return last ? `Lat ${last[1]}, Long ${last[2]}` : value;
+}
+
+function renderApprovalCard(label: string, org: string | null, name: string | null, sig: string | null, date: string | null): string {
+  const img = sig && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(sig) ? `<img class="signature-img" src="${sig}" alt="signature" />` : "";
+  return `<div class="signoff-card">
+    <div class="signoff-card-label">${escapeHtml(label)}</div>
+    <div class="signoff-card-org">${org ? escapeHtml(org) : "&nbsp;"}</div>
+    ${img}
+    <div class="signoff-card-line"></div>
+    <div class="signoff-card-name">${name ? escapeHtml(name) : "&nbsp;"}</div>
+    <div class="signoff-card-date"><span class="label">DATE</span>${date ? escapeHtml(date) : "____________"}</div>
+  </div>`;
 }
 
 function cell(value: string | null | undefined): string {
@@ -101,14 +132,11 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
     ["Governing ITP", data.itpNumber],
     ["Inspection record", data.inspectionRecordNumber],
     ["Inspection date", data.inspectionDate],
-    ["Location", data.location],
-    ["Inspector", data.inspectorName],
+    ["Location", formatLocation(data.location)],
     ["Result", resultLabel],
   ];
 
   const releaseRows: [string, string | null][] = [
-    ["IRN number", data.irnNumber],
-    ["Release date", data.releaseDate],
     ["Hold status", data.voidedAt ? "VOID" : "RELEASED"],
   ];
 
@@ -201,7 +229,7 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
   .void-banner span { font-size: 11px; color: #800; }
   .void-watermark { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 160px; font-weight: bold; color: rgba(204, 0, 0, 0.12); transform: rotate(-30deg); z-index: 0; pointer-events: none; }
 
-  .section { margin-bottom: 14px; }
+  .section { margin-bottom: 10px; }
   .section h2 {
     font-size: 12px; color: var(--burgundy); border-bottom: 1px solid var(--burgundy);
     padding-bottom: 3px; margin: 0 0 6px 0;
@@ -215,19 +243,24 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
     width: 32%; background: var(--off-white); font-weight: bold; color: var(--ink);
   }
 
-  .signoff-grid { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; break-inside: avoid; }
+  .approvals { break-inside: avoid; page-break-inside: avoid; margin-bottom: 6px; }
+  .approvals h2 { break-after: avoid; page-break-after: avoid; }
+  .released-by { font-size: 9px; margin: 6px 0 0 0; }
+  .signature-img { height: 30px; max-width: 100%; object-fit: contain; display: block; }
+  .signoff-card-org { font-size: 8.5px; color: #444; min-height: 11px; margin-bottom: 4px; }
+  .signoff-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; break-inside: avoid; page-break-inside: avoid; }
   .signoff-card {
-    flex: 1 1 0; min-width: 180px; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
+    flex: 1 1 28%; min-width: 150px; break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
     border-radius: 2px; padding: 6px 8px 8px 8px; background: #fff;
   }
-  .signoff-card-label { font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px; color: var(--burgundy); margin-bottom: 10px; }
+  .signoff-card-label { font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px; color: var(--burgundy); margin-bottom: 4px; }
   .signoff-card-name { font-size: 10px; font-weight: bold; min-height: 12px; }
   .signoff-card-line { border-bottom: 1px solid #999; margin: 14px 0 4px 0; }
   .signoff-card-date { font-size: 8px; color: #444; }
   .signoff-card-date span.label { color: #888; text-transform: uppercase; font-size: 7px; margin-right: 4px; }
 
   .footer-note {
-    margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc;
+    margin-top: 8px; padding-top: 6px; border-top: 1px solid #ccc;
     font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
   }
 </style>
@@ -242,8 +275,9 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.irnNumber)}</dd>
-        <dt>REV</dt><dd>0</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>ISSUE DATE</dt><dd>${escapeHtml(data.releaseDate)}</dd>
+        <dt>STATUS</dt><dd>${data.voidedAt ? "VOID" : "RELEASED"}</dd>
       </dl>
     </div>
   </div>
@@ -266,16 +300,13 @@ ${brandColorStyle(data.branding)}
 
   ${renderFieldValueTable("Release", releaseRows)}
 
-  <div class="section">
-    <h2>Signed off by</h2>
+  <div class="section approvals">
+    <h2>Approvals</h2>
     <div class="signoff-grid">
-      <div class="signoff-card">
-        <div class="signoff-card-label">ISSUED BY</div>
-        <div class="signoff-card-name">${cell(data.issuedByName)}</div>
-        <div class="signoff-card-line"></div>
-        <div class="signoff-card-date"><span class="label">DATE</span>${cell(data.releaseDate)}</div>
-      </div>
+      ${renderApprovalCard("JAGS INSPECTOR", "JAGS Assurance", data.inspectorName, null, data.inspectionDate)}
+      ${(data.approvals ?? []).map((a) => renderApprovalCard(a.label, a.organisation, a.signerName, a.signatureDataUri, a.date)).join("")}
     </div>
+    <p class="released-by">Released by: <strong>${cell(data.issuedByName)}</strong> on ${cell(data.releaseDate)}</p>
   </div>
 
   <div class="footer-note">

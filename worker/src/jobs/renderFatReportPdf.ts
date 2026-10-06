@@ -109,6 +109,12 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
       .eq("source_standalone_assignment_id", a.id),
   ]);
 
+  const { data: partyRowsRaw } = await supabase
+    .from("project_parties")
+    .select("name, party_type")
+    .eq("project_id", a.project_id)
+    .returns<{ name: string; party_type: string }[]>();
+
   const photoRowsTyped = (photoRows ?? []) as unknown as { storage_path: string; caption: string | null }[];
   const photoDataUris = await Promise.all(photoRowsTyped.map((p) => toDataUri(p.storage_path)));
   const photos: FatReportPhoto[] = photoRowsTyped
@@ -172,6 +178,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
       signatureDataUri: s.signature_data,
       signedAt: s.signed_at,
     })),
+    parties: (partyRowsRaw ?? []).map((p) => ({ name: p.name, partyType: p.party_type })),
     generatedAt: new Date(),
   };
 

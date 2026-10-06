@@ -33,6 +33,8 @@ import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { normaliseLocation } from "./location";
+import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
 
 export interface GenerateChecklistsState {
@@ -612,15 +614,27 @@ export async function startInspectionAction(
   const projectName = String(formData.get("project_name") ?? "").trim();
   const itpNumber = String(formData.get("itp_number") ?? "").trim();
   const activity = String(formData.get("activity") ?? "").trim();
-  const location = String(formData.get("location") ?? "").trim();
+  const rawLocation = String(formData.get("location") ?? "").trim();
 
   if (!templateId || !itpItemId || !projectId || !projectName || !itpNumber || !activity) {
     return { error: "Missing required fields to start the inspection." };
   }
 
-  if (location.length > 200) return { error: "The location is too long — keep it under 200 characters." };
+  if (rawLocation.length > 500) return { error: "The location is too long." };
 
   const supabase = await createSupabaseServerClient();
+  // Location is one lat/lng pair, or one of the project's location presets — never a free place name.
+  let location: string | null = null;
+  {
+    let presetNames: string[] = [];
+    if (rawLocation) {
+      const { data: proj } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+      if (proj) presetNames = (await getLocationPresetsForProject(supabase, proj.organization_id, projectId)).map((p) => p.name);
+    }
+    const norm = normaliseLocation(rawLocation, presetNames);
+    if ("error" in norm) return { error: norm.error };
+    location = norm.value;
+  }
   if (!(await canExecuteItpItem(supabase, itpItemId))) {
     return { error: "Only JAGS staff or the party assigned to this activity can start a field inspection." };
   }

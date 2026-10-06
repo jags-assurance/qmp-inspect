@@ -1,4 +1,5 @@
 "use client";
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +51,7 @@ const columns: DataTableColumn<InspectionListRow>[] = [
       </div>
     ),
   },
-  { key: "location", header: "Location", render: (r) => r.location ?? "—" },
+  { key: "location", header: "Location", render: (r) => formatLocationForDisplay(r.location) },
   { key: "date", header: "Date", render: (r) => r.inspection_date },
   { key: "inspector", header: "Inspector", render: (r) => r.inspector_name ?? "—" },
   { key: "result", header: "Result", render: (r) => <ResultChip result={r.overall_result} /> },

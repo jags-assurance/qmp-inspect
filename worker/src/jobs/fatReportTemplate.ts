@@ -53,6 +53,8 @@ export interface FatReportData {
   photos: FatReportPhoto[];
   punchItems: FatReportPunchItem[];
   signatures: FatReportSignature[];
+  /** Project parties (name + party_type) used to build the approval boxes. */
+  parties?: { name: string; partyType: string }[];
   generatedAt: Date;
   /** Assignment lifecycle state - anything but 'completed' is rendered with a DRAFT watermark. */
   status: "draft" | "conditional_open" | "completed";
@@ -83,6 +85,16 @@ function escapeHtml(value: string): string {
 
 function cell(value: string | null | undefined): string {
   return value ? escapeHtml(value) : "&mdash;";
+}
+
+/** Coordinates only when the value holds a decimal pair (last pair wins); otherwise the value as is. */
+function formatLocation(value: string | null): string | null {
+  if (!value) return null;
+  const re = /(-?\d{1,3}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)/g;
+  let last: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(value)) !== null) last = m;
+  return last ? `Lat ${last[1]}, Long ${last[2]}` : value;
 }
 
 function renderMeasurements(rows: FatReportMeasurement[]): string {
@@ -145,27 +157,55 @@ function renderPhotos(photos: FatReportPhoto[]): string {
   return `<div class="section"><h2>Photos</h2><div class="photo-grid">${tiles}</div></div>`;
 }
 
-function renderSignatures(signatures: FatReportSignature[]): string {
-  if (signatures.length === 0) {
-    return `<p class="conclusion">No witness signatures recorded.</p>`;
-  }
-  const cards = signatures
-    .map(
-      (s) => `
+const SIG_RE = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+
+function fmtSigned(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
+function approvalCard(label: string, org: string | null, sig: FatReportSignature | null): string {
+  const img = sig && SIG_RE.test(sig.signatureDataUri) ? `<img class="signature-img" src="${sig.signatureDataUri}" alt="signature" />` : "";
+  return `
         <div class="signoff-card">
-          <div class="signoff-card-label">${escapeHtml(s.role)}</div>
-          ${
-            /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s.signatureDataUri)
-              ? `<img class="signature-img" src="${s.signatureDataUri}" alt="${escapeHtml(s.signatoryName)} signature" />`
-              : ""
-          }
+          <div class="signoff-card-label">${escapeHtml(label)}</div>
+          <div class="signoff-card-org">${org ? escapeHtml(org) : "&nbsp;"}</div>
+          ${img}
           <div class="signoff-card-line"></div>
-          <div class="signoff-card-name">${escapeHtml(s.signatoryName)}</div>
-          <div class="signoff-card-date"><span class="label">SIGNED</span>${escapeHtml(new Date(s.signedAt).toISOString().replace("T", " ").slice(0, 16))} UTC</div>
-        </div>`
-    )
-    .join("");
-  return `<div class="signoff-grid">${cards}</div>`;
+          <div class="signoff-card-name">${sig ? escapeHtml(sig.signatoryName) : "&nbsp;"}</div>
+          <div class="signoff-card-date"><span class="label">DATE</span>${sig ? escapeHtml(fmtSigned(sig.signedAt)) : "____________"}</div>
+        </div>`;
+}
+
+/** Maps recorded witness signatures onto the project's party boxes by role text; the rest are "Additional witnesses". */
+function renderApprovals(data: FatReportData): string {
+  const BOXES: { type: string; label: string; re: RegExp }[] = [
+    { type: "client", label: "CLIENT REPRESENTATIVE", re: /client|owner/i },
+    { type: "main_contractor", label: "MAIN CONTRACTOR", re: /main\s*contractor|\bepc\b/i },
+    { type: "subcontractor", label: "SUBCONTRACTOR", re: /sub\s*-?\s*contractor|vendor|supplier|manufacturer/i },
+    { type: "tpi_lab", label: "TPI / LAB", re: /tpi|third\s*party|\blab/i },
+  ];
+  const remaining = [...data.signatures];
+  const take = (re: RegExp): FatReportSignature | null => {
+    const i = remaining.findIndex((s) => re.test(s.role));
+    return i >= 0 ? remaining.splice(i, 1)[0] : null;
+  };
+  const parties = data.parties ?? [];
+  const cards: string[] = [];
+  const jags = take(/jags|inspector/i);
+  cards.push(approvalCard("JAGS INSPECTOR", "JAGS Assurance", jags));
+  for (const box of BOXES) {
+    const orgs = parties.filter((p) => p.partyType === box.type).map((p) => p.name);
+    const sig = take(box.re);
+    if (orgs.length === 0 && !sig) continue;
+    cards.push(approvalCard(box.label, orgs.join(", ") || null, sig));
+  }
+  const extra = remaining.length
+    ? `<div class="additional-witnesses"><div class="signoff-card-label">ADDITIONAL WITNESSES</div><div class="signoff-grid">${remaining
+        .map((s) => approvalCard(s.role, null, s))
+        .join("")}</div></div>`
+    : "";
+  return `<div class="signoff-grid">${cards.join("")}</div>${extra}`;
 }
 
 export function buildFatReportHtml(data: FatReportData): string {
@@ -219,7 +259,7 @@ export function buildFatReportHtml(data: FatReportData): string {
   }
   .info-grid div span.label { color: #666; display: block; font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .section { margin-bottom: 14px; }
+  .section { margin-bottom: 10px; }
   .section h2 { font-size: 12px; color: var(--burgundy); border-bottom: 1px solid var(--burgundy); padding-bottom: 3px; margin: 0 0 6px 0; }
 
   table.items-table { width: 100%; border-collapse: collapse; font-size: 9px; }
@@ -251,8 +291,12 @@ export function buildFatReportHtml(data: FatReportData): string {
 
   .conclusion { background: var(--off-white); border-left: 3px solid var(--burgundy); padding: 8px 10px; font-size: 10px; line-height: 1.4; }
 
-  .signoff-grid { display: flex; gap: 10px; flex-wrap: wrap; }
-  .signoff-card { flex: 1 1 0; min-width: 140px; border: 1px solid #ccc; border-top: 3px solid var(--burgundy); border-radius: 2px; padding: 6px 8px 8px 8px; background: #fff; }
+  .approvals { break-inside: avoid; page-break-inside: avoid; }
+  .approvals h2 { break-after: avoid; page-break-after: avoid; }
+  .signoff-card-org { font-size: 8.5px; color: #444; min-height: 11px; margin-bottom: 4px; }
+  .additional-witnesses { margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
+  .signoff-grid { display: flex; gap: 8px; flex-wrap: wrap; break-inside: avoid; page-break-inside: avoid; }
+  .signoff-card { flex: 1 1 28%; min-width: 140px; break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-top: 3px solid var(--burgundy); border-radius: 2px; padding: 6px 8px 8px 8px; background: #fff; }
   .signoff-card-label { font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px; color: var(--burgundy); margin-bottom: 4px; }
   .signature-img { height: 32px; max-width: 100%; object-fit: contain; }
   .signoff-card-line { border-bottom: 1px solid #999; margin: 2px 0 4px 0; }
@@ -264,7 +308,7 @@ export function buildFatReportHtml(data: FatReportData): string {
   .clearance-box { border: 1px solid var(--success); background: #eaf6ef; border-radius: 3px; padding: 8px 10px; font-size: 10px; line-height: 1.4; }
   .clearance-box.pending { border-color: var(--warning); background: #fdf6e3; }
 
-  .footer-note { margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc; font-size: 7.5px; color: #666; display: flex; justify-content: space-between; }
+  .footer-note { margin-top: 8px; padding-top: 6px; border-top: 1px solid #ccc; font-size: 7.5px; color: #666; display: flex; justify-content: space-between; }
 </style>
 </head>
 <body>
@@ -279,8 +323,9 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.assignmentNumber)}</dd>
-        <dt>REV</dt><dd>0</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>ISSUE DATE</dt><dd>${escapeHtml(data.assignmentDate ?? data.generatedAt.toISOString().slice(0, 10))}</dd>
+        <dt>STATUS</dt><dd>${data.status === "completed" ? "COMPLETED" : data.status === "draft" ? "DRAFT" : "NOT CLEARED"}</dd>
       </dl>
     </div>
   </div>
@@ -293,9 +338,8 @@ ${brandColorStyle(data.branding)}
     <div><span class="label">EQUIPMENT</span>${cell(data.equipmentDescription)}</div>
     <div><span class="label">MANUFACTURER / MODEL</span>${cell([data.manufacturer, data.model].filter(Boolean).join(" / ") || null)}</div>
     <div><span class="label">SERIAL / TAG</span>${cell(data.serialTag)}</div>
-    <div><span class="label">LOCATION</span>${cell(data.location)}</div>
+    <div><span class="label">LOCATION</span>${cell(formatLocation(data.location))}</div>
     <div><span class="label">STANDARD / SPEC</span>${cell(data.standardReference)}</div>
-    <div><span class="label">DATE</span>${cell(data.assignmentDate)}</div>
   </div>
 
   ${
@@ -325,9 +369,9 @@ ${brandColorStyle(data.branding)}
 
   ${data.notes ? `<div class="section"><h2>Notes</h2><p class="conclusion">${escapeHtml(data.notes)}</p></div>` : ""}
 
-  <div class="section">
-    <h2>Witnessed By</h2>
-    ${renderSignatures(data.signatures)}
+  <div class="section approvals">
+    <h2>Approvals</h2>
+    ${renderApprovals(data)}
   </div>
 
   <div class="footer-note">

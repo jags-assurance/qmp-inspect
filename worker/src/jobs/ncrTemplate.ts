@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { NCR_APPROVALS_CSS, renderNcrApprovalsHtml, type NcrApprovalBox } from "./ncrApprovals";
 // Renders the printable HTML for a single NCR (Non-Conformance Report) — the branded A4 dossier
 // page a client receives for one finding and its human close-out, matching the client's sample
 // dossier format ("4 / NCR and human close-out"). Puppeteer renders this to portrait A4 PDF in
@@ -33,6 +34,9 @@ export interface NcrPdfData {
   closedAt: string | null;
 
   generatedAt: Date;
+  /** The NCR's own date (raised date) — the document-control issue date. */
+  issueDate?: string | null;
+  approvals?: NcrApprovalBox[];
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
    * orgBranding.ts. Optional/undefined renders exactly as jags_led (today's unchanged branding).
@@ -121,6 +125,8 @@ function renderPoweredByFooter(data: NcrPdfData): string {
 export function buildNcrPdfHtml(data: NcrPdfData): string {
   const severityLabel = SEVERITY_LABEL[data.severity];
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  const issueDateLabel = (data.issueDate ?? "").slice(0, 10) || generatedAtLabel.slice(0, 10);
+  const statusLabel = data.status.toUpperCase();
   const projectSubline = [data.organizationName, data.projectName].filter(Boolean).join(" · ");
 
   const findingRows: [string, string | null][] = [
@@ -137,7 +143,6 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
     ["Corrective/preventive", data.preventiveAction],
     ["Verification", data.verificationNotes],
     ["Hold release", buildHoldRelease(data.closedByName, data.closedAt)],
-    ["Status", data.status.toUpperCase()],
   ];
 
   return `<!doctype html>
@@ -231,6 +236,7 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
     width: 32%; background: var(--off-white); font-weight: bold; color: var(--ink);
   }
 
+  ${NCR_APPROVALS_CSS}
   .footer-note {
     margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc;
     font-size: 7.5px; color: #666; display: flex; justify-content: space-between;
@@ -247,8 +253,9 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.ncrNumber)}</dd>
-        <dt>REV</dt><dd>0</dd>
-        <dt>GENERATED</dt><dd>${escapeHtml(generatedAtLabel)}</dd>
+        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>ISSUE DATE</dt><dd>${escapeHtml(issueDateLabel)}</dd>
+        <dt>STATUS</dt><dd>${escapeHtml(statusLabel)}</dd>
       </dl>
     </div>
   </div>
@@ -259,6 +266,8 @@ ${brandColorStyle(data.branding)}
   ${renderFieldValueTable("Finding", findingRows)}
 
   ${renderFieldValueTable("Close-out", closeOutRows)}
+
+  ${renderNcrApprovalsHtml(data.approvals ?? [])}
 
   <div class="footer-note">
     <span>Doc No. ${escapeHtml(data.ncrNumber)} &middot; Uncontrolled when printed &middot; jagsassurance.com</span>
