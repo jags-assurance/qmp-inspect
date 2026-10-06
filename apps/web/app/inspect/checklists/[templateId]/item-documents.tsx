@@ -4,7 +4,7 @@ import { useActionState, useRef, useState, useTransition } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { linkInspectionEvidenceDocumentAction, type LinkInspectionEvidenceDocumentState } from "@/lib/checklists/actions";
 import { uploadItemDocumentAction, unlinkItemDocumentAction } from "@/lib/checklists/item-document-actions";
-import { VaultFilePicker, type VaultPickerDocument } from "@/components/domain/vault-file-picker";
+import { VaultFilePicker, type VaultPickerDocument, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 
 export interface ItemLinkedDocument {
   linkId: string;
@@ -29,6 +29,7 @@ export function ItemDocuments({
   itemNumber,
   documents,
   vaultOptions,
+  vaultFolders = [],
   readOnly,
 }: {
   projectId: string;
@@ -38,6 +39,7 @@ export function ItemDocuments({
   documents: ItemLinkedDocument[];
   /** Approved vault files the executing party may pick from (already-linked ones are filtered out here). */
   vaultOptions: VaultPickerDocument[];
+  vaultFolders?: VaultPickerFolder[];
   readOnly: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -124,6 +126,8 @@ export function ItemDocuments({
               inspectionRecordId={inspectionRecordId}
               checklistItemId={checklistItemId}
               available={available}
+              projectId={projectId}
+              folders={vaultFolders}
               onDone={() => setOpen(false)}
             />
           ) : (
@@ -148,11 +152,15 @@ function VaultLinkForm({
   inspectionRecordId,
   checklistItemId,
   available,
+  projectId,
+  folders,
   onDone,
 }: {
   inspectionRecordId: string;
   checklistItemId: string;
   available: VaultPickerDocument[];
+  projectId: string;
+  folders: VaultPickerFolder[];
   onDone: () => void;
 }) {
   const [state, action, pending] = useActionState(async (prev: LinkInspectionEvidenceDocumentState, fd: FormData) => {
@@ -160,14 +168,14 @@ function VaultLinkForm({
     if (!r.error) onDone();
     return r;
   }, initial);
-  if (available.length === 0) {
+  if (available.length === 0 && folders.length === 0) {
     return <p className="text-sm text-muted">No approved files in the Document Vault are available to link. Use &ldquo;Upload new&rdquo; instead.</p>;
   }
   return (
     <form action={action} className="space-y-2">
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="checklist_item_id" value={checklistItemId} />
-      <VaultFilePicker documents={available} />
+      <VaultFilePicker documents={available} projectId={projectId} folders={folders} allowUpload allowPendingUploads />
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <button type="submit" disabled={pending} className={btn + " w-full bg-burgundy text-white disabled:opacity-60"}>
         {pending ? "Linking…" : "Link selected files"}

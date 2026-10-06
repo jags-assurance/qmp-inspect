@@ -80,14 +80,14 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     >(),
     supabase
       .from("inspection_records")
-      .select("id, checklist_template_id, overall_result, irns(id)")
+      .select("id, checklist_template_id, overall_result, irns(id, voided_at)")
       .eq("project_id", projectId)
       .returns<
         {
           id: string;
           checklist_template_id: string | null;
           overall_result: string | null;
-          irns: { id: string }[] | { id: string } | null;
+          irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
         }[]
       >(),
     // Observations are advisory notes, not nonconformances — they must not hold the book at "not ready".
@@ -127,8 +127,9 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
   const recordTotal = inspectionRecords?.length ?? 0;
+  // Voided IRNs do not count as issued.
   const recordReady = (inspectionRecords ?? []).filter((record) =>
-    Array.isArray(record.irns) ? record.irns.length > 0 : record.irns !== null
+    (Array.isArray(record.irns) ? record.irns : record.irns ? [record.irns] : []).some((i) => !i.voided_at)
   ).length;
 
   // Checklists: every checklist that has produced a COMPLETED inspection (an overall_result has

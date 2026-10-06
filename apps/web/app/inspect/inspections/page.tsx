@@ -43,29 +43,26 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
     .order("name")
     .returns<{ id: string; name: string }[]>();
 
-  // IRN status filter resolved to a record-id allowlist (bounded: one IRN per record).
-  let irnIdFilter: { mode: "in" | "notin"; ids: string[] } | null = null;
-  if (sp.irn === "issued" || sp.irn === "none" || sp.irn === "void") {
-    const { data: irnRows } = await supabase
-      .from(IRNS_TABLE)
-      .select("inspection_record_id, voided_at")
-      .limit(5000)
-      .returns<{ inspection_record_id: string; voided_at: string | null }[]>();
-    const all = irnRows ?? [];
-    if (sp.irn === "issued") irnIdFilter = { mode: "in", ids: all.filter((r) => !r.voided_at).map((r) => r.inspection_record_id) };
-    else if (sp.irn === "void") irnIdFilter = { mode: "in", ids: all.filter((r) => r.voided_at).map((r) => r.inspection_record_id) };
-    else irnIdFilter = { mode: "notin", ids: all.map((r) => r.inspection_record_id) };
-  }
+  // IRN status filter. issued/void use an embedded inner join on irns (no id lists in the URL).
+  // "none" (no live IRN) cannot be an inner join, so it is resolved over a bounded window of
+  // candidate record ids, checked against irns in chunks of 200 ids (see below).
+  const irnMode: "issued" | "void" | "none" | null =
+    sp.irn === "issued" || sp.irn === "none" || sp.irn === "void" ? sp.irn : null;
+  const NONE_WINDOW = 2000;
+  const CHUNK = 200;
 
-  const build = (head: boolean) => {
+  const build = (head: boolean, idsOnly = false) => {
+    const embed = irnMode === "issued" || irnMode === "void" ? ", irns!inner(voided_at)" : "";
     let query = supabase
       .from("inspection_records")
       .select(
-        head
-          ? "id"
-          : "id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users(full_name)",
+        head || idsOnly
+          ? `id${embed}`
+          : `id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users(full_name)${embed}`,
         head ? { count: "exact", head: true } : undefined
       );
+    if (irnMode === "issued") query = query.is("irns.voided_at", null);
+    else if (irnMode === "void") query = query.not("irns.voided_at", "is", null);
     if (sp.project) query = query.eq("project_id", sp.project);
     if (sp.result === "in_progress") query = query.is("overall_result", null);
     else if (sp.result === "pass" || sp.result === "fail" || sp.result === "partial") query = query.eq("overall_result", sp.result);
@@ -75,24 +72,54 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
       const safe = sp.q.replace(/[,()%*\\]/g, " ").trim();
       if (safe) query = query.or(`record_number.ilike.%${safe}%,activity.ilike.%${safe}%,itp_number.ilike.%${safe}%`);
     }
-    if (irnIdFilter) {
-      if (irnIdFilter.mode === "in") query = query.in("id", irnIdFilter.ids.length ? irnIdFilter.ids : [NO_MATCH]);
-      else if (irnIdFilter.ids.length) query = query.not("id", "in", `(${irnIdFilter.ids.join(",")})`);
-    }
     return query;
   };
 
   const offset = (page - 1) * INSPECTIONS_PAGE_SIZE;
-  const [{ count }, { data: records }] = await Promise.all([
-    build(true),
-    build(false)
+  let count: number | null = 0;
+  let recs: RecordQueryRow[] = [];
+  if (irnMode === "none") {
+    const { data: cand } = await build(false, true)
       .order("inspection_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .range(offset, offset + INSPECTIONS_PAGE_SIZE - 1)
-      .returns<RecordQueryRow[]>(),
-  ]);
+      .limit(NONE_WINDOW)
+      .returns<{ id: string }[]>();
+    const candIds = (cand ?? []).map((c) => c.id);
+    const live = new Set<string>();
+    for (let i = 0; i < candIds.length; i += CHUNK) {
+      const { data: liveRows } = await supabase
+        .from(IRNS_TABLE)
+        .select("inspection_record_id")
+        .in("inspection_record_id", candIds.slice(i, i + CHUNK))
+        .is("voided_at", null)
+        .returns<{ inspection_record_id: string }[]>();
+      for (const r of liveRows ?? []) live.add(r.inspection_record_id);
+    }
+    const noneIds = candIds.filter((cid) => !live.has(cid));
+    count = noneIds.length;
+    const pageIds = noneIds.slice(offset, offset + INSPECTIONS_PAGE_SIZE);
+    if (pageIds.length) {
+      const { data: pageRecs } = await supabase
+        .from("inspection_records")
+        .select("id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users(full_name)")
+        .in("id", pageIds)
+        .returns<RecordQueryRow[]>();
+      const order = new Map(pageIds.map((pid, i) => [pid, i]));
+      recs = (pageRecs ?? []).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    }
+  } else {
+    const [{ count: c }, { data: records }] = await Promise.all([
+      build(true),
+      build(false)
+        .order("inspection_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + INSPECTIONS_PAGE_SIZE - 1)
+        .returns<RecordQueryRow[]>(),
+    ]);
+    count = c;
+    recs = records ?? [];
+  }
 
-  const recs = records ?? [];
   const ids = recs.map((r) => r.id);
   const [{ data: irns }, { data: ncrs }] = ids.length
     ? await Promise.all([
@@ -110,7 +137,14 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
       ])
     : [{ data: [] }, { data: [] }];
 
-  const irnByRecord = new Map((irns ?? []).map((i) => [i.inspection_record_id, i]));
+  // Prefer the live IRN; otherwise show the latest voided one (rows arrive unordered, so rank here).
+  const irnByRecord = new Map<string, { inspection_record_id: string; irn_number: string; voided_at: string | null }>();
+  for (const i of irns ?? []) {
+    const cur = irnByRecord.get(i.inspection_record_id);
+    if (!cur || (cur.voided_at && !i.voided_at) || (cur.voided_at && i.voided_at && i.voided_at > cur.voided_at)) {
+      irnByRecord.set(i.inspection_record_id, i);
+    }
+  }
   const ncrCount = new Map<string, number>();
   for (const n of ncrs ?? []) ncrCount.set(n.inspection_record_id, (ncrCount.get(n.inspection_record_id) ?? 0) + 1);
 

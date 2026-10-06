@@ -251,7 +251,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       // always re-uploading the same file a second time. Joined to the folder for a readable label.
       supabase
         .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, title, document_reference, revision, storage_path, status, vault_folders!inner(project_id, name, folder_key)")
+        .select("id, title, document_reference, revision, storage_path, status, created_at, vault_folders!inner(project_id, name, folder_key)")
         .eq("vault_folders.project_id", itp.projects?.id ?? "")
         .order("title")
         .returns<
@@ -262,6 +262,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             revision: string;
             storage_path: string;
             status: string;
+            created_at: string;
             vault_folders: { name: string; folder_key: string } | null;
           }[]
         >(),
@@ -412,7 +413,16 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     storagePath: d.storage_path,
     folderName: d.vault_folders?.name ?? "Document Vault",
     status: d.status,
+    revision: d.revision,
+    createdAt: d.created_at,
   }));
+  const { data: rawVaultFolders } = await supabase
+    .from("vault_folders")
+    .select("id, folder_key, name")
+    .eq("project_id", itp.projects?.id ?? "")
+    .order("name")
+    .returns<{ id: string; folder_key: string; name: string }[]>();
+  const vaultFolders = (rawVaultFolders ?? []).map((f) => ({ id: f.id, key: f.folder_key, name: f.name }));
 
   // R103/R125: governing-drawing picker on AddItemForm only offers documents actually filed under
   // the "Drawings" vault folder, not the whole vault.
@@ -964,6 +974,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                                 itpItemId={item.id}
                                 documents={evidenceDocumentsByItem.get(item.id) ?? []}
                                 vaultDocuments={vaultDocuments}
+                                projectId={itp.projects?.id ?? ""}
+                                vaultFolders={vaultFolders}
                                 canLink={canExecuteItemEvidence(item.id)}
                               />
                             </ActivityEvidenceToggle>

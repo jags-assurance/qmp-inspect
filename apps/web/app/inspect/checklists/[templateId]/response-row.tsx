@@ -72,6 +72,7 @@ export function ResponseRow({
   photos,
   itemDocuments = [],
   vaultOptions = [],
+  vaultFolders = [],
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -121,6 +122,7 @@ export function ResponseRow({
   /** Documents linked to this item, and approved vault files available to link. */
   itemDocuments?: ItemLinkedDocument[];
   vaultOptions?: VaultPickerDocument[];
+  vaultFolders?: import("@/components/domain/vault-file-picker").VaultPickerFolder[];
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
@@ -478,6 +480,7 @@ export function ResponseRow({
           itemNumber={itemNumber}
           documents={itemDocuments}
           vaultOptions={vaultOptions}
+          vaultFolders={vaultFolders}
           readOnly={readOnly}
         />
 

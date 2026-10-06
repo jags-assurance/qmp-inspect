@@ -93,7 +93,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
   const latestReportPdf = await getLatestInspectionReportPdf(id);
 
-  const [{ data: responses }, { data: photos }, { data: irn }] = await Promise.all([
+  const [{ data: responses }, { data: photos }, { data: allIrns }] = await Promise.all([
     supabase
       .from(CHECKLIST_RESPONSES_TABLE)
       .select("checklist_item_id, result, comment, checklist_items(item_number, description, is_mandatory)")
@@ -112,8 +112,16 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       .from(IRNS_TABLE)
       .select("id, irn_number, release_date, voided_at, void_reason")
       .eq("inspection_record_id", id)
-      .maybeSingle<Pick<IrnRow, "id" | "irn_number" | "release_date" | "voided_at" | "void_reason">>(),
+      .order("voided_at", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: false })
+      .returns<Pick<IrnRow, "id" | "irn_number" | "release_date" | "voided_at" | "void_reason">[]>(),
   ]);
+
+  const irnList = allIrns ?? [];
+  const liveIrn = irnList.find((i) => !i.voided_at) ?? null;
+  // Only a live IRN is "the" IRN; voided ones are history and the issue form returns.
+  const irn = liveIrn;
+  const voidedIrns = irnList.filter((i) => i.voided_at);
 
   const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
 
@@ -383,10 +391,28 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           </div>
         ) : record.overall_result === "pass" || record.overall_result === "partial" ? (
           <div className="mt-2">
+            {voidedIrns.length > 0 && (
+              <p className="mb-2 text-sm text-muted">The previous IRN was voided; a replacement can be issued.</p>
+            )}
             <IssueIrnForm inspectionRecordId={record.id} />
           </div>
         ) : (
           <p className="mt-2 text-sm text-muted">An IRN can only be issued once this inspection has passed (or conditionally passed).</p>
+        )}
+        {voidedIrns.length > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-muted">IRN history</h3>
+            <ul className="mt-2 space-y-1 text-sm">
+              {voidedIrns.map((v) => (
+                <li key={v.id}>
+                  <span className="doc-id">{v.irn_number}</span> <Badge tone="danger">VOID</Badge>{" "}
+                  <span className="text-danger">
+                    {v.voided_at ? new Date(v.voided_at).toLocaleDateString() : ""}: {v.void_reason}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 

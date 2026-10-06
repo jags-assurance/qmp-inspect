@@ -1382,23 +1382,37 @@ export async function linkInspectionEvidenceDocumentAction(
 
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("itp_item_id, record_number, project_id, checklist_template_id")
+    .select("itp_item_id, record_number, project_id, checklist_template_id, overall_result")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "record_number" | "project_id" | "checklist_template_id">>();
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "record_number" | "project_id" | "checklist_template_id" | "overall_result">>();
   if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
     return { error: "Only JAGS staff or the party assigned to this activity can link evidence." };
+  }
+  if (record.overall_result) {
+    return { error: "This inspection is completed; evidence can't be changed — ask staff to re-open it." };
   }
 
   {
     const { data: linkDocs } = await supabase
       .from("vault_documents")
-      .select("id, status, vault_folders(project_id)")
+      .select("id, status, uploaded_by, vault_folders(project_id, folder_key)")
       .in("id", vaultDocumentIds)
-      .returns<{ id: string; status: string; vault_folders: { project_id: string } | null }[]>();
+      .returns<{ id: string; status: string; uploaded_by: string | null; vault_folders: { project_id: string; folder_key: string | null } | null }[]>();
     if ((linkDocs ?? []).length !== vaultDocumentIds.length || (linkDocs ?? []).some((d) => d.vault_folders?.project_id !== record.project_id)) {
       return { error: "One of the selected files isn't in this project's own Document Vault." };
     }
-    if ((linkDocs ?? []).some((d) => d.status !== "approved")) {
+    // Per-item exception (same rule as uploadItemDocumentAction): the executing party's OWN just-uploaded
+    // "for review" file in Checklists & Forms may be linked to a checklist item before it is approved.
+    const {
+      data: { user: linkUser },
+    } = await supabase.auth.getUser();
+    const pendingOk = (d: { status: string; uploaded_by: string | null; vault_folders: { folder_key: string | null } | null }) =>
+      !!checklistItemId &&
+      d.status === "for_review" &&
+      !!linkUser &&
+      d.uploaded_by === linkUser.id &&
+      d.vault_folders?.folder_key === "checklists_forms";
+    if ((linkDocs ?? []).some((d) => d.status !== "approved" && !pendingOk(d))) {
       return { error: "Only approved files can be linked as evidence — get the others approved in the Document Vault first." };
     }
   }
@@ -1451,12 +1465,17 @@ export async function unlinkInspectionEvidenceDocumentAction(formData: FormData)
 
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("itp_item_id, record_number, project_id, checklist_template_id")
+    .select("itp_item_id, record_number, project_id, checklist_template_id, overall_result")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "record_number" | "project_id" | "checklist_template_id">>();
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "record_number" | "project_id" | "checklist_template_id" | "overall_result">>();
   if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) return;
+  if (record.overall_result) return; // completed inspection: evidence is frozen
 
-  await supabase.from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE).delete().eq("id", linkId);
+  await supabase
+    .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
+    .delete()
+    .eq("id", linkId)
+    .eq("inspection_record_id", inspectionRecordId);
 
   try {
     const {

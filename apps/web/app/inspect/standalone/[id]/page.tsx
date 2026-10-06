@@ -82,6 +82,13 @@ export default async function StandaloneAssignmentDetailPage({
 
   const latestReportPdf = await getLatestFatReportPdf(id);
 
+  const { data: vaultFolderRows } = await supabase
+    .from("vault_folders")
+    .select("id, folder_key, name")
+    .eq("project_id", assignment.project_id)
+    .order("name")
+    .returns<{ id: string; folder_key: string; name: string }[]>();
+
   const [
     { data: measurements },
     { data: photos },
@@ -112,11 +119,11 @@ export default async function StandaloneAssignmentDetailPage({
         .returns<(StandaloneAssignmentEvidenceDocumentRow & { vault_documents: { title: string; document_reference: string | null } | null })[]>(),
       supabase
         .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, title, document_reference, vault_folders!inner(project_id, name)")
+        .select("id, title, document_reference, revision, created_at, storage_path, vault_folders!inner(project_id, name)")
         .eq("vault_folders.project_id", assignment.project_id)
         .eq("status", "approved")
         .order("title")
-        .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
+        .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
       supabase
         .from("standalone_assignment_punch_items" as any)
         .select("*")
@@ -205,8 +212,14 @@ export default async function StandaloneAssignmentDetailPage({
               title: d.title,
               documentReference: d.document_reference,
               folderName: d.vault_folders?.name ?? "Document Vault",
+              revision: d.revision,
+              status: "approved",
+              createdAt: d.created_at,
+              storagePath: d.storage_path,
             })
           )}
+          projectId={assignment.project_id}
+          vaultFolders={(vaultFolderRows ?? []).map((f) => ({ id: f.id, key: f.folder_key, name: f.name }))}
           punchItems={punchItems ?? []}
           signatures={signatures ?? []}
           linkedOpenPunchCount={linkedOpenPunchCount ?? 0}

@@ -63,6 +63,8 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     .from("irns")
     .select("id, irn_number, voided_at")
     .eq("inspection_record_id", record.id)
+    .is("voided_at", null)
+    .limit(1)
     .maybeSingle<{ id: string; irn_number: string; voided_at: string | null }>();
   let voidedIrnNumber: string | null = null;
   if (irn && !irn.voided_at) {

@@ -12,6 +12,7 @@ export interface UploadVaultDocumentState {
   error: string | null;
   documentNumber?: string;
   internalReference?: string | null;
+  documentId?: string;
 }
 
 export interface UploadVaultDocumentCoreParams {
@@ -199,7 +200,7 @@ export async function uploadVaultDocumentCore(
       .eq("id", document.id);
   }
 
-  return { error: null, documentNumber, internalReference };
+  return { error: null, documentNumber, internalReference, documentId: document.id };
 }
 
 /**

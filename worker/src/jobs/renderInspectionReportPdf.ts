@@ -179,6 +179,8 @@ export async function renderInspectionReportPdf(
     for (const u of (us ?? []) as { id: string; full_name: string | null }[]) if (u.full_name) signerNames.set(u.id, u.full_name);
   }
   const fmtDate = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : null);
+  const validSig = (s: string | null): string | null =>
+    s && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : null;
   const PARTY_BOXES: [string, string][] = [
     ["client", "CLIENT REPRESENTATIVE"],
     ["main_contractor", "MAIN CONTRACTOR"],
@@ -190,7 +192,7 @@ export async function renderInspectionReportPdf(
       label: "JAGS INSPECTOR",
       org: "JAGS Assurance",
       name: record.signed_by_name || inspector?.full_name || null,
-      signature: null,
+      signature: validSig(record.inspector_signature),
       date: record.signed_at ? fmtDate(record.signed_at) : record.overall_result ? record.inspection_date : null,
     },
   ];
@@ -204,7 +206,7 @@ export async function renderInspectionReportPdf(
     let date = fmtDate(so?.signed_off_at ?? null);
     if (!so && !witnessUsed && (record.witness_name || record.witness_signature) && (type === "client" || (type === "tpi_lab" && !parties.some((p) => p.party_type === "client")))) {
       name = record.witness_name;
-      signature = record.witness_signature;
+      signature = validSig(record.witness_signature);
       date = record.signed_at ? fmtDate(record.signed_at) : null;
       witnessUsed = true;
     }

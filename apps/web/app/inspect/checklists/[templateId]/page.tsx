@@ -222,7 +222,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // drives which slot renders.
   let hasEvidencePhoto = false;
   let evidenceDocuments: { id: string; vaultDocumentId: string; title: string; documentReference: string | null }[] = [];
-  let vaultDocumentOptions: { id: string; title: string; documentReference: string | null; folderName: string }[] = [];
+  let vaultDocumentOptions: import("@/components/domain/vault-file-picker").VaultPickerDocument[] = [];
+  let vaultFolderOptions: import("@/components/domain/vault-file-picker").VaultPickerFolder[] = [];
 
   const itemDocuments = new Map<string, import("./item-documents").ItemLinkedDocument[]>();
   let hasNcr = false;
@@ -258,12 +259,19 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .returns<{ id: string; vault_document_id: string; checklist_item_id: string | null; vault_documents: { title: string; document_reference: string | null; status: string } | null }[]>(),
       supabase
         .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, title, document_reference, vault_folders!inner(project_id, name)")
+        .select("id, title, document_reference, revision, status, created_at, storage_path, vault_folders!inner(project_id, name)")
         .eq("vault_folders.project_id", project.id)
-        .eq("status", "approved")
+        .in("status", ["approved", "for_review", "rejected"])
         .order("title")
-        .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
+        .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; status: string; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
     ]);
+    const { data: rawVaultFolders } = await supabase
+      .from("vault_folders")
+      .select("id, folder_key, name")
+      .eq("project_id", project.id)
+      .order("name")
+      .returns<{ id: string; folder_key: string; name: string }[]>();
+    vaultFolderOptions = (rawVaultFolders ?? []).map((f) => ({ id: f.id, key: f.folder_key, name: f.name }));
     for (const d of evidenceDocRows ?? []) {
       if (!d.checklist_item_id) continue;
       const list = itemDocuments.get(d.checklist_item_id) ?? [];
@@ -287,6 +295,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       title: d.title,
       documentReference: d.document_reference,
       folderName: d.vault_folders?.name ?? "Document Vault",
+      revision: d.revision,
+      status: d.status,
+      createdAt: d.created_at,
+      storagePath: d.storage_path,
     }));
     responseByItem = new Map(
       (responses ?? []).map((r) => [
@@ -566,6 +578,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             itemPhotos={itemPhotos}
             itemDocuments={itemDocuments}
             vaultOptions={vaultDocumentOptions}
+            vaultFolders={vaultFolderOptions}
             hasNcr={hasNcr}
             photoSlot={
               <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4">
@@ -585,6 +598,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
                       inspectionRecordId={draft.id}
                       documents={evidenceDocuments}
                       vaultDocuments={vaultDocumentOptions}
+                      projectId={project.id}
+                      vaultFolders={vaultFolderOptions}
                       canEdit={canExecute}
                     />
                   </div>

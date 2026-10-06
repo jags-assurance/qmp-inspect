@@ -82,6 +82,8 @@ export function AssignmentWorkspace({
   photoSignedUrls,
   evidenceDocuments,
   vaultDocuments,
+  projectId,
+  vaultFolders = [],
   punchItems,
   signatures,
   linkedOpenPunchCount,
@@ -96,6 +98,8 @@ export function AssignmentWorkspace({
   photoSignedUrls: Map<string, string>;
   evidenceDocuments: (StandaloneAssignmentEvidenceDocumentRow & { title: string; documentReference: string | null })[];
   vaultDocuments: VaultDocumentOption[];
+  projectId?: string;
+  vaultFolders?: { id: string; key: string; name: string }[];
   punchItems: StandaloneAssignmentPunchItemRow[];
   signatures: StandaloneAssignmentSignatureRow[];
   /** Open count on the project-wide punch_list_items row(s) this assignment's conditional-pass
@@ -265,6 +269,8 @@ export function AssignmentWorkspace({
             assignmentId={assignment.id}
             documents={evidenceDocuments}
             vaultDocuments={vaultDocuments}
+            projectId={projectId}
+            vaultFolders={vaultFolders}
             canEdit={canEdit}
           />
         )}

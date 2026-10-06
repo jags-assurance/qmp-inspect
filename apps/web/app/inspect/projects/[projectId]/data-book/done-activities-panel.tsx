@@ -27,9 +27,10 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
-type ActStatus = "not_started" | "inspected" | "signed_off" | "irn_issued";
+type ActStatus = "not_started" | "in_progress" | "inspected" | "signed_off" | "irn_issued";
 const STATUS_META: Record<ActStatus, { label: string; tone: "neutral" | "info" | "warning" | "success" }> = {
   not_started: { label: "Not started", tone: "neutral" },
+  in_progress: { label: "In progress", tone: "neutral" },
   inspected: { label: "Inspected", tone: "info" },
   signed_off: { label: "Signed off", tone: "warning" },
   irn_issued: { label: "IRN issued", tone: "success" },
@@ -52,8 +53,15 @@ interface InspRow {
   overall_result: string | null;
   itp_number: string;
   activity: string;
-  irns: { irn_number: string; voided_at: string | null }[] | null;
+  irns: IrnEmbed[] | IrnEmbed | null;
 }
+interface IrnEmbed {
+  irn_number: string;
+  voided_at: string | null;
+}
+const irnsOf = (r: { irns: IrnEmbed[] | IrnEmbed | null }): IrnEmbed[] =>
+  Array.isArray(r.irns) ? r.irns : r.irns ? [r.irns] : [];
+const liveIrnOf = (r: { irns: IrnEmbed[] | IrnEmbed | null }): IrnEmbed | null => irnsOf(r).find((i) => !i.voided_at) ?? null;
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-GB") : "—");
 
@@ -133,22 +141,33 @@ export async function DoneActivitiesPanel({
   ]);
 
   const items = itemsRes.data ?? [];
-  const insps = inspRes.data ?? [];
+  const allInsps = inspRes.data ?? [];
+  // Drafts (no overall_result) are not completed inspections.
+  const insps = allInsps.filter((r) => r.overall_result !== null);
 
   const inspByItem = new Map<string, InspRow>();
   for (const r of insps) if (!inspByItem.has(r.itp_item_id)) inspByItem.set(r.itp_item_id, r); // newest first
+  const draftItems = new Set(allInsps.filter((r) => r.overall_result === null).map((r) => r.itp_item_id));
 
   const activities = items.map((it) => {
     const rec = inspByItem.get(it.id) ?? null;
-    const irn = rec?.irns?.find((i) => !i.voided_at) ?? null;
+    const irn = rec ? liveIrnOf(rec) : null;
     const prog = it.activity_signoff_progress ?? [];
     const signed = prog.length > 0 && prog.every((p) => p.status === "signed_off" || p.status === "proceeded_no_response");
-    const st: ActStatus = irn ? "irn_issued" : signed ? "signed_off" : rec ? "inspected" : "not_started";
+    const st: ActStatus = irn
+      ? "irn_issued"
+      : signed
+        ? "signed_off"
+        : rec
+          ? "inspected"
+          : draftItems.has(it.id)
+            ? "in_progress"
+            : "not_started";
     return { it, rec, irn, st };
   });
 
-  const doneCount = activities.filter((a) => a.st !== "not_started").length;
-  const irnCount = insps.filter((r) => r.irns?.some((i) => !i.voided_at)).length;
+  const doneCount = activities.filter((a) => a.st !== "not_started" && a.st !== "in_progress").length;
+  const irnCount = insps.filter((r) => liveIrnOf(r)).length;
 
   // Filters (activities tab)
   const itpOptions = Array.from(new Map(items.map((i) => [i.itp_sections.itps.id, i.itp_sections.itps])).values()).sort((a, b) =>
@@ -312,8 +331,8 @@ export async function DoneActivitiesPanel({
           <>
             <Table head={<><Th>Record</Th><Th>ITP</Th><Th>Activity</Th><Th>Date</Th><Th>Result</Th><Th>IRN</Th></>}>
               {insps.slice(0, CAP).map((r) => {
-                const irn = r.irns?.find((i) => !i.voided_at);
-                const voided = !irn && (r.irns?.length ?? 0) > 0;
+                const irn = liveIrnOf(r);
+                const voided = !irn && irnsOf(r).length > 0;
                 return (
                   <tr key={r.id} className="align-top">
                     <td className="whitespace-nowrap px-2 py-2">

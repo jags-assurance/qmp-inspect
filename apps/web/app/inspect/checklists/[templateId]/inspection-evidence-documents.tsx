@@ -7,7 +7,7 @@ import {
   type LinkInspectionEvidenceDocumentState,
 } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
-import { VaultFilePicker } from "@/components/domain/vault-file-picker";
+import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 
 const initialState: LinkInspectionEvidenceDocumentState = { error: null };
 
@@ -16,6 +16,11 @@ export interface VaultDocumentOption {
   title: string;
   documentReference: string | null;
   folderName: string;
+  revision?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  fileType?: string | null;
+  storagePath?: string | null;
 }
 
 export interface InspectionEvidenceDocumentItem {
@@ -35,11 +40,15 @@ export function InspectionEvidenceDocuments({
   inspectionRecordId,
   documents,
   vaultDocuments,
+  projectId,
+  vaultFolders = [],
   canEdit,
 }: {
   inspectionRecordId: string;
   documents: InspectionEvidenceDocumentItem[];
   vaultDocuments: VaultDocumentOption[];
+  projectId?: string;
+  vaultFolders?: VaultPickerFolder[];
   canEdit: boolean;
 }) {
   const linkedIds = new Set(documents.map((d) => d.vaultDocumentId));
@@ -68,7 +77,12 @@ export function InspectionEvidenceDocuments({
         {documents.length === 0 && <li className="text-sm text-muted">No evidence documents linked yet.</li>}
       </ul>
       {canEdit && (
-        <LinkDocumentForm inspectionRecordId={inspectionRecordId} availableDocuments={availableDocuments} />
+        <LinkDocumentForm
+          inspectionRecordId={inspectionRecordId}
+          availableDocuments={availableDocuments}
+          projectId={projectId}
+          folders={vaultFolders}
+        />
       )}
     </div>
   );
@@ -77,14 +91,18 @@ export function InspectionEvidenceDocuments({
 function LinkDocumentForm({
   inspectionRecordId,
   availableDocuments,
+  projectId,
+  folders,
 }: {
   inspectionRecordId: string;
   availableDocuments: VaultDocumentOption[];
+  projectId?: string;
+  folders: VaultPickerFolder[];
 }) {
   const [state, formAction, pending] = useActionState(linkInspectionEvidenceDocumentAction, initialState);
   const [open, setOpen] = useState(false);
 
-  if (availableDocuments.length === 0) {
+  if (availableDocuments.length === 0 && (!projectId || folders.length === 0)) {
     return (
       <p className="mt-2 text-xs text-muted">
         Upload the evidence document to the project&rsquo;s Document Vault first, then link it here.
@@ -103,7 +121,7 @@ function LinkDocumentForm({
   return (
     <form action={formAction} className="mt-2 space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
-      <VaultFilePicker documents={availableDocuments} />
+      <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload />
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>

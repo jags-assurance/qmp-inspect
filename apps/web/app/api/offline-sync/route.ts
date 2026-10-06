@@ -27,7 +27,10 @@ export async function POST(request: Request) {
   try {
     switch (kind) {
       case "checklist_response": {
-        await saveChecklistResponseAction(formData);
+        const saved = await saveChecklistResponseAction(formData);
+        if (saved && typeof saved === "object" && "error" in saved && saved.error) {
+          return NextResponse.json({ ok: false, error: saved.error }, { status: 422 });
+        }
         return NextResponse.json({ ok: true });
       }
 

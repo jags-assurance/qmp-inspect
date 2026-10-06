@@ -70,14 +70,14 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
     supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<{ id: string; status: string; revision_needs_approval: boolean }[]>(),
     supabase
       .from("inspection_records")
-      .select("id, checklist_template_id, overall_result, irns(id)")
+      .select("id, checklist_template_id, overall_result, irns(id, voided_at)")
       .eq("project_id", projectId)
       .returns<
         {
           id: string;
           checklist_template_id: string | null;
           overall_result: string | null;
-          irns: { id: string }[] | { id: string } | null;
+          irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
         }[]
       >(),
     supabase.from("ncrs" as never).select("id, status").eq("project_id", projectId).neq("severity", "observation").returns<{ id: string; status: string }[]>(),
@@ -85,7 +85,7 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
       .from("punch_list_items" as never)
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
-      .eq("status", "open"),
+      .neq("status", "closed"),
     supabase
       .from("calibration_register" as never)
       .select("id, due_date")
@@ -115,7 +115,7 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
 
   const recordTotal = inspectionRecords?.length ?? 0;
   const recordReady = (inspectionRecords ?? []).filter((record) =>
-    Array.isArray(record.irns) ? record.irns.length > 0 : record.irns !== null
+    (Array.isArray(record.irns) ? record.irns : record.irns ? [record.irns] : []).some((i) => !i.voided_at)
   ).length;
 
   const { data: itpIdsForProject } = await supabase.from("itps").select("id").eq("project_id", projectId).in("status", ["approved", "client_accepted"]);
@@ -373,7 +373,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     overall_result: string | null;
     inspection_date: string;
     inspector_id: string | null;
-    irns: { irn_number: string }[] | { irn_number: string } | null;
+    irns: { irn_number: string; voided_at: string | null }[] | { irn_number: string; voided_at: string | null } | null;
   };
 
   const [itpRes, calRes, welderRes, matRes, ncrRes, punchRes, personnelRes, standaloneRes] =
@@ -513,7 +513,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
         .returns<SignoffRow[]>(),
       supabase
         .from("inspection_records")
-        .select("itp_item_id, record_number, overall_result, inspection_date, inspector_id, irns(irn_number)")
+        .select("itp_item_id, record_number, overall_result, inspection_date, inspector_id, irns(irn_number, voided_at)")
         .in("itp_item_id", itemIds)
         .order("created_at", { ascending: false })
         .returns<RecordRow[]>(),
@@ -572,7 +572,9 @@ async function gatherDataBookContent(projectId: string): Promise<{
       );
     const activities: DataBookPdfActivity[] = itpItems.map((item) => {
       const rec = latestRecord.get(item.id);
-      const irn = rec ? (Array.isArray(rec.irns) ? (rec.irns[0]?.irn_number ?? null) : (rec.irns?.irn_number ?? null)) : null;
+      const irn = rec
+        ? ((Array.isArray(rec.irns) ? rec.irns : rec.irns ? [rec.irns] : []).find((i) => !i.voided_at)?.irn_number ?? null)
+        : null;
       return {
         itemNumber: item.item_number,
         activity: item.activity,

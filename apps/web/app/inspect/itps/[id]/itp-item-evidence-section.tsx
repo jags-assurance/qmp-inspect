@@ -12,7 +12,7 @@ import {
   type EvidenceActionState,
 } from "@/lib/itps/evidence-actions";
 import { Button } from "@/components/ui/button";
-import { VaultFilePicker } from "@/components/domain/vault-file-picker";
+import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 import type { VaultDocumentOption } from "./expected-record-form";
 
 const initialState: EvidenceActionState = { error: null };
@@ -224,11 +224,15 @@ export function ItpItemEvidenceDocumentsSection({
   itpItemId,
   documents,
   vaultDocuments,
+  projectId,
+  vaultFolders = [],
   canLink,
 }: {
   itpItemId: string;
   documents: (ItpItemEvidenceDocumentRow & { title: string; documentReference: string | null; status: string | null })[];
   vaultDocuments: VaultDocumentOption[];
+  projectId?: string;
+  vaultFolders?: VaultPickerFolder[];
   canLink: boolean;
 }) {
   const linkedIds = new Set(documents.map((d) => d.vault_document_id));
@@ -236,8 +240,10 @@ export function ItpItemEvidenceDocumentsSection({
   // still "for review" or already superseded by a newer revision can't be picked, matching the
   // server-side check in linkItpItemEvidenceDocumentAction (this is the UX-level mirror of that
   // check, not the enforcement itself — see that action's own comment).
-  const availableDocuments = vaultDocuments.filter((d) => !linkedIds.has(d.id) && d.status === "approved");
+  // The browser lists every unlinked file but only approved ones are selectable (others show why).
+  const availableDocuments = vaultDocuments.filter((d) => !linkedIds.has(d.id));
   const hasUnlinkedNonApproved = vaultDocuments.some((d) => !linkedIds.has(d.id) && d.status !== "approved");
+  const canUpload = !!projectId && vaultFolders.length > 0;
 
   return (
     <div className="border-t border-border px-3 py-3">
@@ -266,7 +272,15 @@ export function ItpItemEvidenceDocumentsSection({
         })}
         {documents.length === 0 && <li className="text-xs text-muted">No evidence document linked yet.</li>}
       </ul>
-      {canLink && <LinkDocumentForm itpItemId={itpItemId} availableDocuments={availableDocuments} hasUnlinkedNonApproved={hasUnlinkedNonApproved} />}
+      {canLink && (
+        <LinkDocumentForm
+          itpItemId={itpItemId}
+          availableDocuments={availableDocuments}
+          hasUnlinkedNonApproved={hasUnlinkedNonApproved}
+          projectId={canUpload ? projectId : undefined}
+          folders={vaultFolders}
+        />
+      )}
     </div>
   );
 }
@@ -275,15 +289,19 @@ function LinkDocumentForm({
   itpItemId,
   availableDocuments,
   hasUnlinkedNonApproved,
+  projectId,
+  folders,
 }: {
   itpItemId: string;
   availableDocuments: VaultDocumentOption[];
   hasUnlinkedNonApproved: boolean;
+  projectId?: string;
+  folders: VaultPickerFolder[];
 }) {
   const [state, formAction, pending] = useActionState(linkItpItemEvidenceDocumentAction, initialState);
   const [open, setOpen] = useState(false);
 
-  if (availableDocuments.length === 0) {
+  if (availableDocuments.length === 0 && !projectId) {
     return (
       <p className="mt-2 text-[11px] text-muted">
         {hasUnlinkedNonApproved
@@ -304,7 +322,7 @@ function LinkDocumentForm({
   return (
     <form action={formAction} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
-      <VaultFilePicker documents={availableDocuments} />
+      <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload={!!projectId} />
       {state.error && <p className="text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>

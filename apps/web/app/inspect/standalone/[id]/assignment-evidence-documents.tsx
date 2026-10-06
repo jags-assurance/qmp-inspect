@@ -8,7 +8,7 @@ import {
   type StandaloneAssignmentEvidenceDocumentRow,
 } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
-import { VaultFilePicker } from "@/components/domain/vault-file-picker";
+import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 
 const initialState: LinkEvidenceDocumentState = { error: null };
 
@@ -17,6 +17,11 @@ export interface VaultDocumentOption {
   title: string;
   documentReference: string | null;
   folderName: string;
+  revision?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  fileType?: string | null;
+  storagePath?: string | null;
 }
 
 /**
@@ -29,11 +34,15 @@ export function AssignmentEvidenceDocuments({
   assignmentId,
   documents,
   vaultDocuments,
+  projectId,
+  vaultFolders = [],
   canEdit,
 }: {
   assignmentId: string;
   documents: (StandaloneAssignmentEvidenceDocumentRow & { title: string; documentReference: string | null })[];
   vaultDocuments: VaultDocumentOption[];
+  projectId?: string;
+  vaultFolders?: VaultPickerFolder[];
   canEdit: boolean;
 }) {
   const linkedIds = new Set(documents.map((d) => d.vault_document_id));
@@ -61,16 +70,33 @@ export function AssignmentEvidenceDocuments({
         ))}
         {documents.length === 0 && <li className="text-sm text-muted">No evidence documents linked yet.</li>}
       </ul>
-      {canEdit && <LinkDocumentForm assignmentId={assignmentId} availableDocuments={availableDocuments} />}
+      {canEdit && (
+        <LinkDocumentForm
+          assignmentId={assignmentId}
+          availableDocuments={availableDocuments}
+          projectId={projectId}
+          folders={vaultFolders}
+        />
+      )}
     </div>
   );
 }
 
-function LinkDocumentForm({ assignmentId, availableDocuments }: { assignmentId: string; availableDocuments: VaultDocumentOption[] }) {
+function LinkDocumentForm({
+  assignmentId,
+  availableDocuments,
+  projectId,
+  folders,
+}: {
+  assignmentId: string;
+  availableDocuments: VaultDocumentOption[];
+  projectId?: string;
+  folders: VaultPickerFolder[];
+}) {
   const [state, formAction, pending] = useActionState(linkAssignmentEvidenceDocumentAction, initialState);
   const [open, setOpen] = useState(false);
 
-  if (availableDocuments.length === 0) {
+  if (availableDocuments.length === 0 && (!projectId || folders.length === 0)) {
     return (
       <p className="mt-3 text-xs text-muted">
         Upload the evidence document to the project&rsquo;s Document Vault first, then link it here.
@@ -89,7 +115,7 @@ function LinkDocumentForm({ assignmentId, availableDocuments }: { assignmentId: 
   return (
     <form action={formAction} className="mt-3 space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
       <input type="hidden" name="assignment_id" value={assignmentId} />
-      <VaultFilePicker documents={availableDocuments} />
+      <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload />
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>

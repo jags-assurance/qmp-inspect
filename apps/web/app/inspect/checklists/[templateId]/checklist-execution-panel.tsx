@@ -42,6 +42,7 @@ export function ChecklistExecutionPanel({
   itemPhotos,
   itemDocuments,
   vaultOptions,
+  vaultFolders = [],
   hasNcr = false,
 }: {
   templateId: string;
@@ -84,6 +85,7 @@ export function ChecklistExecutionPanel({
   hasNcr?: boolean;
   itemDocuments: Map<string, ItemLinkedDocument[]>;
   vaultOptions: VaultPickerDocument[];
+  vaultFolders?: import("@/components/domain/vault-file-picker").VaultPickerFolder[];
   itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null; url: string | null }[]>;
 }) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set(initialResponses.keys()));
@@ -196,6 +198,7 @@ export function ChecklistExecutionPanel({
             photos={itemPhotos.get(item.id) ?? []}
             itemDocuments={itemDocuments.get(item.id) ?? []}
             vaultOptions={vaultOptions}
+            vaultFolders={vaultFolders}
           />
         ))}
         {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}

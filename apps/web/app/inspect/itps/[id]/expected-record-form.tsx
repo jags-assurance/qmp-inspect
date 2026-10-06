@@ -34,6 +34,8 @@ export interface VaultDocumentOption {
    *  file doesn't need prior approval to be attached); ItpItemEvidenceDocumentsSection's picker
    *  (evidence_type=2 completion evidence) filters to 'approved' only. */
   status: string;
+  revision?: string | null;
+  createdAt?: string | null;
 }
 
 /**
