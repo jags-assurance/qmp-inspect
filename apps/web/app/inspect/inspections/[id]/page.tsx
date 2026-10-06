@@ -15,6 +15,8 @@ import {
 } from "@/lib/checklists/db-types";
 import { PhotoGallery } from "./photo-gallery";
 import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
+import { ReopenInspectionForm } from "./reopen-inspection-form";
+import { listInspectionAmendments } from "@/lib/checklists/lifecycle-actions";
 import {
   getLatestInspectionReportPdf,
   getLatestIrnPdf,
@@ -113,6 +115,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   ]);
 
   const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
+
+  const amendments = await listInspectionAmendments(id);
 
   // Perf: one batched Storage call for every photo's signed URL instead of each <PhotoThumbnail>
   // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
@@ -374,6 +378,33 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           <p className="mt-2 text-sm text-muted">An IRN can only be issued once this inspection has passed (or conditionally passed).</p>
         )}
       </div>
+
+      {session.isJagsStaff && record.overall_result && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <ReopenInspectionForm inspectionRecordId={record.id} />
+        </div>
+      )}
+
+      {amendments.length > 0 && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-sm font-medium text-ink">Amendment history</h2>
+          <ul className="mt-2 divide-y divide-border text-sm">
+            {amendments.map((a) => (
+              <li key={a.id} className="py-2">
+                <p className="text-ink">
+                  Re-opened {new Date(a.amended_at).toLocaleString()} by {a.users?.full_name ?? "JAGS staff"}
+                </p>
+                <p className="text-muted">Reason: {a.reason}</p>
+                <p className="text-xs text-muted">
+                  Previous result: {(a.previous_overall_result ?? "—").toUpperCase()}
+                  {a.previous_signed_by_name ? ` · signed by ${a.previous_signed_by_name}` : ""}
+                  {a.previous_signed_at ? ` on ${new Date(a.previous_signed_at).toLocaleString()}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -99,7 +99,7 @@ export function StandaloneTable({ rows, totalCount }: { rows: StandaloneAssignme
       rows={rows}
       searchPlaceholder="Search assignments…"
       searchKeys={(row) => `${row.assignment_number} ${row.equipment_description}`}
-      emptyMessage="No standalone assignments yet."
+      emptyMessage="No standalone assignments match. Adjust the filters or create one with + New assignment."
       serverSearch={serverDriven ? { value: searchValue, onChange: setSearchValue } : undefined}
       pagination={
         serverDriven

@@ -54,6 +54,9 @@ export interface FatReportData {
   punchItems: FatReportPunchItem[];
   signatures: FatReportSignature[];
   generatedAt: Date;
+  /** Assignment lifecycle state - anything but 'completed' is rendered with a DRAFT watermark. */
+  status: "draft" | "conditional_open" | "completed";
+  clearance: { number: string | null; notes: string | null; clearedAt: string; clearedBy: string | null } | null;
 }
 
 const CONCLUSION_LABEL: Record<"pass" | "conditional_pass" | "fail", string> = {
@@ -151,10 +154,14 @@ function renderSignatures(signatures: FatReportSignature[]): string {
       (s) => `
         <div class="signoff-card">
           <div class="signoff-card-label">${escapeHtml(s.role)}</div>
-          <img class="signature-img" src="${s.signatureDataUri}" alt="${escapeHtml(s.signatoryName)} signature" />
+          ${
+            /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s.signatureDataUri)
+              ? `<img class="signature-img" src="${s.signatureDataUri}" alt="${escapeHtml(s.signatoryName)} signature" />`
+              : ""
+          }
           <div class="signoff-card-line"></div>
           <div class="signoff-card-name">${escapeHtml(s.signatoryName)}</div>
-          <div class="signoff-card-date"><span class="label">DATE</span>${escapeHtml(new Date(s.signedAt).toLocaleDateString())}</div>
+          <div class="signoff-card-date"><span class="label">SIGNED</span>${escapeHtml(new Date(s.signedAt).toISOString().replace("T", " ").slice(0, 16))} UTC</div>
         </div>`
     )
     .join("");
@@ -253,11 +260,16 @@ export function buildFatReportHtml(data: FatReportData): string {
   .signoff-card-date { font-size: 8px; color: #444; }
   .signoff-card-date span.label { color: #888; text-transform: uppercase; font-size: 7px; margin-right: 4px; }
 
+  .watermark { position: fixed; top: 40%; left: 0; right: 0; text-align: center; font-size: 90px; font-weight: bold; color: rgba(179, 38, 30, 0.12); transform: rotate(-30deg); z-index: 0; pointer-events: none; letter-spacing: 8px; }
+  .clearance-box { border: 1px solid var(--success); background: #eaf6ef; border-radius: 3px; padding: 8px 10px; font-size: 10px; line-height: 1.4; }
+  .clearance-box.pending { border-color: var(--warning); background: #fdf6e3; }
+
   .footer-note { margin-top: 16px; padding-top: 6px; border-top: 1px solid #ccc; font-size: 7.5px; color: #666; display: flex; justify-content: space-between; }
 </style>
 </head>
 <body>
 ${brandColorStyle(data.branding)}
+  ${data.status === "completed" ? "" : `<div class="watermark">${data.status === "draft" ? "DRAFT" : "NOT CLEARED"}</div>`}
   <div class="letterhead">
     <div class="brand">
       <div class="brand-mark">JA</div>
@@ -298,6 +310,17 @@ ${brandColorStyle(data.branding)}
 
   ${renderMeasurements(data.measurements)}
   ${renderPunchList(data.punchItems)}
+  ${
+    data.clearance
+      ? `<div class="section"><h2>Clearance</h2><div class="clearance-box">
+          <strong>CLEARANCE ISSUED${data.clearance.number ? " &mdash; " + escapeHtml(data.clearance.number) : ""}</strong><br/>
+          By ${cell(data.clearance.clearedBy)} on ${escapeHtml(new Date(data.clearance.clearedAt).toISOString().replace("T", " ").slice(0, 16))} UTC
+          ${data.clearance.notes ? `<br/>${escapeHtml(data.clearance.notes)}` : ""}
+        </div></div>`
+      : data.status === "conditional_open"
+        ? `<div class="section"><h2>Clearance</h2><div class="clearance-box pending"><strong>PENDING</strong> &mdash; conditional pass; clearance has not yet been issued. Outstanding punch items must be closed first.</div></div>`
+        : ""
+  }
   ${renderPhotos(data.photos)}
 
   ${data.notes ? `<div class="section"><h2>Notes</h2><p class="conclusion">${escapeHtml(data.notes)}</p></div>` : ""}

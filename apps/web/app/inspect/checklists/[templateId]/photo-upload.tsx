@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
-import { uploadOrQueuePhoto } from "@/lib/checklists/photo-upload-helpers";
+import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
 
 interface Photo {
   id: string;
@@ -63,15 +63,19 @@ export function PhotoUpload({
     setError(rejected > 0 ? `${rejected} file${rejected === 1 ? "" : "s"} skipped (images only, max 25 MB each).` : null);
 
     let failedCount = 0;
+    let rejectedMsg: string | null = null;
     for (const file of files) {
       try {
         await uploadOne(file);
-      } catch {
+      } catch (err) {
         failedCount += 1;
+        if (err instanceof PhotoRejectedError) rejectedMsg = err.message;
       }
     }
 
-    if (failedCount > 0) {
+    if (rejectedMsg) {
+      setError(rejectedMsg);
+    } else if (failedCount > 0) {
       setError(`Could not upload ${failedCount} of ${files.length} photo${files.length === 1 ? "" : "s"}. Check your connection and try again.`);
     }
 
@@ -84,7 +88,7 @@ export function PhotoUpload({
     <div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {photos.map((photo) => (
-          <PhotoThumbnail key={photo.id} url={photo.url} />
+          <PhotoThumbnail key={photo.id} url={photo.url} caption={photo.caption} photoId={photo.id} editable={!readOnly} />
         ))}
         {queuedPreviews.map((url, i) => (
           <div key={url} className="relative">

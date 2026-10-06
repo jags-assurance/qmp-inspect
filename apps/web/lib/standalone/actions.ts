@@ -74,7 +74,7 @@ async function requireStandaloneAccess(
   session: Session,
   supabase: SupabaseClient,
   assignmentId: string,
-  opts: { requireDraft?: boolean } = {}
+  opts: { requireDraft?: boolean; blockCompleted?: boolean } = {}
 ): Promise<{ error: string | null; projectId: string | null }> {
   const { data } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
@@ -85,10 +85,55 @@ async function requireStandaloneAccess(
   if (opts.requireDraft && data.status !== "draft") {
     return { error: "This assignment is finalized and locked. Records can no longer be added or changed.", projectId: data.project_id };
   }
+  if (opts.blockCompleted && data.status === "completed") {
+    return { error: "This assignment is completed and locked.", projectId: data.project_id };
+  }
   if (!(await canRunStandaloneAssignment(session, supabase, data.project_id))) {
     return { error: STAFF_ONLY_ERROR, projectId: data.project_id };
   }
   return { error: null, projectId: data.project_id };
+}
+
+/** Best-effort fan-out to the creator and every active party on the project (except the actor) -
+ *  never throws, never blocks the action that triggered it. */
+async function notifyAssignmentParties(
+  supabase: SupabaseClient,
+  params: { projectId: string; assignmentId: string; actorId: string; extraUserIds?: (string | null)[]; title: string; body: string }
+): Promise<void> {
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", params.projectId)
+      .maybeSingle<{ organization_id: string }>();
+    if (!project?.organization_id) return;
+    const { data: parties } = await supabase
+      .from("project_parties")
+      .select("user_id")
+      .eq("project_id", params.projectId)
+      .eq("is_active", true)
+      .returns<{ user_id: string | null }[]>();
+    const recipients = new Set<string>();
+    for (const id of [...(params.extraUserIds ?? []), ...(parties ?? []).map((p) => p.user_id)]) {
+      if (id && id !== params.actorId) recipients.add(id);
+    }
+    for (const recipientUserId of recipients) {
+      try {
+        await createNotification(supabase, {
+          organizationId: project.organization_id,
+          projectId: params.projectId,
+          recipientUserId,
+          title: params.title,
+          body: params.body,
+          link: `/inspect/standalone/${params.assignmentId}`,
+        });
+      } catch {
+        // one bad recipient must not stop the rest
+      }
+    }
+  } catch {
+    // best-effort
+  }
 }
 
 export type AssignmentType = "fat" | "witness_inspection" | "specific_test" | "pre_shipment";
@@ -203,6 +248,21 @@ export async function createAssignmentAction(
   const assignmentDate = String(formData.get("assignment_date") ?? "").trim();
   const disciplineId = String(formData.get("discipline_id") ?? "").trim();
 
+  if (equipmentDescription.length > 300 || manufacturer.length > 120 || model.length > 120 || serialTag.length > 120 || location.length > 200 || standardReference.length > 200) {
+    return { error: "One of the fields is too long. Shorten the equipment, serial, location or standard text." };
+  }
+  if (assignmentDate) {
+    const d = new Date(assignmentDate + "T00:00:00Z");
+    const now = Date.now();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate) || Number.isNaN(d.getTime())) return { error: "Assignment date is not a valid date." };
+    if (d.getTime() < now - 5 * 365 * 86400000 || d.getTime() > now + 2 * 365 * 86400000) {
+      return { error: "Assignment date looks wrong - it must be within the last 5 years and the next 2 years." };
+    }
+  }
+  if ((assignmentType === "fat" || assignmentType === "pre_shipment") && !serialTag) {
+    return { error: "Serial / tag number is required for a FAT or pre-shipment check so the report identifies the exact unit." };
+  }
+
   if (!projectId || !ASSIGNMENT_TYPES.includes(assignmentType) || !equipmentDescription) {
     return { error: "Project, assignment type and equipment description are required." };
   }
@@ -219,6 +279,13 @@ export async function createAssignmentAction(
 
   if (!project) {
     return { error: "Project not found." };
+  }
+  if (disciplineId) {
+    const { count: discCount } = await supabase
+      .from("master_disciplines")
+      .select("id", { count: "exact", head: true })
+      .eq("id", disciplineId);
+    if (!discCount) return { error: "Selected discipline not found." };
   }
 
   // Atomic per-project-per-type counter (next_document_sequence) — a plain count-then-insert would
@@ -492,8 +559,9 @@ export async function addPunchItemAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { blockCompleted: true });
   if (access.error) return { error: access.error };
+  if (description.length > 1000) return { error: "Description is too long (max 1000 characters)." };
 
   const { error } = await supabase.from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS).insert({
     assignment_id: assignmentId,
@@ -537,10 +605,10 @@ export async function togglePunchItemAction(formData: FormData) {
   const currentStatus = String(formData.get("current_status") ?? "").trim() as PunchItemStatus;
   const nextStatus: PunchItemStatus = currentStatus === "open" ? "closed" : "open";
 
-  if (!assignmentId || !punchItemId) return;
+  if (!assignmentId || !punchItemId || (currentStatus !== "open" && currentStatus !== "closed")) return;
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { blockCompleted: true });
   if (access.error) return;
 
   // Real gap the audit found: this single click was the ONLY gate between "conditional pass" and
@@ -554,10 +622,20 @@ export async function togglePunchItemAction(formData: FormData) {
     if (!canClose) return;
   }
 
-  await supabase
+  // Only applies if the row is still in the state the user saw: a double-click or stale tab can
+  // never flip it straight back.
+  const { data: toggled } = await supabase
     .from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS)
     .update({ status: nextStatus })
-    .eq("id", punchItemId);
+    .eq("id", punchItemId)
+    .eq("assignment_id", assignmentId)
+    .eq("status", currentStatus)
+    .select("id")
+    .returns<{ id: string }[]>();
+  if (!toggled || toggled.length === 0) {
+    revalidatePath(`/inspect/standalone/${assignmentId}`);
+    return;
+  }
 
   try {
     const { data: assignmentRow } = await supabase
@@ -644,11 +722,14 @@ export async function addSignatureAction(
   const signatoryName = String(formData.get("signatory_name") ?? "").trim();
   const signatureData = String(formData.get("signature_data") ?? "").trim();
 
+  if (role.length > 80 || signatoryName.length > 120) {
+    return { error: "Role or signatory name is too long." };
+  }
   if (!assignmentId || !role || !signatoryName || !signatureData) {
     return { error: "Role, signatory name and a captured signature are required." };
   }
 
-  if (!signatureData.startsWith("data:image/") || signatureData.length > 500_000) {
+  if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(signatureData) || signatureData.length > 500_000) {
     return { error: "The captured signature is invalid or too large. Clear it and sign again." };
   }
 
@@ -743,6 +824,19 @@ export async function finalizeAssignmentAction(
     return { error: "Capture at least one signature (e.g. the witness or vendor representative) before finalizing." };
   }
 
+  // A Conditional Pass or Fail must say why - the notes become the stated reason on the FAT report,
+  // so require them (saved on the Notes tab) before the record locks.
+  if (conclusion !== "pass") {
+    const { data: noteRow } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("notes")
+      .eq("id", assignmentId)
+      .maybeSingle<{ notes: string | null }>();
+    if (!noteRow?.notes?.trim()) {
+      return { error: `A ${conclusion === "fail" ? "Fail" : "Conditional Pass"} needs the reason recorded first. Add it on the Notes tab, then finalize.` };
+    }
+  }
+
   // A clean Pass cannot stand while a recorded measurement failed its tolerance.
   if (conclusion === "pass") {
     const { count: failedCount } = await supabase
@@ -808,38 +902,37 @@ export async function finalizeAssignmentAction(
   // R95-96: a conditional pass on a FAT/witness/etc. always leaves something to close out before
   // handover — feed the project-wide punch list, same as a failed ITP-driven inspection does.
   if (conclusion === "conditional_pass") {
-    await createPunchItemFromSource({
+    const punch = await createPunchItemFromSource({
       projectId: assignment.project_id,
       description: `Conditional pass: ${assignment.equipment_description} (${assignment.assignment_number})`,
       source: "fat_conditional_pass",
       sourceStandaloneAssignmentId: assignmentId,
     });
-  }
-
-  // Best-effort: whoever ran the assignment should hear about a conclusion that leaves follow-up
-  // work, without having to notice it themselves. Never blocks finalization, which already succeeded.
-  if ((conclusion === "conditional_pass" || conclusion === "fail") && assignment.created_by) {
-    try {
-      const { data: project } = await supabase
-        .from("projects")
-        .select("organization_id")
-        .eq("id", assignment.project_id)
-        .maybeSingle<{ organization_id: string }>();
-
-      if (project?.organization_id) {
-        await createNotification(supabase, {
-          organizationId: project.organization_id,
-          projectId: assignment.project_id,
-          recipientUserId: assignment.created_by,
-          title: "Standalone assignment needs follow-up",
-          body: `${assignment.equipment_description} (${assignment.assignment_number})`,
-          link: `/inspect/standalone/${assignmentId}`,
-        });
-      }
-    } catch {
-      // Notification delivery is best-effort — see comment above.
+    if (punch.error) {
+      // Without the linked punch item nothing would gate clearance - undo the finalize.
+      await supabase
+        .from(STANDALONE_ASSIGNMENTS)
+        .update({ status: "draft", conclusion: null, completed_at: null })
+        .eq("id", assignmentId)
+        .eq("status", "conditional_open");
+      revalidatePath(`/inspect/standalone/${assignmentId}`);
+      return { error: "Could not create the linked punch-list item, so the assignment was not finalized. Try again." };
     }
   }
+
+  await notifyAssignmentParties(supabase, {
+    projectId: assignment.project_id,
+    assignmentId,
+    actorId: session.userId,
+    extraUserIds: [assignment.created_by],
+    title:
+      conclusion === "fail"
+        ? "Standalone assignment failed"
+        : conclusion === "conditional_pass"
+          ? "Standalone assignment conditionally passed"
+          : "Standalone assignment passed",
+    body: `${assignment.equipment_description} (${assignment.assignment_number})`,
+  });
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
   return { error: null };
@@ -862,11 +955,28 @@ export async function issueClearanceAction(
   const session = await requireSession();
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const clearanceNotes = String(formData.get("clearance_notes") ?? "").trim();
   if (!assignmentId) return { error: "Missing assignment." };
+  if (clearanceNotes.length < 5) return { error: "Record a short clearance note (what was verified / how the punch items were closed)." };
+  if (clearanceNotes.length > 2000) return { error: "Clearance note is too long (max 2000 characters)." };
 
   const supabase = await createSupabaseServerClient();
   const access = await requireStandaloneAccess(session, supabase, assignmentId);
   if (access.error) return { error: access.error };
+
+  // Clearance is an independent sign-off: same authority bar as closing a punch item.
+  if (access.projectId && !isAdminStaff(session) && !(await hasPermission(session.userId, "close_punch_item", access.projectId))) {
+    return { error: "Only a JAGS admin or someone allowed to close punch items can issue clearance." };
+  }
+
+  const { count: localOpenCount } = await supabase
+    .from(STANDALONE_ASSIGNMENT_PUNCH_ITEMS)
+    .select("id", { count: "exact", head: true })
+    .eq("assignment_id", assignmentId)
+    .eq("status", "open");
+  if (localOpenCount) {
+    return { error: `${localOpenCount} punch item(s) on this assignment's own Punch List tab are still open - close them first.` };
+  }
 
   const { count: openCount, error: openCountError } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
@@ -883,13 +993,21 @@ export async function issueClearanceAction(
     };
   }
 
+  const nowIso = new Date().toISOString();
+  const { data: numRow } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .select("assignment_number")
+    .eq("id", assignmentId)
+    .maybeSingle<{ assignment_number: string }>();
   const { error, data } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
     .update({
       status: "completed",
-      completed_at: new Date().toISOString(),
+      completed_at: nowIso,
       cleared_by: session.userId,
-      cleared_at: new Date().toISOString(),
+      cleared_at: nowIso,
+      clearance_notes: clearanceNotes,
+      clearance_number: numRow ? numRow.assignment_number + "-CLR" : null,
     })
     .eq("id", assignmentId)
     .eq("status", "conditional_open")
@@ -918,6 +1036,14 @@ export async function issueClearanceAction(
         action: "clearance_issued",
         actorId: session.userId,
         summary: `Clearance issued for assignment ${assignmentRow.assignment_number}`,
+        changes: { clearance_notes: clearanceNotes },
+      });
+      await notifyAssignmentParties(supabase, {
+        projectId: assignmentRow.project_id,
+        assignmentId,
+        actorId: session.userId,
+        title: "Standalone assignment cleared",
+        body: `Clearance issued for ${assignmentRow.assignment_number}`,
       });
     }
   } catch {
@@ -950,7 +1076,7 @@ export async function linkAssignmentEvidenceDocumentAction(
   if (!assignmentId || vaultDocumentIds.length === 0) return { error: "Select at least one file to link." };
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { blockCompleted: true });
   if (access.error) return { error: access.error };
 
   const { data: assignmentProject } = await supabase
@@ -1016,10 +1142,10 @@ export async function unlinkAssignmentEvidenceDocumentAction(formData: FormData)
   if (!assignmentId || !linkId) return;
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId);
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { blockCompleted: true });
   if (access.error) return;
 
-  await supabase.from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS).delete().eq("id", linkId);
+  await supabase.from(STANDALONE_ASSIGNMENT_EVIDENCE_DOCUMENTS).delete().eq("id", linkId).eq("assignment_id", assignmentId);
 
   // Symmetry with linkAssignmentEvidenceDocumentAction, which already audits the link — found
   // missing in a self-review audit: removing evidence is just as much a "who did this" event as

@@ -31,6 +31,7 @@ export function ItemControls({
   evidenceType,
   disciplineId,
   noticeHoursOverride,
+  plannedDate = null,
   disciplines,
   isIssued,
 }: {
@@ -45,6 +46,7 @@ export function ItemControls({
   evidenceType: number;
   disciplineId: string | null;
   noticeHoursOverride: number | null;
+  plannedDate?: string | null;
   disciplines: { id: string; code: string; name: string }[];
   isIssued: boolean;
 }) {
@@ -236,6 +238,14 @@ export function ItemControls({
           defaultValue={noticeHoursOverride ?? ""}
           placeholder="Notice hrs"
           className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
+        />
+        <input
+          name="planned_date"
+          type="date"
+          defaultValue={plannedDate ?? ""}
+          aria-label="Planned date"
+          title="Planned date"
+          className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
       </div>
       <div className="flex items-center gap-1.5">

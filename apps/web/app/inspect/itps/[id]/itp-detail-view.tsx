@@ -194,6 +194,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       sort_order: number;
       discipline_id: string | null;
       notice_hours_override: number | null;
+      planned_date: string | null;
     }[];
   }
 
@@ -218,7 +219,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       supabase
         .from("itp_sections")
         .select(
-          "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, reference_spec, method, frequency, evidence_type, sort_order, discipline_id, notice_hours_override)"
+          "id, section_number, title, itp_items(id, item_number, activity, acceptance_criteria, reference_spec, method, frequency, evidence_type, sort_order, discipline_id, notice_hours_override, planned_date)"
         )
         .eq("itp_id", id)
         .order("section_number")
@@ -900,6 +901,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 disciplineCode: item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null,
                 // R25: per-activity override, checked before the level-keyed noticeHours map below.
                 noticeHoursOverride: item.notice_hours_override,
+                plannedDate: item.planned_date,
                 partyCells: (parties ?? []).map((party) => {
                   const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
                   const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;

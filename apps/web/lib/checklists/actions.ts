@@ -1,5 +1,6 @@
 "use server";
 
+import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
 import { requireSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -313,8 +314,30 @@ export async function addChecklistItemAction(
   if (!templateId || !itemNumber || !description) {
     return { error: "Item number and description are required." };
   }
+  if (itemNumber.length > 20) return { error: "Item number is too long (maximum 20 characters)." };
+  if (description.length > 500) return { error: "Description is too long (maximum 500 characters)." };
 
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
+
+  const { data: tpl } = await supabase
+    .from(CHECKLIST_TEMPLATES_TABLE)
+    .select("itp_item_id")
+    .eq("id", templateId)
+    .maybeSingle<{ itp_item_id: string }>();
+  if (!tpl) return { error: "Checklist not found." };
+  if (!session.isJagsStaff && !(await canExecuteItpItem(supabase, tpl.itp_item_id))) {
+    return { error: "Only JAGS staff or the party assigned to this activity can add checklist items." };
+  }
+  // Once an inspection record exists for this checklist, its item set is frozen — adding an item
+  // would silently change what "every item answered" means for a record already in progress or signed.
+  const { count: usedCount } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("checklist_template_id", templateId);
+  if (usedCount) {
+    return { error: "This checklist is already in use by an inspection record — items can no longer be added." };
+  }
 
   const { data: siblings } = await supabase
     .from(CHECKLIST_ITEMS_TABLE)
@@ -371,6 +394,10 @@ export async function addChecklistItemAction(
 
 export interface SaveChecklistResponseResult {
   error: string | null;
+  /** Set when another user changed this answer since the client loaded it (offer "Reload"). */
+  conflict?: { by: string | null; at: string | null };
+  /** The row's new updated_at, to pass back as expected_updated_at on the next save. */
+  updatedAt?: string;
 }
 
 /**
@@ -389,6 +416,8 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   const calibrationAssetId = String(formData.get("calibration_asset_id") ?? "").trim();
   const materialId = String(formData.get("material_id") ?? "").trim();
   const welderId = String(formData.get("welder_id") ?? "").trim();
+  const noNcrReason = String(formData.get("no_ncr_reason") ?? "").trim().slice(0, 500);
+  const expectedUpdatedAt = String(formData.get("expected_updated_at") ?? "").trim();
 
   if (!inspectionRecordId || !checklistItemId || !result) {
     return { error: "Missing required fields — could not save your response." };
@@ -472,21 +501,87 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     }
   }
 
-  const { error } = await supabase.from(CHECKLIST_RESPONSES_TABLE).upsert(
-    {
-      inspection_record_id: inspectionRecordId,
-      checklist_item_id: checklistItemId,
-      result,
-      comment: comment || null,
-      calibration_asset_id: calibrationAssetId || null,
-      material_id: materialId || null,
-      welder_id: welderId || null,
-    },
-    { onConflict: "inspection_record_id,checklist_item_id" }
-  );
+  const payload = {
+    inspection_record_id: inspectionRecordId,
+    checklist_item_id: checklistItemId,
+    result,
+    comment: comment || null,
+    calibration_asset_id: calibrationAssetId || null,
+    material_id: materialId || null,
+    welder_id: welderId || null,
+    no_ncr_reason: result === "no" ? noNcrReason || null : null,
+  };
 
-  if (error) {
-    return { error: "Could not save your response. Check your connection and try again." };
+  // Concurrent-edit detection: the client passes the updated_at it last saw ("none" = it saw no
+  // row). Absent (offline replay / older clients) = last write wins, as before.
+  const { data: existing } = await supabase
+    .from(CHECKLIST_RESPONSES_TABLE)
+    .select("id, updated_at, updated_by")
+    .eq("inspection_record_id", inspectionRecordId)
+    .eq("checklist_item_id", checklistItemId)
+    .maybeSingle<{ id: string; updated_at: string; updated_by: string | null }>();
+
+  const conflictResult = async (): Promise<SaveChecklistResponseResult> => {
+    let by: string | null = null;
+    const { data: latest } = await supabase
+      .from(CHECKLIST_RESPONSES_TABLE)
+      .select("updated_at, updated_by")
+      .eq("inspection_record_id", inspectionRecordId)
+      .eq("checklist_item_id", checklistItemId)
+      .maybeSingle<{ updated_at: string; updated_by: string | null }>();
+    if (latest?.updated_by) {
+      const { data: u } = await supabase.from("users").select("full_name").eq("id", latest.updated_by).maybeSingle<{ full_name: string }>();
+      by = u?.full_name ?? null;
+    }
+    return {
+      error: `This answer was changed by ${by ?? "someone else"}${latest?.updated_at ? ` at ${new Date(latest.updated_at).toUTCString()}` : ""} since you opened it. Reload to see their version before overwriting.`,
+      conflict: { by, at: latest?.updated_at ?? null },
+    };
+  };
+
+  if (expectedUpdatedAt) {
+    if (expectedUpdatedAt === "none" ? !!existing : !existing || new Date(existing.updated_at).getTime() !== new Date(expectedUpdatedAt).getTime()) {
+      return conflictResult();
+    }
+  }
+
+  let saved: { updated_at: string } | null = null;
+  if (existing) {
+    // Conditional on the row being unchanged since we read it, closing the read-then-write race.
+    const { data: upd, error: updErr } = await supabase
+      .from(CHECKLIST_RESPONSES_TABLE)
+      .update(payload)
+      .eq("id", existing.id)
+      .eq("updated_at", existing.updated_at)
+      .select("updated_at")
+      .returns<{ updated_at: string }[]>();
+    if (updErr) return { error: "Could not save your response. Check your connection and try again." };
+    if (!upd || upd.length === 0) {
+      if (expectedUpdatedAt) return conflictResult();
+      // Last-write-wins path (no expectation supplied): retry once unconditionally.
+      const { data: again, error: againErr } = await supabase
+        .from(CHECKLIST_RESPONSES_TABLE)
+        .update(payload)
+        .eq("id", existing.id)
+        .select("updated_at")
+        .returns<{ updated_at: string }[]>();
+      if (againErr) return { error: "Could not save your response. Check your connection and try again." };
+      saved = again?.[0] ?? null;
+    } else {
+      saved = upd[0];
+    }
+  } else {
+    const { data: ins, error: insErr } = await supabase
+      .from(CHECKLIST_RESPONSES_TABLE)
+      .insert(payload)
+      .select("updated_at")
+      .returns<{ updated_at: string }[]>();
+    if (insErr) {
+      // Unique violation = someone created it between our read and write.
+      if (insErr.code === "23505" && expectedUpdatedAt) return conflictResult();
+      return { error: "Could not save your response. Check your connection and try again." };
+    }
+    saved = ins?.[0] ?? null;
   }
 
   // Deliberately no revalidatePath here: ResponseRow already reflects the save optimistically via
@@ -495,7 +590,7 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   // etc.), it made useTransition's isPending (the "Saving…" label) stay true for seconds after the
   // actual write had long since completed, reading as stuck to a real user. Other viewers still pick
   // up the change via the page's own RealtimeRefresh subscription on checklist_responses.
-  return { error: null };
+  return { error: null, updatedAt: saved?.updated_at };
 }
 
 export interface StartInspectionState {
@@ -783,6 +878,36 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const validationError = validateChecklistItemsAnswered(itemIds, responseByItem);
   if (validationError) {
     return { error: validationError };
+  }
+
+  // Every "No" must be traced to a raised NCR/observation on this inspection, or carry an explicit
+  // written reason for why none was raised. Clear error (also surfaced for queued offline completions).
+  const noItemIds = [...responseByItem.entries()].filter(([, r]) => r === "no").map(([id]) => id);
+  if (noItemIds.length > 0) {
+    const { count: ncrCount } = await supabase
+      .from("ncrs")
+      .select("id", { count: "exact", head: true })
+      .eq("inspection_record_id", inspectionRecordId);
+    if (!ncrCount) {
+      const { data: noRows } = await supabase
+        .from(CHECKLIST_RESPONSES_TABLE)
+        .select("checklist_item_id, no_ncr_reason")
+        .eq("inspection_record_id", inspectionRecordId)
+        .eq("result", "no")
+        .returns<{ checklist_item_id: string; no_ncr_reason: string | null }[]>();
+      const lacking = (noRows ?? []).filter((r) => (r.no_ncr_reason ?? "").trim().length < 10);
+      if (lacking.length > 0) {
+        const { data: itemRows } = await supabase
+          .from(CHECKLIST_ITEMS_TABLE)
+          .select("id, item_number")
+          .in("id", lacking.map((r) => r.checklist_item_id))
+          .returns<{ id: string; item_number: string }[]>();
+        const nums = (itemRows ?? []).map((i) => i.item_number).join(", ");
+        return {
+          error: `Raise an NCR/observation for the "No" answer(s) on item ${nums}, or record a written reason (at least 10 characters) for why none is needed, before completing.`,
+        };
+      }
+    }
   }
 
   const results = [...responseByItem.values()];
@@ -1142,6 +1267,7 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     }
   }
 
+  await notifyAfterIrnIssued(supabase, inspectionRecordId, `${record.itp_number}-IRN-${seq}`);
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
   return { error: null };
 }
@@ -1201,6 +1327,7 @@ export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): P
     // Best-effort audit.
   }
 
+  await notifyAfterIrnVoided(supabase, irn.inspection_record_id, irn.irn_number, reason);
   revalidatePath(`/inspect/inspections/${irn.inspection_record_id}`);
   return { error: null };
 }
@@ -1328,4 +1455,142 @@ export async function unlinkInspectionEvidenceDocumentAction(formData: FormData)
   }
 
   if (record.checklist_template_id) revalidatePath(`/inspect/checklists/${record.checklist_template_id}`);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Inspection photo actions (save with server-side validation, caption edit, delete)
+// ---------------------------------------------------------------------------------------------
+
+export interface PhotoActionResult {
+  error: string | null;
+}
+
+const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
+
+async function loadOpenInspectionForPhoto(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  inspectionRecordId: string
+): Promise<{ error: string } | { record: Pick<InspectionRecordRow, "itp_item_id" | "project_id" | "overall_result" | "checklist_template_id"> }> {
+  const { data: record } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("itp_item_id, project_id, overall_result, checklist_template_id")
+    .eq("id", inspectionRecordId)
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "project_id" | "overall_result" | "checklist_template_id">>();
+  if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
+    return { error: "You don't have permission to change photos on this inspection." };
+  }
+  if (record.overall_result) return { error: "This inspection is completed — photos can no longer be changed." };
+  return { record };
+}
+
+/** Records an already-uploaded photo, validating the storage path and object metadata server-side. */
+export async function saveInspectionPhotoAction(input: {
+  inspectionRecordId: string;
+  storagePath: string;
+  checklistItemId?: string;
+}): Promise<PhotoActionResult> {
+  const supabase = await createSupabaseServerClient();
+  const loaded = await loadOpenInspectionForPhoto(supabase, input.inspectionRecordId);
+  if ("error" in loaded) return loaded;
+  const { record } = loaded;
+
+  const prefix = `${record.project_id}/${input.inspectionRecordId}/`;
+  if (!input.storagePath.startsWith(prefix) || input.storagePath.includes("..")) {
+    return { error: "That photo's storage path does not belong to this inspection." };
+  }
+  const folder = input.storagePath.slice(0, input.storagePath.lastIndexOf("/"));
+  const fileName = input.storagePath.slice(input.storagePath.lastIndexOf("/") + 1);
+  const { data: objs } = await supabase.storage.from("inspection-evidence").list(folder, { search: fileName, limit: 5 });
+  const obj = (objs ?? []).find((o) => o.name === fileName);
+  if (!obj) return { error: "The uploaded file could not be found in storage." };
+  const meta = (obj.metadata ?? {}) as { size?: number; mimetype?: string };
+  if (typeof meta.size === "number" && meta.size > MAX_PHOTO_BYTES) {
+    await supabase.storage.from("inspection-evidence").remove([input.storagePath]);
+    return { error: "Photo is too large (maximum 25 MB)." };
+  }
+  if (meta.mimetype && !meta.mimetype.startsWith("image/")) {
+    await supabase.storage.from("inspection-evidence").remove([input.storagePath]);
+    return { error: "Only image files can be attached as photo evidence." };
+  }
+  if (input.checklistItemId) {
+    const { data: item } = await supabase
+      .from(CHECKLIST_ITEMS_TABLE)
+      .select("id")
+      .eq("id", input.checklistItemId)
+      .eq("template_id", record.checklist_template_id ?? "")
+      .maybeSingle<{ id: string }>();
+    if (!item) return { error: "That checklist item was not found." };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert({
+    inspection_record_id: input.inspectionRecordId,
+    storage_path: input.storagePath,
+    uploaded_by: user?.id ?? null,
+    checklist_item_id: input.checklistItemId ?? null,
+  });
+  if (error) return { error: "Could not record the photo." };
+  return { error: null };
+}
+
+export async function updateInspectionPhotoCaptionAction(photoId: string, caption: string): Promise<PhotoActionResult> {
+  const supabase = await createSupabaseServerClient();
+  const text = caption.trim();
+  if (text.length > 300) return { error: "Caption is too long (maximum 300 characters)." };
+  const { data: photo } = await supabase
+    .from(INSPECTION_PHOTOS_TABLE)
+    .select("id, inspection_record_id")
+    .eq("id", photoId)
+    .maybeSingle<{ id: string; inspection_record_id: string }>();
+  if (!photo) return { error: "Photo not found." };
+  const loaded = await loadOpenInspectionForPhoto(supabase, photo.inspection_record_id);
+  if ("error" in loaded) return loaded;
+  const { error } = await supabase.from(INSPECTION_PHOTOS_TABLE).update({ caption: text || null }).eq("id", photoId);
+  if (error) return { error: "Could not save the caption." };
+  revalidatePath(`/inspect/inspections/${photo.inspection_record_id}`);
+  return { error: null };
+}
+
+export async function deleteInspectionPhotoAction(photoId: string): Promise<PhotoActionResult> {
+  const supabase = await createSupabaseServerClient();
+  const { data: photo } = await supabase
+    .from(INSPECTION_PHOTOS_TABLE)
+    .select("id, inspection_record_id, storage_path")
+    .eq("id", photoId)
+    .maybeSingle<{ id: string; inspection_record_id: string; storage_path: string }>();
+  if (!photo) return { error: "Photo not found." };
+  const loaded = await loadOpenInspectionForPhoto(supabase, photo.inspection_record_id);
+  if ("error" in loaded) return loaded;
+  const { record } = loaded;
+
+  const { error } = await supabase.from(INSPECTION_PHOTOS_TABLE).delete().eq("id", photoId);
+  if (error) return { error: "Could not delete the photo." };
+  await supabase.storage.from("inspection-evidence").remove([photo.storage_path]);
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", record.project_id)
+      .maybeSingle<{ organization_id: string }>();
+    if (proj?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: proj.organization_id,
+        projectId: record.project_id,
+        entityType: "inspection_record",
+        entityId: photo.inspection_record_id,
+        action: "photo_deleted",
+        actorId: user?.id ?? null,
+        summary: `Evidence photo deleted (${photo.storage_path.split("/").pop()})`,
+      });
+    }
+  } catch {
+    // Best-effort audit.
+  }
+  return { error: null };
 }

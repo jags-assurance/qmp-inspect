@@ -4,6 +4,8 @@ import { requireSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
 import { PageGuide } from "@/components/domain/page-guide";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
+import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
@@ -26,14 +28,15 @@ interface TemplateRow {
     id: string;
     item_number: string;
     activity: string;
-    itp_sections: { itps: { id: string; itp_number: string; status: string; projects: { id: string; name: string; enforce_hold_blocks_start: boolean } | null } | null } | null;
+    planned_date: string | null;
+    itp_sections: { itps: { id: string; itp_number: string; status: string; projects: { id: string; name: string; organization_id: string; enforce_hold_blocks_start: boolean } | null } | null } | null;
   } | null;
 }
 
 export default async function StartWorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; project?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string }>;
 }) {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
@@ -41,13 +44,14 @@ export default async function StartWorkPage({
   const q = (sp.q ?? "").trim().toLowerCase();
   const statusFilter = (["not_started", "in_progress", "completed"] as const).find((k) => k === sp.status) ?? "";
   const projectFilter = sp.project ?? "";
+  const dueFilter = (["overdue", "soon", "held"] as const).find((k) => k === sp.due) ?? "";
 
   const supabase = await createSupabaseServerClient();
   const [{ data: templates }, { data: records }] = await Promise.all([
     supabase
       .from(CHECKLIST_TEMPLATES_TABLE)
       .select(
-        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, itp_sections(itps(id, itp_number, status, projects(id, name, enforce_hold_blocks_start))))"
+        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))"
       )
       .limit(1000)
       .returns<TemplateRow[]>(),
@@ -65,6 +69,34 @@ export default async function StartWorkPage({
     else if (cur !== "in_progress") stateByTemplate.set(r.checklist_template_id, "completed");
   }
 
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const soonDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+  const soonStr = `${soonDate.getFullYear()}-${String(soonDate.getMonth() + 1).padStart(2, "0")}-${String(soonDate.getDate()).padStart(2, "0")}`;
+
+  // ONE batched query for "awaiting hold release": pending/notified sign-off rows for the shown
+  // activities, intersected with the organisation's blocking level codes (one more small query).
+  const itemIds = [...new Set((templates ?? []).map((t) => t.itp_item_id))];
+  const [{ data: openProgress }, { data: blockingLevels }] = await Promise.all([
+    itemIds.length
+      ? supabase
+          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+          .select("itp_item_id, intervention")
+          .in("itp_item_id", itemIds)
+          .in("status", ["pending", "notified"])
+          .limit(10000)
+          .returns<{ itp_item_id: string; intervention: string }[]>()
+      : Promise.resolve({ data: [] as { itp_item_id: string; intervention: string }[] }),
+    supabase
+      .from(INTERVENTION_LEVEL_TYPES_TABLE)
+      .select("organization_id, code")
+      .eq("is_blocking", true)
+      .returns<{ organization_id: string; code: string }[]>(),
+  ]);
+  const blockingKeys = new Set((blockingLevels ?? []).map((l) => `${l.organization_id}:${l.code}`));
+  const openByItem = new Map<string, string[]>();
+  for (const pr of openProgress ?? []) openByItem.set(pr.itp_item_id, [...(openByItem.get(pr.itp_item_id) ?? []), pr.intervention]);
+
   const activities = (templates ?? [])
     .filter((t) => {
       const st = t.itp_items?.itp_sections?.itps?.status;
@@ -78,15 +110,28 @@ export default async function StartWorkPage({
       itpNumber: t.itp_items!.itp_sections!.itps!.itp_number,
       projectId: t.itp_items!.itp_sections!.itps!.projects?.id ?? "",
       projectName: t.itp_items!.itp_sections!.itps!.projects?.name ?? "—",
+      plannedDate: t.itp_items!.planned_date,
+      awaitingHold: (openByItem.get(t.itp_item_id) ?? []).some((code) =>
+        blockingKeys.has(`${t.itp_items!.itp_sections!.itps!.projects?.organization_id ?? ""}:${code}`)
+      ),
       status: stateByTemplate.get(t.id) ?? ("not_started" as StatusKey),
     }));
   const projectOptions = [...new Map(activities.map((a) => [a.projectId, a.projectName])).entries()];
   const rank: Record<StatusKey, number> = { in_progress: 0, not_started: 1, completed: 2 };
-  const visible = activities
+  const withFlags = activities.map((a) => ({
+    ...a,
+    overdue: !!a.plannedDate && a.plannedDate < todayStr && a.status !== "completed",
+    dueSoon: !!a.plannedDate && a.plannedDate >= todayStr && a.plannedDate <= soonStr && a.status !== "completed",
+  }));
+  const overdueCount = withFlags.filter((a) => a.overdue).length;
+  const dueSoonCount = withFlags.filter((a) => a.dueSoon).length;
+  const heldCount = withFlags.filter((a) => a.awaitingHold && a.status !== "completed").length;
+  const visible = withFlags
+    .filter((a) => !dueFilter || (dueFilter === "overdue" ? a.overdue : dueFilter === "soon" ? a.dueSoon : a.awaitingHold && a.status !== "completed"))
     .filter((a) => !statusFilter || a.status === statusFilter)
     .filter((a) => !projectFilter || a.projectId === projectFilter)
     .filter((a) => !q || `${a.activity} ${a.itpNumber} ${a.checklistNumber} ${a.projectName}`.toLowerCase().includes(q))
-    .sort((a, b) => rank[a.status] - rank[b.status])
+    .sort((a, b) => Number(b.overdue) - Number(a.overdue) || rank[a.status] - rank[b.status] || (a.plannedDate ?? "9999").localeCompare(b.plannedDate ?? "9999"))
     .slice(0, 100);
 
   return (
@@ -163,8 +208,26 @@ export default async function StartWorkPage({
               <option key={k} value={k}>{STATUS_LABEL[k]}</option>
             ))}
           </select>
+          <select name="due" defaultValue={dueFilter} aria-label="Schedule" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">Any schedule</option>
+            <option value="overdue">Overdue ({overdueCount})</option>
+            <option value="soon">Due soon - 7 days ({dueSoonCount})</option>
+            <option value="held">Awaiting hold release ({heldCount})</option>
+          </select>
           <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">Filter</button>
         </form>
+
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {([["overdue", "Overdue", overdueCount, "bg-red-100 text-red-800"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]"], ["held", "Awaiting hold release", heldCount, "bg-off-white text-ink"]] as const).map(([k, label, n, cls]) => (
+            <Link
+              key={k}
+              href={`/inspect/start-work?due=${dueFilter === k ? "" : k}`}
+              className={cn("rounded-full px-3 py-1 font-medium", cls, dueFilter === k && "ring-2 ring-burgundy")}
+            >
+              {label}: {n}
+            </Link>
+          ))}
+        </div>
 
         {visible.length === 0 ? (
           <p className="mt-4 rounded-md bg-off-white p-4 text-sm text-muted">
@@ -181,8 +244,14 @@ export default async function StartWorkPage({
                     <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}</span>
                     <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
                   </span>
-                  <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>
-                    {STATUS_LABEL[a.status]}
+                  <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                    {a.plannedDate && <span className="text-xs text-muted">{a.plannedDate}</span>}
+                    {a.overdue && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Overdue</span>}
+                    {a.dueSoon && <span className="rounded-full bg-gold/30 px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-burgundy-dark)]">Due soon</span>}
+                    {a.awaitingHold && a.status !== "completed" && <span className="rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-ink">Awaiting hold release</span>}
+                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>
+                      {STATUS_LABEL[a.status]}
+                    </span>
                   </span>
                 </Link>
               </li>

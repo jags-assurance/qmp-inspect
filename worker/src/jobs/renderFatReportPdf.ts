@@ -27,7 +27,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
   const { data: assignment, error: assignmentError } = await supabase
     .from("standalone_assignments" as any)
     .select(
-      "id, project_id, assignment_number, assignment_type, equipment_description, manufacturer, model, serial_tag, location, standard_reference, assignment_date, conclusion, notes, narrative"
+      "id, project_id, assignment_number, assignment_type, equipment_description, manufacturer, model, serial_tag, location, standard_reference, assignment_date, conclusion, notes, narrative, status, cleared_at, cleared_by, clearance_notes, clearance_number"
     )
     .eq("id", payload.assignment_id)
     .single();
@@ -51,7 +51,18 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     conclusion: "pass" | "conditional_pass" | "fail" | null;
     notes: string | null;
     narrative: string | null;
+    status: "draft" | "conditional_open" | "completed";
+    cleared_at: string | null;
+    cleared_by: string | null;
+    clearance_notes: string | null;
+    clearance_number: string | null;
   };
+
+  let clearedByName: string | null = null;
+  if (a.cleared_by) {
+    const { data: clearer } = await supabase.from("users").select("full_name").eq("id", a.cleared_by).maybeSingle();
+    clearedByName = (clearer as { full_name?: string | null } | null)?.full_name ?? null;
+  }
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
@@ -73,7 +84,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     throw new Error(`Organization ${project.organization_id} not found: ${orgError?.message ?? "no row"}`);
   }
 
-  const [{ data: measurements }, { data: photoRows }, { data: punchItems }, { data: signatureRows }] = await Promise.all([
+  const [{ data: measurements }, { data: photoRows }, { data: punchItems }, { data: signatureRows }, { data: linkedPunchRows }] = await Promise.all([
     supabase
       .from("standalone_assignment_measurements" as any)
       .select("description, nominal_value, tolerance, actual_value, unit, result, sort_order")
@@ -90,7 +101,12 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     supabase
       .from("standalone_assignment_signatures" as any)
       .select("role, signatory_name, signature_data, signed_at")
-      .eq("assignment_id", a.id),
+      .eq("assignment_id", a.id)
+      .order("signed_at"),
+    supabase
+      .from("punch_list_items" as any)
+      .select("description, status")
+      .eq("source_standalone_assignment_id", a.id),
   ]);
 
   const photoRowsTyped = (photoRows ?? []) as unknown as { storage_path: string; caption: string | null }[];
@@ -130,11 +146,21 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
       unit: m.unit,
       result: m.result,
     })),
+    // (result already computed from nominal/tolerance/actual at entry time by addMeasurementAction)
     photos,
-    punchItems: ((punchItems ?? []) as unknown as { description: string; status: "open" | "closed" }[]).map((p) => ({
-      description: p.description,
-      status: p.status,
-    })),
+    punchItems: [
+      ...((punchItems ?? []) as unknown as { description: string; status: "open" | "closed" }[]),
+      // Project punch-list items raised by a conditional pass; anything not 'closed' (open, resolved
+      // awaiting verification) is still outstanding.
+      ...((linkedPunchRows ?? []) as unknown as { description: string; status: string }[]).map((p) => ({
+        description: p.description,
+        status: (p.status === "closed" ? "closed" : "open") as "open" | "closed",
+      })),
+    ].map((p) => ({ description: p.description, status: p.status })),
+    status: a.status,
+    clearance: a.cleared_at
+      ? { number: a.clearance_number, notes: a.clearance_notes, clearedAt: a.cleared_at, clearedBy: clearedByName }
+      : null,
     signatures: ((signatureRows ?? []) as unknown as {
       role: string;
       signatory_name: string;

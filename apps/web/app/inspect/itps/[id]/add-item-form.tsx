@@ -143,6 +143,14 @@ export function AddItemForm({
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
       </div>
+      <div>
+        <label className="block text-xs font-medium text-muted">Planned date</label>
+        <input
+          name="planned_date"
+          type="date"
+          className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
       {drawingDocuments.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-muted">Governing drawing</label>

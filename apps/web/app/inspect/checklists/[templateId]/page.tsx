@@ -29,6 +29,7 @@ import {
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
 import { AddChecklistItemForm } from "./add-checklist-item-form";
 import { StartInspectionForm } from "./start-inspection-form";
+import { getNoticeCheck } from "@/lib/signoff/notice-check";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
@@ -203,6 +204,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       calibrationAssetId: string | null;
       materialId: string | null;
       welderId: string | null;
+      updatedAt?: string | null;
+      noNcrReason?: string | null;
     }
   >();
   // Photos with a null checklist_item_id go to the generic whole-inspection section (unchanged
@@ -221,17 +224,26 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   let evidenceDocuments: { id: string; vaultDocumentId: string; title: string; documentReference: string | null }[] = [];
   let vaultDocumentOptions: { id: string; title: string; documentReference: string | null; folderName: string }[] = [];
 
+  let hasNcr = false;
+  if (draft) {
+    const { count: ncrCount } = await supabase
+      .from("ncrs")
+      .select("id", { count: "exact", head: true })
+      .eq("inspection_record_id", draft.id);
+    hasNcr = !!ncrCount;
+  }
+
   if (draft) {
     const [{ data: responses }, { data: photoRows }, { data: evidenceDocRows }, { data: rawVaultDocuments }] = await Promise.all([
       supabase
         .from(CHECKLIST_RESPONSES_TABLE)
-        .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id")
+        .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id, updated_at, no_ncr_reason")
         .eq("inspection_record_id", draft.id)
         .returns<
-          Pick<
+          (Pick<
             ChecklistResponseRow,
             "checklist_item_id" | "result" | "comment" | "calibration_asset_id" | "material_id" | "welder_id"
-          >[]
+          > & { updated_at: string; no_ncr_reason: string | null })[]
         >(),
       supabase
         .from(INSPECTION_PHOTOS_TABLE)
@@ -272,6 +284,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           calibrationAssetId: r.calibration_asset_id,
           materialId: r.material_id,
           welderId: r.welder_id,
+          updatedAt: r.updated_at,
+          noNcrReason: r.no_ncr_reason,
         },
       ])
     );
@@ -345,6 +359,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // found live: nobody could tell from this message alone which specific party/person to go chase.
   // Re-derives which levels are blocking + which rows on this activity are still open, the same way
   // canCompleteInspection itself does internally (that helper only ever returns a boolean).
+  // Notice period: warn (never block) when the activity's planned date is closer than its hold/witness notice requires.
+  let noticeWarning: string | null = null;
+  try {
+    const check = await getNoticeCheck(supabase, itpItem.id, "H");
+    if (check.status === "short_notice" || check.status === "overdue") noticeWarning = check.message;
+  } catch {
+    // Best-effort — the warning is advisory.
+  }
+
   let openHoldHolders: { partyName: string; partyType: string; levelCode: string }[] = [];
   if (holdOpen) {
     const { data: blockingLevels } = await supabase
@@ -456,6 +479,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && canExecute && itpApproved && !holdOpen && (
         <div className="mt-6">
+          {noticeWarning && (
+            <p className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+              {noticeWarning}
+            </p>
+          )}
           <StartInspectionForm
             templateId={template.id}
             itpItemId={itpItem.id}
@@ -523,6 +551,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             projectId={project.id}
             itpItemId={itpItem.id}
             itemPhotos={itemPhotos}
+            hasNcr={hasNcr}
             photoSlot={
               <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-medium text-ink">

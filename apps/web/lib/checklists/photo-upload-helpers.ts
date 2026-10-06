@@ -6,7 +6,7 @@
 // original single-purpose version this was extracted from.
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
+import { saveInspectionPhotoAction } from "@/lib/checklists/actions";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { compressImageFile } from "@/lib/media/compress-image";
@@ -30,6 +30,8 @@ function buildStoragePath(projectId: string, inspectionRecordId: string, checkli
     : `${projectId}/${inspectionRecordId}`;
   return `${prefix}/${Date.now()}-${safeName}`;
 }
+
+export class PhotoRejectedError extends Error {}
 
 async function queueForOffline({ projectId, inspectionRecordId, checklistItemId, file }: UploadPhotoParams) {
   await enqueueOutboxItem({
@@ -70,20 +72,20 @@ export async function uploadOrQueuePhoto(params: UploadPhotoParams): Promise<{ q
     const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
     if (uploadError) throw uploadError;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const { error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert({
-      inspection_record_id: params.inspectionRecordId,
-      storage_path: path,
-      uploaded_by: user?.id ?? null,
-      checklist_item_id: params.checklistItemId ?? null,
+    const saved = await saveInspectionPhotoAction({
+      inspectionRecordId: params.inspectionRecordId,
+      storagePath: path,
+      checklistItemId: params.checklistItemId,
     });
-    if (insertError) throw insertError;
+    if (saved.error) {
+      // Business rejection (completed/permission/size) is not a connectivity problem: don't queue.
+      await supabase.storage.from("inspection-evidence").remove([path]);
+      throw new PhotoRejectedError(saved.error);
+    }
 
     return { queuedPreviewUrl: null };
-  } catch {
+  } catch (err) {
+    if (err instanceof PhotoRejectedError) throw err;
     // Could be a genuine failure or a connection that dropped mid-upload — either way, don't lose
     // the photo: queue it the same as the offline path instead of just showing an error.
     await queueForOffline(next);

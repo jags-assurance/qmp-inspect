@@ -121,6 +121,7 @@ export function AssignmentWorkspace({
   // gates is permission-checked server-side (lib/standalone/actions.ts) — this just stops the
   // controls from rendering for a party who'd only find that out after clicking submit.
   const canEdit = isDraft && canManage;
+  const canEditPunch = (isDraft || isConditionalOpen) && canManage;
   const openPunchCount = punchItems.filter((p) => p.status === "open").length;
 
   return (
@@ -137,6 +138,7 @@ export function AssignmentWorkspace({
             ) : (
               <Badge tone={assignment.conclusion ? CONCLUSION_TONE[assignment.conclusion] : "neutral"}>
                 {assignment.conclusion ? CONCLUSION_LABEL[assignment.conclusion] : "Completed"}
+                {isConditionalOpen ? " (awaiting clearance)" : ""}
               </Badge>
             )
           }
@@ -179,7 +181,7 @@ export function AssignmentWorkspace({
       </div>
 
       <div className="mt-6 border-b border-border">
-        <nav className="flex flex-wrap gap-1">
+        <nav className="flex gap-1 overflow-x-auto whitespace-nowrap">
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -274,7 +276,7 @@ export function AssignmentWorkspace({
                   <tr className="border-b border-border text-left text-xs text-muted">
                     <th className="px-3 py-2 font-medium">Description</th>
                     <th className="px-3 py-2 font-medium">Status</th>
-                    {canEdit && <th className="px-3 py-2 font-medium">&nbsp;</th>}
+                    {canEditPunch && <th className="px-3 py-2 font-medium">&nbsp;</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -284,8 +286,8 @@ export function AssignmentWorkspace({
                       <td className="px-3 py-2">
                         <Badge tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>
                       </td>
-                      {canEdit && (
-                        <td className="px-3 py-2">
+                      {canEditPunch && (
+                        <td className="px-3 py-2 text-right">
                           <form action={togglePunchItemAction}>
                             <input type="hidden" name="assignment_id" value={assignment.id} />
                             <input type="hidden" name="punch_item_id" value={item.id} />
@@ -303,7 +305,7 @@ export function AssignmentWorkspace({
                   ))}
                   {punchItems.length === 0 && (
                     <tr>
-                      <td colSpan={canEdit ? 3 : 2} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={canEditPunch ? 3 : 2} className="px-3 py-6 text-center text-muted">
                         No punch list items yet.
                       </td>
                     </tr>
@@ -311,7 +313,7 @@ export function AssignmentWorkspace({
                 </tbody>
               </table>
             </div>
-            {canEdit && <AddPunchItemForm assignmentId={assignment.id} />}
+            {canEditPunch && <AddPunchItemForm assignmentId={assignment.id} />}
           </div>
         )}
 

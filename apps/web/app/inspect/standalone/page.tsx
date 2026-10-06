@@ -5,14 +5,13 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { Button } from "@/components/ui/button";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
 import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
-import { DisciplineFilterForm } from "./discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; discipline?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ project?: string; discipline?: string; q?: string; page?: string; status?: string; type?: string; result?: string; sort?: string }>;
 }) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -33,7 +32,14 @@ export default async function StandaloneAssignmentsPage({
       .eq("projects.allow_contractor_standalone_assignment", true);
     canRunStandaloneAssignment = !!count;
   }
-  const { project: projectId, discipline: disciplineId, q, page: pageParam } = await searchParams;
+  const sp = await searchParams;
+  const { project: projectId, discipline: disciplineId, page: pageParam } = sp;
+  // PostgREST .or() treats , ( ) as syntax and % _ as wildcards - strip them from user text.
+  const q = (sp.q ?? "").replace(/[,()%_\\*]/g, " ").trim().slice(0, 80);
+  const statusFilter = ["draft", "conditional_open", "completed"].includes(sp.status ?? "") ? sp.status! : "";
+  const typeFilter = ["fat", "witness_inspection", "specific_test", "pre_shipment"].includes(sp.type ?? "") ? sp.type! : "";
+  const resultFilter = ["pass", "conditional_pass", "fail"].includes(sp.result ?? "") ? sp.result! : "";
+  const sortKey = ["newest", "oldest", "date", "number"].includes(sp.sort ?? "") ? sp.sort! : "newest";
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
 
   const disciplines = await getActiveMasterDisciplines();
@@ -60,23 +66,74 @@ export default async function StandaloneAssignmentsPage({
     countQuery = countQuery.eq("discipline_id", disciplineId);
     tableQuery = tableQuery.eq("discipline_id", disciplineId);
   }
+  if (statusFilter) {
+    countQuery = countQuery.eq("status", statusFilter);
+    tableQuery = tableQuery.eq("status", statusFilter);
+  }
+  if (typeFilter) {
+    countQuery = countQuery.eq("assignment_type", typeFilter);
+    tableQuery = tableQuery.eq("assignment_type", typeFilter);
+  }
+  if (resultFilter) {
+    countQuery = countQuery.eq("conclusion", resultFilter);
+    tableQuery = tableQuery.eq("conclusion", resultFilter);
+  }
   if (q) {
     countQuery = countQuery.or(`assignment_number.ilike.%${q}%,equipment_description.ilike.%${q}%`);
     tableQuery = tableQuery.or(`assignment_number.ilike.%${q}%,equipment_description.ilike.%${q}%`);
   }
 
+  const { data: projectOptions } = await supabase
+    .from("projects")
+    .select("id, project_number, name")
+    .order("name")
+    .returns<{ id: string; project_number: string; name: string }[]>();
+  const statusCounts = await Promise.all(
+    ["draft", "conditional_open", "completed"].map(async (st) => {
+      let c = supabase.from("standalone_assignments" as any).select("id", { count: "exact", head: true }).eq("status", st);
+      if (projectId) c = c.eq("project_id", projectId);
+      const { count } = await c;
+      return count ?? 0;
+    })
+  );
+  const chipHref = (st: string) => {
+    const u = new URLSearchParams();
+    if (projectId) u.set("project", projectId);
+    if (disciplineId) u.set("discipline", disciplineId);
+    if (typeFilter) u.set("type", typeFilter);
+    if (resultFilter) u.set("result", resultFilter);
+    if (sortKey !== "newest") u.set("sort", sortKey);
+    if (st) u.set("status", st);
+    const qs = u.toString();
+    return "/inspect/standalone" + (qs ? "?" + qs : "");
+  };
+  const chips: { val: string; label: string; n: number }[] = [
+    { val: "", label: "All", n: statusCounts[0] + statusCounts[1] + statusCounts[2] },
+    { val: "draft", label: "Draft", n: statusCounts[0] },
+    { val: "conditional_open", label: "Awaiting clearance", n: statusCounts[1] },
+    { val: "completed", label: "Completed", n: statusCounts[2] },
+  ];
+  const hasFilters = !!(projectId || disciplineId || q || statusFilter || typeFilter || resultFilter);
+  const selectCls = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
+
   const offset = (page - 1) * STANDALONE_TABLE_PAGE_SIZE;
   const [{ count: totalCount }, { data: assignments }] = await Promise.all([
     countQuery,
-    tableQuery
-      .order("created_at", { ascending: false })
+    (sortKey === "oldest"
+      ? tableQuery.order("created_at", { ascending: true })
+      : sortKey === "date"
+        ? tableQuery.order("assignment_date", { ascending: false, nullsFirst: false })
+        : sortKey === "number"
+          ? tableQuery.order("assignment_number", { ascending: true })
+          : tableQuery.order("created_at", { ascending: false })
+    )
       .range(offset, offset + STANDALONE_TABLE_PAGE_SIZE - 1)
       .returns<StandaloneAssignmentListRow[]>(),
   ]);
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">Standalone Assignments</h1>
@@ -102,18 +159,74 @@ export default async function StandaloneAssignmentsPage({
         )}
       </div>
 
-      {projectId && (
-        <p className="mt-3 text-sm text-muted">
-          Filtered to one project.{" "}
-          <Link href="/inspect/standalone" className="text-burgundy hover:underline">
-            Clear filter
+      <div className="mt-4 flex flex-wrap gap-2">
+        {chips.map((c) => (
+          <Link
+            key={c.val}
+            href={chipHref(c.val)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${statusFilter === c.val ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border bg-surface text-muted hover:text-ink"}`}
+          >
+            {c.label} ({c.n})
           </Link>
-        </p>
-      )}
-
-      <div className="mt-6">
-        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+        ))}
       </div>
+
+      <form method="get" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+        {q && <input type="hidden" name="q" value={q} />}
+        <div>
+          <label htmlFor="f_project" className="block text-sm font-medium text-ink">Project</label>
+          <select id="f_project" name="project" defaultValue={projectId ?? ""} className={selectCls}>
+            <option value="">All projects</option>
+            {(projectOptions ?? []).map((p) => (
+              <option key={p.id} value={p.id}>{p.project_number} - {p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="f_type" className="block text-sm font-medium text-ink">Type</label>
+          <select id="f_type" name="type" defaultValue={typeFilter} className={selectCls}>
+            <option value="">All types</option>
+            <option value="fat">FAT</option>
+            <option value="witness_inspection">Witness Inspection</option>
+            <option value="specific_test">Specific Test</option>
+            <option value="pre_shipment">Pre-Shipment</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="f_result" className="block text-sm font-medium text-ink">Result</label>
+          <select id="f_result" name="result" defaultValue={resultFilter} className={selectCls}>
+            <option value="">Any result</option>
+            <option value="pass">Pass</option>
+            <option value="conditional_pass">Conditional Pass</option>
+            <option value="fail">Fail</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="f_discipline" className="block text-sm font-medium text-ink">Discipline</label>
+          <select id="f_discipline" name="discipline" defaultValue={disciplineId ?? ""} className={selectCls}>
+            <option value="">All disciplines</option>
+            {(disciplines ?? []).map((d) => (
+              <option key={d.id} value={d.id}>{d.code} - {d.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="f_sort" className="block text-sm font-medium text-ink">Sort</label>
+          <select id="f_sort" name="sort" defaultValue={sortKey} className={selectCls}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="date">Assignment date</option>
+            <option value="number">Assignment no.</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-5">
+          <Button type="submit">Apply filters</Button>
+          {hasFilters && (
+            <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">Clear all</Link>
+          )}
+        </div>
+      </form>
 
       <div className="mt-6">
         <StandaloneTable rows={assignments ?? []} totalCount={totalCount ?? 0} />

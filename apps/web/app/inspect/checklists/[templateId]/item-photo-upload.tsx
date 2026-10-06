@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
-import { uploadOrQueuePhoto } from "@/lib/checklists/photo-upload-helpers";
+import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
 import { cn } from "@/lib/cn";
 
 interface Photo {
@@ -62,18 +62,22 @@ export function ItemPhotoUpload({
     setError(rejected > 0 ? `${rejected} file${rejected === 1 ? "" : "s"} skipped (images only, max 25 MB each, 10 at a time).` : null);
 
     let failedCount = 0;
+    let rejectedMsg: string | null = null;
     let done = 0;
     for (const file of files) {
       setProgress(`${++done} of ${files.length}`);
       try {
         const { queuedPreviewUrl } = await uploadOrQueuePhoto({ projectId, inspectionRecordId, checklistItemId, file });
         if (queuedPreviewUrl) setQueuedPreviews((prev) => [...prev, queuedPreviewUrl]);
-      } catch {
+      } catch (err) {
         failedCount += 1;
+        if (err instanceof PhotoRejectedError) rejectedMsg = err.message;
       }
     }
 
-    if (failedCount > 0) {
+    if (rejectedMsg) {
+      setError(rejectedMsg);
+    } else if (failedCount > 0) {
       setError(`Could not upload ${failedCount} of ${files.length} photo${files.length === 1 ? "" : "s"}. Check your connection and try again.`);
     }
 
@@ -88,8 +92,8 @@ export function ItemPhotoUpload({
       {hasPhotos && (
         <div className="flex flex-wrap gap-1.5">
           {photos.map((photo) => (
-            <div key={photo.id} className="h-10 w-10 overflow-hidden rounded">
-              <PhotoThumbnail url={photo.url} />
+            <div key={photo.id} className="h-11 w-11 overflow-hidden rounded">
+              <PhotoThumbnail url={photo.url} caption={photo.caption} photoId={photo.id} editable={!readOnly} />
             </div>
           ))}
           {queuedPreviews.map((url, i) => (

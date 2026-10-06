@@ -1753,6 +1753,7 @@ export type Database = {
           item_number: string
           method: string | null
           notice_hours_override: number | null
+          planned_date: string | null
           reference_spec: string | null
           section_id: string
           sort_order: number
@@ -1769,6 +1770,7 @@ export type Database = {
           item_number: string
           method?: string | null
           notice_hours_override?: number | null
+          planned_date?: string | null
           reference_spec?: string | null
           section_id: string
           sort_order?: number
@@ -1785,6 +1787,7 @@ export type Database = {
           item_number?: string
           method?: string | null
           notice_hours_override?: number | null
+          planned_date?: string | null
           reference_spec?: string | null
           section_id?: string
           sort_order?: number

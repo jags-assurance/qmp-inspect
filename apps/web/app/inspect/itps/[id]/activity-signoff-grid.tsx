@@ -35,6 +35,8 @@ export interface GridRow {
   /** R25: this activity's own notice-period override (itp_items.notice_hours_override), if set —
    *  takes precedence over the level-keyed `noticeHours` map below for every cell in this row. */
   noticeHoursOverride: number | null;
+  /** Planned date (yyyy-mm-dd) for this activity, if set. */
+  plannedDate?: string | null;
   /** One cell per project_party involved in this ITP, in the same order as `parties` below —
    *  same per-activity computation the previous card layout used (partyCells), just consumed as a
    *  table row instead of a chip chain. */
@@ -135,6 +137,7 @@ export function ActivitySignoffGrid({
                     evidenceType={row.evidenceType}
                     disciplineId={row.disciplineId}
                     noticeHoursOverride={row.noticeHoursOverride}
+                    plannedDate={row.plannedDate ?? null}
                     disciplines={disciplines}
                     isIssued={isIssued}
                   />
@@ -159,6 +162,7 @@ export function ActivitySignoffGrid({
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
                   {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}
+                  {row.plannedDate && <Badge tone="neutral">Planned: {row.plannedDate}</Badge>}
                   {row.noticeHoursOverride != null && (
                     <Badge tone="neutral">Notice: {row.noticeHoursOverride}h</Badge>
                   )}

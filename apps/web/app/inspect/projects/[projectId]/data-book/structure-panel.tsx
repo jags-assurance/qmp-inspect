@@ -1,42 +1,57 @@
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
 import type { DataBookReadiness } from "@/lib/databook/readiness";
 
+type Chip = "complete" | "partial" | "none" | "blocked";
+
 interface Row {
-  label: string;
-  status: string;
-  tone?: "ok" | "warn" | "bad" | "muted";
+  no: string;
+  title: string;
+  /** done / total (when countable) */
+  ready?: number;
+  total?: number;
+  note?: string;
+  chip?: Chip;
+  href: string;
+  external?: boolean;
 }
 interface Part {
+  id: string;
   title: string;
   rows: Row[];
 }
 
-const TONE: Record<NonNullable<Row["tone"]>, string> = {
-  ok: "text-success",
-  warn: "text-warning",
-  bad: "text-danger",
-  muted: "text-muted",
-};
-
-function fraction(ready: number, total: number, empty = "No records yet"): { status: string; tone: NonNullable<Row["tone"]> } {
-  if (total === 0) return { status: empty, tone: "muted" };
-  return { status: `${ready} of ${total}`, tone: ready === total ? "ok" : ready === 0 ? "bad" : "warn" };
+function chipOf(row: Row): Chip {
+  if (row.chip) return row.chip;
+  const { ready = 0, total = 0 } = row;
+  if (total === 0) return "none";
+  if (ready >= total) return "complete";
+  return ready === 0 ? "none" : "partial";
 }
 
-/**
- * The Data Book page's own outline, in the same Part A–D order as the generated PDF (cover and
- * control sheets, evidence register, records, release controls), each line with its live status.
- * It answers "what will be in the book and how complete is each part" without opening the PDF.
- */
-export function DataBookStructurePanel({
-  readiness,
-  partyCount,
-  ncrTotal,
-  ncrClosed,
-  punchTotal,
-  punchClosed,
-  latestStatus,
-  handoverIssued,
-}: {
+const CHIP_TONE: Record<Chip, "success" | "warning" | "neutral" | "danger"> = {
+  complete: "success",
+  partial: "warning",
+  none: "neutral",
+  blocked: "danger",
+};
+
+function chipLabel(row: Row, chip: Chip): string {
+  if (chip === "complete") return "Complete";
+  if (chip === "blocked") return "Blocked";
+  if (chip === "partial") return `${row.ready} of ${row.total}`;
+  return row.total === 0 && row.note ? row.note : "Not started";
+}
+
+function pct(row: Row): string {
+  if (row.total === undefined || row.total === 0) return "—";
+  return `${Math.round(((row.ready ?? 0) / row.total) * 100)}%`;
+}
+
+/** Part structure shared by the sticky mini-nav and the index table. */
+export function buildDataBookParts(args: {
+  projectId: string;
   readiness: DataBookReadiness;
   partyCount: number;
   ncrTotal: number;
@@ -45,79 +60,149 @@ export function DataBookStructurePanel({
   punchClosed: number;
   latestStatus: "draft" | "compiled" | "issued" | null;
   handoverIssued: boolean;
-}) {
-  const itps = readiness.itps;
-  const records = readiness.inspectionRecords;
-  const checklists = readiness.checklists;
-  const calibration = readiness.calibrationRegister;
-  const welders = readiness.welderRegister;
-  const materials = readiness.materialRegister;
-
-  const parts: Part[] = [
+}): Part[] {
+  const { projectId, readiness, partyCount, ncrTotal, ncrClosed, punchTotal, punchClosed, latestStatus, handoverIssued } = args;
+  const base = `/inspect/projects/${projectId}`;
+  const reg = `${base}/registers`;
+  return [
     {
+      id: "part-a",
       title: "Part A — Document control",
       rows: [
-        { label: "Cover, document control and authorization", status: latestStatus ? `Book ${latestStatus}` : "No book created", tone: latestStatus ? "ok" : "muted" },
-        { label: "Revision, distribution and issue status", status: `${partyCount} part${partyCount === 1 ? "y" : "ies"} on the distribution register`, tone: partyCount ? "ok" : "muted" },
-        { label: "Contents, scope and applicability", status: "Generated with the book", tone: "muted" },
+        { no: "A1", title: "Cover, document control and authorization", chip: latestStatus ? "complete" : "none", note: latestStatus ? undefined : "No book yet", href: "#generate" },
+        { no: "A2", title: "Revision, distribution and issue status", ready: partyCount, total: partyCount, note: "No parties", href: "#project-summary" },
+        { no: "A3", title: "Contents, scope and applicability", chip: latestStatus ? "complete" : "none", href: "#index" },
       ],
     },
     {
+      id: "part-b",
       title: "Part B — Evidence register",
       rows: [
-        {
-          label: "Master record register (one row per ITP activity)",
-          ...fraction(records.ready, records.total, "No ITP activities yet"),
-        },
+        { no: "B1", title: "Master record register (one row per ITP activity)", ...readiness.inspectionRecords, note: "No ITP activities", href: "#done" },
       ],
     },
     {
+      id: "part-c",
       title: "Part C — Records",
       rows: [
-        { label: "Inspection and testing records — ITPs approved or accepted", ...fraction(itps.ready, itps.total) },
-        { label: "Completed checklists", ...fraction(checklists.ready, checklists.total) },
-        { label: "Materials and traceability — approved and released", ...fraction(materials.ready, materials.total) },
-        { label: "Welding and joining — qualifications valid", ...fraction(welders.ready, welders.total) },
-        { label: "Calibration certificates in date", ...fraction(calibration.ready, calibration.total) },
-        { label: "Nonconformance, deviation and exceptions — closed", ...fraction(ncrClosed, ncrTotal, "None raised") },
-        { label: "Mechanical completion and punch list — verified closed", ...fraction(punchClosed, punchTotal, "None raised") },
+        { no: "C1", title: "ITPs approved or accepted", ready: readiness.itps.ready, total: readiness.itps.total, href: `${base}/workspace`, external: true },
+        { no: "C2", title: "Completed checklists", ready: readiness.checklists.ready, total: readiness.checklists.total, href: "/inspect/checklists", external: true },
+        { no: "C3", title: "Inspection records / IRNs issued", ready: readiness.inspectionRecords.ready, total: readiness.inspectionRecords.total, href: "/inspect/inspections", external: true },
+        { no: "C4", title: "Materials and traceability — approved and released", ready: readiness.materialRegister.ready, total: readiness.materialRegister.total, href: reg, external: true },
+        { no: "C5", title: "Welding and joining — qualifications valid", ready: readiness.welderRegister.ready, total: readiness.welderRegister.total, href: reg, external: true },
+        { no: "C6", title: "Calibration certificates in date", ready: readiness.calibrationRegister.ready, total: readiness.calibrationRegister.total, href: reg, external: true },
+        { no: "C7", title: "Personnel certifications", chip: "none", note: "See register", href: reg, external: true },
+        { no: "C8", title: "Nonconformances (NCRs) closed", ready: ncrClosed, total: ncrTotal, note: "None raised", href: "/inspect/ncrs", external: true },
+        { no: "C9", title: "Punch list — verified closed", ready: punchClosed, total: punchTotal, note: "None raised", href: `${base}/punch-list`, external: true },
       ],
     },
     {
+      id: "part-d",
       title: "Part D — Release controls",
       rows: [
-        {
-          label: "Readiness calculations and hard gates",
-          status: `${readiness.overallPercentage}% overall · ${readiness.isReady ? "ready" : "not ready"}`,
-          tone: readiness.isReady ? "ok" : "warn",
-        },
-        { label: "Final completeness certification", status: latestStatus === "issued" ? "Issued" : "Unsigned until issued", tone: latestStatus === "issued" ? "ok" : "muted" },
-        { label: "Final acceptance and handover record", status: handoverIssued ? "Handover certificate issued" : "Not issued", tone: handoverIssued ? "ok" : "muted" },
+        { no: "D1", title: "Readiness calculations and hard gates", ready: readiness.overallPercentage, total: 100, chip: readiness.isReady ? "complete" : readiness.overallPercentage === 0 ? "none" : "partial", href: "#gates" },
+        { no: "D2", title: "Final completeness certification", chip: latestStatus === "issued" ? "complete" : "none", note: "Unsigned until issued", href: "#books" },
+        { no: "D3", title: "Final acceptance and handover record", chip: handoverIssued ? "complete" : "none", note: "Not issued", href: "/inspect/handover", external: true },
       ],
     },
   ];
+}
 
+/**
+ * Table-of-contents index of the book (Part A–D, same order as the generated PDF), each row with
+ * section number, live status chip, % and a link to the detail or source page.
+ */
+export function DataBookIndex({ parts }: { parts: Part[] }) {
   return (
-    <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-base font-medium text-ink">Book structure</h2>
-      <p className="mt-1 text-xs text-muted">
-        The generated Data Book follows this order. Each line shows where that part stands now — Draft, For review and Final differ only in which of these are complete and signed.
-      </p>
-      <div className="mt-3 grid gap-4 md:grid-cols-2">
-        {parts.map((part) => (
-          <section key={part.title} aria-label={part.title}>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{part.title}</h3>
-            <ul className="mt-1.5 divide-y divide-border rounded-md border border-border">
-              {part.rows.map((row) => (
-                <li key={row.label} className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm">
-                  <span className="min-w-0 text-ink">{row.label}</span>
-                  <span className={`shrink-0 text-right text-xs font-medium ${TONE[row.tone ?? "muted"]}`}>{row.status}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+    <section id="index" aria-labelledby="index-h" className="scroll-mt-24 rounded-lg border border-border bg-surface p-4">
+      <h2 id="index-h" className="text-base font-medium text-ink">
+        Index
+      </h2>
+      <p className="mt-0.5 text-xs text-muted">Live status of every section of the book. Click a row to jump to it or open its source.</p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead className="text-left text-xs uppercase tracking-wide text-muted">
+            <tr>
+              <th scope="col" className="w-12 py-1.5 pr-2 font-medium">No.</th>
+              <th scope="col" className="py-1.5 pr-2 font-medium">Section</th>
+              <th scope="col" className="py-1.5 pr-2 font-medium">Status</th>
+              <th scope="col" className="w-14 py-1.5 pr-2 text-right font-medium">%</th>
+              <th scope="col" className="w-16 py-1.5 text-right font-medium">Open</th>
+            </tr>
+          </thead>
+          {parts.map((part) => (
+            <tbody key={part.id} id={part.id} className="scroll-mt-24 border-t border-border">
+              <tr>
+                <th colSpan={5} scope="colgroup" className="bg-off-white px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                  {part.title}
+                </th>
+              </tr>
+              {part.rows.map((row) => {
+                const chip = chipOf(row);
+                return (
+                  <tr key={row.no} className="border-t border-border">
+                    <td className="py-2 pr-2 font-mono text-xs text-muted">{row.no}</td>
+                    <td className="py-2 pr-2 text-ink">{row.title}</td>
+                    <td className="py-2 pr-2">
+                      <Badge tone={CHIP_TONE[chip]}>{chipLabel(row, chip)}</Badge>
+                    </td>
+                    <td className="py-2 pr-2 text-right tabular-nums text-muted">{pct(row)}</td>
+                    <td className="py-2 text-right">
+                      {row.href.startsWith("#") ? (
+                        <a href={row.href} className="text-burgundy hover:underline" aria-label={`Jump to ${row.title}`}>
+                          Jump ↓
+                        </a>
+                      ) : (
+                        <Link href={row.href} className="text-burgundy hover:underline" aria-label={`Open source for ${row.title}`}>
+                          Open →
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
+        </table>
       </div>
-    </div>
+    </section>
   );
 }
+
+const NAV: { href: string; label: string }[] = [
+  { href: "#status", label: "Status" },
+  { href: "#index", label: "Index" },
+  { href: "#gates", label: "Ready to generate?" },
+  { href: "#generate", label: "Generate" },
+  { href: "#books", label: "Books and revisions" },
+  { href: "#project-summary", label: "Project summary" },
+  { href: "#done", label: "What was done" },
+  { href: "#disciplines", label: "Disciplines" },
+  { href: "#updates", label: "Updates" },
+];
+
+/** Sticky mini-nav: a left rail on desktop, a horizontally scrolling bar on mobile. */
+export function DataBookMiniNav() {
+  return (
+    <nav aria-label="Data Book sections" className="sticky top-0 z-10 -mx-1 overflow-x-auto bg-off-white/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:overflow-visible lg:bg-transparent lg:p-0">
+      <ul className="flex gap-1 lg:sticky lg:top-4 lg:flex-col">
+        {NAV.map((n) => (
+          <li key={n.href} className="shrink-0">
+            <a
+              href={n.href}
+              className={cn(
+                "block whitespace-nowrap rounded-md px-2.5 py-1 text-sm text-muted hover:bg-surface hover:text-burgundy",
+                "focus:outline-none focus:ring-2 focus:ring-burgundy"
+              )}
+            >
+              {n.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/** @deprecated kept so older imports keep compiling; the page uses DataBookIndex. */
+export const DataBookStructurePanel = DataBookIndex;

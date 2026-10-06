@@ -58,6 +58,9 @@ export function ResponseRow({
   calibrationOptions,
   initialMaterialId,
   initialWelderId,
+  initialUpdatedAt,
+  initialNoNcrReason,
+  hasNcr,
   materialOptions,
   welderOptions,
   onResultChange,
@@ -93,6 +96,11 @@ export function ResponseRow({
   initialMaterialId: string | null;
   initialWelderId: string | null;
   /** Released material rows — "Material used (heat/batch)" picker when registerVerification.kind === "material". */
+  /** The answer row's updated_at when this page loaded (null = no row yet) — concurrent-edit baseline. */
+  initialUpdatedAt?: string | null;
+  initialNoNcrReason?: string | null;
+  /** An NCR/observation already exists on this inspection (a "No" then needs no separate reason). */
+  hasNcr?: boolean;
   materialOptions: { id: string; material_description: string; heat_number: string | null; batch_number: string | null }[];
   /** Welder rows — "Welder" picker when registerVerification.kind === "welder". */
   welderOptions: { id: string; welder_identifier: string; qualified_wps: string; status: string }[];
@@ -126,6 +134,10 @@ export function ResponseRow({
     nextWelderId: string;
   } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [noNcrReason, setNoNcrReason] = useState(initialNoNcrReason ?? "");
+  // Baseline for concurrent-edit detection: "none" = no row existed when we loaded.
+  const expectedUpdatedAt = useRef<string>(initialUpdatedAt ?? "none");
   const showCalibrationPicker = registerVerification?.kind === "calibration" && calibrationOptions.length > 0;
   const showMaterialPicker = registerVerification?.kind === "material" && materialOptions.length > 0;
   const showWelderPicker = registerVerification?.kind === "welder" && welderOptions.length > 0;
@@ -149,7 +161,8 @@ export function ResponseRow({
     nextOverrideReason: string,
     nextCalibrationAssetId: string,
     nextMaterialId: string = materialId,
-    nextWelderId: string = welderId
+    nextWelderId: string = welderId,
+    nextNoNcrReason: string = noNcrReason
   ) {
     if (readOnly || !nextResult) return;
     if (needsOverrideReason && !nextOverrideReason.trim()) {
@@ -173,6 +186,7 @@ export function ResponseRow({
     if (nextCalibrationAssetId) formData.set("calibration_asset_id", nextCalibrationAssetId);
     if (nextMaterialId) formData.set("material_id", nextMaterialId);
     if (nextWelderId) formData.set("welder_id", nextWelderId);
+    if (nextResult === "no" && nextNoNcrReason.trim()) formData.set("no_ncr_reason", nextNoNcrReason.trim());
 
     lastPayload.current = { nextResult, nextComment, nextOverrideReason, nextCalibrationAssetId, nextMaterialId, nextWelderId };
     setSaveError(null);
@@ -182,7 +196,9 @@ export function ResponseRow({
     // after — and overwrite — a later tap (last write wins = what the inspector last chose).
     const run = async () => {
       try {
+        // Queued/offline replays carry no concurrency expectation (last write wins on sync).
         const fields = Object.fromEntries(formData) as Record<string, string>;
+        formData.set("expected_updated_at", expectedUpdatedAt.current);
         // Offline (R60): queue right away when we already know there's no connection, and fall back
         // to the queue if a "we thought we were online" attempt throws (dropped connection mid-save).
         if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -193,13 +209,18 @@ export function ResponseRow({
         }
         try {
           const outcome = await saveChecklistResponseAction(formData);
-          if (outcome.error) {
+          if (outcome.conflict) {
+            setConflict(true);
+            setSaveError(outcome.error);
+            onResultChange?.(null);
+          } else if (outcome.error) {
             if (mySeq === saveSeq.current) {
               setSaveError(outcome.error);
               onResultChange?.(null);
             }
-          } else if (mySeq === saveSeq.current) {
-            onResultChange?.(nextResult);
+          } else {
+            if (outcome.updatedAt) expectedUpdatedAt.current = outcome.updatedAt;
+            if (mySeq === saveSeq.current) onResultChange?.(nextResult);
           }
         } catch {
           await enqueueOutboxItem({ kind: "checklist_response", fields });
@@ -412,6 +433,27 @@ export function ResponseRow({
             />
           </p>
         )}
+        {result === "no" && comment.trim() && !hasNcr && (
+          <div>
+            <label htmlFor={`no-ncr-reason-${checklistItemId}`} className="block text-xs font-medium text-ink">
+              No NCR raised? Reason (required to complete unless an NCR/observation is raised)
+            </label>
+            <input
+              id={`no-ncr-reason-${checklistItemId}`}
+              type="text"
+              disabled={readOnly}
+              defaultValue={noNcrReason}
+              maxLength={500}
+              placeholder="e.g. Rectified on the spot and re-verified"
+              onBlur={(e) => {
+                if (e.target.value === noNcrReason) return;
+                setNoNcrReason(e.target.value);
+                save(result, comment, overrideReason, calibrationAssetId, materialId, welderId, e.target.value);
+              }}
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy disabled:opacity-60 sm:text-sm"
+            />
+          </div>
+        )}
 
         <ItemPhotoUpload
           projectId={projectId}
@@ -442,13 +484,23 @@ export function ResponseRow({
         {saveError && (
           <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-danger">
             <span>{saveError}</span>
-            <button
-              type="button"
-              onClick={retry}
-              className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
-            >
-              Retry
-            </button>
+            {conflict ? (
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
+              >
+                Reload
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={retry}
+                className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
+              >
+                Retry
+              </button>
+            )}
           </p>
         )}
       </div>

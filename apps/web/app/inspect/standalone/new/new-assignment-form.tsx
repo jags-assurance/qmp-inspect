@@ -117,6 +117,7 @@ export function NewAssignmentForm({
             id="equipment_description"
             name="equipment_description"
             required
+            maxLength={300}
             placeholder="e.g. Jaw crusher C120"
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
@@ -150,11 +151,13 @@ export function NewAssignmentForm({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="serial_tag" className="block text-sm font-medium text-ink">
-              Serial / tag no.
+              Serial / tag no.{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}
             </label>
             <input
               id="serial_tag"
               name="serial_tag"
+              maxLength={120}
+              required={selectedType === "fat" || selectedType === "pre_shipment"}
               placeholder="e.g. SN-48213 / TAG-102"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
@@ -196,6 +199,8 @@ export function NewAssignmentForm({
               id="assignment_date"
               name="assignment_date"
               type="date"
+              min={new Date(Date.now() - 5 * 365 * 86400000).toISOString().slice(0, 10)}
+              max={new Date(Date.now() + 2 * 365 * 86400000).toISOString().slice(0, 10)}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>

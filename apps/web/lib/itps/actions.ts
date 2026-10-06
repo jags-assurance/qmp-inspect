@@ -232,6 +232,15 @@ export interface AddItemState {
   error: string | null;
 }
 
+function parsePlannedDate(raw: FormDataEntryValue | null): { value: string | null; error: string | null } {
+  const s = String(raw ?? "").trim();
+  if (!s) return { value: null, error: null };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(`${s}T00:00:00Z`))) {
+    return { value: null, error: "Planned date must be a valid date." };
+  }
+  return { value: s, error: null };
+}
+
 export async function addItpItemAction(_prev: AddItemState, formData: FormData): Promise<AddItemState> {
   const sectionId = String(formData.get("section_id") ?? "").trim();
   const itpId = String(formData.get("itp_id") ?? "").trim();
@@ -257,6 +266,9 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     }
     noticeHoursOverride = parsed;
   }
+
+  const plannedParsed = parsePlannedDate(formData.get("planned_date"));
+  if (plannedParsed.error) return { error: plannedParsed.error };
 
   if (!sectionId || !itemNumber || !activity) {
     return { error: "Item number and activity are required." };
@@ -342,6 +354,7 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     method: method || null,
     frequency: frequency || null,
     notice_hours_override: noticeHoursOverride,
+    planned_date: plannedParsed.value,
     sort_order: nextSortOrder,
   }).select("id").single<{ id: string }>();
 
@@ -562,6 +575,9 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     noticeHoursOverride = parsed;
   }
 
+  const plannedParsed = parsePlannedDate(formData.get("planned_date"));
+  if (plannedParsed.error) return { error: plannedParsed.error };
+
   if (!itemId || !itemNumber || !activity) {
     return { error: "Item number and activity are required." };
   }
@@ -617,6 +633,7 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
       method: method || null,
       frequency: frequency || null,
       notice_hours_override: noticeHoursOverride,
+      planned_date: plannedParsed.value,
     })
     .eq("id", itemId)
     .select("id");

@@ -38,11 +38,12 @@ export function ChecklistExecutionPanel({
   projectId,
   itpItemId,
   itemPhotos,
+  hasNcr = false,
 }: {
   templateId: string;
   inspectionRecordId: string;
   items: ChecklistItem[];
-  initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null; materialId: string | null; welderId: string | null }>;
+  initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null; materialId: string | null; welderId: string | null; updatedAt?: string | null; noNcrReason?: string | null }>;
   readOnly: boolean;
   registerVerification: RegisterVerificationResult | null;
   /** R92-R100 personnel-cert soft-stop for the executing party — independent of registerVerification
@@ -75,6 +76,8 @@ export function ChecklistExecutionPanel({
   itpItemId: string;
   /** Each checklist item's own evidence photos (checklist_item_id === that item's id), keyed by
    *  checklist_item_id, for the compact per-row "+ photo" affordance. */
+  /** An NCR/observation already exists on this inspection. */
+  hasNcr?: boolean;
   itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null; url: string | null }[]>;
 }) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set(initialResponses.keys()));
@@ -168,6 +171,9 @@ export function ChecklistExecutionPanel({
             calibrationOptions={calibrationOptions}
             initialMaterialId={initialResponses.get(item.id)?.materialId ?? null}
             initialWelderId={initialResponses.get(item.id)?.welderId ?? null}
+            initialUpdatedAt={initialResponses.get(item.id)?.updatedAt ?? null}
+            initialNoNcrReason={initialResponses.get(item.id)?.noNcrReason ?? null}
+            hasNcr={hasNcr}
             materialOptions={materialOptions}
             welderOptions={welderOptions}
             onResultChange={(result) =>
@@ -187,8 +193,40 @@ export function ChecklistExecutionPanel({
         {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}
       </div>
       {photoSlot}
-      {canExecute &&
-        (allAnswered ? (hasEvidencePhoto ? completeSlot : missingPhotoSlot) : incompleteSlot)}
+      {canExecute && (
+        <div id="complete-section" className="scroll-mt-16">
+          {allAnswered ? (hasEvidencePhoto ? completeSlot : missingPhotoSlot) : incompleteSlot}
+        </div>
+      )}
+      {canExecute && totalCount > 0 && (
+        <>
+          {/* Spacer so the fixed bar never covers the last content on mobile. */}
+          <div className="h-24 md:hidden" aria-hidden="true" />
+          <div
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 px-4 pt-2 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] backdrop-blur md:hidden"
+            style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1 text-sm" aria-live="polite">
+                <p className="font-medium text-ink">
+                  {answeredCount} of {totalCount} answered
+                </p>
+                <p className={mandatoryRemaining > 0 ? "truncate text-xs text-danger" : "truncate text-xs " + syncStatus.className}>
+                  {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory left` : syncStatus.label}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!allAnswered}
+                onClick={() => document.getElementById("complete-section")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="min-h-12 shrink-0 rounded-lg bg-burgundy px-5 text-base font-bold text-white disabled:bg-muted disabled:opacity-60"
+              >
+                {allAnswered ? (hasEvidencePhoto ? "Complete" : "Add evidence") : "Complete"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }
