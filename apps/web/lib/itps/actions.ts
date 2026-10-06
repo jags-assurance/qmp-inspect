@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { checklistReviewError } from "@/lib/itps/checklist-review";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
@@ -412,6 +413,121 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
 
   revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null };
+}
+
+export interface BulkAddItemsState {
+  error: string | null;
+  added?: number;
+}
+
+/**
+ * Adds many activities to one section at once from pasted spreadsheet rows (tab- or comma-separated):
+ * Item no. | Activity | Acceptance criteria | Reference spec/clause | Method | Frequency. The item number
+ * may be left blank to auto-number. Duplicates (within the paste, or already in the section) are
+ * rejected up front so nothing is half-added.
+ */
+export async function bulkAddItpItemsAction(_prev: BulkAddItemsState, formData: FormData): Promise<BulkAddItemsState> {
+  const sectionId = String(formData.get("section_id") ?? "").trim();
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const pasted = String(formData.get("rows") ?? "");
+  const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  if (!sectionId || !itpId) return { error: "Missing section." };
+
+  const lines = pasted.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return { error: "Paste at least one row." };
+  if (lines.length > 200) return { error: "Paste up to 200 rows at a time." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: sectionRow } = await supabase
+    .from("itp_sections")
+    .select("itp_id, section_number")
+    .eq("id", sectionId)
+    .maybeSingle<{ itp_id: string; section_number: number }>();
+  if (!sectionRow || sectionRow.itp_id !== itpId) return { error: "That section doesn't belong to this ITP." };
+
+  const { data: existing } = await supabase
+    .from("itp_items")
+    .select("item_number, sort_order")
+    .eq("section_id", sectionId)
+    .returns<{ item_number: string; sort_order: number }[]>();
+  const usedNumbers = new Set((existing ?? []).map((i) => i.item_number));
+  let nextSort = Math.max(-1, ...(existing ?? []).map((i) => i.sort_order)) + 1;
+  let autoCounter = (existing ?? []).length;
+
+  const rows: {
+    section_id: string;
+    item_number: string;
+    activity: string;
+    acceptance_criteria: string | null;
+    reference_spec: string | null;
+    method: string | null;
+    frequency: string | null;
+    evidence_type: number;
+    sort_order: number;
+  }[] = [];
+  for (const [index, line] of lines.entries()) {
+    const cells = line.includes("\t") ? line.split("\t") : line.split(",");
+    const [numberRaw = "", activityRaw = "", criteriaRaw = "", referenceRaw = "", methodRaw = "", frequencyRaw = ""] = cells.map((c) => c.trim());
+    if (!activityRaw) return { error: `Row ${index + 1}: the activity text (second column) is empty.` };
+    let itemNumber = numberRaw;
+    if (!itemNumber) {
+      do {
+        autoCounter += 1;
+        itemNumber = `${sectionRow.section_number}.${autoCounter}`;
+      } while (usedNumbers.has(itemNumber));
+    }
+    if (usedNumbers.has(itemNumber)) return { error: `Row ${index + 1}: activity number ${itemNumber} is already used in this section.` };
+    usedNumbers.add(itemNumber);
+    rows.push({
+      section_id: sectionId,
+      item_number: itemNumber,
+      activity: activityRaw,
+      acceptance_criteria: criteriaRaw || null,
+      reference_spec: referenceRaw || null,
+      method: methodRaw || null,
+      frequency: frequencyRaw || null,
+      evidence_type: 1,
+      sort_order: nextSort++,
+    });
+  }
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("status, project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
+  const isIssued = itp?.status === "approved" || itp?.status === "client_accepted";
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (isIssued) {
+    if (!revisionReason) return { error: "This ITP has already been issued — a reason is required to add activities and create a new revision." };
+    const { error: revisionError } = await bumpRevisionIfIssued(supabase, itpId, `Added ${rows.length} activities (bulk) — ${revisionReason}`, user?.id ?? null);
+    if (revisionError) return { error: revisionError };
+  }
+
+  const { error } = await supabase.from("itp_items").insert(rows);
+  if (error) return { error: "Could not add the activities. Check you have permission and try again — nothing was added." };
+
+  await resetReviewIfUnderReview(supabase, itpId, `${rows.length} activities added`, null);
+  if (itp?.projects?.organization_id) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp_item",
+        entityId: itpId,
+        action: "items_bulk_added",
+        actorId: user?.id ?? null,
+        summary: `${rows.length} activities added in bulk`,
+      });
+    } catch {
+      // Best-effort.
+    }
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null, added: rows.length };
 }
 
 export interface EditItemState {
@@ -1095,6 +1211,94 @@ export async function advanceItpStatusAction(
     } catch {
       // Best-effort — see comment above.
     }
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
+export interface ApproveRevisionState {
+  error: string | null;
+}
+
+/**
+ * An edit to an issued ITP creates a new revision that has to be approved again before it is the
+ * controlled version. The person who made the change can't approve it (a JAGS Admin may, and that is
+ * recorded); anyone else with JAGS staff access, or the approve_itp permission, can. Clients are told
+ * the revision is approved so they can re-check it.
+ */
+export async function approveItpRevisionAction(_prev: ApproveRevisionState, formData: FormData): Promise<ApproveRevisionState> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  if (!itpId) return { error: "Missing ITP." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("status, revision, itp_number, title, project_id, revision_needs_approval, revision_changed_by, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{
+      status: string;
+      revision: number;
+      itp_number: string;
+      title: string;
+      project_id: string;
+      revision_needs_approval: boolean;
+      revision_changed_by: string | null;
+      projects: { organization_id: string } | null;
+    }>();
+  if (!itp) return { error: "ITP not found." };
+  if (!itp.revision_needs_approval) return { error: "This revision doesn't need approval." };
+
+  const mayApprove = isAdminStaff(session) || session.isJagsStaff || (await hasPermission(session.userId, "approve_itp", itp.project_id));
+  if (!mayApprove) return { error: "Only JAGS staff, or someone granted the approve permission, can approve a revision." };
+  const isChanger = itp.revision_changed_by === session.userId;
+  if (isChanger && !isAdminStaff(session)) {
+    return { error: "You made this change, so someone else has to approve the new revision (segregation of duties)." };
+  }
+
+  const { data: clearedRows, error } = await supabase
+    .from("itps")
+    .update({ revision_needs_approval: false } as never)
+    .eq("id", itpId)
+    .select("id");
+  if (error || !clearedRows?.length) return { error: "Could not approve the revision. Check you have permission and try again." };
+
+  try {
+    const organizationId = itp.projects?.organization_id;
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: isChanger ? "revision_self_approved" : "revision_approved",
+        actorId: session.userId,
+        summary: `${itp.itp_number} revision ${itp.revision} approved${isChanger ? " (by the person who made the change)" : ""}`,
+      });
+      const { data: clientParties } = await supabase
+        .from("project_parties")
+        .select("user_id")
+        .eq("project_id", itp.project_id)
+        .eq("party_type", "client")
+        .eq("is_active", true)
+        .not("user_id", "is", null)
+        .returns<{ user_id: string | null }[]>();
+      for (const party of clientParties ?? []) {
+        if (!party.user_id) continue;
+        await createNotification(supabase, {
+          organizationId,
+          projectId: itp.project_id,
+          recipientUserId: party.user_id,
+          title: `ITP revision ${itp.revision} approved`,
+          body: `${itp.itp_number} — ${itp.title}`,
+          link: `/inspect/itps/${itpId}`,
+        });
+      }
+    }
+  } catch {
+    // Best-effort.
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);

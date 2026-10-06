@@ -14,6 +14,8 @@ import { AcceptItpForm } from "./accept-itp-form";
 import { ReviewChainStatus } from "./review-chain-status";
 import { getItpReviewProgress } from "@/lib/itps/review-chain";
 import { ReturnItpForm } from "./return-itp-form";
+import { ApproveRevisionForm } from "./approve-revision-form";
+import { BulkAddItemsForm } from "./bulk-add-items-form";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
 import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
@@ -140,6 +142,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       assigned_acceptor_user_id: string | null;
       returned_reason: string | null;
       returned_at: string | null;
+      revision_needs_approval: boolean;
       projects: {
         id: string;
         name: string;
@@ -600,6 +603,40 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           ? Project Guide
         </Link>
       </div>
+      {itp.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
+        <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          <p className="font-medium">Revision {itp.revision} is awaiting approval</p>
+          <p className="mt-0.5 text-xs text-muted">
+            This ITP was changed after it was issued. The change is recorded in the revision history; someone other than the person who made
+            it needs to approve the new revision.
+          </p>
+          {(session.isJagsStaff || canApproveItp) && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
+        </div>
+      )}
+      {itp.status === "draft" && canSubmitForReview && (() => {
+        const allItems = (sections ?? []).flatMap((s) => s.itp_items ?? []);
+        if (allItems.length === 0) return null;
+        const withoutCriteria = allItems.filter((i) => !i.acceptance_criteria?.trim()).length;
+        const withoutLevels = allItems.filter((i) => !(parties ?? []).some((p) => interventionMap.has(`${i.id}:${p.id}`))).length;
+        const hasHold = allItems.some((i) => (parties ?? []).some((p) => interventionMap.get(`${i.id}:${p.id}`) === "H"));
+        const warnings = [
+          withoutCriteria > 0 ? `${withoutCriteria} activit${withoutCriteria === 1 ? "y has" : "ies have"} no acceptance criteria` : null,
+          withoutLevels > 0 ? `${withoutLevels} activit${withoutLevels === 1 ? "y has" : "ies have"} no sign-off level for any party` : null,
+          !hasHold ? "no Hold point is set on any activity" : null,
+        ].filter(Boolean);
+        if (warnings.length === 0) return null;
+        return (
+          <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+            <p className="font-medium">Before you submit for review</p>
+            <ul className="mt-1 list-disc pl-5 text-xs text-muted">
+              {warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-muted">These don&apos;t block submission, but reviewers will usually expect them filled in.</p>
+          </div>
+        );
+      })()}
       {itp.status === "draft" && itp.returned_reason && (
         <div className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink" role="status">
           <p className="font-medium text-danger">Returned for changes</p>
@@ -948,6 +985,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 levels={levels.map((l) => ({ code: l.code, label: l.label }))}
               />
             )}
+            {canEditContent && <BulkAddItemsForm itpId={itp.id} sectionId={section.id} isIssued={isIssued} />}
           </div>
         ))}
       </div>

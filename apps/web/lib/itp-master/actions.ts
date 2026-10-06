@@ -163,10 +163,55 @@ export async function copyMasterTemplateToItpAction(
   });
 
   if (itemsToInsert.length > 0) {
-    const { error: itemsError } = await supabase.from("itp_items").insert(itemsToInsert);
-    if (itemsError) {
+    const { data: createdItems, error: itemsError } = await supabase
+      .from("itp_items")
+      .insert(itemsToInsert)
+      .select("id, section_id, item_number");
+    if (itemsError || !createdItems) {
       await supabase.from("itps").delete().eq("id", itp.id);
       return { error: "The ITP could not be created because the template's activities couldn't be copied. Nothing was saved — please try again." };
+    }
+
+    // Default sign-off levels stored on the template (per party TYPE) are applied to this project's
+    // active parties of that type. Best-effort: the grid stays editable afterwards.
+    try {
+      const masterItemIds = (masterItems ?? []).map((i) => i.id);
+      const { data: defaults } = await supabase
+        .from("itp_master_item_interventions" as never)
+        .select("master_item_id, party_type, intervention")
+        .in("master_item_id", masterItemIds)
+        .returns<{ master_item_id: string; party_type: string; intervention: string }[]>();
+      if (defaults?.length) {
+        const [{ data: parties }, { data: projectOrg }] = await Promise.all([
+          supabase.from("project_parties").select("id, party_type").eq("project_id", projectId).eq("is_active", true).returns<{ id: string; party_type: string }[]>(),
+          supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>(),
+        ]);
+        const { data: levelTypes } = await supabase
+          .from("intervention_level_types")
+          .select("code")
+          .eq("organization_id", projectOrg?.organization_id ?? "")
+          .returns<{ code: string }[]>();
+        const validCodes = new Set((levelTypes ?? []).map((l) => l.code));
+        const sectionNumberById = new Map(newSections.map((s) => [s.id, s.section_number]));
+        const newItemByKey = new Map(createdItems.map((i) => [`${sectionNumberById.get(i.section_id)}|${i.item_number}`, i.id]));
+        const rowsToInsert: { itp_item_id: string; project_party_id: string; intervention: string }[] = [];
+        for (const masterItem of masterItems ?? []) {
+          const sourceSection = masterSections.find((s) => s.id === masterItem.section_id);
+          const newItemId = sourceSection ? newItemByKey.get(`${sourceSection.section_number}|${masterItem.item_number}`) : undefined;
+          if (!newItemId) continue;
+          for (const d of defaults.filter((x) => x.master_item_id === masterItem.id)) {
+            if (!validCodes.has(d.intervention)) continue;
+            for (const party of (parties ?? []).filter((p) => p.party_type === d.party_type)) {
+              rowsToInsert.push({ itp_item_id: newItemId, project_party_id: party.id, intervention: d.intervention });
+            }
+          }
+        }
+        if (rowsToInsert.length > 0) {
+          await supabase.from("activity_party_intervention").upsert(rowsToInsert, { onConflict: "itp_item_id,project_party_id" });
+        }
+      }
+    } catch {
+      // Best-effort — never blocks the ITP that was just created.
     }
   }
 
@@ -518,9 +563,43 @@ export async function reviewProposalAction(
   });
 
   if (masterItemsToInsert.length > 0) {
-    const { error: masterItemsError } = await supabase.from(ITP_MASTER_ITEMS_TABLE).insert(masterItemsToInsert);
-    if (masterItemsError) {
+    const { data: createdMasterItems, error: masterItemsError } = await supabase
+      .from(ITP_MASTER_ITEMS_TABLE)
+      .insert(masterItemsToInsert)
+      .select("id, section_id, item_number")
+      .returns<{ id: string; section_id: string; item_number: string }[]>();
+    if (masterItemsError || !createdMasterItems) {
       return { error: "Sections copied, but activities could not be copied into the master library." };
+    }
+
+    // Keep the source ITP's sign-off levels as template defaults, per party TYPE (client, main contractor,
+    // …), so the next ITP created from this template starts with the same Hold/Witness/Review points.
+    try {
+      const sourceItemIds = (sourceItems ?? []).map((i) => i.id);
+      const { data: sourceLevels } = await supabase
+        .from("activity_party_intervention")
+        .select("itp_item_id, intervention, project_parties(party_type)")
+        .in("itp_item_id", sourceItemIds)
+        .returns<{ itp_item_id: string; intervention: string; project_parties: { party_type: string } | null }[]>();
+      const masterSectionNumberById = new Map(newMasterSections.map((s) => [s.id, s.section_number]));
+      const masterItemByKey = new Map(createdMasterItems.map((i) => [`${masterSectionNumberById.get(i.section_id)}|${i.item_number}`, i.id]));
+      const defaultRows = new Map<string, { master_item_id: string; party_type: string; intervention: string }>();
+      for (const item of sourceItems ?? []) {
+        const sourceSection = sourceSections.find((s) => s.id === item.section_id);
+        const masterItemId = sourceSection ? masterItemByKey.get(`${sourceSection.section_number}|${item.item_number}`) : undefined;
+        if (!masterItemId) continue;
+        for (const level of (sourceLevels ?? []).filter((l) => l.itp_item_id === item.id)) {
+          const partyType = level.project_parties?.party_type;
+          if (!partyType) continue;
+          const key = `${masterItemId}|${partyType}`;
+          if (!defaultRows.has(key)) defaultRows.set(key, { master_item_id: masterItemId, party_type: partyType, intervention: level.intervention });
+        }
+      }
+      if (defaultRows.size > 0) {
+        await supabase.from("itp_master_item_interventions" as never).insert([...defaultRows.values()] as never);
+      }
+    } catch {
+      // Best-effort: the template itself was created; defaults can be added later.
     }
   }
 

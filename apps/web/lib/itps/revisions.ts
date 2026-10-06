@@ -34,12 +34,29 @@ async function buildSectionsSnapshot(supabase: SupabaseServerClient, itpId: stri
     .order("section_number")
     .returns<SnapshotSectionRow[]>();
 
+  const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((i) => i.id));
+  const interventionsByItem = new Map<string, { project_party_id: string; party_name: string; intervention: string }[]>();
+  if (itemIds.length > 0) {
+    const { data: levels } = await supabase
+      .from("activity_party_intervention")
+      .select("itp_item_id, project_party_id, intervention, project_parties(name)")
+      .in("itp_item_id", itemIds)
+      .returns<{ itp_item_id: string; project_party_id: string; intervention: string; project_parties: { name: string } | null }[]>();
+    for (const row of levels ?? []) {
+      const list = interventionsByItem.get(row.itp_item_id) ?? [];
+      list.push({ project_party_id: row.project_party_id, party_name: row.project_parties?.name ?? "", intervention: row.intervention });
+      interventionsByItem.set(row.itp_item_id, list);
+    }
+  }
+
   return (sections ?? []).map((s) => ({
     id: s.id,
     section_number: s.section_number,
     title: s.title,
     sort_order: s.sort_order,
-    items: [...(s.itp_items ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    items: [...(s.itp_items ?? [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((i) => ({ ...i, interventions: interventionsByItem.get(i.id) ?? [] })),
   }));
 }
 
@@ -137,7 +154,7 @@ export async function bumpRevisionIfIssued(
 
   const { error: bumpError } = await supabase
     .from("itps")
-    .update({ revision: itp.revision + 1 })
+    .update({ revision: itp.revision + 1, revision_needs_approval: true, revision_changed_by: userId } as never)
     .eq("id", itpId);
   if (bumpError) {
     return { bumped: false, error: "Could not increment the ITP revision. The edit was not applied — try again." };

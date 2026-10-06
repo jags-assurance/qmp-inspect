@@ -18,6 +18,8 @@ export interface ItpRevisionSnapshotItem {
   frequency?: string | null;
   notice_hours_override?: number | null;
   governing_drawing_document_id?: string | null;
+  /** Sign-off level per party at the time of the snapshot (older snapshots have none). */
+  interventions?: { project_party_id: string; party_name: string; intervention: string }[];
 }
 
 export interface ItpRevisionSnapshotSection {
