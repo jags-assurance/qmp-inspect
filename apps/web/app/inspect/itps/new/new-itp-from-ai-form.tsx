@@ -10,17 +10,6 @@ import {
 import type { ItpDraftResult } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 
-// The AI draft flow only ever suggests one of the four built-in codes (see
-// AI_SUGGESTED_INTERVENTION_LEVELS in lib/ai/provider.ts) — a custom organisation-specific level
-// isn't something the model has been told about, so this preview-only label map stays a plain
-// fallback (falls back to the bare code for anything unrecognised) rather than an org-scoped lookup.
-const INTERVENTION_LABEL: Record<string, string> = {
-  H: "Hold",
-  W: "Witness",
-  R: "Review",
-  S: "Surveillance",
-};
-
 const EXTRACTION_LABEL: Record<string, string> = {
   done: "Ready",
   pending: "Processing…",
@@ -34,6 +23,7 @@ const genInitialState: GenerateItpDraftState = {
   error: null,
   draft: null,
   projectParties: [],
+  interventionLevels: [],
   aiLogId: null,
   suggestedItpNumber: null,
 };
@@ -101,6 +91,7 @@ export function NewItpFromAiForm({
   const [genState, genFormAction, genPending] = useActionState(generateItpDraftAction, genInitialState);
   const [draft, setDraft] = useState<ItpDraftResult | null>(null);
   const [projectParties, setProjectParties] = useState<GenerateItpDraftState["projectParties"]>([]);
+  const [interventionLevels, setInterventionLevels] = useState<GenerateItpDraftState["interventionLevels"]>([]);
   const [aiLogId, setAiLogId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
@@ -135,6 +126,7 @@ export function NewItpFromAiForm({
     if (genState.draft) {
       setDraft(genState.draft);
       setProjectParties(genState.projectParties);
+      setInterventionLevels(genState.interventionLevels);
       setAiLogId(genState.aiLogId);
       setFeedback("");
       // Auto-fill from the AI's suggestions, but never clobber something the user already typed —
@@ -594,21 +586,43 @@ export function NewItpFromAiForm({
                       </div>
                     </div>
 
-                    {item.suggestedInterventions.length > 0 && (
+                    {projectParties.length > 0 && interventionLevels.length > 0 && (
                       <div className="mt-3 rounded-md bg-off-white p-2">
-                        <p className="text-xs font-medium text-muted">Suggested intervention levels</p>
-                        <ul className="mt-1 space-y-1 text-xs text-muted">
-                          {item.suggestedInterventions.map((si, siIdx) => {
-                            const party = projectParties.find((p) => p.id === si.projectPartyId);
+                        <p className="text-xs font-medium text-muted">
+                          Sign-off level per party — the AI&apos;s suggestion is pre-selected; change or clear any of them before creating the ITP
+                        </p>
+                        <div className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                          {projectParties.map((party) => {
+                            const current = item.suggestedInterventions.find((si) => si.projectPartyId === party.id);
                             return (
-                              <li key={siIdx}>
-                                <span className="font-medium text-ink">{party?.name ?? "Unknown party"}</span>:{" "}
-                                <span className="font-medium text-burgundy">{INTERVENTION_LABEL[si.intervention] ?? si.intervention}</span> —{" "}
-                                {si.reason}
-                              </li>
+                              <label key={party.id} className="flex items-center justify-between gap-2 text-xs text-ink">
+                                <span className="min-w-0 truncate" title={current?.reason ? `AI: ${current.reason}` : party.name}>
+                                  {party.name}
+                                </span>
+                                <select
+                                  value={current?.intervention ?? ""}
+                                  onChange={(e) => {
+                                    const code = e.target.value;
+                                    const others = item.suggestedInterventions.filter((si) => si.projectPartyId !== party.id);
+                                    updateItem(sectionIdx, itemIdx, {
+                                      suggestedInterventions: code
+                                        ? [...others, { projectPartyId: party.id, intervention: code as never, reason: current?.reason ?? "Set by reviewer" }]
+                                        : others,
+                                    });
+                                  }}
+                                  className="rounded border border-border bg-surface px-1.5 py-1 text-xs"
+                                >
+                                  <option value="">— None —</option>
+                                  {interventionLevels.map((l) => (
+                                    <option key={l.code} value={l.code}>
+                                      {l.label} ({l.code})
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
                             );
                           })}
-                        </ul>
+                        </div>
                       </div>
                     )}
                     {item.disciplineCode && !disciplineNameByCode.has(item.disciplineCode) && (

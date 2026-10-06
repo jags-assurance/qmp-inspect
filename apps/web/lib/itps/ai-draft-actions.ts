@@ -26,6 +26,8 @@ export interface GenerateItpDraftState {
   error: string | null;
   draft: ItpDraftResult | null;
   projectParties: { id: string; partyType: string; name: string }[];
+  /** This organisation's sign-off levels (Hold/Witness/Review/Surveillance plus any custom ones), so every suggested level can be changed in the draft before the ITP is created. */
+  interventionLevels: { code: string; label: string }[];
   aiLogId: string | null;
   /** An auto-generated ITP number from the org's numbering scheme, offered as a starting value in
    *  the (still freely editable) ITP number field. Drawn from the same atomic sequence used for
@@ -41,6 +43,7 @@ const EMPTY_DRAFT_STATE: GenerateItpDraftState = {
   error: null,
   draft: null,
   projectParties: [],
+  interventionLevels: [],
   aiLogId: null,
   suggestedItpNumber: null,
 };
@@ -92,6 +95,13 @@ export async function generateItpDraftAction(
   ]);
 
   const projectParties = (parties ?? []).map((p) => ({ id: p.id, partyType: p.party_type, name: p.name }));
+  const { data: levelRows } = await supabase
+    .from("intervention_level_types")
+    .select("code, label, sort_order")
+    .eq("organization_id", project.organization_id)
+    .order("sort_order", { ascending: true })
+    .returns<{ code: string; label: string; sort_order: number }[]>();
+  const interventionLevels = (levelRows ?? []).map((l) => ({ code: l.code, label: l.label }));
 
   let sourceDocuments: ItpSourceDocument[] = [];
   if (vaultDocumentIds.length > 0) {
@@ -204,7 +214,7 @@ export async function generateItpDraftAction(
     }
   }
 
-  return { error: null, draft, projectParties, aiLogId: logId, suggestedItpNumber };
+  return { error: null, draft, projectParties, interventionLevels, aiLogId: logId, suggestedItpNumber };
 }
 
 export interface CreateItpFromDraftState {
