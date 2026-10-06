@@ -19,6 +19,8 @@ interface ProjectRow {
 interface OrganizationRow {
   id: string;
   name: string;
+  engagement_mode: string | null;
+  brand_primary_color: string | null;
 }
 
 interface ItpRow {
@@ -80,13 +82,17 @@ export async function renderPortfolioSummaryPdf(
 
   const { data: organizations, error: orgsError } = await supabase
     .from("organizations")
-    .select("id, name")
+    .select("id, name, engagement_mode, brand_primary_color")
     .returns<OrganizationRow[]>();
 
   if (orgsError) {
     throw new Error(`Failed to load organizations: ${orgsError.message}`);
   }
   const orgNameById = new Map((organizations ?? []).map((o) => [o.id, o.name]));
+  // Same rule as getOrgBranding: a jags_led organisation always uses the JAGS palette, so no swatch.
+  const orgBrandColorById = new Map(
+    (organizations ?? []).map((o) => [o.id, o.engagement_mode === "jags_led" ? null : o.brand_primary_color] as const)
+  );
 
   const itpsResult =
     projectIds.length > 0
@@ -170,6 +176,7 @@ export async function renderPortfolioSummaryPdf(
       projectNumber: project.project_number,
       projectName: project.name,
       organizationName: orgNameById.get(project.organization_id) ?? "—",
+      organizationBrandColor: orgBrandColorById.get(project.organization_id) ?? null,
       itpCompletionRate: itpRateByProject.get(project.id) ?? null,
       openNcrs: openNcrsByProject.get(project.id) ?? 0,
     }))

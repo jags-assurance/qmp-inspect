@@ -13,6 +13,8 @@ export interface PortfolioSummaryProjectRow {
   projectNumber: string;
   projectName: string;
   organizationName: string;
+  /** The organisation's own primary brand colour (co-branded / white-label only; null = JAGS palette). Shown as a swatch beside its name, since one portfolio spans several organisations. */
+  organizationBrandColor?: string | null;
   itpCompletionRate: number | null;
   openNcrs: number;
 }
@@ -43,6 +45,12 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+const BRAND_HEX = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+function orgSwatch(color: string | null | undefined): string {
+  if (!color || !BRAND_HEX.test(color)) return "";
+  return `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:${color};vertical-align:baseline"></span>`;
 }
 
 function cell(value: string | number | null | undefined): string {
@@ -100,7 +108,7 @@ function renderProjectTable(rows: PortfolioSummaryProjectRow[]): string {
       <tr>
         <td>${cell(r.projectNumber)}</td>
         <td>${cell(r.projectName)}</td>
-        <td>${cell(r.organizationName)}</td>
+        <td>${orgSwatch(r.organizationBrandColor)}${cell(r.organizationName)}</td>
         <td>${pct(r.itpCompletionRate)}</td>
         <td>${cell(r.openNcrs)}</td>
       </tr>`
