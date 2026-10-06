@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+
+export const metadata: Metadata = { title: "Guide" };
 
 type Category = "Plan" | "Execute" | "Quality" | "Records";
 

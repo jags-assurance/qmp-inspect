@@ -17,6 +17,12 @@ export interface ItpRow {
   revision: number;
   phase: string;
   projects: { name: string } | null;
+  signed?: number;
+  signTotal?: number;
+}
+
+function progressLabel(row: ItpRow) {
+  return row.signTotal ? `${Math.round(((row.signed ?? 0) / row.signTotal) * 100)}% (${row.signed}/${row.signTotal})` : "—";
 }
 
 // Exported so other pages rendering the same ITP status enum (e.g.
@@ -56,7 +62,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
             <span className="flex items-start justify-between gap-2">
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                 <span className={`doc-id text-sm text-burgundy ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
-                <span className="text-xs text-muted">Rev {row.revision}</span>
+                <span className="text-xs text-muted">Rev {row.revision}{row.signTotal ? ` · ${progressLabel(row)} signed` : ""}</span>
               </span>
               <span className="shrink-0 whitespace-nowrap">
                 <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
@@ -97,6 +103,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
     header: "Status",
     render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
   },
+  { key: "signed", header: "% signed", render: (row) => progressLabel(row) },
   {
     key: "phase",
     header: "Phase",

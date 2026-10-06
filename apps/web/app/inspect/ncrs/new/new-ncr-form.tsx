@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   createNcrAction,
+  findOpenNcrsForItemAction,
   draftNcrDescriptionAction,
   type CreateNcrState,
   type DraftNcrDescriptionState,
@@ -17,6 +18,16 @@ const initialDraftState: DraftNcrDescriptionState = {
   description: null,
   requirementNotMet: null,
   aiLogId: null,
+};
+
+const DEFAULT_DAYS: Record<NcrSeverity, number> = { major_ncr: 7, minor_ncr: 14, observation: 30 };
+function addDays(n: number): string {
+  return new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+}
+const SEVERITY_HELP: Record<NcrSeverity, string> = {
+  major_ncr: "Major: affects safety, structural integrity or a hold point. Needs urgent corrective action.",
+  minor_ncr: "Minor: isolated departure from the specification that does not affect safety or function.",
+  observation: "Observation: a potential issue or improvement. No formal corrective action required unless graded up.",
 };
 
 const SEVERITY_LABEL: Record<NcrSeverity, string> = {
@@ -41,6 +52,8 @@ export function NewNcrForm({
   inspectionRecordId,
   checklistItemId,
   initialDescription,
+  defaultSeverity,
+  lockSeverity,
   onCreated,
 }: {
   projects: { id: string; project_number: string; name: string }[];
@@ -56,6 +69,10 @@ export function NewNcrForm({
   /** The checklist item this NCR is raised from (stored as ncrs.checklist_item_id). */
   checklistItemId?: string;
   initialDescription?: string;
+  /** Preselected severity (default: observation). */
+  defaultSeverity?: NcrSeverity;
+  /** Hides the other severities, e.g. when raising from the Observations register. */
+  lockSeverity?: boolean;
   /** When given, the form is hosted in a side panel: it stays on the page after raising and reports
    *  the new record here instead of redirecting to the NCR's own page. */
   onCreated?: (created: { id: string; ncrNumber: string }) => void;
@@ -76,6 +93,20 @@ export function NewNcrForm({
   }, [state.created, onCreated]);
 
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
+  const [severity, setSeverity] = useState<NcrSeverity>(defaultSeverity ?? "observation");
+  const [dueDate, setDueDate] = useState(() => addDays(DEFAULT_DAYS[defaultSeverity ?? "observation"]));
+  const [dueTouched, setDueTouched] = useState(false);
+  const [duplicates, setDuplicates] = useState<{ id: string; ncr_number: string; description: string; status: string }[]>([]);
+  useEffect(() => {
+    if (!itpItemId) return;
+    let cancelled = false;
+    findOpenNcrsForItemAction(itpItemId)
+      .then((r) => !cancelled && setDuplicates(r))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [itpItemId]);
   const [notes, setNotes] = useState("");
   const [description, setDescription] = useState(initialDescription ?? "");
   const [requirementNotMet, setRequirementNotMet] = useState("");
@@ -109,7 +140,7 @@ export function NewNcrForm({
 
         <div>
           <label htmlFor="project_id" className="block text-sm font-medium text-ink">
-            Project
+            Project <span className="text-danger">*</span>
           </label>
           <select
             id="project_id"
@@ -131,26 +162,33 @@ export function NewNcrForm({
         <fieldset>
           <legend className="block text-sm font-medium text-ink">Severity</legend>
           <div className="mt-1 grid grid-cols-3 gap-2">
-            {NCR_SEVERITIES.map((severity, i) => (
+            {NCR_SEVERITIES.filter((sv) => !lockSeverity || sv === severity).map((sv) => (
               <label
-                key={severity}
+                key={sv}
                 className={cn(
                   "cursor-pointer rounded-full border border-border bg-surface px-3 py-2 text-center text-sm font-medium transition-colors",
-                  SEVERITY_PILL_CLASS[severity]
+                  SEVERITY_PILL_CLASS[sv]
                 )}
               >
                 <input
                   type="radio"
                   name="severity"
-                  value={severity}
-                  defaultChecked={i === 0}
+                  value={sv}
+                  checked={severity === sv}
+                  onChange={() => {
+                    setSeverity(sv);
+                    if (!dueTouched) setDueDate(addDays(DEFAULT_DAYS[sv]));
+                  }}
                   required
                   className="sr-only"
                 />
-                {SEVERITY_LABEL[severity]}
+                {SEVERITY_LABEL[sv]}
               </label>
             ))}
           </div>
+          <p className="mt-1.5 text-xs text-muted">
+            {SEVERITY_HELP[severity]} Default: due in {DEFAULT_DAYS[severity]} days.
+          </p>
         </fieldset>
       </section>
 
@@ -198,7 +236,7 @@ export function NewNcrForm({
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-ink">
-            Description
+            Description <span className="text-danger">*</span>
           </label>
           <textarea
             id="description"
@@ -263,6 +301,11 @@ export function NewNcrForm({
               name="due_date"
               type="date"
               required
+              value={dueDate}
+              onChange={(e) => {
+                setDueDate(e.target.value);
+                setDueTouched(true);
+              }}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>
@@ -289,6 +332,23 @@ export function NewNcrForm({
           {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
         </div>
       </section>
+
+      {duplicates.length > 0 && (
+        <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
+          <p className="font-medium">Open NCRs already exist on this activity</p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {duplicates.map((d) => (
+              <li key={d.id}>
+                <a href={`/inspect/ncrs/${d.id}`} target="_blank" rel="noreferrer" className="text-burgundy hover:underline">
+                  {d.ncr_number}
+                </a>{" "}
+                ({d.status.replace("_", " ")}): {d.description.slice(0, 80)}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-muted">Check it is not the same issue before raising another.</p>
+        </div>
+      )}
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 

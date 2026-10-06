@@ -8,6 +8,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import type { NcrSeverity, NcrStatus } from "@/lib/ncrs/types";
 import { isOverdue } from "./is-overdue";
+import { daysUntilDue } from "@/lib/ncrs/list-filters";
 import { NCR_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
 
 export interface NcrRegisterRow {
@@ -96,6 +97,7 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void) {
       <div className="flex items-center gap-2">
         <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>
         {isOverdue(row) && <Badge tone="danger">Overdue</Badge>}
+        {!isOverdue(row) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning">Due soon</Badge>}
       </div>
     ),
   },
@@ -119,18 +121,36 @@ export function NcrsTable({
   idColumnHeader = "NCR No.",
   searchPlaceholder = "Search NCRs…",
   emptyMessage = "No NCRs or observations raised yet.",
+  gradeAction = false,
 }: {
   rows: NcrRegisterRow[];
   totalCount?: number;
   idColumnHeader?: string;
   searchPlaceholder?: string;
   emptyMessage?: string;
+  /** Adds a "Grade to NCR" row link (observations register, staff). */
+  gradeAction?: boolean;
 }) {
   const serverDriven = totalCount !== undefined;
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(serverDriven);
   const panel = useUrlPanel("ncr");
   const openPanel = panel.open;
-  const columns = useMemo(() => buildColumns(idColumnHeader, openPanel), [idColumnHeader, openPanel]);
+  const columns = useMemo(() => {
+    const base = buildColumns(idColumnHeader, openPanel);
+    if (gradeAction) {
+      base.push({
+        key: "grade",
+        header: "",
+        render: (row) =>
+          row.severity === "observation" && row.status !== "closed" ? (
+            <Link href={`/inspect/ncrs/${row.id}#grade`} className="whitespace-nowrap text-xs font-medium text-burgundy hover:underline">
+              Grade to NCR
+            </Link>
+          ) : null,
+      });
+    }
+    return base;
+  }, [idColumnHeader, openPanel, gradeAction]);
 
   return (
     <DataTable

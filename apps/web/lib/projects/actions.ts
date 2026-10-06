@@ -1126,3 +1126,96 @@ export async function askProjectQuestionAction(
     return { ...EMPTY_ASK_STATE, error: err instanceof Error ? err.message : "Could not get an answer right now." };
   }
 }
+
+export interface UpdateProjectDetailsState {
+  error: string | null;
+  saved?: boolean;
+}
+
+/**
+ * Edit a project's descriptive details (name, number, site, country, contract number, dates).
+ * Allowed for a JAGS Admin or an org-wide self-managed/client-managed member of the owning
+ * organisation; the projects update RLS policy remains the real enforcement (zero rows updated
+ * is reported as a permission error rather than a silent success).
+ */
+export async function updateProjectDetailsAction(
+  _prev: UpdateProjectDetailsState,
+  formData: FormData
+): Promise<UpdateProjectDetailsState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const projectNumber = String(formData.get("project_number") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const siteLocation = String(formData.get("site_location") ?? "").trim();
+  const country = String(formData.get("country") ?? "").trim();
+  const contractNumber = String(formData.get("contract_number") ?? "").trim();
+  const startDate = String(formData.get("start_date") ?? "").trim();
+  const endDate = String(formData.get("end_date") ?? "").trim();
+
+  if (!projectId) return { error: "Missing project." };
+  if (!projectNumber || !name) return { error: "Project number and name are required." };
+  if (projectNumber.length > 60 || name.length > 200) return { error: "Project number or name is too long." };
+  if (startDate && endDate && endDate < startDate) return { error: "The end date can't be before the start date." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("projects")
+    .select("organization_id, project_number, name, site_location, country, contract_number, start_date, end_date")
+    .eq("id", projectId)
+    .maybeSingle<{
+      organization_id: string;
+      project_number: string;
+      name: string;
+      site_location: string | null;
+      country: string | null;
+      contract_number: string | null;
+      start_date: string | null;
+      end_date: string | null;
+    }>();
+  if (!existing) return { error: "Project not found." };
+
+  const allowed =
+    isAdminStaff(session) ||
+    (!session.isJagsStaff && (await getSelfManagedOrgIdsForUser(supabase, session.userId)).has(existing.organization_id));
+  if (!allowed) return { error: "Only a JAGS Admin or your organisation's self-managed users can edit project details." };
+
+  const next = {
+    project_number: projectNumber,
+    name,
+    site_location: siteLocation || null,
+    country: country || null,
+    contract_number: contractNumber || null,
+    start_date: startDate || null,
+    end_date: endDate || null,
+  };
+  const { data: updated, error } = await supabase.from("projects").update(next).eq("id", projectId).select("id");
+  if (error?.code === "23505") return { error: "A project with that number already exists for this organisation." };
+  if (error || !updated || updated.length === 0) {
+    return { error: "Could not save the changes. Check you have permission and try again." };
+  }
+
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  for (const key of Object.keys(next) as (keyof typeof next)[]) {
+    if (existing[key] !== next[key]) changes[key] = { from: existing[key], to: next[key] };
+  }
+  if (Object.keys(changes).length > 0) {
+    try {
+      await recordAuditEvent(supabase, {
+        organizationId: existing.organization_id,
+        projectId,
+        entityType: "project",
+        entityId: projectId,
+        action: "details_updated",
+        actorId: session.userId,
+        summary: `Project details updated (${Object.keys(changes).join(", ")})`,
+        changes,
+      });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
+  revalidatePath(`/inspect/projects/${projectId}`);
+  revalidatePath("/inspect/projects");
+  return { error: null, saved: true };
+}

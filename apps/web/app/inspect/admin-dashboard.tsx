@@ -189,9 +189,9 @@ export function AdminDashboard({
           }
         />
         <StatCard
-          label="Pending inspections"
+          label="Inspections in progress"
           value={pendingInspections}
-          href="/inspect/start-work"
+          href="/inspect/inspections?result=in_progress"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">

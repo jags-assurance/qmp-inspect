@@ -114,29 +114,40 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // still does.
   const isClientRole = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
 
+  // Grouped to follow the real QA workflow: Plan, Execute, Quality, Records, Admin.
   const navItems: NavItem[] = [
     ...(canSeePlatformHome(session)
       ? [{ label: "← JAGS Assurance", href: "/platform" }]
       : []),
-    { label: "Dashboard", href: "/inspect" },
-    { label: "Guide", href: "/inspect/guide" },
-    ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work" }] : []),
-    { label: "Projects", href: "/inspect/projects" },
-    { label: "Inspections", href: "/inspect/inspections" },
-    // Reports & Downloads / Data Book / Activity / KPIs are all per-project pages — no single
-    // top-level href makes sense for them without a project already chosen. This is a dedicated
-    // index page (the project filter lives there, not in the sidebar itself) that lists every
-    // project this login can reach and links straight into that project's own four pages — same
-    // "always visible, RLS decides what's actually in the list" pattern Projects itself already
-    // uses, not gated on any module license since it's purely a navigational aggregator.
-    { label: "Reports & Documents", href: "/inspect/reports-documents" },
-    ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps" }] : []),
-    ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs" }] : []),
-    ...(isLicensed("observations") ? [{ label: "Observations", href: "/inspect/observations" }] : []),
+    {
+      label: "Dashboard",
+      href: "/inspect",
+      // Ctrl+K-only destinations that have no sidebar row of their own. Handover keeps the client /
+      // staff + licence rule (not offered to contractors or TPI); Punch list is per-project, so its
+      // entry point opens the project picker (no generic punch or registers route exists).
+      palette: [
+        { label: "Notifications", href: "/inspect/notifications" },
+        ...((session.isJagsStaff || isClientRole) && isLicensed("handover")
+          ? [{ label: "Data Book / Handover", href: "/inspect/handover" }]
+          : []),
+        { label: "Punch list (choose a project)", href: "/inspect/projects" },
+      ],
+    },
+    { label: "Projects", href: "/inspect/projects", group: "Plan" },
+    ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps", group: "Plan" }] : []),
+    ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work", group: "Execute" }] : []),
+    { label: "Inspections", href: "/inspect/inspections", group: "Execute" },
     ...(!isClientRole && isLicensed("standalone_assignments")
-      ? [{ label: "Standalone Assignments", href: "/inspect/standalone" }]
+      ? [{ label: "Standalone Assignments", href: "/inspect/standalone", group: "Execute" }]
       : []),
-    ...(isLicensed("vault") ? [{ label: "Document Vault", href: "/inspect/vault" }] : []),
+    ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs", group: "Quality" }] : []),
+    ...(isLicensed("observations")
+      ? [{ label: "Observations", href: "/inspect/observations", group: "Quality" }]
+      : []),
+    // Per-project pages (Reports, Data Book, Activity, KPIs) are reached through this index.
+    { label: "Reports & Documents", href: "/inspect/reports-documents", group: "Records" },
+    ...(isLicensed("vault") ? [{ label: "Document Vault", href: "/inspect/vault", group: "Records" }] : []),
+    { label: "Guide", href: "/inspect/guide", group: "Help" },
     // Handover used to be its own top-level nav item here — folded into "Reports & Documents"
     // instead (a handover certificate is itself a kind of report/document, and the two sitting
     // side by side in the sidebar was confusing/redundant). The route itself is unchanged
@@ -163,6 +174,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           {
             label: "Settings",
             href: "/inspect/settings",
+            group: "Admin",
             activePrefixes: ["/inspect/organisation", "/inspect/itp-master"],
             palette: [
               { label: "Client Organisations", href: "/inspect/settings?section=clients" },
@@ -188,17 +200,18 @@ export default async function InspectLayout({ children }: { children: React.Reac
         ]
       : []),
     ...(showTeamsNav && !isAdminStaff(session)
-      ? [{ label: "Teams", href: "/inspect/organisation/teams" }]
+      ? [{ label: "Teams", href: "/inspect/organisation/teams", group: "Admin" }]
       : []),
     // A self-/client-managed org's own admin gets the same "Settings" shape a JAGS Admin has,
     // instead of four-to-five flat top-level items competing with Projects/ITPs/NCRs. A client that
     // doesn't manage its own org keeps the single flat Client Teams link (when it has one).
     ...(isSelfManagedOrg && !isAdminStaff(session)
       ? [
-          { label: "Manage", href: "/inspect/manage" },
+          { label: "Manage", href: "/inspect/manage", group: "Admin" },
           {
             label: "Settings",
             href: "/inspect/settings",
+            group: "Admin",
             activePrefixes: ["/inspect/organisation", "/inspect/manage"],
             palette: [
               { label: "Manage", href: "/inspect/manage" },
@@ -212,7 +225,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
           },
         ]
       : showClientTeamsNav && !isAdminStaff(session) && isLicensed("client_teams")
-        ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams" }]
+        ? [{ label: "Client Teams", href: "/inspect/organisation/client-teams", group: "Admin" }]
         : []),
   ];
 

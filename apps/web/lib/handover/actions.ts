@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { createNotification } from "@/lib/notifications/helpers";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 
 export interface IssueHandoverState {
@@ -47,10 +48,13 @@ export async function issueHandoverAction(
 
   const { data: dataBook } = await supabase
     .from(DATA_BOOKS_TABLE)
-    .select("id, status, override_open_punch_items, override_reason, override_items")
+    .select("id, project_id, book_number, status, override_open_punch_items, override_reason, override_items")
     .eq("id", dataBookId)
+    .eq("project_id", projectId)
     .maybeSingle<{
       id: string;
+      project_id: string;
+      book_number: string;
       status: string;
       override_open_punch_items: boolean;
       override_reason: string | null;
@@ -59,6 +63,34 @@ export async function issueHandoverAction(
 
   if (!dataBook || dataBook.status !== "compiled") {
     return { error: "Only a compiled Data Book can be issued for handover." };
+  }
+
+  // Server-side gate re-check at issue time: a non-overridden book must still have zero open punch
+  // items (something may have been re-opened since compile).
+  if (!dataBook.override_open_punch_items) {
+    const { count: openPunch } = await supabase
+      .from("punch_list_items")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .neq("status", "closed");
+    if ((openPunch ?? 0) > 0) {
+      return {
+        error: `${openPunch} punch item(s) are open again since this book was compiled. Close them, or compile a new book with a documented override.`,
+      };
+    }
+  }
+
+  // Atomically claim the compiled -> issued transition first so a double-click or concurrent issue
+  // cannot create two certificates; reverted below if the certificate insert fails.
+  const { data: claimed } = await supabase
+    .from(DATA_BOOKS_TABLE)
+    .update({ status: "issued" })
+    .eq("id", dataBookId)
+    .eq("status", "compiled")
+    .select("id")
+    .maybeSingle<{ id: string }>();
+  if (!claimed) {
+    return { error: "This Data Book was already issued or changed by someone else. Refresh the page." };
   }
 
   // Carries the open-items-at-override snapshot forward onto the certificate itself, so a
@@ -80,19 +112,40 @@ export async function issueHandoverAction(
     .single<{ id: string }>();
 
   if (certError || !certificate) {
+    await supabase.from(DATA_BOOKS_TABLE).update({ status: "compiled" }).eq("id", dataBookId).eq("status", "issued");
     if (certError?.code === "23505") {
-      return { error: "A handover certificate already exists for this Data Book." };
+      return { error: "A handover certificate already exists for this Data Book or that certificate number is in use." };
     }
     return { error: "Could not issue the handover certificate. Check you have permission and try again." };
   }
 
-  const { error: updateError } = await supabase
-    .from(DATA_BOOKS_TABLE)
-    .update({ status: "issued" })
-    .eq("id", dataBookId);
-
-  if (updateError) {
-    return { error: "Certificate issued, but the Data Book status could not be updated." };
+  // Notify the client organisation's users (best-effort).
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id")
+      .eq("id", projectId)
+      .single();
+    if (project?.organization_id) {
+      const { data: recipients } = await supabase
+        .from("access_grants")
+        .select("user_id")
+        .eq("organization_id", project.organization_id)
+        .returns<{ user_id: string }[]>();
+      for (const r of [...new Map((recipients ?? []).map((g) => [g.user_id, g])).values()]) {
+        if (r.user_id === user?.id) continue;
+        await createNotification(supabase, {
+          organizationId: project.organization_id,
+          projectId,
+          recipientUserId: r.user_id,
+          title: `Handover certificate ${certificateNumber} issued`,
+          body: `Data Book ${dataBook.book_number} is ready. Please review and acknowledge receipt.`,
+          link: "/inspect/handover",
+        });
+      }
+    }
+  } catch {
+    // Best-effort.
   }
 
   try {

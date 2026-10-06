@@ -25,6 +25,11 @@ export async function createDataBookAction(
     return { error: "Book number and title are required." };
   }
 
+  const createSession = await requireSession();
+  if (!createSession.isJagsStaff) {
+    return { error: "Only JAGS staff can create a Data Book." };
+  }
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -100,7 +105,23 @@ export async function compileDataBookAction(
     return { error: "Only JAGS staff can compile a Data Book." };
   }
 
+  const supabaseCheck = await createSupabaseServerClient();
+  const { data: bookCheck } = await supabaseCheck
+    .from(DATA_BOOKS_TABLE)
+    .select("id, project_id, status")
+    .eq("id", dataBookId)
+    .maybeSingle<{ id: string; project_id: string; status: string }>();
+  if (!bookCheck || bookCheck.project_id !== projectId) {
+    return { error: "Data Book not found on this project." };
+  }
+  if (bookCheck.status !== "draft") {
+    return { error: "This Data Book has already been compiled or issued. Issued books are immutable; create a new Data Book for a revision." };
+  }
+
   const readiness = await computeDataBookReadiness(projectId);
+  // An override is only meaningful (and only recorded) when the gates genuinely fail; a ready
+  // project compiles cleanly and is never mislabelled as a conditional handover.
+  const effectiveOverride = override && !readiness.isReady;
 
   if (!readiness.isReady && !override) {
     return {
@@ -109,8 +130,8 @@ export async function compileDataBookAction(
     };
   }
 
-  if (override && !overrideReason) {
-    return { error: "An override reason is required to compile with open items outstanding." };
+  if (effectiveOverride && overrideReason.length < 10) {
+    return { error: "An override reason of at least 10 characters is required to compile with open items outstanding." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -122,7 +143,7 @@ export async function compileDataBookAction(
   // their agreed due dates — snapshotted now, at override time, not left as a live join that a
   // later closure would silently rewrite (see 20260920050000_conditional_handover.sql).
   let overrideItems: ConditionalOpenItem[] | null = null;
-  if (override) {
+  if (effectiveOverride) {
     const { data: openItems } = await supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
       .select("id, description, location, due_date, project_parties(name)")
@@ -145,12 +166,13 @@ export async function compileDataBookAction(
       status: "compiled",
       compiled_by: user?.id ?? null,
       compiled_at: new Date().toISOString(),
-      override_open_punch_items: override,
-      override_reason: override ? overrideReason : null,
-      override_by: override ? (user?.id ?? null) : null,
+      override_open_punch_items: effectiveOverride,
+      override_reason: effectiveOverride ? overrideReason : null,
+      override_by: effectiveOverride ? (user?.id ?? null) : null,
       override_items: overrideItems,
     })
     .eq("id", dataBookId)
+    .eq("project_id", projectId)
     .eq("status", "draft")
     .select("id")
     .maybeSingle<{ id: string }>();
@@ -176,7 +198,7 @@ export async function compileDataBookAction(
         entityId: dataBookId,
         action: "compiled",
         actorId: user?.id ?? null,
-        summary: override
+        summary: effectiveOverride
           ? `Data Book compiled with override (${overrideReason})`
           : "Data Book compiled",
       });

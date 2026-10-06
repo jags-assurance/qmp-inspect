@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { signOutAction } from "@/lib/auth/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listRecentNotifications } from "@/lib/notifications/helpers";
+import { NOTIFICATIONS_TABLE } from "@/lib/notifications/types";
 import { SidebarShell } from "./sidebar-shell";
 import { OfflineBanner } from "./offline-banner";
 import { NotificationsBell } from "./notifications-bell";
@@ -26,6 +27,8 @@ export interface NavItem {
   /** Extra path prefixes that also mark this item active — e.g. the standalone Settings pages
    *  (/inspect/organisation/usage, /inspect/itp-master) that live outside /inspect/settings. */
   activePrefixes?: string[];
+  /** Sidebar section heading (Plan, Execute, ...). A heading renders when it changes between rows. */
+  group?: string;
 }
 
 export interface OrgBrandingInfo {
@@ -69,6 +72,7 @@ export async function AppShell({
   return (
     <SidebarMobileProvider>
       <IdleTimeout />
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg">Skip to main content</a>
       <BackNavigation />
       <div className="flex min-h-screen">
         <SidebarShell
@@ -95,7 +99,7 @@ export async function AppShell({
           </div>
         </header>
         <OfflineBanner />
-        <main className="min-w-0 flex-1 bg-background p-3 sm:p-4 lg:p-6">{children}</main>
+        <main id="main-content" tabIndex={-1} className="min-w-0 outline-none flex-1 bg-background p-3 sm:p-4 lg:p-6">{children}</main>
         </div>
       </div>
     </SidebarMobileProvider>
@@ -104,6 +108,15 @@ export async function AppShell({
 
 async function NotificationsBellLoader({ userId }: { userId: string }) {
   const supabase = await createSupabaseServerClient();
-  const initialNotifications = await listRecentNotifications(supabase, userId);
-  return <NotificationsBell userId={userId} initialNotifications={initialNotifications} />;
+  // The bell only carries the latest 20 rows, so the badge needs a true unread total (head count,
+  // no rows transferred), fetched in parallel with the list.
+  const [initialNotifications, { count }] = await Promise.all([
+    listRecentNotifications(supabase, userId),
+    supabase
+      .from(NOTIFICATIONS_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_user_id", userId)
+      .eq("is_read", false),
+  ]);
+  return <NotificationsBell userId={userId} initialNotifications={initialNotifications} initialUnreadCount={count ?? 0} />;
 }

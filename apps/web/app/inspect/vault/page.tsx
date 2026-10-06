@@ -7,6 +7,15 @@ import { AddCategoryForm } from "./add-category-form";
 import { ConnectorsPanel } from "./connectors-panel";
 import { PageGuide } from "@/components/domain/page-guide";
 
+interface DocSummary {
+  id: string;
+  folder_id: string;
+  title: string;
+  revision: string;
+  status: string;
+  created_at: string;
+}
+
 export default async function VaultPage({
   searchParams,
 }: {
@@ -26,6 +35,11 @@ export default async function VaultPage({
 
   let folders: (VaultFolderRow & { documentCount: number })[] = [];
   let canManageCategories = false;
+  let pendingCount = 0;
+  let totalDocs = 0;
+  let recent: DocSummary[] = [];
+  const pendingByFolder = new Map<string, number>();
+  let folderNameById = new Map<string, string>();
   if (selectedProject) {
     if (isAdminStaff(session)) {
       canManageCategories = true;
@@ -49,16 +63,24 @@ export default async function VaultPage({
     const { data: documentRows } = folderIds.length
       ? await supabase
           .from(VAULT_DOCUMENTS_TABLE)
-          .select("folder_id")
+          .select("id, folder_id, title, revision, status, created_at")
           .in("folder_id", folderIds)
           .neq("status", "superseded")
-          .returns<{ folder_id: string }[]>()
-      : { data: [] as { folder_id: string }[] };
+          .order("created_at", { ascending: false })
+          .returns<DocSummary[]>()
+      : { data: [] as DocSummary[] };
 
     const counts = new Map<string, number>();
     for (const row of documentRows ?? []) {
       counts.set(row.folder_id, (counts.get(row.folder_id) ?? 0) + 1);
+      if (row.status === "for_review") {
+        pendingCount += 1;
+        pendingByFolder.set(row.folder_id, (pendingByFolder.get(row.folder_id) ?? 0) + 1);
+      }
     }
+    recent = (documentRows ?? []).slice(0, 5);
+    totalDocs = (documentRows ?? []).length;
+    folderNameById = new Map((folderRows ?? []).map((f) => [f.id, f.name] as const));
 
     folders = (folderRows ?? []).map((f) => ({ ...f, documentCount: counts.get(f.id) ?? 0 }));
   }
@@ -96,13 +118,22 @@ export default async function VaultPage({
 
       {selectedProject && (
         <>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href={`/inspect/vault/${selectedProject}/pending`}
+              className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
+            >
+              My pending approvals
+            </Link>
             <a
               href={`/api/vault/${selectedProject}/download-all`}
-              className="inline-flex items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
+              className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
             >
-              Download all (.zip)
+              Download approved (.zip)
             </a>
+            <span className="text-sm text-muted">
+              {totalDocs} current document{totalDocs === 1 ? "" : "s"} · {pendingCount} awaiting approval
+            </span>
           </div>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {folders.map((folder) => (
@@ -117,10 +148,34 @@ export default async function VaultPage({
                 </p>
                 <p className="mt-1 text-sm text-muted">
                   {folder.documentCount} document{folder.documentCount === 1 ? "" : "s"}
+                  {(pendingByFolder.get(folder.id) ?? 0) > 0 && (
+                    <span className="ml-2 text-warning">{pendingByFolder.get(folder.id)} for review</span>
+                  )}
                 </p>
               </Link>
             ))}
           </div>
+          {recent.length > 0 && (
+            <section className="mt-8" aria-label="Recently added">
+              <h2 className="text-sm font-semibold text-ink">Recently added</h2>
+              <ul className="mt-2 divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+                {recent.map((d) => (
+                  <li key={d.id}>
+                    <Link
+                      href={`/inspect/vault/${selectedProject}/${d.folder_id}?doc=${d.id}`}
+                      className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 hover:bg-off-white"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-ink">{d.title}</span>
+                      <span className="text-xs text-muted">
+                        {folderNameById.get(d.folder_id)} · Rev {d.revision} · {d.status.replace("_", " ")} ·{" "}
+                        {new Date(d.created_at).toLocaleDateString("en-GB")}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {canManageCategories && <AddCategoryForm projectId={selectedProject} />}
         </>
       )}

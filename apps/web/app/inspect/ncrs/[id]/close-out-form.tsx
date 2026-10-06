@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { updateNcrAction, suggestNcrRootCauseAction, type UpdateNcrState, type SuggestRootCauseState } from "@/lib/ncrs/actions";
+import { updateNcrAction, reopenNcrAction, suggestNcrRootCauseAction, type ReopenNcrState, type UpdateNcrState, type SuggestRootCauseState } from "@/lib/ncrs/actions";
 import { Button } from "@/components/ui/button";
 
 const initialState: UpdateNcrState = { error: null };
@@ -19,6 +19,9 @@ export function CloseOutForm({
   preventiveAction,
   verificationNotes,
   isClosed,
+  status,
+  canVerify,
+  photoCount,
   onSaved,
 }: {
   ncrId: string;
@@ -34,6 +37,10 @@ export function CloseOutForm({
   preventiveAction: string | null;
   verificationNotes: string | null;
   isClosed: boolean;
+  status: string;
+  /** JAGS staff may verify/close/reopen. */
+  canVerify: boolean;
+  photoCount: number;
   /** Called after a successful save (used by the register side panel to refetch). */
   onSaved?: () => void;
 }) {
@@ -65,9 +72,13 @@ export function CloseOutForm({
     }
   }
 
-  const canClose = Boolean(fields.rootCause.trim() && fields.correctiveAction.trim() && fields.verificationNotes.trim());
+  const [fields2, setFields2] = useState({ preventive: preventiveAction ?? "" });
+  const [reopenState, reopenAction, reopenPending] = useActionState(reopenNcrAction, { error: null } as ReopenNcrState);
+  const capaComplete = Boolean(fields.rootCause.trim() && fields.correctiveAction.trim() && fields2.preventive.trim() && fields.verificationNotes.trim());
+  const canClose = capaComplete && photoCount > 0 && status === "pending_verification" && canVerify;
 
   return (
+    <div>
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <input type="hidden" name="root_cause_ai_log_id" value={aiLogId ?? ""} />
@@ -185,6 +196,7 @@ export function CloseOutForm({
           name="preventive_action"
           rows={3}
           defaultValue={preventiveAction ?? ""}
+          onChange={(e) => setFields2({ preventive: e.target.value })}
           disabled={isClosed}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
@@ -212,16 +224,33 @@ export function CloseOutForm({
           <Button type="submit" name="close_now" value="false" variant="outline" disabled={pending}>
             {pending ? "Saving…" : "Save progress"}
           </Button>
-          <Button type="submit" name="close_now" value="true" disabled={pending || !canClose}>
-            {pending ? "Closing…" : "Close NCR"}
-          </Button>
+          {canVerify && (
+            <Button type="submit" name="close_now" value="true" disabled={pending || !canClose}>
+              {pending ? "Closing…" : "Verify and close NCR"}
+            </Button>
+          )}
         </div>
       )}
-      {!canClose && !isClosed && (
+      {!isClosed && canVerify && !canClose && (
         <p className="text-xs text-muted">
-          Root cause, corrective action and verification notes are all required before this NCR can be closed.
+          To close: status must be Pending verification, with root cause, corrective action, preventive action,
+          verification notes and at least one evidence photo.
+          {photoCount === 0 ? " No evidence photo yet." : ""}
         </p>
       )}
+      {!isClosed && !canVerify && (
+        <p className="text-xs text-muted">Closing is done by a JAGS verifier after you send the NCR for verification.</p>
+      )}
     </form>
+    {isClosed && canVerify && (
+      <form action={reopenAction} className="mt-4 space-y-2 border-t border-border pt-4">
+        <input type="hidden" name="ncr_id" value={ncrId} />
+        <label htmlFor="reopen_reason" className="block text-sm font-medium text-ink">Re-open this NCR</label>
+        <textarea id="reopen_reason" name="reason" rows={2} required placeholder="Reason for re-opening (required)" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        {reopenState.error && <p className="text-sm text-danger">{reopenState.error}</p>}
+        <Button type="submit" variant="outline" disabled={reopenPending}>{reopenPending ? "Re-opening…" : "Re-open NCR"}</Button>
+      </form>
+    )}
+    </div>
   );
 }

@@ -5,9 +5,9 @@ export default async function ProjectActivityPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; cat?: string; limit?: string }>;
 }) {
   const { projectId } = await params;
-  const { range } = await searchParams;
-  return <ActivityView projectId={projectId} range={range} />;
+  const { range, cat, limit } = await searchParams;
+  return <ActivityView projectId={projectId} range={range} filters={{ cat, limit }} />;
 }

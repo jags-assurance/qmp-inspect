@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("project") ?? "";
   const phaseParam = url.searchParams.get("phase") ?? "";
   const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
-  const q = url.searchParams.get("q") ?? "";
+  const q = (url.searchParams.get("q") ?? "").replace(/[,()%*]/g, " ").trim();
 
   let itpIdFilter: string[] | null = null;
   if (disciplineId) {
@@ -48,6 +48,8 @@ export async function GET(request: Request) {
   }
   if (projectId) query = query.eq("project_id", projectId);
   if (phase) query = query.eq("phase", phase);
+  const st = url.searchParams.get("status") ?? "";
+  if (["draft", "under_review", "approved", "client_accepted"].includes(st)) query = query.eq("status", st);
   if (q) query = query.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
 
   const { data: itps, error } = await query
@@ -88,19 +90,23 @@ export async function GET(request: Request) {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE5E5E5" } };
   });
 
+  // Neutralise spreadsheet formula injection in free-text cells.
+  const safe = (v: string) => (/^[=+\-@]/.test(v) ? `'${v}` : v);
   for (const itp of itps ?? []) {
     sheet.addRow([
-      itp.itp_number,
-      itp.title,
-      itp.projects?.organizations?.name ?? "",
-      itp.projects?.name ?? "",
+      safe(itp.itp_number),
+      safe(itp.title),
+      safe(itp.projects?.organizations?.name ?? ""),
+      safe(itp.projects?.name ?? ""),
       STATUS_LABEL[itp.status] ?? itp.status,
       ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)],
       itp.revision,
-      itp.applicable_standard ?? "",
+      safe(itp.applicable_standard ?? ""),
     ]);
   }
 
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.autoFilter = "A1:H1";
   sheet.columns = [
     { width: 16 },
     { width: 40 },

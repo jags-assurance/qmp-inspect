@@ -16,7 +16,9 @@ import { isAiConfigured } from "@/lib/ai/gate";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 
-export default async function NewItpPage() {
+export default async function NewItpPage({ searchParams }: { searchParams: Promise<{ tab?: string; template?: string }> }) {
+  const { tab: tabParam, template: templateParam } = await searchParams;
+  const initialTab = tabParam === "template" || tabParam === "ai" ? tabParam : undefined;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -185,8 +187,9 @@ export default async function NewItpPage() {
         this project.
       </p>
       <ItpCreationTabs
+        initialTab={initialTab}
         manual={<NewItpForm projects={projects} />}
-        fromTemplate={<NewItpFromTemplateForm projects={projects} templates={templates ?? []} />}
+        fromTemplate={<NewItpFromTemplateForm projects={projects} templates={templates ?? []} defaultTemplateId={templateParam} />}
         fromAi={fromAi}
       />
     </div>

@@ -131,15 +131,23 @@ export function DrawingMarkupViewer({
   if (!isImage) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4">
+        {signedUrl && fileExtension(storagePath) === "pdf" && (
+          <iframe src={signedUrl} title="Document preview" className="mb-3 h-[70vh] w-full rounded-md border border-border bg-off-white" />
+        )}
         <p className="text-sm text-muted">
-          Pin-drop markup is only available for image drawings (e.g. a scanned plan or photo of a
-          drawing) in this version — this document is a {fileExtension(storagePath) || "non-image"}{" "}
-          file.
+          {fileExtension(storagePath) === "pdf"
+            ? "PDF preview above. Pin-drop markup is available for image drawings only."
+            : `No in-browser preview for ${fileExtension(storagePath) || "this"} files (Word, Excel and similar open in their own app). Pin-drop markup is available for image drawings only.`}
         </p>
         {signedUrl && (
-          <a href={signedUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-burgundy hover:underline">
-            Open document ↗
-          </a>
+          <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <a href={signedUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
+              Open in new tab ↗
+            </a>
+            <a href={signedUrl} download className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
+              Download
+            </a>
+          </p>
         )}
         {markups.length > 0 && (
           <div className="mt-4">

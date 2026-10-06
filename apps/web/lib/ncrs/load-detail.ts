@@ -4,6 +4,7 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { getLatestNcrPdf, getLatestNcrCloseoutCertificate } from "@/lib/reports/actions";
+import { getSessionContext } from "@/lib/auth/session";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
 export interface NcrDetail {
@@ -68,6 +69,10 @@ export interface NcrDetailData {
   history: NcrHistoryEntry[];
   inspectionRecord: NcrInspectionSummary | null;
   otherNcrs: NcrSiblingNcr[];
+  /** JAGS staff: may verify, close and re-open. */
+  canVerify: boolean;
+  documents: { linkId: string; vaultDocumentId: string; title: string; documentReference: string | null; status: string }[];
+  vaultOptions: { id: string; title: string; documentReference: string | null; folderName: string; revision: string | null; status: string; createdAt: string; storagePath: string | null }[];
 }
 
 /** Returns null when the NCR does not exist / is not visible. Callers handle auth. */
@@ -156,6 +161,23 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     })(),
   ]);
 
+  const [{ data: docRows }, { data: vaultRows }] = await Promise.all([
+    supabase
+      .from("ncr_documents" as any)
+      .select("id, vault_document_id, vault_documents(title, document_reference, status)")
+      .eq("ncr_id", id)
+      .returns<{ id: string; vault_document_id: string; vault_documents: { title: string; document_reference: string | null; status: string } | null }[]>(),
+    ncr.status === "closed"
+      ? Promise.resolve({ data: [] as never[] })
+      : supabase
+          .from("vault_documents")
+          .select("id, title, document_reference, revision, status, created_at, storage_path, vault_folders!inner(project_id, name)")
+          .eq("vault_folders.project_id", ncr.project_id)
+          .eq("status", "approved")
+          .order("title")
+          .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; status: string; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
+  ]);
+
   const { data: photos } = await supabase
     .from(NCR_PHOTOS_TABLE)
     .select("*")
@@ -217,7 +239,7 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   // Real cascading effects of closing this NCR (see the CAPA form's own logic) — surfaced directly
   // near the close action now, not just documented in the collapsed PageGuide, since the guide text
   // itself calls this out as something people miss.
-  const closeConsequences: string[] = ["Closes the punch-list item this NCR created when it was raised"];
+  const closeConsequences: string[] = ["Notifies the person who raised it", "Closes the punch-list item this NCR created when it was raised"];
   if (ncr.inspection_record_id) {
     closeConsequences.push("Notifies the original inspector the activity is ready to re-inspect");
   }
@@ -234,5 +256,23 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     history,
     inspectionRecord,
     otherNcrs,
+    documents: (docRows ?? []).map((d) => ({
+      linkId: d.id,
+      vaultDocumentId: d.vault_document_id,
+      title: d.vault_documents?.title ?? "Untitled document",
+      documentReference: d.vault_documents?.document_reference ?? null,
+      status: d.vault_documents?.status ?? "approved",
+    })),
+    vaultOptions: (vaultRows ?? []).map((d) => ({
+      id: d.id,
+      title: d.title,
+      documentReference: d.document_reference,
+      folderName: d.vault_folders?.name ?? "Document Vault",
+      revision: d.revision,
+      status: d.status,
+      createdAt: d.created_at,
+      storagePath: d.storage_path,
+    })),
+    canVerify: Boolean((await getSessionContext())?.isJagsStaff),
   };
 }

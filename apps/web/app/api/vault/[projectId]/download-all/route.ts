@@ -50,9 +50,19 @@ function sanitizeFilename(name: string): string {
  * enforced by vault_folders_select/vault_documents_select) — this route can only ever see and zip
  * documents the requesting session could already see one at a time in the UI.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   await requireSession();
   const { projectId } = await params;
+  // ?ids=a,b,c : an explicit selection from the folder table (still RLS-scoped to this project's
+  // folders). Selected documents may be any status except rejected; unapproved ones are flagged in
+  // the file name so a draft can't be mistaken for a controlled copy.
+  const idsParam = request.nextUrl.searchParams.get("ids");
+  const selectedIds = idsParam
+    ? idsParam.split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)).slice(0, 200)
+    : null;
+  if (idsParam && (!selectedIds || selectedIds.length === 0)) {
+    return NextResponse.json({ error: "No valid documents were selected." }, { status: 400 });
+  }
   const supabase = await createSupabaseServerClient();
 
   const { data: folders, error: foldersError } = await supabase
@@ -70,13 +80,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "No vault folders found for this project." }, { status: 404 });
   }
 
-  const { data: documents, error: documentsError } = await supabase
+  let docQuery = supabase
     .from(VAULT_DOCUMENTS_TABLE)
     .select("id, folder_id, title, document_number, revision, storage_path, status")
-    .in("folder_id", folderIds)
-    // Approved, current documents only — a handover pack must not include drafts still in review.
-    .eq("status", "approved")
-    .returns<DocumentRow[]>();
+    .in("folder_id", folderIds);
+  // Whole-project pack: approved, current documents only — a handover pack must not include drafts.
+  docQuery = selectedIds ? docQuery.in("id", selectedIds).neq("status", "rejected") : docQuery.eq("status", "approved");
+  const { data: documents, error: documentsError } = await docQuery.returns<DocumentRow[]>();
 
   if (documentsError) {
     return NextResponse.json({ error: "Could not load this project's vault documents." }, { status: 500 });
@@ -113,7 +123,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       }
       const extMatch = /\.([a-z0-9]+)$/i.exec(path);
       const ext = extMatch ? `.${extMatch[1]}` : "";
-      const baseName = sanitizeFilename(`${doc.document_number ?? doc.title} — rev${doc.revision}`);
+      const statusTag = doc.status === "approved" ? "" : doc.status === "superseded" ? " (SUPERSEDED)" : " (UNAPPROVED)";
+      const baseName = sanitizeFilename(`${doc.document_number ?? doc.title} — rev${doc.revision}${statusTag}`);
       let entryName = `${folderName}/${baseName}${ext}`;
       let dupeCount = 1;
       while (usedNames.has(entryName)) {
@@ -144,7 +155,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   return new NextResponse(webStream, {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="vault-documents.zip"`,
+      "Content-Disposition": `attachment; filename="${selectedIds ? "vault-selected-documents" : "vault-documents"}.zip"`,
     },
   });
 }

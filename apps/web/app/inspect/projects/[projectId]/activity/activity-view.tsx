@@ -72,8 +72,43 @@ interface ActivityEvent {
  * sign-off notified, data book compiled, handover issued/acknowledged, punch list opened/closed,
  * vault document uploaded) already had a real timestamp on record and simply wasn't being surfaced.
  */
-export async function ActivityView({ projectId, range, embedded = false }: { projectId: string; range?: string; embedded?: boolean }) {
+const ACTIVITY_PAGE = 50;
+
+const ACTIVITY_CATEGORIES: { key: string; label: string; test: (kind: string) => boolean }[] = [
+  { key: "itp", label: "ITPs", test: (k) => k.startsWith("itp_") },
+  { key: "inspection", label: "Inspections", test: (k) => k === "inspection" || k === "standalone_completed" },
+  { key: "ncr", label: "NCRs", test: (k) => k.startsWith("ncr_") },
+  { key: "signoff", label: "Sign-offs and holds", test: (k) => k.startsWith("signoff_") },
+  { key: "databook", label: "Data Book and handover", test: (k) => k.startsWith("databook_") || k.startsWith("handover_") },
+  { key: "punch", label: "Punch list", test: (k) => k.startsWith("punch_") },
+  { key: "vault", label: "Documents", test: (k) => k.startsWith("vault_") },
+];
+
+function activityLink(kind: string, projectId: string): { href: string; label: string } | null {
+  if (kind.startsWith("itp_")) return { href: `/inspect/itps?project=${projectId}`, label: "ITPs" };
+  if (kind === "inspection") return { href: `/inspect/inspections?project=${projectId}`, label: "Inspections" };
+  if (kind.startsWith("ncr_")) return { href: "/inspect/ncrs", label: "NCR register" };
+  if (kind.startsWith("signoff_")) return { href: "/inspect/start-work", label: "Start work" };
+  if (kind.startsWith("databook_")) return { href: `/inspect/projects/${projectId}/data-book`, label: "Data Book" };
+  if (kind.startsWith("handover_")) return { href: "/inspect/handover", label: "Handover" };
+  if (kind.startsWith("punch_")) return { href: `/inspect/projects/${projectId}/punch-list`, label: "Punch list" };
+  if (kind.startsWith("vault_")) return { href: `/inspect/vault/${projectId}`, label: "Vault" };
+  return null;
+}
+
+export async function ActivityView({
+  projectId,
+  range,
+  filters = {},
+  embedded = false,
+}: {
+  projectId: string;
+  range?: string;
+  filters?: { cat?: string; limit?: string };
+  embedded?: boolean;
+}) {
   await requireSession();
+  const pageLimit = Math.min(1000, Math.max(ACTIVITY_PAGE, Number.parseInt(filters.limit ?? "", 10) || ACTIVITY_PAGE));
   const supabase = await createSupabaseServerClient();
 
   const dateRange = parseDateRange(range);
@@ -408,8 +443,15 @@ export async function ActivityView({ projectId, range, embedded = false }: { pro
   // but the actual date-range scoping happens here on the merged, per-event timestamp list — a single
   // source row (e.g. an NCR) can contribute multiple events (raised/closed) with different timestamps,
   // so filtering has to happen after the row is split into its individual events, not before.
-  const filteredEvents = fromIso ? allEvents.filter((e) => new Date(e.timestamp).getTime() >= new Date(fromIso).getTime()) : allEvents;
-  const events = filteredEvents.slice(0, 80);
+  const activeCategory = ACTIVITY_CATEGORIES.find((c) => c.key === filters.cat);
+  const filteredEvents = allEvents
+    .filter((e) => !fromIso || new Date(e.timestamp).getTime() >= new Date(fromIso).getTime())
+    .filter((e) => !activeCategory || activeCategory.test(e.kind));
+  const events = filteredEvents.slice(0, pageLimit);
+  const moreParams = new URLSearchParams();
+  if (range) moreParams.set("range", range);
+  if (filters.cat) moreParams.set("cat", filters.cat);
+  moreParams.set("limit", String(pageLimit + ACTIVITY_PAGE));
 
   const Heading = embedded ? "h2" : "h1";
   return (
@@ -441,9 +483,32 @@ export async function ActivityView({ projectId, range, embedded = false }: { pro
           <DateRangeFilter />
           <p className="text-xs text-muted">
             Showing {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
-            {filteredEvents.length > 80 ? " (capped to the most recent 80)" : ""}
+            {filteredEvents.length > pageLimit ? ` (first ${pageLimit} of ${filteredEvents.length})` : ""}
           </p>
         </div>
+        {embedded ? (
+          <p className="mt-2 text-xs text-muted">
+            <Link href={`/inspect/projects/${projectId}/activity`} className="text-burgundy hover:underline">
+              Open the full page
+            </Link>{" "}
+            to filter by category.
+          </p>
+        ) : (
+          <form method="get" className="mt-3 flex flex-wrap gap-2">
+            {range && <input type="hidden" name="range" value={range} />}
+            <select name="cat" defaultValue={filters.cat ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label="Category">
+              <option value="">All categories</option>
+              {ACTIVITY_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white">
+              Apply
+            </button>
+          </form>
+        )}
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
@@ -461,11 +526,32 @@ export async function ActivityView({ projectId, range, embedded = false }: { pro
                       dateStyle: "medium",
                       timeStyle: "short",
                     })}
+                    {(() => {
+                      const link = activityLink(event.kind, projectId);
+                      return link ? (
+                        <>
+                          {" · "}
+                          <Link href={link.href} className="text-burgundy hover:underline">
+                            {link.label}
+                          </Link>
+                        </>
+                      ) : null;
+                    })()}
                   </p>
                 </div>
               </li>
             ))}
           </ol>
+        )}
+        {filteredEvents.length > pageLimit && (
+          <div className="mt-4 text-center">
+            <Link
+              href={`/inspect/projects/${projectId}/activity?${moreParams.toString()}`}
+              className="rounded-md border border-border px-4 py-2 text-sm text-burgundy"
+            >
+              Show more
+            </Link>
+          </div>
         )}
       </div>
     </div>

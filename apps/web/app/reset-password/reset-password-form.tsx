@@ -39,7 +39,8 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
           onChange={setConfirmPassword}
         />
 
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        <p id="pw-hint" className="text-xs text-muted">Use at least 8 characters. Both fields must match.</p>
+        {state.error && <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{state.error}</p>}
 
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Updating…" : "Update password"}

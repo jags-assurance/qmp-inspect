@@ -5,22 +5,26 @@ import { ItpDetailView } from "./[id]/itp-detail-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
-import { ItpsTable, type ItpRow } from "./itps-table";
+import { ItpsTable, ITP_STATUS_LABEL, type ItpRow } from "./itps-table";
 import { ITP_TABLE_PAGE_SIZE } from "./constants";
 import { DisciplineFilterForm, type DisciplineOption } from "./discipline-filter-form";
 import { PhaseFilterForm } from "./phase-filter-form";
 import { ITP_PHASES, normalizeItpPhase } from "@/lib/itps/phase";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { SortForm } from "./sort-form";
 import { ExportLink } from "@/components/domain/export-link";
 
 export default async function ItpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string; itp?: string; pane?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string; itp?: string; pane?: string; status?: string; sort?: string }>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = await searchParams;
+  const STATUSES = ["draft", "under_review", "approved", "client_accepted"] as const;
+  const statusFilter = STATUSES.find((x) => x === statusParam) ?? null;
+  const sort = ["number", "title", "status"].includes(sortParam ?? "") ? (sortParam as string) : "";
   // R23: optional phase filter — only a recognised phase value is honoured, anything else is
   // treated as "no filter" rather than silently matching zero rows.
   const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
@@ -104,23 +108,60 @@ export default async function ItpsPage({
     countQuery = countQuery.eq("project_id", projectId);
     tableQuery = tableQuery.eq("project_id", projectId);
   }
+  if (statusFilter) {
+    countQuery = countQuery.eq("status", statusFilter);
+    tableQuery = tableQuery.eq("status", statusFilter);
+  }
   if (phase) {
     countQuery = countQuery.eq("phase", phase);
     tableQuery = tableQuery.eq("phase", phase);
   }
   if (q) {
-    countQuery = countQuery.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
-    tableQuery = tableQuery.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
+    const sq = q.replace(/[,()%*]/g, " ").trim();
+    countQuery = countQuery.or(`itp_number.ilike.%${sq}%,title.ilike.%${sq}%`);
+    tableQuery = tableQuery.or(`itp_number.ilike.%${sq}%,title.ilike.%${sq}%`);
   }
 
   const offset = (page - 1) * ITP_TABLE_PAGE_SIZE;
-  const [{ count: totalCount }, { data: itps }] = await Promise.all([
+  const orderCol = sort === "number" ? "itp_number" : sort === "title" ? "title" : sort === "status" ? "status" : "created_at";
+  const [{ count: totalCount }, { data: itpRows }, statusCounts] = await Promise.all([
     countQuery,
     tableQuery
-      .order("created_at", { ascending: false })
+      .order(orderCol, { ascending: sort !== "" })
       .range(offset, offset + ITP_TABLE_PAGE_SIZE - 1)
       .returns<ItpRow[]>(),
+    Promise.all(
+      STATUSES.map(async (st) => {
+        let c = supabase.from("itps").select("id", { count: "exact", head: true }).eq("status", st);
+        if (itpIdFilter) c = itpIdFilter.length === 0 ? c.eq("id", "00000000-0000-0000-0000-000000000000") : c.in("id", itpIdFilter);
+        if (projectId) c = c.eq("project_id", projectId);
+        if (phase) c = c.eq("phase", phase);
+        const { count } = await c;
+        return [st, count ?? 0] as const;
+      })
+    ),
   ]);
+
+  // % activities signed: one batched query over the sign-off rows of this page's ITPs.
+  const pageIds = (itpRows ?? []).map((r) => r.id);
+  const progress = new Map<string, { signed: number; total: number }>();
+  if (pageIds.length > 0) {
+    const { data: so } = await supabase
+      .from("activity_signoff_progress")
+      .select("status, itp_items!inner(itp_sections!inner(itp_id))")
+      .in("itp_items.itp_sections.itp_id", pageIds)
+      .limit(10000)
+      .returns<{ status: string; itp_items: { itp_sections: { itp_id: string } } | null }[]>();
+    for (const row of so ?? []) {
+      const id = row.itp_items?.itp_sections?.itp_id;
+      if (!id) continue;
+      const cur = progress.get(id) ?? { signed: 0, total: 0 };
+      cur.total += 1;
+      if (row.status === "signed_off" || row.status === "proceeded_no_response") cur.signed += 1;
+      progress.set(id, cur);
+    }
+  }
+  const itps = (itpRows ?? []).map((r) => ({ ...r, signed: progress.get(r.id)?.signed ?? 0, signTotal: progress.get(r.id)?.total ?? 0 }));
 
   // R91 — export the register (current filters, every matching row, not just this page) to Excel
   // (a real .xlsx workbook, see app/api/itps/export/route.ts) and PDF (a print view). Built from
@@ -129,6 +170,7 @@ export default async function ItpsPage({
   if (disciplineId) exportParams.set("discipline", disciplineId);
   if (projectId) exportParams.set("project", projectId);
   if (phase) exportParams.set("phase", phase);
+  if (statusFilter) exportParams.set("status", statusFilter);
   if (q) exportParams.set("q", q);
   const exportQuery = exportParams.toString();
 
@@ -136,6 +178,8 @@ export default async function ItpsPage({
   if (disciplineId) backParams.set("discipline", disciplineId);
   if (projectId) backParams.set("project", projectId);
   if (phaseParam) backParams.set("phase", phaseParam);
+  if (statusFilter) backParams.set("status", statusFilter);
+  if (sort) backParams.set("sort", sort);
   if (q) backParams.set("q", q);
   if (pageParam) backParams.set("page", pageParam);
   const backQuery = backParams.toString();
@@ -191,7 +235,49 @@ export default async function ItpsPage({
       <div className="mt-5 flex flex-wrap items-end gap-x-4 gap-y-3">
         <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
         <PhaseFilterForm selectedPhase={phase} />
+        <SortForm
+          current={sort}
+          params={{
+            ...(disciplineId ? { discipline: disciplineId } : {}),
+            ...(projectId ? { project: projectId } : {}),
+            ...(phase ? { phase } : {}),
+            ...(q ? { q } : {}),
+            ...(statusFilter ? { status: statusFilter } : {}),
+          }}
+        />
       </div>
+
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+        {[
+          { val: "", label: "All", n: statusCounts.reduce((a, [, n]) => a + n, 0) },
+          ...STATUSES.map((st) => ({ val: st as string, label: ITP_STATUS_LABEL[st], n: statusCounts.find(([k]) => k === st)?.[1] ?? 0 })),
+        ].map(({ val, label, n }) => {
+          const p = new URLSearchParams(backParams);
+          p.delete("page");
+          if (val) p.set("status", val);
+          else p.delete("status");
+          const active = (statusFilter ?? "") === val;
+          return (
+            <Link
+              key={val || "all"}
+              href={`/inspect/itps${p.toString() ? `?${p.toString()}` : ""}`}
+              aria-current={active ? "true" : undefined}
+              className={`inline-flex min-h-11 items-center rounded-full border px-3 text-sm ${active ? "border-burgundy bg-burgundy text-white" : "border-border bg-surface text-ink hover:bg-off-white"}`}
+            >
+              {label} ({n})
+            </Link>
+          );
+        })}
+      </div>
+
+      {(totalCount ?? 0) === 0 && !q && canCreateItp && (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-4 text-center text-sm text-muted">
+          No ITPs match these filters.{" "}
+          <Link href="/inspect/itps/new" className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline">
+            Create ITP
+          </Link>
+        </div>
+      )}
 
       <SplitLayout
         storageKey="itps"
@@ -203,7 +289,7 @@ export default async function ItpsPage({
             </Link>
           ) : undefined
         }
-        list={<ItpsTable rows={itps ?? []} totalCount={totalCount ?? 0} />}
+        list={<ItpsTable rows={itps} totalCount={totalCount ?? 0} />}
         detail={
           itp ? (
             <>

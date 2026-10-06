@@ -10,6 +10,8 @@ import {
 import { ITP_MASTER_REVISIONS_TABLE, type ItpMasterRevisionRow } from "@/lib/itp-master/revision-types";
 import { VersionHistoryPanel } from "./version-history-panel";
 import { DefaultLevels } from "./default-levels";
+import { MasterAdminPanel } from "./admin-panel";
+import Link from "next/link";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
@@ -44,7 +46,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
 
   const { data: template } = await supabase
     .from(ITP_MASTER_TEMPLATES_TABLE)
-    .select("id, title, industry, applicable_standard, version, is_active, master_disciplines(name)")
+    .select("id, title, industry, applicable_standard, discipline_id, version, is_active, master_disciplines(name)")
     .eq("id", id)
     .maybeSingle<ItpMasterTemplateRow & { master_disciplines: { name: string } | null }>();
 
@@ -72,6 +74,9 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
     defaultsByItem.set(row.master_item_id, { ...(defaultsByItem.get(row.master_item_id) ?? {}), [row.party_type]: row.intervention });
   }
   const canEditDefaults = isAdminStaff(session);
+  const { data: disciplineList } = canEditDefaults
+    ? await supabase.from("master_disciplines").select("id, name").order("name").returns<{ id: string; name: string }[]>()
+    : { data: [] as { id: string; name: string }[] };
 
   // R31 version history — frozen snapshots of past master template versions, newest first. See
   // lib/itp-master/revisions.ts for what writes these rows.
@@ -83,6 +88,14 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
     .eq("template_id", id)
     .order("version", { ascending: false })
     .returns<(ItpMasterRevisionRow & { users: { full_name: string } | null })[]>();
+
+  const { data: auditRows } = await supabase
+    .from("itp_master_audit" as never)
+    .select("id, action, summary, created_at, users(full_name)" as never)
+    .eq("template_id" as never, id as never)
+    .order("created_at" as never, { ascending: false })
+    .limit(20)
+    .returns<{ id: string; action: string; summary: string; created_at: string; users: { full_name: string } | null }[]>();
 
   return (
     <div>
@@ -105,6 +118,26 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
         {template.industry || "—"} · {template.master_disciplines?.name ?? "—"}
         {template.applicable_standard ? ` · ${template.applicable_standard}` : ""}
       </p>
+
+      {template.is_active && (
+        <Link
+          href={`/inspect/itps/new?tab=template&template=${template.id}`}
+          className="mt-3 inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
+        >
+          Use this template
+        </Link>
+      )}
+      {canEditDefaults && (
+        <MasterAdminPanel
+          templateId={template.id}
+          title={template.title}
+          industry={template.industry}
+          standard={template.applicable_standard}
+          disciplineId={template.discipline_id}
+          isActive={template.is_active}
+          disciplines={disciplineList ?? []}
+        />
+      )}
 
       <div className="mt-8 space-y-8">
         {(sections ?? []).map((section) => (
@@ -160,6 +193,25 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
       </div>
 
       <VersionHistoryPanel revisions={revisions ?? []} />
+
+      <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-sm font-medium text-ink">Change log</h2>
+        {(auditRows ?? []).length === 0 ? (
+          <p className="mt-1 text-xs text-muted">No administrative changes recorded yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-sm">
+            {(auditRows ?? []).map((a) => (
+              <li key={a.id} className="text-ink">
+                {a.summary}{" "}
+                <span className="text-xs text-muted">
+                  {new Date(a.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                  {a.users?.full_name ? ` · ${a.users.full_name}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

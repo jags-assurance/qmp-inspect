@@ -8,7 +8,15 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
 import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documents-table";
-import { VaultUploadForm } from "./upload-form";
+import { VaultUploadForm, type VaultUploadPrefill } from "./upload-form";
+
+/** "2" -> "3", "B" -> "C", otherwise "<rev>.1" — the suggested label for the next revision. */
+function nextRevisionLabel(rev: string): string {
+  const n = Number.parseInt(rev, 10);
+  if (Number.isFinite(n) && String(n) === rev.trim()) return String(n + 1);
+  if (/^[A-Ya-y]$/.test(rev.trim())) return String.fromCharCode(rev.trim().charCodeAt(0) + 1);
+  return `${rev}.1`;
+}
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SplitLayout } from "@/components/ui/split-layout";
@@ -34,11 +42,11 @@ export default async function VaultFolderPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; folderId: string }>;
-  searchParams: Promise<{ doc?: string }>;
+  searchParams: Promise<{ doc?: string; newrev?: string }>;
 }) {
   const session = await requireSession();
   const { projectId, folderId } = await params;
-  const { doc: selectedDocId } = await searchParams;
+  const { doc: selectedDocId, newrev: newRevOf } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   // High authority by default (JAGS Admin), delegatable per person via the approve_vault_document
@@ -74,7 +82,22 @@ export default async function VaultFolderPage({
     console.error("Failed to load vault documents", documentsError);
   }
 
-  const reviewDocIds = (documents ?? []).filter((d) => d.status === "for_review").map((d) => d.id);
+  let prefill: VaultUploadPrefill | null = null;
+  if (newRevOf) {
+    const target = (documents ?? []).find((d) => d.id === newRevOf);
+    if (target && target.status !== "superseded") {
+      prefill = {
+        revisesDocumentId: target.id,
+        title: target.title,
+        reference: target.document_reference ?? "",
+        currentRevision: target.revision,
+        currentStatus: target.status,
+        nextRevision: nextRevisionLabel(target.revision),
+      };
+    }
+  }
+
+  const reviewDocIds =(documents ?? []).filter((d) => d.status === "for_review").map((d) => d.id);
   const { data: approverRows } = reviewDocIds.length
     ? await supabase
         .from(VAULT_DOCUMENT_APPROVERS_TABLE)
@@ -175,9 +198,23 @@ export default async function VaultFolderPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Every revision of a document stays visible here — a new upload of the same reference marks
-        the previous one superseded rather than replacing it.
+        Superseded revisions are hidden by default (tick &quot;Show superseded&quot; to see them) but are never deleted.
+        An approved revision stays current until its replacement is approved.
       </p>
+      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+        <Link
+          href={`/inspect/vault/${projectId}/pending`}
+          className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
+        >
+          My pending approvals
+        </Link>
+        <a
+          href="#vault-upload"
+          className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
+        >
+          Upload
+        </a>
+      </div>
 
       {/* Master-detail: with ?doc= the document viewer opens beside the list (desktop/tablet) or in
           place of it (phone, with a way back) — no navigation to a separate viewer page. */}
@@ -191,7 +228,13 @@ export default async function VaultFolderPage({
             <VaultDocumentsTable rows={rows} canApprove={canApprove} />
           </div>
 
-          <VaultUploadForm projectId={projectId} folderId={folderId} folderKey={folder.folder_key} />
+          <VaultUploadForm
+            key={prefill?.revisesDocumentId ?? "new"}
+            projectId={projectId}
+            folderId={folderId}
+            folderKey={folder.folder_key}
+            prefill={prefill}
+          />
 
           {isAdminStaff(session) && reviewDocIds.length > 0 && (
             <SetApproversForm

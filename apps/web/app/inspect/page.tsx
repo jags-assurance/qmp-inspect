@@ -10,10 +10,11 @@ import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { sortByDynamicPriority } from "@/lib/checklists/priority-routing";
 import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions";
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
-import { InspectorDashboard } from "./inspector-dashboard";
+import { InspectorDashboard, type OverdueHoldRow } from "./inspector-dashboard";
 import { Suspense } from "react";
 import { AdminDashboard } from "./admin-dashboard";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
@@ -243,19 +244,25 @@ export default async function InspectDashboardPage() {
     return data ?? [];
   };
 
-  const loadPendingSignoffs = async (): Promise<PendingSignoffRow[]> => {
-    if (!ownParties || ownParties.length === 0) return [];
-    const { data } = await supabase
+  // Notified (asked to act now) first, then oldest notification first; the true total is counted
+  // so "Needs your attention" is not capped at the 5 rows shown.
+  const loadPendingSignoffs = async (): Promise<{ rows: PendingSignoffRow[]; total: number }> => {
+    if (!ownParties || ownParties.length === 0) return { rows: [], total: 0 };
+    const { data, count } = await supabase
       .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select("id, intervention, status, notified_at, itp_items(activity, itp_sections(itps(id, itp_number, title)))")
+      .select("id, intervention, status, notified_at, itp_items(activity, itp_sections(itps(id, itp_number, title)))", {
+        count: "exact",
+      })
       .in(
         "project_party_id",
         ownParties.map((p) => p.id)
       )
       .in("status", ["pending", "notified"])
+      .order("status", { ascending: false })
+      .order("notified_at", { ascending: true, nullsFirst: false })
       .limit(5)
       .returns<PendingSignoffRow[]>();
-    return data ?? [];
+    return { rows: data ?? [], total: count ?? (data ?? []).length };
   };
 
   // A client's own action isn't signing off an intervention grid cell (that's the contractor/
@@ -265,15 +272,16 @@ export default async function InspectDashboardPage() {
   const isClientRole = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
   const isMainContractorRole = !session.isJagsStaff && session.grants.some((g) => g.role === "main_contractor");
   type AwaitingAcceptanceRow = { id: string; itp_number: string; title: string; projects: { name: string } | null };
-  const loadItpsAwaitingAcceptance = async (): Promise<AwaitingAcceptanceRow[]> => {
-    if (!isClientRole) return [];
-    const { data } = await supabase
+  const loadItpsAwaitingAcceptance = async (): Promise<{ rows: AwaitingAcceptanceRow[]; total: number }> => {
+    if (!isClientRole) return { rows: [], total: 0 };
+    const { data, count } = await supabase
       .from("itps")
-      .select("id, itp_number, title, projects(name)")
+      .select("id, itp_number, title, projects(name)", { count: "exact" })
       .eq("status", "approved")
+      .order("created_at", { ascending: true })
       .limit(5)
       .returns<AwaitingAcceptanceRow[]>();
-    return data ?? [];
+    return { rows: data ?? [], total: count ?? (data ?? []).length };
   };
 
   // Main Contractor "review subcontractor work" panel: a Main Contractor's real queue item is an
@@ -286,8 +294,8 @@ export default async function InspectDashboardPage() {
   // undercounts a case where a subcontractor party has no intervention row at all on the activity
   // (nothing to detect), and overcounts one where the two parties' sign-offs are unrelated in intent
   // but happen to land on the same activity — both acceptable given no richer state exists to query.
-  const loadWorkAwaitingReview = async (): Promise<PendingSignoffRow[]> => {
-    if (!isMainContractorRole) return [];
+  const loadWorkAwaitingReview = async (): Promise<{ rows: PendingSignoffRow[]; total: number }> => {
+    if (!isMainContractorRole) return { rows: [], total: 0 };
     const { data: ownMcParties } = await supabase
       .from("project_parties")
       .select("id, project_id")
@@ -332,12 +340,11 @@ export default async function InspectDashboardPage() {
           (subSignedOff ?? []).filter((r) => subcontractorPartyIds.has(r.project_party_id)).map((r) => r.itp_item_id)
         );
 
-        return (mcPending ?? [])
-          .filter((row) => itemsWithSubcontractorSignoff.has(row.itp_item_id))
-          .slice(0, 5);
+        const ready = (mcPending ?? []).filter((row) => itemsWithSubcontractorSignoff.has(row.itp_item_id));
+        return { rows: ready.slice(0, 5), total: ready.length };
       }
     }
-    return [];
+    return { rows: [], total: 0 };
   };
 
   interface AssignedNcrRow {
@@ -348,20 +355,45 @@ export default async function InspectDashboardPage() {
     due_date: string | null;
     projects: { name: string } | null;
   }
-  const loadNcrsAssignedToMe = async (): Promise<AssignedNcrRow[]> => {
-    if (session.isJagsStaff) return [];
+  const loadNcrsAssignedToMe = async (): Promise<{ rows: AssignedNcrRow[]; total: number }> => {
     // Mirrors the sign-off queue's own reasoning: a notification is how a party first hears about
     // an assigned NCR, but if it's missed or dismissed there was previously no dashboard path back
     // to it — only the aggregate "Open NCRs" count, which isn't actionable.
-    const { data } = await supabase
+    const { data, count } = await supabase
       .from("ncrs" as never)
-      .select("id, ncr_number, severity, description, due_date, projects(name)")
+      .select("id, ncr_number, severity, description, due_date, projects(name)", { count: "exact" })
       .eq("assigned_to", session.userId)
       .neq("status", "closed")
-      .order("due_date", { nullsFirst: false })
+      .order("due_date", { ascending: true, nullsFirst: false })
       .limit(5)
       .returns<AssignedNcrRow[]>();
-    return data ?? [];
+    return { rows: data ?? [], total: count ?? (data ?? []).length };
+  };
+
+  // Punch items whose responsible party is one of this login's own parties and not yet closed: the
+  // contractor/subcontractor's "punch assigned to me" (otherwise only reachable per project).
+  interface AssignedPunchRow {
+    id: string;
+    project_id: string;
+    description: string;
+    due_date: string | null;
+    status: string;
+    projects: { name: string } | null;
+  }
+  const loadPunchAssignedToMe = async (): Promise<{ rows: AssignedPunchRow[]; total: number }> => {
+    if (session.isJagsStaff || !ownParties || ownParties.length === 0) return { rows: [], total: 0 };
+    const { data, count } = await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id, project_id, description, due_date, status, projects(name)", { count: "exact" })
+      .in(
+        "responsible_party_id",
+        ownParties.map((p) => p.id)
+      )
+      .neq("status", "closed")
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(5)
+      .returns<AssignedPunchRow[]>();
+    return { rows: data ?? [], total: count ?? (data ?? []).length };
   };
 
   // A client login whose own organisation is self-/client-managed runs that org's settings — they
@@ -382,7 +414,7 @@ export default async function InspectDashboardPage() {
         supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true),
         supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true).not("user_id", "is", null),
         supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
-        supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").lt("due_date", todayIso),
+        supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation").lt("due_date", todayIso),
       ]);
     return {
       managesOwnOrg,
@@ -395,15 +427,28 @@ export default async function InspectDashboardPage() {
     };
   };
 
-  const [ownOrgLevelTypes, pendingSignoffs, itpsAwaitingAcceptance, workAwaitingReview, ncrsAssignedToMe, orgHealthResult] =
-    await Promise.all([
-      loadOwnOrgLevelTypes(),
-      loadPendingSignoffs(),
-      loadItpsAwaitingAcceptance(),
-      loadWorkAwaitingReview(),
-      loadNcrsAssignedToMe(),
-      loadOrgHealth(),
-    ]);
+  const [
+    ownOrgLevelTypes,
+    pendingSignoffsResult,
+    itpsAwaitingAcceptanceResult,
+    workAwaitingReviewResult,
+    ncrsAssignedToMeResult,
+    punchAssignedToMeResult,
+    orgHealthResult,
+  ] = await Promise.all([
+    loadOwnOrgLevelTypes(),
+    loadPendingSignoffs(),
+    loadItpsAwaitingAcceptance(),
+    loadWorkAwaitingReview(),
+    loadNcrsAssignedToMe(),
+    loadPunchAssignedToMe(),
+    loadOrgHealth(),
+  ]);
+  const pendingSignoffs = pendingSignoffsResult.rows;
+  const itpsAwaitingAcceptance = itpsAwaitingAcceptanceResult.rows;
+  const workAwaitingReview = workAwaitingReviewResult.rows;
+  const ncrsAssignedToMe = ncrsAssignedToMeResult.rows;
+  const punchAssignedToMe = punchAssignedToMeResult.rows;
   const { managesOwnOrg, orgHealth } = orgHealthResult;
 
   // An Admin's own queue item: proposals to the Tier-1 library waiting on their decision (an
@@ -451,7 +496,7 @@ export default async function InspectDashboardPage() {
       await adminBatchPromise!;
     pendingProposals = proposals ?? [];
     pendingProposalTotal = proposalCount ?? pendingProposals.length;
-    openNcrTotal = (openNcrRows ?? []).length;
+    openNcrTotal = openNcrs ?? (openNcrRows ?? []).length;
     // The real list behind the "Open NCRs" KPI tile (new purpose: less page-hopping) — same rows
     // the org-portfolio aggregation below already fetched, just kept in full instead of only
     // counted, so the tile can expand inline to the actual NCRs instead of only a number.
@@ -546,6 +591,7 @@ export default async function InspectDashboardPage() {
   let pendingActions: PendingActionRow[] = [];
   let overdueHoldPoints = 0;
   let oldestHoldPointDays = 0;
+  let overdueHoldItems: OverdueHoldRow[] = [];
 
   // Standalone/FAT assignments are real field work items just like checklists, but they live in
   // their own table with their own status machine (draft -> completed, see lib/standalone/actions.ts),
@@ -700,13 +746,40 @@ export default async function InspectDashboardPage() {
     // One database function call (overdue_hold_points(), 20261002140000_overdue_hold_points_function
     // .sql) — the same list the Admin dashboard shows, which replaced a nested embed plus two
     // dependent lookups filtered here in JavaScript (~1.2s under row-level security, now ~12ms).
-    const computeOverdueHoldPoints = async (): Promise<{ overdueHoldPoints: number; oldestHoldPointDays: number }> => {
+    const computeOverdueHoldPoints = async (): Promise<{
+      overdueHoldPoints: number;
+      oldestHoldPointDays: number;
+      items: OverdueHoldRow[];
+    }> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase.rpc as any)("overdue_hold_points");
-      const rows = (data ?? []) as { days_open: number }[];
+      const rows = (data ?? []) as {
+        id: string;
+        itp_id: string | null;
+        activity: string | null;
+        itp_number: string | null;
+        project_label: string | null;
+        days_open: number;
+        reason?: string | null;
+        planned_date?: string | null;
+      }[];
       return {
         overdueHoldPoints: rows.length,
         oldestHoldPointDays: rows.length > 0 ? Math.max(...rows.map((r) => r.days_open)) : 0,
+        items: rows
+          .slice()
+          .sort((a, b) => b.days_open - a.days_open)
+          .slice(0, 8)
+          .map((r) => ({
+            id: r.id,
+            itpId: r.itp_id,
+            activity: r.activity ?? "-",
+            itpNumber: r.itp_number ?? "-",
+            projectLabel: r.project_label ?? "",
+            daysOpen: r.days_open,
+            reason: r.reason ?? "Notice period passed",
+            plannedDate: r.planned_date ?? null,
+          })),
       };
     };
 
@@ -717,6 +790,7 @@ export default async function InspectDashboardPage() {
     pendingActions = computedPendingActions;
     overdueHoldPoints = overdueResult.overdueHoldPoints;
     oldestHoldPointDays = overdueResult.oldestHoldPointDays;
+    overdueHoldItems = overdueResult.items;
 
     // standaloneAssignments was already fetched in the top-level Promise.all above.
     pendingStandaloneAssignments = (standaloneAssignments ?? []).map((a) => ({
@@ -798,6 +872,20 @@ export default async function InspectDashboardPage() {
           dueDate: n.due_date,
           projectName: n.projects?.name ?? "",
         }))}
+        punchAssignedToMe={punchAssignedToMe.map((p) => ({
+          id: p.id,
+          projectId: p.project_id,
+          description: p.description,
+          dueDate: p.due_date,
+          projectName: p.projects?.name ?? "",
+        }))}
+        totals={{
+          acceptance: itpsAwaitingAcceptanceResult.total,
+          review: workAwaitingReviewResult.total,
+          signoffs: pendingSignoffsResult.total,
+          ncrs: ncrsAssignedToMeResult.total,
+          punch: punchAssignedToMeResult.total,
+        }}
       />
     );
   }
@@ -812,10 +900,19 @@ export default async function InspectDashboardPage() {
         pendingInspections={pendingInspections ?? 0}
         overdueHoldPoints={overdueHoldPoints}
         oldestHoldPointDays={oldestHoldPointDays}
+        overdueHoldItems={overdueHoldItems}
         pendingActions={pendingActions}
         pendingToday={pendingToday}
         pendingOverdue={pendingOverdue}
         pendingStandaloneAssignments={pendingStandaloneAssignments}
+        ncrsAssignedToMe={ncrsAssignedToMe.map((n) => ({
+          id: n.id,
+          ncrNumber: n.ncr_number,
+          severity: n.severity,
+          description: n.description,
+          dueDate: n.due_date,
+          projectName: n.projects?.name ?? "",
+        }))}
       />
     );
   }

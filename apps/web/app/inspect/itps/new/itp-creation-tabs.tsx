@@ -14,7 +14,9 @@ export function ItpCreationTabs({
   manual,
   fromTemplate,
   fromAi,
+  initialTab,
 }: {
+  initialTab?: "manual" | "template" | "ai";
   manual: ReactNode;
   /** Omit to hide this tab entirely — e.g. a self-managed client's own login gets manual + AI-draft
    * but not the master-template copy flow, which stays staff-only (see itps/new/page.tsx). */
@@ -24,7 +26,9 @@ export function ItpCreationTabs({
    * isAiConfigured() check). */
   fromAi?: ReactNode;
 }) {
-  const [tab, setTab] = useState<"manual" | "template" | "ai">("manual");
+  const [tab, setTab] = useState<"manual" | "template" | "ai">(
+    initialTab === "template" && fromTemplate ? "template" : initialTab === "ai" && fromAi ? "ai" : "manual"
+  );
 
   return (
     <div>
@@ -32,7 +36,7 @@ export function ItpCreationTabs({
         <button
           type="button"
           onClick={() => setTab("manual")}
-          className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "manual" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+          className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "manual" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
         >
           Build from scratch
         </button>
@@ -40,7 +44,7 @@ export function ItpCreationTabs({
           <button
             type="button"
             onClick={() => setTab("template")}
-            className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
           >
             Start from a master template
           </button>
@@ -49,7 +53,7 @@ export function ItpCreationTabs({
           <button
             type="button"
             onClick={() => setTab("ai")}
-            className={cn("flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
           >
             Generate from vault documents
           </button>

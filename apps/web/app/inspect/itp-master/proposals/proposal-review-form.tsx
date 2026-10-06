@@ -30,7 +30,25 @@ export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
         <Button type="submit" name="decision" value="approve" size="sm" disabled={pending}>
           {pending ? "Saving…" : "Approve"}
         </Button>
-        <Button type="submit" name="decision" value="reject" variant="outline" size="sm" disabled={pending}>
+        <Button
+          type="submit"
+          name="decision"
+          value="reject"
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={(e) => {
+            const form = e.currentTarget.form;
+            const notes = (form?.elements.namedItem("review_notes") as HTMLTextAreaElement | null)?.value.trim();
+            if (!notes) {
+              e.preventDefault();
+              form?.reportValidity();
+              (form?.elements.namedItem("review_notes") as HTMLTextAreaElement | null)?.focus();
+              return;
+            }
+            if (!window.confirm("Reject this proposal? The reviewer notes will be recorded.")) e.preventDefault();
+          }}
+        >
           {pending ? "Saving…" : "Reject"}
         </Button>
       </div>

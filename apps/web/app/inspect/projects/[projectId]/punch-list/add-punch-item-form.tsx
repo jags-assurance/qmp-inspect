@@ -16,10 +16,10 @@ export function AddPunchItemForm({
   const [state, formAction, pending] = useActionState(addPunchItemAction, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form action={formAction} encType="multipart/form-data" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="project_id" value={projectId} />
 
-      <div className="min-w-56 flex-1">
+      <div className="w-full min-w-56 flex-1">
         <label htmlFor="description" className="block text-xs font-medium text-ink">
           Description
         </label>
@@ -32,7 +32,7 @@ export function AddPunchItemForm({
         />
       </div>
 
-      <div className="w-40">
+      <div className="w-full sm:w-40">
         <label htmlFor="location" className="block text-xs font-medium text-ink">
           Location
         </label>
@@ -43,7 +43,7 @@ export function AddPunchItemForm({
         />
       </div>
 
-      <div className="w-48">
+      <div className="w-full sm:w-48">
         <label htmlFor="responsible_party_id" className="block text-xs font-medium text-ink">
           Responsible party
         </label>
@@ -62,7 +62,7 @@ export function AddPunchItemForm({
         </select>
       </div>
 
-      <div className="w-36">
+      <div className="w-full sm:w-36">
         <label htmlFor="due_date" className="block text-xs font-medium text-ink">
           Due date
         </label>
@@ -71,6 +71,37 @@ export function AddPunchItemForm({
           name="due_date"
           type="date"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+
+      <div className="w-full sm:w-32">
+        <label htmlFor="priority" className="block text-xs font-medium text-ink">
+          Priority
+        </label>
+        <select
+          id="priority"
+          name="priority"
+          defaultValue="B"
+          className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+        >
+          <option value="A">A - critical</option>
+          <option value="B">B - major</option>
+          <option value="C">C - minor</option>
+        </select>
+      </div>
+
+      <div className="w-full sm:w-56">
+        <label htmlFor="photos" className="block text-xs font-medium text-ink">
+          Photo (optional)
+        </label>
+        <input
+          id="photos"
+          name="photos"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          className="mt-1 w-full text-xs"
         />
       </div>
 

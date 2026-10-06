@@ -21,10 +21,10 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function ItpRegisterPrintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; status?: string }>;
 }) {
   await requireSession();
-  const { discipline: disciplineId, project: projectId, phase: phaseParam, q } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, status: statusParam } = await searchParams;
   const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
   const supabase = await createSupabaseServerClient();
 
@@ -47,7 +47,8 @@ export default async function ItpRegisterPrintPage({
   }
   if (projectId) query = query.eq("project_id", projectId);
   if (phase) query = query.eq("phase", phase);
-  if (q) query = query.or(`itp_number.ilike.%${q}%,title.ilike.%${q}%`);
+  if (statusParam && ["draft", "under_review", "approved", "client_accepted"].includes(statusParam)) query = query.eq("status", statusParam);
+  if (q?.replace(/[,()%*]/g, " ").trim()) { const sq = q.replace(/[,()%*]/g, " ").trim(); query = query.or(`itp_number.ilike.%${sq}%,title.ilike.%${sq}%`); }
 
   const { data: itps } = await query
     .order("created_at", { ascending: false })

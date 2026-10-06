@@ -21,6 +21,62 @@ interface ProposalWithSourceItp {
   itps: { id: string; itp_number: string; title: string } | null;
 }
 
+interface DiffItem {
+  item_number: string;
+  activity: string;
+  acceptance_criteria: string | null;
+  evidence_type: number;
+}
+interface DiffSection {
+  section_number: number;
+  title: string;
+  items: DiffItem[];
+}
+type SrcSection = { section_number: number; title: string; itp_items: DiffItem[] };
+type MasterSection = { section_number: number; title: string; itp_master_items: DiffItem[] };
+
+function computeDiff(source: DiffSection[], current: DiffSection[]) {
+  const key = (sec: number, it: string) => `${sec}::${it}`;
+  const cur = new Map<string, DiffItem>();
+  const src = new Map<string, DiffItem>();
+  for (const sec of current) for (const it of sec.items) cur.set(key(sec.section_number, it.item_number), it);
+  for (const sec of source) for (const it of sec.items) src.set(key(sec.section_number, it.item_number), it);
+  const added: string[] = [];
+  const removed: string[] = [];
+  const changed: string[] = [];
+  for (const [k, it] of src) {
+    const c = cur.get(k);
+    if (!c) added.push(`${it.item_number} ${it.activity}`);
+    else if (
+      c.activity !== it.activity ||
+      (c.acceptance_criteria ?? "") !== (it.acceptance_criteria ?? "") ||
+      c.evidence_type !== it.evidence_type
+    )
+      changed.push(`${it.item_number} ${c.activity === it.activity ? it.activity : `${c.activity} -> ${it.activity}`}`);
+  }
+  for (const [k, it] of cur) if (!src.has(k)) removed.push(`${it.item_number} ${it.activity}`);
+  return { added, removed, changed };
+}
+
+function DiffList({ label, items, tone }: { label: string; items: string[]; tone: string }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-2">
+      <p className={`text-xs font-medium ${tone}`}>
+        {label} ({items.length})
+      </p>
+      <ul className="mt-0.5 list-disc pl-5 text-xs text-ink">
+        {items.slice(0, 40).map((x, i) => (
+          <li key={i} className="break-words">
+            {x}
+          </li>
+        ))}
+        {items.length > 40 && <li className="text-muted">and {items.length - 40} more</li>}
+      </ul>
+    </div>
+  );
+}
+
 export default async function ItpMasterProposalsPage() {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect/itps");
@@ -38,6 +94,29 @@ export default async function ItpMasterProposalsPage() {
   ]);
 
   const templateTitleById = new Map((templates ?? []).map((t) => [t.id, t.title]));
+
+  // Diff preview: source ITP content vs the current master template (update_existing proposals only).
+  const diffs = new Map<string, { added: string[]; removed: string[]; changed: string[] } | { newCount: number }>();
+  for (const proposal of proposals ?? []) {
+    if (!proposal.itps) continue;
+    const { data: srcSecs } = await supabase
+      .from("itp_sections")
+      .select("section_number, title, itp_items(item_number, activity, acceptance_criteria, evidence_type)")
+      .eq("itp_id", proposal.itps.id)
+      .returns<SrcSection[]>();
+    const source: DiffSection[] = (srcSecs ?? []).map((x) => ({ section_number: x.section_number, title: x.title, items: x.itp_items ?? [] }));
+    if (proposal.proposed_action === "update_existing" && proposal.target_template_id) {
+      const { data: curSecs } = await supabase
+        .from("itp_master_sections")
+        .select("section_number, title, itp_master_items(item_number, activity, acceptance_criteria, evidence_type)")
+        .eq("template_id", proposal.target_template_id)
+        .returns<MasterSection[]>();
+      const current: DiffSection[] = (curSecs ?? []).map((x) => ({ section_number: x.section_number, title: x.title, items: x.itp_master_items ?? [] }));
+      diffs.set(proposal.id, computeDiff(source, current));
+    } else {
+      diffs.set(proposal.id, { newCount: source.reduce((n, x) => n + x.items.length, 0) });
+    }
+  }
 
   return (
     <div>
@@ -88,6 +167,26 @@ export default async function ItpMasterProposalsPage() {
               )}
             </div>
             {proposal.proposal_notes && <p className="mt-2 text-sm text-muted">{proposal.proposal_notes}</p>}
+            {(() => {
+              const d = diffs.get(proposal.id);
+              if (!d) return null;
+              return (
+                <details className="mt-3 rounded-md border border-border px-3 py-2" open>
+                  <summary className="cursor-pointer select-none text-sm font-medium text-ink">Changes vs current template</summary>
+                  {"newCount" in d ? (
+                    <p className="mt-2 text-xs text-muted">New template with {d.newCount} activities.</p>
+                  ) : d.added.length + d.removed.length + d.changed.length === 0 ? (
+                    <p className="mt-2 text-xs text-muted">No activity differences from the current template.</p>
+                  ) : (
+                    <>
+                      <DiffList label="Added" items={d.added} tone="text-success" />
+                      <DiffList label="Removed" items={d.removed} tone="text-danger" />
+                      <DiffList label="Changed" items={d.changed} tone="text-ink" />
+                    </>
+                  )}
+                </details>
+              );
+            })()}
             {isAdminStaff(session) ? (
               <ProposalReviewForm proposalId={proposal.id} />
             ) : (

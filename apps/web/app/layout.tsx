@@ -19,7 +19,7 @@ const monoUi = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JAGS Assurance",
+  title: { default: "JAGS Assurance", template: "%s | QMP Inspect" },
   description: "QMP Inspect — quality & inspection management platform",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

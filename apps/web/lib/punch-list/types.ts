@@ -42,7 +42,21 @@ export const PUNCH_LIST_SOURCE_LABELS: Record<PunchListSource, string> = {
 export const PUNCH_LIST_STATUSES = ["open", "resolved", "closed"] as const;
 export type PunchListStatus = (typeof PUNCH_LIST_STATUSES)[number];
 
+export const PUNCH_LIST_PRIORITIES = ["A", "B", "C"] as const;
+export type PunchListPriority = (typeof PUNCH_LIST_PRIORITIES)[number];
+export const PUNCH_LIST_PRIORITY_LABELS: Record<PunchListPriority, string> = {
+  A: "A - critical (before handover)",
+  B: "B - major",
+  C: "C - minor",
+};
+export const PUNCH_PHOTO_MAX_BYTES = 25 * 1024 * 1024;
+
 export interface PunchListItemRow {
+  priority: PunchListPriority;
+  photo_paths: string[];
+  created_by: string | null;
+  reopen_reason: string | null;
+  reopen_count: number;
   id: string;
   project_id: string;
   description: string;

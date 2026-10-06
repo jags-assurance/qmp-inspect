@@ -9,7 +9,9 @@ const initialState: CopyMasterTemplateState = { error: null };
 export function NewItpFromTemplateForm({
   projects,
   templates,
+  defaultTemplateId,
 }: {
+  defaultTemplateId?: string;
   projects: { id: string; project_number: string; name: string }[];
   templates: { id: string; title: string; industry: string; version: number }[];
 }) {
@@ -25,6 +27,7 @@ export function NewItpFromTemplateForm({
           id="master_template_id"
           name="master_template_id"
           required
+          defaultValue={defaultTemplateId ?? ""}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
           <option value="">Select…</option>

@@ -26,7 +26,7 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
   const [{ data: items }, { data: projectParties }] = await Promise.all([
     supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, source, location, due_date, status, closing_evidence, project_parties(name, user_id)")
+      .select("id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, reopen_reason, reopen_count, responsible_party_id, project_parties(name, user_id)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .returns<PunchListItemDisplayRow[]>(),
@@ -41,6 +41,22 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
   // "Outstanding" for the Data Book blurb below means not yet truly closed — a 'resolved' item still
   // blocks compilation until someone independently verifies it (see readiness.ts's matching count).
   const openCount = (items ?? []).filter((item) => item.status !== "closed").length;
+
+  // Signed URLs for the photos so the verifier can actually see them (bucket is private).
+  const rows: PunchListItemDisplayRow[] = await Promise.all(
+    (items ?? []).map(async (item) => {
+      const paths = item.photo_paths ?? [];
+      let photo_urls: string[] = [];
+      if (paths.length > 0) {
+        const { data: signed } = await supabase.storage.from("inspection-evidence").createSignedUrls(paths, 3600);
+        photo_urls = (signed ?? []).map((s) => s.signedUrl).filter((u): u is string => !!u);
+      }
+      return { ...item, photo_urls };
+    })
+  );
+
+  const resolvedCount = rows.filter((item) => item.status === "resolved").length;
+  const reallyOpenCount = rows.filter((item) => item.status === "open").length;
 
   const Heading = embedded ? "h2" : "h1";
   return (
@@ -73,13 +89,34 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
         </Link>
       </div>
 
+      {openCount > 0 ? (
+        <div role="status" className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
+          <strong>Data Book blocked:</strong> {reallyOpenCount} open and {resolvedCount} resolved-but-unverified item
+          {openCount === 1 ? "" : "s"} must be closed (verified) before the Data Book can compile.{" "}
+          <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
+            Open Data Book
+          </Link>
+        </div>
+      ) : (
+        <p role="status" className="mt-4 rounded-md border border-border bg-off-white px-3 py-2 text-sm text-muted">
+          No outstanding punch items - this no longer blocks the Data Book.
+        </p>
+      )}
+
       <div className="mt-6 flex flex-wrap items-start gap-3">
         <AddPunchItemForm projectId={projectId} projectParties={projectParties ?? []} />
         <RecordWalkdownForm projectId={projectId} projectParties={projectParties ?? []} />
       </div>
 
       <div className="mt-6">
-        <PunchListTable projectId={projectId} rows={items ?? []} canVerifyClose={canVerifyClose} currentUserId={session.userId} />
+        <PunchListTable
+          projectId={projectId}
+          rows={rows}
+          canVerifyClose={canVerifyClose}
+          currentUserId={session.userId}
+          projectParties={projectParties ?? []}
+          exportName={`${project.project_number}-punch-list`}
+        />
       </div>
     </div>
   );

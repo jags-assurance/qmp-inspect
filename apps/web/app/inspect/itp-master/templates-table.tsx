@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 
@@ -37,13 +38,50 @@ const COLUMNS: DataTableColumn<MasterTemplateRow>[] = [
 // the column config (which contains render functions) is defined here, already inside client code
 // — same pattern as apps/web/app/inspect/projects/projects-table.tsx.
 export function TemplatesTable({ rows }: { rows: MasterTemplateRow[] }) {
+  const [industry, setIndustry] = useState("");
+  const [discipline, setDiscipline] = useState("");
+  const [active, setActive] = useState("");
+  const industries = [...new Set(rows.map((r) => r.industry).filter(Boolean))].sort();
+  const disciplines = [...new Set(rows.map((r) => r.master_disciplines?.name).filter((x): x is string => Boolean(x)))].sort();
+  const filtered = rows.filter(
+    (r) =>
+      (!industry || r.industry === industry) &&
+      (!discipline || r.master_disciplines?.name === discipline) &&
+      (!active || (active === "active") === r.is_active)
+  );
+  const sel = "min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
   return (
+    <>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <select aria-label="Industry" value={industry} onChange={(e) => setIndustry(e.target.value)} className={sel}>
+          <option value="">All industries</option>
+          {industries.map((i) => (
+            <option key={i} value={i}>
+              {i}
+            </option>
+          ))}
+        </select>
+        <select aria-label="Discipline" value={discipline} onChange={(e) => setDiscipline(e.target.value)} className={sel}>
+          <option value="">All disciplines</option>
+          {disciplines.map((i) => (
+            <option key={i} value={i}>
+              {i}
+            </option>
+          ))}
+        </select>
+        <select aria-label="Status" value={active} onChange={(e) => setActive(e.target.value)} className={sel}>
+          <option value="">Active and inactive</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </div>
     <DataTable
       columns={COLUMNS}
-      rows={rows}
+      rows={filtered}
       searchPlaceholder="Search master templates…"
       searchKeys={(row) => `${row.title} ${row.industry} ${row.master_disciplines?.name ?? ""}`}
-      emptyMessage="No master templates yet. Approve a proposal to add the first one."
+      emptyMessage={rows.length === 0 ? "No master templates yet. Approve a proposal to add the first one." : "No templates match these filters."}
     />
+    </>
   );
 }

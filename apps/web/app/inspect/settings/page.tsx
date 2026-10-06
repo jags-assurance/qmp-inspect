@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -20,6 +21,26 @@ import { ReportingView } from "../organisation/reporting/reporting-view";
 import { CloudFolderSyncView } from "../organisation/cloud-sync/cloud-sync-view";
 import { InterventionLevelsSettingsView } from "../organisation/intervention-levels/intervention-levels-view";
 import { PlansSettingsView } from "../organisation/plans/plans-view";
+
+export const metadata: Metadata = { title: "Settings" };
+
+const DESCRIPTIONS: Record<string, string> = {
+  clients: "Companies you work for, and their projects.",
+  "client-teams": "Group a client's people into teams.",
+  "checklist-library": "Reusable checklist items for ITPs.",
+  "staff-access": "Who on your staff can sign in, and what they can do.",
+  roles: "Define custom roles and their permissions.",
+  teams: "Staff teams and their leads.",
+  "module-licensing": "Switch features on or off per organisation.",
+  numbering: "How ITP, NCR and IRN numbers are generated.",
+  branding: "Logo and colours shown to your organisation.",
+  automation: "Rules that act automatically, such as reminders.",
+  insights: "Cross-project quality trends.",
+  reporting: "Scheduled and on-demand report settings.",
+  "cloud-sync": "Mirror documents to a cloud folder.",
+  "intervention-levels": "Hold, witness and review level definitions.",
+  plans: "Plan limits and seats in use.",
+};
 
 type Params = Record<string, string | string[] | undefined>;
 type Render = (sp: Params) => ReactNode;
@@ -157,6 +178,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   return (
     <div>
       <h1 className="text-2xl font-semibold text-ink">Settings</h1>
+      <p className="mt-1 text-sm text-muted">
+        {DESCRIPTIONS[current.key] ?? "Manage your organisation."} Use the menu to switch section.
+      </p>
       <div className="lg:flex lg:gap-8">
         <SettingsNav groups={groups} active={current.key} />
         <section className="mt-6 min-w-0 flex-1 lg:mt-6" aria-label={current.label}>

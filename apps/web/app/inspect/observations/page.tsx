@@ -67,7 +67,9 @@ export default async function ObservationsPage({
     tableQuery = tableQuery.eq("project_id", projectId);
   }
   if (q) {
-    tableQuery = tableQuery.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);
+    // Strip PostgREST filter metacharacters so a search term can't inject extra filter clauses.
+    const safeQ = q.replace(/[,()%*\\]/g, " ").trim().slice(0, 80);
+    if (safeQ) tableQuery = tableQuery.or(`ncr_number.ilike.%${safeQ}%,description.ilike.%${safeQ}%`);
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
@@ -147,6 +149,7 @@ export default async function ObservationsPage({
         <NcrsTable
           rows={rows}
           totalCount={totalCount ?? 0}
+          gradeAction={session.isJagsStaff}
           idColumnHeader="Observation No."
           searchPlaceholder="Search observations…"
           emptyMessage="No observations raised yet."

@@ -4,9 +4,12 @@ import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { setNcrStatusAction } from "@/lib/ncrs/actions";
 import { loadNcrDetail } from "@/lib/ncrs/load-detail";
+import { isOverdue } from "../is-overdue";
 import { NcrPdfButton } from "./ncr-pdf-button";
 import { NcrCloseoutCertificateButton } from "./ncr-closeout-certificate-button";
 import { CloseOutForm } from "./close-out-form";
+import { NcrDocuments } from "./ncr-documents";
+import { GradeObservation } from "./grade-observation";
 import { NcrPhotoUpload } from "./ncr-photo-upload";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -27,7 +30,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
 
   const detail = await loadNcrDetail(id);
   if (!detail) notFound();
-  const { ncr, latestNcrPdf, latestCloseoutCertificate, photos, people, responsibleParties, closeConsequences } = detail;
+  const { history, documents, vaultOptions, canVerify, ncr, latestNcrPdf, latestCloseoutCertificate, photos, people, responsibleParties, closeConsequences } = detail;
 
   const isClosed = ncr.status === "closed";
   const nextStatus = NEXT_STATUS[ncr.status];
@@ -47,13 +50,15 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
             <h1 className="doc-id text-2xl font-semibold text-ink">{ncr.ncr_number}</h1>
             <Badge tone={SEVERITY_TONE[ncr.severity]}>{SEVERITY_LABEL[ncr.severity]}</Badge>
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
+            {isOverdue(ncr) && <Badge tone="danger">Overdue</Badge>}
+            {ncr.due_date && <span className="text-xs text-muted">Due {new Date(ncr.due_date).toLocaleDateString("en-GB")}</span>}
             <PageGuide
               title="NCR detail — how this works"
               points={[
-                "\"Start progress\" / \"Send for verification\" are quick, no-validation status moves along the timeline above — closing is deliberately not one of them.",
-                "Closing only happens from the corrective action close-out form, and requires root cause, corrective action and verification notes to be filled in (preventive action stays optional) — see \"Closing this will also…\" next to the form for its real side effects.",
-                "\"Pending verification\" is just a status label on the timeline, not an independent approval gate — the same close-out form can close the NCR directly from Open or In progress too, and anyone with project access can fill in the CAPA fields and close it (no separate JAGS/reviewer sign-off is enforced here).",
-                "\"Save progress\" (without closing) always sets the status back to In progress, even from Pending verification.",
+                "Flow: Open, In progress, Pending verification, Closed. \"Send for verification\" needs root cause, corrective action and preventive action saved first.",
+                "Only JAGS staff verify and close, and not on an NCR they raised themselves (admins excepted). Closing needs root cause, corrective, preventive action, verification notes and at least one evidence photo.",
+                "A closed NCR can be re-opened by JAGS staff with a reason; it returns to In progress and its punch item re-opens.",
+                "\"Save progress\" keeps the current status (Open becomes In progress).",
                 "The assignee and responsible-party pickers are built from real people with access to this NCR's project (access grants plus linked project parties) — not free text.",
               ]}
             />
@@ -131,6 +136,9 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
                 preventiveAction={ncr.preventive_action}
                 verificationNotes={ncr.verification_notes}
                 isClosed={isClosed}
+                status={ncr.status}
+                canVerify={detail.canVerify}
+                photoCount={photos.length}
               />
             </div>
           </div>
@@ -169,6 +177,41 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
               )}
             </div>
             {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} />}
+          </div>
+
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium text-ink">Documents</h2>
+            <div className="mt-3">
+              <NcrDocuments
+                ncrId={ncr.id}
+                projectId={ncr.project_id}
+                documents={documents}
+                vaultOptions={vaultOptions}
+                readOnly={isClosed}
+              />
+            </div>
+          </div>
+
+          {canVerify && ncr.severity === "observation" && !isClosed && (
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <h2 className="text-sm font-medium text-ink">Grade to NCR</h2>
+              <div className="mt-3">
+                <GradeObservation ncrId={ncr.id} />
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium text-ink">Activity</h2>
+            <ul className="mt-3 space-y-2">
+              {history.map((h) => (
+                <li key={h.id} className="text-xs text-ink">
+                  <span className="text-muted">{new Date(h.created_at).toLocaleString("en-GB")}</span> {h.summary}
+                  {h.actor_name && <span className="text-muted"> - {h.actor_name}</span>}
+                </li>
+              ))}
+              {history.length === 0 && <li className="text-sm text-muted">No activity recorded yet.</li>}
+            </ul>
           </div>
         </div>
       </div>

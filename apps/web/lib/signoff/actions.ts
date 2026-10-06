@@ -177,7 +177,7 @@ async function notifySignoffRow(
         recipientUserId: party.user_id,
         title: `${levelLabel ?? progress.intervention} sign-off needed`,
         body: `${itp.itp_number} — ${context?.activity ?? "an activity"}`,
-        link: itpId ? `/inspect/itps/${itpId}` : null,
+        link: itpId ? `/inspect/itps/${itpId}` : `/inspect/projects/${itp.project_id}`,
       });
     }
 

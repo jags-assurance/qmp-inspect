@@ -76,6 +76,8 @@ export function RaiseObservationPanel() {
             projects={options.projects}
             peopleByProject={options.peopleByProject}
             partiesByProject={options.partiesByProject}
+            defaultSeverity="observation"
+            lockSeverity
             onCreated={handleCreated}
           />
         )}

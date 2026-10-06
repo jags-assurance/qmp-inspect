@@ -19,6 +19,7 @@ import { OpenItemsTable } from "./open-items-table";
 import { KpiDrilldown } from "./kpi-drilldown";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
+import { computeDataBookReadiness } from "@/lib/databook/readiness";
 
 function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value)}%`;
@@ -234,7 +235,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
   if (!project) notFound();
 
-  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itpsResult, ncrSeverityResult, overdueItems, punchBySource, openHolds] = await Promise.all([
+  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itpsResult, ncrSeverityResult, overdueItems, punchBySource, openHolds, readiness] = await Promise.all([
     computeProjectKpis(supabase, projectId),
     computeQualityByParty(supabase, projectId),
     computeFirstTimePassRateByDiscipline(supabase, projectId),
@@ -248,7 +249,9 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
     computeOverdueItems(supabase, projectId),
     computePunchListBySource(supabase, projectId),
     computeOpenHolds(supabase, projectId),
+    computeDataBookReadiness(projectId).catch(() => null),
   ]);
+  const readinessPercent = readiness ? readiness.overallPercentage : null;
 
   // Real per-ITP inspection-completion chart data — same "evidence-type-1 item has a recorded
   // result" methodology as kpis.inspectionsCompletionRate above, just grouped per ITP instead of
@@ -339,6 +342,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
           trigger={
             <StatCard
               label="First-time pass rate"
+              caption="Share of checklist items whose first completed inspection passed. Drafts excluded. Click to see the records."
               value={formatPercent(kpis.firstTimePassRate)}
               icon={<KpiToneBadge tone={tonePercent(kpis.firstTimePassRate, { good: 90, ok: 70 })} />}
             />
@@ -346,6 +350,8 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
         />
         <StatCard
           label="Hold-point turnaround"
+          href="/inspect/start-work"
+          caption="Average time from Hold notification to sign-off. Click for the start-work list."
           value={formatHours(kpis.holdPointTurnaroundHours)}
           icon={
             <span className="flex items-center gap-2">
@@ -360,31 +366,38 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
         />
         <StatCard
           label="NCR close-out time"
+          href="/inspect/ncrs"
+          caption="Average time from NCR raised to closed (closed NCRs only). Click for the NCR register."
           value={formatHours(kpis.ncrCloseOutHours)}
           icon={<KpiToneBadge tone={toneHoursLowerBetter(kpis.ncrCloseOutHours, { good: 72, ok: 168 })} />}
         />
         <StatCard
           label="Data-book readiness"
+          href={`/inspect/projects/${projectId}/data-book`}
+          caption="Real readiness across all Data Book categories (open punch items must also be zero)."
           value={
             <span className="flex items-center gap-3">
-              {formatPercent(kpis.dataBookReadiness)}
-              <ProgressRing percent={kpis.dataBookReadiness} size={40} />
+              {formatPercent(readinessPercent)}
+              <ProgressRing percent={readinessPercent} size={40} />
             </span>
           }
           icon={
             <span className="flex items-center gap-2">
-              <span className="text-xs text-muted">proxy</span>
-              <KpiToneBadge tone={tonePercent(kpis.dataBookReadiness, { good: 90, ok: 60 })} />
+              <KpiToneBadge tone={tonePercent(readinessPercent, { good: 90, ok: 60 })} />
             </span>
           }
         />
         <StatCard
           label="Inspections completed"
+          href={`/inspect/inspections?project=${projectId}`}
+          caption="Completed inspection records versus planned inspection items on approved ITPs."
           value={`${kpis.inspectionsCompleted} / ${kpis.inspectionsPlanned} (${formatPercent(kpis.inspectionsCompletionRate)})`}
           icon={<KpiToneBadge tone={tonePercent(kpis.inspectionsCompletionRate, { good: 90, ok: 60 })} />}
         />
         <StatCard
           label="ITP completion"
+          href={`/inspect/itps?project=${projectId}`}
+          caption="ITPs accepted by the client as a share of all ITPs on this project."
           value={formatPercent(kpis.itpCompletionRate)}
           icon={<KpiToneBadge tone={tonePercent(kpis.itpCompletionRate, { good: 90, ok: 60 })} />}
         />
@@ -399,6 +412,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       {overdueItems.length > 0 && (
         <div className="rounded-lg border border-danger/40 bg-danger/5 p-4">
           <h2 className="font-medium text-danger">Overdue — past due date</h2>
+          <div className="mt-1 flex gap-3 text-xs"><Link href="/inspect/ncrs" className="text-burgundy hover:underline">NCR register</Link><Link href={`/inspect/projects/${projectId}/punch-list`} className="text-burgundy hover:underline">Punch list</Link></div>
           <p className="mt-1 text-sm text-muted">
             {overdueItems.length} open item{overdueItems.length === 1 ? "" : "s"} (NCRs and punch list) past their due date.
           </p>
@@ -424,6 +438,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       {openHolds.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink">Open Holds — how long work has actually been stopped</h2>
+          <Link href="/inspect/start-work" className="text-xs text-burgundy hover:underline">Open the start-work list</Link>
           <p className="mt-1 text-sm text-muted">
             Every currently open blocking sign-off, ranked longest-waiting first — distinct from the average
             hold-point turnaround above, which only reflects Holds that have already closed.

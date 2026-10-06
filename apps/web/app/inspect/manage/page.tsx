@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -6,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
 import { hasPermission } from "@/lib/rbac/permissions";
+
+export const metadata: Metadata = { title: "Manage" };
 
 /**
  * Consolidated self-service hub for a Self-Managed client's own org — everything they can already

@@ -13,14 +13,19 @@ import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { DisciplineFilterForm } from "./discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { applyNcrFilters, applyNcrSort, SORT_OPTIONS, type NcrListParams } from "@/lib/ncrs/list-filters";
+import { STATUS_LABEL } from "./ncr-shared";
 
 export default async function NcrsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ discipline?: string; page?: string } & NcrListParams>;
 }) {
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, q, page: pageParam } = await searchParams;
+  const sp = await searchParams;
+  const { discipline: disciplineId, project: projectId, page: pageParam } = sp;
+  // Strip characters that would break the PostgREST or() filter.
+  const q = sp.q?.replace(/[%,()]/g, " ").trim() || undefined;
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
@@ -76,11 +81,10 @@ export default async function NcrsPage({
     countQuery = noMatch ? countQuery.eq("id", "00000000-0000-0000-0000-000000000000") : countQuery.in("itp_item_id", itpItemIdFilter);
     tableQuery = noMatch ? tableQuery.eq("id", "00000000-0000-0000-0000-000000000000") : tableQuery.in("itp_item_id", itpItemIdFilter);
   }
-  if (projectId) {
-    statsQuery = statsQuery.eq("project_id", projectId);
-    countQuery = countQuery.eq("project_id", projectId);
-    tableQuery = tableQuery.eq("project_id", projectId);
-  }
+  // Status chips/counts ignore the status and overdue filters so every chip keeps showing its total.
+  statsQuery = applyNcrFilters(statsQuery, { ...sp, status: undefined, overdue: undefined }, session.userId);
+  countQuery = applyNcrFilters(countQuery, sp, session.userId);
+  tableQuery = applyNcrFilters(tableQuery, sp, session.userId);
   if (q) {
     countQuery = countQuery.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);
     tableQuery = tableQuery.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);
@@ -90,8 +94,7 @@ export default async function NcrsPage({
   const [{ data: statsRows }, { count: totalCount }, { data: ncrs }] = await Promise.all([
     statsQuery.returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>(),
     countQuery,
-    tableQuery
-      .order("created_at", { ascending: false })
+    (applyNcrSort(tableQuery, sp.sort) as typeof tableQuery)
       .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
       .returns<NcrRegisterRow[]>(),
   ]);
@@ -107,6 +110,20 @@ export default async function NcrsPage({
     .filter((r) => r.status !== "closed")
     .map((r) => Math.floor((today - new Date(r.created_at).getTime()) / 86_400_000));
   const agingCounts = bucketAge(openAgeDays);
+  const statusCounts: Record<string, number> = {};
+  for (const r of statRows) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+  const hrefWith = (patch: Record<string, string | undefined>) => {
+    const next = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...sp, ...patch, page: undefined })) if (v) next.set(k, String(v));
+    const qs = next.toString();
+    return qs ? `/inspect/ncrs?${qs}` : "/inspect/ncrs";
+  };
+  const exportQs = new URLSearchParams();
+  for (const k of ["status", "severity", "project", "assignee", "overdue", "sort", "q"] as const) if (sp[k]) exportQs.set(k, sp[k]!);
+  const filtersActive = Boolean(sp.status || sp.severity || sp.assignee || sp.overdue || q || projectId || disciplineId);
+  const chip = (active: boolean) =>
+    "inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium " +
+    (active ? "border-burgundy bg-burgundy text-white" : "border-border bg-surface text-ink hover:bg-off-white");
 
   return (
     <div>
@@ -149,6 +166,66 @@ export default async function NcrsPage({
         </p>
       )}
 
+      <div className="mt-4 flex flex-wrap gap-2" aria-label="Filter by status">
+        <Link href={hrefWith({ status: undefined, overdue: undefined })} className={chip(!sp.status && !sp.overdue)}>
+          All ({total})
+        </Link>
+        <Link href={hrefWith({ status: "active", overdue: undefined })} className={chip(sp.status === "active")}>
+          Active ({open})
+        </Link>
+        {(["open", "in_progress", "pending_verification", "closed"] as const).map((st) => (
+          <Link key={st} href={hrefWith({ status: st, overdue: undefined })} className={chip(sp.status === st)}>
+            {STATUS_LABEL[st]} ({statusCounts[st] ?? 0})
+          </Link>
+        ))}
+        <Link href={hrefWith({ overdue: "1", status: undefined })} className={chip(sp.overdue === "1")}>
+          Overdue ({overdue})
+        </Link>
+      </div>
+
+      <form method="get" action="/inspect/ncrs" className="mt-3 flex flex-wrap items-end gap-3">
+        {projectId && <input type="hidden" name="project" value={projectId} />}
+        {sp.status && <input type="hidden" name="status" value={sp.status} />}
+        {sp.overdue && <input type="hidden" name="overdue" value={sp.overdue} />}
+        <label className="text-xs text-muted">
+          Severity
+          <select name="severity" defaultValue={sp.severity ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
+            <option value="">Any</option>
+            <option value="major_ncr">Major NCR</option>
+            <option value="minor_ncr">Minor NCR</option>
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          Assignee
+          <select name="assignee" defaultValue={sp.assignee ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
+            <option value="">Anyone</option>
+            <option value="me">Assigned to me</option>
+            <option value="unassigned">Unassigned</option>
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          Sort
+          <select name="sort" defaultValue={sp.sort ?? "newest"} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button type="submit" variant="outline">
+          Apply
+        </Button>
+        {filtersActive && (
+          <Link href="/inspect/ncrs" className="min-h-9 py-2 text-sm text-burgundy hover:underline">
+            Clear all
+          </Link>
+        )}
+        <a href={`/inspect/ncrs/export${exportQs.toString() ? `?${exportQs}` : ""}`} className="ml-auto min-h-9 py-2 text-sm text-burgundy hover:underline">
+          Export CSV
+        </a>
+      </form>
+
       <div className="mt-6">
         <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
       </div>
@@ -165,7 +242,11 @@ export default async function NcrsPage({
       </div>
 
       <div className="mt-6">
-        <NcrsTable rows={rows} totalCount={totalCount ?? 0} />
+        <NcrsTable
+          rows={rows}
+          totalCount={totalCount ?? 0}
+          emptyMessage={filtersActive ? "No NCRs match these filters. Clear the filters to see the full register." : "No NCRs raised yet. Use + Raise NCR to record the first one."}
+        />
       </div>
       <NcrPanel />
     </div>

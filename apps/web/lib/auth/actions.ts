@@ -24,7 +24,8 @@ export async function signInAction(_prev: SignInState, formData: FormData): Prom
     return { error: "Invalid email or password." };
   }
 
-  redirect("/");
+  const next = String(formData.get("next") ?? "/");
+  redirect(next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/");
 }
 
 export interface RequestPasswordResetState {

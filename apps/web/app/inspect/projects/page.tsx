@@ -4,16 +4,18 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { ProjectsTable, type ProjectRow } from "./projects-table";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { OrgFilter } from "./org-filter";
 
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string; show?: string }>;
 }) {
   const session = await requireSession();
-  const { org: selectedOrgId } = await searchParams;
+  const { org: selectedOrgId, show } = await searchParams;
+  const showClosed = show === "all";
   const supabase = await createSupabaseServerClient();
 
   // Project creation is normally Admin-only, but a Self-Managed/Platform-Only client runs its own
@@ -34,10 +36,14 @@ export default async function ProjectsPage({
 
   let projectsQuery = supabase
     .from("projects")
-    .select("id, project_number, name, site_location, status, organization_id, organizations(name)")
+    .select("id, project_number, name, site_location, status, end_date, organization_id, organizations(name)")
     .order("created_at", { ascending: false });
   if (selectedOrgId) projectsQuery = projectsQuery.eq("organization_id", selectedOrgId);
-  const { data: projects } = await projectsQuery.returns<ProjectRow[]>();
+  const { data: allVisible } = await projectsQuery.returns<ProjectRow[]>();
+  // Completed / cancelled projects are hidden by default so the list shows live work first.
+  const isClosed = (s: string) => s === "completed" || s === "cancelled";
+  const closedCount = (allVisible ?? []).filter((p) => isClosed(p.status)).length;
+  const projects = showClosed ? allVisible : (allVisible ?? []).filter((p) => !isClosed(p.status));
 
   // Organisations for the filter dropdown — drawn from the same RLS-scoped `projects` query (not a
   // separate `organizations` select) so the list only ever shows orgs this session can actually see
@@ -63,8 +69,9 @@ export default async function ProjectsPage({
   // (apps/web/app/inspect/page.tsx's orgPortfolio open-NCR counts) and in computeProjectKpis().
   let itpCompletionByProject = new Map<string, { clientAccepted: number; total: number }>();
   let openNcrsByProject = new Map<string, number>();
+  const openPunchByProject = new Map<string, number>();
   if (projectIds.length > 0) {
-    const [{ data: itpRows }, { data: ncrRows }] = await Promise.all([
+    const [{ data: itpRows }, { data: ncrRows }, { data: punchRows }] = await Promise.all([
       supabase.from("itps").select("project_id, status").in("project_id", projectIds).returns<{ project_id: string; status: string }[]>(),
       supabase
         .from(NCRS_TABLE)
@@ -72,7 +79,16 @@ export default async function ProjectsPage({
         .in("project_id", projectIds)
         .neq("status", "closed")
         .returns<{ project_id: string; status: string }[]>(),
+      supabase
+        .from(PUNCH_LIST_ITEMS_TABLE)
+        .select("project_id")
+        .in("project_id", projectIds)
+        .neq("status", "closed")
+        .returns<{ project_id: string }[]>(),
     ]);
+    for (const row of punchRows ?? []) {
+      openPunchByProject.set(row.project_id, (openPunchByProject.get(row.project_id) ?? 0) + 1);
+    }
 
     itpCompletionByProject = new Map();
     for (const row of itpRows ?? []) {
@@ -96,6 +112,7 @@ export default async function ProjectsPage({
       return Math.round((counts.clientAccepted / counts.total) * 100);
     })(),
     openNcrCount: openNcrsByProject.get(p.id) ?? 0,
+    openPunchCount: openPunchByProject.get(p.id) ?? 0,
   }));
 
   return (
@@ -130,7 +147,23 @@ export default async function ProjectsPage({
       </div>
 
       <div className="mt-6">
-        <ProjectsTable rows={projectRows} />
+        {closedCount > 0 && (
+          <p className="mb-3 text-sm text-muted">
+            {showClosed
+              ? "Showing all projects, including completed and cancelled."
+              : `${closedCount} completed or cancelled project${closedCount > 1 ? "s are" : " is"} hidden.`}{" "}
+            <Link
+              className="text-burgundy hover:underline"
+              href={`/inspect/projects?${new URLSearchParams({
+                ...(selectedOrgId ? { org: selectedOrgId } : {}),
+                ...(showClosed ? {} : { show: "all" }),
+              }).toString()}`}
+            >
+              {showClosed ? "Hide closed" : "Show closed"}
+            </Link>
+          </p>
+        )}
+        <ProjectsTable rows={projectRows} canCreate={canCreateProject} />
       </div>
     </div>
   );

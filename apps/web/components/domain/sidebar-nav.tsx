@@ -52,9 +52,11 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
     <a
       href={item.href}
       title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? item.label : undefined}
+      aria-current={isActive ? "page" : undefined}
       onClick={() => setOpen(false)}
       className={
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
+        "flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold " +
         (collapsed ? "justify-center px-0" : indent ? "pl-9" : "") +
         " " +
         (isActive ? "bg-white/10 text-gold" : "text-white/85 hover:bg-white/10 hover:text-white")
@@ -168,14 +170,27 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
 
 export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: boolean }) {
   return (
-    <nav className="flex-1 space-y-1 px-3">
-      {items.map((item) =>
-        item.children ? (
-          <NavGroup key={item.label} item={item} collapsed={collapsed} />
-        ) : (
-          <NavLink key={item.href} item={item} collapsed={collapsed} />
-        )
-      )}
+    <nav aria-label="Main" className="flex-1 space-y-0.5 px-3">
+      {items.map((item, i) => {
+        const showHeading = item.group && item.group !== items[i - 1]?.group;
+        return (
+          <div key={item.label + item.href}>
+            {showHeading &&
+              (collapsed ? (
+                <div role="separator" className="mx-3 my-2 border-t border-white/15" />
+              ) : (
+                <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-white/60">
+                  {item.group}
+                </p>
+              ))}
+            {item.children ? (
+              <NavGroup item={item} collapsed={collapsed} />
+            ) : (
+              <NavLink item={item} collapsed={collapsed} />
+            )}
+          </div>
+        );
+      })}
     </nav>
   );
 }

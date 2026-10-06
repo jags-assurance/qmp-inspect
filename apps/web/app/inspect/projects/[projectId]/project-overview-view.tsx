@@ -30,6 +30,7 @@ import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
 import { PageGuide } from "@/components/domain/page-guide";
+import { EditProjectDetailsForm } from "./edit-project-details-form";
 import { ProjectStatusControl } from "./project-status-control";
 import { NoticePeriodSettings } from "./notice-period-settings";
 import { INTERVENTION_LEVEL_TYPES_TABLE, sortLevels, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
@@ -115,6 +116,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
     { count: openNcrCount },
     { count: pendingInspectionCount },
     { count: openPunchCount },
+    { count: openPunchAnyCount },
     { data: assignedClientTeams },
   ] = await Promise.all([
     supabase
@@ -148,6 +150,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .eq("status", "open"),
+    supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     // Read-only visibility for client_team_project_assignments (organisation/client-teams' "Assign
     // to project" control) — previously that assignment had no consequence anywhere outside the
     // admin page that wrote it; showing it here at least makes the assignment itself legible from
@@ -303,9 +306,30 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
             {project.site_location && ` · ${project.site_location}`}
             {project.country && `, ${project.country}`}
           </p>
+          {(project.contract_number || project.start_date || project.end_date) && (
+            <p className="mt-0.5 text-xs text-muted">
+              {project.contract_number && `Contract ${project.contract_number}`}
+              {project.contract_number && (project.start_date || project.end_date) && " · "}
+              {(project.start_date || project.end_date) && `${project.start_date ?? "?"} to ${project.end_date ?? "?"}`}
+            </p>
+          )}
+          {(isAdminStaff(session) || canAddSelfManagedParty) && (
+            <EditProjectDetailsForm
+              project={{
+                id: project.id,
+                project_number: project.project_number,
+                name: project.name,
+                site_location: project.site_location,
+                country: project.country,
+                contract_number: project.contract_number,
+                start_date: project.start_date,
+                end_date: project.end_date,
+              }}
+            />
+          )}
         </div>
         {isAdminStaff(session) ? (
-          <ProjectStatusControl projectId={project.id} status={project.status} />
+          <ProjectStatusControl projectId={project.id} status={project.status} openNcrs={openNcrCount ?? 0} openPunch={openPunchAnyCount ?? 0} />
         ) : (
           <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
         )}
@@ -335,11 +359,26 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="ITPs" value={itpCount ?? 0} />
-        <StatCard label="Pending inspections" value={pendingInspectionCount ?? 0} />
-        <StatCard label="Open NCRs" value={openNcrCount ?? 0} />
-        <StatCard label="Open punch items" value={openPunchCount ?? 0} />
+        <StatCard label="ITPs" value={itpCount ?? 0} href={`/inspect/projects/${project.id}?tab=itps`} />
+        <StatCard label="Pending inspections" value={pendingInspectionCount ?? 0} href={`/inspect/inspections?project=${project.id}`} />
+        <StatCard label="Open NCRs" value={openNcrCount ?? 0} href={`/inspect/projects/${project.id}?tab=ncrs`} />
+        <StatCard label="Open punch items" value={openPunchCount ?? 0} href={`/inspect/projects/${project.id}?tab=punch-list`} />
       </div>
+      {(project.status === "completed" || project.status === "cancelled") && (
+        <p className="mt-3 rounded-md border border-border bg-off-white px-3 py-2 text-sm text-muted">
+          This project is {project.status}. {(openNcrCount ?? 0) + (openPunchAnyCount ?? 0) > 0 && `${openNcrCount ?? 0} NCR(s) and ${openPunchAnyCount ?? 0} punch item(s) are still open. `}
+          {project.status === "completed" && (
+            <Link className="text-burgundy hover:underline" href={`/inspect/projects/${project.id}?tab=data-book`}>
+              Open the Data Book
+            </Link>
+          )}
+        </p>
+      )}
+      <nav aria-label="Other modules" className="mt-3 flex flex-wrap gap-2 text-sm">
+        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/start-work?project=${project.id}`}>Start work</Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/inspections?project=${project.id}`}>Inspections</Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/vault?project=${project.id}`}>Vault</Link>
+      </nav>
 
       {/* The workspace tab bar (see page.tsx) — replaces the two grids of section cards that used to
           send people off to a different page for every section of the project. */}
@@ -378,7 +417,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
                 party.is_active ? "border-border" : "border-border bg-off-white opacity-70"
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-ink">
                   {party.name}
                   {!party.is_active && <span className="ml-2 text-xs text-muted">(inactive)</span>}
@@ -390,8 +429,13 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
                   <span className="text-muted">{PARTY_TYPE_LABEL[party.party_type] ?? party.party_type}</span>
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-muted">
-                <span>{party.users ? `${party.users.full_name} (${party.users.email})` : "No linked login yet"}</span>
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Badge tone={!party.is_active ? "neutral" : party.user_id ? "success" : "warning"}>
+                    {!party.is_active ? "Access deactivated" : party.user_id ? "Access active" : "No login yet"}
+                  </Badge>
+                  {party.users ? `${party.users.full_name} (${party.users.email})` : party.contact_email ?? "Grant access below so this party can sign in"}
+                </span>
                 <span className="flex items-center gap-2">
                   {canProvisionPartyLogin && !party.user_id && party.is_active && (
                     <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} />

@@ -263,6 +263,9 @@ export function NcrPanel() {
                     preventiveAction={ncr.preventive_action}
                     verificationNotes={ncr.verification_notes}
                     isClosed={isClosed}
+                    status={ncr.status}
+                    canVerify={detail.canVerify}
+                    photoCount={detail.photos.length}
                     onSaved={refresh}
                   />
                 </div>

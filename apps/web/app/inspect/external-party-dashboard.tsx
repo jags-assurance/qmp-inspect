@@ -88,6 +88,14 @@ export interface MyProjectRow {
   name: string;
 }
 
+export interface AssignedPunchRow {
+  id: string;
+  projectId: string;
+  description: string;
+  dueDate: string | null;
+  projectName: string;
+}
+
 export interface AssignedNcrRow {
   id: string;
   ncrNumber: string;
@@ -137,7 +145,12 @@ export function ExternalPartyDashboard({
   ncrsAssignedToMe,
   managesOwnOrg,
   orgHealth,
+  punchAssignedToMe = [],
+  totals,
 }: {
+  punchAssignedToMe?: AssignedPunchRow[];
+  /** True counts behind each capped list (the lists show at most 5 rows). */
+  totals?: { acceptance: number; review: number; signoffs: number; ncrs: number; punch: number };
   orgName: string | null;
   /** project_parties.party_type of the user's own linked party, e.g. "client" | "subcontractor". */
   roleKey: string | null;
@@ -165,8 +178,22 @@ export function ExternalPartyDashboard({
   const [panelKind, panelId] = (panel.value ?? "").split(":");
   const reviewItpId = panelKind === "itp" ? (itpsAwaitingAcceptance.find((i) => i.id === panelId)?.id ?? null) : null;
   const roleLabel = roleKey ? (ROLE_LABEL[roleKey] ?? roleKey) : "Project party";
-  const needsAttention =
-    itpsAwaitingAcceptance.length + workAwaitingReview.length + pendingSignoffs.length + ncrsAssignedToMe.length;
+  const t = {
+    acceptance: totals?.acceptance ?? itpsAwaitingAcceptance.length,
+    review: totals?.review ?? workAwaitingReview.length,
+    signoffs: totals?.signoffs ?? pendingSignoffs.length,
+    ncrs: totals?.ncrs ?? ncrsAssignedToMe.length,
+    punch: totals?.punch ?? punchAssignedToMe.length,
+  };
+  const needsAttention = t.acceptance + t.review + t.signoffs + t.ncrs + t.punch;
+  const moreLink = (shown: number, total: number, href: string, label: string) =>
+    total > shown ? (
+      <p className="mt-3 text-sm">
+        <Link href={href} className="font-medium text-burgundy hover:underline">
+          {label} ({total - shown} more) →
+        </Link>
+      </p>
+    ) : null;
 
   const widgets: Record<ExternalWidget, ReactNode> = {
     orgHealth: (
@@ -238,6 +265,7 @@ export function ExternalPartyDashboard({
               ]}
             />
           </div>
+          {moreLink(itpsAwaitingAcceptance.length, t.acceptance, "/inspect/itps", "See all ITPs")}
         </div>
       )}
 
@@ -251,6 +279,7 @@ export function ExternalPartyDashboard({
           description="Activities where a subcontractor has already signed off their part, and your own sign-off on the same activity is still pending or notified."
           rows={workAwaitingReview}
           levels={levels}
+          footer={moreLink(workAwaitingReview.length, t.review, "/inspect/itps", "See all ITPs")}
         />
       )}
 
@@ -263,7 +292,8 @@ export function ExternalPartyDashboard({
         description="Points on your own party's column that still need a Notify or Sign off — only what your login is linked to, not the whole project."
         rows={pendingSignoffs}
         levels={levels}
-        emptyMessage="Nothing awaiting your sign-off right now."
+        emptyMessage="Nothing awaiting your sign-off right now. New hold and witness points appear here when JAGS notifies you."
+        footer={moreLink(pendingSignoffs.length, t.signoffs, "/inspect/itps", "See all ITPs")}
       />
 
       </>
@@ -301,6 +331,39 @@ export function ExternalPartyDashboard({
               </li>
             ))}
           </ul>
+          {moreLink(ncrsAssignedToMe.length, t.ncrs, "/inspect/ncrs", "See all NCRs")}
+        </div>
+      )}
+
+      {punchAssignedToMe.length > 0 && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Punch items assigned to you</h2>
+          <p className="mt-1 text-sm text-muted">Open punch-list items where your party is responsible for the fix.</p>
+          <ul className="mt-4 space-y-2">
+            {punchAssignedToMe.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-ink">{p.description}</div>
+                  <div className="mt-0.5 truncate text-xs text-muted">
+                    {p.projectName}
+                    {p.dueDate && <span className="ml-2">Due {p.dueDate}</span>}
+                  </div>
+                </div>
+                <Link
+                  href={`/inspect/projects/${p.projectId}?tab=punch-list&item=${p.id}`}
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
+                >
+                  Open →
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {t.punch > punchAssignedToMe.length && (
+            <p className="mt-3 text-sm text-muted">{t.punch - punchAssignedToMe.length} more on the project punch lists.</p>
+          )}
         </div>
       )}
 
@@ -312,6 +375,7 @@ export function ExternalPartyDashboard({
         <StatCard
           label="Active projects"
           value={activeProjects}
+          href="/inspect/projects"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -324,6 +388,7 @@ export function ExternalPartyDashboard({
         <StatCard
           label="Active ITPs"
           value={activeItps}
+          href="/inspect/itps"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-[color:var(--color-burgundy-dark)]">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -334,8 +399,9 @@ export function ExternalPartyDashboard({
           }
         />
         <StatCard
-          label="Pending inspections"
+          label="Inspections in progress"
           value={pendingInspections}
+          href="/inspect/inspections?result=in_progress"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -348,6 +414,7 @@ export function ExternalPartyDashboard({
         <StatCard
           label="Open NCRs"
           value={openNcrs}
+          href="/inspect/ncrs"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -361,6 +428,7 @@ export function ExternalPartyDashboard({
         <StatCard
           label="Needs your attention"
           value={needsAttention}
+          href={needsAttention > 0 ? "#today-queue-title" : undefined}
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -388,6 +456,12 @@ export function ExternalPartyDashboard({
               <li key={project.id} className="rounded-md border border-border p-3">
                 <p className="truncate text-sm font-medium text-ink">{project.name}</p>
                 <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                  <Link
+                    href={`/inspect/projects/${project.id}?tab=punch-list`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    Punch list →
+                  </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/reports`}
                     className="font-medium text-burgundy hover:underline"
@@ -444,6 +518,7 @@ export function ExternalPartyDashboard({
       </p>
 
       <TodayQueue
+        emptyText="You are all caught up. Check Reports & documents below, or open Inspections to follow progress."
         description="What needs your response, most urgent first. Accepting an ITP opens right here."
         items={buildExternalToday({
           acceptance: itpsAwaitingAcceptance,
@@ -468,12 +543,14 @@ function SignoffQueuePanel({
   rows,
   levels,
   emptyMessage,
+  footer,
 }: {
   title: string;
   description: string;
   rows: SignoffQueueRow[];
   levels: DashboardLevelOption[];
   emptyMessage?: string;
+  footer?: ReactNode;
 }) {
   const levelByCode = new Map(levels.map((l) => [l.code, l]));
   return (
@@ -526,6 +603,7 @@ function SignoffQueuePanel({
         })}
         {rows.length === 0 && emptyMessage && <li className="text-sm text-muted">{emptyMessage}</li>}
       </ul>
+      {footer}
     </div>
   );
 }

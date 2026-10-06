@@ -28,6 +28,9 @@ export interface UploadVaultDocumentCoreParams {
   /** null for a caller with no user session (e.g. the email-inbound webhook, R20b) — the row's
    *  uploaded_by column then stays null rather than being force-fit to some placeholder user. */
   uploadedBy: string | null;
+  /** Explicit "this is the next revision of document X" (from the detail page / duplicate prompt).
+   *  Works even when X has no document_reference. */
+  revisesDocumentId?: string | null;
 }
 
 /**
@@ -59,15 +62,17 @@ export async function uploadVaultDocumentCore(
     folderId,
     projectId,
     title,
-    documentReference,
+    documentReference: documentReferenceInput,
     revision,
     documentDate,
     notes,
     storagePath,
     fileSize,
     uploadedBy,
+    revisesDocumentId,
   }: UploadVaultDocumentCoreParams
 ): Promise<UploadVaultDocumentState> {
+  let documentReference = documentReferenceInput;
   if (!folderId || !projectId || !title || !storagePath) {
     return { error: "Upload failed — a title and file are required." };
   }
@@ -103,7 +108,18 @@ export async function uploadVaultDocumentCore(
   });
 
   let previousLatest: { id: string; status: string; revision?: string } | null = null;
-  if (documentReference) {
+  if (revisesDocumentId) {
+    const { data: prev } = await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select("id, status, revision, document_reference")
+      .eq("id", revisesDocumentId)
+      .eq("folder_id", folderId)
+      .maybeSingle<{ id: string; status: string; revision: string; document_reference: string | null }>();
+    if (!prev) return { error: "The document you are revising was not found in this folder." };
+    if (prev.status === "superseded") return { error: "That revision has already been superseded - revise the current one instead." };
+    previousLatest = prev;
+    if (!documentReference) documentReference = prev.document_reference ?? "";
+  } else if (documentReference) {
     const { data: existing } = await supabase
       .from(VAULT_DOCUMENTS_TABLE)
       .select("id, status, revision")
@@ -235,6 +251,7 @@ export async function uploadVaultDocumentAction(
     storagePath: String(formData.get("storage_path") ?? "").trim(),
     fileSize: String(formData.get("file_size") ?? "").trim(),
     uploadedBy: user?.id ?? null,
+    revisesDocumentId: String(formData.get("revises_document_id") ?? "").trim() || null,
   });
 
   if (!result.error) {

@@ -8,6 +8,18 @@ import { QuickRaiseObservation } from "@/components/domain/quick-raise-observati
 import { TodayQueue } from "@/components/domain/today-queue";
 import { buildInspectorToday } from "@/lib/dashboard/today";
 
+export interface OverdueHoldRow {
+  id: string;
+  itpId: string | null;
+  activity: string;
+  itpNumber: string;
+  projectLabel: string;
+  daysOpen: number;
+  /** "Notice period passed" or "Planned date passed". */
+  reason: string;
+  plannedDate: string | null;
+}
+
 export interface PendingStandaloneAssignmentItem {
   id: string;
   assignmentNumber: string;
@@ -61,11 +73,15 @@ export function InspectorDashboard({
   pendingInspections,
   overdueHoldPoints,
   oldestHoldPointDays,
+  overdueHoldItems = [],
   pendingActions,
   pendingToday,
   pendingOverdue,
   pendingStandaloneAssignments,
+  ncrsAssignedToMe = [],
 }: {
+  /** The worst overdue holds (capped), each deep-linking to its ITP. */
+  overdueHoldItems?: OverdueHoldRow[];
   firstName: string;
   today: string;
   activeProjects: number;
@@ -77,6 +93,7 @@ export function InspectorDashboard({
   pendingToday: PendingActionItem[];
   pendingOverdue: PendingActionItem[];
   pendingStandaloneAssignments: PendingStandaloneAssignmentItem[];
+  ncrsAssignedToMe?: { id: string; ncrNumber: string; severity: string; description: string; dueDate: string | null; projectName: string }[];
 }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -124,12 +141,71 @@ export function InspectorDashboard({
           oldestHoldPointDays,
           standaloneAssignments: pendingStandaloneAssignments,
         })}
-        emptyText="Nothing waiting — start a new inspection or check the registers."
+        emptyText="Nothing waiting. Start a new inspection from Start work, or review Inspections."
       />
+
+      {overdueHoldItems.length > 0 && (
+        <div id="overdue-holds" className="mt-6 scroll-mt-20 rounded-lg border border-border bg-surface p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-ink">Overdue hold points</h2>
+            <span className="text-xs text-muted">
+              Showing {overdueHoldItems.length} of {overdueHoldPoints}, oldest first
+            </span>
+          </div>
+          <ul className="mt-3 divide-y divide-border">
+            {overdueHoldItems.map((h) => (
+              <li key={h.id}>
+                <Link
+                  href={h.itpId ? `/inspect/itps/${h.itpId}` : "/inspect/itps"}
+                  className="flex min-h-11 flex-col gap-0.5 py-2 hover:bg-off-white sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="min-w-0 truncate text-sm text-ink">
+                    {h.itpNumber} - {h.activity}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {h.projectLabel} - {h.reason}
+                    {h.plannedDate ? ` (${h.plannedDate})` : ""} - {h.daysOpen}d
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {ncrsAssignedToMe.length > 0 && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-ink">NCRs assigned to me</h2>
+            <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
+              All NCRs
+            </Link>
+          </div>
+          <ul className="mt-3 divide-y divide-border">
+            {ncrsAssignedToMe.map((n) => (
+              <li key={n.id}>
+                <Link
+                  href={`/inspect/ncrs/${n.id}`}
+                  className="flex min-h-11 flex-col gap-0.5 py-2 hover:bg-off-white sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="min-w-0 truncate text-sm text-ink">
+                    {n.ncrNumber} - {n.description}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {n.projectName}
+                    {n.dueDate ? ` - due ${n.dueDate}` : ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Active projects"
+          href="/inspect/projects"
           value={activeProjects}
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
@@ -142,6 +218,7 @@ export function InspectorDashboard({
         />
         <StatCard
           label="Active ITPs"
+          href="/inspect/itps"
           value={activeItps}
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-[color:var(--color-burgundy-dark)]">
@@ -153,9 +230,9 @@ export function InspectorDashboard({
           }
         />
         <StatCard
-          label="Pending inspections"
+          label="Inspections in progress"
           value={pendingInspections}
-          href="#pending-actions"
+          href="/inspect/inspections?result=in_progress"
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -168,6 +245,7 @@ export function InspectorDashboard({
         <StatCard
           label="Overdue hold points"
           value={overdueHoldPoints}
+          href={overdueHoldPoints > 0 ? "#overdue-holds" : undefined}
           icon={
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">

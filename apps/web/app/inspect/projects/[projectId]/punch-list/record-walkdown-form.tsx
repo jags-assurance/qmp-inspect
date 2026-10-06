@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
 
@@ -30,6 +30,16 @@ export function RecordWalkdownForm({
   const [state, formAction, pending] = useActionState(recordWalkdownAction, initialState);
   const [rowIds, setRowIds] = useState<number[]>([nextRowId()]);
   const [open, setOpen] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+  const lastAdded = useRef<RecordWalkdownState | null>(null);
+  // Start a fresh blank sheet only after a SUCCESSFUL record - on error the rows stay for retry.
+  useEffect(() => {
+    if (state.addedCount && lastAdded.current !== state) {
+      lastAdded.current = state;
+      setRowIds([nextRowId()]);
+      setResetKey((k) => k + 1);
+    }
+  }, [state]);
 
   function addRow() {
     setRowIds((ids) => [...ids, nextRowId()]);
@@ -49,11 +59,10 @@ export function RecordWalkdownForm({
 
   return (
     <form
-      action={(formData) => {
-        formAction(formData);
-        setRowIds([nextRowId()]);
-      }}
-      className="rounded-lg border border-border bg-off-white p-4"
+      key={resetKey}
+      action={formAction}
+      encType="multipart/form-data"
+      className="w-full rounded-lg border border-border bg-off-white p-4"
     >
       <input type="hidden" name="project_id" value={projectId} />
 
@@ -76,7 +85,7 @@ export function RecordWalkdownForm({
       <div className="mt-4 space-y-3">
         {rowIds.map((rowId, index) => (
           <div key={rowId} className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface p-3">
-            <div className="min-w-56 flex-1">
+            <div className="w-full min-w-56 flex-1">
               <label htmlFor={`walkdown-description-${rowId}`} className="block text-xs font-medium text-ink">
                 Item found
               </label>
@@ -88,7 +97,7 @@ export function RecordWalkdownForm({
               />
             </div>
 
-            <div className="w-40">
+            <div className="w-full sm:w-40">
               <label htmlFor={`walkdown-location-${rowId}`} className="block text-xs font-medium text-ink">
                 Location / ITP area
               </label>
@@ -99,7 +108,7 @@ export function RecordWalkdownForm({
               />
             </div>
 
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <label htmlFor={`walkdown-party-${rowId}`} className="block text-xs font-medium text-ink">
                 Responsible party
               </label>
@@ -118,7 +127,39 @@ export function RecordWalkdownForm({
               </select>
             </div>
 
-            <div className="w-36">
+            <input type="hidden" name="row_key" value={rowId} />
+            <div className="w-full sm:w-28">
+              <label htmlFor={`walkdown-priority-${rowId}`} className="block text-xs font-medium text-ink">
+                Priority
+              </label>
+              <select
+                id={`walkdown-priority-${rowId}`}
+                name="priority"
+                defaultValue="B"
+                className="mt-1 min-h-11 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+              >
+                <option value="A">A - critical</option>
+                <option value="B">B - major</option>
+                <option value="C">C - minor</option>
+              </select>
+            </div>
+
+            <div className="w-full sm:w-52">
+              <label htmlFor={`walkdown-photo-${rowId}`} className="block text-xs font-medium text-ink">
+                Photo
+              </label>
+              <input
+                id={`walkdown-photo-${rowId}`}
+                name={`photos_${rowId}`}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                className="mt-1 w-full text-xs"
+              />
+            </div>
+
+            <div className="w-full sm:w-36">
               <label htmlFor={`walkdown-due-${rowId}`} className="block text-xs font-medium text-ink">
                 Due date
               </label>

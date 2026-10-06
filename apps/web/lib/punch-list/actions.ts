@@ -5,11 +5,99 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { createNotification } from "@/lib/notifications/helpers";
 import {
   PUNCH_LIST_ITEMS_TABLE,
+  PUNCH_LIST_PRIORITIES,
   PUNCH_LIST_SOURCES,
+  PUNCH_PHOTO_MAX_BYTES,
+  type PunchListPriority,
   type PunchListSource,
 } from "@/lib/punch-list/types";
+
+type Supa = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+function parsePriority(v: FormDataEntryValue | null | undefined): PunchListPriority {
+  const t = String(v ?? "").trim().toUpperCase();
+  return (PUNCH_LIST_PRIORITIES as readonly string[]).includes(t) ? (t as PunchListPriority) : "B";
+}
+
+function validDueDate(v: string): boolean {
+  return !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v).getTime()));
+}
+
+/** The responsible party must be a party of THIS project (not just any party id). */
+async function partyBelongsToProject(supabase: Supa, projectId: string, partyId: string): Promise<boolean> {
+  if (!partyId) return true;
+  const { data } = await supabase
+    .from("project_parties")
+    .select("id")
+    .eq("id", partyId)
+    .eq("project_id", projectId)
+    .maybeSingle<{ id: string }>();
+  return !!data;
+}
+
+/** Images only, 25 MB each, stored under a project-scoped path in the evidence bucket. */
+async function uploadPunchPhotos(
+  supabase: Supa,
+  projectId: string,
+  files: FormDataEntryValue[]
+): Promise<{ paths: string[]; error: string | null }> {
+  const paths: string[] = [];
+  for (const f of files) {
+    if (typeof f === "string" || !f.size) continue;
+    if (!f.type.startsWith("image/")) return { paths, error: `${f.name}: only image files can be attached.` };
+    if (f.size > PUNCH_PHOTO_MAX_BYTES) return { paths, error: `${f.name} is larger than 25 MB.` };
+    const ext = (f.name.split(".").pop() ?? "jpg").replace(/[^a-zA-Z0-9]/g, "").slice(0, 5) || "jpg";
+    const path = `${projectId}/punch/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("inspection-evidence").upload(path, f, { contentType: f.type });
+    if (error) return { paths, error: "A photo could not be uploaded. Nothing was saved; try again." };
+    paths.push(path);
+  }
+  return { paths, error: null };
+}
+
+function punchLink(projectId: string, itemId: string): string {
+  return `/inspect/projects/${projectId}/punch-list?item=${itemId}`;
+}
+
+async function notifyUsers(
+  supabase: Supa,
+  projectId: string,
+  actorId: string | null,
+  userIds: (string | null | undefined)[],
+  itemId: string,
+  title: string,
+  body: string
+) {
+  try {
+    const orgId = await findOrgForProject(supabase, projectId);
+    if (!orgId) return;
+    for (const uid of new Set(userIds.filter((u): u is string => !!u && u !== actorId))) {
+      await createNotification(supabase, {
+        organizationId: orgId,
+        projectId,
+        recipientUserId: uid,
+        title,
+        body,
+        link: punchLink(projectId, itemId),
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+}
+
+async function partyUserId(supabase: Supa, partyId: string | null): Promise<string | null> {
+  if (!partyId) return null;
+  const { data } = await supabase
+    .from("project_parties")
+    .select("user_id")
+    .eq("id", partyId)
+    .maybeSingle<{ user_id: string | null }>();
+  return data?.user_id ?? null;
+}
 
 export interface AddPunchItemState {
   error: string | null;
@@ -41,11 +129,17 @@ export async function addPunchItemAction(
   if (!projectId || !description) {
     return { error: "Description is required." };
   }
+  if (!validDueDate(dueDate)) return { error: "Due date is not valid." };
 
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!(await partyBelongsToProject(supabase, projectId, responsiblePartyId))) {
+    return { error: "The responsible party doesn't belong to this project." };
+  }
+  const photos = await uploadPunchPhotos(supabase, projectId, formData.getAll("photos"));
+  if (photos.error) return { error: photos.error };
   const { data: item, error } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
     .insert({
@@ -55,6 +149,9 @@ export async function addPunchItemAction(
       location: location || null,
       responsible_party_id: responsiblePartyId || null,
       due_date: dueDate || null,
+      priority: parsePriority(formData.get("priority")),
+      photo_paths: photos.paths,
+      created_by: user?.id ?? null,
     })
     .select("id")
     .single<{ id: string }>();
@@ -82,6 +179,16 @@ export async function addPunchItemAction(
   } catch {
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
+
+  await notifyUsers(
+    supabase,
+    projectId,
+    user?.id ?? null,
+    [await partyUserId(supabase, responsiblePartyId || null)],
+    item.id,
+    "Punch item assigned to you",
+    description
+  );
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
@@ -134,8 +241,9 @@ export async function resolvePunchItemAction(
     })
     .eq("id", punchItemId)
     .eq("status", "open")
-    .select("id")
-    .returns<{ id: string }[]>();
+    .eq("project_id", projectId)
+    .select("id, created_by, description")
+    .returns<{ id: string; created_by: string | null; description: string }[]>();
 
   if (error) {
     return { error: "Could not mark the punch item resolved. Check you have permission and try again." };
@@ -161,6 +269,16 @@ export async function resolvePunchItemAction(
   } catch {
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
+
+  await notifyUsers(
+    supabase,
+    projectId,
+    user?.id ?? null,
+    [data[0].created_by],
+    punchItemId,
+    "Punch item awaiting your verification",
+    `${data[0].description} - closing evidence: ${closingEvidence}`.slice(0, 300)
+  );
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
@@ -229,8 +347,9 @@ export async function closePunchItemAction(
     })
     .eq("id", punchItemId)
     .eq("status", "resolved")
-    .select("id")
-    .returns<{ id: string }[]>();
+    .eq("project_id", projectId)
+    .select("id, created_by, resolved_by, description")
+    .returns<{ id: string; created_by: string | null; resolved_by: string | null; description: string }[]>();
 
   if (error) {
     return { error: "Could not close the punch item. Check you have permission and try again." };
@@ -257,6 +376,99 @@ export async function closePunchItemAction(
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
+  await notifyUsers(
+    supabase,
+    projectId,
+    session.userId,
+    [data[0].resolved_by, data[0].created_by],
+    punchItemId,
+    "Punch item verified and closed",
+    data[0].description
+  );
+
+  revalidatePath(`/inspect/projects/${projectId}/punch-list`);
+  revalidatePath(`/inspect/projects/${projectId}/data-book`);
+  return { error: null };
+}
+
+export interface ReopenPunchItemState {
+  error: string | null;
+}
+
+/**
+ * Sends a resolved item back to open (verifier rejects the fix) or reopens a closed one. Requires a
+ * reason and the close_punch_item permission (same authority as verifying); atomic on status.
+ */
+export async function reopenPunchItemAction(
+  _prev: ReopenPunchItemState,
+  formData: FormData
+): Promise<ReopenPunchItemState> {
+  const punchItemId = String(formData.get("punch_item_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!punchItemId || !projectId) return { error: "Missing punch item." };
+  if (!reason) return { error: "A reason is required to reopen a punch item." };
+
+  const session = await requireSession();
+  const allowed = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", projectId));
+  if (!allowed) return { error: "Only a JAGS Admin, or someone granted this permission, can reopen a punch item." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: current } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .select("status, reopen_count")
+    .eq("id", punchItemId)
+    .eq("project_id", projectId)
+    .maybeSingle<{ status: string; reopen_count: number | null }>();
+  if (!current || current.status === "open") return { error: "This item is already open." };
+
+  const { error, data } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .update({
+      status: "open",
+      reopen_reason: reason,
+      reopened_by: session.userId,
+      reopened_at: new Date().toISOString(),
+      reopen_count: (current.reopen_count ?? 0) + 1,
+      resolved_by: null,
+      resolved_at: null,
+      closed_by: null,
+      closed_at: null,
+    })
+    .eq("id", punchItemId)
+    .eq("project_id", projectId)
+    .eq("status", current.status)
+    .select("id, created_by, resolved_by, responsible_party_id, description")
+    .returns<{ id: string; created_by: string | null; resolved_by: string | null; responsible_party_id: string | null; description: string }[]>();
+  if (error) return { error: "Could not reopen the punch item." };
+  if (!data || data.length === 0) return { error: "This item changed meanwhile - refresh and try again." };
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: punchItemId,
+        action: "reopened",
+        actorId: session.userId,
+        summary: `Punch item reopened: ${reason}`,
+        changes: { reason, from: current.status },
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+  await notifyUsers(
+    supabase,
+    projectId,
+    session.userId,
+    [data[0].resolved_by, data[0].created_by, await partyUserId(supabase, data[0].responsible_party_id)],
+    punchItemId,
+    "Punch item reopened",
+    `${data[0].description} - ${reason}`.slice(0, 300)
+  );
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
   return { error: null };
@@ -303,27 +515,44 @@ export async function recordWalkdownAction(
   const locations = formData.getAll("location").map((v) => String(v).trim());
   const responsibleParties = formData.getAll("responsible_party_id").map((v) => String(v).trim());
   const dueDates = formData.getAll("due_date").map((v) => String(v).trim());
+  const priorities = formData.getAll("priority");
+  const rowKeys = formData.getAll("row_key").map((v) => String(v));
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const rows = descriptions
-    .map((description, i) => ({
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 0; i < descriptions.length; i++) {
+    if (!descriptions[i]) continue;
+    if (!validDueDate(dueDates[i] ?? "")) return { error: `Item ${i + 1}: due date is not valid.` };
+    if (!(await partyBelongsToProject(supabase, projectId, responsibleParties[i] ?? ""))) {
+      return { error: `Item ${i + 1}: responsible party doesn't belong to this project.` };
+    }
+    const photos = await uploadPunchPhotos(supabase, projectId, formData.getAll(`photos_${rowKeys[i] ?? ""}`));
+    if (photos.error) return { error: `Item ${i + 1}: ${photos.error}` };
+    rows.push({
       project_id: projectId,
-      description,
-      source: "walkdown" as const,
+      description: descriptions[i],
+      source: "walkdown",
       location: locations[i] || null,
       responsible_party_id: responsibleParties[i] || null,
       due_date: dueDates[i] || null,
-    }))
-    .filter((row) => row.description.length > 0);
+      priority: parsePriority(priorities[i]),
+      photo_paths: photos.paths,
+      created_by: user?.id ?? null,
+    });
+  }
 
   if (rows.length === 0) {
     return { error: "Add at least one item found during the walk-down before recording it." };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(rows);
+  const { data: inserted, error } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .insert(rows)
+    .select("id, responsible_party_id, description")
+    .returns<{ id: string; responsible_party_id: string | null; description: string }[]>();
 
   if (error) {
     if (error.code === "23503") {
@@ -347,6 +576,18 @@ export async function recordWalkdownAction(
     }
   } catch {
     // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  for (const it of inserted ?? []) {
+    await notifyUsers(
+      supabase,
+      projectId,
+      user?.id ?? null,
+      [await partyUserId(supabase, it.responsible_party_id)],
+      it.id,
+      "Punch item assigned to you",
+      it.description
+    );
   }
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);

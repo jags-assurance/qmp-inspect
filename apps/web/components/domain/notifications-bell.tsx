@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "@/lib/notifications/actions";
@@ -24,13 +25,26 @@ function timeAgo(iso: string): string {
  * anything, which is the actual point of a multi-party workflow where different people are looking
  * at their own screens at the same time.
  */
-export function NotificationsBell({ userId, initialNotifications }: { userId: string; initialNotifications: NotificationRow[] }) {
+export function NotificationsBell({
+  userId,
+  initialNotifications,
+  initialUnreadCount,
+}: {
+  userId: string;
+  initialNotifications: NotificationRow[];
+  /** True unread total from the server (the list only holds the latest 20 rows). */
+  initialUnreadCount?: number;
+}) {
   const router = useRouter();
   const [notifications, setNotifications] = useState(initialNotifications);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const [unreadCount, setUnreadCount] = useState(
+    initialUnreadCount ?? initialNotifications.filter((n) => !n.is_read).length
+  );
+  const notificationsRef = useRef(notifications);
+  notificationsRef.current = notifications;
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -40,7 +54,9 @@ export function NotificationsBell({ userId, initialNotifications }: { userId: st
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_user_id=eq.${userId}` },
         (payload) => {
-          setNotifications((prev) => [payload.new as NotificationRow, ...prev].slice(0, 20));
+          const inserted = payload.new as NotificationRow;
+          if (!inserted.is_read) setUnreadCount((c) => c + 1);
+          setNotifications((prev) => [inserted, ...prev].slice(0, 20));
         }
       )
       .on(
@@ -48,6 +64,11 @@ export function NotificationsBell({ userId, initialNotifications }: { userId: st
         { event: "UPDATE", schema: "public", table: "notifications", filter: `recipient_user_id=eq.${userId}` },
         (payload) => {
           const updated = payload.new as NotificationRow;
+          const before = notificationsRef.current.find((n) => n.id === updated.id);
+          if (before) {
+            if (!before.is_read && updated.is_read) setUnreadCount((c) => Math.max(0, c - 1));
+            else if (before.is_read && !updated.is_read) setUnreadCount((c) => c + 1);
+          }
           setNotifications((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
         }
       )
@@ -70,6 +91,7 @@ export function NotificationsBell({ userId, initialNotifications }: { userId: st
   async function handleClick(n: NotificationRow) {
     if (!n.is_read) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)));
+      setUnreadCount((c) => Math.max(0, c - 1));
       await markNotificationReadAction(n.id);
     }
     setOpen(false);
@@ -78,6 +100,7 @@ export function NotificationsBell({ userId, initialNotifications }: { userId: st
 
   async function handleMarkAllRead() {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadCount(0);
     await markAllNotificationsReadAction();
   }
 
@@ -106,7 +129,7 @@ export function NotificationsBell({ userId, initialNotifications }: { userId: st
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-20 w-80 rounded-lg border border-border bg-surface shadow-lg">
+        <div className="fixed inset-x-2 top-14 z-20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96 rounded-lg border border-border bg-surface shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-sm font-semibold text-ink">Notifications</span>
             {unreadCount > 0 && (
@@ -139,6 +162,11 @@ export function NotificationsBell({ userId, initialNotifications }: { userId: st
                 </div>
               </button>
             ))}
+          </div>
+          <div className="border-t border-border px-3 py-2 text-center">
+            <Link href="/inspect/notifications" onClick={() => setOpen(false)} className="text-xs font-medium text-burgundy hover:underline">
+              View all notifications
+            </Link>
           </div>
         </div>
       )}
