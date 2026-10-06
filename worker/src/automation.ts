@@ -282,7 +282,7 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
     .in("project_id", projectIds)
     .lte("expiry_date", horizon(90));
   for (const w of welders ?? []) {
-    items.push({ entityType: "welder", id: w.id, projectId: w.project_id, label: `Welder qualification ${w.welder_identifier} (WPQ ${w.wpq_number})`, expiryDate: w.expiry_date, windowDays: 90, extraRecipient: null });
+    items.push({ entityType: "welder", id: w.id, projectId: w.project_id, label: `Welder qualification ${w.welder_identifier} (WPQ ${w.wpq_number ?? "n/a"})`, expiryDate: w.expiry_date, windowDays: 90, extraRecipient: null });
   }
 
   const { data: certs } = await db
@@ -306,6 +306,8 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
   let admins: string[] | null = null;
   for (const item of items) {
     const days = daysUntilDate(item.expiryDate);
+    // Items that lapsed long ago are old news, not a fresh alert (avoids a flood on the first sweep).
+    if (days < -30) continue;
     const threshold = reachedThreshold(days, item.windowDays);
     if (threshold === null) continue;
 
@@ -331,10 +333,22 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
     const title = days < 0 ? `Expired: ${item.label}` : days === 0 ? `Expires today: ${item.label}` : `Expiring in ${days} day${days === 1 ? "" : "s"}: ${item.label}`;
     const body = `${project?.name ?? "Project"} — expiry date ${item.expiryDate}. Renew or replace it before it is used on further inspections.`;
     const link = `/inspect/projects/${item.projectId}/registers`;
-    for (const userId of recipients) {
-      await notify(organizationId, item.projectId, userId, title, body, link);
+    try {
+      for (const userId of recipients) {
+        await notify(organizationId, item.projectId, userId, title, body, link);
+      }
+      sent += 1;
+    } catch (err) {
+      // Release the claimed slot so the next sweep retries instead of silently losing the alert.
+      await db
+        .from("register_expiry_notifications")
+        .delete()
+        .eq("entity_type", item.entityType)
+        .eq("entity_id", item.id)
+        .eq("expiry_date", item.expiryDate)
+        .eq("threshold_days", threshold);
+      console.error("[automation] register_expiry notify failed; will retry next sweep:", err);
     }
-    sent += 1;
   }
   return sent;
 }

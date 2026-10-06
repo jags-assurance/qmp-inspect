@@ -20,14 +20,7 @@ export async function getRegisterAccess(
   projectId: string
 ): Promise<RegisterAccess> {
   if (session.isJagsStaff) return { canAdd: true, canManage: true };
-  const { data } = await supabase
-    .from("project_parties")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("user_id", session.userId)
-    .eq("is_active", true)
-    .in("party_type", ["main_contractor", "subcontractor", "tpi_lab"])
-    .limit(1)
-    .maybeSingle<{ id: string }>();
-  return { canAdd: !!data, canManage: false };
+  // The database function covers the party's primary contact AND its other members.
+  const { data } = await supabase.rpc("is_register_contributor" as never, { target_project_id: projectId } as never);
+  return { canAdd: data === true, canManage: false };
 }

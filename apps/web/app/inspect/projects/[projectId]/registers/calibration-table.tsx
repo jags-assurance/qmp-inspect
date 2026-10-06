@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { CALIBRATION_DUE_SOON_DAYS } from "@/lib/registers/status";
 import type { CalibrationStatus } from "@/lib/registers/types";
-import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { CertificateLink, formatRegisterDate, ExpiryDate, RegisterRowActions } from "./register-cells";
 
 export interface CalibrationRegisterDisplayRow {
   id: string;
@@ -56,7 +56,7 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
         </span>
       ),
     },
-    { key: "cal_date", header: "Cal. date", render: (row) => (row.cal_date ? new Date(row.cal_date).toLocaleDateString("en-GB") : "—") },
+    { key: "cal_date", header: "Cal. date", render: (row) => formatRegisterDate(row.cal_date) },
     { key: "due_date", header: "Due", render: (row) => <ExpiryDate date={row.due_date} warnWithinDays={CALIBRATION_DUE_SOON_DAYS} /> },
     { key: "status", header: "Status", render: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
     { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="calibration" id={row.id} hasFile={!!row.certificate_path} /> },

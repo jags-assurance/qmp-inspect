@@ -8,7 +8,7 @@ import {
   type MaterialApprovalStatus,
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
-import { CertificateLink, RegisterRowActions } from "./register-cells";
+import { CertificateLink, formatRegisterDate, RegisterRowActions } from "./register-cells";
 
 export interface MaterialRegisterDisplayRow {
   id: string;
@@ -71,7 +71,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
     {
       key: "approved_date",
       header: "Approved",
-      render: (row) => (row.approved_date ? new Date(row.approved_date).toLocaleDateString("en-GB") : "—"),
+      render: (row) => formatRegisterDate(row.approved_date),
     },
     {
       key: "traceability",
@@ -92,7 +92,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       render: (row) => (
         <div>
           <Badge tone={RECEIPT_TONE[row.receipt_status]}>{MATERIAL_RECEIPT_STATUS_LABELS[row.receipt_status]}</Badge>
-          {row.released_at && <p className="mt-1 text-xs text-muted">Released {new Date(row.released_at).toLocaleDateString("en-GB")}</p>}
+          {row.released_at && <p className="mt-1 text-xs text-muted">Released {formatRegisterDate(row.released_at)}</p>}
           {row.disposition_notes && <p className="mt-1 text-xs text-muted">{row.disposition_notes}</p>}
         </div>
       ),

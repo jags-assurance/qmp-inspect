@@ -10,13 +10,19 @@ import {
 import { daysUntil, describeDays } from "@/lib/registers/status";
 import { MATERIAL_APPROVAL_STATUS_LABELS, MATERIAL_RECEIPT_STATUS_LABELS } from "@/lib/registers/types";
 
+/** Formats a plain YYYY-MM-DD date as dd/mm/yyyy without the timezone shift `new Date("YYYY-MM-DD")` causes west of UTC. */
+export function formatRegisterDate(date: string | null | undefined): string {
+  if (!date) return "—";
+  return new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC" });
+}
+
 /** A due / expiry date with how far away it is, coloured by urgency (red past due, amber inside the warning window). */
 export function ExpiryDate({ date, warnWithinDays }: { date: string; warnWithinDays: number }) {
   const days = daysUntil(date);
   const tone = days < 0 ? "text-danger font-medium" : days <= warnWithinDays ? "text-warning font-medium" : "text-ink";
   return (
     <span>
-      <span className={tone}>{new Date(date).toLocaleDateString("en-GB")}</span>
+      <span className={tone}>{formatRegisterDate(date)}</span>
       <span className={`block text-xs ${days < 0 ? "text-danger" : "text-muted"}`}>{describeDays(days)}</span>
     </span>
   );
