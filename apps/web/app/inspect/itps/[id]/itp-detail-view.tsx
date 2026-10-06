@@ -13,6 +13,7 @@ import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { AcceptItpForm } from "./accept-itp-form";
 import { ReviewChainStatus } from "./review-chain-status";
 import { getItpReviewProgress } from "@/lib/itps/review-chain";
+import { ReturnItpForm } from "./return-itp-form";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
 import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
@@ -137,6 +138,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       client_accepted_by: string | null;
       client_accepted_at: string | null;
       assigned_acceptor_user_id: string | null;
+      returned_reason: string | null;
+      returned_at: string | null;
       projects: {
         id: string;
         name: string;
@@ -597,6 +600,13 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           ? Project Guide
         </Link>
       </div>
+      {itp.status === "draft" && itp.returned_reason && (
+        <div className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink" role="status">
+          <p className="font-medium text-danger">Returned for changes</p>
+          <p className="mt-0.5 whitespace-pre-line">{itp.returned_reason}</p>
+          {itp.returned_at && <p className="mt-1 text-xs text-muted">{new Date(itp.returned_at).toLocaleString("en-GB")}</p>}
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -721,6 +731,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
           )}
+          {itp.status === "under_review" && (canApproveItp || session.isJagsStaff) && <ReturnItpForm itpId={itp.id} />}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
               activity_signoff_progress row for this ITP in one click. Stays staff-only even on a
               client-created draft ITP, since notifying sign-off parties is a JAGS orchestration

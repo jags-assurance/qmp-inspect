@@ -453,6 +453,17 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
     return { error: "You can only sign off on behalf of your own party on this project." };
   }
 
+  // Approval before work: activity sign-offs only count on an ITP that has been approved (or accepted).
+  {
+    const signoffItpId = await findItpIdForProgress(supabase, progress.itp_item_id);
+    if (signoffItpId) {
+      const { data: signoffItp } = await supabase.from("itps").select("status").eq("id", signoffItpId).maybeSingle<{ status: string }>();
+      if (signoffItp && signoffItp.status !== "approved" && signoffItp.status !== "client_accepted") {
+        return { error: "This ITP hasn't been approved yet, so activities can't be signed off. Sign-off opens once it is approved." };
+      }
+    }
+  }
+
   const blockedByLevel = await findUnclearedLowerBlockingLevel(supabase, progress.itp_item_id, progress.intervention);
   if (blockedByLevel) {
     return { error: `${blockedByLevel} must be signed off (or proceeded without response) before this level can be.` };

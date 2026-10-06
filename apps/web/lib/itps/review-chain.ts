@@ -125,6 +125,10 @@ export async function startReviewChainForItp(
   const chain = itpOverride.length > 0 ? itpOverride : await getProjectReviewChain(supabase, projectId);
   if (chain.length === 0) return false;
 
+  // Start clean: a resubmission (or a double click) must never stack a second set of steps on top of
+  // an earlier one.
+  await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
+
   await supabase.from(ITP_REVIEW_PROGRESS_TABLE).insert(
     chain.map((member) => ({
       itp_id: itpId,

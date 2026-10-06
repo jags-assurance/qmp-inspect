@@ -184,6 +184,7 @@ async function finalizeApprovedReviewChain(
         .select("user_id")
         .eq("project_id", itp.project_id)
         .eq("party_type", "client")
+        .eq("is_active", true)
         .not("user_id", "is", null)
         .returns<{ user_id: string | null }[]>();
 
@@ -278,12 +279,35 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
     }
   }
 
-  const { error: updateError } = await supabase
+  // Segregation of duties: whoever prepared or submitted the ITP can't be the reviewer who signs it
+  // (a JAGS Admin may, but it is recorded in the audit trail).
+  let selfReview = false;
+  {
+    const { data: authorship } = await supabase
+      .from("itps")
+      .select("prepared_by, reviewed_by")
+      .eq("id", itpId)
+      .maybeSingle<{ prepared_by: string | null; reviewed_by: string | null }>();
+    if (authorship && (authorship.prepared_by === session.userId || authorship.reviewed_by === session.userId)) {
+      if (!isAdminStaff(session)) {
+        return { error: "You prepared or submitted this ITP, so someone else has to review it (segregation of duties)." };
+      }
+      selfReview = true;
+    }
+  }
+
+  const { data: recordedRows, error: updateError } = await supabase
     .from(ITP_REVIEW_PROGRESS_TABLE)
     .update({ status: "approved", reviewed_at: new Date().toISOString() })
-    .eq("id", currentStep.id);
+    .eq("id", currentStep.id)
+    .eq("status", "pending")
+    .select("id");
   if (updateError) {
     return { error: "Could not record your review. Check you have permission and try again." };
+  }
+  if (!recordedRows?.length) {
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: "This review step was already recorded — refresh the page." };
   }
 
   try {
@@ -298,9 +322,9 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
         projectId: itpForAudit.project_id,
         entityType: "itp",
         entityId: itpId,
-        action: "review_step_approved",
+        action: selfReview ? "review_step_self_approved" : "review_step_approved",
         actorId: session.userId,
-        summary: `Review step ${currentStep.sort_order + 1} approved on ${itpForAudit.itp_number}`,
+        summary: `Review step ${currentStep.sort_order + 1} approved on ${itpForAudit.itp_number}${selfReview ? " (by the person who prepared/submitted it)" : ""}`,
       });
     }
   } catch {

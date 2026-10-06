@@ -5,13 +5,14 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { checklistReviewError } from "@/lib/itps/checklist-review";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
-import { startReviewChainForItp, getItpReviewProgress } from "@/lib/itps/review-chain";
+import { startReviewChainForItp, getItpReviewProgress, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
@@ -122,6 +123,54 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   });
 
   redirect(`/inspect/itps/${itp.id}`);
+}
+
+/**
+ * Content edited while an ITP is UNDER REVIEW means reviewers who already signed approved something
+ * different from what is now on the page. Reset every review step to pending (the review starts over),
+ * record why in the audit trail, and tell the reviewer whose turn it now is. No-op in any other status.
+ */
+async function resetReviewIfUnderReview(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpId: string,
+  summary: string,
+  actorId: string | null
+): Promise<void> {
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("status, itp_number, project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ status: string; itp_number: string; project_id: string; projects: { organization_id: string } | null }>();
+    if (!itp || itp.status !== "under_review") return;
+
+    const { data: signed } = await supabase
+      .from(ITP_REVIEW_PROGRESS_TABLE)
+      .select("id")
+      .eq("itp_id", itpId)
+      .eq("status", "approved");
+    if (!signed?.length) return;
+
+    await supabase
+      .from(ITP_REVIEW_PROGRESS_TABLE)
+      .update({ status: "pending", reviewed_at: null })
+      .eq("itp_id", itpId)
+      .eq("status", "approved");
+
+    if (itp.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "review_reset_after_edit",
+        actorId,
+        summary: `${itp.itp_number} edited during review (${summary}) — review sign-offs reset`,
+      });
+    }
+  } catch {
+    // Best-effort — never blocks the edit that already succeeded.
+  }
 }
 
 /** Resolves an item's real ITP (never trust the posted itp_id) with its status and organisation. */
@@ -316,6 +365,28 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     }
   }
 
+  await resetReviewIfUnderReview(supabase, itpId, `activity ${itemNumber} added`, null);
+
+  // An activity added to an already-issued ITP would otherwise have no checklist until someone found the
+  // manual "generate" button. Generation is idempotent (it skips activities that already have one).
+  if (isIssued && evidenceType !== 2 && evidenceType !== 3 && itpForRevisionCheck?.projects?.organization_id) {
+    try {
+      const {
+        data: { user: generatorUser },
+      } = await supabase.auth.getUser();
+      const { data: itpNumberRow } = await supabase.from("itps").select("itp_number").eq("id", itpId).maybeSingle<{ itp_number: string }>();
+      await generateChecklistsForItp(supabase, {
+        itpId,
+        itpNumber: itpNumberRow?.itp_number ?? "",
+        projectId: itpForRevisionCheck.project_id,
+        organizationId: itpForRevisionCheck.projects.organization_id,
+        userId: generatorUser?.id ?? null,
+      });
+    } catch {
+      // Best-effort — the checklist can still be generated manually.
+    }
+  }
+
   // Found missing in a self-review audit: ITP content-authoring actions (add/edit/delete item, set
   // intervention) had no audit trail at all, unlike every status-transition action on this same ITP
   // — best-effort, never blocks the write above, which already succeeded.
@@ -438,6 +509,8 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     return { error: "Could not update the activity. Check you have permission and try again." };
   }
 
+  await resetReviewIfUnderReview(supabase, itpId, `activity ${itemNumber} edited`, null);
+
   const organizationId = itpForRevisionCheck?.projects?.organization_id;
   if (organizationId) {
     try {
@@ -515,6 +588,8 @@ export async function deleteItpItemAction(_prev: DeleteItemState, formData: Form
     };
   }
 
+  await resetReviewIfUnderReview(supabase, itpId, `activity ${resolved.itemNumber} deleted`, null);
+
   if (resolved.organizationId) {
     try {
       const {
@@ -577,6 +652,7 @@ async function moveItpItem(formData: FormData, direction: "up" | "down") {
   const reordered = [...ordered];
   [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
   await Promise.all(reordered.map((row, i) => supabase.from("itp_items").update({ sort_order: i }).eq("id", row.id)));
+  await resetReviewIfUnderReview(supabase, resolved.itpId, `activity ${resolved.itemNumber} moved`, null);
 
   revalidatePath(`/inspect/itps/${resolved.itpId}`);
 }
@@ -764,6 +840,7 @@ export async function setInterventionAction(formData: FormData) {
     }
   }
 
+  await resetReviewIfUnderReview(supabase, itpId, "sign-off level changed", null);
   revalidatePath(`/inspect/itps/${itpId}`);
 }
 
@@ -859,17 +936,50 @@ export async function advanceItpStatusAction(
     }
   }
 
+  if (nextStatus === "under_review") {
+    const { data: sectionRows } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId).returns<{ id: string }[]>();
+    const sectionIds = (sectionRows ?? []).map((r) => r.id);
+    const { count: activityCount } = sectionIds.length
+      ? await supabase.from("itp_items").select("id", { count: "exact", head: true }).in("section_id", sectionIds)
+      : { count: 0 };
+    if (!activityCount) {
+      return { error: "Add at least one activity before submitting this ITP for review." };
+    }
+  }
+
+  // No self-approval: the person who submitted the ITP for review can't also approve it. A JAGS Admin
+  // may still do both (single-admin teams), but it is recorded as a self-approval in the audit trail.
+  let selfApproved = false;
+  if (nextStatus === "approved") {
+    const { data: submitted } = await supabase
+      .from("itps")
+      .select("reviewed_by, prepared_by")
+      .eq("id", itpId)
+      .maybeSingle<{ reviewed_by: string | null; prepared_by: string | null }>();
+    const isSubmitter = !!user?.id && (submitted?.reviewed_by === user.id || submitted?.prepared_by === user.id);
+    if (isSubmitter) {
+      if (!isAdminStaff(session)) {
+        return { error: "You prepared or submitted this ITP, so someone else has to approve it (segregation of duties)." };
+      }
+      selfApproved = true;
+    }
+  }
+
   const now = new Date().toISOString();
   const update =
     nextStatus === "under_review"
       ? { status: nextStatus, reviewed_by: user?.id ?? null, reviewed_at: now }
       : { status: nextStatus, approved_by: user?.id ?? null, approved_at: now };
 
-  const { error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus);
+  const { data: advancedRows, error } = await supabase.from("itps").update(update).eq("id", itpId).eq("status", fromStatus).select("id");
 
   if (error) {
     revalidatePath(`/inspect/itps/${itpId}`);
     return { error: "Could not update the ITP status. Check you have permission and try again." };
+  }
+  if (!advancedRows?.length) {
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: "This ITP's status has already changed — refresh the page to see where it is now." };
   }
 
   // Best-effort: fetched once and reused by every side-effect below (audit trail, submit-for-review
@@ -898,9 +1008,9 @@ export async function advanceItpStatusAction(
           projectId: itp.project_id,
           entityType: "itp",
           entityId: itpId,
-          action: "status_changed",
+          action: selfApproved ? "self_approved" : "status_changed",
           actorId: user?.id ?? null,
-          summary: `ITP ${itp.itp_number} moved to ${nextStatus}`,
+          summary: `ITP ${itp.itp_number} moved to ${nextStatus}${selfApproved ? " (approved by the same person who prepared/submitted it)" : ""}`,
         });
       }
 
@@ -985,6 +1095,94 @@ export async function advanceItpStatusAction(
     } catch {
       // Best-effort — see comment above.
     }
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
+}
+
+export interface ReturnItpState {
+  error: string | null;
+}
+
+/**
+ * A reviewer sends an ITP back to its preparer with a written reason — the document-control "reject /
+ * request changes" step. under_review -> draft; every review step is cleared (the chain starts over on
+ * resubmission); the preparer and submitter are notified with the reason. Allowed for a JAGS Admin, the
+ * reviewer whose turn it currently is, or any JAGS staff member when no review chain is running.
+ */
+export async function returnItpToDraftAction(_prev: ReturnItpState, formData: FormData): Promise<ReturnItpState> {
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!itpId) return { error: "Missing ITP." };
+  if (reason.length < 5) return { error: "Give a reason for returning the ITP (at least 5 characters)." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("status, itp_number, title, prepared_by, reviewed_by, project_id, projects(organization_id)")
+    .eq("id", itpId)
+    .maybeSingle<{
+      status: string;
+      itp_number: string;
+      title: string;
+      prepared_by: string | null;
+      reviewed_by: string | null;
+      project_id: string;
+      projects: { organization_id: string } | null;
+    }>();
+  if (!itp) return { error: "ITP not found." };
+  if (itp.status !== "under_review") return { error: "Only an ITP that is under review can be returned to its preparer." };
+
+  if (!isAdminStaff(session)) {
+    const steps = await getItpReviewProgress(supabase, itpId);
+    const currentStep = steps.find((s) => s.status === "pending");
+    const allowed = steps.length > 0 ? currentStep?.reviewerUserId === session.userId : session.isJagsStaff;
+    if (!allowed) return { error: "Only a JAGS Admin, or the reviewer whose turn it is, can return this ITP." };
+  }
+
+  const { data: returnedRows, error } = await supabase
+    .from("itps")
+    .update({
+      status: "draft",
+      returned_by: session.userId,
+      returned_at: new Date().toISOString(),
+      returned_reason: reason,
+    } as never)
+    .eq("id", itpId)
+    .eq("status", "under_review")
+    .select("id");
+  if (error || !returnedRows?.length) return { error: "Could not return the ITP. It may have just changed status — refresh and try again." };
+
+  await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
+
+  try {
+    const organizationId = itp.projects?.organization_id;
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "returned_to_draft",
+        actorId: session.userId,
+        summary: `ITP ${itp.itp_number} returned to the preparer: ${reason}`,
+      });
+      for (const recipientId of new Set([itp.prepared_by, itp.reviewed_by].filter((v): v is string => !!v && v !== session.userId))) {
+        await createNotification(supabase, {
+          organizationId,
+          projectId: itp.project_id,
+          recipientUserId: recipientId,
+          title: "ITP returned for changes",
+          body: `${itp.itp_number} — ${itp.title}: ${reason}`,
+          link: `/inspect/itps/${itpId}`,
+        });
+      }
+    }
+  } catch {
+    // Best-effort.
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
