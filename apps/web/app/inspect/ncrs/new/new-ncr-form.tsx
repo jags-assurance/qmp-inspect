@@ -39,6 +39,7 @@ export function NewNcrForm({
   initialProjectId,
   itpItemId,
   inspectionRecordId,
+  checklistItemId,
   initialDescription,
   onCreated,
 }: {
@@ -52,6 +53,8 @@ export function NewNcrForm({
   initialProjectId?: string;
   itpItemId?: string;
   inspectionRecordId?: string;
+  /** The checklist item this NCR is raised from (stored as ncrs.checklist_item_id). */
+  checklistItemId?: string;
   initialDescription?: string;
   /** When given, the form is hosted in a side panel: it stays on the page after raising and reports
    *  the new record here instead of redirecting to the NCR's own page. */
@@ -100,6 +103,7 @@ export function NewNcrForm({
       <input type="hidden" name="ai_original_description" value={aiOriginalDescription ?? ""} />
       {itpItemId && <input type="hidden" name="itp_item_id" value={itpItemId} />}
       {inspectionRecordId && <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />}
+      {checklistItemId && <input type="hidden" name="checklist_item_id" value={checklistItemId} />}
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Details</h2>
 

@@ -10,6 +10,8 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { normaliseLocation } from "@/lib/checklists/location";
+import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
@@ -280,6 +282,14 @@ export async function createAssignmentAction(
   if (!project) {
     return { error: "Project not found." };
   }
+  // Location: live coordinates or one of the project's presets only (no free-typed place names).
+  let normalisedLocation: string | null = null;
+  if (location) {
+    const presetNames = (await getLocationPresetsForProject(supabase, project.organization_id, projectId)).map((p) => p.name);
+    const norm = normaliseLocation(location, presetNames);
+    if ("error" in norm) return { error: norm.error };
+    normalisedLocation = norm.value;
+  }
   if (disciplineId) {
     const { count: discCount } = await supabase
       .from("master_disciplines")
@@ -309,7 +319,7 @@ export async function createAssignmentAction(
       manufacturer: manufacturer || null,
       model: model || null,
       serial_tag: serialTag || null,
-      location: location || null,
+      location: normalisedLocation,
       standard_reference: standardReference || null,
       assignment_date: assignmentDate || null,
       discipline_id: disciplineId || null,

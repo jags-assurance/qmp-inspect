@@ -29,6 +29,13 @@ interface DataBookRow {
   override_by: string | null;
 }
 
+/** Ready = finalised with Pass, or Conditional Pass with clearance issued. Draft/open/fail are not ready. */
+function isStandaloneCleared(r: { status: string; conclusion: string | null; cleared_at: string | null }): boolean {
+  if (r.status !== "completed") return false;
+  if (r.conclusion === "pass") return true;
+  return r.conclusion === "conditional_pass" && !!r.cleared_at;
+}
+
 function toCategory(label: string, ready: number, total: number): DataBookPdfCategory {
   return { label, ready, total, percentage: total === 0 ? 100 : Math.round((ready / total) * 100) };
 }
@@ -57,6 +64,8 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
     { data: welderRows },
     { data: materialRows },
     { data: issuedDataBooks },
+    { data: personnelRows },
+    { data: standaloneRows },
   ] = await Promise.all([
     supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<{ id: string; status: string; revision_needs_approval: boolean }[]>(),
     supabase
@@ -93,6 +102,12 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
       .eq("project_id", projectId)
       .returns<{ id: string; approval_status: string; receipt_status: string }[]>(),
     supabase.from("data_books" as never).select("id").eq("project_id", projectId).eq("status", "issued").returns<{ id: string }[]>(),
+    supabase.from("personnel_certifications" as never).select("id, expiry_date").eq("project_id", projectId).returns<{ id: string; expiry_date: string }[]>(),
+    supabase
+      .from("standalone_assignments" as never)
+      .select("id, status, conclusion, cleared_at")
+      .eq("project_id", projectId)
+      .returns<{ id: string; status: string; conclusion: string | null; cleared_at: string | null }[]>(),
   ]);
 
   const itpTotal = itps?.length ?? 0;
@@ -139,6 +154,12 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
   const welderTotal = welderRows?.length ?? 0;
   const welderReady = (welderRows ?? []).filter((r) => welderStatus(r.expiry_date) !== "expired").length;
 
+  const personnelTotal = personnelRows?.length ?? 0;
+  const personnelReady = (personnelRows ?? []).filter((r) => personnelStatus(r.expiry_date) !== "expired").length;
+
+  const standaloneTotal = standaloneRows?.length ?? 0;
+  const standaloneReady = (standaloneRows ?? []).filter(isStandaloneCleared).length;
+
   const materialTotal = materialRows?.length ?? 0;
   const materialReady = (materialRows ?? []).filter(
     (r) => (r.approval_status === "A" || r.approval_status === "B") && r.receipt_status === "released"
@@ -150,6 +171,8 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
   const calibrationCategory = toCategory("Calibration certificates in date", calibrationReady, calibrationTotal);
   const welderCategory = toCategory("Welder qualifications valid", welderReady, welderTotal);
   const materialCategory = toCategory("Materials approved and released", materialReady, materialTotal);
+  const personnelCategory = toCategory("Personnel certifications valid", personnelReady, personnelTotal);
+  const standaloneCategory = toCategory("Standalone assignments cleared", standaloneReady, standaloneTotal);
   const ncrsCategory = toCategory("NCRs closed", ncrReady, ncrTotal);
   const handoverCertificateCategory = toCategory("Handover certificate issued", (issuedDataBooks?.length ?? 0) > 0 ? 1 : 0, 1);
 
@@ -159,7 +182,9 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
     checklistsCategory,
     calibrationCategory,
     welderCategory,
+    personnelCategory,
     materialCategory,
+    standaloneCategory,
     ncrsCategory,
   ];
   const totalReady = gatingCategories.reduce((sum, c) => sum + c.ready, 0);
@@ -301,6 +326,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
   welders: DataBookPdfData["welders"];
   materials: DataBookPdfData["materials"];
   personnel: NonNullable<DataBookPdfData["personnel"]>;
+  standalone: NonNullable<DataBookPdfData["standalone"]>;
   ncrs: DataBookPdfData["ncrs"];
   punchItems: DataBookPdfData["punchItems"];
   nameById: Map<string, string>;
@@ -350,7 +376,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     irns: { irn_number: string }[] | { irn_number: string } | null;
   };
 
-  const [itpRes, calRes, welderRes, matRes, ncrRes, punchRes, personnelRes] =
+  const [itpRes, calRes, welderRes, matRes, ncrRes, punchRes, personnelRes, standaloneRes] =
     await Promise.all([
       supabase
         .from("itps")
@@ -419,6 +445,25 @@ async function gatherDataBookContent(projectId: string): Promise<{
             project_parties: { name: string } | { name: string }[] | null;
           }[]
         >(),
+      supabase
+        .from("standalone_assignments" as never)
+        .select("assignment_number, assignment_type, equipment_description, serial_tag, assignment_date, status, conclusion, cleared_at, clearance_number")
+        .eq("project_id", projectId)
+        .eq("status", "completed")
+        .order("assignment_number", { ascending: true })
+        .returns<
+          {
+            assignment_number: string;
+            assignment_type: string;
+            equipment_description: string;
+            serial_tag: string | null;
+            assignment_date: string | null;
+            status: string;
+            conclusion: string | null;
+            cleared_at: string | null;
+            clearance_number: string | null;
+          }[]
+        >(),
     ]);
 
   // A data book is a controlled record: a failed read must fail the render, never produce a book that
@@ -431,6 +476,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     ["ncrs", ncrRes.error],
     ["punch_list_items", punchRes.error],
     ["personnel_certifications", personnelRes.error],
+    ["standalone_assignments", standaloneRes.error],
   ].find(([, error]) => error);
   if (failed) throw new Error(`Data book render aborted — could not read ${failed[0] as string}: ${(failed[1] as { message: string }).message}`);
   const itpRows = itpRes.data;
@@ -594,6 +640,14 @@ async function gatherDataBookContent(projectId: string): Promise<{
         status: qualificationLabel(personnelStatus(p.expiry_date)),
       };
     }),
+    standalone: (standaloneRes.data ?? []).map((s) => ({
+      number: s.assignment_number,
+      type: s.assignment_type.replace(/_/g, " "),
+      equipment: `${s.equipment_description}${s.serial_tag ? ` / ${s.serial_tag}` : ""}`,
+      date: s.assignment_date,
+      conclusion: (s.conclusion ?? "none").replace(/_/g, " "),
+      clearance: s.cleared_at ? `Cleared${s.clearance_number ? ` ${s.clearance_number}` : ""}` : s.conclusion === "conditional_pass" ? "Clearance pending" : "Not required",
+    })),
     materials: (matRows ?? []).map((m) => ({
       description: m.material_description,
       heat: m.heat_number,
@@ -769,6 +823,7 @@ export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook:
     welders: content.welders,
     materials: content.materials,
     personnel: content.personnel,
+    standalone: content.standalone,
     ncrs: content.ncrs,
     punchItems: content.punchItems,
     generatedAt: new Date(),

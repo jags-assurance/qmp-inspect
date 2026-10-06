@@ -17,11 +17,14 @@ export function RaiseNcrDrawer({
   projectId,
   itpItemId,
   inspectionRecordId,
+  checklistItemId,
   initialDescription,
 }: {
   projectId: string;
   itpItemId: string;
   inspectionRecordId: string;
+  /** The checklist item the NCR is raised from; stored on the NCR so the "No" answer is traceable. */
+  checklistItemId?: string;
   initialDescription: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -83,6 +86,7 @@ export function RaiseNcrDrawer({
             initialProjectId={projectId}
             itpItemId={itpItemId}
             inspectionRecordId={inspectionRecordId}
+            checklistItemId={checklistItemId}
             initialDescription={initialDescription}
             onCreated={handleCreated}
           />

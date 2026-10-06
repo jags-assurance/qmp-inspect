@@ -51,6 +51,7 @@ export function SignoffCell({
   noticeHours,
   canSignOff: canSignOffForThisParty,
   isJagsStaff,
+  noticeWarning = null,
 }: {
   progressId: string;
   /** Whether this activity's ORGANISATION has configured this level as blocking (Hold-equivalent).
@@ -66,6 +67,8 @@ export function SignoffCell({
    *  previously ungated, so the very party that failed to respond (or an unrelated third party)
    *  could click it once the notice period elapsed. */
   isJagsStaff: boolean;
+  /** Short-notice / overdue planned-date warning (pending cells only); advisory, never blocks. */
+  noticeWarning?: { status: "short_notice" | "overdue"; message: string | null } | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +142,17 @@ export function SignoffCell({
         >
           {noticeElapsed && isBlocking ? "Elapsed — still waiting for release" : formatCountdown(deadlineMs, now)}
         </span>
+      )}
+      {noticeWarning && optimisticStatus === "pending" && (
+        <span
+          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${noticeWarning.status === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}
+          title={noticeWarning.message ?? undefined}
+        >
+          {noticeWarning.status === "overdue" ? "Planned date passed" : "Short notice"}
+        </span>
+      )}
+      {noticeWarning?.message && optimisticStatus === "pending" && (
+        <span className="max-w-40 text-[10px] text-muted">{noticeWarning.message}</span>
       )}
       <div className="flex gap-1">
         {canNotify && (

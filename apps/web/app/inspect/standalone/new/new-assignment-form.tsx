@@ -46,10 +46,34 @@ const ASSIGNMENT_TYPES: { value: AssignmentType; label: string; hint: string; eq
 export function NewAssignmentForm({
   projects,
   disciplines,
+  presetsByProject,
 }: {
   projects: { id: string; project_number: string; name: string }[];
   disciplines: { id: string; code: string; name: string }[];
+  presetsByProject: Record<string, string[]>;
 }) {
+  const [projectId, setProjectId] = useState("");
+  const [location, setLocation] = useState("");
+  const [locError, setLocError] = useState<string | null>(null);
+  const presets = presetsByProject[projectId] ?? [];
+
+  function captureLive() {
+    setLocError(null);
+    if (!navigator.geolocation) {
+      setLocError("Live location isn't available on this device.");
+      setLocation("");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setLocation(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`),
+      () => {
+        setLocError("Couldn't get your live location. Allow location access or choose a project location.");
+        setLocation("");
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }
+
   const [state, formAction, pending] = useActionState(createAssignmentAction, initialState);
   const [selectedType, setSelectedType] = useState<AssignmentType>(ASSIGNMENT_TYPES[0].value);
   const selected = ASSIGNMENT_TYPES.find((t) => t.value === selectedType) ?? ASSIGNMENT_TYPES[0];
@@ -66,6 +90,11 @@ export function NewAssignmentForm({
             id="project_id"
             name="project_id"
             required
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              setLocation((l) => (/^-?\d/.test(l) ? l : ""));
+            }}
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
             <option value="">Select…</option>
@@ -166,12 +195,27 @@ export function NewAssignmentForm({
             <label htmlFor="location" className="block text-sm font-medium text-ink">
               Location
             </label>
-            <input
+            <input type="hidden" name="location" value={location} />
+            <select
               id="location"
-              name="location"
-              placeholder="e.g. Client works, Bay 3"
+              value={presets.includes(location) ? location : location ? "live" : ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "live") captureLive();
+                else setLocation(v);
+              }}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
-            />
+            >
+              <option value="">No location</option>
+              <option value="live">Use live location</option>
+              {presets.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            {locError && <p className="mt-1 text-xs text-danger">{locError}</p>}
+            {/^-?\d/.test(location) && <p className="mt-1 text-xs text-muted">Live: {location}</p>}
           </div>
         </div>
       </fieldset>

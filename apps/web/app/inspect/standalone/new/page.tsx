@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NewAssignmentForm } from "./new-assignment-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { PageGuide } from "@/components/domain/page-guide";
 
 export default async function NewStandaloneAssignmentPage() {
@@ -44,6 +45,20 @@ export default async function NewStandaloneAssignmentPage() {
 
   const disciplines = await getActiveMasterDisciplines();
 
+  const presetsByProject: Record<string, string[]> = {};
+  if (projects.length > 0) {
+    const { data: orgRows } = await supabase
+      .from("projects")
+      .select("id, organization_id")
+      .in("id", projects.map((p) => p.id))
+      .returns<{ id: string; organization_id: string }[]>();
+    await Promise.all(
+      (orgRows ?? []).map(async (p) => {
+        presetsByProject[p.id] = (await getLocationPresetsForProject(supabase, p.organization_id, p.id)).map((r) => r.name);
+      })
+    );
+  }
+
   return (
     <div className="max-w-2xl">
       <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
@@ -65,7 +80,7 @@ export default async function NewStandaloneAssignmentPage() {
         Set up a one-off FAT, witness inspection, specific test or pre-shipment check. The
         assignment number is generated automatically once you save.
       </p>
-      <NewAssignmentForm projects={projects ?? []} disciplines={disciplines ?? []} />
+      <NewAssignmentForm projects={projects ?? []} disciplines={disciplines ?? []} presetsByProject={presetsByProject} />
     </div>
   );
 }

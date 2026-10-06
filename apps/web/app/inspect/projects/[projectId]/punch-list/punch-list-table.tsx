@@ -1,5 +1,6 @@
 "use client";
 
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
 import { TabStrip, useUrlTab } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -84,7 +85,7 @@ export function PunchListTable({
       header: "Source",
       render: (row) => <Badge tone="neutral">{PUNCH_LIST_SOURCE_LABELS[row.source]}</Badge>,
     },
-    { key: "location", header: "Location", render: (row) => row.location ?? "—" },
+    { key: "location", header: "Location", render: (row) => formatLocationForDisplay(row.location) },
     {
       key: "responsible_party",
       header: "Responsible party",
@@ -143,7 +144,7 @@ export function PunchListTable({
             </p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
               <dt className="text-muted">Location</dt>
-              <dd className="text-ink">{openRow.location ?? "—"}</dd>
+              <dd className="text-ink">{formatLocationForDisplay(openRow.location)}</dd>
               <dt className="text-muted">Responsible party</dt>
               <dd className="text-ink">{openRow.project_parties?.name ?? "—"}</dd>
               <dt className="text-muted">Due</dt>

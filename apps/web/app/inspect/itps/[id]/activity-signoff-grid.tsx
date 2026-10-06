@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { InterventionSelect, type InterventionLevelOption } from "@/components/domain/intervention-select";
 import { SignoffCell } from "@/components/domain/signoff-cell";
+import { evaluateNotice } from "@/lib/signoff/notice-check";
 import { ItemControls } from "./item-controls";
 import { ActivityChecklistToggle, type ActivityChecklist } from "./activity-checklist-toggle";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
@@ -195,6 +196,14 @@ export function ActivitySignoffGrid({
                         noticeHours={row.noticeHoursOverride ?? noticeHours[intervention] ?? null}
                         canSignOff={canSignOff}
                         isJagsStaff={isJagsStaff}
+                        noticeWarning={
+                          signoff.status === "pending" && row.plannedDate && (intervention === "H" || intervention === "W" || blockingCodes.has(intervention))
+                            ? (() => {
+                                const n = evaluateNotice(row.plannedDate, row.noticeHoursOverride ?? noticeHours[intervention] ?? 24, levels.find((l) => l.code === intervention)?.label ?? (intervention === "H" ? "Hold" : "Witness"));
+                                return n.status === "short_notice" || n.status === "overdue" ? { status: n.status, message: n.message } : null;
+                              })()
+                            : null
+                        }
                       />
                     )}
                   </div>

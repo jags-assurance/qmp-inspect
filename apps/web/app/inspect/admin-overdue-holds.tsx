@@ -11,6 +11,9 @@ export interface OverdueHoldPointItem {
   itpNumber: string;
   projectLabel: string;
   daysOpen: number;
+  /** "Notice period passed" or "Planned date passed". */
+  reason: string;
+  plannedDate: string | null;
 }
 
 /**
@@ -27,7 +30,18 @@ export const getOverdueHoldPoints = cache(async (): Promise<OverdueHoldPointItem
   // used for acknowledge_handover().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase.rpc as any)("overdue_hold_points");
-  return ((data ?? []) as { id: string; itp_id: string | null; activity: string; itp_number: string; project_label: string; days_open: number }[]).map(
+  return (
+    (data ?? []) as {
+      id: string;
+      itp_id: string | null;
+      activity: string;
+      itp_number: string;
+      project_label: string;
+      days_open: number;
+      reason?: string | null;
+      planned_date?: string | null;
+    }[]
+  ).map(
     (row) => ({
       id: row.id,
       itpId: row.itp_id,
@@ -35,6 +49,8 @@ export const getOverdueHoldPoints = cache(async (): Promise<OverdueHoldPointItem
       itpNumber: row.itp_number ?? "—",
       projectLabel: row.project_label,
       daysOpen: row.days_open,
+      reason: row.reason ?? "Notice period passed",
+      plannedDate: row.planned_date ?? null,
     })
   );
 });
@@ -60,7 +76,7 @@ export async function OverdueHoldsCard() {
       anchorId="overdue-holds"
       title="Overdue hold points"
       total={items.length}
-      description="Blocking sign-offs notified past their notice period."
+      description="Blocking sign-offs notified past their notice period, or still open after the activity's planned date."
       items={items}
       emptyText="No overdue hold points."
       renderItem={(item) => (
@@ -74,6 +90,10 @@ export async function OverdueHoldsCard() {
               {item.projectLabel}
             </span>
             <span className="shrink-0 whitespace-nowrap font-semibold text-danger">{item.daysOpen}d overdue</span>
+          </span>
+          <span className="mt-0.5 block text-xs text-muted">
+            {item.reason}
+            {item.plannedDate ? ` (planned ${item.plannedDate})` : ""}
           </span>
           <span className="mt-1 block text-xs font-medium text-burgundy">Review →</span>
         </Link>

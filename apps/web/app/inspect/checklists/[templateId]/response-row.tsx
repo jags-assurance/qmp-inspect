@@ -10,6 +10,8 @@ import { cn } from "@/lib/cn";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { ItemPhotoUpload } from "./item-photo-upload";
+import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
+import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 
 const PILLS: { value: ChecklistResponseResult; label: string; activeClass: string }[] = [
   { value: "yes", label: "Yes", activeClass: "bg-success text-white border-success" },
@@ -68,6 +70,8 @@ export function ResponseRow({
   projectId,
   itpItemId,
   photos,
+  itemDocuments = [],
+  vaultOptions = [],
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -114,6 +118,9 @@ export function ResponseRow({
   /** This item's own evidence photos (checklist_item_id === checklistItemId), for the compact
    *  per-row "+ photo" affordance below the pills. */
   photos: { id: string; storage_path: string; caption: string | null; url: string | null }[];
+  /** Documents linked to this item, and approved vault files available to link. */
+  itemDocuments?: ItemLinkedDocument[];
+  vaultOptions?: VaultPickerDocument[];
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
@@ -429,6 +436,7 @@ export function ResponseRow({
               projectId={projectId}
               itpItemId={itpItemId}
               inspectionRecordId={inspectionRecordId}
+              checklistItemId={checklistItemId}
               initialDescription={`${itemNumber} ${description}: ${comment.trim()}`}
             />
           </p>
@@ -460,6 +468,16 @@ export function ResponseRow({
           inspectionRecordId={inspectionRecordId}
           checklistItemId={checklistItemId}
           photos={photos}
+          readOnly={readOnly}
+        />
+
+        <ItemDocuments
+          projectId={projectId}
+          inspectionRecordId={inspectionRecordId}
+          checklistItemId={checklistItemId}
+          itemNumber={itemNumber}
+          documents={itemDocuments}
+          vaultOptions={vaultOptions}
           readOnly={readOnly}
         />
 

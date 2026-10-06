@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { ResponseRow } from "./response-row";
+import type { ItemLinkedDocument } from "./item-documents";
+import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
 
@@ -38,6 +40,8 @@ export function ChecklistExecutionPanel({
   projectId,
   itpItemId,
   itemPhotos,
+  itemDocuments,
+  vaultOptions,
   hasNcr = false,
 }: {
   templateId: string;
@@ -78,6 +82,8 @@ export function ChecklistExecutionPanel({
    *  checklist_item_id, for the compact per-row "+ photo" affordance. */
   /** An NCR/observation already exists on this inspection. */
   hasNcr?: boolean;
+  itemDocuments: Map<string, ItemLinkedDocument[]>;
+  vaultOptions: VaultPickerDocument[];
   itemPhotos: Map<string, { id: string; storage_path: string; caption: string | null; url: string | null }[]>;
 }) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set(initialResponses.keys()));
@@ -188,6 +194,8 @@ export function ChecklistExecutionPanel({
             projectId={projectId}
             itpItemId={itpItemId}
             photos={itemPhotos.get(item.id) ?? []}
+            itemDocuments={itemDocuments.get(item.id) ?? []}
+            vaultOptions={vaultOptions}
           />
         ))}
         {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}

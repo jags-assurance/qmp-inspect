@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
+import { validateOfflinePhoto } from "@/lib/checklists/photo-validation";
 import { INSPECTION_PHOTOS_TABLE } from "@/lib/checklists/db-types";
 
 /**
@@ -81,6 +82,9 @@ export async function POST(request: Request) {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        const check = await validateOfflinePhoto(supabase, { projectId, inspectionRecordId, checklistItemId, file });
+        if (check.error) return NextResponse.json({ ok: false, error: check.error }, { status: 422 });
 
         const fileName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9.\-_]/g, "_");
         const prefix = checklistItemId

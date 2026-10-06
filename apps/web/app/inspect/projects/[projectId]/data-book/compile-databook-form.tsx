@@ -1,5 +1,6 @@
 "use client";
 
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { useActionState, useState } from "react";
 import { compileDataBookAction, type CompileDataBookState } from "@/lib/databook/actions";
 import { Button } from "@/components/ui/button";
@@ -67,7 +68,7 @@ export function CompileDataBookForm({
                 {openPunchItems.map((item) => (
                   <li key={item.id}>
                     • {item.description}
-                    {item.location ? ` (${item.location})` : ""} — {item.project_parties?.name ?? "unassigned"}, due{" "}
+                    {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.project_parties?.name ?? "unassigned"}, due{" "}
                     {item.due_date ? new Date(item.due_date).toLocaleDateString("en-GB") : "no date set"}
                   </li>
                 ))}

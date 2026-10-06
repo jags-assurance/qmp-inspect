@@ -1,3 +1,4 @@
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -211,7 +212,9 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { label: "Checklists completed", cat: readiness.checklists, href: "/inspect/checklists" },
     { label: "Calibration certificates in date", cat: readiness.calibrationRegister, href: `${base}/registers` },
     { label: "Welder qualifications valid", cat: readiness.welderRegister, href: `${base}/registers` },
+    { label: "Personnel certifications valid", cat: readiness.personnelRegister, href: `${base}/registers` },
     { label: "Materials approved and released", cat: readiness.materialRegister, href: `${base}/registers` },
+    { label: "Standalone assignments cleared", cat: readiness.standaloneAssignments, href: "/inspect/standalone" },
     { label: "NCRs closed", cat: readiness.ncrs, href: "/inspect/ncrs" },
   ].map((g) => ({
     label: g.label,
@@ -552,7 +555,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                               {book.override_items.map((item) => (
                                 <li key={item.id}>
                                   • {item.description}
-                                  {item.location ? ` (${item.location})` : ""} — {item.responsible_party_name ?? "unassigned"}, due {item.due_date ? formatDate(item.due_date) : "no date set"}
+                                  {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.responsible_party_name ?? "unassigned"}, due {item.due_date ? formatDate(item.due_date) : "no date set"}
                                 </li>
                               ))}
                             </ul>

@@ -106,6 +106,14 @@ export interface DataBookPdfPersonnel {
   expiry: string;
   status: string;
 }
+export interface DataBookPdfStandalone {
+  number: string;
+  type: string;
+  equipment: string;
+  date: string | null;
+  conclusion: string;
+  clearance: string;
+}
 export interface DataBookPdfNcr {
   number: string;
   description: string;
@@ -152,6 +160,7 @@ export interface DataBookPdfData {
   welders: DataBookPdfWelder[];
   materials: DataBookPdfMaterial[];
   personnel?: DataBookPdfPersonnel[];
+  standalone?: DataBookPdfStandalone[];
   ncrs: DataBookPdfNcr[];
   punchItems: DataBookPdfPunch[];
 
@@ -315,6 +324,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     ["welding", "Welding and joining records"],
     ["calibration", "Calibration and regulated certificates"],
     ["personnel", "Personnel certifications"],
+    ["standalone", "Standalone inspections and FAT"],
     ["ncrs", "Nonconformance deviation and exceptions"],
     ["punch", "Mechanical completion and punch list"],
     ["readiness", "Readiness calculations and hard gates"],
@@ -467,6 +477,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     ["Materials and traceability", String(data.materials.length), data.materials.length ? "Applicable" : "No records yet", "Part C — Materials and traceability"],
     ["Welding and joining (welder qualifications)", String(data.welders.length), data.welders.length ? "Applicable" : "No records yet", "Part C — Welding and joining records"],
     ["Calibration and regulated certificates", String(data.calibrations.length), data.calibrations.length ? "Applicable" : "No records yet", "Part C — Calibration"],
+    ["Standalone inspections and FAT", String((data.standalone ?? []).length), (data.standalone ?? []).length ? "Applicable" : "No records yet", "Part C — Standalone inspections and FAT"],
     ["Nonconformance, deviation and exceptions", String(data.ncrs.length), data.ncrs.length ? "Applicable" : "None raised", "Part C — Nonconformance"],
     ["Mechanical completion and punch list", String(data.punchItems.length), data.punchItems.length ? "Applicable" : "None raised", "Part C — Mechanical completion"],
   ];
@@ -625,6 +636,17 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "No personnel certifications recorded in the project register.",
     "Copies of personal certificates (for example NDT, welding, electrical) and employer verification of scope.",
     "Confirm each certificate was valid on the date the person performed the work."
+  );
+
+  const standalone = registerPage(
+    "standalone",
+    "Standalone inspections and FAT",
+    "Factory acceptance tests, pre-shipment and other standalone inspections for this project, with their conclusion and clearance.",
+    ["Assignment", "Type", "Equipment / serial", "Date", "Conclusion", "Clearance"],
+    (data.standalone ?? []).map((s) => [escapeHtml(s.number), escapeHtml(s.type), escapeHtml(s.equipment), fmtDmy(s.date), escapeHtml(s.conclusion), escapeHtml(s.clearance)]),
+    "No standalone inspections or FAT assignments on this project.",
+    "Signed FAT / inspection report, measurements, photos and any clearance record.",
+    "A conditional pass counts as complete only once clearance has been issued."
   );
 
   const ncrs = registerPage(
@@ -840,6 +862,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   ${welding}
   ${calibration}
   ${personnel}
+  ${standalone}
   ${ncrs}
   ${punch}
   ${readiness}

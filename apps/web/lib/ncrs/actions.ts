@@ -46,6 +46,8 @@ export async function createNcrAction(
   // A standalone/walkdown NCR with no specific activity behind it still raises fine with both null.
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim() || null;
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim() || null;
+  // Only meaningful together with an inspection record (the specific checklist item the NCR came from).
+  const checklistItemId = inspectionRecordId ? String(formData.get("checklist_item_id") ?? "").trim() || null : null;
   // R68: optional vendor/party FK — see the CreateNcrForm's party picker (scoped to this project's
   // active parties). Left null for a standalone/walkdown NCR with no specific vendor behind it.
   const responsiblePartyId = String(formData.get("responsible_party_id") ?? "").trim() || null;
@@ -133,6 +135,7 @@ export async function createNcrAction(
         raised_by: user?.id ?? null,
         itp_item_id: itpItemId,
         inspection_record_id: inspectionRecordId,
+        checklist_item_id: checklistItemId,
         responsible_party_id: responsiblePartyId,
       })
       .select("id")

@@ -1,3 +1,4 @@
+import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
@@ -118,7 +119,7 @@ export default async function HandoverPage() {
                       {cert.conditional_open_items.map((item) => (
                         <li key={item.id}>
                           • {item.description}
-                          {item.location ? ` (${item.location})` : ""} — {item.responsible_party_name ?? "unassigned"},
+                          {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.responsible_party_name ?? "unassigned"},
                           agreed due {item.due_date ? new Date(item.due_date).toLocaleDateString("en-GB") : "no date set"}
                         </li>
                       ))}

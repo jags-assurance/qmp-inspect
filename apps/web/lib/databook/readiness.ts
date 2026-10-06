@@ -6,7 +6,7 @@ import {
   MATERIAL_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
-import { computeCalibrationStatus, computeWelderStatus } from "@/lib/registers/status";
+import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 
 export interface ReadinessCategory {
   label: string;
@@ -22,7 +22,10 @@ export interface DataBookReadiness {
   checklists: ReadinessCategory;
   calibrationRegister: ReadinessCategory;
   welderRegister: ReadinessCategory;
+  personnelRegister: ReadinessCategory;
   materialRegister: ReadinessCategory;
+  /** Completed FAT / pre-shipment / other standalone assignments: Pass, or Conditional Pass with clearance issued. */
+  standaloneAssignments: ReadinessCategory;
   ncrs: ReadinessCategory;
   /** Informational only — a handover certificate is the OUTCOME of compiling, not a precondition for
    *  it, so this is excluded from isReady/overallPercentage below (see the client sample pack's own
@@ -68,6 +71,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     { data: welderRows },
     { data: materialRows },
     { data: issuedDataBooks },
+    { data: personnelRows },
+    { data: standaloneRows },
   ] = await Promise.all([
     // revision_needs_approval: an issued ITP whose latest revision hasn't been re-approved isn't "ready".
     supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<
@@ -108,6 +113,14 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     supabase.from("data_books" as any).select("id").eq("project_id", projectId).eq("status", "issued").returns<
       { id: string }[]
     >(),
+    supabase.from("personnel_certifications" as never).select("id, expiry_date").eq("project_id" as never, projectId as never).returns<
+      { id: string; expiry_date: string }[]
+    >(),
+    supabase
+      .from("standalone_assignments" as never)
+      .select("id, status, conclusion, cleared_at")
+      .eq("project_id" as never, projectId as never)
+      .returns<{ id: string; status: string; conclusion: string | null; cleared_at: string | null }[]>(),
   ]);
 
   const itpTotal = itps?.length ?? 0;
@@ -167,6 +180,14 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   const welderTotal = welderRows?.length ?? 0;
   const welderReady = (welderRows ?? []).filter((r) => computeWelderStatus(r.expiry_date) !== "expired").length;
 
+  const personnelTotal = personnelRows?.length ?? 0;
+  const personnelReady = (personnelRows ?? []).filter((r) => computePersonnelCertificationStatus(r.expiry_date) !== "expired").length;
+
+  const standaloneTotal = standaloneRows?.length ?? 0;
+  const standaloneReady = (standaloneRows ?? []).filter(
+    (r) => r.status === "completed" && (r.conclusion === "pass" || (r.conclusion === "conditional_pass" && !!r.cleared_at))
+  ).length;
+
   const materialTotal = materialRows?.length ?? 0;
   const materialReady = (materialRows ?? []).filter(
     (r) => (r.approval_status === "A" || r.approval_status === "B") && r.receipt_status === "released"
@@ -178,6 +199,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   const calibrationCategory = toCategory("Calibration certificates in date", calibrationReady, calibrationTotal);
   const welderCategory = toCategory("Welder qualifications valid", welderReady, welderTotal);
   const materialCategory = toCategory("Materials approved and released", materialReady, materialTotal);
+  const personnelCategory = toCategory("Personnel certifications valid", personnelReady, personnelTotal);
+  const standaloneCategory = toCategory("Standalone assignments cleared", standaloneReady, standaloneTotal);
   const ncrsCategory = toCategory("NCRs closed", ncrReady, ncrTotal);
   const handoverCertificateCategory = toCategory(
     "Handover certificate issued",
@@ -191,7 +214,9 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     checklistsCategory,
     calibrationCategory,
     welderCategory,
+    personnelCategory,
     materialCategory,
+    standaloneCategory,
     ncrsCategory,
   ];
   const totalReady = gatingCategories.reduce((sum, c) => sum + c.ready, 0);
@@ -206,7 +231,9 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     checklists: checklistsCategory,
     calibrationRegister: calibrationCategory,
     welderRegister: welderCategory,
+    personnelRegister: personnelCategory,
     materialRegister: materialCategory,
+    standaloneAssignments: standaloneCategory,
     ncrs: ncrsCategory,
     handoverCertificate: handoverCertificateCategory,
     openPunchItems: openPunchItemCount,

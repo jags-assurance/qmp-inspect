@@ -898,18 +898,28 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // written reason for why none was raised. Clear error (also surfaced for queued offline completions).
   const noItemIds = [...responseByItem.entries()].filter(([, r]) => r === "no").map(([id]) => id);
   if (noItemIds.length > 0) {
-    const { count: ncrCount } = await supabase
+    // Per-item: an NCR linked to that checklist item, or (backwards compatibility) an NCR on this
+    // inspection with no checklist item link, or a written reason.
+    const { data: ncrRows } = await supabase
       .from("ncrs")
-      .select("id", { count: "exact", head: true })
-      .eq("inspection_record_id", inspectionRecordId);
-    if (!ncrCount) {
+      .select("checklist_item_id" as "id")
+      .eq("inspection_record_id", inspectionRecordId)
+      .returns<{ checklist_item_id: string | null }[]>();
+    const linkedItemIds = new Set((ncrRows ?? []).map((n) => n.checklist_item_id).filter((v): v is string => !!v));
+    const hasUnlinkedNcr = (ncrRows ?? []).some((n) => !n.checklist_item_id);
+    {
       const { data: noRows } = await supabase
         .from(CHECKLIST_RESPONSES_TABLE)
         .select("checklist_item_id, no_ncr_reason")
         .eq("inspection_record_id", inspectionRecordId)
         .eq("result", "no")
         .returns<{ checklist_item_id: string; no_ncr_reason: string | null }[]>();
-      const lacking = (noRows ?? []).filter((r) => (r.no_ncr_reason ?? "").trim().length < 10);
+      const lacking = (noRows ?? []).filter(
+        (r) =>
+          !linkedItemIds.has(r.checklist_item_id) &&
+          !hasUnlinkedNcr &&
+          (r.no_ncr_reason ?? "").trim().length < 10
+      );
       if (lacking.length > 0) {
         const { data: itemRows } = await supabase
           .from(CHECKLIST_ITEMS_TABLE)

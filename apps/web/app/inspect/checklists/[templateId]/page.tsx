@@ -224,6 +224,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   let evidenceDocuments: { id: string; vaultDocumentId: string; title: string; documentReference: string | null }[] = [];
   let vaultDocumentOptions: { id: string; title: string; documentReference: string | null; folderName: string }[] = [];
 
+  const itemDocuments = new Map<string, import("./item-documents").ItemLinkedDocument[]>();
   let hasNcr = false;
   if (draft) {
     const { count: ncrCount } = await supabase
@@ -252,9 +253,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>(),
       supabase
         .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
-        .select("id, vault_document_id, vault_documents(title, document_reference)")
+        .select("id, vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
         .eq("inspection_record_id", draft.id)
-        .returns<{ id: string; vault_document_id: string; vault_documents: { title: string; document_reference: string | null } | null }[]>(),
+        .returns<{ id: string; vault_document_id: string; checklist_item_id: string | null; vault_documents: { title: string; document_reference: string | null; status: string } | null }[]>(),
       supabase
         .from(VAULT_DOCUMENTS_TABLE)
         .select("id, title, document_reference, vault_folders!inner(project_id, name)")
@@ -263,6 +264,18 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .order("title")
         .returns<{ id: string; title: string; document_reference: string | null; vault_folders: { name: string } | null }[]>(),
     ]);
+    for (const d of evidenceDocRows ?? []) {
+      if (!d.checklist_item_id) continue;
+      const list = itemDocuments.get(d.checklist_item_id) ?? [];
+      list.push({
+        linkId: d.id,
+        vaultDocumentId: d.vault_document_id,
+        title: d.vault_documents?.title ?? "Untitled document",
+        documentReference: d.vault_documents?.document_reference ?? null,
+        status: d.vault_documents?.status ?? "for_review",
+      });
+      itemDocuments.set(d.checklist_item_id, list);
+    }
     evidenceDocuments = (evidenceDocRows ?? []).map((d) => ({
       id: d.id,
       vaultDocumentId: d.vault_document_id,
@@ -551,6 +564,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             projectId={project.id}
             itpItemId={itpItem.id}
             itemPhotos={itemPhotos}
+            itemDocuments={itemDocuments}
+            vaultOptions={vaultDocumentOptions}
             hasNcr={hasNcr}
             photoSlot={
               <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4">
