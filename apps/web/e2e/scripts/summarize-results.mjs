@@ -14,8 +14,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const file = process.argv[2] ?? path.join(here, "..", "test-results", "results.json");
-const report = JSON.parse(fs.readFileSync(file, "utf8"));
+const files = process.argv.length > 2 ? process.argv.slice(2) : [path.join(here, "..", "test-results", "results.json")];
+// Several JSON files (parallel runs) are merged into one report.
+const reports = files.map((f) => JSON.parse(fs.readFileSync(f, "utf8")));
+const report = {
+  suites: reports.flatMap((r) => r.suites ?? []),
+  stats: {
+    startTime: reports.map((r) => r.stats?.startTime).filter(Boolean).sort()[0],
+    duration: Math.max(...reports.map((r) => r.stats?.duration ?? 0)),
+  },
+};
 
 const rows = [];
 function walk(suite, trail) {
@@ -68,11 +76,24 @@ for (const [spec, list] of byFile) {
   }
 }
 
-const notes = rows.flatMap((r) => r.notes.map((n) => `- ${r.group} > ${r.title}: ${n}`));
-if (notes.length) {
+// Console errors repeat on every page; collapse them to unique messages with a page count.
+const consoleCounts = new Map();
+const notes = [];
+for (const r of rows) {
+  for (const n of r.notes) {
+    if (n.startsWith("console-error:")) {
+      const message = n.replace(/^console-error: [^:]+: /, "").split("\n")[0].slice(0, 200);
+      consoleCounts.set(message, (consoleCounts.get(message) ?? 0) + 1);
+    } else {
+      notes.push(`- ${r.group} > ${r.title}: ${n}`);
+    }
+  }
+}
+if (notes.length || consoleCounts.size) {
   out.push("");
   out.push("### Annotations recorded during the run");
   out.push("");
   out.push(...notes);
+  for (const [message, count] of consoleCounts) out.push(`- Browser console error seen on ${count} page load(s): ${message}`);
 }
 console.log(out.join("\n"));

@@ -26,10 +26,12 @@ function chromiumExecutable(): string | undefined {
 }
 
 const executablePath = chromiumExecutable();
+// Parallel runs (one process per role) each need their own output folder.
+const OUTPUT_DIR = process.env.E2E_OUTPUT_DIR ? path.resolve(process.env.E2E_OUTPUT_DIR) : path.join(__dirname, "test-results");
 
 export default defineConfig({
   testDir: path.join(__dirname, "tests"),
-  outputDir: path.join(__dirname, "test-results"),
+  outputDir: OUTPUT_DIR,
   // Specs run in file-name order (01-login first). One worker keeps the load on the shared dev site
   // and the sign-in throttle gentle; sessions are cached per role under e2e/.auth.
   fullyParallel: false,
@@ -39,8 +41,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   reporter: [
     ["list"],
-    ["json", { outputFile: path.join(__dirname, "test-results", "results.json") }],
-    ["html", { open: "never", outputFolder: path.join(__dirname, "playwright-report") }],
+    ["json", { outputFile: path.join(OUTPUT_DIR, "results.json") }],
+    ["html", { open: "never", outputFolder: path.join(OUTPUT_DIR, "..", "playwright-report-" + path.basename(OUTPUT_DIR)) }],
   ],
   use: {
     baseURL: BASE_URL,
