@@ -6,7 +6,10 @@ import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { getLatestNcrPdf, getLatestNcrCloseoutCertificate } from "@/lib/reports/actions";
 import { getSessionContext, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
-import { canEditAssignment, canEditCapa, canWorkNcr, evidenceCount } from "@/lib/ncrs/rules";
+import { canEditAssignment, canEditCapa, canEditNcrDetails, canWithdrawNcr, canWorkNcr, evidenceCount } from "@/lib/ncrs/rules";
+import { partyUserIds, projectPeople, userNames } from "@/lib/ncrs/recipients";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { DEFAULT_ROOT_CAUSE_CATEGORIES } from "@/lib/ncrs/extended";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
 export interface NcrDetail {
@@ -29,6 +32,20 @@ export interface NcrDetail {
   created_at: string;
   project_id: string;
   inspection_record_id: string | null;
+  /** Extended fields (null until the NCR hardening migration is applied / when not recorded). */
+  location?: string | null;
+  equipment_tag?: string | null;
+  spec_reference?: string | null;
+  root_cause_category?: string | null;
+  disposition?: string | null;
+  cost_impact?: number | null;
+  schedule_impact_days?: number | null;
+  contractor_response?: string | null;
+  withdrawn_at?: string | null;
+  withdrawn_reason?: string | null;
+  duplicate_of_ncr_id?: string | null;
+  reopen_count?: number | null;
+  last_reopen_reason?: string | null;
   projects: { name: string; project_number: string; organizations: { name: string } | null } | null;
   itp_items: { item_number: string; activity: string } | null;
 }
@@ -39,6 +56,10 @@ export interface NcrRelatedPunchItem {
   status: string;
   due_date: string | null;
   closing_evidence: string | null;
+}
+export interface NcrCategoryOption {
+  code: string;
+  label: string;
 }
 export interface NcrHistoryEntry {
   id: string;
@@ -67,6 +88,13 @@ export interface NcrDetailData {
   latestCloseoutCertificate: Awaited<ReturnType<typeof getLatestNcrCloseoutCertificate>>;
   photos: (NcrPhotoRow & { signedUrl: string | null })[];
   people: { id: string; name: string }[];
+  rootCauseCategories: NcrCategoryOption[];
+  /** Raiser / staff, before verification: may correct description, location, tag, spec clause. */
+  canEditDetails: boolean;
+  canWithdraw: boolean;
+  /** Assignee or CAPA author is the viewer: closing needs an admin override reason. */
+  selfVerifyConflict: boolean;
+  isAdmin: boolean;
   responsibleParties: { id: string; name: string; party_type: string }[];
   closeConsequences: string[];
   punchItems: NcrRelatedPunchItem[];
@@ -95,15 +123,16 @@ export interface NcrDetailData {
 export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: ncr } = await supabase
-    .from(NCRS_TABLE)
-    .select(
-      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, closed_by, raised_by, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
-    )
-    .eq("id", id)
-    .maybeSingle<
-      NcrDetail & { projects: NcrDetail["projects"] & { organization_id: string } }
-    >();
+  const baseCols =
+    "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, closed_by, raised_by, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)";
+  const extendedCols =
+    "location, equipment_tag, spec_reference, root_cause_category, disposition, cost_impact, schedule_impact_days, contractor_response, withdrawn_at, withdrawn_reason, duplicate_of_ncr_id, reopen_count, last_reopen_reason, capa_updated_by";
+  type NcrWithOrg = NcrDetail & { projects: NcrDetail["projects"] & { organization_id: string }; capa_updated_by?: string | null };
+  let { data: ncr, error: ncrError } = await supabase.from(NCRS_TABLE).select(`${baseCols}, ${extendedCols}`).eq("id", id).maybeSingle<NcrWithOrg>();
+  if (ncrError && isMissingSchemaError(ncrError)) {
+    // Extended-fields migration not applied yet: load the NCR without them.
+    ({ data: ncr, error: ncrError } = await supabase.from(NCRS_TABLE).select(baseCols).eq("id", id).maybeSingle<NcrWithOrg>());
+  }
 
   if (!ncr) return null;
 
@@ -128,19 +157,19 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
       try {
         const { data } = await supabase
           .from(AUDIT_LOG_TABLE)
-          .select("id, summary, created_at, actor:users(full_name, email)")
+          .select("id, summary, created_at, actor_id")
           .eq("entity_type", "ncr")
           .eq("entity_id", id)
           .order("created_at", { ascending: false })
-          .limit(20)
-          .returns<
-            { id: string; summary: string; created_at: string; actor: { full_name: string | null; email: string | null } | null }[]
-          >();
+          .limit(200)
+          .returns<{ id: string; summary: string; created_at: string; actor_id: string | null }[]>();
+        // Names resolve through the directory helper: a non-staff viewer cannot read other users' rows.
+        const names = await userNames(supabase, (data ?? []).map((e) => e.actor_id ?? ""));
         return (data ?? []).map((e) => ({
           id: e.id,
           summary: e.summary,
           created_at: e.created_at,
-          actor_name: e.actor?.full_name || e.actor?.email || null,
+          actor_name: (e.actor_id && names.get(e.actor_id)) || null,
         }));
       } catch {
         return [];
@@ -209,23 +238,10 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   // app/inspect/ncrs/new/page.tsx) — access_grants (global/organization/project staff scopes) plus
   // project_parties rows linked to a login — just scoped to this NCR's one already-known project.
   const organizationId = ncr.projects?.organization_id ?? null;
-  const [{ data: users }, { data: grants }, { data: parties }, { data: responsibleParties }] = await Promise.all([
-    supabase.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<
-      { id: string; full_name: string; email: string }[]
-    >(),
-    supabase
-      .from("access_grants")
-      .select("user_id, scope_type, organization_id, project_id")
-      .returns<{ user_id: string; scope_type: "global" | "organization" | "project"; organization_id: string | null; project_id: string | null }[]>(),
-    supabase
-      .from("project_parties")
-      .select("user_id")
-      .eq("project_id", ncr.project_id)
-      .eq("is_active", true)
-      .not("user_id", "is", null)
-      .returns<{ user_id: string | null }[]>(),
-    // R68: this NCR's project's own active parties, for the (optional) "responsible party" picker
-    // on the close-out form.
+  const [people, { data: responsibleParties }, categoryRows] = await Promise.all([
+    // Through the directory helper: a non-staff raiser must still see the project's real people.
+    projectPeople(supabase, ncr.project_id, organizationId),
+    // R68: this NCR's project's own active parties, for the (optional) "responsible party" picker.
     supabase
       .from("project_parties")
       .select("id, name, party_type")
@@ -233,24 +249,26 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
       .eq("is_active", true)
       .order("name")
       .returns<{ id: string; name: string; party_type: string }[]>(),
+    (async (): Promise<NcrCategoryOption[]> => {
+      try {
+        const { data, error } = await supabase
+          .from("ncr_root_cause_categories" as never)
+          .select("code, label, organization_id, sort_order")
+          .eq("is_active", true)
+          .order("sort_order")
+          .returns<{ code: string; label: string; organization_id: string | null; sort_order: number }[]>();
+        if (error || !data || data.length === 0) return DEFAULT_ROOT_CAUSE_CATEGORIES;
+        // Org rows override platform defaults with the same code.
+        const byCode = new Map<string, NcrCategoryOption>();
+        for (const r of data.filter((c) => c.organization_id === null)) byCode.set(r.code, { code: r.code, label: r.label });
+        for (const r of data.filter((c) => c.organization_id !== null)) byCode.set(r.code, { code: r.code, label: r.label });
+        return [...byCode.values()];
+      } catch {
+        return DEFAULT_ROOT_CAUSE_CATEGORIES;
+      }
+    })(),
   ]);
-
-  const userById = new Map((users ?? []).map((u) => [u.id, u]));
-  const people: { id: string; name: string }[] = [];
-  const addPerson = (userId: string) => {
-    const user = userById.get(userId);
-    if (!user || people.some((p) => p.id === userId)) return;
-    people.push({ id: user.id, name: user.full_name || user.email });
-  };
-  for (const grant of grants ?? []) {
-    if (grant.scope_type === "global") addPerson(grant.user_id);
-    else if (grant.scope_type === "organization" && grant.organization_id === organizationId) addPerson(grant.user_id);
-    else if (grant.scope_type === "project" && grant.project_id === ncr.project_id) addPerson(grant.user_id);
-  }
-  for (const party of parties ?? []) {
-    if (party.user_id) addPerson(party.user_id);
-  }
-  people.sort((a, b) => a.name.localeCompare(b.name));
+  const userById = new Map(people.map((p) => [p.id, { full_name: p.name, email: "" }]));
 
   // Real cascading effects of closing this NCR (see the CAPA form's own logic) — surfaced directly
   // near the close action now, not just documented in the collapsed PageGuide, since the guide text
@@ -265,15 +283,18 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   const partyUser = ncr.responsible_party_id
     ? ((await supabase.from("project_parties").select("user_id").eq("id", ncr.responsible_party_id).maybeSingle<{ user_id: string | null }>()).data?.user_id ?? null)
     : null;
+  const partyMemberIds = await partyUserIds(supabase, ncr.responsible_party_id);
   const actor = {
     isStaff,
     userId: session?.userId ?? "",
     raisedBy: ncr.raised_by,
     assignedTo: ncr.assigned_to,
     partyUserId: partyUser,
+    partyMemberIds,
   };
   const canClose = Boolean(session) && (isAdminStaff(session!) || (await hasPermission(session!.userId, "close_ncr", ncr.project_id)));
-  const closedByName = ncr.closed_by ? (userById.get(ncr.closed_by)?.full_name || userById.get(ncr.closed_by)?.email || null) : null;
+  const closedByName = ncr.closed_by ? ((await userNames(supabase, [ncr.closed_by])).get(ncr.closed_by) ?? null) : null;
+  void userById;
 
   return {
     ncr,
@@ -281,6 +302,11 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     latestCloseoutCertificate,
     photos: (photos ?? []).map((p) => ({ ...p, signedUrl: photoUrls.get(p.storage_path) ?? null })),
     people,
+    rootCauseCategories: categoryRows,
+    canEditDetails: Boolean(session) && canEditNcrDetails(ncr.status, isStaff, ncr.raised_by === session?.userId),
+    canWithdraw: Boolean(session) && canWithdrawNcr(ncr.status, canClose, ncr.raised_by === session?.userId),
+    selfVerifyConflict: Boolean(session) && (ncr.assigned_to === session?.userId || (!!ncr.capa_updated_by && ncr.capa_updated_by === session?.userId)),
+    isAdmin: Boolean(session) && isAdminStaff(session!),
     responsibleParties: responsibleParties ?? [],
     closeConsequences,
     punchItems,
@@ -308,7 +334,7 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     canClose,
     canWork: Boolean(session) && canWorkNcr(actor),
     canAssign: Boolean(session) && canEditAssignment(actor),
-    capaLocked: !canEditCapa(ncr.status, isStaff),
+    capaLocked: !canEditCapa(ncr.status, isStaff, canClose),
     evidenceTotal: evidenceCount((photos ?? []).length, (docRows ?? []).length),
     closedByName,
   };

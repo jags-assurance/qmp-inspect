@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { directoryClient } from "@/lib/ncrs/recipients";
 
 export interface RaiseOptions {
   projects: { id: string; project_number: string; name: string }[];
@@ -41,11 +42,14 @@ interface ResponsiblePartyRow {
  * opens, instead of paying for five extra queries and serialising every user/grant on every load.
  */
 export async function loadNcrRaiseOptions(supabase: SupabaseClient): Promise<RaiseOptions> {
+  // People lookups go through the directory client: a non-staff raiser can only read their own users /
+  // grants rows, which left the assignee picker holding just themselves. Projects stay RLS-scoped.
+  const dir = directoryClient(supabase);
   const [{ data: projects }, { data: users }, { data: grants }, { data: linked }, { data: parties }] = await Promise.all([
     supabase.from("projects").select("id, project_number, name, organization_id").order("name").returns<ProjectRow[]>(),
-    supabase.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<UserRow[]>(),
-    supabase.from("access_grants").select("user_id, scope_type, organization_id, project_id").returns<GrantRow[]>(),
-    supabase.from("project_parties").select("project_id, user_id").eq("is_active", true).not("user_id", "is", null).returns<LinkedPartyRow[]>(),
+    dir.from("users").select("id, full_name, email").eq("is_active", true).order("full_name").returns<UserRow[]>(),
+    dir.from("access_grants").select("user_id, scope_type, organization_id, project_id").returns<GrantRow[]>(),
+    dir.from("project_parties").select("project_id, user_id").eq("is_active", true).not("user_id", "is", null).returns<LinkedPartyRow[]>(),
     supabase.from("project_parties").select("id, project_id, name, party_type").eq("is_active", true).order("name").returns<ResponsiblePartyRow[]>(),
   ]);
 
