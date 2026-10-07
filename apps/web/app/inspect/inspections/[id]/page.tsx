@@ -7,6 +7,7 @@ import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
 import { Badge } from "@/components/ui/badge";
 import {
   CHECKLIST_RESPONSES_TABLE,
+  INSPECTION_EVIDENCE_DOCUMENTS_TABLE,
   INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
   IRNS_TABLE,
@@ -16,6 +17,7 @@ import {
   type IrnRow,
 } from "@/lib/checklists/db-types";
 import { PhotoGallery } from "./photo-gallery";
+import { groupLinkedDocumentsByItem, type LinkedDocumentRow } from "@/lib/checklists/linked-documents";
 import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
 import { ReopenInspectionForm } from "./reopen-inspection-form";
 import { ReviewInspectionForm } from "./review-inspection-form";
@@ -140,7 +142,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
   const latestReportPdf = await getLatestInspectionReportPdf(id);
 
-  const [{ data: responses }, { data: photos }, { data: allIrns }] = await Promise.all([
+  const [{ data: responses }, { data: photos }, { data: allIrns }, { data: linkedDocRows }] = await Promise.all([
     supabase
       .from(CHECKLIST_RESPONSES_TABLE)
       .select("checklist_item_id, result, comment, checklist_items(item_number, description, is_mandatory)")
@@ -162,7 +164,13 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       .order("voided_at", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: false })
       .returns<Pick<IrnRow, "id" | "irn_number" | "release_date" | "voided_at" | "void_reason">[]>(),
+    supabase
+      .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
+      .select("id, vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
+      .eq("inspection_record_id", id)
+      .returns<LinkedDocumentRow[]>(),
   ]);
+  const linkedDocsByItem = groupLinkedDocumentsByItem(linkedDocRows ?? []);
 
   const irnList = allIrns ?? [];
   const liveIrn = irnList.find((i) => !i.voided_at) ?? null;
@@ -392,6 +400,23 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 <Badge tone={r.result === "yes" ? "success" : r.result === "no" ? "danger" : "neutral"}>{r.result.toUpperCase()}</Badge>
                 {r.comment && <span className="text-muted">{r.comment}</span>}
               </div>
+              {(linkedDocsByItem.get(r.checklist_item_id) ?? []).length > 0 && (
+                <ul className="mt-2 space-y-1" aria-label={`Documents linked to item ${r.checklist_items?.item_number ?? ""}`}>
+                  {(linkedDocsByItem.get(r.checklist_item_id) ?? []).map((d) => (
+                    <li key={d.linkId} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span aria-hidden="true">📎</span>
+                      <Link
+                        href={`/inspect/vault/${record.project_id}/document/${d.vaultDocumentId}`}
+                        className="text-burgundy hover:underline [overflow-wrap:anywhere]"
+                      >
+                        {d.title}
+                      </Link>
+                      {d.reference && <span className="doc-id text-muted">{d.reference}</span>}
+                      <Badge tone={d.status === "approved" ? "success" : d.status === "rejected" ? "danger" : "neutral"}>{d.statusLabel}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
           {sortedResponses.length === 0 && <li className="px-4 py-6 text-center text-muted">No responses recorded.</li>}

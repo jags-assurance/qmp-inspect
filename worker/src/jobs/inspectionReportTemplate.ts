@@ -3,6 +3,8 @@
 // certificate (which only confirms pass/release). Puppeteer renders this to portrait A4 PDF in
 // renderInspectionReportPdf.ts; this module only builds the markup.
 
+import type { InspectionReportLinkedDocument } from "./linkedDocuments";
+
 export interface InspectionReportResult {
   itemNumber: string;
   description: string;
@@ -71,6 +73,8 @@ export interface InspectionReportData {
    *  banner's hold-release wording. Null/undefined means no IRN has been issued yet. */
   irnNumber?: string | null;
   results: InspectionReportResult[];
+  /** Vault documents linked to individual checklist items (name, status, link/reference). */
+  linkedDocuments?: InspectionReportLinkedDocument[];
   photos: InspectionReportPhoto[];
   /** Photos that exist on the record but are NOT in this report (too large / over the cap / unreadable). */
   skippedPhotos?: string[];
@@ -278,6 +282,25 @@ function renderVerifiedAgainst(data: InspectionReportData): string {
       ${table("Instruments", ["Instrument", "Tag", "Certificate", "Calibration due"], inst.map((i) => [i.name, i.tag, i.cert, i.due]))}
       ${table("Materials", ["Description", "Heat no.", "Batch no.", "Certificate"], mats.map((m) => [m.description, m.heat, m.batch, m.cert]))}
       ${table("Welders", ["Welder ID", "WPQ", "Qualification expiry"], wel.map((w) => [w.id, w.wpq, w.expiry]))}
+    </div>`;
+}
+
+/** Documents linked to individual checklist items: item, name, vault status and link/reference. */
+export function renderLinkedDocuments(docs: InspectionReportLinkedDocument[] | undefined): string {
+  if (!docs || docs.length === 0) return "";
+  const rows = docs
+    .map((d) => {
+      const name = d.url && /^https?:\/\//i.test(d.url) ? `<a href="${escapeHtml(d.url)}">${escapeHtml(d.title)}</a>` : escapeHtml(d.title);
+      return `<tr><td class="item-number">${cell(d.itemNumber)}</td><td>${name}</td><td>${cell(d.statusLabel)}</td><td>${cell(d.reference)}</td></tr>`;
+    })
+    .join("");
+  return `
+    <div class="section">
+      <h2>Linked documents</h2>
+      <table class="items-table">
+        <thead><tr><th>Item</th><th>Document</th><th>Status</th><th>Reference</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
     </div>`;
 }
 
@@ -598,6 +621,8 @@ ${renderBrandColorOverride(data)}
   </div>
 
   ${renderVerifiedAgainst(data)}
+
+  ${renderLinkedDocuments(data.linkedDocuments)}
 
   ${renderPhotos(data.photos, data.skippedPhotos)}
 

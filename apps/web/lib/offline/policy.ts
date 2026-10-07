@@ -75,3 +75,24 @@ export function boundedCapturedAt(raw: string | null | undefined, now: number = 
   if (t < now - maxAgeDays * 86_400_000) return null;
   return new Date(t).toISOString();
 }
+
+/** Shown when the offline-sync endpoint refuses the request's origin (E-10). Not a sign-in problem. */
+export const ORIGIN_REJECTED_MESSAGE =
+  "The server refused this sync because the request did not come from this app's own address (blocked origin). Your session is fine and nothing was lost — open the app from its normal web address, or ask support to check the app URL setting, then Retry.";
+
+/** True when a 403 carries the route's {originRejected:true} flag (as opposed to an expired session). */
+export function isOriginRejection(status: number, body: { originRejected?: unknown } | null | undefined): boolean {
+  return status === 403 && body?.originRejected === true;
+}
+
+/**
+ * What an item is ordered/blocked with: the inspection it belongs to, or the standalone assignment.
+ * If one item in a group needs the user, later items in the same group wait (a completion never
+ * overtakes the answers queued before it). Items with neither (e.g. start_inspection) are ungrouped.
+ */
+export function itemGroupKey(item: { fields: Record<string, string> }): string {
+  const rec = item.fields.inspection_record_id?.trim();
+  if (rec) return rec;
+  const assignment = item.fields.assignment_id?.trim();
+  return assignment ? `assignment:${assignment}` : "";
+}

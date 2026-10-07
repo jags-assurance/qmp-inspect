@@ -8,6 +8,7 @@ import {
   type InspectionReportPhoto,
   type InspectionReportResult,
 } from "./inspectionReportTemplate";
+import { buildLinkedDocumentRows, type InspectionReportLinkedDocument, type LinkedDocumentSourceRow } from "./linkedDocuments";
 import type { RenderInspectionReportPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { buildGeneratedPath, resolveNextRevision, assertInspectionFileable } from "./vaultAutoFile";
@@ -162,6 +163,26 @@ export async function renderInspectionReportPdf(
     id: w.welder_identifier, wpq: w.wpq_number, expiry: w.expiry_date,
   }));
 
+  // Documents linked to individual checklist items. Best-effort: a failed read leaves the section out
+  // rather than failing the whole report.
+  let linkedDocuments: InspectionReportLinkedDocument[] = [];
+  {
+    const { data: rawDocRows, error: docErr } = await supabase
+      .from("inspection_evidence_documents" as never)
+      .select("vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
+      .eq("inspection_record_id" as never, record.id as never)
+      .not("checklist_item_id" as never, "is", null);
+    const docRows = rawDocRows as unknown as LinkedDocumentSourceRow[] | null;
+    if (docErr) {
+      console.error("[inspection-report] linked documents unavailable", docErr.message);
+    } else if (docRows && docRows.length > 0) {
+      const itemIds = uniq(docRows.map((d) => d.checklist_item_id));
+      const { data: itemRows } = await supabase.from("checklist_items").select("id, item_number").in("id", itemIds);
+      const itemNumberById = new Map(((itemRows ?? []) as { id: string; item_number: string }[]).map((i) => [i.id, i.item_number]));
+      linkedDocuments = buildLinkedDocumentRows(docRows, itemNumberById, record.project_id, process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL);
+    }
+  }
+
   const photos: InspectionReportPhoto[] = [];
   const skippedPhotos: string[] = [];
   let totalPhotoBytes = 0;
@@ -267,6 +288,7 @@ export async function renderInspectionReportPdf(
     governingDrawingRevision: record.governing_drawing_revision,
     irnNumber: irn?.irn_number ?? null,
     results,
+    linkedDocuments,
     photos,
     skippedPhotos,
     signedByName: record.signed_by_name,

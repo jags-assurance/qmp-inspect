@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
+import { saveChecklistResponseAction, completeInspectionCore, startInspectionAction, linkInspectionEvidenceDocumentAction } from "@/lib/checklists/actions";
+import { startInspectionMarkerPath } from "@/lib/offline/idempotency";
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { addMeasurementAction, addPhotoAction, addSignatureAction } from "@/lib/standalone/actions";
 import { STANDALONE_ASSIGNMENT_MEASUREMENTS, STANDALONE_ASSIGNMENT_PHOTOS, STANDALONE_ASSIGNMENT_SIGNATURES } from "@/lib/standalone/types";
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
     idempotencyKey: request.headers.get("x-idempotency-key"),
   });
   if (!originCheck.ok) {
-    return NextResponse.json({ ok: false, error: originCheck.reason }, { status: 403 });
+    // originRejected lets the offline client tell this apart from an expired session (also 401/403).
+    return NextResponse.json({ ok: false, originRejected: true, error: originCheck.reason }, { status: 403 });
   }
 
   const authClient = await createSupabaseServerClient();
@@ -93,6 +95,36 @@ export async function POST(request: Request) {
         }
         // updatedAt lets the client chain the baseline for later queued answers to the same item.
         return NextResponse.json({ ok: true, updatedAt: saved?.updatedAt });
+      }
+
+      case "start_inspection": {
+        // Queued by StartInspectionForm while offline. Same validated action as the live form (it also
+        // resumes an existing open draft). The marker stops a replay after a lost response from
+        // opening a second inspection once the first has been completed.
+        const projectId = String(formData.get("project_id") ?? "").trim();
+        const markerPath = startInspectionMarkerPath(projectId, clientKey);
+        if (markerPath) {
+          const { data: seen } = await authClient.storage.from("inspection-evidence").download(markerPath);
+          if (seen) return NextResponse.json({ ok: true });
+        }
+        const result = await startInspectionAction({ error: null }, formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        if (markerPath) {
+          // Best-effort, insert-only (no upsert): a failed marker write only loses the extra protection.
+          await authClient.storage
+            .from("inspection-evidence")
+            .upload(markerPath, new Blob([JSON.stringify({ startedAt: Date.now() })], { type: "application/json" }), { upsert: false })
+            .catch(() => undefined);
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      case "link_item_document": {
+        // Vault link made while offline. linkInspectionEvidenceDocumentAction upserts with
+        // ignoreDuplicates on (inspection_record_id, vault_document_id), so a replay is a no-op.
+        const result = await linkInspectionEvidenceDocumentAction({ error: null }, formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        return NextResponse.json({ ok: true });
       }
 
       case "complete_inspection": {

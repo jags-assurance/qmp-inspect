@@ -4,6 +4,8 @@ import { useActionState, useRef, useState, useTransition } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { linkInspectionEvidenceDocumentAction, type LinkInspectionEvidenceDocumentState } from "@/lib/checklists/actions";
 import { uploadItemDocumentAction, unlinkItemDocumentAction } from "@/lib/checklists/item-document-actions";
+import { enqueueOutboxItem } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { VaultFilePicker, type VaultPickerDocument, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 
 export interface ItemLinkedDocument {
@@ -168,15 +170,40 @@ function VaultLinkForm({
     if (!r.error) onDone();
     return r;
   }, initial);
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [queueError, setQueueError] = useState<string | null>(null);
+
+  // Offline: queue one link per selected vault file; each replay is idempotent server-side.
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    setQueueError(null);
+    if (navigator.onLine) return;
+    e.preventDefault();
+    const ids = [...new Set(new FormData(e.currentTarget).getAll("vault_document_id").map((v) => String(v)).filter(Boolean))];
+    if (ids.length === 0) return setQueueError("Select at least one file to link.");
+    try {
+      for (const id of ids) {
+        await enqueueOutboxItem({
+          kind: "link_item_document",
+          fields: { kind: "link_item_document", inspection_record_id: inspectionRecordId, checklist_item_id: checklistItemId, vault_document_id: id },
+        });
+      }
+      notifyOutboxChanged();
+      setQueuedCount(ids.length);
+    } catch (err) {
+      setQueueError(err instanceof Error ? err.message : "Could not save the link offline.");
+    }
+  }
   if (available.length === 0 && folders.length === 0) {
     return <p className="text-sm text-muted">No approved files in the Document Vault are available to link. Use &ldquo;Upload new&rdquo; instead.</p>;
   }
   return (
-    <form action={action} className="space-y-2">
+    <form action={action} onSubmit={onSubmit} className="space-y-2">
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="checklist_item_id" value={checklistItemId} />
       <VaultFilePicker documents={available} projectId={projectId} folders={folders} allowUpload allowPendingUploads />
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
+      {queueError && <p role="alert" className="text-xs text-danger">{queueError}</p>}
+      {queuedCount > 0 && <p role="status" className="text-xs text-muted">{queuedCount} link{queuedCount === 1 ? "" : "s"} saved on this device; they will be added when you are back online.</p>}
       <button type="submit" disabled={pending} className={btn + " w-full bg-burgundy text-white disabled:opacity-60"}>
         {pending ? "Linking…" : "Link selected files"}
       </button>
