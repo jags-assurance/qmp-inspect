@@ -97,6 +97,7 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
       caption="Calibration register"
       columns={columns}
       rows={rows}
+      scannable
       searchPlaceholder="Search instruments, tags, certificates…"
       searchKeys={(row) => `${row.instrument_name} ${row.instrument_tag ?? ""} ${row.cert_number} ${row.calibration_lab ?? ""}`}
       emptyMessage="No instruments yet — add the first one above, with its calibration certificate."

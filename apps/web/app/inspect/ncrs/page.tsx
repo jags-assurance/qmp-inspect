@@ -155,6 +155,14 @@ export default async function NcrsPage({
             <Link href="/inspect/observations" className="text-burgundy hover:underline">
               See observations →
             </Link>
+            {session.isJagsStaff && (
+              <>
+                {" "}
+                <Link href="/inspect/ncrs/scorecard" className="text-burgundy hover:underline">
+                  Vendor scorecard →
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <Link href="/inspect/ncrs/new">

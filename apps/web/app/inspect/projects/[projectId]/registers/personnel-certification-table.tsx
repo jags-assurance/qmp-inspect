@@ -115,6 +115,7 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
       caption="Personnel certification register"
       columns={columns}
       rows={rows}
+      scannable
       searchPlaceholder="Search people, certifications…"
       searchKeys={(row) => `${row.holder_name ?? ""} ${row.project_parties?.name ?? ""} ${row.certification_type} ${row.cert_number ?? ""}`}
       emptyMessage="No certifications yet — add the first one above, with the certificate."
