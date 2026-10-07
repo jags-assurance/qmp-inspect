@@ -20,6 +20,7 @@ import { dropBreadcrumb, scrubEvent } from "./observability/scrub";
 import { isRpcMissing, parseClaimRpcResult, replicaId, sweepLeaseSeconds, type RpcError } from "./jobs/claim";
 import { sweepTransmittalOutbox } from "./emailOutbox";
 import { runRetentionSweep } from "./retention";
+import { runOrphanPhotoSweep } from "./orphanPhotos";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -477,6 +478,8 @@ async function pollOnce(cycle: number): Promise<void> {
 
   if (cycle % RETENTION_CHECK_EVERY_N_CYCLES === 0) {
     await runRetentionSweep().catch((err) => reportError("[worker] Retention sweep failed:", err));
+    // Same hourly gate; orphan photo flagging enforces its own once-a-day spacing.
+    await runOrphanPhotoSweep().catch((err) => reportError("[worker] Orphan photo sweep failed:", err));
   }
 
   if (cycle % EMAIL_OUTBOX_EVERY_N_CYCLES === 0) {
