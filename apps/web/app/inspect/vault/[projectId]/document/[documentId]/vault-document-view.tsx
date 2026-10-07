@@ -16,6 +16,8 @@ import { ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/itps/evidence-types";
 import { INSPECTION_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/checklists/db-types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { TransmittalSection } from "@/components/domain/transmittal-section";
+import { untypedFrom } from "@/lib/supabase/untyped";
+import { RETENTION_FLAGS_TABLE, REVIEW_OUTCOME_LABEL, type RetentionReviewOutcome } from "@/lib/retention/logic";
 
 interface DocumentRow {
   id: string;
@@ -147,6 +149,17 @@ export async function VaultDocumentView({
   const linkedNcrIds = new Set((markups ?? []).filter((m) => m.markup_type === "ncr" && m.linked_entity_id).map((m) => m.linked_entity_id as string));
   const linkedNcrs = (ncrs ?? []).filter((n) => linkedNcrIds.has(n.id));
 
+  // Retention (S6-18): staff are told when this document is past its organisation's retention period.
+  // Absent table (migration pending) or no flag simply means no notice.
+  const retentionFlag = session.isJagsStaff
+    ? (
+        await untypedFrom(supabase, RETENTION_FLAGS_TABLE)
+          .select("due_on, retention_years, review_outcome")
+          .eq("document_id", documentId)
+          .maybeSingle<{ due_on: string; retention_years: number; review_outcome: RetentionReviewOutcome | null }>()
+      ).data
+    : null;
+
   const { data: auditRows } = await supabase
     .from(AUDIT_LOG_TABLE)
     .select("id, action, summary, created_at, users:actor_id(full_name)")
@@ -225,6 +238,14 @@ export async function VaultDocumentView({
             ? "VOID - this Inspection Release Note has been voided and is no longer a valid release. Do not use it for work."
             : "SUPERSEDED - a newer revision exists. Do not use this copy for work."}
           {hideFileForViewer ? " The file is withheld; contact JAGS staff if you need the voided copy." : ""}
+        </p>
+      )}
+      {retentionFlag && (
+        <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
+          Retention: the {retentionFlag.retention_years}-year retention period ended on {retentionFlag.due_on}.{" "}
+          {retentionFlag.review_outcome
+            ? `Review decision: ${REVIEW_OUTCOME_LABEL[retentionFlag.review_outcome]}.`
+            : "It is waiting for a JAGS Admin to decide whether to keep it. Nothing has been deleted or changed."}
         </p>
       )}
       {document.status === "rejected" && document.rejection_reason && (

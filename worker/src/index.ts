@@ -17,6 +17,7 @@ import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
 import { shouldRetry, retryDelayMs, MAX_JOB_ATTEMPTS, jobTimeoutMs, orphanAction, pickClaimable } from "./jobs/retryPolicy";
 import { runAutomationSweep } from "./automation";
 import { sweepTransmittalOutbox } from "./emailOutbox";
+import { runRetentionSweep } from "./retention";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -69,6 +70,10 @@ const AUTOMATION_SWEEP_EVERY_N_CYCLES = 300;
 
 // Transmittal emails the web app could not finish sending (S7-26) are retried about once a minute.
 const EMAIL_OUTBOX_EVERY_N_CYCLES = 20;
+
+// Retention flagging (S6-18) is a daily job; it enforces its own 24 hour spacing, so this only decides
+// how often the gate is checked (~hourly) and lets it run shortly after a worker (re)start.
+const RETENTION_CHECK_EVERY_N_CYCLES = 1200;
 
 // `background_jobs` isn't in `@jags/shared-types` yet (see jobs/types.ts) — this worker is the
 // only thing that queries it, so a single narrow `as unknown as` cast here stands in for
@@ -402,6 +407,10 @@ async function pollOnce(cycle: number): Promise<void> {
 
   if (cycle % AUTOMATION_SWEEP_EVERY_N_CYCLES === 0) {
     await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
+  }
+
+  if (cycle % RETENTION_CHECK_EVERY_N_CYCLES === 0) {
+    await runRetentionSweep().catch((err) => reportError("[worker] Retention sweep failed:", err));
   }
 
   if (cycle % EMAIL_OUTBOX_EVERY_N_CYCLES === 0) {

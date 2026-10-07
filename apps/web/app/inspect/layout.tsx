@@ -195,6 +195,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Document Traceability", href: "/inspect/organisation/traceability" },
               { label: "Intervention Levels", href: "/inspect/settings?section=intervention-levels" },
               { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
+              { label: "Document Retention", href: "/inspect/settings?section=retention" },
             ],
           },
         ]
