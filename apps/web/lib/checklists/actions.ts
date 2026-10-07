@@ -1210,6 +1210,26 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     }
   }
 
+  // Auto-generate (and let the worker file) the inspection report so it isn't dependent on someone
+  // pressing the button. Best-effort: completion never fails because of it.
+  try {
+    const { data: inFlight } = await supabase
+      .from(BACKGROUND_JOBS_TABLE)
+      .select("id")
+      .eq("job_type", "render_inspection_report_pdf")
+      .eq("payload->>inspection_record_id", inspectionRecordId)
+      .in("status", ["pending", "processing"])
+      .limit(1);
+    if (!inFlight || inFlight.length === 0) {
+      await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+        job_type: "render_inspection_report_pdf",
+        payload: { inspection_record_id: inspectionRecordId, requested_by: signer?.id ?? null },
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+
   return { error: null, inspectionRecordId };
 }
 

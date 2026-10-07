@@ -407,35 +407,49 @@ export async function attachLibraryTemplateToActivityAction(
     seqKey: `checklist:${itpId}`,
   });
 
-  const { data: newTemplate, error: templateError } = await supabase
-    .from(CHECKLIST_TEMPLATES_TABLE)
-    .insert({
-      itp_item_id: itpItemId,
-      checklist_number: `${itp.itp_number}-CHK-${seq}`,
-      name: itpItem.activity,
-    })
-    .select("id")
-    .single<{ id: string }>();
+  const checklistNumber = `${itp.itp_number}-CHK-${seq}`;
 
-  if (templateError || !newTemplate) {
+  // Preferred path: one transaction (20261105000200). Falls back to the two-step copy, with cleanup,
+  // until that migration has been applied.
+  let newTemplate: { id: string } | null = null;
+  const rpc: { data: unknown; error: { code?: string } | null } = await (supabase as any).rpc("attach_library_template_atomic", {
+    p_library_template_id: libraryTemplateId,
+    p_itp_item_id: itpItemId,
+    p_checklist_number: checklistNumber,
+    p_name: itpItem.activity,
+  });
+  if (!rpc.error && rpc.data) {
+    newTemplate = { id: String(rpc.data) };
+  } else if (rpc.error && rpc.error.code !== "PGRST202" && rpc.error.code !== "42883") {
     return { error: "Could not attach the template. Check you have permission and try again." };
+  } else {
+    const { data: created, error: templateError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .insert({ itp_item_id: itpItemId, checklist_number: checklistNumber, name: itpItem.activity })
+      .select("id")
+      .single<{ id: string }>();
+    if (templateError || !created) {
+      return { error: "Could not attach the template. Check you have permission and try again." };
+    }
+    const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(
+      libraryItems.map((item) => ({
+        template_id: created.id,
+        item_number: item.item_number,
+        description: item.description,
+        acceptance_criteria: item.acceptance_criteria,
+        evidence_type: item.evidence_type,
+        is_mandatory: item.is_mandatory,
+        sort_order: item.sort_order,
+      }))
+    );
+    if (itemsError) {
+      // Don't leave an empty checklist that blocks the activity.
+      await supabase.from(CHECKLIST_TEMPLATES_TABLE).delete().eq("id", created.id);
+      return { error: "The library items could not be copied, so nothing was attached. Please try again." };
+    }
+    newTemplate = created;
   }
-
-  const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(
-    libraryItems.map((item) => ({
-      template_id: newTemplate.id,
-      item_number: item.item_number,
-      description: item.description,
-      acceptance_criteria: item.acceptance_criteria,
-      evidence_type: item.evidence_type,
-      is_mandatory: item.is_mandatory,
-      sort_order: item.sort_order,
-    }))
-  );
-
-  if (itemsError) {
-    return { error: "Checklist created, but its items could not be copied from the library template." };
-  }
+  if (!newTemplate) return { error: "Could not attach the template." };
 
   if (itp.projects?.organization_id) {
     await recordAuditEvent(supabase, {
