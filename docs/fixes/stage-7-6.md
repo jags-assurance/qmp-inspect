@@ -16,15 +16,15 @@ Every code path that needs a new DB object falls back to the previous behaviour 
 | S7-07 | FIXED | `fetchAllRows` throws on error; punch count error throws; compile/issue/page fail closed. | |
 | S7-08 | FIXED | Same as S6-01. | |
 | S7-09 | FIXED | `compile_data_book()` RPC (staff, override=admin, gates subset), guard blocks direct draft -> compiled. Issue RPC re-applies gates. | DB gates are a subset (project completed, open punch, open NCRs, unapproved ITPs); register/IRN categories remain app-computed. |
-| S7-10 | PARTIAL | Issue RPC checks the package object exists and is non-empty in storage. | Server-side re-hash of the bytes not done (would need a worker/edge job); SHA is still client-computed. |
-| S7-11 | PARTIAL | Override compile, conditional issue and withdraw require admin staff (app + RPC). | Custom permission `issue_handover` not added (needs the RBAC key/constraint migration). |
+| S7-10 | FIXED (Phase 6) | Issue RPC checks the package object exists and is non-empty; `issueHandoverAction` now streams the stored object back from Storage, re-hashes it server-side (`lib/handover/package-hash.ts`) and refuses on mismatch / empty / unreadable (fails closed). The server-computed hash is what is stored and audited. | Done in the web action (no worker/edge job needed); packages over 1 GB are refused. No migration. |
+| S7-11 | FIXED (Phase 6) | Override compile and withdraw stay admin-only; a conditional issue needs an Admin or JAGS staff holding the new `issue_handover` custom permission (migration `20261108000101`, app `PERMISSION_KEYS`, issue action, RPC). | Admin-grantable only (not in the self-managed client allow-list). Routine issue is unchanged. |
 | S7-12 | FIXED | Issue re-runs the compile rule incl. project status; conditional snapshot refreshed (to empty when resolved). | |
 | S7-13 | FIXED | `buildOverrideItems` and the compile preview page through `fetchAll`. | |
 | S7-14 | FIXED | Per job-type timeout (Data Book 20 min, packs 8 min, default 3). | `Promise.race` still cannot cancel; abort flag already guards side effects. |
 | S7-15 | FIXED | Certificate queue only skips when a PENDING job exists; page shows "as of", stale-after-acknowledgement notice, staff Regenerate always. | |
 | S7-16 | FIXED | Restrictive `background_jobs` insert policy for Data Book jobs; certificate renders are de-duplicated by content hash so spam adds no vault revisions. | |
 | S7-17 | FIXED | `acknowledge_handover` v2: admin needs project access; only `client` role counts (aligned with the app). | |
-| S7-18 | PARTIAL | IP, user-agent, comment, on-behalf basis (required in app) stored; confirm dialog. | Signature pad, evidence file upload, reject flow, reminders: DEFERRED. |
+| S7-18 | PARTIAL (Phase 6) | IP, user-agent, comment, on-behalf basis (required in app) stored; confirm dialog. NEW: client can reject a package with a reason (`reject_handover`, migration `20261108000102`; final for that certificate; blocks acknowledgement; notifies issuer + responsible person; Admin can reopen a rejection made in error). NEW: worker reminder sweep (first nudge after 3 days, then weekly, max 4; issuer told on the last). | Signature pad and evidence file upload: still DEFERRED (need a storage policy + canvas component). |
 | S7-19 | FIXED | `revision_reason`/`supersedes_data_book_id`; issuing supersedes the earlier certificate and its vault copies; revision form requires a reason. | |
 | S7-20 | FIXED | `close_project` min reason + audit row; lock extended to registers and ITPs; reopen-after-issue audit + banner on the Data Book page. | |
 | S7-21 | PARTIAL | Chunked incremental SHA-256, original filename kept in notes, ASCII storage key, progress text; file bytes no longer posted through the server action. | Resumable (TUS) upload DEFERRED. |
@@ -39,14 +39,14 @@ Every code path that needs a new DB object falls back to the previous behaviour 
 | S6-04 | FIXED | download-all pages the query, `maxDuration = 300`, parallel prefetch, MANIFEST.csv, `_NOT_INCLUDED.txt` states an early stop. | HTTP status cannot change after streaming starts; the zip says so. |
 | S6-05 | FIXED | `reopen_inspection()` supersedes filed report + IRN docs; NCR reopen supersedes dossier + close-out. | Stale marker on the page: inspection report button shows it; NCR page not changed. |
 | S6-06 | FIXED | Worker renders VOID copies; void/reopen queue one. | VOID copy is not filed in the vault (job result only). |
-| S6-07 | PARTIAL | Photo cap (6 MB each, 48 MB, 60 photos) and skipped photos listed in the report. | No downscaling (no image library in the worker). |
+| S6-07 | FIXED (Phase 6) | Inspection and FAT report photos are downscaled (longest edge 1600 px, JPEG 0.8) in the shared Chromium via canvas before inlining (`worker/src/jobs/photoDownscale.ts`); falls back to the original bytes on any failure. Per-photo download cap raised to 20 MB; the 48 MB / 60-photo caps now count the downscaled bytes. | Verified against real Chrome (2.3 MB PNG -> 0.5 MB JPEG). Needs a worker redeploy. |
 | S6-08 | FIXED | Void needs admin/team lead; reopen is one transaction (RPC) and the legacy path checks the void result. | |
 | S6-09 | FIXED | Content-hash tag in the generated path; identical regeneration returns the existing file. | |
 | S6-10 | FIXED | Non-staff / non-approver renders are filed `for_review`, never `approved` (`canFileApproved`). | Requests themselves stay open to members (download need). |
 | S6-11 | FIXED | Monthly/weekly pack storage policies require org-wide/global grant or staff. | |
-| S6-12 | PARTIAL | Claim window 60 + fresh-first; orphans requeued under the attempt limit; queue failures surfaced on issue; raw errors hidden. | Backoff still partly in memory (durable via `updated_at`); worker-side notification of failed jobs not added. |
+| S6-12 | PARTIAL (Phase 6) | Claim window 60 + fresh-first; orphans requeued under the attempt limit; queue failures surfaced on issue; raw errors hidden. NEW: the backoff is persisted in `background_jobs.retry_not_before` (migration `20261108000103`) and honoured when claiming, so restarts/replicas respect it; falls back to the old behaviour until applied. | Worker-side notification of failed jobs not added. |
 | S6-13 | FIXED | `issue_irn()` allocates and inserts atomically. | |
-| S6-14 | PARTIAL | Inspection report: stale badge vs sign-off, no Generate before completion. | IRN/NCR buttons unchanged. |
+| S6-14 | FIXED (Phase 6) | Inspection report: stale badge vs sign-off, no Generate before completion. NEW: NCR PDF button warns when the NCR changed after the PDF was queued (`ncrs.updated_at`); IRN certificate button warns when the inspection was re-signed after it (`isPdfStale`, 5 s tolerance). | |
 | S6-15 | FIXED | Tab opened only after the PDF is ready; poll window 5 min. | |
 | S6-16 | FIXED | `sanitizeZipSegment`. | |
 | S6-17 | FIXED | Upload removed when filing fails; identical dossier reused. | |

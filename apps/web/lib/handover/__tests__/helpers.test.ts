@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acknowledgeErrorMessage, clientRecipientIds, issueErrorMessage } from "../helpers";
+import { acknowledgeErrorMessage, clientRecipientIds, issueErrorMessage, rejectErrorMessage } from "../helpers";
 
 describe("clientRecipientIds", () => {
   const project = { id: "p1", organizationId: "o1" };
@@ -32,5 +32,16 @@ describe("error messages", () => {
     expect(issueErrorMessage("23505", "")).toMatch(/already exists/);
     expect(issueErrorMessage(null, "open punch items")).toMatch(/punch/);
     expect(issueErrorMessage(null, "status must be compiled")).toMatch(/compiled/);
+    expect(issueErrorMessage(null, "Only admin staff or a holder of issue_handover can issue a conditional handover")).toMatch(/issue_handover/);
+  });
+  it("distinguishes reject / reopen errors and the new acknowledge refusals (S7-18)", () => {
+    expect(rejectErrorMessage("Already rejected")).toMatch(/already been rejected/);
+    expect(rejectErrorMessage("Already acknowledged")).toMatch(/can no longer be rejected/);
+    expect(rejectErrorMessage("Only the client organisation can reject a handover certificate")).toMatch(/client organisation/);
+    expect(rejectErrorMessage("A rejection reason of at least 10 characters is required")).toMatch(/reason/);
+    expect(rejectErrorMessage("Only admin staff can reopen a rejected handover certificate")).toMatch(/JAGS Admin/);
+    expect(rejectErrorMessage(null)).toMatch(/Could not record/);
+    expect(acknowledgeErrorMessage("This certificate was rejected and can no longer be acknowledged")).toMatch(/rejected/);
+    expect(acknowledgeErrorMessage("This certificate was superseded by a later revision")).toMatch(/superseded/);
   });
 });

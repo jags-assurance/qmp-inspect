@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { escalationTier, isDueSoon, siteDate } from "./escalation";
+import { daysWaiting, isAckReminderDue, isFinalAckReminder, MAX_ACK_REMINDERS } from "./handoverReminderPolicy";
 
 // automation_rules/automation_notification_log/notifications aren't in the generated Database type
 // (same documented escape hatch used throughout this worker for background_jobs — see index.ts).
@@ -524,6 +525,95 @@ async function runRegisterExpirySweep(): Promise<number> {
   return total;
 }
 
+interface AckReminderRow {
+  id: string;
+  certificate_number: string;
+  issued_date: string;
+  issued_by: string | null;
+  package_storage_path: string | null;
+  ack_reminder_count: number | null;
+  last_ack_reminder_at: string | null;
+  data_books: {
+    project_id: string;
+    book_number: string;
+    projects: { organization_id: string; name: string } | null;
+  } | null;
+}
+
+/**
+ * S7-18: remind the client to acknowledge an issued handover certificate (first nudge after 3 days, then
+ * weekly, at most MAX_ACK_REMINDERS; the issuer is told on the final one). Always on, like register_expiry.
+ * Needs the ack_reminder_* columns (20261108000102); until that migration is applied the query errors and
+ * the sweep quietly does nothing. The counter is advanced only after the notifications were written, so a
+ * failed insert is retried on the next sweep instead of being lost.
+ */
+async function sweepHandoverAckReminders(): Promise<number> {
+  const { data, error } = await db
+    .from("handover_certificates")
+    .select(
+      "id, certificate_number, issued_date, issued_by, package_storage_path, ack_reminder_count, last_ack_reminder_at, data_books(project_id, book_number, projects(organization_id, name))"
+    )
+    .is("acknowledged_at", null)
+    .is("rejected_at", null)
+    .is("superseded_at", null)
+    .not("package_storage_path", "is", null)
+    .limit(200);
+  if (error) {
+    // Columns not there yet (migration pending) or a transient failure: nothing to chase.
+    return 0;
+  }
+  const now = Date.now();
+  let sent = 0;
+  for (const cert of (data ?? []) as AckReminderRow[]) {
+    const count = cert.ack_reminder_count ?? 0;
+    const due = isAckReminderDue(
+      { issuedAt: cert.issued_date, reminderCount: count, lastReminderAt: cert.last_ack_reminder_at, hasPackage: Boolean(cert.package_storage_path) },
+      now
+    );
+    if (!due) continue;
+    const project = cert.data_books?.projects;
+    const projectId = cert.data_books?.project_id;
+    if (!project || !projectId) continue;
+    try {
+      const { data: grants } = await supabase
+        .from("access_grants")
+        .select("user_id, scope_type, organization_id, project_id")
+        .eq("role", "client")
+        .or(`and(scope_type.eq.organization,organization_id.eq.${project.organization_id}),and(scope_type.eq.project,project_id.eq.${projectId})`)
+        .returns<{ user_id: string }[]>();
+      const clientIds = await onlyActiveUsers((grants ?? []).map((g) => g.user_id));
+      const days = daysWaiting(cert.issued_date, now);
+      const final = isFinalAckReminder(count);
+      const title = `Reminder: acknowledge handover certificate ${cert.certificate_number}`;
+      const body = `Data Book ${cert.data_books?.book_number ?? ""} for ${project.name} was issued ${days} day(s) ago and is still awaiting your acknowledgement. Please review it and acknowledge receipt, or reject it with a reason.`;
+      for (const id of clientIds) await notify(project.organization_id, projectId, id, title, body, "/inspect/handover");
+      if (final && cert.issued_by) {
+        const [issuer] = await onlyActiveUsers([cert.issued_by]);
+        if (issuer) {
+          await notify(
+            project.organization_id,
+            projectId,
+            issuer,
+            `Handover certificate ${cert.certificate_number} still not acknowledged`,
+            `The client has now been reminded ${MAX_ACK_REMINDERS} times over ${days} days without a response. Follow up with them directly.`,
+            `/inspect/projects/${projectId}/data-book`
+          );
+        }
+      }
+      const { error: updError } = await db
+        .from("handover_certificates")
+        .update({ ack_reminder_count: count + 1, last_ack_reminder_at: new Date(now).toISOString() })
+        .eq("id", cert.id)
+        .is("acknowledged_at", null);
+      if (updError) console.error(`[automation] could not record handover reminder for ${cert.id}:`, updError.message);
+      sent += clientIds.length;
+    } catch (err) {
+      console.error(`[automation] handover acknowledgement reminder failed for ${cert.id}; will retry next sweep:`, err);
+    }
+  }
+  return sent;
+}
+
 /**
  * The one scheduled trigger in this whole app — everything else fires because a person clicked
  * something. Called periodically from index.ts's poll loop (not its own cron), evaluates every
@@ -544,6 +634,11 @@ export async function runAutomationSweep(): Promise<void> {
     totalSent += await runRegisterExpirySweep();
   } catch (err) {
     console.error("[worker] register_expiry sweep failed:", err instanceof Error ? err.message : err);
+  }
+  try {
+    totalSent += await sweepHandoverAckReminders();
+  } catch (err) {
+    console.error("[worker] handover acknowledgement reminder sweep failed:", err instanceof Error ? err.message : err);
   }
   for (const rule of rules ?? []) {
     try {

@@ -18,7 +18,7 @@ Sidebar groups: **Plan** (Projects, ITPs), **Execute** (Start work, Inspections,
 1. Dashboard shows what needs your action.
 2. Review and accept ITPs; sign your own hold/witness/review cells.
 3. Raise Observations; check Reports & Documents.
-4. Records > Handover: open the Data Book and acknowledge receipt.
+4. Records > Handover: open the Data Book and acknowledge receipt, or reject the package with a reason if it is not acceptable (you will get reminders while a certificate is waiting). A rejected certificate is replaced by a new revision from JAGS.
 
 ## Main contractor and subcontractor
 1. Execute > Inspections: run checklists for your own work, add photos and per-item documents.
