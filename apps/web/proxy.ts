@@ -147,8 +147,10 @@ export async function proxy(request: NextRequest) {
 
     // ---- Forced first-login password change ----
     // The flag lives in the auth user's app_metadata (set at provisioning, cleared on change), which
-    // getUser() just returned — no database round trip. Accounts that predate the claim fall back to
-    // the original users query, cached for a few minutes in a signed cookie.
+    // getUser() just returned — no database round trip. Migration 20261111000101 backfills the claim
+    // for every existing account and defaults it for new ones (D-03), so the users query below is only
+    // a safety net for an account that somehow lacks the claim; it is cached for a few minutes in a
+    // signed cookie and skipped entirely on prefetches.
     let mustChange = decision.mustChangePassword;
     let setCheckCookie = false;
     if (mustChange === null) {

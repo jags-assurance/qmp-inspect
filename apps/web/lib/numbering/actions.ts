@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { orgChromeTag } from "@/lib/organizations/chrome-logic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -66,6 +67,7 @@ export async function updateEngagementModeAction(
     changes: { from: before?.engagement_mode ?? null, to: engagementMode },
   });
 
+  revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
 }
@@ -155,6 +157,7 @@ export async function updateEngagementScopeAction(
     changes: { from: before.engagement_scope, to: engagementScope, revoked_permissions: revokedPermissions },
   });
 
+  revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
 }

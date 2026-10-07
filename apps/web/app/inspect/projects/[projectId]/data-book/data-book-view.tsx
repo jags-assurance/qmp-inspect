@@ -6,7 +6,7 @@ import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { computeDataBookReadiness } from "@/lib/databook/readiness";
+import { getDataBookReadiness } from "@/lib/databook/readiness-cached";
 import { computeDataBookDisciplineBreakdown } from "@/lib/databook/discipline-breakdown";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -122,7 +122,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { count: punchAllCount },
     { count: punchClosedCount },
   ] = await Promise.all([
-    computeDataBookReadiness(projectId).catch((err: unknown) => {
+    getDataBookReadiness(session.userId, projectId).catch((err: unknown) => {
       // Fail closed: show the problem instead of a fabricated "100% ready".
       console.error("[data-book] readiness failed", err);
       return null;

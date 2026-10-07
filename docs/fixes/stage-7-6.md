@@ -31,7 +31,7 @@ Every code path that needs a new DB object falls back to the previous behaviour 
 | S7-22 | FIXED | Cleanup via service role (when configured) / new delete policy; insert policy requires a compiled book. | |
 | S7-23 | FIXED | Confirm dialogs (type the book number) for compile and issue; acknowledge confirm. | |
 | S7-24 | FIXED | UTC-labelled formatting on handover page and Data Book page. | |
-| S7-25 | PARTIAL | Pagination, status/number filter, module-licence check, link to Data Book, open-item cap. | Readiness caching / partial realtime refresh not done. |
+| S7-25 | DONE (caching) | Pagination, status/number filter, module-licence check, link to Data Book, open-item cap; readiness for display is memoised 15 s per viewer and project (`lib/databook/readiness-cached.ts`), realtime refresh is debounced. | Compile and handover gates always recompute live. Partial (per-category) realtime refresh not done. |
 | S7-26 | PARTIAL | Public QR verification page + token + `verify_document()`; MANIFEST.csv with SHA-256 in the zip. | Email transmittal, retention rules, audit-trail export DEFERRED. |
 | S6-01 | FIXED | `issueIrnAction` looks only at live IRNs; `issue_irn()` RPC. | |
 | S6-02 | FIXED | `vault_documents_guard_immutable`: approved -> superseded only by staff, approvers, or with an approved replacement of the same reference. | |

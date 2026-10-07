@@ -20,8 +20,13 @@ function nextRevisionLabel(rev: string): string {
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SplitLayout } from "@/components/ui/split-layout";
+import { LoadMore } from "@/components/domain/load-more";
+import { describeListWindow, hrefWithLimit, mergeNewestFirst, parseListLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
 import { vaultDocKind, vaultFileType } from "@/lib/vault/doc-kind";
 import { VaultDocumentView } from "../document/[documentId]/vault-document-view";
+
+// Newest documents (revisions included) loaded per page; documents awaiting review are always loaded.
+const VAULT_DOC_LIMITS: ListLimitOptions = { defaultLimit: 100, step: 100, max: 1000 };
 
 interface DocumentWithUploader {
   id: string;
@@ -42,11 +47,12 @@ export default async function VaultFolderPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; folderId: string }>;
-  searchParams: Promise<{ doc?: string; newrev?: string }>;
+  searchParams: Promise<{ doc?: string; newrev?: string; limit?: string }>;
 }) {
   const session = await requireSession();
   const { projectId, folderId } = await params;
-  const { doc: selectedDocId, newrev: newRevOf } = await searchParams;
+  const { doc: selectedDocId, newrev: newRevOf, limit: limitParam } = await searchParams;
+  const docLimit = parseListLimit(limitParam, VAULT_DOC_LIMITS);
   const supabase = await createSupabaseServerClient();
 
   // High authority by default (JAGS Admin), delegatable per person via the approve_vault_document
@@ -69,14 +75,36 @@ export default async function VaultFolderPage({
   // previously-unambiguous "users(full_name)" embed now fails at the PostgREST layer ("more than
   // one relationship found"). That error was silently swallowed by `data ?? []` below, which is
   // exactly why every document vanished from this list the moment that migration landed.
-  const { data: documents, error: documentsError } = await supabase
-    .from(VAULT_DOCUMENTS_TABLE)
-    .select(
-      "id, title, document_number, document_reference, revision, document_date, status, rejection_reason, created_at, storage_path, users!uploaded_by(full_name)"
-    )
-    .eq("folder_id", folderId)
-    .order("created_at", { ascending: false })
-    .returns<DocumentWithUploader[]>();
+  // The newest `docLimit` documents (revision history included) PLUS every document still awaiting
+  // review, so the approval queue is never hidden behind "Load more"; merged and de-duplicated below.
+  const docColumns =
+    "id, title, document_number, document_reference, revision, document_date, status, rejection_reason, created_at, storage_path, users!uploaded_by(full_name)";
+  const [latestResult, reviewResult, totalResult] = await Promise.all([
+    supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select(docColumns)
+      .eq("folder_id", folderId)
+      .order("created_at", { ascending: false })
+      .limit(docLimit)
+      .returns<DocumentWithUploader[]>(),
+    supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select(docColumns)
+      .eq("folder_id", folderId)
+      .eq("status", "for_review")
+      .order("created_at", { ascending: false })
+      .limit(500)
+      .returns<DocumentWithUploader[]>(),
+    supabase.from(VAULT_DOCUMENTS_TABLE).select("id", { count: "exact", head: true }).eq("folder_id", folderId),
+  ]);
+  const documentsError = latestResult.error ?? reviewResult.error;
+  const documents = mergeNewestFirst(latestResult.data ?? [], reviewResult.data ?? []);
+  const docWindow = describeListWindow({
+    limit: docLimit,
+    fetched: (latestResult.data ?? []).length,
+    total: totalResult.count ?? null,
+    options: VAULT_DOC_LIMITS,
+  });
 
   if (documentsError) {
     console.error("Failed to load vault documents", documentsError);
@@ -84,7 +112,17 @@ export default async function VaultFolderPage({
 
   let prefill: VaultUploadPrefill | null = null;
   if (newRevOf) {
-    const target = (documents ?? []).find((d) => d.id === newRevOf);
+    let target: DocumentWithUploader | undefined = documents.find((d) => d.id === newRevOf);
+    if (!target) {
+      // The document being revised may be older than the loaded window.
+      const { data: older } = await supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .select(docColumns)
+        .eq("id", newRevOf)
+        .eq("folder_id", folderId)
+        .maybeSingle<DocumentWithUploader>();
+      target = older ?? undefined;
+    }
     if (target && target.status !== "superseded") {
       prefill = {
         revisesDocumentId: target.id,
@@ -226,6 +264,15 @@ export default async function VaultFolderPage({
           <>
           <div className="mt-6">
             <VaultDocumentsTable rows={rows} canApprove={canApprove} />
+            <LoadMore
+              window={docWindow}
+              noun="documents (newest first; anything awaiting review is always shown)"
+              nextHref={
+                docWindow.next
+                  ? hrefWithLimit(`/inspect/vault/${projectId}/${folderId}`, { doc: selectedDocId, newrev: newRevOf }, docWindow.next)
+                  : null
+              }
+            />
           </div>
 
           <VaultUploadForm

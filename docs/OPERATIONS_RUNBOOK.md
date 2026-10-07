@@ -46,6 +46,7 @@ Never commit secrets; the service role key must exist only in Vercel server env 
 
 ## 4. Background jobs
 Table `background_jobs`; a job is queued by the web app (insert allowed by RLS only for a user with access to the target record), the worker claims it and writes `result_storage_path` or an error. Per-organisation rate limit trigger applies.
+**Running more than one worker replica (F-04).** Safe once migration `20261111000103_worker_multi_replica_safety.sql` is applied. The worker claims a job with the database function `claim_next_background_job()`: one atomic `UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`, so two replicas polling together each get a different job (or none), `attempts` is incremented in SQL, and retry backoff (`retry_not_before`) is enforced in the database. The once-per-15-minutes automation sweep takes a lease (`try_acquire_worker_lease`, table `worker_leases`) so only one replica runs it per interval. Before the migration is applied the worker falls back to its previous compare-and-swap claim (now also conditioned on `attempts`), which is correct but makes extra replicas mostly idle; the log line `claim_next_background_job() is not installed` shows which mode a replica is in. Orphan reclaim after a restart is idempotent and safe on every replica. Scale replicas in the Railway dashboard; each replica launches its own Chromium, so size memory per replica (PDF jobs are the heavy ones).
 Job types: `render_itp_pdf`, `render_inspection_report_pdf`, `render_irn_pdf`, `render_fat_report_pdf`, `render_ncr_pdf`, `render_ncr_closeout_certificate`, `render_data_book_pdf`, `generate_weekly_report_pack` and `generate_monthly_report_pack` (admin staff only), `render_portfolio_summary_pdf` (admin staff only).
 
 ## 5. Automation worker rules
@@ -73,9 +74,43 @@ Vault documents are controlled: once approved they are immutable; a new revision
 Custom-role permissions (per project or org-wide grant, scoped to the grantee's organisation): `issue_handover` (JAGS staff only, admin-grantable only: lets named staff issue a conditional handover, otherwise Admin-only), `approve_vault_document` (admin-grantable only, plus client-managed orgs where allowed), `close_punch_item` (admin or permission holder; not grantable by client-managed orgs), `approve_itp`, `provision_party_login`. Register contributors: named project party members who may add/edit register rows (calibration, welder, personnel, material). Org settings need an org-wide grant, not a project-only one. Org-wide grants see all projects of the org; project-scoped grants see only the listed projects.
 
 ## 8. Backup and restore
-- Supabase daily backups (and PITR if enabled) cover Postgres. Storage objects are NOT in a DB restore: export the three buckets periodically.
-- Restore: restore to a new Supabase project, re-point env vars in Vercel and Railway, redeploy both.
+- Supabase daily backups (and PITR if enabled) cover Postgres. Storage objects are NOT in a DB restore: export the three buckets periodically with the script below.
+- Restore: restore to a new Supabase project, re-point env vars in Vercel and Railway, redeploy both, then re-upload the storage export (see "Restoring storage").
 - Do not hard-delete records; voided IRNs, superseded vault documents and audit log entries are intentional history.
+
+### Storage bucket export (`scripts/export-storage.mjs`)
+Copies every object of `generated-documents`, `inspection-evidence` and `org-branding` to a local folder through the Storage REST API. Node 18+, no npm install needed, read-only against Supabase.
+```
+SUPABASE_URL=https://<project-ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<service role key> \
+  node scripts/export-storage.mjs --out /backups/jags/$(date -u +%Y-%m-%d)
+```
+(or `pnpm backup:storage -- --out <dir>`). The key is read from the environment only (never a flag) and is never printed; run it from a trusted machine or CI secret store, not from a shared shell.
+
+| Option | Meaning |
+|---|---|
+| `--out <dir>` | Destination. Default `./storage-backup-<UTC timestamp>`. Files land at `<dir>/<bucket>/<object path>`. |
+| `--buckets a,b` | Only these buckets (a bucket named here that does not exist is an error). |
+| `--since <ISO date>` | Incremental: only objects changed at or after this time. Combine with a full export weekly. |
+| `--concurrency <n>` | Parallel downloads, 1-16 (default 4). |
+| `--dry-run` | Lists object count and total size per bucket; downloads nothing. Run this first to size the disk. |
+| `--no-verify` | Skip the check that each downloaded size matches the listing. |
+
+Behaviour to rely on:
+- **Resumable.** A file already on disk with the expected size is skipped, so re-running after an interruption (or into the same folder the next day) only fetches what is missing or changed. Partial downloads are written as `*.part` and only renamed when complete.
+- **Manifest.** Each run writes `<dir>/manifest-<UTC stamp>.json` with, per object: bucket, path, status (`downloaded`/`skipped`/`failed`), size, SHA-256 (for objects downloaded in that run) and the Storage `updated_at`, plus totals. Keep manifests with the backup; they are how you prove what was copied.
+- **Exit code.** 0 = everything copied; 1 = at least one object failed (listed on stderr and in the manifest); 2 = bad usage or missing credentials. Wire the non-zero exit to an alert.
+- **Unsafe object keys** (`..`, absolute paths, backslashes) are refused and reported as failed rather than written outside the backup folder.
+- Transient errors (network, HTTP 429/5xx) are retried 4 times with backoff.
+
+Suggested schedule: a full export weekly, `--since <yesterday>` nightly, to storage that is NOT the Supabase project being backed up (another cloud account or an offline disk), retained at least as long as your Postgres backups. Encrypt the destination at rest: it holds client documents and photos.
+
+Verify a backup periodically: pick a few objects from the manifest, compare `sha256sum <file>` with the manifest value, and open one PDF.
+
+### Restoring storage
+1. Restore Postgres first (Supabase restore or a new project), so the `storage.buckets` rows exist (migrations create them) and `background_jobs` / `vault_documents` rows point at the paths you are about to restore.
+2. Re-upload each `<dir>/<bucket>/<path>` to the same bucket and the same object path (the paths are stored in the database, so they must not change). Upload with the service role key, e.g. a small script using `supabase.storage.from(bucket).upload(path, file, { upsert: true })`, or the Supabase dashboard for a handful of files.
+3. Check `GET /api/health` (`storage: ok`), open a recent IRN/Data Book PDF and a vault document, and re-run any generation that was in flight (generated PDFs can also simply be regenerated from the app).
 
 ## 9. Health check and rate limits
 - `GET /api/health` (public): `checks` has `database`, `schema`, `storage`, `worker` as `ok`/`error`/`skipped`, `latencyMs` has the per-check round trip, plus `build` (short commit id) and `timestamp`. Each probe times out after 5 s. 503 = database or storage failing; `degraded` (HTTP 200) = a background job has been pending for over 15 minutes (worker stalled). Needs `SUPABASE_SERVICE_ROLE_KEY`; without it only an anonymous database round trip runs. It never returns error text, keys or hostnames; details are in the server log.
@@ -84,6 +119,14 @@ Custom-role permissions (per project or org-wide grant, scoped to the grantee's 
 - Background-job retries: a transiently failed job is retried up to 3 times with 30 s / 2 min / 8 min backoff, persisted in `background_jobs.retry_not_before` so restarts and replicas respect it.
 - PDF photos: inspection and FAT reports downscale photos (longest edge 1600 px, JPEG) in the worker's Chromium before embedding; if that fails the original is embedded.
 - Export and sync API routes are rate-limited per user, in memory per server instance (`apps/web/lib/api/rate-limit.ts`): exports 20/min, offline-sync replay 240/min, vault download-all 5 per 10 min. A limited request gets HTTP 429 with `Retry-After`; the offline queue treats 429 as a transient failure and retries without spending its retry budget.
+
+### Performance behaviour worth knowing (D-03/D-04/D-05/D-07, S7-25)
+- **Sign-in gate (proxy):** the forced-password-change decision reads `app_metadata.must_change_password` from the auth user the proxy already loaded; migration `20261111000101_auth_must_change_password_claim.sql` backfills it for every existing account and defaults it for new ones, so the extra `users` query is only a safety net.
+- **Realtime refresh:** pages that live-update debounce bursts of changes into one refresh (1.5 s after the last event, never later than 6 s after the first), and do nothing while the browser tab is hidden. A change made by another user can therefore take up to a few seconds to appear.
+- **Cached reference data:** module licences (per organisation, 60 s) and the organisation chrome (engagement mode/scope, brand colours, signed logo URL; 2 min) are cached and invalidated immediately when an admin changes them (`revalidateTag`). If you change those tables directly in SQL, expect up to 60 s / 2 min before the app shows it. `master_disciplines` is cached 5 min (tag `master-disciplines`).
+- **Data Book readiness (display only):** the readiness figure shown on the Data Book page and the KPI tab is memoised for 15 s per viewer and project. Compiling a Data Book and issuing a handover always recompute it live.
+- **Long lists:** the punch list (closed items), registers, vault folder documents and project audit log are windowed with a "Load more" link (`?limit=`); open punch items, documents awaiting review and the stat/KPI counts are always complete. Inspections, NCRs, observations and notifications use numbered pages.
+- **Error reporting:** when `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` are set, events from the web app and the worker pass through `scrubEvent` (apps/web/lib/observability/scrub.ts, copied to worker/src/observability/scrub.ts): no user, cookies, headers, request bodies, breadcrumbs or stack-frame variables are sent; emails, bearer tokens, JWTs, `token=`/`password=`-style parameters and `/verify/<kind>/<token>` links are masked in message text, URLs, transaction names and spans.
 
 ## 10. Incident notes
 - **PDF shows a 'generated before the latest change' warning**: the NCR/inspection changed after that PDF was queued; click Regenerate.

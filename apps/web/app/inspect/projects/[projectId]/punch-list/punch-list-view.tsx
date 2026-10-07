@@ -11,40 +11,92 @@ import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 import { userNames } from "@/lib/ncrs/recipients";
+import { LoadMore } from "@/components/domain/load-more";
+import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
+
+// Outstanding (open / resolved) items are always loaded — they block the Data Book and are the
+// working set. Only the CLOSED history is windowed ("Load more"), newest first.
+export const PUNCH_CLOSED_LIMITS: ListLimitOptions = { defaultLimit: 100, step: 100, max: 1000 };
+const OUTSTANDING_CAP = 1000;
+const PUNCH_COLUMNS =
+  "id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, closing_photo_paths, reopen_reason, reopen_count, responsible_party_id, source_ncr_id, source_inspection_record_id, source_standalone_assignment_id, resolved_by, resolved_at, closed_by, closed_at, project_parties(name, user_id)";
 
 type RawPunchRow = Omit<PunchListItemDisplayRow, "photo_urls" | "closing_photo_urls" | "resolved_by_name" | "closed_by_name">;
 
-export async function PunchListView({ projectId, embedded = false }: { projectId: string; embedded?: boolean }) {
+export async function PunchListView({
+  projectId,
+  embedded = false,
+  closedLimit = PUNCH_CLOSED_LIMITS.defaultLimit,
+  searchParams = {},
+}: {
+  projectId: string;
+  embedded?: boolean;
+  /** How many CLOSED items to load (`?limit=`, parsed by the page). */
+  closedLimit?: number;
+  /** The page's current query string, so "Load more" keeps ?tab= etc. */
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const session = await requireSession();
-  const canVerifyClose = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", projectId));
   const supabase = await createSupabaseServerClient();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, name, project_number, organizations(name)")
-    .eq("id", projectId)
-    .maybeSingle<{ id: string; name: string; project_number: string; organizations: { name: string } | null }>();
-
+  // D-05: the permission check, the project row and every list query are independent, so they run
+  // together instead of as a permission -> project -> lists waterfall. A missing project still 404s
+  // below (its list queries just come back empty under RLS).
+  const punch = () => supabase.from(PUNCH_LIST_ITEMS_TABLE);
+  const [
+    canVerifyClose,
+    { data: project },
+    { data: outstanding },
+    { data: closedRows },
+    { count: closedTotal },
+    { count: openTotal },
+    { count: resolvedTotal },
+    { data: projectParties },
+  ] =
+    await Promise.all([
+      isAdminStaff(session) ? Promise.resolve(true) : hasPermission(session.userId, "close_punch_item", projectId),
+      supabase
+        .from("projects")
+        .select("id, name, project_number, organizations(name)")
+        .eq("id", projectId)
+        .maybeSingle<{ id: string; name: string; project_number: string; organizations: { name: string } | null }>(),
+      punch()
+        .select(PUNCH_COLUMNS)
+        .eq("project_id", projectId)
+        .neq("status", "closed")
+        .order("created_at", { ascending: false })
+        .limit(OUTSTANDING_CAP)
+        .returns<RawPunchRow[]>(),
+      punch()
+        .select(PUNCH_COLUMNS)
+        .eq("project_id", projectId)
+        .eq("status", "closed")
+        .order("created_at", { ascending: false })
+        .limit(closedLimit)
+        .returns<RawPunchRow[]>(),
+      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "closed"),
+      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "resolved"),
+      supabase
+        .from("project_parties")
+        .select("id, name")
+        .eq("project_id", projectId)
+        .eq("is_active", true)
+        .order("name"),
+    ]);
   if (!project) notFound();
-
-  const [{ data: items }, { data: projectParties }] = await Promise.all([
-    supabase
-      .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, closing_photo_paths, reopen_reason, reopen_count, responsible_party_id, source_ncr_id, source_inspection_record_id, source_standalone_assignment_id, resolved_by, resolved_at, closed_by, closed_at, project_parties(name, user_id)")
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
-      .returns<RawPunchRow[]>(),
-    supabase
-      .from("project_parties")
-      .select("id, name")
-      .eq("project_id", projectId)
-      .eq("is_active", true)
-      .order("name"),
-  ]);
+  const items = [...(outstanding ?? []), ...(closedRows ?? [])];
+  const closedWindow = describeListWindow({
+    limit: closedLimit,
+    fetched: (closedRows ?? []).length,
+    total: closedTotal ?? null,
+    options: PUNCH_CLOSED_LIMITS,
+  });
 
   // "Outstanding" for the Data Book blurb below means not yet truly closed — a 'resolved' item still
   // blocks compilation until someone independently verifies it (see readiness.ts's matching count).
-  const openCount = (items ?? []).filter((item) => item.status !== "closed").length;
+  // Counted in the database, so the blurb is right however many items are loaded below.
+  const openCount = openTotal ?? 0;
 
   // ONE batched call signs every photo path of every item (bucket is private), then maps back.
   const allPaths = [...new Set((items ?? []).flatMap((i) => [...(i.photo_paths ?? []), ...(i.closing_photo_paths ?? [])]))];
@@ -70,8 +122,11 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
     closed_by_name: item.closed_by ? nameById.get(item.closed_by) ?? null : null,
   }));
 
-  const resolvedCount = rows.filter((item) => item.status === "resolved").length;
-  const reallyOpenCount = rows.filter((item) => item.status === "open").length;
+  const resolvedCount = resolvedTotal ?? 0;
+  const reallyOpenCount = Math.max(0, openCount - resolvedCount);
+  const loadMoreHref = closedWindow.next
+    ? hrefWithLimit(embedded ? `/inspect/projects/${projectId}` : `/inspect/projects/${projectId}/punch-list`, embedded ? { ...searchParams, tab: "punch-list" } : searchParams, closedWindow.next)
+    : null;
 
   const Heading = embedded ? "h2" : "h1";
   return (
@@ -134,6 +189,7 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
           projectParties={projectParties ?? []}
           exportName={`${project.project_number}-punch-list`}
         />
+        <LoadMore window={closedWindow} nextHref={loadMoreHref} noun="closed punch items" />
       </div>
     </div>
   );
