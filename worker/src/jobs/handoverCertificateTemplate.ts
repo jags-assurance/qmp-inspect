@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { verifyBlockHtml } from "./verification";
 // Printable HTML for the Handover Certificate — the one-page A4 record that a Data Book was issued
 // for handover, who issued it, the SHA-256 of the certified package, whether it was a conditional
 // handover, and (when it exists) the client's formal acknowledgement. Rendered to PDF by
@@ -23,6 +24,9 @@ export interface HandoverCertificatePdfData {
   acknowledgedOnBehalf: boolean;
   /** Vault revision this render is filed as, so the printed REV matches the vault. */
   revision: string | null;
+  /** QR code (data URI) + target URL of the public verification page; omitted when unavailable. */
+  verifyQrDataUri?: string | null;
+  verifyUrl?: string | null;
   generatedAt: Date;
   branding?: { engagementMode: "jags_led" | "co_branded" | "white_label"; logoUrl: string | null; brandPrimaryColor?: string | null; brandAccentColor?: string | null };
 }
@@ -127,6 +131,7 @@ ${fieldTable("Data Book", [
 <p class="note" style="margin-top:6px">Compare this fingerprint with any copy of the handover package you receive elsewhere to verify it is unmodified.</p></div>
 ${conditional}
 ${ack}
+${verifyBlockHtml(d.verifyQrDataUri ?? null, d.verifyUrl ?? null, esc)}
 ${d.branding?.engagementMode === "white_label" ? '<div class="powered-by">Powered by JAGS Assurance</div>' : ""}
 <div class="powered-by">Generated ${esc(generatedAt)}</div>
 </body></html>`;

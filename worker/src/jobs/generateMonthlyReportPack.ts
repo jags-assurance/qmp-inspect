@@ -1,4 +1,5 @@
 import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { withBidi } from "./bidi";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
@@ -117,7 +118,7 @@ export async function generateMonthlyReportPack(
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
     pdfBuffer = Buffer.from(

@@ -37,7 +37,9 @@ export function jobStatusText(job: PdfJobLabelInput): string {
       return "Ready";
     case "failed": {
       const detail = (job.errorMessage ?? "").replace(/^Attempt \d+ failed, will retry:\s*/, "").trim();
-      return `PDF generation failed. Please try again${detail ? ` — ${detail}` : ""}`;
+      // Raw internal errors (SQL, storage paths, stack text) must not reach users: only short plain messages pass.
+      const safe = detail && detail.length <= 140 && !/[\\/]|postgres|supabase|error:|\bat\s.+:\d+/i.test(detail) ? detail : "";
+      return `PDF generation failed. Please try again${safe ? ` — ${safe}` : ""}`;
     }
   }
 }

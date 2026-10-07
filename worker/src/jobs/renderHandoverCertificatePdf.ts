@@ -1,8 +1,11 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
 import { buildHandoverCertificateHtml, type HandoverCertificatePdfData } from "./handoverCertificateTemplate";
 import type { RenderDataBookPdfPayload } from "./types";
-import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision } from "./vaultAutoFile";
+import { buildGeneratedPath, resolveNextRevision } from "./vaultAutoFile";
+import { findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
+import { buildVerifyUrl, qrDataUri } from "./verification";
 import { getOrgBranding } from "./orgBranding";
 
 interface CertificateRow {
@@ -18,6 +21,8 @@ interface CertificateRow {
   received_by_name: string | null;
   received_by_company: string | null;
   acknowledged_on_behalf: boolean | null;
+  /** Added by 20261101000300; absent until applied. */
+  verification_token?: string | null;
 }
 
 /**
@@ -37,9 +42,7 @@ export async function renderHandoverCertificatePdf(payload: RenderDataBookPdfPay
 
   const { data: cert, error: certError } = await supabase
     .from("handover_certificates" as never)
-    .select(
-      "id, certificate_number, issued_date, issued_by, package_sha256, is_conditional, conditional_reason, conditional_open_items, acknowledged_at, received_by_name, received_by_company, acknowledged_on_behalf"
-    )
+    .select("*")
     .eq("data_book_id", book.id)
     .maybeSingle<CertificateRow>();
   if (certError || !cert) throw new Error(`No handover certificate found for data book ${book.id}: ${certError?.message ?? "no row"}`);
@@ -78,12 +81,22 @@ export async function renderHandoverCertificatePdf(payload: RenderDataBookPdfPay
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
+  // Unchanged certificate (no new acknowledgement, same content) already filed: reuse it instead of filing yet
+  // another identical "approved" revision every time someone queues a render.
+  const tag = hashTag(sourceHash({ ...data, generatedAt: null, revision: null }));
+  const existing = await findFiledByHash(supabase, book.project_id, "certificates", cert.certificate_number, tag);
+  if (existing) return { resultStoragePath: existing };
+
+  const verifyUrl = buildVerifyUrl("certificate", cert.verification_token);
+  data.verifyUrl = verifyUrl;
+  data.verifyQrDataUri = await qrDataUri(verifyUrl);
+
   const html = buildHandoverCertificateHtml(data);
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   let pdf: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdf = Buffer.from(
       await page.pdf({
         format: "A4",
@@ -100,9 +113,8 @@ export async function renderHandoverCertificatePdf(payload: RenderDataBookPdfPay
   }
 
   // Under databooks/<data book id>/ so the existing project-scoped storage read policy covers it.
-  const storagePath = buildGeneratedPath(`databooks/${book.id}`, `${cert.certificate_number}-handover-certificate`, revision);
-  await uploadGeneratedFile(supabase, storagePath, pdf);
-  await autoFileVaultDocument(supabase, {
+  const storagePath = buildGeneratedPath(`databooks/${book.id}`, `${cert.certificate_number}-handover-certificate`, revision, Date.now(), tag);
+  await uploadAndFile(supabase, storagePath, pdf, {
     projectId: book.project_id,
     folderKey: "certificates",
     title: `Handover Certificate ${cert.certificate_number}`,

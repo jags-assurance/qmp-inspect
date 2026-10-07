@@ -1,4 +1,5 @@
 import { fileOrgPackInProjectVaults, uploadGeneratedFile } from "./vaultAutoFile";
+import { withBidi } from "./bidi";
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
@@ -200,7 +201,7 @@ export async function renderPortfolioSummaryPdf(
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

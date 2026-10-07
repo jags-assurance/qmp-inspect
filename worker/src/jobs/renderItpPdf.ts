@@ -1,4 +1,5 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import type { Database } from "@jags/shared-types";
 import { supabase } from "../supabase";
 import {
@@ -314,7 +315,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       // Explicit margin so it definitely matches this template's `@page { margin: 15mm }` — Chrome's
       // print-to-PDF doesn't reliably fall back to the CSS value on its own (preferCSSPageSize
