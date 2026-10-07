@@ -1,4 +1,5 @@
 "use client";
+import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect, type ReactNode } from "react";
 import { requestItpPdfAction, getLatestItpPdf, type RequestItpPdfState, type ItpPdfStatus } from "@/lib/reports/actions";
@@ -45,7 +46,7 @@ export function ItpPdfButton({
   }, [state.success]);
 
   const isReady = liveStatus?.status === "completed" && !!liveStatus.pdfUrl;
-  const generateLabel = pending ? "Queuing…" : polling ? "Rendering…" : liveStatus ? "Regenerate PDF" : "Generate PDF";
+  const generateLabel = pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : liveStatus ? "Regenerate PDF" : "Generate PDF";
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -87,8 +88,7 @@ export function ItpPdfButton({
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {STATUS_LABEL[liveStatus.status]}
-          {liveStatus.status === "failed" && liveStatus.errorMessage ? ` — ${liveStatus.errorMessage}` : ""}
+          {jobStatusText(liveStatus)}
         </p>
       )}
     </div>

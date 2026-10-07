@@ -13,7 +13,7 @@ import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
 import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
-import { shouldRetry, retryDelayMs, MAX_JOB_ATTEMPTS } from "./jobs/retryPolicy";
+import { shouldRetry, retryDelayMs, isJobClaimable, MAX_JOB_ATTEMPTS } from "./jobs/retryPolicy";
 import { runAutomationSweep } from "./automation";
 import type {
   BackgroundJobRow,
@@ -104,7 +104,7 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
   }
 
   const now = Date.now();
-  const candidate = candidates?.find((c) => (retryNotBefore.get(c.id) ?? 0) <= now);
+  const candidate = candidates?.find((c) => (retryNotBefore.get(c.id) ?? 0) <= now && isJobClaimable(c, now));
   if (!candidate) return null;
 
   // Optimistic claim: only succeeds if the row is still 'pending' (guards against a second worker

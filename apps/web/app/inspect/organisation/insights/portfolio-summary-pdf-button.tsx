@@ -1,4 +1,5 @@
 "use client";
+import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect } from "react";
 import {
@@ -69,7 +70,7 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
             disabled={pending || polling}
             className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
           >
-            {pending ? "Queuing…" : polling ? "Rendering…" : "Export portfolio summary (PDF)"}
+            {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : "Export portfolio summary (PDF)"}
           </button>
         </form>
       </div>
@@ -82,8 +83,7 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {STATUS_LABEL[liveStatus.status]}
-          {liveStatus.status === "failed" && liveStatus.errorMessage ? ` — ${liveStatus.errorMessage}` : ""}
+          {jobStatusText(liveStatus)}
         </p>
       )}
     </div>

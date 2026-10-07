@@ -116,6 +116,17 @@ export function assertNcrCloseoutFileable<
   }
 }
 
+/** NCR dossier: 'approved' only once the NCR is closed; open/other NCRs file as 'for_review'. */
+export function ncrDossierFilingStatus(ncrStatus: string | null | undefined): "approved" | "for_review" {
+  return ncrStatus === "closed" ? "approved" : "for_review";
+}
+
+/** True when an RPC error means the function is not deployed yet (Postgres 42883 / PostgREST PGRST202). */
+export function isRpcMissing(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === "42883" || error.code === "PGRST202" || /could not find the function/i.test(error.message ?? "");
+}
+
 export function shouldFileOrgPacks(): boolean {
   return process.env.FILE_ORG_PACKS_IN_PROJECT_VAULTS === "true";
 }
@@ -223,6 +234,26 @@ export async function autoFileVaultDocument(
   }
 
   const storedPath = `${GENERATED_DOCUMENTS_BUCKET}:${params.storagePath}`;
+
+  // Preferred path: one atomic, advisory-locked SQL function. Falls back to the multi-step path
+  // below when the function is not deployed yet.
+  assertNotAborted();
+  const rpc = await supabase.rpc("vault_file_generated_document" as never, {
+    p_folder_id: folder.id,
+    p_title: params.title,
+    p_document_reference: params.documentReference ?? params.title,
+    p_revision: params.revision,
+    p_storage_path: storedPath,
+    p_file_size: params.fileSize,
+    p_status: params.status ?? "approved",
+    p_uploaded_by: params.generatedBy ?? null,
+    p_auto_revision: params.autoRevision === true,
+    p_keep_revision: params.keepRevision === true,
+  } as never);
+  if (!rpc.error) return;
+  if (!isRpcMissing(rpc.error)) {
+    throw new Error(`Failed to file '${params.title}' in the vault: ${rpc.error.message}`);
+  }
 
   // Idempotency: a retried job (or double call) must not file the same stored object twice.
   const { data: existing, error: existingError } = await supabase

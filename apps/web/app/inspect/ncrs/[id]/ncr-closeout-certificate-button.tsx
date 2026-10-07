@@ -1,4 +1,5 @@
 "use client";
+import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect } from "react";
 import {
@@ -61,7 +62,7 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
             disabled={pending || polling}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white disabled:opacity-50"
           >
-            {pending ? "Queuing…" : polling ? "Rendering…" : liveStatus ? "Regenerate certificate" : "Generate close-out certificate"}
+            {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : liveStatus ? "Regenerate certificate" : "Generate close-out certificate"}
           </button>
         </form>
       </div>
@@ -74,8 +75,7 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {STATUS_LABEL[liveStatus.status]}
-          {liveStatus.status === "failed" && liveStatus.errorMessage ? ` — ${liveStatus.errorMessage}` : ""}
+          {jobStatusText(liveStatus)}
         </p>
       )}
     </div>

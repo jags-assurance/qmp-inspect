@@ -1,4 +1,5 @@
 "use client";
+import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
@@ -106,7 +107,7 @@ export function DataBookPdfButton({
           <input type="hidden" name="data_book_id" value={dataBookId} />
           <input type="hidden" name="project_id" value={projectId} />
           <Button type="submit" size="sm" variant="outline" onClick={beginGenerate} disabled={pending || polling}>
-            {pending ? "Queuing…" : polling ? "Rendering…" : idleLabel}
+            {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : idleLabel}
           </Button>
         </form>
       </div>
@@ -114,11 +115,10 @@ export function DataBookPdfButton({
       <p className="text-xs text-muted" aria-live="polite">
         {liveStatus ? (
           <>
-            PDF job: <span className="font-medium">{STATUS_LABEL[liveStatus.status]}</span>
+            PDF job: <span className="font-medium">{jobStatusText(liveStatus)}</span>
             {" · "}
             {new Date(liveStatus.createdAt).toLocaleString("en-GB")}
             {isDraftBook && ready ? " · DRAFT — not issued" : ""}
-            {failed && liveStatus.errorMessage ? ` — ${liveStatus.errorMessage}` : ""}
           </>
         ) : (
           "No PDF generated yet."

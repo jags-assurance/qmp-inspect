@@ -9,6 +9,7 @@ import {
   type DataBookPdfDisciplineRow,
   type DataBookPdfItp,
   type DataBookRecordState,
+  formatBookRevision,
 } from "./dataBookTemplate";
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
@@ -27,6 +28,7 @@ interface DataBookRow {
   compiled_by: string | null;
   override_reason: string | null;
   override_by: string | null;
+  revision: number | null;
 }
 
 /** Ready = finalised with Pass, or Conditional Pass with clearance issued. Draft/open/fail are not ready. */
@@ -759,7 +761,7 @@ async function printBookPdf(html: string, dataBook: DataBookRow): Promise<Buffer
           </div>`,
         footerTemplate: `
           <div style="width:100%;font-size:7.5px;color:#444;padding:0 15mm;display:flex;justify-content:flex-end;gap:14px;font-family:Calibri,Arial,Helvetica,sans-serif;">
-            <span>${dataBook.book_number} | R00 | ${dataBookIssueLabel(dataBook.status, !!dataBook.override_reason)}</span>
+            <span>${dataBook.book_number} | ${formatBookRevision(dataBook.revision)} | ${dataBookIssueLabel(dataBook.status, !!dataBook.override_reason)}</span>
             <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
           </div>`,
       })
@@ -810,11 +812,12 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
       folderKey: "certificates",
       title: `Data Book ${dataBook.book_number} — ${dataBook.title}`,
       documentReference: dataBook.book_number,
-      revision: "0",
+      // Vault revision follows data_books.revision so the printed "Rev n" matches the vault row.
+      revision: String(dataBook.revision ?? 0),
+      keepRevision: true,
       storagePath,
       fileSize: pdfBuffer.length,
       generatedBy: payload.requested_by,
-      autoRevision: true,
     });
   }
 
@@ -825,7 +828,7 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
 export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook: DataBookRow; html: string; data: DataBookPdfData }> {
   const { data: dataBook, error: dataBookError } = await supabase
     .from("data_books" as never)
-    .select("id, project_id, book_number, title, status, compiled_at, compiled_by, override_reason, override_by")
+    .select("id, project_id, book_number, title, status, compiled_at, compiled_by, override_reason, override_by, revision")
     .eq("id", dataBookId)
     .single<DataBookRow>();
 
@@ -852,6 +855,7 @@ export async function buildDataBookHtml(dataBookId: string): Promise<{ dataBook:
 
   const templateData: DataBookPdfData = {
     bookNumber: dataBook.book_number,
+    bookRevision: dataBook.revision ?? 0,
     title: dataBook.title,
     status: dataBook.status,
     projectName: project?.name ?? "",

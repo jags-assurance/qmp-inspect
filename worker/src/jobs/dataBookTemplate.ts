@@ -141,8 +141,20 @@ export interface DataBookPdfPunch {
   verifiedBy: string | null;
 }
 
+/** "Rev n" label for the book itself (shared by body and footer). */
+export function formatBookRevision(revision: number | string | null | undefined): string {
+  const n = Number(revision);
+  return `Rev ${Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0}`;
+}
+
+function bookRevLabel(data: { bookRevision?: number }): string {
+  return formatBookRevision(data.bookRevision);
+}
+
 export interface DataBookPdfData {
   bookNumber: string;
+  /** data_books.revision (numeric); printed as "Rev n". Defaults to 0 when absent. */
+  bookRevision?: number;
   title: string;
   status: "draft" | "compiled" | "issued";
   projectName: string;
@@ -438,7 +450,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Revision distribution and issue status",
     "Book revisions and individual record revisions are controlled independently. Issuing a new book must not rewrite the history of its source records.",
     `
-    ${table(["Revision", "Date", "Description", "Authorization"], [["R00", issueDate, `${escapeHtml(issuePurpose(data))} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
+    ${table(["Revision", "Date", "Description", "Authorization"], [[bookRevLabel(data), issueDate, `${escapeHtml(issuePurpose(data))} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
     <h3>Distribution register</h3>
     ${table(
       ["Recipient role", "Purpose", "Issue reference", "Receipt"],
@@ -793,11 +805,11 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Record the receiving party's decision for a defined scope and issue. Acceptance conditions and contract consequences must be explicit.",
     `
     <h3>Record header</h3>
-    <p class="header-line">Book ${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)} | ${escapeHtml(issuePurpose(data))} issue R00</p>
+    <p class="header-line">Book ${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)} | ${escapeHtml(issuePurpose(data))} issue ${bookRevLabel(data)}</p>
     ${table(
       ["Acceptance field", "Entry"],
       [
-        ["Scope", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}, ${planned} records, issue R00`],
+        ["Scope", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}, ${planned} records, issue ${bookRevLabel(data)}`],
         ["Decision", data.status === "issued" ? (data.overrideReason ? "Issued as a Conditional handover — client acceptance of the conditions pending" : "Issued — see signed acceptance") : "Not requested — book not issued"],
         ["Conditions", data.overrideReason ? escapeHtml(data.overrideReason) : "None recorded"],
         ["Custody and effective date", "&nbsp;"],

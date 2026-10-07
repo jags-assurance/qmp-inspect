@@ -4,7 +4,7 @@ import { buildNcrPdfHtml, type NcrPdfData, type NcrPdfSeverity, type NcrPdfStatu
 import type { RenderNcrPdfPayload } from "./types";
 import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, ncrDossierFilingStatus } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -160,6 +160,9 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
     autoRevision: true,
+    // Only a CLOSED NCR is a final record; an open dossier is filed for review and never supersedes
+    // an approved copy.
+    status: ncrDossierFilingStatus(ncr.status),
   });
 
   return { resultStoragePath: storagePath };
