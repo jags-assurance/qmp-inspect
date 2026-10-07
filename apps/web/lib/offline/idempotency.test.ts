@@ -19,3 +19,23 @@ describe("offline observation idempotency", () => {
     expect(parseObservationMarker("garbage")).toBeNull();
   });
 });
+
+import { CLAIM_STALE_MS, isStaleClaim, parseMarker, serializeClaimMarker } from "./idempotency";
+
+describe("offline observation claim marker", () => {
+  it("round-trips a claim and an NCR marker", () => {
+    const claim = parseMarker(serializeClaimMarker(1000));
+    expect(claim).toEqual({ kind: "claim", claimedAt: 1000 });
+    expect(parseMarker(serializeObservationMarker("abc"))).toEqual({ kind: "ncr", ncrId: "abc" });
+  });
+
+  it("treats garbage as unknown", () => {
+    expect(parseMarker("not json")).toEqual({ kind: "unknown" });
+    expect(parseMarker("{}")).toEqual({ kind: "unknown" });
+  });
+
+  it("only takes over a claim once it is stale", () => {
+    expect(isStaleClaim(1000, 1000 + CLAIM_STALE_MS - 1)).toBe(false);
+    expect(isStaleClaim(1000, 1000 + CLAIM_STALE_MS + 1)).toBe(true);
+  });
+});

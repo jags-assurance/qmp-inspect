@@ -14,6 +14,32 @@ export function observationMarkerPath(projectId: string, clientKey: string): str
   return `${project}/ncrs/idem-${key}.json`;
 }
 
+/** A claim marker is written BEFORE the NCR is created (atomic create-if-absent in storage), so two
+ *  simultaneous requests with one key cannot both proceed. It is replaced by the NCR marker after. */
+export const CLAIM_STALE_MS = 2 * 60 * 1000;
+
+export function serializeClaimMarker(now: number = Date.now()): string {
+  return JSON.stringify({ claimedAt: now });
+}
+
+export type ParsedMarker = { kind: "ncr"; ncrId: string } | { kind: "claim"; claimedAt: number } | { kind: "unknown" };
+
+export function parseMarker(text: string): ParsedMarker {
+  try {
+    const parsed = JSON.parse(text) as { ncrId?: unknown; claimedAt?: unknown };
+    if (typeof parsed.ncrId === "string" && parsed.ncrId) return { kind: "ncr", ncrId: parsed.ncrId };
+    if (typeof parsed.claimedAt === "number") return { kind: "claim", claimedAt: parsed.claimedAt };
+  } catch {
+    // fall through
+  }
+  return { kind: "unknown" };
+}
+
+/** A claim older than this is assumed abandoned (the claiming request crashed) and may be taken over. */
+export function isStaleClaim(claimedAt: number, now: number = Date.now()): boolean {
+  return now - claimedAt > CLAIM_STALE_MS;
+}
+
 export function parseObservationMarker(text: string): string | null {
   try {
     const parsed = JSON.parse(text) as { ncrId?: unknown };

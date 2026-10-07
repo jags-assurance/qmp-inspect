@@ -1092,11 +1092,15 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // may separately raise — the punch list is what ultimately gates handover, so this needs to land
   // regardless of whether an NCR gets raised for the same failure.
   if (overallResult === "fail" && recordForHoldCheck) {
+    // Default the punch item's responsible party to the party that performs this activity, so that
+    // party can resolve it (only the responsible party or staff can). Left unset if none is found.
+    const executingPartyId = await executingPartyIdForItem(supabase, recordForHoldCheck.itp_item_id);
     await createPunchItemFromSource({
       projectId: recordForHoldCheck.project_id,
       description: `Failed inspection: ${recordForHoldCheck.activity} (${recordForHoldCheck.record_number})`,
       source: "inspection_failure",
       sourceInspectionRecordId: inspectionRecordId,
+      responsiblePartyId: executingPartyId ?? undefined,
     });
 
     // Best-effort: let the ITP's preparer know their activity failed without them having to notice
@@ -1773,4 +1777,35 @@ export async function deleteInspectionPhotoAction(photoId: string): Promise<Phot
     // Best-effort audit.
   }
   return { error: null };
+}
+
+/**
+ * The active subcontractor (else main contractor) party holding an intervention point on this ITP
+ * item — i.e. whoever performs the work. Null when the item has no such party; callers then leave the
+ * responsible party unset (staff-only to resolve) rather than guessing.
+ */
+async function executingPartyIdForItem(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string | null
+): Promise<string | null> {
+  if (!itpItemId) return null;
+  try {
+    const { data: progress } = await supabase
+      .from("activity_signoff_progress")
+      .select("project_party_id")
+      .eq("itp_item_id", itpItemId)
+      .returns<{ project_party_id: string }[]>();
+    const ids = [...new Set((progress ?? []).map((p) => p.project_party_id))];
+    if (ids.length === 0) return null;
+    const { data: parties } = await supabase
+      .from("project_parties")
+      .select("id, party_type")
+      .in("id", ids)
+      .eq("is_active", true)
+      .in("party_type", ["subcontractor", "main_contractor"])
+      .returns<{ id: string; party_type: string }[]>();
+    return (parties ?? []).find((p) => p.party_type === "subcontractor")?.id ?? (parties ?? [])[0]?.id ?? null;
+  } catch {
+    return null;
+  }
 }

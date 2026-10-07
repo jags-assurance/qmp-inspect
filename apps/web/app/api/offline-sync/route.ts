@@ -94,6 +94,8 @@ export async function POST(request: Request) {
         const result = await createNcrAction({ error: null }, formData);
         // A punch-list warning still means the NCR exists: treat as success so a retry never duplicates it.
         if (!result.created) {
+          // Same key still being processed by another request: transient, keep the item queued.
+          if (result.inFlight) return NextResponse.json({ ok: false, error: result.error }, { status: 503 });
           return NextResponse.json({ ok: false, error: result.error ?? "Could not raise the observation." }, { status: 422 });
         }
 
