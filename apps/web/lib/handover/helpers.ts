@@ -44,6 +44,9 @@ export function acknowledgeErrorMessage(message: string | null | undefined): str
 export function issueErrorMessage(code: string | null | undefined, message: string | null | undefined): string {
   const m = (message ?? "").toLowerCase();
   if (code === "23505") return "A handover certificate already exists for this Data Book, or that certificate number is in use.";
+  if (m.includes("not found in storage")) return "The uploaded package file could not be found in storage. Upload it again.";
+  if (m.includes("not ready to issue")) return "The project no longer passes the Data Book gates (open punch items, NCRs, unapproved ITPs or project not completed). Resolve them or withdraw the book and compile with an override.";
+  if (m.includes("admin staff")) return "Only a JAGS Admin can issue a conditional handover.";
   if (m.includes("punch")) return "Open punch items exist, so the handover cannot be issued. Close them first.";
   if (m.includes("compiled")) return "Only a compiled Data Book can be issued. Refresh the page.";
   if (m.includes("staff")) return "Only JAGS staff can issue a handover certificate.";

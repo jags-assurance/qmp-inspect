@@ -1,18 +1,21 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState, type FormEvent } from "react";
 import { acknowledgeHandoverAction, type AcknowledgeHandoverState } from "@/lib/handover/actions";
 import { Button } from "@/components/ui/button";
+import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 
 const initialState: AcknowledgeHandoverState = { error: null };
 
 /** The client's own action on their handover package — see acknowledge_handover() in the migration. */
 export function AcknowledgeForm({
   certificateId,
+  certificateNumber,
   onBehalf = false,
   userName,
 }: {
   certificateId: string;
+  certificateNumber: string;
   /** True when a JAGS admin is recording the acceptance on the client's behalf. */
   onBehalf?: boolean;
   userName?: string;
@@ -20,6 +23,17 @@ export function AcknowledgeForm({
   const [state, formAction, pending] = useActionState(acknowledgeHandoverAction, initialState);
   const [expanded, setExpanded] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [dialog, setDialog] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const go = useRef(false);
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    if (go.current) {
+      go.current = false;
+      return;
+    }
+    e.preventDefault();
+    setDialog(true);
+  }
 
   if (!expanded) {
     return (
@@ -34,7 +48,8 @@ export function AcknowledgeForm({
   const confirmId = `ack_confirm_${certificateId}`;
 
   return (
-    <form action={formAction} className="flex w-full flex-wrap items-end gap-2">
+    <>
+    <form ref={formRef} action={formAction} onSubmit={onSubmit} className="flex w-full flex-wrap items-end gap-2">
       <input type="hidden" name="certificate_id" value={certificateId} />
 
       {onBehalf && (
@@ -70,6 +85,21 @@ export function AcknowledgeForm({
         />
       </div>
 
+      <div className="w-full">
+        <label htmlFor={`ack_comment_${certificateId}`} className="block text-xs font-medium text-ink">
+          Comments (optional, recorded with the acceptance)
+        </label>
+        <textarea id={`ack_comment_${certificateId}`} name="ack_comment" rows={2} maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+      </div>
+      {onBehalf && (
+        <div className="w-full">
+          <label htmlFor={`ack_basis_${certificateId}`} className="block text-xs font-medium text-ink">
+            How did the client confirm? (email, signed document reference)
+          </label>
+          <input id={`ack_basis_${certificateId}`} name="on_behalf_basis" required minLength={5} maxLength={1000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+        </div>
+      )}
+
       <label htmlFor={confirmId} className="flex w-full items-start gap-2 text-sm text-ink">
         <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4" />
         <span>
@@ -88,5 +118,23 @@ export function AcknowledgeForm({
         </p>
       )}
     </form>
+    {dialog && (
+      <ConfirmTypeDialog
+        title="Record formal acceptance?"
+        phrase=""
+        confirmLabel="Accept handover"
+        onCancel={() => setDialog(false)}
+        onConfirm={() => {
+          go.current = true;
+          setDialog(false);
+          formRef.current?.requestSubmit();
+        }}
+      >
+        <p>
+          This formally accepts handover certificate <strong>{certificateNumber}</strong>{onBehalf ? " on behalf of the client" : ""}. It cannot be undone.
+        </p>
+      </ConfirmTypeDialog>
+    )}
+    </>
   );
 }
