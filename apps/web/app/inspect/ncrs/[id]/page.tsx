@@ -83,7 +83,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <NcrPdfButton ncrId={ncr.id} latest={latestNcrPdf} />
+          <NcrPdfButton ncrId={ncr.id} latest={latestNcrPdf} changedAt={ncr.updated_at} />
           {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={latestCloseoutCertificate} />}
           <NcrStatusButton
             ncrId={ncr.id}

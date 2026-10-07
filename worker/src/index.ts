@@ -162,16 +162,29 @@ async function markFailed(jobId: string, errorMessage: string): Promise<void> {
 
 /** Puts a transiently failed job back in the queue (backoff enforced in-process). */
 async function markRetry(jobId: string, errorMessage: string, attempts: number): Promise<boolean> {
-  const { error } = await jobsTable()
-    .update({ status: "pending", error_message: `Attempt ${attempts} failed, will retry: ${errorMessage.slice(0, 1900)}` })
+  const notBeforeMs = Date.now() + retryDelayMs(attempts);
+  const errorText = `Attempt ${attempts} failed, will retry: ${errorMessage.slice(0, 1900)}`;
+  // Persist the backoff (S6-12) so a restart or another replica honours it. If the column does not
+  // exist yet (migration 20261108000103 not applied) requeue without it: the in-memory map plus the
+  // updated_at rule in isJobClaimable() still enforce the delay.
+  let { error } = await jobsTable()
+    .update({ status: "pending", error_message: errorText, retry_not_before: new Date(notBeforeMs).toISOString() } as Partial<BackgroundJobRow>)
     .eq("id", jobId)
     .eq("status", "processing")
     .select();
   if (error) {
+    console.warn("[worker] Requeue with retry_not_before failed, retrying without it:", error.message);
+    ({ error } = await jobsTable()
+      .update({ status: "pending", error_message: errorText })
+      .eq("id", jobId)
+      .eq("status", "processing")
+      .select());
+  }
+  if (error) {
     console.error("[worker] Failed to requeue job", jobId, error.message);
     return false;
   }
-  retryNotBefore.set(jobId, Date.now() + retryDelayMs(attempts));
+  retryNotBefore.set(jobId, notBeforeMs);
   return true;
 }
 

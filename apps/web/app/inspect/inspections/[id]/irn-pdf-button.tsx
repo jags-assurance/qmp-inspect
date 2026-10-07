@@ -1,5 +1,5 @@
 "use client";
-import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
+import { renderingLabel, jobStatusText, isPdfStale } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect } from "react";
 import {
@@ -20,7 +20,16 @@ const STATUS_LABEL: Record<IrnPdfStatus["status"], string> = {
 };
 
 /** Same trigger/poll/View+Download pattern as NcrPdfButton — see lib/reports/use-pdf-polling.ts. */
-export function IrnPdfButton({ irnId, latest }: { irnId: string; latest: IrnPdfStatus | null }) {
+export function IrnPdfButton({
+  irnId,
+  latest,
+  changedAt = null,
+}: {
+  irnId: string;
+  latest: IrnPdfStatus | null;
+  /** When the inspection result behind this IRN was last signed: a certificate rendered before this is outdated. */
+  changedAt?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(requestIrnPdfAction, initialState);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestIrnPdf, irnId);
 
@@ -62,6 +71,11 @@ export function IrnPdfButton({ irnId, latest }: { irnId: string; latest: IrnPdfS
           </button>
         </form>
       </div>
+      {liveStatus?.status === "completed" && !polling && isPdfStale(liveStatus.createdAt, changedAt) && (
+        <p className="text-xs font-medium text-warning" role="status">
+          This certificate was generated before the latest sign-off on this inspection - regenerate it.
+        </p>
+      )}
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
       {timedOut && (
@@ -71,7 +85,8 @@ export function IrnPdfButton({ irnId, latest }: { irnId: string; latest: IrnPdfS
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {jobStatusText(liveStatus)}
+          {jobStatusText(liveStatus)}
+
         </p>
       )}
     </div>

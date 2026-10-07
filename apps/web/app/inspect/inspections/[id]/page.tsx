@@ -385,7 +385,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             ) : (
               <>
                 <div className="mt-2">
-                  <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} />
+                  <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} changedAt={record.signed_at} />
                 </div>
                 {session.isJagsStaff && <VoidIrnForm irnId={irn.id} />}
               </>

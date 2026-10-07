@@ -8,12 +8,23 @@ export function retryDelayMs(attempts: number): number {
 }
 
 /**
- * Durable backoff eligibility without a new column: a requeued job (pending, attempts > 0) had its
- * updated_at bumped by the background_jobs_set_updated_at trigger when it was requeued, so it is
- * claimable once updated_at + retryDelayMs(attempts) has passed. Fresh jobs are always eligible.
+ * Durable backoff eligibility (S6-12). When a retried job carries `retry_not_before` (column added by
+ * 20261108000103, written by the worker when it requeues a failed attempt) that persisted timestamp is
+ * authoritative, so a worker restart or a second replica honours the same backoff. Before that migration
+ * is applied (or for rows requeued without it, e.g. orphan reclaim) it falls back to the old rule: a
+ * requeued job (pending, attempts > 0) had its updated_at bumped by the background_jobs_set_updated_at
+ * trigger, so it is claimable once updated_at + retryDelayMs(attempts) has passed. Fresh jobs are
+ * always eligible.
  */
-export function isJobClaimable(job: { attempts: number; updated_at?: string | null }, now: number): boolean {
+export function isJobClaimable(
+  job: { attempts: number; updated_at?: string | null; retry_not_before?: string | null },
+  now: number
+): boolean {
   if (!job.attempts || job.attempts <= 0) return true;
+  if (job.retry_not_before) {
+    const notBefore = Date.parse(job.retry_not_before);
+    if (Number.isFinite(notBefore)) return notBefore <= now;
+  }
   const updated = job.updated_at ? Date.parse(job.updated_at) : NaN;
   if (!Number.isFinite(updated)) return true;
   return updated + retryDelayMs(job.attempts) <= now;
@@ -56,7 +67,7 @@ export function orphanAction(attempts: number): "requeue" | "fail" {
  * Claim order: jobs never attempted first (oldest first), then retries whose backoff has elapsed. Reading a
  * wide window and filtering here stops a few jobs sitting in backoff from starving newer ones.
  */
-export function pickClaimable<T extends { attempts: number; created_at: string; updated_at?: string | null }>(
+export function pickClaimable<T extends { attempts: number; created_at: string; updated_at?: string | null; retry_not_before?: string | null }>(
   candidates: T[],
   now: number,
   isBlocked: (job: T) => boolean = () => false

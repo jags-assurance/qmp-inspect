@@ -209,7 +209,7 @@ export function NcrPanel() {
               className={`min-w-0 space-y-4 ${tab === "closeout" || tab === "overview" ? (tab === "closeout" ? "block" : "hidden @3xl:block") : "hidden"}`}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <NcrPdfButton ncrId={ncr.id} latest={detail.latestNcrPdf} />
+                <NcrPdfButton ncrId={ncr.id} latest={detail.latestNcrPdf} changedAt={detail.ncr.updated_at} />
                 {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={detail.latestCloseoutCertificate} />}
                 <NcrStatusButton
                   ncrId={ncr.id}

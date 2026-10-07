@@ -31,6 +31,8 @@ export interface NcrDetail {
   closed_by: string | null;
   raised_by: string | null;
   created_at: string;
+  /** Last modification; drives the stale-PDF marker (S6-14). */
+  updated_at?: string | null;
   project_id: string;
   inspection_record_id: string | null;
   /** Extended fields (null until the NCR hardening migration is applied / when not recorded). */
@@ -125,7 +127,7 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   const supabase = await createSupabaseServerClient();
 
   const baseCols =
-    "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, closed_by, raised_by, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)";
+    "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, closed_by, raised_by, created_at, updated_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)";
   const extendedCols =
     "location, equipment_tag, spec_reference, root_cause_category, disposition, cost_impact, schedule_impact_days, contractor_response, withdrawn_at, withdrawn_reason, duplicate_of_ncr_id, reopen_count, last_reopen_reason, capa_updated_by";
   type NcrWithOrg = NcrDetail & { projects: NcrDetail["projects"] & { organization_id: string }; capa_updated_by?: string | null };

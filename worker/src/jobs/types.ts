@@ -22,6 +22,8 @@ export interface BackgroundJobRow {
   error_message: string | null;
   /** Set when the worker claims the job (nullable; added by a later migration). */
   started_at?: string | null;
+  /** Earliest time a requeued (retry) job may be claimed again; persisted backoff (S6-12). Nullable; added by 20261108000103. */
+  retry_not_before?: string | null;
   attempts: number;
   created_at: string;
   updated_at: string;
