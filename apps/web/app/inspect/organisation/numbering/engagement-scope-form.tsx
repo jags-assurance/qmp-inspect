@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateEngagementScopeAction, type NumberingSettingsState } from "@/lib/numbering/actions";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
+import { describeScopeChange, isEngagementScope, summarizeScopeChange } from "@/lib/numbering/scope-impact";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -31,11 +32,18 @@ const SCOPES: { value: string; label: string; description: string }[] = [
 export function EngagementScopeForm({
   organizationId,
   engagementScope,
+  tierOnlyPermissionCount = null,
 }: {
   organizationId: string;
   engagementScope: string;
+  /** Custom-role permissions that only exist on Full Client-Managed and would be removed by leaving it. */
+  tierOnlyPermissionCount?: number | null;
 }) {
   const [state, formAction, pending] = useActionState(updateEngagementScopeAction, initialState);
+  const [selected, setSelected] = useState(engagementScope);
+  const current = isEngagementScope(engagementScope) ? engagementScope : "full_service";
+  // S1-12: what saving would change, shown before the admin ticks the confirmation.
+  const impact = isEngagementScope(selected) ? summarizeScopeChange(current, selected, tierOnlyPermissionCount) : null;
 
   return (
     <form action={formAction} className="space-y-3">
@@ -50,7 +58,8 @@ export function EngagementScopeForm({
               type="radio"
               name="engagement_scope"
               value={scope.value}
-              defaultChecked={engagementScope === scope.value}
+              checked={selected === scope.value}
+              onChange={() => setSelected(scope.value)}
               className="mt-1"
             />
             <span>
@@ -60,6 +69,14 @@ export function EngagementScopeForm({
           </label>
         ))}
       </div>
+
+      {impact && impact.direction !== "none" && isEngagementScope(selected) && (
+        <div role="status" className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-ink">
+          <p className="font-medium">What this change does</p>
+          <p>{describeScopeChange(current, selected, impact)}</p>
+          <p className="text-muted">{impact.unchanged.join(" ")}</p>
+        </div>
+      )}
 
       <label className="flex items-start gap-2 text-xs text-ink">
         <input type="checkbox" name="confirm" value="yes" className="mt-0.5" />

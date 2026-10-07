@@ -10,6 +10,7 @@ import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { checkPartyTypeLimit } from "./party-limits";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { aiErrorMessage } from "@/lib/ai/config";
@@ -132,6 +133,24 @@ type PartyType = (typeof VALID_PARTY_TYPES)[number];
  *  policies (expected-record provider, register contributor), so only a JAGS Admin may mint them. */
 const CLIENT_ADDABLE_PARTY_TYPES: readonly PartyType[] = ["subcontractor", "main_contractor", "vendor", "client"];
 
+/** S1-13: refuses a new party when the project already has the maximum of ACTIVE parties of that type. */
+async function partyLimitError(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  partyType: string
+): Promise<string | null> {
+  const { count, error } = await supabase
+    .from("project_parties")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("party_type", partyType as PartyType)
+    .eq("is_active", true);
+  // A failed count must not block onboarding: the cap is a guard rail, not a security boundary.
+  if (error || count === null) return null;
+  const result = checkPartyTypeLimit(partyType, count);
+  return result.ok ? null : result.message;
+}
+
 /**
  * Client onboarding gap this closes: previously project_parties could only be populated by hand-
  * written seed data — the project detail page displayed the party list but had no way to add to it,
@@ -198,6 +217,8 @@ export async function addProjectPartyAction(
   if (duplicate) {
     return { error: `A ${partyType.replace(/_/g, " ")} party named "${name}" is already on this project.` };
   }
+  const limitError = await partyLimitError(supabase, projectId, partyType);
+  if (limitError) return { error: limitError };
 
   const { data: party, error } = await supabase
     .from("project_parties")
@@ -331,6 +352,9 @@ export async function addSelfManagedPartyAction(
       return { error: "Only your organisation's own members can add parties to this project." };
     }
   }
+
+  const limitError = await partyLimitError(supabase, projectId, partyType);
+  if (limitError) return { error: limitError };
 
   // Escape ILIKE's own wildcard characters so a literal email is matched, not a pattern — email is
   // still compared case-insensitively since Supabase Auth normalises emails to lowercase on signup,
