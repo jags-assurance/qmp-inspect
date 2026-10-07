@@ -100,7 +100,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/login") {
+  // (A signed-in user sent back with ?error=... is shown the message instead of being bounced home,
+  // which would loop for an account whose session context can no longer be built.)
+  if (user && pathname === "/login" && !request.nextUrl.searchParams.has("error")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -129,6 +131,8 @@ export async function proxy(request: NextRequest) {
         user.app_metadata?.deactivated === true || (bannedUntil ? Date.parse(bannedUntil) > now : false),
       mustChangePasswordClaim:
         typeof user.app_metadata?.must_change_password === "boolean" ? user.app_metadata.must_change_password : null,
+      tempPasswordExpiresAt:
+        typeof user.app_metadata?.temp_password_expires_at === "string" ? user.app_metadata.temp_password_expires_at : null,
     });
 
     if (decision.action === "sign_out") {

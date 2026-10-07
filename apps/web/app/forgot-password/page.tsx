@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { requestPasswordResetAction, type RequestPasswordResetState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: RequestPasswordResetState = { error: null, sent: false };
 
@@ -55,7 +56,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
-              {state.error && <p className="text-sm text-danger">{state.error}</p>}
+              <FormMessage error={state.error} />
 
               <Button type="submit" disabled={pending} className="w-full">
                 {pending ? "Sending…" : "Send reset link"}

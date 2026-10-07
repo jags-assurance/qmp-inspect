@@ -136,7 +136,7 @@ export async function updatePasswordAction(
     const serviceClient = createSupabaseServiceRoleClient();
     const [profileResult, metaResult] = await Promise.all([
       serviceClient.from("users").update({ must_change_password: false }).eq("id", user.id),
-      serviceClient.auth.admin.updateUserById(user.id, { app_metadata: { must_change_password: false } }),
+      serviceClient.auth.admin.updateUserById(user.id, { app_metadata: { must_change_password: false, temp_password_expires_at: null } }),
     ]);
     if (profileResult.error || metaResult.error) {
       console.error(

@@ -52,7 +52,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   const [{ data: profile }, { data: grants }] = await Promise.all([
     supabase
       .from("users")
-      .select("id, email, full_name, is_jags_staff, staff_role")
+      .select("id, email, full_name, is_jags_staff, staff_role, is_active")
       .eq("id", user.id)
       .single<{
         id: string;
@@ -60,6 +60,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
         full_name: string;
         is_jags_staff: boolean;
         staff_role: StaffRole;
+        is_active: boolean | null;
       }>(),
     supabase
       .from("access_grants")
@@ -69,6 +70,9 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   ]);
 
   if (!profile) return null;
+  // A deactivated account has no session context (the RLS helpers already refuse it; this keeps the
+  // UI from rendering a half-empty shell). proxy.ts also ends such a session.
+  if (profile.is_active === false) return null;
 
   return {
     userId: profile.id,
@@ -83,7 +87,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 /** Use in a Server Component/layout that requires a signed-in user; redirects to /login otherwise. */
 export async function requireSession(): Promise<SessionContext> {
   const session = await getSessionContext();
-  if (!session) redirect("/login");
+  if (!session) redirect("/login?error=session_ended");
   return session;
 }
 

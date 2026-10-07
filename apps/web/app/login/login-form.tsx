@@ -5,10 +5,11 @@ import { useActionState } from "react";
 import { signInAction, type SignInState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/domain/password-field";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: SignInState = { error: null };
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next, notice }: { next: string; notice?: string | null }) {
   const [state, formAction, pending] = useActionState(signInAction, initialState);
 
   return (
@@ -57,11 +58,10 @@ export function LoginForm({ next }: { next: string }) {
             </div>
           </div>
 
-          {state.error && (
-            <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-              {state.error} If you keep having trouble, use Forgot password or contact your administrator.
-            </p>
-          )}
+          <FormMessage
+            error={state.error ?? notice}
+            suffix={state.error ? "If you keep having trouble, use Forgot password or contact your administrator." : undefined}
+          />
 
           <Button type="submit" disabled={pending} className="w-full">
             {pending ? "Signing in…" : "Sign in"}

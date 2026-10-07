@@ -987,11 +987,19 @@ export async function getProjectCloseSummaryAction(projectId: string): Promise<P
   const session = await requireSession();
   if (!isAdminStaff(session) || !projectId) return null;
   const supabase = await createSupabaseServerClient();
-  const [ncr, punch, drafts, project] = await Promise.all([
-    supabase.from("ncrs" as never).select("id", { count: "exact", head: true }).eq("project_id" as never, projectId as never).neq("status" as never, "closed" as never),
+  const [ncr, punch, drafts, project, books, revisions] = await Promise.all([
+    // Mirrors projects_status_guard (20261104000600): a null severity counts, only observations don't.
+    supabase
+      .from("ncrs" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("project_id" as never, projectId as never)
+      .neq("status" as never, "closed" as never)
+      .or("severity.is.null,severity.neq.observation" as never),
     supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase.from("inspection_records").select("id", { count: "exact", head: true }).eq("project_id", projectId).is("overall_result", null),
     supabase.from("projects").select("project_number, name").eq("id", projectId).maybeSingle<{ project_number: string; name: string }>(),
+    supabase.from("data_books").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "issued"),
+    supabase.from("itps").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("revision_needs_approval", true),
   ]);
   let overdueHolds = 0;
   try {
@@ -1007,6 +1015,8 @@ export async function getProjectCloseSummaryAction(projectId: string): Promise<P
     openPunch: punch.count ?? 0,
     overdueHolds,
     draftInspections: drafts.count ?? 0,
+    unissuedDataBooks: books.count ?? 0,
+    pendingItpRevisions: revisions.count ?? 0,
   };
   return { ...counts, blockers: describeCloseBlockers(counts) };
 }
