@@ -46,6 +46,7 @@ const TYPE_OPTIONS: { key: string; label: string }[] = [
   { key: "fat", label: "FAT report" },
   { key: "data_book", label: "Data Book / handover" },
   { key: "pack", label: "Weekly / monthly pack" },
+  { key: "portfolio", label: "Portfolio summary" },
   { key: "generated", label: "Other generated" },
 ];
 
@@ -54,6 +55,7 @@ function classify(title: string, storagePath: string): { key: string; label: str
   if (/\bFAT\b|factory acceptance/i.test(title)) return { key: "fat", label: "FAT report" };
   if (/data ?book|handover/i.test(title)) return { key: "data_book", label: "Data Book / handover" };
   if (/\b(weekly|monthly)\b.*\b(pack|report)\b/i.test(title)) return { key: "pack", label: "Weekly / monthly pack" };
+  if (/^portfolio summary/i.test(title)) return { key: "portfolio", label: "Portfolio summary" };
   const k = vaultDocKind({ storagePath, title });
   return { key: k.key, label: k.label };
 }

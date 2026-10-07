@@ -9,6 +9,7 @@ import {
 } from "@/lib/itps/ai-draft-actions";
 import type { ItpDraftResult } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const EXTRACTION_LABEL: Record<string, string> = {
   done: "Ready",
@@ -368,8 +369,11 @@ export function NewItpFromAiForm({
     <div className="mt-6 space-y-6">
       <div className="rounded-lg border border-border bg-off-white p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm text-muted">
-            Draft for <span className="font-semibold text-ink">{project?.name ?? "the selected project"}</span>
+          <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
+            <span>
+              Draft for <span className="font-semibold text-ink">{project?.name ?? "the selected project"}</span>
+            </span>
+            <Badge tone="info">AI-assisted draft</Badge>
           </p>
           <p className="text-xs text-muted">
             {draft.sections.length} sections · {totalActivities} activities total

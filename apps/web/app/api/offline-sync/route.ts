@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { validateOfflinePhoto } from "@/lib/checklists/photo-validation";
+import { observationMarkerPath, parseObservationMarker, serializeObservationMarker } from "@/lib/offline/idempotency";
 import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE } from "@/lib/checklists/db-types";
 
 /**
@@ -73,11 +74,23 @@ export async function POST(request: Request) {
         // Queued by QuickRaiseObservation: same validated createNcrAction the register's form uses
         // (due date, severity, punch-list item, notification, audit), told to return instead of
         // redirect since there's no page to navigate when replaying from the outbox.
+        // Idempotent: a marker object written after the first successful create short-circuits retries.
+        const markerPath = observationMarkerPath(String(formData.get("project_id") ?? ""), clientKey);
+        if (markerPath) {
+          const { data: marker } = await authClient.storage.from("inspection-evidence").download(markerPath);
+          if (marker && parseObservationMarker(await marker.text())) return NextResponse.json({ ok: true });
+        }
         formData.set("severity", "observation");
         formData.set("stay_on_page", "true");
         const result = await createNcrAction({ error: null }, formData);
         if (result.error || !result.created) {
           return NextResponse.json({ ok: false, error: result.error ?? "Could not raise the observation." }, { status: 422 });
+        }
+
+        if (markerPath) {
+          await authClient.storage
+            .from("inspection-evidence")
+            .upload(markerPath, new Blob([serializeObservationMarker(result.created.id)], { type: "application/json" }), { upsert: true });
         }
 
         // Optional photo taken with the quick form. Best-effort AFTER the NCR exists: failing the

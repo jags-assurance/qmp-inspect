@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { updateNcrAction, reopenNcrAction, suggestNcrRootCauseAction, type ReopenNcrState, type UpdateNcrState, type SuggestRootCauseState } from "@/lib/ncrs/actions";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const initialState: UpdateNcrState = { error: null };
 const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
@@ -170,6 +171,11 @@ export function CloseOutForm({
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
         {suggestState.error && <p className="mt-1 text-xs text-danger">{suggestState.error}</p>}
+        {aiOriginalRootCause !== null && (
+          <p className="mt-1">
+            <Badge tone="info">AI-assisted draft</Badge>
+          </p>
+        )}
       </div>
 
       <div>

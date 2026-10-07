@@ -10,6 +10,7 @@ import {
 } from "@/lib/ncrs/actions";
 import { NCR_SEVERITIES, type NcrSeverity } from "@/lib/ncrs/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
 const initialState: CreateNcrState = { error: null };
@@ -232,6 +233,11 @@ export function NewNcrForm({
             <p className="mt-1.5 text-xs text-muted">Jot down some field notes above first.</p>
           )}
           {draftState.error && <p className="mt-2 text-sm text-danger">{draftState.error}</p>}
+          {aiOriginalDescription !== null && (
+            <p className="mt-2">
+              <Badge tone="info">AI-assisted draft</Badge>
+            </p>
+          )}
         </div>
 
         <div>
@@ -332,6 +338,20 @@ export function NewNcrForm({
           {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
         </div>
       </section>
+
+      <div>
+        <label htmlFor="ncr_photos" className="block text-sm font-medium text-ink">
+          Photos <span className="font-normal text-muted">(optional, images up to 25 MB each)</span>
+        </label>
+        <input
+          id="ncr_photos"
+          name="photos"
+          type="file"
+          accept="image/*"
+          multiple
+          className="mt-1 block w-full text-sm text-ink"
+        />
+      </div>
 
       {duplicates.length > 0 && (
         <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">

@@ -17,6 +17,8 @@ export interface ProjectRow {
   /** Count of NCRs on this project with status != 'closed'. */
   openNcrCount: number;
   openPunchCount: number;
+  /** Overdue hold points on this project (overdue_hold_points() RPC, aggregated by project). */
+  overdueHoldCount: number;
   end_date: string | null;
 }
 
@@ -89,6 +91,11 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
         <Badge tone={row.openPunchCount > 0 ? "warning" : "success"}>{row.openPunchCount}</Badge>
       </Link>
     ),
+  },
+  {
+    key: "overdue_holds",
+    header: "Overdue holds",
+    render: (row) => <Badge tone={row.overdueHoldCount > 0 ? "danger" : "success"}>{row.overdueHoldCount}</Badge>,
   },
   { key: "end_date", header: "Target end", render: (row) => row.end_date ?? "—" },
 ];

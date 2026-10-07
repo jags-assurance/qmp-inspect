@@ -55,6 +55,45 @@ export function OfflineBanner() {
   // The outbox lives in best-effort IndexedDB storage unless persistence is granted (iOS Safari can
   // evict it silently), so persistence is requested on every mount.
   const [storagePersisted, setStoragePersisted] = useState(true);
+  const [waitingSw, setWaitingSw] = useState<ServiceWorker | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    let cancelled = false;
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => {
+        if (!reg || cancelled) return;
+        if (reg.waiting && navigator.serviceWorker.controller) setWaitingSw(reg.waiting);
+        reg.addEventListener("updatefound", () => {
+          const installing = reg.installing;
+          installing?.addEventListener("statechange", () => {
+            if (installing.state === "installed" && navigator.serviceWorker.controller) setWaitingSw(installing);
+          });
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const applyUpdate = useCallback(() => {
+    if (!waitingSw) return;
+    navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
+    waitingSw.postMessage({ type: "SKIP_WAITING" });
+    // Fallback if the worker already activated (it self-skips on install).
+    setTimeout(() => window.location.reload(), 1500);
+  }, [waitingSw]);
+
+  const updateBar = waitingSw ? (
+    <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info" role="status">
+      <span>Update available</span>
+      <button type="button" className="font-medium underline" onClick={applyUpdate}>
+        Reload
+      </button>
+    </div>
+  ) : null;
 
   const refreshCounts = useCallback(async () => {
     try {
@@ -150,8 +189,10 @@ export function OfflineBanner() {
   const showStorageWarning = pendingCount > 0 && !storagePersisted;
 
   if (isOnline && pendingCount === 0) {
-    if (!installEvent) return null;
+    if (!installEvent) return updateBar;
     return (
+      <>
+      {updateBar}
       <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info">
         <span>Install QMP Inspect on this device for faster access in the field.</span>
         <span className="flex shrink-0 gap-3">
@@ -182,11 +223,13 @@ export function OfflineBanner() {
           </button>
         </span>
       </div>
+      </>
     );
   }
 
   return (
     <div>
+      {updateBar}
       <div
         role="status"
         aria-live="polite"

@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
+import { notifyDocumentDecision } from "@/lib/vault/notifications";
 
 export interface SetDocumentApproversState {
   error: string | null;
@@ -239,6 +240,17 @@ export async function approveDocumentAction(
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
+  try {
+    const { data: finalDoc } = await supabase
+      .from(VAULT_DOCUMENTS_TABLE)
+      .select("status")
+      .eq("id", documentId)
+      .maybeSingle<{ status: string }>();
+    if (finalDoc?.status === "approved") await notifyDocumentDecision(supabase, documentId, session.userId, "approved");
+  } catch {
+    // Best-effort.
+  }
+
   if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
   return { error: null };
 }
@@ -322,6 +334,8 @@ export async function rejectDocumentAction(
   } catch {
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
+
+  await notifyDocumentDecision(supabase, documentId, session.userId, "rejected", reason);
 
   if (projectId && folderId) revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
   return { error: null };

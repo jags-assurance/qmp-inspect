@@ -39,9 +39,15 @@ export function applyNcrSort(
   return query.order("created_at", { ascending: false });
 }
 
-/** Days until due (negative = overdue), null when closed or no due date. */
-export function daysUntilDue(row: { due_date: string | null; status: string }): number | null {
+/** Days until due (negative = overdue), null when closed or no due date. Both sides are compared as
+ *  UTC calendar dates (date-only), so the boundary never depends on the local timezone or time of day. */
+export function daysUntilDue(
+  row: { due_date: string | null; status: string },
+  now: Date = new Date()
+): number | null {
   if (!row.due_date || row.status === "closed") return null;
-  const today = new Date(new Date().toISOString().slice(0, 10)).getTime();
-  return Math.round((new Date(row.due_date).getTime() - today) / 86400000);
+  const due = Date.parse(`${row.due_date.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(due)) return null;
+  const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+  return Math.round((due - today) / 86400000);
 }

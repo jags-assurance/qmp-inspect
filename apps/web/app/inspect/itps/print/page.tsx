@@ -74,6 +74,17 @@ export default async function ItpRegisterPrintPage({
       </div>
 
       <div className="print-area mt-6">
+        {(itps ?? []).length === 1 ? (
+          <p className="mb-3 rounded border border-border px-3 py-2 text-sm text-ink">
+            Rev {itps![0].revision} · {STATUS_LABEL[itps![0].status] ?? itps![0].status} · Issue date{" "}
+            {new Date().toLocaleDateString("en-GB")}
+          </p>
+        ) : (
+          <p className="mb-3 rounded border border-border px-3 py-2 text-sm text-ink">
+            Revision and status per ITP are shown in the Rev and Status columns · Issue date{" "}
+            {new Date().toLocaleDateString("en-GB")}
+          </p>
+        )}
         <h1 className="text-xl font-semibold text-ink">ITP Register</h1>
         <p className="mt-1 text-xs text-muted">Generated {new Date().toLocaleString("en-GB")} · {itps?.length ?? 0} ITPs</p>
         <div className="overflow-x-auto"><table className="mt-4 w-full border-collapse text-sm">

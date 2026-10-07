@@ -307,7 +307,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               <Badge tone={bannerTone}>{latest ? STATUS_LABEL[latest.status] : "No book"}</Badge>
               {latest && (
                 <span className="text-xs text-muted">
-                  {latest.book_number} · revision {books.length}
+                  {latest.book_number} · Rev {latest.revision ?? 0}
                 </span>
               )}
             </div>
@@ -457,7 +457,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 {latest.compiled_at
                   ? ` · generated ${new Date(latest.compiled_at).toLocaleString("en-GB")} by ${(latest.compiled_by && compilerNames.get(latest.compiled_by)) || "—"}`
                   : ` · created ${new Date(latest.created_at).toLocaleString("en-GB")} (not yet compiled)`}
-                {" · "}revision {books.length}
+                {" · "}Rev {latest.revision ?? 0}
               </p>
             )}
           </Card>
@@ -478,7 +478,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 {books.map((book, index) => {
                   const cert = dataBookCertificates[index];
                   const pdf = dataBookPdfStatuses[index];
-                  const revision = books.length - index;
+                  const revision = book.revision ?? 0;
                   return (
                     <article key={book.id} aria-label={book.book_number} className="rounded-md border border-border p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -486,7 +486,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                           <span className="doc-id text-sm font-medium text-ink">{book.book_number}</span>
                           <span className="ml-2 text-sm text-ink">{book.title}</span>
                           <p className="mt-0.5 text-xs text-muted">
-                            Revision {revision} · created {formatDate(book.created_at)}
+                            Rev {revision} · created {formatDate(book.created_at)}
                             {book.compiled_at && ` · compiled ${formatDate(book.compiled_at)}`}
                             {book.compiled_by && compilerNames.get(book.compiled_by) ? ` by ${compilerNames.get(book.compiled_by)}` : ""}
                           </p>

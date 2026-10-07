@@ -90,3 +90,16 @@ describe("daysUntilDue", () => {
     expect(daysUntilDue({ due_date: day(-2), status: "in_progress" })).toBe(-2);
   });
 });
+
+describe("daysUntilDue day boundary", () => {
+  it("uses the UTC calendar date regardless of time of day", () => {
+    const row = { due_date: "2026-10-08", status: "open" };
+    expect(daysUntilDue(row, new Date("2026-10-07T00:00:01Z"))).toBe(1);
+    expect(daysUntilDue(row, new Date("2026-10-07T23:59:59Z"))).toBe(1);
+    expect(daysUntilDue(row, new Date("2026-10-08T00:00:00Z"))).toBe(0);
+    expect(daysUntilDue(row, new Date("2026-10-09T12:00:00Z"))).toBe(-1);
+  });
+  it("accepts full timestamps as due_date", () => {
+    expect(daysUntilDue({ due_date: "2026-10-08T22:00:00Z", status: "open" }, new Date("2026-10-07T10:00:00Z"))).toBe(1);
+  });
+});

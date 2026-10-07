@@ -210,6 +210,22 @@ export async function createNcrAction(
     }
   }
 
+  // Photos attached on the raise form (multipart, same rules as the punch list): uploaded only now
+  // the NCR row exists. Best-effort per file — a failed photo never undoes the raised NCR; it can be
+  // re-added from the NCR page.
+  for (const f of formData.getAll("photos")) {
+    if (typeof f === "string" || !f.size || !f.type.startsWith("image/") || f.size > 25 * 1024 * 1024) continue;
+    try {
+      const ext = (f.name.split(".").pop() ?? "jpg").replace(/[^a-zA-Z0-9]/g, "").slice(0, 5) || "jpg";
+      const path = `${projectId}/ncrs/${ncr.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("inspection-evidence").upload(path, f, { contentType: f.type });
+      if (upErr) continue;
+      await supabase.from(NCR_PHOTOS_TABLE).insert({ ncr_id: ncr.id, storage_path: path, caption: null, uploaded_by: user?.id ?? null });
+    } catch {
+      // Best-effort.
+    }
+  }
+
   // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
   // creation above — see lib/audit/log.ts's doc comment.
   await recordAuditEvent(supabase, {

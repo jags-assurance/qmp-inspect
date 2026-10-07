@@ -104,8 +104,23 @@ export default async function ProjectsPage({
     }
   }
 
+  // Overdue hold points: the existing overdue_hold_points() RPC (one query, access-checked in SQL)
+  // returns one row per overdue hold with a "number — name" project label; count them per project.
+  // Not in the generated Database type yet — same documented escape hatch as admin-overdue-holds.tsx.
+  const overdueByLabel = new Map<string, number>();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: overdueRows } = await (supabase.rpc as any)("overdue_hold_points");
+    for (const row of (overdueRows ?? []) as { project_label: string }[]) {
+      overdueByLabel.set(row.project_label, (overdueByLabel.get(row.project_label) ?? 0) + 1);
+    }
+  } catch {
+    // Column shows 0 if the RPC is unavailable.
+  }
+
   const projectRows: ProjectRow[] = (projects ?? []).map((p) => ({
     ...p,
+    overdueHoldCount: overdueByLabel.get(`${p.project_number} — ${p.name}`) ?? 0,
     itpCompletionPct: (() => {
       const counts = itpCompletionByProject.get(p.id);
       if (!counts || counts.total === 0) return null;

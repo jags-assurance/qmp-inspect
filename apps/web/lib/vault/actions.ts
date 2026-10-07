@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
 import { extractTextFromFile } from "@/lib/vault/extract-text";
+import { notifyDocumentSubmitted } from "@/lib/vault/notifications";
 
 export interface UploadVaultDocumentState {
   error: string | null;
@@ -255,6 +256,7 @@ export async function uploadVaultDocumentAction(
   });
 
   if (!result.error) {
+    if (result.documentId) await notifyDocumentSubmitted(supabase, result.documentId, user?.id ?? null);
     revalidatePath(`/inspect/vault/${projectId}/${folderId}`);
     revalidatePath("/inspect/vault");
   }

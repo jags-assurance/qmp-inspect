@@ -32,6 +32,8 @@ export interface DataBookRow {
   id: string;
   project_id: string;
   book_number: string;
+  /** 0 for the first book; incremented by DB trigger for each later book. */
+  revision?: number;
   title: string;
   status: DataBookStatus;
   compiled_by: string | null;
