@@ -994,6 +994,7 @@ export async function finalizeAssignmentAction(
       description: `Conditional pass: ${assignment.equipment_description} (${assignment.assignment_number})`,
       source: "fat_conditional_pass",
       sourceStandaloneAssignmentId: assignmentId,
+      dedupe: true,
     });
     if (punch.error) {
       // Without the linked punch item nothing would gate clearance - undo the finalize.
@@ -1015,6 +1016,8 @@ export async function finalizeAssignmentAction(
       description: `Failed: ${assignment.equipment_description} (${assignment.assignment_number})`,
       source: "manual",
       sourceStandaloneAssignmentId: assignmentId,
+      priority: "A",
+      dedupe: true,
     });
   }
 

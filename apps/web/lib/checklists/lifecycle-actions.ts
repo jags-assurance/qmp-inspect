@@ -100,6 +100,7 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
       overall_result: null,
       inspector_signature: null,
       signed_by_name: null,
+      signed_by_user_id: null,
       signed_at: null,
       witness_name: null,
       witness_signature: null,

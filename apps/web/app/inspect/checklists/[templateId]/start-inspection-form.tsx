@@ -85,7 +85,9 @@ export function StartInspectionForm({
       <input type="hidden" name="activity" value={activity} />
       <input type="hidden" name="location" value={value} />
 
-      <p className="block text-sm font-medium text-ink">Location (optional)</p>
+      <p className="block text-sm font-medium text-ink">
+        Location <span className="text-danger">*</span> <span className="font-normal text-muted">(required to start)</span>
+      </p>
       <p className="mt-0.5 text-xs text-muted">
         Use your live location, or pick one of this project&apos;s own locations. Choosing one replaces the other.
       </p>
@@ -138,7 +140,7 @@ export function StartInspectionForm({
       )}
       {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
 
-      <Button type="submit" disabled={pending} className="mt-4">
+      <Button type="submit" disabled={pending || !value} className="mt-4">
         {pending ? "Starting…" : "Start inspection"}
       </Button>
       {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
