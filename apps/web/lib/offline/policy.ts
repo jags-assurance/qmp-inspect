@@ -98,3 +98,14 @@ export function itemGroupKey(item: { fields: Record<string, string> }): string {
   const assignment = item.fields.assignment_id?.trim();
   return assignment ? `assignment:${assignment}` : "";
 }
+
+/** Short human age for a queued item: "just now", "12 min", "3 h", "2 days". */
+export function formatQueueAge(createdAt: number, now: number = Date.now()): string {
+  const ms = Math.max(0, now - createdAt);
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.floor(hours / 24)} days`;
+}

@@ -16,7 +16,7 @@ import {
 import { notifyOutboxChanged, onOutboxChanged, syncOutbox } from "@/lib/offline/sync-client";
 import { getLocalUserId } from "@/lib/offline/user";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { STALE_QUEUE_DAYS, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
+import { STALE_QUEUE_DAYS, formatQueueAge, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -68,6 +68,7 @@ export function OfflineBanner() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [reviewItems, setReviewItems] = useState<OutboxItem[]>([]);
+  const [allItems, setAllItems] = useState<OutboxItem[]>([]);
   const [authBlocked, setAuthBlocked] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   // The outbox lives in best-effort IndexedDB storage unless persistence is granted (iOS Safari can
@@ -154,6 +155,7 @@ export function OfflineBanner() {
     try {
       const items = await getOutboxItems();
       setPendingCount(items.length);
+      setAllItems(items);
       const failing = items.filter((i) => i.status === "rejected" || i.status === "conflict" || i.status === "auth" || i.status === "foreign");
       setReviewItems(failing);
       setAuthBlocked(failing.some((i) => i.status === "auth"));
@@ -343,6 +345,38 @@ export function OfflineBanner() {
           )}
         </span>
       </div>
+      {pendingCount > 0 && (
+        <details className="border-b border-border bg-surface text-sm">
+          <summary className="cursor-pointer px-4 py-2 text-muted">View everything in the queue ({pendingCount})</summary>
+          <ul className="divide-y divide-border">
+            {allItems.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5">
+                <span>
+                  {describeItem(item)} <span className="text-muted">· queued {formatQueueAge(item.createdAt)} ago{item.status ? ` · ${item.status}` : ""}</span>
+                </span>
+                {!reviewItems.some((r) => r.id === item.id) && (
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      void ask({
+                        title: "Discard this queued change?",
+                        message: "It will not be saved.",
+                        confirmLabel: "Discard",
+                        destructive: true,
+                      }).then((ok) => {
+                        if (ok !== null) void act(removeOutboxItem, item.id);
+                      });
+                    }}
+                  >
+                    Discard
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {reviewItems.length > 0 && (
         <ul className="divide-y divide-border border-b border-border bg-surface text-sm" aria-label="Changes that need review">
           {reviewItems.map((item) => (

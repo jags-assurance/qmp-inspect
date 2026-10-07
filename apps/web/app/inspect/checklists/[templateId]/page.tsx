@@ -41,6 +41,7 @@ import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
+import { formatDistance, siteGeofenceFromProject, type SiteGeofence } from "@/lib/checklists/geofence";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
@@ -475,6 +476,29 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     }
   }
 
+  // S4-17: site geofence (start form) and the soft warning stored on the draft. Best-effort: the
+  // columns exist only after migration 20261110000200, so errors just mean "not configured".
+  let siteGeofence: SiteGeofence | null = null;
+  let draftGeofenceWarning: string | null = null;
+  if ((!draft && canExecute && itpApproved) || draft) {
+    const { data: siteRow } = await supabase
+      .from("projects")
+      .select("site_latitude, site_longitude, site_radius_m")
+      .eq("id", project.id)
+      .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
+    siteGeofence = siteRow ? siteGeofenceFromProject(siteRow) : null;
+    if (draft) {
+      const { data: geo } = await supabase
+        .from(INSPECTION_RECORDS_TABLE)
+        .select("location_geofence_status, location_distance_m, location_accuracy_m")
+        .eq("id", draft.id)
+        .maybeSingle<{ location_geofence_status: string | null; location_distance_m: number | null; location_accuracy_m: number | null }>();
+      if (geo?.location_geofence_status === "outside" && siteGeofence) {
+        draftGeofenceWarning = `Started about ${formatDistance(Number(geo.location_distance_m ?? 0))} from the project site (limit ${formatDistance(siteGeofence.radiusM)}).`;
+      }
+    }
+  }
+
   const locationPresetNames =
     !draft && canExecute && itpApproved && !holdOpen
       ? (await getLocationPresetsForProject(supabase, project.organization_id, project.id)).map((p) => p.name)
@@ -579,6 +603,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             itpNumber={itp.itp_number}
             activity={itpItem.activity}
             locationPresets={locationPresetNames}
+            siteGeofence={siteGeofence}
           />
         </div>
       )}
@@ -613,6 +638,12 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             : ownPartyLink
               ? "This inspection is in progress. Your organisation doesn't hold a role on this specific activity, so the responses below are read-only — a JAGS inspector or the assigned party is running it."
               : "This inspection is in progress, run by a JAGS inspector or the party assigned to this activity — the responses below are read-only for your login."}
+        </p>
+      )}
+
+      {draft && draftGeofenceWarning && (
+        <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          {draftGeofenceWarning} This is a warning only; it is recorded with the inspection.
         </p>
       )}
 

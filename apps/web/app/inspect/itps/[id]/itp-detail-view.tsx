@@ -483,6 +483,21 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     interventionMap.set(`${row.itp_item_id}:${row.project_party_id}`, row.intervention as InterventionLevel);
   }
 
+  // S4-18: comment / rejection text per sign-off row. Separate best-effort read: the columns come
+  // from migration 20261110000300, and a missing column must not break this page.
+  const signoffNotes = new Map<string, { signoffComment: string | null; rejectionReason: string | null }>();
+  if (!noItems) {
+    const { data: noteRows, error: noteError } = await supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .select("id, signoff_comment, rejection_reason")
+      .in("itp_item_id", allItemIds)
+      .returns<{ id: string; signoff_comment: string | null; rejection_reason: string | null }[]>();
+    if (!noteError) {
+      for (const r of noteRows ?? []) {
+        if (r.signoff_comment || r.rejection_reason) signoffNotes.set(r.id, { signoffComment: r.signoff_comment, rejectionReason: r.rejection_reason });
+      }
+    }
+  }
   const signoffMap = new Map<string, NonNullable<typeof signoffs>[number]>();
   const ownSignoffs = (signoffs ?? []).filter((row) => ownItemIds.has(row.itp_item_id));
   for (const row of ownSignoffs) {
@@ -933,7 +948,12 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 partyCells: (parties ?? []).map((party) => {
                   const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
                   const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
-                  return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id, party.is_active) };
+                  return {
+                    party,
+                    intervention,
+                    signoff: signoff ? { ...signoff, ...(signoffNotes.get(signoff.id) ?? {}) } : null,
+                    canSignOff: canSignOffFor(party.user_id, party.is_active),
+                  };
                 }),
               }));
               return (

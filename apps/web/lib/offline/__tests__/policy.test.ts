@@ -107,3 +107,18 @@ describe("schema error helpers", () => {
     expect(isStoragePermissionError({ message: "timeout", statusCode: 500 })).toBe(false);
   });
 });
+
+import { formatQueueAge } from "../policy";
+
+describe("formatQueueAge", () => {
+  const now = 1_000_000_000_000;
+  it("formats minutes, hours and days", () => {
+    expect(formatQueueAge(now - 10_000, now)).toBe("just now");
+    expect(formatQueueAge(now - 12 * 60_000, now)).toBe("12 min");
+    expect(formatQueueAge(now - 3 * 3_600_000, now)).toBe("3 h");
+    expect(formatQueueAge(now - 72 * 3_600_000, now)).toBe("3 days");
+  });
+  it("never goes negative for future timestamps", () => {
+    expect(formatQueueAge(now + 5_000, now)).toBe("just now");
+  });
+});

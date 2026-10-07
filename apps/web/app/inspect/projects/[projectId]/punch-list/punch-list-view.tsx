@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AddPunchItemForm } from "./add-punch-item-form";
 import { RecordWalkdownForm } from "./record-walkdown-form";
+import { WalkdownsPanel } from "./walkdowns-panel";
 import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -121,6 +122,8 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
         <AddPunchItemForm projectId={projectId} projectParties={projectParties ?? []} />
         <RecordWalkdownForm projectId={projectId} projectParties={projectParties ?? []} />
       </div>
+
+      <WalkdownsPanel projectId={projectId} />
 
       <div className="mt-6">
         <PunchListTable

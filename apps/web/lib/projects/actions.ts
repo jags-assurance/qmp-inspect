@@ -1,5 +1,6 @@
 "use server";
 
+import { parseSiteGeofenceForm } from "@/lib/checklists/geofence";
 import { clientRecipientIds } from "@/lib/handover/helpers";
 import { describeCloseBlockers, isClosedStatus, statusReasonError, type ProjectCloseCounts } from "@/lib/projects/close-helpers";
 import { redirect } from "next/navigation";
@@ -504,6 +505,40 @@ export async function setEnforceHoldBlocksStartAction(
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
+}
+
+export interface SetSiteGeofenceState {
+  error: string | null;
+  saved?: boolean;
+}
+
+/** S4-17: site point and radius for the soft start-inspection geofence. Admin only; blank clears. */
+export async function setSiteGeofenceAction(_prev: SetSiteGeofenceState, formData: FormData): Promise<SetSiteGeofenceState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can change this setting." };
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) return { error: "Missing project." };
+  const parsed = parseSiteGeofenceForm(
+    String(formData.get("site_latitude") ?? ""),
+    String(formData.get("site_longitude") ?? ""),
+    String(formData.get("site_radius_m") ?? "")
+  );
+  if ("error" in parsed) return { error: parsed.error };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update(
+      parsed.value
+        ? { site_latitude: parsed.value.lat, site_longitude: parsed.value.lng, site_radius_m: parsed.value.radiusM }
+        : { site_latitude: null, site_longitude: null, site_radius_m: null }
+    )
+    .eq("id", projectId);
+  if (error) {
+    const missing = error.code === "42703" || error.code === "PGRST204";
+    return { error: missing ? "The site geofence needs a database update that has not been applied yet." : "Could not save the site location. Check you have permission and try again." };
+  }
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null, saved: true };
 }
 
 export interface SetAllowClientItpCreationState {

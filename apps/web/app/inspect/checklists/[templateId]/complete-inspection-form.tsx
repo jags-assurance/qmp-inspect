@@ -5,6 +5,7 @@ import { completeInspectionAction, type CompleteInspectionState } from "@/lib/ch
 import { SignaturePad } from "@/components/domain/signature-pad";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { validateCompletionFieldsClient } from "@/lib/checklists/completion-logic";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
@@ -52,6 +53,18 @@ export function CompleteInspectionForm({
     e.preventDefault();
     setQueueError(null);
     const formData = new FormData(e.currentTarget);
+    // Same field checks the server applies, run first so an offline queue never holds a completion
+    // the server would refuse later (S4-05).
+    const fieldProblem = validateCompletionFieldsClient({
+      signature: String(formData.get("signature") ?? ""),
+      witnessName: String(formData.get("witness_name") ?? ""),
+      witnessSignature: String(formData.get("witness_signature") ?? ""),
+    });
+    if (fieldProblem) {
+      setState({ error: fieldProblem });
+      return;
+    }
+    setState(initialState);
     // One tap permanently locks the record (a Fail also raises punch items and notifications): confirm first.
     const ok = await ask({
       title: "Complete and sign this inspection?",

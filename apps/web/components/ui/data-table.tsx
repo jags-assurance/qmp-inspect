@@ -1,5 +1,6 @@
 "use client";
 
+import { BarcodeScanButton } from "@/components/ui/barcode-scan-button";
 import { useMemo, useState, type ReactNode } from "react";
 
 export interface DataTableColumn<T> {
@@ -55,6 +56,7 @@ export function DataTable<T>({
   sort,
   caption,
   mobileCards = true,
+  scannable = false,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -74,6 +76,8 @@ export function DataTable<T>({
   /** Below the sm breakpoint show each row as a stacked label/value card instead of the table
    *  (default on; pass false for a table that must stay a scrolling grid on phones). */
   mobileCards?: boolean;
+  /** Adds a camera barcode / QR scan button next to the search box (register lookups). */
+  scannable?: boolean;
 }) {
   const [localQuery, setLocalQuery] = useState("");
   const isServerDriven = !!serverSearch;
@@ -90,7 +94,7 @@ export function DataTable<T>({
 
   return (
     <div className="rounded-lg border border-border bg-surface">
-      <div className="border-b border-border p-3">
+      <div className="flex flex-wrap items-start gap-2 border-b border-border p-3">
         <input
           value={query}
           onChange={(e) => (isServerDriven ? serverSearch.onChange(e.target.value) : setLocalQuery(e.target.value))}
@@ -98,6 +102,12 @@ export function DataTable<T>({
           aria-label={searchPlaceholder}
           className="min-h-10 w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-base focus:border-burgundy sm:text-sm"
         />
+        {scannable && (
+          <BarcodeScanButton
+            label="Scan code"
+            onCode={(code) => (isServerDriven ? serverSearch.onChange(code) : setLocalQuery(code))}
+          />
+        )}
       </div>
       <div className={mobileCards ? "table-scroll hidden sm:block" : "table-scroll"} tabIndex={0} role="region" aria-label={caption ?? "Data table"}>
         <table className="w-full text-sm">

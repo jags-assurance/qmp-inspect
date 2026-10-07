@@ -8,6 +8,7 @@ import { isOverdue } from "../is-overdue";
 import { NcrPdfButton } from "./ncr-pdf-button";
 import { NcrCloseoutCertificateButton } from "./ncr-closeout-certificate-button";
 import { CloseOutForm } from "./close-out-form";
+import { NcrClientAcceptancePanel } from "./ncr-client-acceptance-panel";
 import { NcrDocuments } from "./ncr-documents";
 import { GradeObservation } from "./grade-observation";
 import { NcrPhotoUpload } from "./ncr-photo-upload";
@@ -161,6 +162,15 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
                   ))}
                 </ul>
               </div>
+            )}
+            {ncr.severity !== "observation" && (
+              <NcrClientAcceptancePanel
+                ncrId={ncr.id}
+                projectId={ncr.project_id}
+                status={ncr.status}
+                disposition={ncr.disposition ?? null}
+                withdrawn={isWithdrawn}
+              />
             )}
             <div className="mt-4">
               <CloseOutForm

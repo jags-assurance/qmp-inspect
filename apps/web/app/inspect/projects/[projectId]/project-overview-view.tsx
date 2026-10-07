@@ -1,3 +1,4 @@
+import { SiteGeofenceSettings } from "./site-geofence-settings";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -109,6 +110,13 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
     .maybeSingle<ProjectDetail>();
 
   if (!project) notFound();
+
+  // S4-17 site geofence (columns exist after migration 20261110000200; errors mean "not set up yet").
+  const { data: siteRow } = await supabase
+    .from("projects")
+    .select("site_latitude, site_longitude, site_radius_m")
+    .eq("id", projectId)
+    .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
 
   const [
     { data: parties },
@@ -542,6 +550,22 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
             organizationId={project.organization_id}
             projectId={project.id}
             presets={projectLocationPresets}
+          />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Site location (geofence)</h2>
+          <p className="mt-1 text-sm text-muted">
+            Optional. When set, starting an inspection with live GPS shows a warning if the inspector is farther than the radius from
+            this point. It never blocks work, and the distance is recorded with the inspection. Leave blank to switch it off.
+          </p>
+          <SiteGeofenceSettings
+            projectId={project.id}
+            latitude={siteRow?.site_latitude ?? null}
+            longitude={siteRow?.site_longitude ?? null}
+            radiusM={siteRow?.site_radius_m ?? null}
           />
         </div>
       )}

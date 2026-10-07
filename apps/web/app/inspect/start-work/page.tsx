@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { ScanSearchInput } from "./scan-search-input";
 import { SaveOfflineButton } from "./save-offline-button";
 import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
 import { filterByArchive, parseArchiveFilter } from "@/lib/checklists/template-ui-logic";
@@ -198,13 +199,7 @@ export default async function StartWorkPage({
           Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.
         </p>
         <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <input
-            type="search"
-            name="q"
-            defaultValue={sp.q ?? ""}
-            placeholder="Search activity, ITP or checklist"
-            className="min-h-11 flex-1 rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy sm:min-w-56"
-          />
+<ScanSearchInput defaultValue={sp.q ?? ""} />
           <select name="project" defaultValue={projectFilter} aria-label="Project" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
             <option value="">All projects</option>
             {projectOptions.map(([id, name]) => (

@@ -142,6 +142,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       caption="Material register"
       columns={columns}
       rows={rows}
+      scannable
       searchPlaceholder="Search materials, heat, batch, PO, supplier…"
       searchKeys={(row) =>
         `${row.material_description} ${row.submittal_reference ?? ""} ${row.heat_number ?? ""} ${row.batch_number ?? ""} ${row.po_reference ?? ""} ${row.supplier ?? ""}`
