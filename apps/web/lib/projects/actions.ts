@@ -1,5 +1,7 @@
 "use server";
 
+import { clientRecipientIds } from "@/lib/handover/helpers";
+import { describeCloseBlockers, isClosedStatus, statusReasonError, type ProjectCloseCounts } from "@/lib/projects/close-helpers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -888,36 +890,125 @@ export async function updateProjectStatusAction(
 
   const projectId = String(formData.get("project_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim() as ProjectStatus;
+  const reason = String(formData.get("reason") ?? "").trim();
   if (!projectId || !VALID_PROJECT_STATUSES.includes(status)) {
     return { error: "Missing project or invalid status." };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: project, error } = await supabase
+  const { data: current } = await supabase
     .from("projects")
-    .update({ status })
+    .select("organization_id, status, responsible_person_id")
     .eq("id", projectId)
-    .select("organization_id, status")
-    .single<{ organization_id: string; status: string }>();
+    .maybeSingle<{ organization_id: string; status: string; responsible_person_id: string | null }>();
+  if (!current) return { error: "Project not found, or you do not have access to it." };
+  if (current.status === status) return { error: null };
 
-  if (error || !project) {
-    return { error: "Could not update the project's status. Check you have permission and try again." };
+  const reasonError = statusReasonError(current.status, status, reason);
+  if (reasonError) return { error: reasonError };
+
+  if (status === "completed") {
+    // close_project() is admin-only in SQL and refuses to close with open NCRs / punch items / draft
+    // inspections unless a reason is given (the reason is then recorded by the RPC).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+    const { error: rpcError } = await (supabase.rpc as any)("close_project", {
+      p_project_id: projectId,
+      p_reason: reason || null,
+    });
+    if (rpcError) {
+      const m = (rpcError.message ?? "").toLowerCase();
+      if (m.includes("open") || m.includes("draft") || m.includes("reason")) {
+        return { error: "This project still has open NCRs, punch items or draft inspections. Enter a reason to close it anyway." };
+      }
+      return { error: "Could not close the project. Check you have permission and try again." };
+    }
+  } else {
+    const { data: updated, error } = await supabase
+      .from("projects")
+      .update({ status })
+      .eq("id", projectId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error || !updated) {
+      return { error: "Could not update the project's status. Check you have permission and try again." };
+    }
   }
 
   await recordAuditEvent(supabase, {
-    organizationId: project.organization_id,
+    organizationId: current.organization_id,
     projectId,
     entityType: "project",
     entityId: projectId,
-    action: "status_changed",
+    action: isClosedStatus(current.status) ? "reopened" : "status_changed",
     actorId: session.userId,
-    summary: `Project status changed to "${status}"`,
-    changes: { status },
+    summary: `Project status changed from "${current.status}" to "${status}"${reason ? ` (${reason})` : ""}`,
+    changes: { from: current.status, to: status, reason: reason || null },
   });
+
+  // Re-opening a closed project: tell the client users on the project and its responsible person.
+  if (isClosedStatus(current.status)) {
+    try {
+      const { data: grants } = await supabase
+        .from("access_grants")
+        .select("user_id, role, scope_type, organization_id, project_id")
+        .eq("role", "client")
+        .or(`organization_id.eq.${current.organization_id},project_id.eq.${projectId}`)
+        .returns<{ user_id: string; role: string; scope_type: string; organization_id: string | null; project_id: string | null }[]>();
+      const recipients = new Set(clientRecipientIds(grants ?? [], { id: projectId, organizationId: current.organization_id }, [session.userId]));
+      if (current.responsible_person_id && current.responsible_person_id !== session.userId) recipients.add(current.responsible_person_id);
+      if (recipients.size > 0) {
+        await supabase.from("notifications").insert(
+          [...recipients].map((id) => ({
+            organization_id: current.organization_id,
+            project_id: projectId,
+            recipient_user_id: id,
+            title: "Project re-opened",
+            body: `The project was moved from ${current.status} to ${status}. Reason: ${reason}`,
+            link: `/inspect/projects/${projectId}`,
+          }))
+        );
+      }
+    } catch {
+      // Best-effort.
+    }
+  }
 
   revalidatePath(`/inspect/projects/${projectId}`);
   revalidatePath("/inspect/projects");
   return { error: null };
+}
+
+export interface ProjectCloseSummary extends ProjectCloseCounts {
+  blockers: string[];
+}
+
+/** Counts shown in the confirm dialog before completing / cancelling a project. Admin-only. */
+export async function getProjectCloseSummaryAction(projectId: string): Promise<ProjectCloseSummary | null> {
+  const session = await requireSession();
+  if (!isAdminStaff(session) || !projectId) return null;
+  const supabase = await createSupabaseServerClient();
+  const [ncr, punch, drafts, project] = await Promise.all([
+    supabase.from("ncrs" as never).select("id", { count: "exact", head: true }).eq("project_id" as never, projectId as never).neq("status" as never, "closed" as never),
+    supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+    supabase.from("inspection_records").select("id", { count: "exact", head: true }).eq("project_id", projectId).is("overall_result", null),
+    supabase.from("projects").select("project_number, name").eq("id", projectId).maybeSingle<{ project_number: string; name: string }>(),
+  ]);
+  let overdueHolds = 0;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rows } = await (supabase.rpc as any)("overdue_hold_points");
+    const label = project.data ? `${project.data.project_number} — ${project.data.name}` : null;
+    overdueHolds = ((rows ?? []) as { project_label: string }[]).filter((r) => r.project_label === label).length;
+  } catch {
+    // Count shows 0 if the RPC is unavailable.
+  }
+  const counts: ProjectCloseCounts = {
+    openNcrs: ncr.count ?? 0,
+    openPunch: punch.count ?? 0,
+    overdueHolds,
+    draftInspections: drafts.count ?? 0,
+  };
+  return { ...counts, blockers: describeCloseBlockers(counts) };
 }
 
 export interface SetResponsiblePersonState {

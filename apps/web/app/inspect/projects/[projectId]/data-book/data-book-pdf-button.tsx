@@ -67,12 +67,21 @@ export function DataBookPdfButton({
   latest,
   generateLabel,
   isDraftBook = false,
+  canGenerate = false,
+  isAdmin = false,
+  pdfOutOfDate = false,
 }: {
   dataBookId: string;
   projectId: string;
   latest: DataBookPdfStatus | null;
   generateLabel?: string;
   isDraftBook?: boolean;
+  /** JAGS staff only — clients can only view/download an existing PDF. */
+  canGenerate?: boolean;
+  /** JAGS admin: may force-regenerate the PDF of an issued (certified) book. */
+  isAdmin?: boolean;
+  /** Project data changed after the last completed PDF was rendered. */
+  pdfOutOfDate?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(requestDataBookPdfAction, initialState);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestDataBookPdf, dataBookId);
@@ -85,6 +94,9 @@ export function DataBookPdfButton({
 
   const ready = liveStatus?.status === "completed";
   const failed = liveStatus?.status === "failed";
+  // An issued book reuses its stored PDF; only an admin sees (and can use) the forced "Regenerate" action.
+  const issuedLocked = !isDraftBook && Boolean(liveStatus) && !failed;
+  const showGenerate = canGenerate && (!issuedLocked || isAdmin);
   const idleLabel = failed ? "Retry PDF" : liveStatus ? "Regenerate PDF" : (generateLabel ?? "Generate PDF");
 
   return (
@@ -103,13 +115,16 @@ export function DataBookPdfButton({
             Download PDF ↓
           </a>
         )}
-        <form action={formAction}>
-          <input type="hidden" name="data_book_id" value={dataBookId} />
-          <input type="hidden" name="project_id" value={projectId} />
-          <Button type="submit" size="sm" variant="outline" onClick={beginGenerate} disabled={pending || polling}>
-            {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : idleLabel}
-          </Button>
-        </form>
+        {showGenerate && (
+          <form action={formAction}>
+            <input type="hidden" name="data_book_id" value={dataBookId} />
+            <input type="hidden" name="project_id" value={projectId} />
+            {issuedLocked && <input type="hidden" name="regenerate" value="true" />}
+            <Button type="submit" size="sm" variant="outline" onClick={beginGenerate} disabled={pending || polling}>
+              {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : idleLabel}
+            </Button>
+          </form>
+        )}
       </div>
       {state.error && <p className="text-xs text-danger" role="alert">{state.error}</p>}
       <p className="text-xs text-muted" aria-live="polite">
@@ -124,6 +139,11 @@ export function DataBookPdfButton({
           "No PDF generated yet."
         )}
       </p>
+      {pdfOutOfDate && ready && (
+        <p className="text-xs font-medium text-warning" role="status">
+          PDF out of date — NCRs, punch items or IRNs changed after it was generated.
+        </p>
+      )}
       {polling && <p className="text-xs text-muted">Rendering — View and Download appear automatically when ready…</p>}
       {timedOut && (
         <p className="text-xs text-danger">

@@ -758,13 +758,43 @@ export interface RequestDataBookPdfState {
  */
 export async function requestDataBookPdfAction(_prev: RequestDataBookPdfState, formData: FormData): Promise<RequestDataBookPdfState> {
   const session = await requireSession();
+  // Generating (and re-generating) is staff-only; clients view/download what already exists.
+  if (!session.isJagsStaff) return { error: "Only JAGS staff can generate a Data Book PDF." };
   const dataBookId = String(formData.get("data_book_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
+  const regenerate = formData.get("regenerate") === "true";
   if (!dataBookId) return { error: "Missing data book." };
 
   const supabase = await createSupabaseServerClient();
-  const { data: dbRow } = await supabase.from("data_books").select("id").eq("id", dataBookId).maybeSingle<{ id: string }>();
+  const { data: dbRow } = await supabase
+    .from("data_books")
+    .select("id, status")
+    .eq("id", dataBookId)
+    .maybeSingle<{ id: string; status: string }>();
   if (!dbRow) return { error: "Data book not found, or you do not have access to it." };
+
+  // An issued book is a certified record: reuse its stored PDF instead of re-rendering it (the data may
+  // have changed since issue). Only a JAGS admin can force a regeneration, and only with regenerate=true.
+  if (dbRow.status === "issued") {
+    if (regenerate && !isAdminStaff(session)) {
+      return { error: "Only a JAGS Admin can regenerate the PDF of an issued Data Book." };
+    }
+    if (!regenerate) {
+      const { data: stored } = await supabase
+        .from(BACKGROUND_JOBS_TABLE)
+        .select("id")
+        .eq("job_type", "render_data_book_pdf")
+        .eq("payload->>data_book_id", dataBookId)
+        .eq("status", "completed")
+        .not("result_storage_path", "is", null)
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      if (stored) {
+        if (projectId) revalidatePath(`/inspect/projects/${projectId}/data-book`);
+        return { error: null, success: true };
+      }
+    }
+  }
   if (await hasInFlightJob(supabase, "render_data_book_pdf", "data_book_id", dataBookId)) {
     if (projectId) revalidatePath(`/inspect/projects/${projectId}/data-book`);
     return { error: null, success: true };

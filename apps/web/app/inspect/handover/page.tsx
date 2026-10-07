@@ -1,6 +1,7 @@
 import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
@@ -16,6 +17,9 @@ interface HandoverRow {
   received_by_name: string | null;
   received_by_company: string | null;
   acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  acknowledged_by_role: string | null;
+  acknowledged_on_behalf: boolean | null;
   package_storage_path: string | null;
   package_sha256: string | null;
   is_conditional: boolean;
@@ -35,16 +39,29 @@ interface HandoverRow {
 // package_storage_path; a certificate with none is a pre-fix legacy row and gets a red warning
 // banner rather than silently reading "Not yet available" as if that were normal.
 export default async function HandoverPage() {
-  await requireSession();
+  const session = await requireSession();
+  const isClient = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
+  const onBehalfAllowed = isAdminStaff(session);
+  // Handover certificates are a client-facing record: contractors, subcontractors and TPI/lab users
+  // have no part in them, so they are sent back to the dashboard. JAGS staff can view all.
+  if (!isClient && !session.isJagsStaff) redirect("/inspect");
   const supabase = await createSupabaseServerClient();
 
   const { data: certificates } = await supabase
     .from(HANDOVER_CERTIFICATES_TABLE)
     .select(
-      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(book_number, title, projects(name, project_number, organizations(name)))"
+      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, acknowledged_by, acknowledged_by_role, acknowledged_on_behalf, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(book_number, title, projects(name, project_number, organizations(name)))"
     )
     .order("issued_date", { ascending: false })
     .returns<HandoverRow[]>();
+
+  // Who recorded each acknowledgement (display name) — one query for all certificates.
+  const ackUserIds = [...new Set((certificates ?? []).map((c) => c.acknowledged_by).filter((v): v is string => Boolean(v)))];
+  const ackNames = new Map<string, string>();
+  if (ackUserIds.length > 0) {
+    const { data: users } = await supabase.from("users").select("id, full_name").in("id", ackUserIds).returns<{ id: string; full_name: string | null }[]>();
+    for (const u of users ?? []) if (u.full_name) ackNames.set(u.id, u.full_name);
+  }
 
   // Perf fix: this used to be one createSignedUrl round trip PER certificate, serially — an org
   // with many issued handovers paid N sequential Storage calls on every page load. Batched via the
@@ -153,10 +170,19 @@ export default async function HandoverPage() {
                 <p className="text-sm text-success">
                   Acknowledged by {cert.received_by_name ?? "—"}
                   {cert.received_by_company ? `, ${cert.received_by_company}` : ""} on{" "}
-                  {new Date(cert.acknowledged_at).toLocaleDateString("en-GB")}
+                  {new Date(cert.acknowledged_at).toLocaleString("en-GB")}
+                  {cert.acknowledged_by && ackNames.get(cert.acknowledged_by)
+                    ? ` · recorded by ${ackNames.get(cert.acknowledged_by)}${cert.acknowledged_on_behalf ? " (JAGS staff, on behalf of the client)" : ""}`
+                    : cert.acknowledged_on_behalf
+                      ? " · recorded by JAGS staff on behalf of the client"
+                      : ""}
                 </p>
+              ) : !packageLinks.has(cert.id) ? (
+                <p className="text-sm text-muted">Acknowledgement is unavailable until a package file is attached to this certificate.</p>
+              ) : isClient || onBehalfAllowed ? (
+                <AcknowledgeForm certificateId={cert.id} onBehalf={!isClient && onBehalfAllowed} userName={session.fullName} />
               ) : (
-                <AcknowledgeForm certificateId={cert.id} />
+                <p className="text-sm text-muted">Awaiting client acknowledgement.</p>
               )}
             </div>
           </div>

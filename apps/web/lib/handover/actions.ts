@@ -2,19 +2,71 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { createNotification } from "@/lib/notifications/helpers";
-import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
+import { sendNotificationEmail } from "@/lib/notifications/email";
+import { NOTIFICATIONS_TABLE } from "@/lib/notifications/types";
+import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE, type ConditionalOpenItem } from "@/lib/databook/types";
+import { computeDataBookReadiness } from "@/lib/databook/readiness";
+import {
+  MAX_ACK_NAME_LENGTH,
+  MAX_CERT_NUMBER_LENGTH,
+  categoriesToOverrideItems,
+  failingReadinessCategories,
+  isValidPackagePath,
+  isValidSha256,
+} from "@/lib/databook/helpers";
+import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { acknowledgeErrorMessage, clientRecipientIds, issueErrorMessage } from "./helpers";
 
 export interface IssueHandoverState {
   error: string | null;
 }
 
+type ServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+interface NotifyParams {
+  organizationId: string;
+  projectId: string;
+  recipientIds: string[];
+  title: string;
+  body: string;
+  link: string;
+}
+
+/** One notifications insert for all recipients (best-effort), then fire-and-forget emails when email is configured. */
+async function notifyMany(supabase: ServerClient, p: NotifyParams): Promise<void> {
+  if (p.recipientIds.length === 0) return;
+  try {
+    await supabase.from(NOTIFICATIONS_TABLE).insert(
+      p.recipientIds.map((id) => ({
+        organization_id: p.organizationId,
+        project_id: p.projectId,
+        recipient_user_id: id,
+        title: p.title,
+        body: p.body,
+        link: p.link,
+      }))
+    );
+    if (process.env.RESEND_API_KEY) {
+      const { data: users } = await supabase.from("users").select("email").in("id", p.recipientIds).returns<{ email: string }[]>();
+      for (const u of users ?? []) {
+        if (!u.email) continue;
+        sendNotificationEmail({ toEmail: u.email, title: p.title, body: p.body, link: p.link }).catch(() => {});
+      }
+    }
+  } catch {
+    // Best-effort.
+  }
+}
+
 /**
- * Moves a compiled Data Book to 'issued' and creates its handover certificate — the terminal state
- * that makes it visible in the client-facing Handover Portal. Staff-only (mirrors compiling), and
- * only ever fires off a 'compiled' Data Book, never a draft one.
+ * Moves a compiled Data Book to 'issued' and creates its handover certificate through the atomic
+ * issue_data_book_handover() RPC (claim + certificate insert in one transaction, with its own staff /
+ * compiled / path-prefix / sha256 / open-punch checks). Staff-only. Before calling it this action
+ * re-runs the readiness gates server-side: a book can only be issued when the project is ready now
+ * or the book carries a documented override.
  */
 export async function issueHandoverAction(
   _prev: IssueHandoverState,
@@ -24,27 +76,45 @@ export async function issueHandoverAction(
   const projectId = String(formData.get("project_id") ?? "").trim();
   const certificateNumber = String(formData.get("certificate_number") ?? "").trim();
   const packageStoragePath = String(formData.get("package_storage_path") ?? "").trim();
-  const packageSha256 = String(formData.get("package_sha256") ?? "").trim();
+  const packageSha256 = String(formData.get("package_sha256") ?? "").trim().toLowerCase();
 
-  if (!dataBookId || !projectId || !certificateNumber) {
-    return { error: "Certificate number is required." };
+  const supabase = await createSupabaseServerClient();
+  const pathOk = Boolean(dataBookId) && isValidPackagePath(packageStoragePath, dataBookId);
+
+  // Removes the file the browser already uploaded when issuing fails, so failed attempts don't leave orphans.
+  async function fail(error: string): Promise<IssueHandoverState> {
+    if (pathOk) {
+      try {
+        await supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).remove([packageStoragePath]);
+      } catch {
+        // Best-effort cleanup.
+      }
+    }
+    return { error };
   }
 
-  // Round-table finding: a certificate must never be issuable without an actual package file behind
-  // it — the client is being asked to formally accept receipt of something real, not a placeholder.
+  if (!dataBookId || !projectId) {
+    return fail("Missing Data Book.");
+  }
+  if (certificateNumber.length > MAX_CERT_NUMBER_LENGTH) {
+    return fail(`Certificate number must be ${MAX_CERT_NUMBER_LENGTH} characters or fewer.`);
+  }
+
+  // A certificate must never be issuable without an actual package file behind it.
   if (!packageStoragePath) {
     return { error: "Upload the handover package file before issuing this certificate." };
+  }
+  if (!pathOk) {
+    return { error: "The uploaded package reference is invalid. Re-upload the file and try again." };
+  }
+  if (!isValidSha256(packageSha256)) {
+    return fail("The package fingerprint is invalid. Re-upload the file and try again.");
   }
 
   const session = await requireSession();
   if (!session.isJagsStaff) {
-    return { error: "Only JAGS staff can issue a handover certificate." };
+    return fail("Only JAGS staff can issue a handover certificate.");
   }
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: dataBook } = await supabase
     .from(DATA_BOOKS_TABLE)
@@ -62,111 +132,107 @@ export async function issueHandoverAction(
     }>();
 
   if (!dataBook || dataBook.status !== "compiled") {
-    return { error: "Only a compiled Data Book can be issued for handover." };
+    return fail("Only a compiled Data Book can be issued for handover.");
   }
 
-  // Server-side gate re-check at issue time: a non-overridden book must still have zero open punch
-  // items (something may have been re-opened since compile).
-  if (!dataBook.override_open_punch_items) {
-    const { count: openPunch } = await supabase
-      .from("punch_list_items")
-      .select("id", { count: "exact", head: true })
-      .eq("project_id", projectId)
-      .neq("status", "closed");
-    if ((openPunch ?? 0) > 0) {
-      return {
-        error: `${openPunch} punch item(s) are open again since this book was compiled. Close them, or compile a new book with a documented override.`,
-      };
+  // Server-side re-check of every readiness gate at issue time (something may have changed since compile).
+  const readiness = await computeDataBookReadiness(projectId);
+  if (!readiness.isReady && !dataBook.override_open_punch_items) {
+    const failing = failingReadinessCategories(readiness)
+      .map((c) => `${c.category} (${c.outstanding} outstanding)`)
+      .join("; ");
+    return fail(
+      `This project is no longer ready: ${failing}. Resolve these, or compile a new book with a documented override.`
+    );
+  }
+
+  // Overridden book: re-snapshot what is outstanding NOW, so the certificate records the current state
+  // rather than the state at compile time. Best-effort; the RPC carries the book's snapshot forward.
+  if (!readiness.isReady && dataBook.override_open_punch_items) {
+    try {
+      const { data: openPunch } = await supabase
+        .from(PUNCH_LIST_ITEMS_TABLE)
+        .select("id, description, location, due_date, project_parties(name)")
+        .eq("project_id", projectId)
+        .neq("status", "closed")
+        .limit(5000)
+        .returns<{ id: string; description: string; location: string | null; due_date: string | null; project_parties: { name: string } | null }[]>();
+      const items: ConditionalOpenItem[] = [
+        ...categoriesToOverrideItems(failingReadinessCategories(readiness).filter((c) => c.category !== "Punch list items closed")),
+        ...(openPunch ?? []).map((i) => ({
+          id: i.id,
+          description: i.description,
+          location: i.location,
+          due_date: i.due_date,
+          responsible_party_name: i.project_parties?.name ?? null,
+        })),
+      ];
+      await supabase.from(DATA_BOOKS_TABLE).update({ override_items: items }).eq("id", dataBookId).eq("status", "compiled");
+    } catch {
+      // Keep the compile-time snapshot.
     }
   }
 
-  // Atomically claim the compiled -> issued transition first so a double-click or concurrent issue
-  // cannot create two certificates; reverted below if the certificate insert fails.
-  const { data: claimed } = await supabase
-    .from(DATA_BOOKS_TABLE)
-    .update({ status: "issued" })
-    .eq("id", dataBookId)
-    .eq("status", "compiled")
-    .select("id")
-    .maybeSingle<{ id: string }>();
-  if (!claimed) {
-    return { error: "This Data Book was already issued or changed by someone else. Refresh the page." };
+  // Atomic claim + certificate insert (see supabase migration: issue_data_book_handover).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  const { data: certificateId, error: rpcError } = await (supabase.rpc as any)("issue_data_book_handover", {
+    p_data_book_id: dataBookId,
+    p_package_storage_path: packageStoragePath,
+    p_package_sha256: packageSha256,
+    p_notes: certificateNumber ? `Certificate reference: ${certificateNumber}` : null,
+  });
+
+  if (rpcError || !certificateId) {
+    return fail(issueErrorMessage(rpcError?.code, rpcError?.message));
   }
 
-  // Carries the open-items-at-override snapshot forward onto the certificate itself, so a
-  // Conditional Handover reads as a self-contained, permanent record of what was open and agreed
-  // at issue time — see 20260920050000_conditional_handover.sql.
-  const { data: certificate, error: certError } = await supabase
+  const { data: project } = await supabase
+    .from("projects")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ organization_id: string }>();
+  // The RPC assigns the certificate number; read it back for notifications and the audit trail.
+  const { data: issuedCert } = await supabase
     .from(HANDOVER_CERTIFICATES_TABLE)
-    .insert({
-      data_book_id: dataBookId,
-      certificate_number: certificateNumber,
-      issued_by: user?.id ?? null,
-      package_storage_path: packageStoragePath,
-      package_sha256: packageSha256 || null,
-      is_conditional: dataBook.override_open_punch_items,
-      conditional_reason: dataBook.override_open_punch_items ? dataBook.override_reason : null,
-      conditional_open_items: dataBook.override_open_punch_items ? dataBook.override_items : null,
-    })
-    .select("id")
-    .single<{ id: string }>();
+    .select("certificate_number")
+    .eq("id", String(certificateId))
+    .maybeSingle<{ certificate_number: string }>();
+  const issuedNumber = issuedCert?.certificate_number ?? certificateNumber ?? "";
 
-  if (certError || !certificate) {
-    await supabase.from(DATA_BOOKS_TABLE).update({ status: "compiled" }).eq("id", dataBookId).eq("status", "issued");
-    if (certError?.code === "23505") {
-      return { error: "A handover certificate already exists for this Data Book or that certificate number is in use." };
-    }
-    return { error: "Could not issue the handover certificate. Check you have permission and try again." };
-  }
-
-  // Notify the client organisation's users (best-effort).
-  try {
-    const { data: project } = await supabase
-      .from("projects")
-      .select("organization_id")
-      .eq("id", projectId)
-      .single();
-    if (project?.organization_id) {
-      const { data: recipients } = await supabase
+  // Notify only client-role users who have access to this project (best-effort, single insert).
+  if (project?.organization_id) {
+    try {
+      const { data: grants } = await supabase
         .from("access_grants")
-        .select("user_id")
-        .eq("organization_id", project.organization_id)
-        .returns<{ user_id: string }[]>();
-      for (const r of [...new Map((recipients ?? []).map((g) => [g.user_id, g])).values()]) {
-        if (r.user_id === user?.id) continue;
-        await createNotification(supabase, {
-          organizationId: project.organization_id,
-          projectId,
-          recipientUserId: r.user_id,
-          title: `Handover certificate ${certificateNumber} issued`,
-          body: `Data Book ${dataBook.book_number} is ready. Please review and acknowledge receipt.`,
-          link: "/inspect/handover",
-        });
-      }
+        .select("user_id, role, scope_type, organization_id, project_id")
+        .eq("role", "client")
+        .or(`organization_id.eq.${project.organization_id},project_id.eq.${projectId}`)
+        .returns<{ user_id: string; role: string; scope_type: string; organization_id: string | null; project_id: string | null }[]>();
+      await notifyMany(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        recipientIds: clientRecipientIds(grants ?? [], { id: projectId, organizationId: project.organization_id }, [session.userId]),
+        title: `Handover certificate ${issuedNumber} issued`.replace("  ", " "),
+        body: `Data Book ${dataBook.book_number} is ready. Please review and acknowledge receipt.`,
+        link: "/inspect/handover",
+      });
+    } catch {
+      // Best-effort.
     }
-  } catch {
-    // Best-effort.
-  }
 
-  try {
-    const { data: project } = await supabase
-      .from("projects")
-      .select("organization_id")
-      .eq("id", projectId)
-      .single();
-    if (project?.organization_id) {
+    try {
       await recordAuditEvent(supabase, {
         organizationId: project.organization_id,
         projectId,
         entityType: "handover_certificate",
-        entityId: certificate.id,
+        entityId: String(certificateId),
         action: "issued",
-        actorId: user?.id ?? null,
-        summary: `Handover certificate ${certificateNumber} issued${dataBook.override_open_punch_items ? " (conditional)" : ""}`,
+        actorId: session.userId,
+        summary: `Handover certificate ${issuedNumber} issued${dataBook.override_open_punch_items ? " (conditional)" : ""}`,
       });
+    } catch {
+      // Best-effort — see lib/audit/log.ts's doc comment.
     }
-  } catch {
-    // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
@@ -179,10 +245,10 @@ export interface AcknowledgeHandoverState {
 }
 
 /**
- * Client-side acknowledgement of receipt. Goes through the acknowledge_handover() SECURITY DEFINER
- * function (see the punch-list/data-book/handover migration) rather than a direct update, since
- * RLS on handover_certificates is staff-only for writes and this is the one narrow exception a
- * non-staff org member is allowed to make on their own handover row.
+ * Formal acceptance of a handover package. Goes through the acknowledge_handover() SECURITY DEFINER
+ * function, which enforces the client role, name length, package presence and "Already acknowledged".
+ * A JAGS admin may acknowledge on behalf of the client (recorded on the certificate by the RPC).
+ * Notifies whoever issued the certificate and the project's responsible person.
  */
 export async function acknowledgeHandoverAction(
   _prev: AcknowledgeHandoverState,
@@ -191,15 +257,27 @@ export async function acknowledgeHandoverAction(
   const certificateId = String(formData.get("certificate_id") ?? "").trim();
   const receivedByName = String(formData.get("received_by_name") ?? "").trim();
   const receivedByCompany = String(formData.get("received_by_company") ?? "").trim();
+  const confirmed = formData.get("confirm") === "on" || formData.get("confirm") === "true";
 
   if (!certificateId || !receivedByName) {
     return { error: "Your name is required to acknowledge receipt." };
   }
+  if (receivedByName.length > MAX_ACK_NAME_LENGTH || receivedByCompany.length > MAX_ACK_NAME_LENGTH) {
+    return { error: `Name and company must be ${MAX_ACK_NAME_LENGTH} characters or fewer.` };
+  }
+  if (!confirmed) {
+    return { error: "Tick the confirmation box to record this formal acceptance." };
+  }
+
+  const session = await requireSession();
+  const isClient = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
+  const onBehalf = isAdminStaff(session);
+  if (!isClient && !onBehalf) {
+    return { error: "Only the client organisation can acknowledge receipt of a handover." };
+  }
 
   const supabase = await createSupabaseServerClient();
-  // acknowledge_handover() isn't in the generated Database type yet (see the module's final report
-  // for the addition needed) — narrow, documented escape hatch, same as the table-name casts.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
   const { error } = await (supabase.rpc as any)("acknowledge_handover", {
     target_certificate_id: certificateId,
     received_name: receivedByName,
@@ -207,28 +285,47 @@ export async function acknowledgeHandoverAction(
   });
 
   if (error) {
-    return { error: "Could not record acknowledgement. It may already be acknowledged." };
+    return { error: acknowledgeErrorMessage(error.message) };
   }
 
   try {
     const { data: cert } = await supabase
       .from(HANDOVER_CERTIFICATES_TABLE)
-      .select("id, data_books(project_id, projects(id, organization_id))")
+      .select("id, certificate_number, issued_by, data_books(project_id, book_number, projects(id, organization_id, responsible_person_id))")
       .eq("id", certificateId)
       .maybeSingle<{
         id: string;
-        data_books: { project_id: string; projects: { id: string; organization_id: string } | null } | null;
+        certificate_number: string;
+        issued_by: string | null;
+        data_books: {
+          project_id: string;
+          book_number: string;
+          projects: { id: string; organization_id: string; responsible_person_id: string | null } | null;
+        } | null;
       }>();
     const organizationId = cert?.data_books?.projects?.organization_id;
     const projectId = cert?.data_books?.project_id;
-    if (organizationId) {
+    if (cert && organizationId && projectId) {
+      const who = `${receivedByName}${receivedByCompany ? ` (${receivedByCompany})` : ""}${onBehalf ? " — recorded on behalf of the client by JAGS staff" : ""}`;
       await recordAuditEvent(supabase, {
         organizationId,
-        projectId: projectId ?? null,
+        projectId,
         entityType: "handover_certificate",
         entityId: certificateId,
-        action: "acknowledged",
-        summary: `Handover certificate acknowledged by ${receivedByName}${receivedByCompany ? ` (${receivedByCompany})` : ""}`,
+        action: onBehalf ? "acknowledged_on_behalf" : "acknowledged",
+        actorId: session.userId,
+        summary: `Handover certificate ${cert.certificate_number} acknowledged by ${who}`,
+      });
+      const recipients = [...new Set([cert.issued_by, cert.data_books?.projects?.responsible_person_id].filter((v): v is string => Boolean(v)))].filter(
+        (id) => id !== session.userId
+      );
+      await notifyMany(supabase, {
+        organizationId,
+        projectId,
+        recipientIds: recipients,
+        title: `Handover certificate ${cert.certificate_number} acknowledged`,
+        body: `Data Book ${cert.data_books?.book_number ?? ""} receipt was acknowledged by ${who}.`,
+        link: `/inspect/projects/${projectId}/data-book`,
       });
     }
   } catch {

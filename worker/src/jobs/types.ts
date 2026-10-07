@@ -92,6 +92,8 @@ export interface RenderIrnPdfPayload {
 export interface RenderDataBookPdfPayload {
   data_book_id: string;
   requested_by: string;
+  /** Re-render an already issued book (as a same-revision reprint). */
+  force_regenerate?: boolean;
 }
 
 /** Payload for "render_ncr_closeout_certificate" (R83) — the branded A4 close-out certificate for an

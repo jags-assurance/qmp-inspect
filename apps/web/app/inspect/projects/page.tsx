@@ -15,7 +15,8 @@ export default async function ProjectsPage({
 }) {
   const session = await requireSession();
   const { org: selectedOrgId, show } = await searchParams;
-  const showClosed = show === "all";
+  const showClosed = show === "all" || show === "closed";
+  const onlyClosed = show === "closed";
   const supabase = await createSupabaseServerClient();
 
   // Project creation is normally Admin-only, but a Self-Managed/Platform-Only client runs its own
@@ -43,7 +44,11 @@ export default async function ProjectsPage({
   // Completed / cancelled projects are hidden by default so the list shows live work first.
   const isClosed = (s: string) => s === "completed" || s === "cancelled";
   const closedCount = (allVisible ?? []).filter((p) => isClosed(p.status)).length;
-  const projects = showClosed ? allVisible : (allVisible ?? []).filter((p) => !isClosed(p.status));
+  const projects = onlyClosed
+    ? (allVisible ?? []).filter((p) => isClosed(p.status))
+    : showClosed
+      ? allVisible
+      : (allVisible ?? []).filter((p) => !isClosed(p.status));
 
   // Organisations for the filter dropdown — drawn from the same RLS-scoped `projects` query (not a
   // separate `organizations` select) so the list only ever shows orgs this session can actually see
@@ -164,18 +169,35 @@ export default async function ProjectsPage({
       <div className="mt-6">
         {closedCount > 0 && (
           <p className="mb-3 text-sm text-muted">
-            {showClosed
-              ? "Showing all projects, including completed and cancelled."
-              : `${closedCount} completed or cancelled project${closedCount > 1 ? "s are" : " is"} hidden.`}{" "}
-            <Link
-              className="text-burgundy hover:underline"
-              href={`/inspect/projects?${new URLSearchParams({
-                ...(selectedOrgId ? { org: selectedOrgId } : {}),
-                ...(showClosed ? {} : { show: "all" }),
-              }).toString()}`}
-            >
-              {showClosed ? "Hide closed" : "Show closed"}
-            </Link>
+            {onlyClosed
+              ? "Showing closed (completed and cancelled) projects only."
+              : showClosed
+                ? "Showing all projects, including completed and cancelled."
+                : `${closedCount} closed (completed or cancelled) project${closedCount > 1 ? "s are" : " is"} hidden.`}{" "}
+            {(
+              [
+                { key: "", label: "Open only", active: !showClosed },
+                { key: "closed", label: "Closed", active: onlyClosed },
+                { key: "all", label: "All", active: show === "all" },
+              ] as const
+            ).map((opt, i) => (
+              <span key={opt.label}>
+                {i > 0 && " · "}
+                {opt.active ? (
+                  <span className="font-medium text-ink">{opt.label}</span>
+                ) : (
+                  <Link
+                    className="text-burgundy hover:underline"
+                    href={`/inspect/projects?${new URLSearchParams({
+                      ...(selectedOrgId ? { org: selectedOrgId } : {}),
+                      ...(opt.key ? { show: opt.key } : {}),
+                    }).toString()}`}
+                  >
+                    {opt.label}
+                  </Link>
+                )}
+              </span>
+            ))}
           </p>
         )}
         <ProjectsTable rows={projectRows} canCreate={canCreateProject} />

@@ -40,13 +40,17 @@ export default async function ReportsDocumentsPage({
   const selectedProject = projectId ?? projects?.[0]?.id ?? null;
   const selectedProjectRow = (projects ?? []).find((p) => p.id === selectedProject) ?? null;
 
-  // Handover "needs attention": compiled books awaiting issue (staff) and issued certificates the
-  // client has not yet acknowledged. RLS scopes both queries to what this login may see.
+  // Handover "needs attention", scoped to the SELECTED project and split by role: staff see books
+  // waiting to be issued and certificates awaiting the client; client users see "Acknowledge receipt";
+  // contractors / TPI see nothing.
+  const isClientRole = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
   const attention: { key: string; href: string; label: string }[] = [];
   try {
+    if (!selectedProject || (!session.isJagsStaff && !isClientRole)) throw new Error("no panel");
     const { data: books } = await supabase
       .from("data_books")
       .select("id, project_id, book_number, status, handover_certificates(acknowledged_at)")
+      .eq("project_id", selectedProject)
       .in("status", ["compiled", "issued"])
       .returns<
         {
@@ -70,11 +74,15 @@ export default async function ReportsDocumentsPage({
           label: `Data Book ${b.book_number} is compiled and waiting to be issued`,
         });
       } else if (b.status === "issued" && certs.length > 0 && certs.every((c) => !c.acknowledged_at)) {
-        attention.push({
-          key: b.id,
-          href: "/inspect/handover",
-          label: `Data Book ${b.book_number} was issued and is awaiting client acknowledgement`,
-        });
+        if (isClientRole) {
+          attention.push({ key: b.id, href: "/inspect/handover", label: `Acknowledge receipt of Data Book ${b.book_number}` });
+        } else if (session.isJagsStaff) {
+          attention.push({
+            key: b.id,
+            href: "/inspect/handover",
+            label: `Data Book ${b.book_number} is awaiting client acknowledgement`,
+          });
+        }
       }
     }
   } catch {
@@ -108,11 +116,13 @@ export default async function ReportsDocumentsPage({
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <ReportsCard
-          href="/inspect/handover"
-          title="Handover Portal"
-          description="Issued handover certificates and Data Book packages, across every project."
-        />
+        {(session.isJagsStaff || isClientRole) && (
+          <ReportsCard
+            href="/inspect/handover"
+            title="Handover Portal"
+            description="Issued handover certificates and Data Book packages, across every project."
+          />
+        )}
       </div>
 
       {attention.length > 0 && (

@@ -6,6 +6,7 @@ import {
   MATERIAL_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
+import { fetchAllRows, fetchInChunks } from "./helpers";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 
 export interface ReadinessCategory {
@@ -44,6 +45,15 @@ export interface DataBookReadiness {
   isReady: boolean;
 }
 
+interface InspectionRecordRow {
+  id: string;
+  itp_item_id: string | null;
+  created_at: string;
+  checklist_template_id: string | null;
+  overall_result: string | null;
+  irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
+}
+
 function toCategory(label: string, ready: number, total: number): ReadinessCategory {
   return { label, ready, total, percentage: total === 0 ? 100 : Math.round((ready / total) * 100) };
 }
@@ -62,78 +72,105 @@ function toCategory(label: string, ready: number, total: number): ReadinessCateg
 export async function computeDataBookReadiness(projectId: string): Promise<DataBookReadiness> {
   const supabase = await createSupabaseServerClient();
 
+  // Every list query below is paginated with .range() loops (fetchAllRows) so a project with more
+  // than 1000 rows is never silently truncated, and id-list lookups are chunked to 200 ids per
+  // request (fetchInChunks). KEEP IN SYNC with worker/src/jobs/renderDataBookPdf.ts - the worker must
+  // paginate the same way and apply the same severity filter, or the PDF and this page disagree.
   const [
-    { data: itps },
-    { data: inspectionRecords },
-    { data: ncrs },
+    itps,
+    inspectionRecords,
+    ncrs,
     { count: openPunchItems },
-    { data: calibrationRows },
-    { data: welderRows },
-    { data: materialRows },
-    { data: issuedDataBooks },
-    { data: personnelRows },
-    { data: standaloneRows },
+    calibrationRows,
+    welderRows,
+    materialRows,
+    issuedDataBooks,
+    personnelRows,
+    standaloneRows,
   ] = await Promise.all([
     // revision_needs_approval: an issued ITP whose latest revision hasn't been re-approved isn't "ready".
-    supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<
-      { id: string; status: string; revision_needs_approval: boolean }[]
-    >(),
-    supabase
-      .from("inspection_records")
-      .select("id, itp_item_id, created_at, checklist_template_id, overall_result, irns(id, voided_at)")
-      .eq("project_id", projectId)
-      .returns<
-        {
-          id: string;
-          itp_item_id: string | null;
-          created_at: string;
-          checklist_template_id: string | null;
-          overall_result: string | null;
-          irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
-        }[]
-      >(),
+    fetchAllRows<{ id: string; status: string; revision_needs_approval: boolean }>((from, to) =>
+      supabase
+        .from("itps" as never)
+        .select("id, status, revision_needs_approval")
+        .eq("project_id" as never, projectId as never)
+        .order("id" as never)
+        .range(from, to)
+        .returns<{ id: string; status: string; revision_needs_approval: boolean }[]>()
+    ),
+    fetchAllRows<InspectionRecordRow>((from, to) =>
+      supabase
+        .from("inspection_records")
+        .select("id, itp_item_id, created_at, checklist_template_id, overall_result, irns(id, voided_at)")
+        .eq("project_id", projectId)
+        .order("id")
+        .range(from, to)
+        .returns<InspectionRecordRow[]>()
+    ),
     // Observations are advisory notes, not nonconformances — they must not hold the book at "not ready".
-    supabase.from("ncrs" as any).select("id, status").eq("project_id", projectId).neq("severity", "observation").returns<
-      { id: string; status: string }[]
-    >(),
+    // .or() keeps rows whose severity is NULL (a plain .neq would drop them in SQL).
+    fetchAllRows<{ id: string; status: string }>((from, to) =>
+      supabase
+        .from("ncrs" as any)
+        .select("id, status")
+        .eq("project_id", projectId)
+        .or("severity.is.null,severity.neq.observation")
+        .order("id")
+        .range(from, to)
+        .returns<{ id: string; status: string }[]>()
+    ),
     supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .neq("status", "closed"),
-    supabase.from(CALIBRATION_REGISTER_TABLE).select("id, due_date").eq("project_id", projectId).returns<
-      { id: string; due_date: string }[]
-    >(),
-    supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).select("id, expiry_date").eq("project_id", projectId).returns<
-      { id: string; expiry_date: string }[]
-    >(),
-    supabase
-      .from(MATERIAL_REGISTER_TABLE)
-      .select("id, approval_status, receipt_status")
-      .eq("project_id", projectId)
-      .returns<{ id: string; approval_status: string; receipt_status: string }[]>(),
-    supabase.from("data_books" as any).select("id").eq("project_id", projectId).eq("status", "issued").returns<
-      { id: string }[]
-    >(),
-    supabase.from("personnel_certifications" as never).select("id, expiry_date").eq("project_id" as never, projectId as never).returns<
-      { id: string; expiry_date: string }[]
-    >(),
-    supabase
-      .from("standalone_assignments" as never)
-      .select("id, status, conclusion, cleared_at")
-      .eq("project_id" as never, projectId as never)
-      .returns<{ id: string; status: string; conclusion: string | null; cleared_at: string | null }[]>(),
+    fetchAllRows<{ id: string; due_date: string }>((from, to) =>
+      supabase.from(CALIBRATION_REGISTER_TABLE).select("id, due_date").eq("project_id", projectId).order("id").range(from, to).returns<{ id: string; due_date: string }[]>()
+    ),
+    fetchAllRows<{ id: string; expiry_date: string }>((from, to) =>
+      supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).select("id, expiry_date").eq("project_id", projectId).order("id").range(from, to).returns<{ id: string; expiry_date: string }[]>()
+    ),
+    fetchAllRows<{ id: string; approval_status: string; receipt_status: string }>((from, to) =>
+      supabase
+        .from(MATERIAL_REGISTER_TABLE)
+        .select("id, approval_status, receipt_status")
+        .eq("project_id", projectId)
+        .order("id")
+        .range(from, to)
+        .returns<{ id: string; approval_status: string; receipt_status: string }[]>()
+    ),
+    fetchAllRows<{ id: string }>((from, to) =>
+      supabase.from("data_books" as any).select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(from, to).returns<{ id: string }[]>()
+    ),
+    fetchAllRows<{ id: string; expiry_date: string }>((from, to) =>
+      supabase
+        .from("personnel_certifications" as never)
+        .select("id, expiry_date")
+        .eq("project_id" as never, projectId as never)
+        .order("id" as never)
+        .range(from, to)
+        .returns<{ id: string; expiry_date: string }[]>()
+    ),
+    fetchAllRows<{ id: string; status: string; conclusion: string | null; cleared_at: string | null }>((from, to) =>
+      supabase
+        .from("standalone_assignments" as never)
+        .select("id, status, conclusion, cleared_at")
+        .eq("project_id" as never, projectId as never)
+        .order("id" as never)
+        .range(from, to)
+        .returns<{ id: string; status: string; conclusion: string | null; cleared_at: string | null }[]>()
+    ),
   ]);
 
-  const itpTotal = itps?.length ?? 0;
-  const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
+  const itpTotal = itps.length;
+  const itpReady = itps.filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
   // "Inspection records with an issued IRN" denominator: ONLY the latest COMPLETED record per itp_item
   // (overall_result not null), and only when that latest result is pass/partial. Drafts (no result)
   // never count, and a fail that was re-inspected is superseded by the newer record.
   // KEEP IN SYNC with worker/src/jobs/renderDataBookPdf.ts - it must apply this exact same rule.
-  const latestByItem = new Map<string, NonNullable<typeof inspectionRecords>[number]>();
-  for (const r of inspectionRecords ?? []) {
+  const latestByItem = new Map<string, InspectionRecordRow>();
+  for (const r of inspectionRecords) {
     if (!r.overall_result) continue;
     const key = r.itp_item_id ?? r.id;
     const cur = latestByItem.get(key);
@@ -151,60 +188,63 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   // sample layout, distinct from "Inspection records with an issued IRN" above (a checklist can be
   // fully answered and still be short its IRN, e.g. while a fail is worked through an NCR).
   // Only issued ITPs: a draft or under-review ITP's checklists aren't in the book yet (the ITP category above already blocks readiness for them).
-  const { data: itpIdsForProject } = await supabase.from("itps").select("id").eq("project_id", projectId).in("status", ["approved", "client_accepted"]);
-  const itpIds = (itpIdsForProject ?? []).map((i) => i.id);
+  const itpIds = await fetchAllRows<{ id: string }>((from, to) =>
+    supabase.from("itps").select("id").eq("project_id", projectId).in("status", ["approved", "client_accepted"]).order("id").range(from, to).returns<{ id: string }[]>()
+  ).then((rows) => rows.map((i) => i.id));
   let checklistTotal = 0;
   let checklistReady = 0;
   if (itpIds.length > 0) {
-    const { data: sections } = await supabase.from("itp_sections").select("id").in("itp_id", itpIds);
-    const sectionIds = (sections ?? []).map((s) => s.id);
+    const sections = await fetchInChunks(itpIds, (ids) =>
+      fetchAllRows<{ id: string }>((from, to) => supabase.from("itp_sections").select("id").in("itp_id", ids).order("id").range(from, to).returns<{ id: string }[]>())
+    );
+    const sectionIds = sections.map((s) => s.id);
     if (sectionIds.length > 0) {
-      const { data: items } = await supabase
-        .from("itp_items")
-        .select("id")
-        .in("section_id", sectionIds)
-        .eq("evidence_type", 1);
-      const itemIds = (items ?? []).map((i) => i.id);
+      const items = await fetchInChunks(sectionIds, (ids) =>
+        fetchAllRows<{ id: string }>((from, to) =>
+          supabase.from("itp_items").select("id").in("section_id", ids).eq("evidence_type", 1).order("id").range(from, to).returns<{ id: string }[]>()
+        )
+      );
+      const itemIds = items.map((i) => i.id);
       if (itemIds.length > 0) {
-        const { data: templates } = await supabase
-          .from(CHECKLIST_TEMPLATES_TABLE)
-          .select("id")
-          .in("itp_item_id", itemIds)
-          .returns<{ id: string }[]>();
-        checklistTotal = templates?.length ?? 0;
+        const templates = await fetchInChunks(itemIds, (ids) =>
+          fetchAllRows<{ id: string }>((from, to) =>
+            supabase.from(CHECKLIST_TEMPLATES_TABLE).select("id").in("itp_item_id", ids).order("id").range(from, to).returns<{ id: string }[]>()
+          )
+        );
+        checklistTotal = templates.length;
         const completedTemplateIds = new Set(
-          (inspectionRecords ?? [])
+          inspectionRecords
             .filter((r) => r.checklist_template_id && r.overall_result !== null)
             .map((r) => r.checklist_template_id as string)
         );
-        checklistReady = (templates ?? []).filter((t) => completedTemplateIds.has(t.id)).length;
+        checklistReady = templates.filter((t) => completedTemplateIds.has(t.id)).length;
       }
     }
   }
 
-  const ncrTotal = ncrs?.length ?? 0;
-  const ncrReady = (ncrs ?? []).filter((ncr) => ncr.status === "closed").length;
+  const ncrTotal = ncrs.length;
+  const ncrReady = ncrs.filter((ncr) => ncr.status === "closed").length;
 
   // Registers: "ready" means usable/in-date, not merely "a row exists" — an expired calibration or
   // welder qualification, or a material still on hold/not yet released, is exactly the kind of thing
   // that should hold up a data book, matching the registers' own protective status logic
   // (lib/registers/refresh.ts, lib/registers/verify.ts) rather than inventing a separate rule here.
-  const calibrationTotal = calibrationRows?.length ?? 0;
-  const calibrationReady = (calibrationRows ?? []).filter((r) => computeCalibrationStatus(r.due_date) !== "expired").length;
+  const calibrationTotal = calibrationRows.length;
+  const calibrationReady = calibrationRows.filter((r) => computeCalibrationStatus(r.due_date) !== "expired").length;
 
-  const welderTotal = welderRows?.length ?? 0;
-  const welderReady = (welderRows ?? []).filter((r) => computeWelderStatus(r.expiry_date) !== "expired").length;
+  const welderTotal = welderRows.length;
+  const welderReady = welderRows.filter((r) => computeWelderStatus(r.expiry_date) !== "expired").length;
 
-  const personnelTotal = personnelRows?.length ?? 0;
-  const personnelReady = (personnelRows ?? []).filter((r) => computePersonnelCertificationStatus(r.expiry_date) !== "expired").length;
+  const personnelTotal = personnelRows.length;
+  const personnelReady = personnelRows.filter((r) => computePersonnelCertificationStatus(r.expiry_date) !== "expired").length;
 
-  const standaloneTotal = standaloneRows?.length ?? 0;
-  const standaloneReady = (standaloneRows ?? []).filter(
+  const standaloneTotal = standaloneRows.length;
+  const standaloneReady = standaloneRows.filter(
     (r) => r.status === "completed" && (r.conclusion === "pass" || (r.conclusion === "conditional_pass" && !!r.cleared_at))
   ).length;
 
-  const materialTotal = materialRows?.length ?? 0;
-  const materialReady = (materialRows ?? []).filter(
+  const materialTotal = materialRows.length;
+  const materialReady = materialRows.filter(
     (r) => (r.approval_status === "A" || r.approval_status === "B") && r.receipt_status === "released"
   ).length;
 
@@ -219,7 +259,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   const ncrsCategory = toCategory("NCRs closed", ncrReady, ncrTotal);
   const handoverCertificateCategory = toCategory(
     "Handover certificate issued",
-    (issuedDataBooks?.length ?? 0) > 0 ? 1 : 0,
+    issuedDataBooks.length > 0 ? 1 : 0,
     1
   );
 

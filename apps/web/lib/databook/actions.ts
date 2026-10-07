@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { DATA_BOOKS_TABLE, type ConditionalOpenItem } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { computeDataBookReadiness } from "@/lib/databook/readiness";
+import { categoriesToOverrideItems, failingReadinessCategories, validateBookFields } from "@/lib/databook/helpers";
 
 export interface CreateDataBookState {
   error: string | null;
@@ -21,19 +22,33 @@ export async function createDataBookAction(
   const bookNumber = String(formData.get("book_number") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
 
-  if (!projectId || !bookNumber || !title) {
-    return { error: "Book number and title are required." };
-  }
-
   const createSession = await requireSession();
   if (!createSession.isJagsStaff) {
     return { error: "Only JAGS staff can create a Data Book." };
   }
 
+  if (!projectId) return { error: "Missing project." };
+  const fieldError = validateBookFields(bookNumber, title);
+  if (fieldError) return { error: fieldError };
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Only one in-progress book at a time: a new book is only allowed once every existing one is issued.
+  const { data: openBooks } = await supabase
+    .from(DATA_BOOKS_TABLE)
+    .select("id, book_number, status")
+    .eq("project_id", projectId)
+    .in("status", ["draft", "compiled"])
+    .limit(1)
+    .returns<{ id: string; book_number: string; status: string }[]>();
+  if (openBooks && openBooks.length > 0) {
+    return {
+      error: `Data Book ${openBooks[0].book_number} is still ${openBooks[0].status === "draft" ? "a draft" : "compiled and awaiting issue"}. Issue or finish it before starting another.`,
+    };
+  }
   const { data: dataBook, error } = await supabase
     .from(DATA_BOOKS_TABLE)
     .insert({
@@ -121,20 +136,31 @@ export async function compileDataBookAction(
   const readiness = await computeDataBookReadiness(projectId);
   // An override is only meaningful (and only recorded) when the gates genuinely fail; a ready
   // project compiles cleanly and is never mislabelled as a conditional handover.
-  const effectiveOverride = override && !readiness.isReady;
-
-  if (!readiness.isReady && !override) {
+  // The project must be Completed for a clean (non-conditional) final book. Not completed is treated
+  // as one more failing gate that needs the same documented override.
+  const supabase = await createSupabaseServerClient();
+  const { data: projectRow } = await supabase
+    .from("projects")
+    .select("status")
+    .eq("id", projectId)
+    .maybeSingle<{ status: string }>();
+  const projectNotCompleted = projectRow?.status !== "completed";
+  const needsOverride = !readiness.isReady || projectNotCompleted;
+  if (needsOverride && !override) {
     return {
-      error:
-        "This project isn't ready to compile: every category must be 100% and the punch list must have zero open items. Use the override option to compile anyway with a documented reason.",
+      error: projectNotCompleted && readiness.isReady
+        ? "The project is not marked Completed. Mark it Completed first, or compile with a documented override reason."
+        : "This project isn't ready to compile: every category must be 100% and the punch list must have zero open items. Use the override option to compile anyway with a documented reason.",
     };
   }
+  const conditional = override && needsOverride;
 
-  if (effectiveOverride && overrideReason.length < 10) {
+  if (conditional && overrideReason.length < 10) {
     return { error: "An override reason of at least 10 characters is required to compile with open items outstanding." };
   }
-
-  const supabase = await createSupabaseServerClient();
+  if (overrideReason.length > 2000) {
+    return { error: "Override reason must be 2000 characters or fewer." };
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -142,22 +168,38 @@ export async function compileDataBookAction(
   // A Conditional Handover is only meaningful with a real record of WHICH items were left open and
   // their agreed due dates — snapshotted now, at override time, not left as a live join that a
   // later closure would silently rewrite (see 20260920050000_conditional_handover.sql).
+  // Snapshot of everything outstanding at override time: every failing readiness category with its
+  // counts, then each open punch item with owner and due date.
   let overrideItems: ConditionalOpenItem[] | null = null;
-  if (effectiveOverride) {
+  if (conditional) {
     const { data: openItems } = await supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
       .select("id, description, location, due_date, project_parties(name)")
       .eq("project_id", projectId)
-      .eq("status", "open")
+      .neq("status", "closed")
+      .limit(5000)
       .returns<{ id: string; description: string; location: string | null; due_date: string | null; project_parties: { name: string } | null }[]>();
 
-    overrideItems = (openItems ?? []).map((item) => ({
-      id: item.id,
-      description: item.description,
-      location: item.location,
-      due_date: item.due_date,
-      responsible_party_name: item.project_parties?.name ?? null,
-    }));
+    const categoryItems = categoriesToOverrideItems(failingReadinessCategories(readiness).filter((c) => c.category !== "Punch list items closed"));
+    if (projectNotCompleted) {
+      categoryItems.push({
+        id: "category:project-status",
+        description: `Project status is "${projectRow?.status ?? "unknown"}", not Completed`,
+        location: null,
+        due_date: null,
+        responsible_party_name: null,
+      });
+    }
+    overrideItems = [
+      ...categoryItems,
+      ...(openItems ?? []).map((item) => ({
+        id: item.id,
+        description: item.description,
+        location: item.location,
+        due_date: item.due_date,
+        responsible_party_name: item.project_parties?.name ?? null,
+      })),
+    ];
   }
 
   const { data: updated, error } = await supabase
@@ -166,9 +208,9 @@ export async function compileDataBookAction(
       status: "compiled",
       compiled_by: user?.id ?? null,
       compiled_at: new Date().toISOString(),
-      override_open_punch_items: effectiveOverride,
-      override_reason: effectiveOverride ? overrideReason : null,
-      override_by: effectiveOverride ? (user?.id ?? null) : null,
+      override_open_punch_items: conditional,
+      override_reason: conditional ? overrideReason : null,
+      override_by: conditional ? (user?.id ?? null) : null,
       override_items: overrideItems,
     })
     .eq("id", dataBookId)
@@ -198,7 +240,7 @@ export async function compileDataBookAction(
         entityId: dataBookId,
         action: "compiled",
         actorId: user?.id ?? null,
-        summary: effectiveOverride
+        summary: conditional
           ? `Data Book compiled with override (${overrideReason})`
           : "Data Book compiled",
       });

@@ -80,15 +80,15 @@ export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
       <div>
         <label htmlFor={`certificate_number_${dataBookId}`} className="block text-xs font-medium text-ink">
-          Certificate number
+          Certificate reference (optional)
         </label>
         <input
           id={`certificate_number_${dataBookId}`}
           name="certificate_number"
-          required
+          maxLength={60}
           placeholder="e.g. HC-001"
           disabled={pending}
-          className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
         />
       </div>
 

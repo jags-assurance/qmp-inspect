@@ -10,7 +10,10 @@ import { computeDataBookReadiness } from "@/lib/databook/readiness";
 import { computeDataBookDisciplineBreakdown } from "@/lib/databook/discipline-breakdown";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
-import { NCRS_TABLE, type NcrSeverity } from "@/lib/ncrs/types";
+import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
+import { isPdfOutOfDate } from "@/lib/databook/helpers";
+import { isAdminStaff } from "@/lib/auth/session";
 import { getLatestDataBookPdf } from "@/lib/reports/actions";
 import { ReadinessPanel } from "./readiness-panel";
 import { DisciplineBreakdownPanel } from "./discipline-breakdown-panel";
@@ -110,8 +113,10 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { data: dataBooks },
     { data: openPunchItemRows },
     { data: parties },
-    { data: ncrs },
-    { data: punchItems },
+    { count: ncrAllCount },
+    { count: ncrClosedCount },
+    { count: punchAllCount },
+    { count: punchClosedCount },
   ] = await Promise.all([
     computeDataBookReadiness(projectId),
     computeDataBookDisciplineBreakdown(projectId),
@@ -134,22 +139,30 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       .eq("is_active", true)
       .order("party_type")
       .returns<{ id: string; name: string; party_type: string; is_active: boolean }[]>(),
+    // Counts only (head requests) - the full ncr / punch lists are never loaded into this page.
     supabase
       .from(NCRS_TABLE)
-      .select("id, severity, status")
+      .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
-      .returns<{ id: string; severity: NcrSeverity; status: string }[]>(),
+      .or("severity.is.null,severity.neq.observation"),
     supabase
-      .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, status")
+      .from(NCRS_TABLE)
+      .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
-      .returns<{ id: string; status: string }[]>(),
+      .or("severity.is.null,severity.neq.observation")
+      .eq("status", "closed"),
+    supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId),
+    supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "closed"),
   ]);
 
   const books = dataBooks ?? [];
   const openPunchItems: OpenPunchItemPreview[] = openPunchItemRows ?? [];
 
-  const dataBookPdfStatuses = await Promise.all(books.map((book) => getLatestDataBookPdf(book.id)));
+  // Signed URLs only for the latest book; an older revision is signed lazily when its row is
+  // expanded via ?pdfbook=<id> (each signing is a Storage round trip).
+  const dataBookPdfStatuses = await Promise.all(
+    books.map((book, i) => (i === 0 || sp.pdfbook === book.id ? getLatestDataBookPdf(book.id) : Promise.resolve(null)))
+  );
 
   const dataBookCertificates = await Promise.all(
     books.map((book) =>
@@ -185,14 +198,35 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     for (const u of users ?? []) if (u.full_name) compilerNames.set(u.id, u.full_name);
   }
 
-  const ncrRows = ncrs ?? [];
-  const countedNcrs = ncrRows.filter((n) => n.severity !== "observation");
-  const ncrTotal = countedNcrs.length;
-  const ncrClosed = countedNcrs.filter((n) => n.status === "closed").length;
+  const ncrTotal = ncrAllCount ?? 0;
+  const ncrClosed = ncrClosedCount ?? 0;
+  const punchTotal = punchAllCount ?? 0;
+  const punchClosed = punchClosedCount ?? 0;
 
-  const punchRows = punchItems ?? [];
-  const punchTotal = punchRows.length;
-  const punchClosed = punchRows.filter((p) => p.status === "closed").length;
+  // "PDF out of date": data changed after the latest completed PDF job finished. Cheap version: the
+  // newest ncrs.updated_at and punch created_at / closed_at. IRNs have no updated_at/project_id column,
+  // so IRN issuance is not compared here (readiness gates still reflect it live).
+  let pdfOutOfDate = false;
+  if (books[0]) {
+    const { data: lastJob } = await supabase
+      .from(BACKGROUND_JOBS_TABLE)
+      .select("completed_at")
+      .eq("job_type", "render_data_book_pdf")
+      .eq("payload->>data_book_id", books[0].id)
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ completed_at: string | null }>();
+    if (lastJob?.completed_at) {
+      const [{ data: n }, { data: pc }, { data: pz }] = await Promise.all([
+        supabase.from(NCRS_TABLE).select("updated_at").eq("project_id", projectId).order("updated_at", { ascending: false }).limit(1).returns<{ updated_at: string }[]>(),
+        supabase.from(PUNCH_LIST_ITEMS_TABLE).select("created_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(1).returns<{ created_at: string }[]>(),
+        supabase.from(PUNCH_LIST_ITEMS_TABLE).select("closed_at").eq("project_id", projectId).not("closed_at", "is", null).order("closed_at", { ascending: false }).limit(1).returns<{ closed_at: string | null }[]>(),
+      ]);
+      pdfOutOfDate = isPdfOutOfDate(lastJob.completed_at, [n?.[0]?.updated_at, pc?.[0]?.created_at, pz?.[0]?.closed_at]);
+    }
+  }
+  const isAdmin = isAdminStaff(session);
 
   const base = `/inspect/projects/${projectId}`;
   const latest = books[0] ?? null;
@@ -340,6 +374,9 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 latest={latestPdf}
                 generateLabel={latest.status === "issued" ? "Generate PDF" : "Generate draft PDF"}
                 isDraftBook={latest.status !== "issued"}
+                canGenerate={session.isJagsStaff}
+                isAdmin={isAdmin}
+                pdfOutOfDate={pdfOutOfDate}
               />
             ) : (
               <a href="#generate" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">
@@ -423,6 +460,9 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                       latest={latestPdf}
                       generateLabel="Generate draft book now"
                       isDraftBook
+                      canGenerate={session.isJagsStaff}
+                      isAdmin={isAdmin}
+                      pdfOutOfDate={pdfOutOfDate}
                     />
                   </div>
                 </div>
@@ -540,7 +580,14 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                               <a href={pdf.downloadUrl} className="text-burgundy hover:underline">Download ↓</a>
                             </>
                           ) : (
-                            <span className="text-xs text-muted">{pdf ? `PDF ${pdf.status}` : "No PDF generated for this revision."}</span>
+                            <>
+                              <span className="text-xs text-muted">{pdf ? `PDF ${pdf.status}` : "PDF links load on demand."}</span>
+                              {!pdf && (
+                                <Link href={`?${new URLSearchParams({ ...(Object.fromEntries(Object.entries(sp).filter(([, v]) => v !== undefined)) as Record<string, string>), pdfbook: book.id }).toString()}#books`} scroll={false} className="text-burgundy hover:underline">
+                                  Load PDF links
+                                </Link>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

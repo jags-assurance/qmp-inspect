@@ -147,7 +147,7 @@ export function formatBookRevision(revision: number | string | null | undefined)
   return `Rev ${Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0}`;
 }
 
-function bookRevLabel(data: { bookRevision?: number }): string {
+export function bookRevLabel(data: { bookRevision?: number }): string {
   return formatBookRevision(data.bookRevision);
 }
 
@@ -175,6 +175,15 @@ export interface DataBookPdfData {
   compiledBy: string | null;
   overrideReason: string | null;
   overrideBy: string | null;
+  /** Conditional handover per the handover certificate (not inferred from override_reason). */
+  isConditional?: boolean;
+  /** Normalised override_items (all failing readiness categories), see dataBookHelpers. */
+  overrideCategories?: Array<{ category: string; label: string; count: number; items: string[] }>;
+  /** handover_certificates.issued_date / issuing user, for issued books. */
+  issuedDate?: string | null;
+  issuedByName?: string | null;
+  /** True when an already-issued book is re-rendered on request (same revision). */
+  reprint?: boolean;
 
   itps: DataBookPdfItp[];
   /** Project site / location text, and the parties on the project (for the distribution register). */
@@ -211,14 +220,14 @@ const ISSUE_PURPOSE: Record<DataBookPdfData["status"], string> = {
 };
 
 /** Footer/header wording — also used by renderDataBookPdf.ts for the Puppeteer page footer. */
-export function dataBookIssueLabel(status: DataBookPdfData["status"], conditional = false): string {
-  if (status === "issued") return conditional ? "FINAL — CONDITIONAL HANDOVER" : "FINAL";
+export function dataBookIssueLabel(status: DataBookPdfData["status"], conditional = false, reprint = false): string {
+  if (status === "issued") return `${conditional ? "FINAL — CONDITIONAL HANDOVER" : "FINAL"}${reprint ? " — REPRINT" : ""}`;
   return status === "compiled" ? "FOR REVIEW — NOT ISSUED" : "DRAFT — NOT ISSUED";
 }
 
 /** An issued book that was compiled with outstanding items is a Conditional Handover, never an unqualified Final. */
-function issuePurpose(data: Pick<DataBookPdfData, "status" | "overrideReason">): string {
-  return data.status === "issued" && data.overrideReason ? "Final — Conditional handover" : ISSUE_PURPOSE[data.status];
+function issuePurpose(data: Pick<DataBookPdfData, "status" | "isConditional">): string {
+  return data.status === "issued" && data.isConditional ? "Final — Conditional handover" : ISSUE_PURPOSE[data.status];
 }
 
 /** minor_ncr -> "Minor NCR". Observations stay out of readiness and the open-NCR exceptions count. */
@@ -251,10 +260,10 @@ function fmtDate(value: string | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
-function table(headers: string[], rows: string[][], widths?: string[]): string {
+function table(headers: string[], rows: string[][], widths?: string[], variant?: "sig"): string {
   const head = headers.map((h, i) => `<th${widths?.[i] ? ` style="width:${widths[i]}"` : ""}>${escapeHtml(h)}</th>`).join("");
-  const body = rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
-  return `<table class="grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  const body = rows.map((r) => `<tr${variant === "sig" ? ' style="page-break-inside:avoid;break-inside:avoid"' : ""}>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
+  return `<table class="grid${variant === "sig" ? " sig" : ""}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function page(id: string, part: string, title: string, intro: string | null, body: string): string {
@@ -317,9 +326,9 @@ function renderPoweredByFooter(data: DataBookPdfData): string {
 }
 
 export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<string, number> = {}): string {
-  const issueLabel = dataBookIssueLabel(data.status, !!data.overrideReason);
+  const issueLabel = dataBookIssueLabel(data.status, !!data.isConditional, !!data.reprint);
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 16) + " UTC";
-  const issueDate = fmtDate(data.compiledAt ?? data.generatedAt.toISOString());
+  const issueDate = fmtDate(data.status === "issued" ? (data.issuedDate ?? data.compiledAt ?? data.generatedAt.toISOString()) : (data.compiledAt ?? data.generatedAt.toISOString()));
   const projectLabel = `${data.projectNumber} | ${data.projectName}`;
   const allActivities = data.itps.flatMap((itp) => itp.activities.map((a) => ({ itp, a })));
 
@@ -377,7 +386,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       ["Document control", "Value"],
       [
         ["Document number", escapeHtml(data.bookNumber)],
-        ["Revision and issue date", `Rev 0 | ${issueDate}`],
+        ["Revision and issue date", `${bookRevLabel(data)} | ${issueDate}`],
         ["Project and package", `${escapeHtml(projectLabel)} | ${data.itps.map((i) => escapeHtml(i.itpNumber)).join(", ") || "no ITP"}`],
         ["Equipment scope", data.itps.map((i) => escapeHtml(i.title)).join("; ") || "—"],
         ["Records in book", `${planned} activity records across ${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}`],
@@ -388,9 +397,9 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     )}
     <p class="note">${
       data.status === "issued"
-        ? data.overrideReason
+        ? data.isConditional
           ? "CONDITIONAL HANDOVER. Issued with the outstanding conditions listed in Part D; this is not an unqualified final completeness certificate. Printed copies are uncontrolled."
-          : "FINAL ISSUE. Contents are the frozen records listed in the master register. Printed copies are uncontrolled."
+          : `FINAL ISSUE. Issued on ${issueDate}; registers are evaluated as at that date.${data.reprint ? " This is a reprint of the issued revision." : ""} Printed copies are uncontrolled.`
         : data.status === "compiled"
           ? "FOR REVIEW — NOT ISSUED. Compiled for review; it becomes final only when issued. Unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
           : "DRAFT — NOT FOR ISSUE. Records are listed as they stand at generation time; unsigned fields and incomplete records are shown as such. This is not a certificate of completeness."
@@ -471,7 +480,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       <li>Review decision: Pending, Accepted, Accepted with Comments, Revise and Resubmit or Rejected — recorded per ITP review step and client acceptance.</li>
       <li>Package gate: Not Ready, Ready for QA, Ready for Client, Ready for Release, Released or Superseded. <b>This book: ${data.isReady ? "Ready for release" : "Not ready — see Readiness calculations and hard gates"}.</b></li>
     </ul>
-    <p>Freeze each issued version with a manifest and transmittal. Retain prior issues under the agreed retention policy. Printed copies are uncontrolled unless the project registers and controls them.</p>`
+    <p>Issue each version with a manifest and transmittal. Retain prior issues under the agreed retention policy. Printed copies are uncontrolled unless the project registers and controls them.</p>`
   );
 
   const contents = page(
@@ -736,6 +745,23 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   );
 
   // ── Part D — release controls ───────────────────────────────────────────────────────────────
+  const overrideCategories = data.overrideCategories ?? [];
+  const conditionalItemsHtml =
+    data.isConditional || data.overrideReason || overrideCategories.length > 0
+      ? `<h3>Outstanding conditions by category</h3>${
+          overrideCategories.length > 0
+            ? table(
+                ["Category", "Outstanding", "Items"],
+                overrideCategories.map((c) => [
+                  escapeHtml(c.label),
+                  String(c.count),
+                  c.items.length > 0 ? c.items.map((i) => `<div>${escapeHtml(i)}</div>`).join("") : "&mdash;",
+                ]),
+                ["28%", "12%", "60%"]
+              )
+            : "<p>No itemised conditions were recorded with this handover.</p>"
+        }`
+      : "";
   const readiness = page(
     "readiness",
     "PART D  RELEASE CONTROLS",
@@ -763,6 +789,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
         : "<p>No ITP activities on this project are tagged with a discipline yet.</p>"
     }
     ${data.overrideReason ? `<h3>Conditional handover</h3><p>${escapeHtml(data.overrideReason)}</p>` : ""}
+    ${conditionalItemsHtml}
     <p class="small">Applicable count = expected records. Accepted completeness = accepted ÷ applicable. A missing record is never removed from the denominator.</p>`
   );
 
@@ -790,10 +817,13 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       [
         ["Compiled by", cell(data.compiledBy), data.compiledBy ? `${fmtDate(data.compiledAt)}` : "Unsigned"],
         ["QA verified by", "&nbsp;", "Unsigned"],
-        ["Release approved by", cell(data.overrideBy), data.status === "issued" ? "Issued" : "Unsigned"],
+        data.status === "issued"
+          ? ["Release approved by", cell(data.issuedByName ?? data.overrideBy), `Issued ${fmtDate(data.issuedDate ?? data.compiledAt)}`]
+          : ["Release approved by", cell(data.overrideBy), "Unsigned"],
         ["Client accepted (if required)", "&nbsp;", "Unsigned"],
       ],
-      ["30%", "40%", "30%"]
+      ["30%", "40%", "30%"],
+      "sig"
     )}
     <p class="small">The software supplies calculations and evidence links. Only an authorized person can make an attestation.</p>`
   );
@@ -810,7 +840,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       ["Acceptance field", "Entry"],
       [
         ["Scope", `${data.itps.length} ITP${data.itps.length === 1 ? "" : "s"}, ${planned} records, issue ${bookRevLabel(data)}`],
-        ["Decision", data.status === "issued" ? (data.overrideReason ? "Issued as a Conditional handover — client acceptance of the conditions pending" : "Issued — see signed acceptance") : "Not requested — book not issued"],
+        ["Decision", data.status === "issued" ? (data.isConditional ? "Issued as a Conditional handover — client acceptance of the conditions pending" : "Issued — see signed acceptance") : "Not requested — book not issued"],
         ["Conditions", data.overrideReason ? escapeHtml(data.overrideReason) : "None recorded"],
         ["Custody and effective date", "&nbsp;"],
         ["Handover certificate", data.handoverCertificate.ready > 0 ? "Issued" : "Not issued"],
@@ -903,7 +933,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
 
   .sign { margin-top: 12px; line-height: 1.8; break-inside: avoid; page-break-inside: avoid; }
   h3 { break-after: avoid; page-break-after: avoid; }
-  section.cover table.grid, #control table.grid, #certification table.grid { break-inside: avoid; page-break-inside: avoid; }
+  table.grid.sig, section.cover table.grid, #control table.grid, #certification table.grid { break-inside: avoid; page-break-inside: avoid; }
 
   ol.toc { list-style: none; margin: 8px 0; }
   ol.toc li { padding: 6px 0; border-bottom: 1px dotted var(--rule); }
