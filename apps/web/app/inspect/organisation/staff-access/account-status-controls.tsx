@@ -3,8 +3,10 @@
 import { useActionState } from "react";
 import {
   accountLifecycleByEmailAction,
+  bulkAccountLifecycleAction,
   deactivateUserAction,
   reactivateUserAction,
+  type BulkDeactivationState,
   type DeactivationState,
 } from "@/lib/auth/deactivation-actions";
 import { FormMessage } from "@/components/ui/form-message";
@@ -64,6 +66,59 @@ export function OffboardByEmailForm() {
         </Button>
       </div>
       <FormMessage error={state.error} success={state.message} className="mt-3" />
+    </form>
+  );
+}
+
+const bulkInitialState: BulkDeactivationState = { error: null, results: [] };
+
+/** S1-16: deactivate or restore several accounts at once from a pasted list of emails (JAGS Admin). */
+export function BulkOffboardForm() {
+  const [state, formAction, pending] = useActionState(bulkAccountLifecycleAction, bulkInitialState);
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        if (submitter?.value !== "reactivate" && !window.confirm("Deactivate every account in this list? They are signed out and lose all access immediately.")) {
+          e.preventDefault();
+        }
+      }}
+      className="rounded-lg border border-border bg-surface p-4"
+    >
+      <h2 className="text-sm font-semibold text-ink">Bulk offboard or restore accounts</h2>
+      <p className="mt-1 text-xs text-muted">
+        Paste up to 50 email addresses (one per line, or separated by commas). Each account is handled on its own with the same
+        safeguards as above; the result for every address is listed below.
+      </p>
+      <label className="mt-3 block text-xs font-medium text-ink">
+        Emails
+        <textarea
+          name="emails"
+          rows={4}
+          required
+          className="mt-1 block w-full max-w-xl rounded-md border border-border bg-surface px-3 py-2 text-sm"
+          placeholder={"crew1@subcontractor.com\ncrew2@subcontractor.com"}
+        />
+      </label>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button type="submit" name="intent" value="deactivate" disabled={pending} variant="outline">
+          {pending ? "Working…" : "Deactivate all"}
+        </Button>
+        <Button type="submit" name="intent" value="reactivate" disabled={pending} variant="outline">
+          Reactivate all
+        </Button>
+      </div>
+      <FormMessage error={state.error} success={null} className="mt-3" />
+      {state.results.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs" data-testid="bulk-offboard-results">
+          {state.results.map((r) => (
+            <li key={r.email} className={r.ok ? "text-success" : "text-danger"}>
+              {r.email}: {r.detail}
+            </li>
+          ))}
+        </ul>
+      )}
     </form>
   );
 }

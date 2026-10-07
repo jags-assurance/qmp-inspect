@@ -7,6 +7,7 @@ import { STANDALONE_ASSIGNMENT_MEASUREMENTS, STANDALONE_ASSIGNMENT_PHOTOS, STAND
 import { validateOfflinePhoto, MAX_PHOTO_BYTES } from "@/lib/checklists/photo-validation";
 import { isMissingSchemaError, isStoragePermissionError } from "@/lib/offline/missing-schema";
 import { boundedCapturedAt } from "@/lib/offline/policy";
+import { checkOfflineSyncOrigin } from "@/lib/offline/origin-check";
 import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 
 /**
@@ -28,6 +29,19 @@ import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  // E-10: refuse anything that isn't demonstrably from this app's own pages before touching the session.
+  const originCheck = checkOfflineSyncOrigin({
+    origin: request.headers.get("origin"),
+    secFetchSite: request.headers.get("sec-fetch-site"),
+    host: request.headers.get("host"),
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+    idempotencyKey: request.headers.get("x-idempotency-key"),
+  });
+  if (!originCheck.ok) {
+    return NextResponse.json({ ok: false, error: originCheck.reason }, { status: 403 });
+  }
+
   const authClient = await createSupabaseServerClient();
   const {
     data: { user: authUser },
