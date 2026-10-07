@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { observationMarkerPath, parseObservationMarker, sanitizeClientKey, serializeObservationMarker } from "./idempotency";
+import { observationMarkerPath, parseObservationMarker, sanitizeClientKey, serializeObservationMarker } from "../idempotency";
 
 describe("offline observation idempotency", () => {
   it("sanitizes keys", () => {
@@ -20,7 +20,7 @@ describe("offline observation idempotency", () => {
   });
 });
 
-import { CLAIM_STALE_MS, isStaleClaim, parseMarker, serializeClaimMarker } from "./idempotency";
+import { CLAIM_STALE_MS, isStaleClaim, parseMarker, serializeClaimMarker } from "../idempotency";
 
 describe("offline observation claim marker", () => {
   it("round-trips a claim and an NCR marker", () => {
@@ -40,7 +40,7 @@ describe("offline observation claim marker", () => {
   });
 });
 
-import { observationDonePath } from "./idempotency";
+import { observationDonePath } from "../idempotency";
 
 describe("observation done marker", () => {
   it("is a separate object from the claim marker", () => {
