@@ -32,6 +32,8 @@ const KIND_LABEL: Record<OutboxItem["kind"], string> = {
   standalone_measurement: "Measurement",
   standalone_photo: "Assignment photo",
   standalone_signature: "Assignment signature",
+  start_inspection: "Start inspection",
+  link_item_document: "Linked document",
 };
 
 function describeItem(item: OutboxItem): string {

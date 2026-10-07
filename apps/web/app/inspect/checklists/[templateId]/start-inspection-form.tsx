@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { startInspectionAction, type StartInspectionState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
+import { enqueueOutboxItem } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
 const initialState: StartInspectionState = { error: null };
 
@@ -33,6 +35,28 @@ export function StartInspectionForm({
   const [presetChoice, setPresetChoice] = useState("");
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
+  const [queueError, setQueueError] = useState<string | null>(null);
+
+  // Offline: keep the start request on this device; it is replayed (once) when the connection returns
+  // and the inspection then opens. Answers can only be recorded after it has started.
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    setQueued(false);
+    setQueueError(null);
+    if (navigator.onLine) return;
+    e.preventDefault();
+    if (!value) return;
+    try {
+      await enqueueOutboxItem({
+        kind: "start_inspection",
+        fields: { kind: "start_inspection", template_id: templateId, itp_item_id: itpItemId, project_id: projectId, location: value },
+      });
+      notifyOutboxChanged();
+      setQueued(true);
+    } catch (err) {
+      setQueueError(err instanceof Error ? err.message : "Could not save the start request offline.");
+    }
+  }
 
   function useLiveLocation() {
     if (!navigator.geolocation) {
@@ -76,7 +100,7 @@ export function StartInspectionForm({
   }
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-6">
+    <form action={formAction} onSubmit={onSubmit} className="rounded-lg border border-border bg-surface p-6">
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="project_id" value={projectId} />
@@ -144,6 +168,12 @@ export function StartInspectionForm({
         {pending ? "Starting…" : "Start inspection"}
       </Button>
       {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {queueError && <p className="mt-2 text-sm text-danger">{queueError}</p>}
+      {queued && (
+        <p role="status" className="mt-2 text-sm text-muted">
+          Saved on this device. The inspection will start automatically when you are back online; reload this page then to begin answering.
+        </p>
+      )}
     </form>
   );
 }
