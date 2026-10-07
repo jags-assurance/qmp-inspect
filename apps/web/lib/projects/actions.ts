@@ -909,7 +909,7 @@ export async function updateProjectStatusAction(
 
   if (status === "completed") {
     // close_project() is admin-only in SQL and refuses to close with open NCRs / punch items / draft
-    // inspections unless a reason is given (the reason is then recorded by the RPC).
+    // inspections unless a reason is given (the RPC then records the reason in the audit log).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
     const { error: rpcError } = await (supabase.rpc as any)("close_project", {
       p_project_id: projectId,
@@ -944,6 +944,32 @@ export async function updateProjectStatusAction(
     summary: `Project status changed from "${current.status}" to "${status}"${reason ? ` (${reason})` : ""}`,
     changes: { from: current.status, to: status, reason: reason || null },
   });
+
+  // Re-opening after a handover was issued: the issued certificate is not touched (it stays as certified)
+  // but the audit trail records that the project moved on afterwards.
+  if (isClosedStatus(current.status) && status !== "completed") {
+    try {
+      const { data: issuedBooks } = await supabase
+        .from("data_books" as never)
+        .select("id, book_number")
+        .eq("project_id" as never, projectId as never)
+        .eq("status" as never, "issued" as never)
+        .returns<{ id: string; book_number: string }[]>();
+      if (issuedBooks && issuedBooks.length > 0) {
+        await recordAuditEvent(supabase, {
+          organizationId: current.organization_id,
+          projectId,
+          entityType: "project",
+          entityId: projectId,
+          action: "reopened_after_handover",
+          actorId: session.userId,
+          summary: `Project re-opened after Data Book ${issuedBooks.map((b) => b.book_number).join(", ")} was issued - start a new revision when the work is finished`,
+        });
+      }
+    } catch {
+      // Best-effort.
+    }
+  }
 
   // Re-opening a closed project: tell the client users on the project and its responsible person.
   if (isClosedStatus(current.status)) {
