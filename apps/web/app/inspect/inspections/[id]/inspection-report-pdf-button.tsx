@@ -23,9 +23,15 @@ const STATUS_LABEL: Record<InspectionReportPdfStatus["status"], string> = {
 export function InspectionReportPdfButton({
   inspectionRecordId,
   latest,
+  completed = true,
+  signedAt = null,
 }: {
   inspectionRecordId: string;
   latest: InspectionReportPdfStatus | null;
+  /** The inspection has a recorded result; a report can only be generated then. */
+  completed?: boolean;
+  /** When the result was signed: a report rendered before this describes an older state. */
+  signedAt?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(requestInspectionReportPdfAction, initialState);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestInspectionReportPdf, inspectionRecordId);
@@ -56,6 +62,7 @@ export function InspectionReportPdfButton({
             Download ↓
           </a>
         )}
+        {completed && (
         <form action={formAction}>
           <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
           <button
@@ -67,7 +74,12 @@ export function InspectionReportPdfButton({
             {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : liveStatus ? "Regenerate report" : "Generate report"}
           </button>
         </form>
+        )}
       </div>
+      {!completed && <p className="text-xs text-muted">The report can be generated once the inspection is completed.</p>}
+      {completed && liveStatus?.status === "completed" && signedAt && Date.parse(liveStatus.createdAt) < Date.parse(signedAt) && (
+        <p className="text-xs font-medium text-warning" role="status">This report was generated before the latest sign-off — regenerate it.</p>
+      )}
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
       {timedOut && (
@@ -77,7 +89,8 @@ export function InspectionReportPdfButton({
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {jobStatusText(liveStatus)}
+          {jobStatusText(liveStatus)}
+
         </p>
       )}
     </div>
