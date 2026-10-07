@@ -31,6 +31,18 @@ export function isPunchOverdue(
   return r.due_date.slice(0, 10) < utcToday(now);
 }
 
+/**
+ * Default due date for an auto-created punch item that was given none, so it can go overdue and
+ * escalate: priority A 7 days, B 14 days, C 30 days from `today` (a YYYY-MM-DD site date).
+ */
+export function defaultPunchDueDate(priority: string, today: string): string {
+  const days = priority === "A" ? 7 : priority === "C" ? 30 : 14;
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 export const PUNCH_IMAGE_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",

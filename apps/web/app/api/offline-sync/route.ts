@@ -4,8 +4,9 @@ import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/check
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { addMeasurementAction, addPhotoAction, addSignatureAction } from "@/lib/standalone/actions";
 import { STANDALONE_ASSIGNMENT_MEASUREMENTS, STANDALONE_ASSIGNMENT_PHOTOS, STANDALONE_ASSIGNMENT_SIGNATURES } from "@/lib/standalone/types";
-import { validateOfflinePhoto } from "@/lib/checklists/photo-validation";
-import { MAX_PHOTO_BYTES } from "@/lib/checklists/photo-validation";
+import { validateOfflinePhoto, MAX_PHOTO_BYTES } from "@/lib/checklists/photo-validation";
+import { isMissingSchemaError, isStoragePermissionError } from "@/lib/offline/missing-schema";
+import { boundedCapturedAt } from "@/lib/offline/policy";
 import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 
 /**
@@ -23,6 +24,9 @@ import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_
  * own session cookie carries — same as every other write path in this app; there is no separate
  * "sync" privilege.
  */
+// Photo replays can take a while on a big queue; give the handler room on serverless hosts.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const authClient = await createSupabaseServerClient();
   const {
@@ -30,6 +34,16 @@ export async function POST(request: Request) {
   } = await authClient.auth.getUser();
   if (!authUser) {
     return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
+  }
+
+  // Shared-tablet safety: an item queued by one user must never be replayed under another user's
+  // session (it would attribute answers and sign-offs to the wrong person).
+  const queuedBy = (request.headers.get("x-queued-user") ?? "").trim();
+  if (queuedBy && queuedBy !== authUser.id) {
+    return NextResponse.json(
+      { ok: false, wrongUser: true, error: "This item was queued by a different user on this device. Sign in as that user to sync it." },
+      { status: 409 }
+    );
   }
 
   const formData = await request.formData();
@@ -47,23 +61,24 @@ export async function POST(request: Request) {
           const recId = String(formData.get("inspection_record_id") ?? "");
           const { data: current } = await authClient
             .from(CHECKLIST_RESPONSES_TABLE)
-            .select("result, comment")
+            .select("result, comment, updated_at")
             .eq("inspection_record_id", recId)
             .eq("checklist_item_id", itemId)
-            .maybeSingle<{ result: string; comment: string | null }>();
+            .maybeSingle<{ result: string; comment: string | null; updated_at: string }>();
           if (
             current &&
             current.result === String(formData.get("result") ?? "") &&
             (current.comment ?? "") === String(formData.get("comment") ?? "").trim()
           ) {
-            return NextResponse.json({ ok: true });
+            return NextResponse.json({ ok: true, updatedAt: current.updated_at });
           }
           return NextResponse.json({ ok: false, conflict: true, error: saved.error ?? "Answer changed on the server." }, { status: 409 });
         }
         if (saved && typeof saved === "object" && "error" in saved && saved.error) {
           return NextResponse.json({ ok: false, error: saved.error }, { status: 422 });
         }
-        return NextResponse.json({ ok: true });
+        // updatedAt lets the client chain the baseline for later queued answers to the same item.
+        return NextResponse.json({ ok: true, updatedAt: saved?.updatedAt });
       }
 
       case "complete_inspection": {
@@ -101,53 +116,48 @@ export async function POST(request: Request) {
           return NextResponse.json({ ok: false, error: result.error ?? "Could not raise the observation." }, { status: 422 });
         }
 
-        // Optional photo taken with the quick form. Best-effort AFTER the NCR exists: failing the
-        // whole item here would leave it in the outbox and a retry would raise a duplicate NCR.
+        // Optional photo taken with the quick form. The NCR already exists, so a bad photo (wrong type or
+        // size) is skipped — it can never succeed. A failed upload/record is transient: return 503 so the item
+        // is retried; the retry finds the NCR through its request_id marker and repeats only the photo.
         const photo = formData.get("file");
-        // Validate type/size like the checklist photo path; an invalid one is skipped (NCR already exists).
         if (photo instanceof Blob && photo.type.startsWith("image/") && photo.size <= MAX_PHOTO_BYTES) {
           const projectId = String(formData.get("project_id") ?? "").trim();
           const safeName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
-          const path = `${projectId}/ncrs/${result.created.id}/${Date.now()}-${safeName}`;
+          // Key-derived path: a replay targets the same object and the same photo row.
+          const path = `${projectId}/ncrs/${result.created.id}/${clientKey || Date.now()}-${safeName}`;
           const supabase = await createSupabaseServerClient();
-          const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, photo);
-          if (!uploadError) {
+          const { data: existingPhoto } = await supabase.from("ncr_photos").select("id").eq("ncr_id", result.created.id).eq("storage_path", path).limit(1);
+          if (!existingPhoto || existingPhoto.length === 0) {
+            const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, photo, { upsert: Boolean(clientKey) });
+            if (uploadError) {
+              console.error("[offline-sync] observation photo upload failed", uploadError.message);
+              return NextResponse.json({ ok: false, error: "The observation was raised but its photo could not be uploaded. Will retry." }, { status: 503 });
+            }
             const photoForm = new FormData();
             photoForm.set("ncr_id", result.created.id);
             photoForm.set("storage_path", path);
-            await addNcrPhotoAction({ error: null }, photoForm);
+            const photoResult = await addNcrPhotoAction({ error: null }, photoForm);
+            if (photoResult.error) {
+              await supabase.storage.from("inspection-evidence").remove([path]).catch(() => undefined);
+              return NextResponse.json({ ok: false, error: `The observation was raised but its photo was not saved: ${photoResult.error}` }, { status: 422 });
+            }
           }
         }
         return NextResponse.json({ ok: true });
       }
 
       case "standalone_measurement": {
-        // Replay guard: an identical reading already on the assignment means this item landed before.
-        const assignmentId = String(formData.get("assignment_id") ?? "").trim();
-        const { data: dup } = await authClient
-          .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
-          .select("id")
-          .eq("assignment_id", assignmentId)
-          .eq("description", String(formData.get("description") ?? "").trim())
-          .eq("actual_value", String(formData.get("actual_value") ?? "").trim() || null)
-          .eq("nominal_value", String(formData.get("nominal_value") ?? "").trim() || null)
-          .limit(1);
-        if (dup && dup.length > 0) return NextResponse.json({ ok: true });
+        // De-duplicated by the queued item's own key (unique per assignment), NOT by content: two
+        // genuinely identical readings are both kept. addMeasurementAction falls back to a narrow
+        // "same reading within minutes" guard only while the client_key column is not migrated.
+        if (clientKey) formData.set("client_key", clientKey);
         const result = await addMeasurementAction({ error: null }, formData);
         if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
         return NextResponse.json({ ok: true });
       }
 
       case "standalone_signature": {
-        const assignmentId = String(formData.get("assignment_id") ?? "").trim();
-        const signatureData = String(formData.get("signature_data") ?? "").trim();
-        const { data: dup } = await authClient
-          .from(STANDALONE_ASSIGNMENT_SIGNATURES)
-          .select("id")
-          .eq("assignment_id", assignmentId)
-          .eq("signature_data", signatureData)
-          .limit(1);
-        if (dup && dup.length > 0) return NextResponse.json({ ok: true });
+        if (clientKey) formData.set("client_key", clientKey);
         const result = await addSignatureAction({ error: null }, formData);
         if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
         return NextResponse.json({ ok: true });
@@ -160,7 +170,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ ok: false, error: "Missing photo data." }, { status: 422 });
         }
         if (!file.type.startsWith("image/") || file.size > MAX_PHOTO_BYTES) {
-          return NextResponse.json({ ok: false, error: "Photo must be an image under 15 MB." }, { status: 422 });
+          return NextResponse.json({ ok: false, error: "Photo must be an image under 25 MB." }, { status: 422 });
         }
         const safeName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
         // Deterministic path from the idempotency key: a replay targets the same object and record.
@@ -168,10 +178,19 @@ export async function POST(request: Request) {
         const { data: dup } = await authClient.from(STANDALONE_ASSIGNMENT_PHOTOS).select("id").eq("assignment_id", assignmentId).eq("storage_path", path).limit(1);
         if (dup && dup.length > 0) return NextResponse.json({ ok: true });
         const { error: uploadError } = await authClient.storage.from("inspection-evidence").upload(path, file, { upsert: true });
-        if (uploadError) return NextResponse.json({ ok: false, error: "Could not store the photo." }, { status: 500 });
+        if (uploadError) {
+          // A permission refusal (storage policy) will never succeed on retry: 422 so it is rejected
+          // at once instead of burning the retry budget.
+          if (isStoragePermissionError(uploadError)) {
+            return NextResponse.json({ ok: false, error: "You are not allowed to attach photos to this assignment." }, { status: 422 });
+          }
+          return NextResponse.json({ ok: false, error: "Could not store the photo." }, { status: 500 });
+        }
         const photoForm = new FormData();
         photoForm.set("assignment_id", assignmentId);
         photoForm.set("storage_path", path);
+        const standaloneCapturedAt = boundedCapturedAt(String(formData.get("captured_at") ?? ""));
+        if (standaloneCapturedAt) photoForm.set("captured_at", standaloneCapturedAt);
         const caption = String(formData.get("caption") ?? "").trim();
         if (caption) photoForm.set("caption", caption);
         const result = await addPhotoAction({ error: null }, photoForm);
@@ -221,12 +240,19 @@ export async function POST(request: Request) {
         const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file, { upsert: Boolean(clientKey) });
         if (uploadError) return NextResponse.json({ ok: false, error: "Could not upload the photo. Try again." }, { status: 422 });
 
-        const { error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert({
+        const photoRow: Record<string, unknown> = {
           inspection_record_id: inspectionRecordId,
           storage_path: path,
           uploaded_by: user?.id ?? null,
           checklist_item_id: checklistItemId,
-        });
+        };
+        // Real capture time (the item may have been queued hours ago). Falls back to a plain insert
+        // while the captured_at column is not migrated.
+        const capturedAt = boundedCapturedAt(String(formData.get("captured_at") ?? ""));
+        let { error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert(capturedAt ? { ...photoRow, captured_at: capturedAt } : photoRow);
+        if (insertError && capturedAt && isMissingSchemaError(insertError)) {
+          ({ error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert(photoRow));
+        }
         if (insertError) return NextResponse.json({ ok: false, error: "Could not save the photo record. Try again." }, { status: 422 });
 
         return NextResponse.json({ ok: true });

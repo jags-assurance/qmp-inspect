@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { useRouter } from "next/navigation";
 import {
   createNcrAction,
@@ -80,6 +81,15 @@ export function NewNcrForm({
   onCreated?: (created: { id: string; ncrNumber: string }) => void;
 }) {
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  // Photos are compressed in the browser first: the Server Action body is capped (~4 MB), and phone
+  // originals are several MB each.
+  async function submitWithCompressedPhotos(formData: FormData) {
+    const tooBig = await compressFormPhotos(formData, ["photos"]);
+    setPhotoError(tooBig);
+    if (tooBig) return;
+    formAction(formData);
+  }
   // Idempotency key for this raise attempt; a fresh one is issued after each successful create.
   const [requestId, setRequestId] = useState("");
   useEffect(() => {
@@ -144,7 +154,7 @@ export function NewNcrForm({
   }
 
   return (
-    <form action={formAction} className="mt-6 space-y-6">
+    <form action={submitWithCompressedPhotos} className="mt-6 space-y-6">
       {onCreated && <input type="hidden" name="stay_on_page" value="true" />}
       <input type="hidden" name="request_id" value={requestId} />
       <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
@@ -355,9 +365,30 @@ export function NewNcrForm({
         </div>
       </section>
 
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="location" className="block text-sm font-medium text-ink">
+            Location / area <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <input id="location" name="location" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+        <div>
+          <label htmlFor="equipment_tag" className="block text-sm font-medium text-ink">
+            Equipment tag <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <input id="equipment_tag" name="equipment_tag" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+        <div>
+          <label htmlFor="spec_reference" className="block text-sm font-medium text-ink">
+            Spec clause <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <input id="spec_reference" name="spec_reference" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        </div>
+      </section>
+
       <div>
         <label htmlFor="ncr_photos" className="block text-sm font-medium text-ink">
-          Photos <span className="font-normal text-muted">(optional, images up to 25 MB each)</span>
+          Photos <span className="font-normal text-muted">(optional, compressed automatically)</span>
         </label>
         <input
           id="ncr_photos"
@@ -386,6 +417,7 @@ export function NewNcrForm({
         </div>
       )}
 
+      {photoError && <p className="text-sm text-danger">{photoError}</p>}
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>

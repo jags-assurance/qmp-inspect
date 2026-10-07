@@ -5,6 +5,7 @@ import { updateNcrAction, reopenNcrAction, suggestNcrRootCauseAction, type Reope
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ReturnForReworkForm } from "./ncr-status-controls";
+import { NCR_DISPOSITIONS, NCR_DISPOSITION_LABELS } from "@/lib/ncrs/extended";
 
 const initialState: UpdateNcrState = { error: null };
 const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
@@ -28,6 +29,14 @@ export function CloseOutForm({
   capaLocked,
   photoCount,
   onSaved,
+  categories,
+  rootCauseCategory,
+  disposition,
+  costImpact,
+  scheduleImpactDays,
+  contractorResponse,
+  selfVerifyConflict = false,
+  isAdmin = false,
 }: {
   ncrId: string;
   assignedTo: string | null;
@@ -55,6 +64,16 @@ export function CloseOutForm({
   photoCount: number;
   /** Called after a successful save (used by the register side panel to refetch). */
   onSaved?: () => void;
+  /** Root-cause taxonomy; when omitted the classification fields are not shown. */
+  categories?: { code: string; label: string }[];
+  rootCauseCategory?: string | null;
+  disposition?: string | null;
+  costImpact?: number | null;
+  scheduleImpactDays?: number | null;
+  contractorResponse?: string | null;
+  /** The viewer is the assignee / CAPA author: an admin closing needs a written override reason. */
+  selfVerifyConflict?: boolean;
+  isAdmin?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateNcrAction, initialState);
   const onSavedRef = useRef(onSaved);
@@ -233,6 +252,53 @@ export function CloseOutForm({
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
       </div>
+
+      {categories && (
+        <fieldset className="space-y-4 rounded-md border border-border p-3" disabled={isClosed || capaLocked}>
+          <legend className="px-1 text-xs font-medium text-muted">Classification</legend>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="root_cause_category" className="block text-sm font-medium text-ink">Root-cause category</label>
+              <select id="root_cause_category" name="root_cause_category" defaultValue={rootCauseCategory ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
+                <option value="">Not classified</option>
+                {categories.map((c) => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="disposition" className="block text-sm font-medium text-ink">Disposition</label>
+              <select id="disposition" name="disposition" defaultValue={disposition ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
+                <option value="">Not decided</option>
+                {NCR_DISPOSITIONS.map((d) => (
+                  <option key={d} value={d}>{NCR_DISPOSITION_LABELS[d]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="cost_impact" className="block text-sm font-medium text-ink">Cost impact <span className="font-normal text-muted">(optional)</span></label>
+              <input id="cost_impact" name="cost_impact" type="number" min="0" step="0.01" inputMode="decimal" defaultValue={costImpact ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
+            </div>
+            <div>
+              <label htmlFor="schedule_impact_days" className="block text-sm font-medium text-ink">Schedule impact (days) <span className="font-normal text-muted">(optional)</span></label>
+              <input id="schedule_impact_days" name="schedule_impact_days" type="number" min="0" max="3650" step="1" inputMode="numeric" defaultValue={scheduleImpactDays ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="contractor_response" className="block text-sm font-medium text-ink">Contractor response <span className="font-normal text-muted">(optional)</span></label>
+            <textarea id="contractor_response" name="contractor_response" rows={2} maxLength={2000} defaultValue={contractorResponse ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
+          </div>
+        </fieldset>
+      )}
+
+      {!isClosed && canClose && selfVerifyConflict && status === "pending_verification" && (
+        <div>
+          <label htmlFor="close_override_reason" className="block text-sm font-medium text-ink">
+            Override reason <span className="font-normal text-muted">(you are assigned to this NCR or wrote its corrective action)</span>
+          </label>
+          <textarea id="close_override_reason" name="close_override_reason" rows={2} placeholder={isAdmin ? "Why you are verifying your own work (at least 10 characters; audited)" : "A different person must verify and close this NCR"} disabled={!isAdmin} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
+        </div>
+      )}
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 

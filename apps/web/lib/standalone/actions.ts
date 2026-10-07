@@ -6,6 +6,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { boundedCapturedAt } from "@/lib/offline/policy";
+import { sanitizeClientKey } from "@/lib/offline/idempotency";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
@@ -410,7 +413,11 @@ export async function addMeasurementAction(
     .select("id", { count: "exact", head: true })
     .eq("assignment_id", assignmentId);
 
-  const { error } = await supabase.from(STANDALONE_ASSIGNMENT_MEASUREMENTS).insert({
+  // Offline replay key (set by the offline-sync route from X-Idempotency-Key, never by the live form).
+  // A replay of a reading that already landed hits the unique (assignment_id, client_key) index and is
+  // a no-op; two genuinely identical readings carry different keys and both save.
+  const clientKey = sanitizeClientKey(String(formData.get("client_key") ?? ""));
+  const measurementRow: Record<string, unknown> = {
     assignment_id: assignmentId,
     description,
     nominal_value: nominalValue || null,
@@ -419,7 +426,30 @@ export async function addMeasurementAction(
     unit: unit || null,
     result: result === "pass" || result === "fail" ? result : null,
     sort_order: count ?? 0,
-  });
+  };
+  let { error } = await supabase
+    .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
+    .insert(clientKey ? { ...measurementRow, client_key: clientKey } : measurementRow);
+  if (error && clientKey && error.code === "23505") {
+    return { error: null }; // this exact queued item already landed
+  }
+  if (error && clientKey && isMissingSchemaError(error)) {
+    // client_key column not migrated yet: fall back to the previous guard, narrowed to an identical
+    // reading recorded in the last few minutes (a replay, not a deliberate repeat).
+    const since = new Date(Date.now() - 5 * 60_000).toISOString();
+    let dupQuery = supabase
+      .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
+      .select("id")
+      .eq("assignment_id", assignmentId)
+      .eq("description", description)
+      .gte("created_at", since)
+      .limit(1);
+    dupQuery = actualValue ? dupQuery.eq("actual_value", actualValue) : dupQuery.is("actual_value", null);
+    dupQuery = nominalValue ? dupQuery.eq("nominal_value", nominalValue) : dupQuery.is("nominal_value", null);
+    const { data: dup } = await dupQuery;
+    if (dup && dup.length > 0) return { error: null };
+    ({ error } = await supabase.from(STANDALONE_ASSIGNMENT_MEASUREMENTS).insert(measurementRow));
+  }
 
   if (error) {
     return { error: "Could not add the measurement. Check you have permission and try again." };
@@ -711,12 +741,18 @@ export async function addPhotoAction(_prev: AddPhotoState, formData: FormData): 
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from(STANDALONE_ASSIGNMENT_PHOTOS).insert({
+  const photoRow: Record<string, unknown> = {
     assignment_id: assignmentId,
     storage_path: storagePath,
     caption: caption || null,
     uploaded_by: user?.id ?? null,
-  });
+  };
+  // Real capture time for photos taken offline (bounded; falls back to the server clock).
+  const capturedAt = boundedCapturedAt(String(formData.get("captured_at") ?? ""));
+  let { error } = await supabase.from(STANDALONE_ASSIGNMENT_PHOTOS).insert(capturedAt ? { ...photoRow, captured_at: capturedAt } : photoRow);
+  if (error && capturedAt && isMissingSchemaError(error)) {
+    ({ error } = await supabase.from(STANDALONE_ASSIGNMENT_PHOTOS).insert(photoRow));
+  }
 
   if (error) {
     return { error: "Could not save the photo record. Check you have permission and try again." };
@@ -756,12 +792,36 @@ export async function addSignatureAction(
   const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
   if (access.error) return { error: access.error };
 
-  const { error } = await supabase.from(STANDALONE_ASSIGNMENT_SIGNATURES).insert({
+  const clientKey = sanitizeClientKey(String(formData.get("client_key") ?? ""));
+  const signedAt = boundedCapturedAt(String(formData.get("captured_at") ?? ""));
+  const signatureRow: Record<string, unknown> = {
     assignment_id: assignmentId,
     role,
     signatory_name: signatoryName,
     signature_data: signatureData,
-  });
+    // A signature drawn offline carries the time it was actually drawn, not the sync time.
+    ...(signedAt ? { signed_at: signedAt } : {}),
+  };
+  let { error } = await supabase
+    .from(STANDALONE_ASSIGNMENT_SIGNATURES)
+    .insert(clientKey ? { ...signatureRow, client_key: clientKey } : signatureRow);
+  if (error && clientKey && error.code === "23505") {
+    return { error: null }; // this exact queued item already landed
+  }
+  if (error && clientKey && isMissingSchemaError(error)) {
+    // client_key column not migrated yet: previous guard, narrowed to the same role + signatory in the last few minutes.
+    const since = new Date(Date.now() - 5 * 60_000).toISOString();
+    const { data: dup } = await supabase
+      .from(STANDALONE_ASSIGNMENT_SIGNATURES)
+      .select("id")
+      .eq("assignment_id", assignmentId)
+      .eq("role", role)
+      .eq("signatory_name", signatoryName)
+      .gte("signed_at", since)
+      .limit(1);
+    if (dup && dup.length > 0) return { error: null };
+    ({ error } = await supabase.from(STANDALONE_ASSIGNMENT_SIGNATURES).insert(signatureRow));
+  }
 
   if (error) {
     return { error: "Could not save the signature. Check you have permission and try again." };
@@ -934,6 +994,7 @@ export async function finalizeAssignmentAction(
       description: `Conditional pass: ${assignment.equipment_description} (${assignment.assignment_number})`,
       source: "fat_conditional_pass",
       sourceStandaloneAssignmentId: assignmentId,
+      dedupe: true,
     });
     if (punch.error) {
       // Without the linked punch item nothing would gate clearance - undo the finalize.
@@ -955,6 +1016,8 @@ export async function finalizeAssignmentAction(
       description: `Failed: ${assignment.equipment_description} (${assignment.assignment_number})`,
       source: "manual",
       sourceStandaloneAssignmentId: assignmentId,
+      priority: "A",
+      dedupe: true,
     });
   }
 

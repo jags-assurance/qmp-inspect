@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 import { isClientTeamLeadForProject } from "@/lib/client-teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/helpers";
@@ -94,7 +95,25 @@ async function canSignOffForParty(
     .eq("id", projectPartyId)
     .maybeSingle<{ user_id: string | null; is_active: boolean }>();
 
-  return party?.is_active === true && party?.user_id === session.userId;
+  if (party?.is_active !== true) return false;
+  if (party.user_id === session.userId) return true;
+  return isPartyMember(supabase, projectPartyId, session.userId);
+}
+
+/** Team members of a party (project_party_members) sign for it too: they get the same alerts. */
+async function isPartyMember(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectPartyId: string,
+  userId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from(PROJECT_PARTY_MEMBERS_TABLE)
+    .select("id")
+    .eq("project_party_id", projectPartyId)
+    .eq("user_id", userId)
+    .limit(1)
+    .returns<{ id: string }[]>();
+  return (data ?? []).length > 0;
 }
 
 /** Looks up the ITP id for a sign-off progress row's activity, to revalidate its detail page. */
@@ -500,7 +519,9 @@ export async function signOffAction(progressId: string, onBehalfReason?: string)
     .select("user_id, is_active, name, project_id")
     .eq("id", progress.project_party_id)
     .maybeSingle<{ user_id: string | null; is_active: boolean; name: string; project_id: string }>();
-  const isLinkedActiveParty = signParty?.is_active === true && signParty?.user_id === session.userId;
+  const isLinkedActiveParty =
+    signParty?.is_active === true &&
+    (signParty?.user_id === session.userId || (await isPartyMember(supabase, progress.project_party_id, session.userId)));
   const authority = evaluateSignoffAuthority({
     isJagsStaff: session.isJagsStaff,
     isAdminOrTeamLead:
@@ -734,33 +755,50 @@ export async function proceedWithoutResponseAction(progressId: string, reason?: 
 export async function canCompleteInspection(itpItemId: string): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: itemContext } = await supabase
+  // Fails CLOSED: if the organisation, its levels or the sign-off rows cannot be read (RLS or a query
+  // error), the Hold is treated as not released rather than silently letting the work through.
+  const { data: itemContext, error: ctxError } = await supabase
     .from("itp_items")
     .select("itp_sections(itps(projects(organization_id)))")
     .eq("id", itpItemId)
     .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
+  if (ctxError) return false;
 
   const organizationId = itemContext?.itp_sections?.itps?.projects?.organization_id;
-  if (!organizationId) return true;
+  if (!organizationId) return false;
 
-  const { data: blockingLevels } = await supabase
+  const { data: blockingLevels, error: levelError } = await supabase
     .from(INTERVENTION_LEVEL_TYPES_TABLE)
     .select("code")
     .eq("organization_id", organizationId)
     .eq("is_blocking", true)
     .returns<{ code: string }[]>();
+  if (levelError) return false;
 
   const blockingCodes = (blockingLevels ?? []).map((l) => l.code);
   if (blockingCodes.length === 0) return true;
 
-  const { data: holds } = await supabase
-    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .select("status")
-    .eq("itp_item_id", itpItemId)
-    .in("intervention", blockingCodes)
-    .returns<Pick<ActivitySignoffProgressRow, "status">[]>();
+  const [{ data: holds, error: holdError }, { data: assigned, error: assignedError }] = await Promise.all([
+    supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .select("project_party_id, intervention, status")
+      .eq("itp_item_id", itpItemId)
+      .in("intervention", blockingCodes)
+      .returns<Pick<ActivitySignoffProgressRow, "project_party_id" | "intervention" | "status">[]>(),
+    // A blocking level assigned to a party with NO progress row must still hold.
+    supabase
+      .from("activity_party_intervention")
+      .select("project_party_id, intervention")
+      .eq("itp_item_id", itpItemId)
+      .in("intervention", blockingCodes)
+      .returns<{ project_party_id: string; intervention: string }[]>(),
+  ]);
+  if (holdError || assignedError) return false;
 
-  return (holds ?? []).every((h) => h.status === "signed_off");
+  const signed = new Set((holds ?? []).filter((h) => h.status === "signed_off").map((h) => `${h.project_party_id}:${h.intervention}`));
+  const everyProgressSigned = (holds ?? []).every((h) => h.status === "signed_off");
+  const everyAssignedHasSigned = (assigned ?? []).every((a) => signed.has(`${a.project_party_id}:${a.intervention}`));
+  return everyProgressSigned && everyAssignedHasSigned;
 }
 
 async function findProjectIdForItpItem(
@@ -1028,6 +1066,24 @@ export async function withdrawSignoffAction(progressId: string, reason: string):
   if (!progress) return { error: "Sign-off record not found." };
   if (progress.status !== "signed_off" && progress.status !== "proceeded_no_response") {
     return { error: "Only a recorded sign-off can be withdrawn." };
+  }
+  // Withdrawing a release is a controlled act (admin or team lead, like signing on behalf), and never
+  // while the work it released is completed with a live IRN: void the IRN first.
+  {
+    const projectId = await findProjectIdForItpItem(supabase, progress.itp_item_id);
+    if (!isAdminStaff(session) && !(projectId && (await isTeamLeadForProject(supabase, session.userId, projectId)))) {
+      return { error: "Only an admin or a team lead can withdraw a recorded sign-off." };
+    }
+    const { data: liveIrn } = await supabase
+      .from("inspection_records")
+      .select("id, irns!inner(id, voided_at)")
+      .eq("itp_item_id", progress.itp_item_id)
+      .is("irns.voided_at", null)
+      .limit(1)
+      .returns<{ id: string }[]>();
+    if ((liveIrn ?? []).length > 0) {
+      return { error: "An IRN has been issued for this activity. Void the IRN (re-open the inspection) before withdrawing a sign-off." };
+    }
   }
 
   const { data: rows, error } = await supabase

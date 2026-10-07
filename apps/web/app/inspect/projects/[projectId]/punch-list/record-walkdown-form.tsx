@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 
 const initialState: RecordWalkdownState = { error: null };
 
@@ -31,6 +32,19 @@ export function RecordWalkdownForm({
   const [rowIds, setRowIds] = useState<number[]>([nextRowId()]);
   const [open, setOpen] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  // Idempotency key per attempt: a double tap or refresh-resubmit cannot record the walk-down twice.
+  const [requestId, setRequestId] = useState("");
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  useEffect(() => {
+    setRequestId(crypto.randomUUID());
+  }, [resetKey]);
+  async function submit(formData: FormData) {
+    const keys = formData.getAll("row_key").map(String);
+    const tooBig = await compressFormPhotos(formData, keys.map((k) => `photos_${k}`));
+    setPhotoError(tooBig);
+    if (tooBig) return;
+    formAction(formData);
+  }
   const lastAdded = useRef<RecordWalkdownState | null>(null);
   // Start a fresh blank sheet only after a SUCCESSFUL record - on error the rows stay for retry.
   useEffect(() => {
@@ -60,11 +74,12 @@ export function RecordWalkdownForm({
   return (
     <form
       key={resetKey}
-      action={formAction}
+      action={submit}
       encType="multipart/form-data"
       className="w-full rounded-lg border border-border bg-off-white p-4"
     >
       <input type="hidden" name="project_id" value={projectId} />
+      <input type="hidden" name="request_id" value={requestId} />
 
       <div className="flex items-center justify-between">
         <div>
@@ -80,6 +95,25 @@ export function RecordWalkdownForm({
         >
           Cancel
         </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 rounded-md border border-border bg-surface p-3 sm:grid-cols-4">
+        <label className="text-xs font-medium text-ink">
+          Walk-down date
+          <input name="walked_on" type="date" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+        </label>
+        <label className="text-xs font-medium text-ink">
+          Area walked
+          <input name="walkdown_area" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+        </label>
+        <label className="text-xs font-medium text-ink">
+          Attendees
+          <input name="walkdown_attendees" maxLength={500} placeholder="Names / organisations" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+        </label>
+        <label className="text-xs font-medium text-ink">
+          Notes
+          <input name="walkdown_notes" maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+        </label>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -194,6 +228,7 @@ export function RecordWalkdownForm({
         </Button>
       </div>
 
+      {photoError && <p className="mt-2 text-sm text-danger">{photoError}</p>}
       {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
       {!pending && !state.error && state.addedCount ? (
         <p className="mt-2 text-sm text-success">

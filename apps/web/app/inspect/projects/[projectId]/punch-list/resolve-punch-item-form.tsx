@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { resolvePunchItemAction, type ResolvePunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +17,16 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
   const [state, formAction, pending] = useActionState(resolvePunchItemAction, initialState);
   const [expanded, setExpanded] = useState(false);
   const [evidence, setEvidence] = useState("");
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  async function submit(formData: FormData) {
+    const tooBig = await compressFormPhotos(formData, ["closing_photos"]);
+    const attached = formData.getAll("closing_photos").some((f) => typeof f !== "string" && f.size > 0);
+    const message = tooBig ?? (attached ? null : "Attach at least one photo of the fix.");
+    setPhotoError(message);
+    if (message) return;
+    formAction(formData);
+  }
 
   if (!expanded) {
     return (
@@ -30,7 +41,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
   }
 
   return (
-    <form action={formAction} encType="multipart/form-data" className="flex min-w-56 flex-col gap-2">
+    <form action={submit} encType="multipart/form-data" className="flex min-w-56 flex-col gap-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <textarea
@@ -43,9 +54,10 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
         className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
       />
       <label className="text-xs font-medium text-ink">
-        Photos of the fix (optional)
-        <input name="closing_photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic" capture="environment" multiple className="mt-1 w-full text-xs" />
+        Photos of the fix (required)
+        <input name="closing_photos" type="file" accept="image/*" capture="environment" multiple required className="mt-1 w-full text-xs" />
       </label>
+      {photoError && <p className="text-xs text-danger">{photoError}</p>}
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending || !evidence.trim()}>
