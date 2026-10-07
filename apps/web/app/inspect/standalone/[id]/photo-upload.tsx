@@ -4,6 +4,8 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { addPhotoAction } from "@/lib/standalone/actions";
 import { compressImageFile } from "@/lib/media/compress-image";
+import { enqueueOutboxItem } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
 /**
  * The file itself goes straight from the browser to the "inspection-evidence" Storage bucket;
@@ -14,6 +16,7 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function uploadOne(rawFile: File): Promise<string | null> {
@@ -25,8 +28,22 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `standalone/${assignmentId}/${Date.now()}-${safeName}`;
 
+    // Keep the photo on this device and send it when the connection returns.
+    async function queueForLater(): Promise<string | null> {
+      await enqueueOutboxItem({
+        kind: "standalone_photo",
+        fields: { kind: "standalone_photo", assignment_id: assignmentId, file_name: file.name, ...(caption.trim() ? { caption: caption.trim() } : {}) },
+        file,
+        fileName: file.name,
+      });
+      notifyOutboxChanged();
+      setNotice("Saved on this device — it will be sent when you're back online.");
+      return null;
+    }
+    if (!navigator.onLine) return queueForLater();
+
     const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
-    if (uploadError) return "Upload failed. Check your connection and try again.";
+    if (uploadError) return navigator.onLine ? "Upload failed. Check your connection and try again." : queueForLater();
 
     const formData = new FormData();
     formData.set("assignment_id", assignmentId);
@@ -53,6 +70,7 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
 
     setUploading(true);
     setError(null);
+    setNotice(null);
 
     let lastError: string | null = null;
     for (const file of files) {
@@ -88,6 +106,7 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
         className="mt-1 block text-sm text-ink file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
       />
       {uploading && <p className="mt-1 text-xs text-muted">Uploading…</p>}
+      {notice && <p className="mt-1 text-sm text-muted">{notice}</p>}
       {error && <p className="mt-1 text-sm text-danger">{error}</p>}
     </div>
   );

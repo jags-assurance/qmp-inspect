@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
+import { addMeasurementAction, addPhotoAction, addSignatureAction } from "@/lib/standalone/actions";
+import { STANDALONE_ASSIGNMENT_MEASUREMENTS, STANDALONE_ASSIGNMENT_PHOTOS, STANDALONE_ASSIGNMENT_SIGNATURES } from "@/lib/standalone/types";
 import { validateOfflinePhoto } from "@/lib/checklists/photo-validation";
 import { MAX_PHOTO_BYTES } from "@/lib/checklists/photo-validation";
 import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
@@ -115,6 +117,67 @@ export async function POST(request: Request) {
             photoForm.set("storage_path", path);
             await addNcrPhotoAction({ error: null }, photoForm);
           }
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      case "standalone_measurement": {
+        // Replay guard: an identical reading already on the assignment means this item landed before.
+        const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+        const { data: dup } = await authClient
+          .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
+          .select("id")
+          .eq("assignment_id", assignmentId)
+          .eq("description", String(formData.get("description") ?? "").trim())
+          .eq("actual_value", String(formData.get("actual_value") ?? "").trim() || null)
+          .eq("nominal_value", String(formData.get("nominal_value") ?? "").trim() || null)
+          .limit(1);
+        if (dup && dup.length > 0) return NextResponse.json({ ok: true });
+        const result = await addMeasurementAction({ error: null }, formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        return NextResponse.json({ ok: true });
+      }
+
+      case "standalone_signature": {
+        const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+        const signatureData = String(formData.get("signature_data") ?? "").trim();
+        const { data: dup } = await authClient
+          .from(STANDALONE_ASSIGNMENT_SIGNATURES)
+          .select("id")
+          .eq("assignment_id", assignmentId)
+          .eq("signature_data", signatureData)
+          .limit(1);
+        if (dup && dup.length > 0) return NextResponse.json({ ok: true });
+        const result = await addSignatureAction({ error: null }, formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        return NextResponse.json({ ok: true });
+      }
+
+      case "standalone_photo": {
+        const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+        const file = formData.get("file");
+        if (!assignmentId || !(file instanceof Blob)) {
+          return NextResponse.json({ ok: false, error: "Missing photo data." }, { status: 422 });
+        }
+        if (!file.type.startsWith("image/") || file.size > MAX_PHOTO_BYTES) {
+          return NextResponse.json({ ok: false, error: "Photo must be an image under 15 MB." }, { status: 422 });
+        }
+        const safeName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
+        // Deterministic path from the idempotency key: a replay targets the same object and record.
+        const path = `standalone/${assignmentId}/${clientKey || Date.now()}-${safeName}`;
+        const { data: dup } = await authClient.from(STANDALONE_ASSIGNMENT_PHOTOS).select("id").eq("assignment_id", assignmentId).eq("storage_path", path).limit(1);
+        if (dup && dup.length > 0) return NextResponse.json({ ok: true });
+        const { error: uploadError } = await authClient.storage.from("inspection-evidence").upload(path, file, { upsert: true });
+        if (uploadError) return NextResponse.json({ ok: false, error: "Could not store the photo." }, { status: 500 });
+        const photoForm = new FormData();
+        photoForm.set("assignment_id", assignmentId);
+        photoForm.set("storage_path", path);
+        const caption = String(formData.get("caption") ?? "").trim();
+        if (caption) photoForm.set("caption", caption);
+        const result = await addPhotoAction({ error: null }, photoForm);
+        if (result.error) {
+          await authClient.storage.from("inspection-evidence").remove([path]).catch(() => undefined);
+          return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
         }
         return NextResponse.json({ ok: true });
       }

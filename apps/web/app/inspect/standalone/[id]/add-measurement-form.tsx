@@ -1,15 +1,34 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
+import { enqueueOutboxItem } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { addMeasurementAction, type AddMeasurementState } from "@/lib/standalone/actions";
 
 const initialState: AddMeasurementState = { error: null };
 
 export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
   const [state, formAction, pending] = useActionState(addMeasurementAction, initialState);
+  const [queued, setQueued] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Offline: keep the reading on this device and send it when the connection returns.
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    setQueued(false);
+    if (navigator.onLine) return;
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const fields: Record<string, string> = { kind: "standalone_measurement" };
+    for (const [k, v] of form.entries()) if (typeof v === "string" && !k.startsWith("$ACTION")) fields[k] = v;
+    if (!fields.description?.trim()) return;
+    await enqueueOutboxItem({ kind: "standalone_measurement", fields });
+    notifyOutboxChanged();
+    formRef.current?.reset();
+    setQueued(true);
+  }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-2 border-t border-border bg-off-white px-4 py-3">
+    <form ref={formRef} onSubmit={onSubmit} action={formAction} className="flex flex-wrap items-end gap-2 border-t border-border bg-off-white px-4 py-3">
       <input type="hidden" name="assignment_id" value={assignmentId} />
 
       <div className="min-w-48 flex-1">
@@ -67,6 +86,7 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
       >
         {pending ? "Adding…" : "+ Add measurement"}
       </button>
+      {queued && <p className="w-full text-sm text-muted">Saved on this device — it will be sent when you&apos;re back online.</p>}
       {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );

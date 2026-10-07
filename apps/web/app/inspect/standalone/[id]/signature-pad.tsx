@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState, type PointerEvent } from "react";
 import { addSignatureAction, type AddSignatureState } from "@/lib/standalone/actions";
+import { enqueueOutboxItem } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
 const initialState: AddSignatureState = { error: null };
 
@@ -12,6 +14,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
   const drawingRef = useRef(false);
   const [signatureData, setSignatureData] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [queued, setQueued] = useState(false);
 
   function pointerPos(e: PointerEvent<HTMLCanvasElement>) {
     const canvas = e.currentTarget;
@@ -76,8 +79,23 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
     setHasDrawn(false);
   }
 
+  // Offline: keep the signature on this device and send it when the connection returns.
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    setQueued(false);
+    if (navigator.onLine) return;
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const fields: Record<string, string> = { kind: "standalone_signature" };
+    for (const [k, v] of form.entries()) if (typeof v === "string" && !k.startsWith("$ACTION")) fields[k] = v;
+    if (!fields.signature_data || !fields.role?.trim() || !fields.signatory_name?.trim()) return;
+    await enqueueOutboxItem({ kind: "standalone_signature", fields });
+    notifyOutboxChanged();
+    handleClear();
+    setQueued(true);
+  }
+
   return (
-    <form action={formAction} className="mt-4 space-y-3 border-t border-border pt-4">
+    <form action={formAction} onSubmit={onSubmit} className="mt-4 space-y-3 border-t border-border pt-4">
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <input type="hidden" name="signature_data" value={signatureData} />
 
@@ -118,6 +136,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
         </button>
       </div>
 
+      {queued && <p className="text-sm text-muted">Saved on this device — it will be sent when you&apos;re back online.</p>}
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 
       <button
