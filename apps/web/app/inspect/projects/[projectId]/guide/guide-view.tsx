@@ -52,7 +52,7 @@ function PipelineBar({ segments }: { segments: { label: string; count: number; c
           s.count > 0 ? (
             <div
               key={s.label}
-              className={`${s.colorClass} flex items-center justify-center text-[10px] font-semibold text-white`}
+              className={`${s.colorClass} flex items-center justify-center text-xs font-semibold text-white`}
               style={{ width: `${(s.count / total) * 100}%` }}
               title={`${s.label}: ${s.count}`}
             >

@@ -151,7 +151,7 @@ export default async function ManageHubPage() {
             Nothing waiting on you right now.
           </p>
         ) : (
-          <div className="mt-2 overflow-hidden rounded-lg border border-border bg-surface">
+          <div className="mt-2 overflow-x-auto rounded-lg border border-border bg-surface">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-off-white text-left text-xs uppercase tracking-wide text-muted">
                 <tr>

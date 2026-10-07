@@ -11,6 +11,7 @@ import {
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: AddMaterialEntryState = { error: null };
 
@@ -224,9 +225,8 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
         {pending ? "Adding…" : "+ Add material"}
       </Button>
 
-      {added && <p className="text-sm text-green-700">Added</p>}
-
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
+      <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />
     </form>
   );
 }

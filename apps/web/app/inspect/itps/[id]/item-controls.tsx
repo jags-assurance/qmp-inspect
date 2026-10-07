@@ -109,7 +109,7 @@ export function ItemControls({
           <button
             type="button"
             onClick={() => setIsEditing(true)}
-            className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium hover:bg-off-white"
+            className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
           >
             Edit
           </button>
@@ -120,7 +120,7 @@ export function ItemControls({
               <button
                 type="submit"
                 aria-label={direction === "up" ? "Move activity up" : "Move activity down"}
-                className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium hover:bg-off-white"
+                className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
               >
                 {direction === "up" ? "↑" : "↓"}
               </button>
@@ -133,7 +133,7 @@ export function ItemControls({
             <button
               type="submit"
               disabled={deletePending}
-              className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
+              className="rounded border border-border px-1.5 py-0.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
             >
               {deletePending ? "Deleting…" : "Delete"}
             </button>
@@ -233,14 +233,14 @@ export function ItemControls({
         <button
           type="submit"
           disabled={pending}
-          className="rounded border border-border bg-off-white px-2 py-1 text-[10px] font-medium hover:bg-surface disabled:opacity-50"
+          className="rounded border border-border bg-off-white px-2 py-1 text-xs font-medium hover:bg-surface disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save"}
         </button>
         <button
           type="button"
           onClick={() => setIsEditing(false)}
-          className="rounded border border-border px-2 py-1 text-[10px] font-medium hover:bg-off-white"
+          className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white"
         >
           Cancel
         </button>

@@ -100,7 +100,7 @@ export function ItemPhotoUpload({
             <div key={url} className="relative h-10 w-10 overflow-hidden rounded">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt={`Queued photo ${i + 1}`} className="h-full w-full object-cover opacity-70" />
-              <span className="absolute inset-x-0 bottom-0 bg-warning/90 text-center text-[8px] font-medium leading-tight text-white">
+              <span className="absolute inset-x-0 bottom-0 bg-warning/90 text-center text-xs font-medium leading-tight text-white">
                 Queued
               </span>
             </div>

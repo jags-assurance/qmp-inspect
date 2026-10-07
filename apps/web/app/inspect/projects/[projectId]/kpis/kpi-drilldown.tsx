@@ -52,7 +52,7 @@ export function KpiDrilldown({
           <p className="mt-1 text-xs text-muted">
             Every activity&rsquo;s earliest recorded inspection, pass or fail — this is what the rate above is computed from.
           </p>
-          <div className="mt-3 max-h-80 overflow-y-auto">
+          <div className="mt-3 max-h-80 overflow-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">

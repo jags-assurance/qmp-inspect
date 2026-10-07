@@ -278,7 +278,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
                     <div className="flex items-start gap-2">
                       <span
                         aria-hidden="true"
-                        className="mt-0.5 inline-flex h-8 w-9 shrink-0 items-center justify-center rounded border border-border bg-off-white text-[10px] font-semibold text-muted"
+                        className="mt-0.5 inline-flex h-8 w-9 shrink-0 items-center justify-center rounded border border-border bg-off-white text-xs font-semibold text-muted"
                       >
                         {FILE_ICON[row.fileType.key] ?? "DOC"}
                       </span>

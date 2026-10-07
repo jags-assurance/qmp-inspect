@@ -62,7 +62,7 @@ export function WorkspaceTabs({
                 {typeof tab.count === "number" && tab.count > 0 && (
                   <span
                     className={cn(
-                      "rounded-full px-1.5 text-[11px] leading-5",
+                      "rounded-full px-1.5 text-xs leading-5",
                       isActive ? "bg-burgundy text-white" : "bg-off-white text-muted"
                     )}
                   >

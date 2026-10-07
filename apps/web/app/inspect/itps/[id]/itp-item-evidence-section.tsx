@@ -36,6 +36,7 @@ export function ItpItemMeasurementsSection({
     <div className="border-t border-border px-3 py-3">
       <h4 className="text-xs font-medium text-muted">Measurements</h4>
       {measurements.length > 0 ? (
+        <div className="overflow-x-auto">
         <table className="mt-2 w-full text-xs">
           <thead>
             <tr className="text-left text-muted">
@@ -54,6 +55,7 @@ export function ItpItemMeasurementsSection({
             ))}
           </tbody>
         </table>
+        </div>
       ) : (
         <p className="mt-1.5 text-xs text-muted">No measurements recorded yet.</p>
       )}
@@ -135,25 +137,25 @@ function MeasurementRow({
       <td className="py-1 pr-2">
         {measurement.result ? (
           <span
-            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${
+            className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${
               measurement.result === "pass" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
             }`}
           >
             {measurement.result === "pass" ? "Pass" : "Fail"}
           </span>
         ) : (
-          <span className="text-[10px] text-muted">—</span>
+          <span className="text-xs text-muted">—</span>
         )}
       </td>
       {canDelete && (
         <td className="py-1 text-right whitespace-nowrap">
-          <button type="button" onClick={() => setEditing(true)} className="text-[10px] text-burgundy hover:underline">
+          <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
             Edit
           </button>
           <form action={deleteItpItemMeasurementAction} className="inline">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
-            <button type="submit" className="ml-2 text-[10px] text-danger hover:underline">
+            <button type="submit" className="ml-2 text-xs text-danger hover:underline">
               Remove
             </button>
           </form>
@@ -256,7 +258,7 @@ export function ItpItemEvidenceDocumentsSection({
               <span className="text-ink">
                 {doc.title}
                 {doc.documentReference && <span className="text-muted"> ({doc.documentReference})</span>}
-                {badge && <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium ${badge.className}`}>{badge.label}</span>}
+                {badge && <span className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span>}
               </span>
               {canLink && (
                 <form action={unlinkItpItemEvidenceDocumentAction}>
@@ -303,7 +305,7 @@ function LinkDocumentForm({
 
   if (availableDocuments.length === 0 && !projectId) {
     return (
-      <p className="mt-2 text-[11px] text-muted">
+      <p className="mt-2 text-xs text-muted">
         {hasUnlinkedNonApproved
           ? "There's an unapproved or superseded document in the vault, but only an approved, current document can be linked as evidence — get it approved first (Document Vault → Approve)."
           : "Upload the evidence document to the project's Document Vault first, then link it here."}

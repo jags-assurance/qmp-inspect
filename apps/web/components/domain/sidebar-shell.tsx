@@ -252,7 +252,7 @@ export function SidebarShell({
           </button>
         </form>
         {isWhiteLabel && !effectiveCollapsed && (
-          <div className="mt-3 text-[10px] text-white/50">Powered by JAGS Assurance</div>
+          <div className="mt-3 text-xs text-white/50">Powered by JAGS Assurance</div>
         )}
       </div>
       </aside>

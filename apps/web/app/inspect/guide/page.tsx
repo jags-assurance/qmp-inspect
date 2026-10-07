@@ -335,7 +335,7 @@ export default async function AppGuidePage() {
             >
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-ink">{role.heading}</h3>
-                {roleKey === key && <span className="rounded-full bg-burgundy px-1.5 py-0.5 text-[10px] font-medium text-white">You</span>}
+                {roleKey === key && <span className="rounded-full bg-burgundy px-1.5 py-0.5 text-xs font-medium text-white">You</span>}
               </div>
               <p className="mt-1 text-xs text-muted">{role.tagline}</p>
               <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-ink">

@@ -87,7 +87,7 @@ function TypeBadge({ doc }: { doc: VaultPickerDocument }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex h-8 w-9 shrink-0 items-center justify-center rounded text-[10px] font-bold ${b.className}`}
+      className={`inline-flex h-8 w-9 shrink-0 items-center justify-center rounded text-xs font-bold ${b.className}`}
     >
       {b.label}
     </span>
@@ -315,7 +315,7 @@ export function VaultFilePicker({
                                 {isNew && statusOf(d) === "for_review" ? "For review — pending approval" : meta.label}
                               </span>
                             </span>
-                            {!ok && <span className="mt-0.5 block text-[11px] text-muted">{whyNot(d)}</span>}
+                            {!ok && <span className="mt-0.5 block text-xs text-muted">{whyNot(d)}</span>}
                           </span>
                         </label>
                       </li>

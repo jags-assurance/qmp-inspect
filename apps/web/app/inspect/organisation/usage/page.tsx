@@ -344,6 +344,7 @@ export default async function UsageAndCostPage({
           {costByModel.size === 0 ? (
             <p className="mt-3 text-sm text-muted">No AI calls in this window.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -370,6 +371,7 @@ export default async function UsageAndCostPage({
                   ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
@@ -379,6 +381,7 @@ export default async function UsageAndCostPage({
           {costByCategory.size === 0 ? (
             <p className="mt-3 text-sm text-muted">No AI calls in this window.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -402,6 +405,7 @@ export default async function UsageAndCostPage({
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

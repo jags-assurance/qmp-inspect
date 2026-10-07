@@ -72,7 +72,7 @@ export function PhotoThumbnail({
     return (
       <div>
         {frame}
-        {caption && <p className="mt-0.5 truncate text-[11px] text-muted">{caption}</p>}
+        {caption && <p className="mt-0.5 truncate text-xs text-muted">{caption}</p>}
       </div>
     );
   }
@@ -91,7 +91,7 @@ export function PhotoThumbnail({
         className="block w-full text-left"
       >
         {frame}
-        {caption && <p className="mt-0.5 truncate text-[11px] text-muted">{caption}</p>}
+        {caption && <p className="mt-0.5 truncate text-xs text-muted">{caption}</p>}
       </button>
       {open && (
         <div

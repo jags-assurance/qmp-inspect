@@ -126,7 +126,7 @@ export function SignoffCell({
     });
   }
 
-  const btn = "min-h-8 rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-off-white disabled:opacity-50";
+  const btn = "min-h-8 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50";
   const canWithdraw = isJagsStaff && (optimisticStatus === "signed_off" || optimisticStatus === "proceeded_no_response");
   const canRenotify = optimisticStatus === "notified" && canSignOffForThisParty;
 
@@ -134,14 +134,14 @@ export function SignoffCell({
     <div className="flex flex-col items-center gap-1">
       {dialog}
       <span
-        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[optimisticStatus]}`}
+        className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_TONE[optimisticStatus]}`}
         title={STATUS_HELP[optimisticStatus]}
       >
         {STATUS_LABEL[optimisticStatus]}
       </span>
       {deadlineMs != null && now != null && (
         <span
-          className={`text-[10px] ${noticeElapsed ? (isBlocking ? "text-danger" : "text-info") : "text-muted"}`}
+          className={`text-xs ${noticeElapsed ? (isBlocking ? "text-danger" : "text-info") : "text-muted"}`}
           title={isBlocking ? "A Hold always waits for release regardless of elapsed time (R77)" : undefined}
         >
           {noticeElapsed && isBlocking ? "Elapsed — still waiting for release" : formatCountdown(deadlineMs, now)}
@@ -149,14 +149,14 @@ export function SignoffCell({
       )}
       {noticeWarning && optimisticStatus === "pending" && (
         <span
-          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${noticeWarning.status === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}
+          className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${noticeWarning.status === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}
           title={noticeWarning.message ?? undefined}
         >
           {noticeWarning.status === "overdue" ? "Planned date passed" : "Short notice"}
         </span>
       )}
       {noticeWarning?.message && optimisticStatus === "pending" && (
-        <span className="max-w-40 text-[10px] text-muted">{noticeWarning.message}</span>
+        <span className="max-w-40 text-xs text-muted">{noticeWarning.message}</span>
       )}
       <div className="flex gap-1">
         {canNotify && (
@@ -206,7 +206,7 @@ export function SignoffCell({
           </button>
         )}
         {!canSignOff && (optimisticStatus === "pending" || optimisticStatus === "notified") && !canSignOffForThisParty && (
-          <span className="text-[10px] text-muted" title="Only this party's own login (or JAGS staff) can sign off">
+          <span className="text-xs text-muted" title="Only this party's own login (or JAGS staff) can sign off">
             Awaiting party
           </span>
         )}
@@ -233,7 +233,7 @@ export function SignoffCell({
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder={reasonFor === "proceed" ? "Reason for proceeding without response" : "Reason for withdrawing sign-off"}
-            className="w-full rounded border border-border bg-surface px-1.5 py-1 text-[11px]"
+            className="w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
           />
           <div className="flex justify-center gap-1">
             <button
@@ -254,7 +254,7 @@ export function SignoffCell({
           </div>
         </div>
       )}
-      {error && <span className="text-[10px] text-danger">{error}</span>}
+      {error && <span className="text-xs text-danger">{error}</span>}
     </div>
   );
 }

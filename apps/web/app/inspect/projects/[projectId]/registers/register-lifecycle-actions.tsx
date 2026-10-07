@@ -22,9 +22,9 @@ export function RegisterRowFlags({ verifiedAt, lifecycleStatus }: { verifiedAt?:
   if (!inactive && !unverified) return null;
   return (
     <span className="mt-1 flex flex-wrap gap-1">
-      {unverified && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-ink">Awaiting JAGS verification</span>}
+      {unverified && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-ink">Awaiting JAGS verification</span>}
       {inactive && (
-        <span className="rounded-full bg-muted/15 px-2 py-0.5 text-[11px] font-medium text-muted">
+        <span className="rounded-full bg-muted/15 px-2 py-0.5 text-xs font-medium text-muted">
           {LIFECYCLE_LABELS[lifecycleStatus as keyof typeof LIFECYCLE_LABELS] ?? lifecycleStatus}
         </span>
       )}

@@ -445,7 +445,7 @@ function PhotoTile({
           // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
           <img src={url} alt={photo.caption ?? "Assignment evidence"} className="h-full w-full object-cover" />
         ) : (
-          <p className="flex h-full items-center justify-center truncate px-1 text-center text-[10px] text-muted" title={photo.storage_path}>
+          <p className="flex h-full items-center justify-center truncate px-1 text-center text-xs text-muted" title={photo.storage_path}>
             {photo.storage_path.split("/").pop()}
           </p>
         )}

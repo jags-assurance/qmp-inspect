@@ -185,7 +185,7 @@ export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: 
               (collapsed ? (
                 <div role="separator" className="mx-3 my-2 border-t border-white/15" />
               ) : (
-                <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-white/60">
+                <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-white/60">
                   {item.group}
                 </p>
               ))}

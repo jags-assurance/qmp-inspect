@@ -28,7 +28,7 @@ export function AgingChart({ counts }: { counts: number[] }) {
               style={{ height: `${Math.max(4, (counts[i] / max) * 72)}px` }}
               aria-hidden
             />
-            <span className="mt-1 text-center text-[10px] text-muted">{label}</span>
+            <span className="mt-1 text-center text-xs text-muted">{label}</span>
           </div>
         ))}
       </div>

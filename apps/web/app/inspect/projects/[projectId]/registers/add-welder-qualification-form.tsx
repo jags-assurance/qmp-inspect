@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { addWelderQualificationEntryAction, type AddWelderQualificationEntryState } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 
 const initialState: AddWelderQualificationEntryState = { error: null };
@@ -99,8 +100,8 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
         {pending ? "Adding…" : "+ Add welder"}
       </Button>
 
-      {added && <p className="text-sm text-green-700">Added</p>}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
+      <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />
     </form>
   );
 }

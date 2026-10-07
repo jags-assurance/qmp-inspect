@@ -127,7 +127,7 @@ export function RevisionHistoryPanel({
                                 {item.acceptance_criteria ? ` — ${item.acceptance_criteria}` : ""}
                                 {" · "}
                                 {EVIDENCE_LABEL[item.evidence_type] ?? "Checklist"}
-                                {change && <span className="ml-1.5 rounded bg-warning/15 px-1 py-0.5 text-[10px] font-medium text-ink">{change}</span>}
+                                {change && <span className="ml-1.5 rounded bg-warning/15 px-1 py-0.5 text-xs font-medium text-ink">{change}</span>}
                                 {detail.length > 0 && <span className="block">{detail.join(" · ")}</span>}
                                 {(item.interventions ?? []).length > 0 && (
                                   <span className="block">

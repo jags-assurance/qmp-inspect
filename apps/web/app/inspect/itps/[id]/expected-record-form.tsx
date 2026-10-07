@@ -114,10 +114,10 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
             </option>
           ))}
         </select>
-        <button type="submit" disabled={updating} className="rounded border border-border px-2 py-1 text-[10px] font-medium hover:bg-off-white">
+        <button type="submit" disabled={updating} className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white">
           {updating ? "Saving…" : "Save"}
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-[10px] text-muted hover:underline">
+        <button type="button" onClick={() => setEditing(false)} className="text-xs text-muted hover:underline">
           Cancel
         </button>
         {updateState.error && <span className="w-full text-danger">{updateState.error}</span>}
@@ -127,7 +127,7 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
 
   return (
     <div className="mt-1 flex items-center gap-2">
-      <button type="button" onClick={() => setEditing(true)} className="text-[10px] text-muted hover:underline">
+      <button type="button" onClick={() => setEditing(true)} className="text-xs text-muted hover:underline">
         Edit
       </button>
       {dialog}
@@ -141,7 +141,7 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
         })}
       >
         <input type="hidden" name="record_id" value={record.id} />
-        <button type="submit" disabled={deleting} className="text-[10px] text-danger hover:underline">
+        <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline">
           {deleting ? "Removing…" : "Remove"}
         </button>
       </form>
@@ -173,7 +173,7 @@ function ExpectedRecordRow({
           {record.record_type} <span className="text-muted">· {PROVIDER_LABEL[record.provider]}</span>
         </span>
         <span
-          className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${
+          className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-medium ${
             isReceived ? "bg-success/10 text-success" : "bg-muted/15 text-muted"
           }`}
         >
@@ -302,7 +302,7 @@ function MarkReceivedForm({
       />
 
       {vaultDocuments.length > 0 && (
-        <div className="flex gap-1 text-[11px]">
+        <div className="flex gap-1 text-xs">
           <button
             type="button"
             onClick={() => setSource("vault")}
@@ -341,7 +341,7 @@ function MarkReceivedForm({
           ))}
         </select>
       ) : (
-        <input ref={fileRef} type="file" className="w-full text-[11px]" />
+        <input ref={fileRef} type="file" className="w-full text-xs" />
       )}
 
       {error && <p className="text-danger">{error}</p>}
@@ -349,7 +349,7 @@ function MarkReceivedForm({
         <Button type="submit" size="sm" disabled={uploading}>
           {uploading ? "Saving…" : "Mark received"}
         </Button>
-        <button type="button" onClick={onClose} className="text-[11px] text-muted hover:underline">
+        <button type="button" onClick={onClose} className="text-xs text-muted hover:underline">
           Cancel
         </button>
       </div>
