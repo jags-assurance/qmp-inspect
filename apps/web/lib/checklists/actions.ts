@@ -1,6 +1,7 @@
 "use server";
 
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
+import { unnotifiedNonBlockingLevels } from "./notice-waiver";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
@@ -1096,7 +1097,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // Witness / review points that were never notified cannot be skipped silently: the party must have
   // been notified (or have responded / been proceeded without response) before the work is signed off.
   {
-    const unnotified = await unnotifiedNonBlockingLevels(supabase, recordForAuth.itp_item_id);
+    const unnotified = await unnotifiedNonBlockingLevels(supabase, recordForAuth.itp_item_id, inspectionRecordId);
     if (unnotified.length > 0) {
       return { error: `Notify the ${unnotified.join(", ")} party before completing this inspection (Sign-off tab on the ITP).` };
     }
@@ -1315,29 +1316,6 @@ async function notifyPunchFailure(
     }
   } catch {
     // Best-effort.
-  }
-}
-
-/** Labels of non-blocking intervention levels (Witness, Review ...) whose sign-off row is still 'pending' (never notified). */
-async function unnotifiedNonBlockingLevels(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itpItemId: string): Promise<string[]> {
-  try {
-    const { data: ctx } = await supabase
-      .from("itp_items")
-      .select("itp_sections(itps(projects(organization_id)))")
-      .eq("id", itpItemId)
-      .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
-    const orgId = ctx?.itp_sections?.itps?.projects?.organization_id;
-    if (!orgId) return [];
-    const [{ data: levels }, { data: progress }] = await Promise.all([
-      supabase.from("intervention_level_types").select("code, label, is_blocking").eq("organization_id", orgId).eq("is_blocking", false).returns<{ code: string; label: string; is_blocking: boolean }[]>(),
-      supabase.from("activity_signoff_progress").select("intervention, status").eq("itp_item_id", itpItemId).eq("status", "pending").returns<{ intervention: string; status: string }[]>(),
-    ]);
-    // Only the Witness level is a notify-before-work requirement; Review / Surveillance are records only.
-    const witnessCodes = new Set((levels ?? []).filter((l) => l.code === "W").map((l) => l.code));
-    const labels = new Map((levels ?? []).map((l) => [l.code, l.label]));
-    return [...new Set((progress ?? []).filter((p) => witnessCodes.has(p.intervention)).map((p) => labels.get(p.intervention) ?? p.intervention))];
-  } catch {
-    return [];
   }
 }
 

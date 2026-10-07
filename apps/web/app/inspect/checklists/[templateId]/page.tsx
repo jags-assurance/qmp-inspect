@@ -39,6 +39,8 @@ import { getNoticeCheck } from "@/lib/signoff/notice-check";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
+import { WaiveNoticeForm } from "./waive-notice-form";
+import { unnotifiedNonBlockingLevels } from "@/lib/checklists/notice-waiver";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
 import { formatDistance, siteGeofenceFromProject, type SiteGeofence } from "@/lib/checklists/geofence";
@@ -218,6 +220,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   ]);
 
   const draft = draftRecords?.[0] ?? null;
+  const unnotifiedWitness = draft && session.isJagsStaff ? await unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : [];
 
   // Version / archive state. Read separately from the main template query so the page still works
   // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
@@ -704,6 +707,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             hasEvidencePhoto={hasEvidencePhoto}
             completeSlot={
               <>
+                {unnotifiedWitness.length > 0 && <WaiveNoticeForm inspectionRecordId={draft.id} labels={unnotifiedWitness} />}
                 <ConsistencyCheck templateId={template.id} inspectionRecordId={draft.id} />
                 <CompleteInspectionForm templateId={template.id} inspectionRecordId={draft.id} />
               </>
