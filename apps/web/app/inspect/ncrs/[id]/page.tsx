@@ -52,7 +52,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
       </Link>
       {warning === "punch" && (
         <div role="alert" className="mt-2 rounded-md border border-warning bg-warning/10 px-3 py-2 text-sm text-ink">
-          This NCR was raised, but its punch-list item could not be created. Do not raise it again - use "Create missing punch item" below.
+          This NCR was raised, but its punch-list item could not be created. Do not raise it again - use &quot;Create missing punch item&quot; below.
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">

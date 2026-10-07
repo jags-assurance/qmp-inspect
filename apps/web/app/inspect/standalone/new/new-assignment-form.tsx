@@ -52,6 +52,11 @@ export function NewAssignmentForm({
   disciplines: { id: string; code: string; name: string }[];
   presetsByProject: Record<string, string[]>;
 }) {
+  // Date bounds are captured once at mount (impure Date.now() must not run on every render).
+  const [dateBounds] = useState(() => ({
+    min: new Date(Date.now() - 5 * 365 * 86400000).toISOString().slice(0, 10),
+    max: new Date(Date.now() + 2 * 365 * 86400000).toISOString().slice(0, 10),
+  }));
   const [projectId, setProjectId] = useState("");
   const [location, setLocation] = useState("");
   const [locError, setLocError] = useState<string | null>(null);
@@ -243,8 +248,8 @@ export function NewAssignmentForm({
               id="assignment_date"
               name="assignment_date"
               type="date"
-              min={new Date(Date.now() - 5 * 365 * 86400000).toISOString().slice(0, 10)}
-              max={new Date(Date.now() + 2 * 365 * 86400000).toISOString().slice(0, 10)}
+              min={dateBounds.min}
+              max={dateBounds.max}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
           </div>

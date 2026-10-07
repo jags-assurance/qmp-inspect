@@ -49,6 +49,7 @@ export function ProjectStatusControl({
 
   // A status change landed (server revalidated with a new status): close the panel.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setTarget(null);
     setSummary(null);
     setReason("");
@@ -56,6 +57,7 @@ export function ProjectStatusControl({
 
   useEffect(() => {
     if (autoSubmit) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setAutoSubmit(false);
       formRef.current?.requestSubmit();
     }

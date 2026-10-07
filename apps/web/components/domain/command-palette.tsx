@@ -53,6 +53,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
   // Record hits (debounced); a stale response from an earlier keystroke is dropped.
   useEffect(() => {
     if (!open || query.trim().length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setHits([]);
       setSearching(false);
       return;

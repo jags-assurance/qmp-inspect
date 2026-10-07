@@ -27,7 +27,7 @@ export function ReviewChainForm({
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
       <h2 className="text-sm font-semibold text-ink">ITP review chain (optional)</h2>
       <p className="mt-1 text-xs text-muted">
-        Leave blank to keep today's behaviour (any JAGS staff can Approve). Set an ordered list and
+        Leave blank to keep today&apos;s behaviour (any JAGS staff can Approve). Set an ordered list and
         each reviewer must approve, in order, before the ITP auto-approves.
       </p>
       <input type="hidden" name="project_id" value={projectId} />

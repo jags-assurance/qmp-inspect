@@ -96,6 +96,7 @@ export function SignoffCell({
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     if (deadlineMs == null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);

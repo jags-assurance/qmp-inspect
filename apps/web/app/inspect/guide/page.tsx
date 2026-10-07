@@ -387,10 +387,10 @@ export default async function AppGuidePage() {
       <section className="mt-8 rounded-lg border border-border bg-off-white p-4">
         <h2 className="text-sm font-semibold text-ink">The H / W / R / S sign-off levels</h2>
         <p className="mt-1 text-xs text-muted">
-          These four are the defaults every organisation starts with — they're not hardcoded. An Admin can add a
-          custom level for their own org (e.g. "CQR — Client QA Review"), and it appears on the grid automatically
+          These four are the defaults every organisation starts with — they&apos;re not hardcoded. An Admin can add a
+          custom level for their own org (e.g. &quot;CQR — Client QA Review&quot;), and it appears on the grid automatically
           with its own colour, blocking or non-blocking exactly like a built-in one. If you see a level below that
-          isn't one of these four, that's why.
+          isn&apos;t one of these four, that&apos;s why.
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="rounded-md border border-danger/40 bg-danger/5 p-3">
@@ -402,8 +402,8 @@ export default async function AppGuidePage() {
           <div className="rounded-md border border-warning/40 bg-warning/5 p-3">
             <p className="text-sm font-semibold text-warning">W — Witness</p>
             <p className="mt-1 text-sm text-muted">
-              That party should be there to watch, but if they don't respond within the notice period, work can proceed
-              anyway ("Proceed" unlocks after the wait).
+              That party should be there to watch, but if they don&apos;t respond within the notice period, work can proceed
+              anyway (&quot;Proceed&quot; unlocks after the wait).
             </p>
           </div>
           <div className="rounded-md border border-info/40 bg-info/5 p-3">
@@ -416,7 +416,7 @@ export default async function AppGuidePage() {
           </div>
         </div>
         <p className="mt-3 text-sm text-muted">
-          A non-staff login can only ever sign off its OWN party's cell — JAGS staff can sign off any party's cell on their
+          A non-staff login can only ever sign off its OWN party&apos;s cell — JAGS staff can sign off any party&apos;s cell on their
           behalf.
         </p>
       </section>
@@ -424,7 +424,7 @@ export default async function AppGuidePage() {
       <section className="mt-8 rounded-lg border border-border bg-off-white p-4">
         <h2 className="text-sm font-semibold text-ink">Looking for a specific project?</h2>
         <p className="mt-1 text-sm text-muted">
-          Open any project and go to its own <strong>Project Guide</strong> for that project's real requirements, who's
+          Open any project and go to its own <strong>Project Guide</strong> for that project&apos;s real requirements, who&apos;s
           actually on it, and what you specifically are responsible for there.
         </p>
       </section>

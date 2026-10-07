@@ -45,7 +45,9 @@ export function NotificationsBell({
     initialUnreadCount ?? initialNotifications.filter((n) => !n.is_read).length
   );
   const notificationsRef = useRef(notifications);
-  notificationsRef.current = notifications;
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();

@@ -340,7 +340,7 @@ export default async function UsageAndCostPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink">AI cost by model</h2>
-          <p className="mt-1 text-sm text-muted">Real token counts × Google's published Gemini API pricing.</p>
+          <p className="mt-1 text-sm text-muted">Real token counts × Google&apos;s published Gemini API pricing.</p>
           {costByModel.size === 0 ? (
             <p className="mt-3 text-sm text-muted">No AI calls in this window.</p>
           ) : (

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedFrom } from "@/lib/supabase/untyped";
 import { requireSession } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,8 @@ export default async function StandaloneAssignmentsPage({
   // `.range()` on the same query — that combination was observed elsewhere in this app to return
   // an accurate count alongside a silently empty data array once embedded-resource joins were
   // involved. This register has no stat cards, so there's no need for a third "light stats" query.
-  let countQuery = supabase.from("standalone_assignments" as any).select("id", { count: "exact", head: true });
-  let tableQuery = supabase
-    .from("standalone_assignments" as any)
+  let countQuery = untypedFrom(supabase, "standalone_assignments").select("id", { count: "exact", head: true });
+  let tableQuery = untypedFrom(supabase, "standalone_assignments")
     .select(
       "id, assignment_number, assignment_type, equipment_description, assignment_date, status, conclusion, discipline_id, projects(name), master_disciplines(code, name)"
     );
@@ -90,7 +90,7 @@ export default async function StandaloneAssignmentsPage({
     .returns<{ id: string; project_number: string; name: string }[]>();
   const statusCounts = await Promise.all(
     ["draft", "conditional_open", "completed"].map(async (st) => {
-      let c = supabase.from("standalone_assignments" as any).select("id", { count: "exact", head: true }).eq("status", st);
+      let c = untypedFrom(supabase, "standalone_assignments").select("id", { count: "exact", head: true }).eq("status", st);
       if (projectId) c = c.eq("project_id", projectId);
       const { count } = await c;
       return count ?? 0;

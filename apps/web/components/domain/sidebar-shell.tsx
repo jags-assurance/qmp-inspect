@@ -55,6 +55,7 @@ export function SidebarShell({
 
   useEffect(() => {
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
     } catch {
       // Private browsing / storage blocked — just stays expanded.

@@ -117,7 +117,7 @@ export function ExtractRegisterPanel({
                 className="w-full rounded-md border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-burgundy"
               />
               <p className="text-xs text-muted">
-                Paste the certificate/document text (or the vault document's extracted text). A
+                Paste the certificate/document text (or the vault document&apos;s extracted text). A
                 missing field stays blank — the AI never guesses a date, number, or range it can&apos;t
                 actually find; you confirm every row below before anything is added.
               </p>

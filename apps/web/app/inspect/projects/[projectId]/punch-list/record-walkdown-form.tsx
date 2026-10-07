@@ -36,6 +36,7 @@ export function RecordWalkdownForm({
   const [requestId, setRequestId] = useState("");
   const [photoError, setPhotoError] = useState<string | null>(null);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setRequestId(crypto.randomUUID());
   }, [resetKey]);
   async function submit(formData: FormData) {

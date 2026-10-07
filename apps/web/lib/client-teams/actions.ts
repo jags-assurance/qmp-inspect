@@ -208,7 +208,7 @@ export async function addClientTeamMemberByEmailAction(
   const { error: grantError } = await supabase
     .from("access_grants")
     .insert({ user_id: targetUser.id, scope_type: "organization", organization_id: organizationId, role: "member" });
-  let grantWarning: string | null = null;
+  const grantWarning: string | null = null;
   if (grantError && grantError.code !== "23505") {
     // A team member with no platform access is useless and confusing, so undo the membership
     // rather than leaving a half-added person behind.

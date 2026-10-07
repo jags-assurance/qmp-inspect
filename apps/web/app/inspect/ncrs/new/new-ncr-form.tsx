@@ -93,6 +93,7 @@ export function NewNcrForm({
   // Idempotency key for this raise attempt; a fresh one is issued after each successful create.
   const [requestId, setRequestId] = useState("");
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setRequestId(crypto.randomUUID());
   }, [state.created?.id]);
   const [draftState, draftFormAction, draftPending] = useActionState(

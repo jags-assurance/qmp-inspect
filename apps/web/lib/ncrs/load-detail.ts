@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedFrom } from "@/lib/supabase/untyped";
 import { NCRS_TABLE, NCR_PHOTOS_TABLE, type NcrPhotoRow, type NcrSeverity, type NcrStatus } from "@/lib/ncrs/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
@@ -207,8 +208,7 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   ]);
 
   const [{ data: docRows }, { data: vaultRows }] = await Promise.all([
-    supabase
-      .from("ncr_documents" as any)
+    untypedFrom(supabase, "ncr_documents")
       .select("id, vault_document_id, vault_documents(title, document_reference, status)")
       .eq("ncr_id", id)
       .returns<{ id: string; vault_document_id: string; vault_documents: { title: string; document_reference: string | null; status: string } | null }[]>(),

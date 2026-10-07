@@ -198,7 +198,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
   // 20260930180000_project_party_members.sql) — gated identically to canProvisionPartyLogin since
   // it's the same sensitivity level (granting/revoking real project access), and only fetched at all
   // when at least one party exists to attach the panel to.
-  let partyMembersByPartyId = new Map<string, PartyMemberRow[]>();
+  const partyMembersByPartyId = new Map<string, PartyMemberRow[]>();
   let orgCustomRoles: CustomRoleOption[] = [];
   if (canProvisionPartyLogin && (parties ?? []).length > 0) {
     const [{ data: memberRows }, { data: roleRows }] = await Promise.all([
@@ -524,10 +524,10 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
             By default only JAGS staff can run a Standalone Assignment (FAT/witness inspection/
             specific test/pre-shipment) on this project, on any engagement tier. Turning this on
             lets an active subcontractor or main-contractor party on THIS project run one
-            themselves too — the equipment they supplied is routinely something they're best
-            placed to test. This works independently of the Full Client-Managed tier's own
+            themselves too — the equipment they supplied is routinely something they&apos;re best
+            placed to test. This works independently of the Full Client-Managed tier&apos;s own
             run_standalone_assignment permission (Organisation → Custom roles), which is separate
-            and grants the same right to the client's own people instead.
+            and grants the same right to the client&apos;s own people instead.
           </p>
           <AllowContractorStandaloneAssignmentToggle
             projectId={project.id}
@@ -551,8 +551,8 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
           <h2 className="font-medium text-ink">Hold-point enforcement</h2>
           <p className="mt-1 text-sm text-muted">
             On by default: an open Hold on an activity stops field work from starting at all, not
-            just from being marked complete (R71 — "a hold point must wait"). Turn this off for
-            THIS project only if its process doesn't need the software to enforce the hold at
+            just from being marked complete (R71 — &quot;a hold point must wait&quot;). Turn this off for
+            THIS project only if its process doesn&apos;t need the software to enforce the hold at
             start time — the assigned party still has to sign off before the inspection can be
             completed either way.
           </p>

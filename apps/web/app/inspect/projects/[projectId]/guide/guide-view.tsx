@@ -232,8 +232,8 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
           {project.project_number} <span className="font-normal text-muted">— {project.name}</span>
         </Heading>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Who's on this project, what's actually expected of them, and where the pipeline stands right now — for "is
-          this project done yet, as a %," see the Data Book instead; this page is the people/roles map.
+          Who&apos;s on this project, what&apos;s actually expected of them, and where the pipeline stands right now — for &quot;is
+          this project done yet, as a %,&quot; see the Data Book instead; this page is the people/roles map.
         </p>
       </div>
 
@@ -258,8 +258,8 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
             {PARTY_TYPE_RESPONSIBILITY[myParty!.party_type] ?? "See the App Guide for general role responsibilities."}
           </p>
           <p className="mt-2 text-xs text-muted">
-            On the intervention grid, you can only sign off the "{myParty!.name}" column — every other party's pending
-            cell will show "Awaiting party" instead of a Sign off button for you.
+            On the intervention grid, you can only sign off the &quot;{myParty!.name}&quot; column — every other party&apos;s pending
+            cell will show &quot;Awaiting party&quot; instead of a Sign off button for you.
           </p>
         </section>
       )}
@@ -288,9 +288,9 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-ink">What's actually required here</h2>
+          <h2 className="text-sm font-semibold text-ink">What&apos;s actually required here</h2>
           <p className="mt-1 text-xs text-muted">
-            No single "requirements" field exists — the real requirements live in each ITP's applicable standard and
+            No single &quot;requirements&quot; field exists — the real requirements live in each ITP&apos;s applicable standard and
             the Document Vault.
           </p>
           {standards.length > 0 ? (

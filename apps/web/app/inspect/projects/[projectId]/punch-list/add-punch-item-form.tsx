@@ -21,12 +21,14 @@ export function AddPunchItemForm({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setRequestId(crypto.randomUUID());
   }, []);
   // Reset the fields and issue a fresh key after a successful add.
   useEffect(() => {
     if (state.added) {
       formRef.current?.reset();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setRequestId(crypto.randomUUID());
       setConfirmed(true);
       const t = setTimeout(() => setConfirmed(false), 4000);

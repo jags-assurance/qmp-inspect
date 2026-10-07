@@ -18,6 +18,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
   useEffect(() => {
     if (pending) {
       wasPending.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setAdded(false);
       return;
     }
