@@ -7,11 +7,14 @@ import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { AcknowledgeForm } from "./acknowledge-form";
+import { CertificatePdfButton } from "./certificate-pdf-button";
+import { getHandoverCertificatePdfInfo } from "@/lib/handover/certificate-pdf";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 
 interface HandoverRow {
   id: string;
+  data_book_id: string;
   certificate_number: string;
   issued_date: string;
   received_by_name: string | null;
@@ -50,7 +53,7 @@ export default async function HandoverPage() {
   const { data: certificates } = await supabase
     .from(HANDOVER_CERTIFICATES_TABLE)
     .select(
-      "id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, acknowledged_by, acknowledged_by_role, acknowledged_on_behalf, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(book_number, title, projects(name, project_number, organizations(name)))"
+      "id, data_book_id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, acknowledged_by, acknowledged_by_role, acknowledged_on_behalf, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(book_number, title, projects(name, project_number, organizations(name)))"
     )
     .order("issued_date", { ascending: false })
     .returns<HandoverRow[]>();
@@ -72,6 +75,7 @@ export default async function HandoverPage() {
     GENERATED_DOCUMENTS_BUCKET,
     (certificates ?? []).map((c) => c.package_storage_path).filter((p): p is string => Boolean(p))
   );
+  const certPdfInfo = await getHandoverCertificatePdfInfo(supabase, (certificates ?? []).map((c) => c.data_book_id));
   const packageLinks = new Map<string, string>();
   for (const cert of certificates ?? []) {
     const url = cert.package_storage_path ? pathToUrl.get(cert.package_storage_path) : undefined;
@@ -144,6 +148,17 @@ export default async function HandoverPage() {
                   )}
                 </div>
               )}
+              <div className="mt-2 text-sm">
+                {certPdfInfo.get(cert.data_book_id)?.url ? (
+                  <a href={certPdfInfo.get(cert.data_book_id)!.url!} target="_blank" rel="noreferrer" className="font-medium text-burgundy hover:underline">
+                    Handover certificate (PDF) →
+                  </a>
+                ) : certPdfInfo.get(cert.data_book_id)?.inFlight ? (
+                  <span className="text-muted">Handover certificate PDF is being prepared…</span>
+                ) : session.isJagsStaff ? (
+                  <CertificatePdfButton dataBookId={cert.data_book_id} />
+                ) : null}
+              </div>
               {packageLinks.has(cert.id) ? (
                 <>
                   <p className="mt-2 text-sm">

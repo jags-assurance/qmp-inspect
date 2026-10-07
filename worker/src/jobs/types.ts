@@ -94,6 +94,9 @@ export interface RenderDataBookPdfPayload {
   requested_by: string;
   /** Re-render an already issued book (as a same-revision reprint). */
   force_regenerate?: boolean;
+  /** "handover_certificate" renders the one-page Handover Certificate for an issued book instead of
+   *  the Data Book itself (same job type, so the same access rules and storage read policy apply). */
+  variant?: "handover_certificate";
 }
 
 /** Payload for "render_ncr_closeout_certificate" (R83) — the branded A4 close-out certificate for an

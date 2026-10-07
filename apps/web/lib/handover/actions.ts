@@ -19,6 +19,7 @@ import {
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { acknowledgeErrorMessage, clientRecipientIds, issueErrorMessage } from "./helpers";
+import { queueHandoverCertificatePdf } from "./certificate-pdf";
 
 export interface IssueHandoverState {
   error: string | null;
@@ -235,6 +236,9 @@ export async function issueHandoverAction(
     }
   }
 
+  // Render the Handover Certificate PDF (best-effort; the certificate row is the formal record).
+  await queueHandoverCertificatePdf(supabase, dataBookId, session.userId);
+
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
   revalidatePath("/inspect/handover");
   return { error: null };
@@ -291,10 +295,11 @@ export async function acknowledgeHandoverAction(
   try {
     const { data: cert } = await supabase
       .from(HANDOVER_CERTIFICATES_TABLE)
-      .select("id, certificate_number, issued_by, data_books(project_id, book_number, projects(id, organization_id, responsible_person_id))")
+      .select("id, data_book_id, certificate_number, issued_by, data_books(project_id, book_number, projects(id, organization_id, responsible_person_id))")
       .eq("id", certificateId)
       .maybeSingle<{
         id: string;
+        data_book_id: string;
         certificate_number: string;
         issued_by: string | null;
         data_books: {
@@ -305,6 +310,8 @@ export async function acknowledgeHandoverAction(
       }>();
     const organizationId = cert?.data_books?.projects?.organization_id;
     const projectId = cert?.data_books?.project_id;
+    // Re-render the certificate PDF so it now carries the acknowledgement (next vault revision).
+    if (cert?.data_book_id) await queueHandoverCertificatePdf(supabase, cert.data_book_id, session.userId);
     if (cert && organizationId && projectId) {
       const who = `${receivedByName}${receivedByCompany ? ` (${receivedByCompany})` : ""}${onBehalf ? " — recorded on behalf of the client by JAGS staff" : ""}`;
       await recordAuditEvent(supabase, {
@@ -334,4 +341,25 @@ export async function acknowledgeHandoverAction(
 
   revalidatePath("/inspect/handover");
   return { error: null };
+}
+
+export interface RequestCertificatePdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/** Staff-only: (re)queue the Handover Certificate PDF for an issued Data Book — for certificates issued before PDFs existed, or after a failed render. */
+export async function requestHandoverCertificatePdfAction(
+  _prev: RequestCertificatePdfState,
+  formData: FormData
+): Promise<RequestCertificatePdfState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: "Only JAGS staff can generate the certificate PDF." };
+  const dataBookId = String(formData.get("data_book_id") ?? "").trim();
+  if (!dataBookId) return { error: "Missing data book." };
+  const supabase = await createSupabaseServerClient();
+  const ok = await queueHandoverCertificatePdf(supabase, dataBookId, session.userId);
+  if (!ok) return { error: "Could not queue the certificate PDF. Try again." };
+  revalidatePath("/inspect/handover");
+  return { error: null, success: true };
 }

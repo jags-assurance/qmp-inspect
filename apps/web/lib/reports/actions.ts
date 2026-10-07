@@ -236,15 +236,18 @@ async function hasInFlightJob(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   jobType: string,
   payloadKey: string,
-  id: string
+  id: string,
+  variant: "handover_certificate" | null = null
 ): Promise<boolean> {
-  const { data } = await supabase
+  let query = supabase
     .from(BACKGROUND_JOBS_TABLE)
     .select("id")
     .eq("job_type", jobType)
     .eq(`payload->>${payloadKey}`, id)
-    .in("status", ["pending", "processing"])
-    .limit(1);
+    .in("status", ["pending", "processing"]);
+  // Data Book jobs come in two variants sharing one job type; only compare like with like.
+  if (jobType === "render_data_book_pdf") query = variant ? query.eq("payload->>variant", variant) : query.is("payload->>variant", null);
+  const { data } = await query.limit(1);
   return Boolean(data && data.length > 0);
 }
 
@@ -785,6 +788,7 @@ export async function requestDataBookPdfAction(_prev: RequestDataBookPdfState, f
         .select("id")
         .eq("job_type", "render_data_book_pdf")
         .eq("payload->>data_book_id", dataBookId)
+        .is("payload->>variant", null)
         .eq("status", "completed")
         .not("result_storage_path", "is", null)
         .limit(1)
@@ -834,6 +838,7 @@ export async function getLatestDataBookPdf(dataBookId: string): Promise<DataBook
     .select("id, payload, status, result_storage_path, error_message, created_at")
     .eq("job_type", "render_data_book_pdf")
     .eq("payload->>data_book_id", dataBookId)
+    .is("payload->>variant", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle<

@@ -213,6 +213,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       .select("completed_at")
       .eq("job_type", "render_data_book_pdf")
       .eq("payload->>data_book_id", books[0].id)
+      .is("payload->>variant", null)
       .eq("status", "completed")
       .order("completed_at", { ascending: false })
       .limit(1)

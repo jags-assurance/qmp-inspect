@@ -9,6 +9,7 @@ import { renderFatReportPdf } from "./jobs/renderFatReportPdf";
 import { renderPortfolioSummaryPdf } from "./jobs/renderPortfolioSummaryPdf";
 import { renderNcrPdf } from "./jobs/renderNcrPdf";
 import { renderIrnPdf } from "./jobs/renderIrnPdf";
+import { renderHandoverCertificatePdf } from "./jobs/renderHandoverCertificatePdf";
 import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
 import { closeSharedBrowser } from "./browserPool";
@@ -235,7 +236,9 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
         break;
       }
       case "render_data_book_pdf": {
-        const { resultStoragePath } = await renderDataBookPdf(job.payload as unknown as RenderDataBookPdfPayload);
+        const dbPayload = job.payload as unknown as RenderDataBookPdfPayload;
+        const { resultStoragePath } =
+          dbPayload.variant === "handover_certificate" ? await renderHandoverCertificatePdf(dbPayload) : await renderDataBookPdf(dbPayload);
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
         break;
