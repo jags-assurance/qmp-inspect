@@ -11,6 +11,7 @@ import {
 } from "@/lib/reports/actions";
 import { useReportPackListPolling } from "@/lib/reports/use-report-pack-polling";
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
+import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 import { Button } from "@/components/ui/button";
 
 const initialState: GenerateMonthlyReportPackState = { error: null };
@@ -44,6 +45,7 @@ export function MonthlyReportPackForm({
   const [state, formAction, pending] = useActionState(generateMonthlyReportPackAction, initialState);
   const [summaryState, summaryFormAction, summaryPending] = useActionState(generateReportPackSummaryAction, summaryInitialState);
   const { items: reportPacks, polling, startPolling } = useReportPackListPolling(initialPacks, listMonthlyReportPacks, organizationId);
+  const inFlightPack = reportPacks.find((p) => p.status === "pending" || p.status === "processing");
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -88,7 +90,7 @@ export function MonthlyReportPackForm({
         </div>
 
         <Button type="submit" disabled={pending || polling}>
-          {pending ? "Queuing…" : polling ? "Rendering…" : "Generate monthly report pack"}
+          {pending ? "Queuing…" : polling ? renderingLabel(inFlightPack) : "Generate monthly report pack"}
         </Button>
 
         {aiConfigured && (
@@ -109,7 +111,7 @@ export function MonthlyReportPackForm({
         )}
 
         {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
-        {polling && <p className="w-full text-sm text-muted">Rendering — the table below updates automatically when ready…</p>}
+        {polling && <p className="w-full text-sm text-muted">{renderingLabel(inFlightPack)} — the table below updates automatically when ready…</p>}
       </form>
 
       {aiConfigured && (
@@ -167,7 +169,7 @@ export function MonthlyReportPackForm({
                   ) : pack.status === "failed" ? (
                     <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
                   ) : (
-                    <span className="text-xs text-muted">Rendering…</span>
+                    <span className="text-xs text-muted">{jobStatusText({ status: pack.status as "pending" | "processing" | "completed" | "failed", errorMessage: pack.errorMessage })}</span>
                   )}
                 </td>
               </tr>

@@ -9,6 +9,7 @@ import {
 } from "@/lib/reports/actions";
 import { useReportPackListPolling } from "@/lib/reports/use-report-pack-polling";
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
+import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 import { Button } from "@/components/ui/button";
 
 const initialState: RequestWeeklyReportPackState = { error: null };
@@ -27,6 +28,7 @@ function defaultWeekStart(): string {
 export function WeeklyReportPackForm({ organizationId, initialPacks }: { organizationId: string; initialPacks: WeeklyReportPackListItem[] }) {
   const [state, formAction, pending] = useActionState(requestWeeklyReportPackAction, initialState);
   const { items: weeklyReportPacks, polling, startPolling } = useReportPackListPolling(initialPacks, listWeeklyReportPacks, organizationId);
+  const inFlightPack = weeklyReportPacks.find((p) => p.status === "pending" || p.status === "processing");
 
   useEffect(() => {
     if (state.success) startPolling();
@@ -49,11 +51,11 @@ export function WeeklyReportPackForm({ organizationId, initialPacks }: { organiz
         </div>
 
         <Button type="submit" disabled={pending || polling}>
-          {pending ? "Queuing…" : polling ? "Rendering…" : "Generate weekly report pack"}
+          {pending ? "Queuing…" : polling ? renderingLabel(inFlightPack) : "Generate weekly report pack"}
         </Button>
 
         {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
-        {polling && <p className="w-full text-sm text-muted">Rendering — the table below updates automatically when ready…</p>}
+        {polling && <p className="w-full text-sm text-muted">{renderingLabel(inFlightPack)} — the table below updates automatically when ready…</p>}
       </form>
 
       <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted">Generated report packs</h3>
@@ -95,7 +97,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks }: { organiz
                   ) : pack.status === "failed" ? (
                     <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
                   ) : (
-                    <span className="text-xs text-muted">Rendering…</span>
+                    <span className="text-xs text-muted">{jobStatusText({ status: pack.status as "pending" | "processing" | "completed" | "failed", errorMessage: pack.errorMessage })}</span>
                   )}
                 </td>
               </tr>
