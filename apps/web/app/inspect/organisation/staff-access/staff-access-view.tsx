@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffGrantForm, type StaffOption, type OrgOption, type ProjectOption } from "./staff-grant-form";
 import { RemoveGrantButton } from "./remove-grant-button";
+import { AccountStatusButton, OffboardByEmailForm } from "./account-status-controls";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ interface StaffRow {
   full_name: string;
   email: string;
   staff_role: "admin" | "inspector" | null;
+  is_active: boolean | null;
 }
 
 interface GrantRow {
@@ -36,7 +38,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
   const [{ data: staff }, { data: grants }, { data: organizations }, { data: projects }] = await Promise.all([
     supabase
       .from("users")
-      .select("id, full_name, email, staff_role")
+      .select("id, full_name, email, staff_role, is_active")
       .eq("is_jags_staff", true)
       .order("full_name")
       .returns<StaffRow[]>(),
@@ -125,6 +127,10 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
         <StaffGrantForm staff={staffOptions} organizations={organizations ?? []} projects={projects ?? []} />
       </div>
 
+      <div className="mt-6">
+        <OffboardByEmailForm />
+      </div>
+
       <div className="mt-8 space-y-4">
         {(staff ?? []).map((s) => (
           <div key={s.id} className="rounded-lg border border-border bg-surface p-4">
@@ -133,8 +139,12 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
                 <p className="text-sm font-medium text-ink">{s.full_name}</p>
                 <p className="text-xs text-muted">
                   {s.email} · {s.staff_role === "inspector" ? "JAGS Inspector" : "JAGS Admin"}
+                  {s.is_active === false && <> · <span className="font-medium text-danger">Deactivated</span></>}
                 </p>
               </div>
+              {s.id !== session.userId && (
+                <AccountStatusButton userId={s.id} active={s.is_active !== false} name={s.full_name} />
+              )}
             </div>
             <div className="mt-3 space-y-1.5">
               {(grantsByUser.get(s.id) ?? []).length === 0 && (

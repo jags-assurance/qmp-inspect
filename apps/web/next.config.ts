@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { securityHeaders } from "./lib/security/headers";
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -7,6 +8,17 @@ const nextConfig: NextConfig = {
     // more. 4 MB stays under the ~4.5 MB serverless request cap on Vercel — the forms compress photos
     // client-side (lib/media/compress-image) so a handful of photos fits.
     serverActions: { bodySizeLimit: "4mb" },
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders({
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+          isProduction: process.env.NODE_ENV === "production",
+        }),
+      },
+    ];
   },
 };
 

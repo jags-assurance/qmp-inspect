@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+import {
+  constantTimeEqual,
+  extractEmailAddress,
+  extractWebhookSecret,
+  isSenderAllowed,
+  validateAttachment,
+} from "../email-inbound-security";
+
+describe("email-inbound security", () => {
+  it("compares secrets in constant time and handles length mismatch", () => {
+    expect(constantTimeEqual("abc", "abc")).toBe(true);
+    expect(constantTimeEqual("abc", "abd")).toBe(false);
+    expect(constantTimeEqual("abc", "abcd")).toBe(false);
+  });
+  it("reads the secret from headers only", () => {
+    const h = new Headers({ "x-vault-webhook-secret": "s1" });
+    expect(extractWebhookSecret(h)).toBe("s1");
+    expect(extractWebhookSecret(new Headers({ authorization: "Bearer tok" }))).toBe("tok");
+    expect(extractWebhookSecret(new Headers())).toBeNull();
+  });
+  it("extracts sender addresses", () => {
+    expect(extractEmailAddress("Jane Doe <Jane@Acme.com>")).toBe("jane@acme.com");
+    expect(extractEmailAddress("no address")).toBeNull();
+  });
+  it("allows party emails and company domains but not free-mail domains or strangers", () => {
+    const parties = ["site@contractor.example", "qa@gmail.com"];
+    expect(isSenderAllowed("Site <site@contractor.example>", parties)).toBe(true);
+    expect(isSenderAllowed("other@contractor.example", parties)).toBe(true);
+    expect(isSenderAllowed("stranger@gmail.com", parties)).toBe(false);
+    expect(isSenderAllowed("qa@gmail.com", parties)).toBe(true);
+    expect(isSenderAllowed("x@evil.example", parties)).toBe(false);
+    expect(isSenderAllowed("x@partner.example", parties, ["@partner.example"])).toBe(true);
+  });
+  it("limits attachment size and type", () => {
+    expect(validateAttachment("a.pdf", "application/pdf", 1000)).toBeNull();
+    expect(validateAttachment("a.exe", "application/pdf", 1000)).not.toBeNull();
+    expect(validateAttachment("a.pdf", "application/pdf", 30 * 1024 * 1024)).not.toBeNull();
+    expect(validateAttachment("a.bin", "application/x-msdownload", 10)).not.toBeNull();
+    expect(validateAttachment("a.svg", "image/svg+xml", 10)).not.toBeNull();
+  });
+});

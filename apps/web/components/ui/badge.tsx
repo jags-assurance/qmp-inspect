@@ -28,14 +28,14 @@ export function Badge({
   tone = "neutral",
   children,
   icon,
-  showIcon = false,
+  showIcon = true,
   srPrefix,
 }: {
   tone?: Tone;
   children: ReactNode;
   /** Custom leading icon/text. Takes precedence over the default tone glyph. */
   icon?: ReactNode;
-  /** Opt in to the default per-tone glyph. */
+  /** Default per-tone glyph, on unless turned off — colour must not be the only status cue. */
   showIcon?: boolean;
   /** Visually hidden text read before the label, e.g. "Status:". */
   srPrefix?: string;

@@ -139,14 +139,20 @@ export async function removeStaffGrantAction(
     .maybeSingle<{ user_id: string; organization_id: string | null; scope_type: string; role: string }>();
 
   // Never let an admin lock themselves (or the last global admin) out by removing a global grant.
+  // Only global grants held by ACTIVE admin staff count: other global grants may all belong to
+  // inspectors, who cannot manage access (the database enforces the same rule — 20261104000200).
   if (grant?.scope_type === "global") {
-    const { count: otherGlobalGrants } = await supabase
+    const { data: otherGlobal } = await supabase
       .from("access_grants")
-      .select("id", { count: "exact", head: true })
+      .select("user_id, users(is_jags_staff, staff_role, is_active)")
       .eq("scope_type", "global")
-      .neq("id", grantId);
-    if (!otherGlobalGrants) {
-      return { error: "This is the only global grant, so it can't be removed — nobody would have platform-wide access." };
+      .neq("id", grantId)
+      .returns<{ user_id: string; users: { is_jags_staff: boolean; staff_role: string | null; is_active: boolean } | null }[]>();
+    const otherAdmins = (otherGlobal ?? []).filter(
+      (g) => g.users?.is_jags_staff && g.users.is_active !== false && g.users.staff_role !== "inspector"
+    );
+    if (otherAdmins.length === 0) {
+      return { error: "This is the only global grant held by an admin, so it can't be removed — nobody would be able to manage access." };
     }
     if (grant.user_id === session.userId) {
       return { error: "You can't remove your own global access. Ask another JAGS Admin to do it." };

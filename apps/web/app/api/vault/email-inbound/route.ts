@@ -8,6 +8,13 @@ import {
   parseFolderKeyFromSubject,
   titleFromAttachmentFilename,
 } from "@/lib/vault/email-inbound-parsing";
+import {
+  MAX_ATTACHMENTS_PER_EMAIL,
+  constantTimeEqual,
+  extractWebhookSecret,
+  isSenderAllowed,
+  validateAttachment,
+} from "@/lib/vault/email-inbound-security";
 
 /**
  * R20b — email-to-vault ingestion.
@@ -31,9 +38,9 @@ import {
  *   2. Point that provider's inbound webhook at:
  *        POST https://<this-app>/api/vault/email-inbound
  *      with the shared secret configured below as a header (Postmark supports custom webhook
- *      headers under Servers -> Inbound -> Webhook; a provider that can't set custom headers can
- *      instead append the secret as a query string, e.g. ?secret=..., which this handler also
- *      accepts).
+ *      headers under Servers -> Inbound -> Webhook). The secret is accepted ONLY from the
+ *      `x-vault-webhook-secret` or `Authorization: Bearer` header — never the query string, which
+ *      proxies and CDNs log.
  *   3. Set VAULT_EMAIL_WEBHOOK_SECRET in this app's env to a long random value, and configure that
  *      exact value on the provider's side.
  *   4. Set SUPABASE_SERVICE_ROLE_KEY (already a documented-but-previously-unused env var — see
@@ -82,14 +89,8 @@ export const runtime = "nodejs";
 function checkSharedSecret(request: Request): boolean {
   const configured = process.env.VAULT_EMAIL_WEBHOOK_SECRET;
   if (!configured) return false;
-
-  const headerSecret = request.headers.get("x-vault-webhook-secret");
-  const authHeader = request.headers.get("authorization");
-  const bearerSecret = authHeader?.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : null;
-  const querySecret = new URL(request.url).searchParams.get("secret");
-
-  const provided = headerSecret || bearerSecret || querySecret;
-  return provided === configured;
+  const provided = extractWebhookSecret(request.headers);
+  return provided !== null && constantTimeEqual(provided, configured);
 }
 
 export async function POST(request: Request) {
@@ -131,8 +132,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, message: "No attachments to ingest.", results: [] });
   }
 
+  if (payload.attachments.length > MAX_ATTACHMENTS_PER_EMAIL) {
+    return NextResponse.json({ ok: false, error: `At most ${MAX_ATTACHMENTS_PER_EMAIL} attachments per email.` }, { status: 413 });
+  }
+
   const folderKey = parseFolderKeyFromSubject(payload.subject);
   const supabase = createSupabaseServiceRoleClient();
+
+  // Sender allowlist: only people already on the project (party contacts / linked users, or their
+  // company domain) or explicitly allow-listed senders may drop documents into its vault. Anyone who
+  // learns the vault+<project-uuid> address is otherwise able to.
+  const { data: project } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+  if (!project) {
+    return NextResponse.json({ ok: false, error: `Unknown project ${projectId}.` }, { status: 404 });
+  }
+  const { data: partyRows } = await supabase
+    .from("project_parties")
+    .select("contact_email, user_id")
+    .eq("project_id", projectId)
+    .returns<{ contact_email: string | null; user_id: string | null }[]>();
+  const partyEmails = (partyRows ?? []).map((p) => p.contact_email ?? "").filter(Boolean);
+  const linkedIds = (partyRows ?? []).map((p) => p.user_id).filter((id): id is string => Boolean(id));
+  if (linkedIds.length > 0) {
+    const { data: linked } = await supabase.from("users").select("email").in("id", linkedIds).returns<{ email: string }[]>();
+    partyEmails.push(...(linked ?? []).map((u) => u.email));
+  }
+  const extraAllowed = (process.env.VAULT_EMAIL_ALLOWED_SENDERS ?? "").split(",");
+  if (!isSenderAllowed(payload.from, partyEmails, extraAllowed)) {
+    console.warn(`[email-inbound] rejected sender for project ${projectId}`);
+    // 200 so the provider does not retry a message that will never be accepted.
+    return NextResponse.json({ ok: false, error: "Sender is not recognised for this project." }, { status: 200 });
+  }
+
+  // Idempotency on the provider's MessageID: a retried delivery is acknowledged, not re-ingested.
+  const messageId = typeof (body as { MessageID?: unknown })?.MessageID === "string" ? (body as { MessageID: string }).MessageID : null;
+  if (messageId) {
+    const { error: dupError } = await supabase
+      .from("inbound_email_messages" as never)
+      .insert({ message_id: messageId, project_id: projectId, sender: payload.from.slice(0, 320) } as never);
+    if (dupError?.code === "23505") {
+      return NextResponse.json({ ok: true, message: "Duplicate delivery ignored.", results: [] });
+    }
+    // Any other error (table not migrated yet): carry on without de-duplication.
+  }
 
   const { data: folder } = await supabase
     .from(VAULT_FOLDERS_TABLE)
@@ -153,12 +195,18 @@ export async function POST(request: Request) {
   for (const attachment of payload.attachments) {
     try {
       const bytes = Buffer.from(attachment.contentBase64, "base64");
+      const invalid = validateAttachment(attachment.filename, attachment.contentType ?? null, bytes.byteLength);
+      if (invalid) {
+        results.push({ filename: attachment.filename, ok: false, error: invalid });
+        continue;
+      }
       const safeName = attachment.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storagePath = `vault/${projectId}/${folderKey}/email-${Date.now()}-${safeName}`;
+      const keyPart = messageId ? messageId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 60) : String(Date.now());
+      const storagePath = `vault/${projectId}/${folderKey}/email-${keyPart}-${results.length}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("inspection-evidence")
-        .upload(storagePath, bytes, { contentType: attachment.contentType ?? undefined });
+        .upload(storagePath, bytes, { contentType: attachment.contentType ?? undefined, upsert: false });
 
       if (uploadError) {
         results.push({ filename: attachment.filename, ok: false, error: uploadError.message });
@@ -179,6 +227,8 @@ export async function POST(request: Request) {
       });
 
       if (result.error) {
+        // Don't leave an orphaned object behind when the document row was not created.
+        await supabase.storage.from("inspection-evidence").remove([storagePath]).catch(() => undefined);
         results.push({ filename: attachment.filename, ok: false, error: result.error });
       } else {
         results.push({ filename: attachment.filename, ok: true, documentNumber: result.documentNumber });
@@ -193,6 +243,19 @@ export async function POST(request: Request) {
   }
 
   const anyOk = results.some((r) => r.ok);
+
+  // Audit trail for the otherwise anonymous (uploadedBy: null) ingestion. Service role bypasses RLS.
+  const { error: auditError } = await supabase.from("audit_log" as never).insert({
+    organization_id: project.organization_id,
+    project_id: projectId,
+    entity_type: "vault_email_inbound",
+    entity_id: projectId,
+    action: "email_ingested",
+    actor_id: null,
+    summary: `Inbound email from ${payload.from.slice(0, 200) || "unknown sender"}: ${results.filter((r) => r.ok).length}/${results.length} attachment(s) filed`,
+    changes: { message_id: messageId, folder_key: folderKey, results: results.map((r) => ({ filename: r.filename, ok: r.ok, error: r.error ?? null })) },
+  } as never);
+  if (auditError) console.error(`[email-inbound] audit insert failed: ${auditError.message}`);
   return NextResponse.json(
     { ok: anyOk, project_id: projectId, folder_key: folderKey, results },
     { status: anyOk ? 200 : 422 }

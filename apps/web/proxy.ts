@@ -1,9 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  evaluateSession,
+  readSessionLimitConfig,
+  sessionCookieSecret,
+  signStamp,
+  verifyStamp,
+} from "@/lib/auth/session-limits";
+import { decideProxyAccess } from "@/lib/auth/proxy-decision";
 
 const PUBLIC_PATHS = [
   "/login",
-  "/auth/callback",
   "/auth/confirm",
   "/forgot-password",
   "/reset-password",
@@ -11,6 +18,8 @@ const PUBLIC_PATHS = [
   "/verify/",
   // Health check must be reachable by uptime monitors / load balancers with no session.
   "/api/health",
+  // Inbound-email webhook: authenticated by its own shared secret, not a user session.
+  "/api/vault/email-inbound",
   // PWA / offline-support assets: the browser fetches the service worker script (and installs the
   // manifest + offline fallback) without being able to follow a login redirect — "The script
   // resource is behind a redirect, which is disallowed" — so redirecting these to /login silently
@@ -20,11 +29,30 @@ const PUBLIC_PATHS = [
   "/offline.html",
 ];
 
+// Signed "last seen" (inactivity limit) and "profile check passed" (skips a DB query per request)
+// cookies — see lib/auth/session-limits.ts.
+const SEEN_COOKIE = "qmp_seen";
+const CHECK_COOKIE = "qmp_chk";
+const SEEN_REFRESH_MS = 60_000; // re-stamp at most once a minute
+const CHECK_TTL_MS = 5 * 60_000;
+const COOKIE_OPTS = { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/" };
+
+function isPrefetch(request: NextRequest): boolean {
+  return (
+    request.headers.get("next-router-prefetch") === "1" ||
+    request.headers.get("purpose") === "prefetch" ||
+    request.headers.get("sec-purpose")?.includes("prefetch") === true
+  );
+}
+
 /**
  * Refreshes the Supabase session on every request (required by @supabase/ssr) and redirects
  * signed-out users away from anything but the public auth routes. This is a UX convenience, not
  * the security boundary — RLS is the actual boundary. A user who somehow reaches a page without a
  * valid session still gets zero rows back from every query.
+ *
+ * Also enforced here, server-side: an absolute session lifetime and an inactivity limit, a
+ * deactivated (banned) account, and the forced first-login password change.
  *
  * Named `proxy` (not `middleware`) per Next.js 16's renamed convention — same request/response
  * lifecycle, the file is just called `proxy.ts` now.
@@ -63,29 +91,100 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+  const pathname = request.nextUrl.pathname;
+  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
   if (!user && !isPublicPath) {
     const redirectUrl = new URL("/login", request.url);
-    redirectUrl.searchParams.set("next", request.nextUrl.pathname);
+    // Keep the query string so a deep link (?panel=…&status=…) survives sign-in; the login page and
+    // signInAction re-validate it as a same-site path.
+    redirectUrl.searchParams.set("next", pathname + request.nextUrl.search);
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && request.nextUrl.pathname === "/login") {
+  // (A signed-in user sent back with ?error=... is shown the message instead of being bounced home,
+  // which would loop for an account whose session context can no longer be built.)
+  if (user && pathname === "/login" && !request.nextUrl.searchParams.has("error")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Forced first-login password change: a party login provisioned with a temporary password
-  // (lib/projects/party-provisioning.ts) must set a real one before reaching anywhere else — this
-  // is the actual enforcement point, not just a UI nudge (see guard_must_change_password,
-  // 20260929010000_party_login_provisioning.sql, for why the flag itself can't just be cleared by
-  // the client). A public path already lets a signed-in user reach /reset-password itself; every
-  // other route redirects there first. One extra query per request for a signed-in user, same cost
-  // class as the auth.getUser() call already made above.
   if (user && !isPublicPath) {
-    const { data: profile } = await supabase.from("users").select("must_change_password").eq("id", user.id).maybeSingle();
-    if (profile?.must_change_password) {
-      return NextResponse.redirect(new URL("/reset-password?forced=1", request.url));
+    const now = Date.now();
+    const secret = sessionCookieSecret();
+    const prefetch = isPrefetch(request);
+
+    // Redirect that also carries any cookie writes made above (token refresh, sign-out).
+    const redirectWithCookies = (to: string) => {
+      const redirect = NextResponse.redirect(new URL(to, request.url));
+      for (const c of response.cookies.getAll()) redirect.cookies.set(c);
+      return redirect;
+    };
+
+    // ---- Server-side session limits + deactivation ----
+    const lastSignInAt = user.last_sign_in_at ? Date.parse(user.last_sign_in_at) : null;
+    const lastSeen = secret ? await verifyStamp(secret, user.id, request.cookies.get(SEEN_COOKIE)?.value) : null;
+    const bannedUntil = (user as { banned_until?: string | null }).banned_until;
+    const decision = decideProxyAccess({
+      now,
+      lastSeen,
+      lastSignInAt,
+      limits: readSessionLimitConfig(),
+      deactivated:
+        user.app_metadata?.deactivated === true || (bannedUntil ? Date.parse(bannedUntil) > now : false),
+      mustChangePasswordClaim:
+        typeof user.app_metadata?.must_change_password === "boolean" ? user.app_metadata.must_change_password : null,
+      tempPasswordExpiresAt:
+        typeof user.app_metadata?.temp_password_expires_at === "string" ? user.app_metadata.temp_password_expires_at : null,
+    });
+
+    if (decision.action === "sign_out") {
+      await supabase.auth.signOut();
+      const redirect = redirectWithCookies(`/login?error=${decision.reason}`);
+      redirect.cookies.delete(SEEN_COOKIE);
+      redirect.cookies.delete(CHECK_COOKIE);
+      return redirect;
+    }
+
+    // ---- Forced first-login password change ----
+    // The flag lives in the auth user's app_metadata (set at provisioning, cleared on change), which
+    // getUser() just returned — no database round trip. Accounts that predate the claim fall back to
+    // the original users query, cached for a few minutes in a signed cookie.
+    let mustChange = decision.mustChangePassword;
+    let setCheckCookie = false;
+    if (mustChange === null) {
+      const cached = secret ? await verifyStamp(secret, user.id, request.cookies.get(CHECK_COOKIE)?.value) : null;
+      if (cached !== null && now - cached < CHECK_TTL_MS) {
+        mustChange = false;
+      } else if (prefetch) {
+        mustChange = false; // a prefetch is never the enforcement point; the real navigation is.
+      } else {
+        const { data: profile } = await supabase
+          .from("users")
+          .select("must_change_password, is_active")
+          .eq("id", user.id)
+          .maybeSingle<{ must_change_password: boolean; is_active: boolean }>();
+        if (profile && profile.is_active === false) {
+          await supabase.auth.signOut();
+          const redirect = redirectWithCookies("/login?error=deactivated");
+          redirect.cookies.delete(SEEN_COOKIE);
+          redirect.cookies.delete(CHECK_COOKIE);
+          return redirect;
+        }
+        mustChange = Boolean(profile?.must_change_password);
+        setCheckCookie = !mustChange;
+      }
+    }
+    if (mustChange) {
+      return redirectWithCookies("/reset-password?forced=1");
+    }
+
+    if (secret && !prefetch) {
+      if (lastSeen === null || now - lastSeen > SEEN_REFRESH_MS) {
+        response.cookies.set(SEEN_COOKIE, await signStamp(secret, user.id, now), COOKIE_OPTS);
+      }
+      if (setCheckCookie) {
+        response.cookies.set(CHECK_COOKIE, await signStamp(secret, user.id, now), COOKIE_OPTS);
+      }
     }
   }
 
@@ -93,5 +192,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)"],
+  // Static assets, the service worker, manifest and offline page never need a session round trip.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|woff2?)$).*)",
+  ],
 };

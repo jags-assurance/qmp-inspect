@@ -2,8 +2,9 @@
 
 import { useActionState, useState } from "react";
 import { provisionPartyLoginAction, type ProvisionPartyLoginState } from "@/lib/projects/party-provisioning";
+import { formatDateTime } from "@/lib/dates/format";
 
-const initialState: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null };
+const initialState: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null };
 
 /**
  * Shown next to a party's "No linked login yet" state (project page) once it has a contact email —
@@ -38,7 +39,8 @@ export function ProvisionPartyLoginForm({
         <p className="font-medium text-ink">Account created for {state.email}</p>
         <p className="mt-0.5 text-muted">
           Temporary password (shown once — copy it now and share it directly with this person; they must
-          change it on first sign-in):
+          change it on first sign-in
+          {state.expiresAt ? `; it stops working on ${formatDateTime(state.expiresAt, "UTC")} UTC if unused` : ""}):
         </p>
         <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-[11px] text-ink">{state.tempPassword}</p>
       </div>

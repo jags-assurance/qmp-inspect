@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NavItem, OrgBrandingInfo } from "./app-shell";
 import { SidebarNav } from "./sidebar-nav";
 import { useSidebarMobile } from "./sidebar-mobile-context";
@@ -69,6 +69,32 @@ export function SidebarShell({
   }, []);
 
   const effectiveCollapsed = isDesktop && collapsed;
+  const asideRef = useRef<HTMLElement>(null);
+  const drawerHidden = !isDesktop && !mobileOpen;
+
+  // Drawer behaviour below 901px: Esc closes it, focus moves into it on open and back to the opener
+  // on close, and the page behind it is inert (keyboard and screen-reader users can't wander out
+  // of a modal drawer). When closed, the aside itself is inert + hidden so its ~25 links are not in
+  // the tab order or the accessibility tree.
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (isDesktop || !mobileOpen) {
+      main?.removeAttribute("inert");
+      return;
+    }
+    const opener = document.activeElement as HTMLElement | null;
+    main?.setAttribute("inert", "");
+    asideRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      main?.removeAttribute("inert");
+      (document.querySelector("[data-sidebar-toggle]") as HTMLElement | null ?? opener)?.focus?.();
+    };
+  }, [isDesktop, mobileOpen, setMobileOpen]);
 
   function toggle() {
     setCollapsed((prev) => {
@@ -93,15 +119,23 @@ export function SidebarShell({
     <>
       {/* Backdrop, mobile-only (<=900px), closes the drawer on tap outside it. */}
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black/40 min-[901px]:hidden"
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close menu"
+          className="fixed inset-0 z-20 cursor-default bg-black/40 min-[901px]:hidden"
           onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
         />
       )}
       <aside
+        id="app-sidebar"
+        ref={asideRef}
+        tabIndex={-1}
+        inert={drawerHidden}
+        aria-hidden={drawerHidden ? true : undefined}
+        aria-label="Sidebar"
         className={
-          "flex h-screen flex-col overflow-y-auto bg-burgundy text-white transition-all duration-150 " +
+          "flex h-screen flex-col overflow-y-auto bg-burgundy text-white outline-none transition-all duration-150 " +
           // Desktop (>900px): permanent, sticky column, collapsible width.
           "min-[901px]:sticky min-[901px]:top-0 min-[901px]:z-auto min-[901px]:self-start min-[901px]:shrink-0 min-[901px]:translate-x-0 " +
           (collapsed ? "min-[901px]:w-16" : "min-[901px]:w-60") +

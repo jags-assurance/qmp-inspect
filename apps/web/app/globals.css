@@ -13,15 +13,19 @@
      disappeared entirely on a tablet screen in direct sunlight (glare crushes any low-contrast
      tone toward white first). These keep the same warm/neutral hue but push contrast well past
      WCAG's 3:1 UI-component and 4.5:1 text minimums so outlines and labels stay legible outdoors. */
+  /* Decorative dividers / card edges: deliberately light. Controls use --color-control-border below. */
   --color-border: #b3a993;
+  /* Form-control outlines (inputs, selects, textareas, outlined buttons): >= 3:1 against white and
+     off-white (WCAG 1.4.11). #b3a993 measures only 2.33:1 on white. */
+  --color-control-border: #857b66;
   --color-surface: #ffffff;
   --color-muted: #5c5648;
 
-  --color-success: #1f7a4d;
+  --color-success: #1a6b42;
   --color-danger: #b3261e;
   /* Darkened from #b8860b (3.3:1 on white, failed AA text) to ~5.5:1 on white. */
   --color-warning: #8a6100;
-  --color-info: #3a6ea5;
+  --color-info: #2f6397;
 
   --background: var(--color-off-white);
   --foreground: var(--color-ink);
@@ -36,6 +40,7 @@
   --color-off-white: var(--color-off-white);
   --color-ink: var(--color-ink);
   --color-border: var(--color-border);
+  --color-control-border: var(--color-control-border);
   --color-surface: var(--color-surface);
   --color-muted: var(--color-muted);
   --color-success: var(--color-success);
@@ -94,6 +99,23 @@ main img,
 main video {
   max-width: 100%;
   height: auto;
+}
+
+/* Controls get the darker outline token. Unlayered, so it wins over Tailwind's layered
+   `border-border` utility without touching every call site; decorative cards/dividers (div, tr, ...)
+   keep the light border. */
+input.border-border,
+select.border-border,
+textarea.border-border,
+button.border-border,
+input:not([class*="border-"]),
+select:not([class*="border-"]),
+textarea:not([class*="border-"]) {
+  border-color: var(--color-control-border);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-burgundy);
 }
 
 /* ---- Accessibility baseline (WCAG 2.1 AA) ---- */

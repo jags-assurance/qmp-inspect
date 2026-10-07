@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { NavIcon } from "./nav-icons";
@@ -49,8 +50,13 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
   const isActive = isItemActive(pathname, item.href, item.activePrefixes);
 
   return (
-    <a
+    // next/link: client-side navigation (no full reload, so the layout, proxy and bundle are not
+    // re-run and an offline session keeps working). Prefetch is off: ~25 links would otherwise each
+    // fire a prefetch through the proxy. Active-state highlighting is unchanged — it comes from
+    // usePathname(), which updates on client navigations too.
+    <Link
       href={item.href}
+      prefetch={false}
       title={collapsed ? item.label : undefined}
       aria-label={collapsed ? item.label : undefined}
       aria-current={isActive ? "page" : undefined}
@@ -64,7 +70,7 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
     >
       {!indent && <NavIcon label={item.label} />}
       {!collapsed && <span className="truncate">{item.label}</span>}
-    </a>
+    </Link>
   );
 }
 
@@ -91,8 +97,8 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
   const pathname = usePathname();
   const children = item.children ?? [];
   const hasActiveChild = children.some((c) => hasActiveDescendant(pathname, c));
-  // The sidebar's links are full page loads, so plain state resets on every navigation — Settings
-  // would snap shut each time. The open/closed choice lives in localStorage (read through
+  // The open/closed choice lives in localStorage so it survives reloads and the sidebar remounting
+  // (read through
   // useSyncExternalStore so server and first client render agree); with no saved choice, a group
   // opens only when it holds the current page.
   const storageKey = `jags.nav.open.${item.label}`;
@@ -134,7 +140,7 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
         aria-expanded={open}
         style={depth > 0 ? { paddingLeft: `${12 + depth * 20}px` } : undefined}
         className={
-          "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
+          "flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
           (hasActiveChild ? "text-gold" : "text-white/85 hover:bg-white/10 hover:text-white")
         }
       >

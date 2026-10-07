@@ -7,6 +7,8 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { ENGAGEMENT_MODES, type EngagementMode } from "@jags/shared-types";
 import { NUMBERING_CONFIGS_TABLE } from "./types";
 import type { NumberingDocType } from "./types";
+import { normaliseCode, validateCode, validateSeparator } from "./validate";
+import { CLIENT_MANAGED_ONLY_PERMISSION_KEYS } from "@/lib/rbac/types";
 
 export interface NumberingSettingsState {
   error: string | null;
@@ -40,6 +42,11 @@ export async function updateEngagementModeAction(
   const engagementMode = engagementModeInput as EngagementMode;
 
   const supabase = await createSupabaseServerClient();
+  const { data: before } = await supabase
+    .from("organizations")
+    .select("engagement_mode")
+    .eq("id", organizationId)
+    .maybeSingle<{ engagement_mode: string }>();
   const { error } = await supabase
     .from("organizations")
     .update({ engagement_mode: engagementMode })
@@ -55,8 +62,8 @@ export async function updateEngagementModeAction(
     entityId: organizationId,
     action: "engagement_mode_updated",
     actorId: session.userId,
-    summary: `Engagement mode set to ${engagementMode}`,
-    changes: { engagement_mode: engagementMode },
+    summary: `Engagement mode changed from ${before?.engagement_mode ?? "unknown"} to ${engagementMode}`,
+    changes: { from: before?.engagement_mode ?? null, to: engagementMode },
   });
 
   revalidatePath("/inspect/organisation/numbering");
@@ -94,6 +101,25 @@ export async function updateEngagementScopeAction(
   const engagementScope = engagementScopeInput as EngagementScope;
 
   const supabase = await createSupabaseServerClient();
+  const { data: before } = await supabase
+    .from("organizations")
+    .select("engagement_scope")
+    .eq("id", organizationId)
+    .maybeSingle<{ engagement_scope: string }>();
+  if (!before) return { error: "Organisation not found." };
+  if (before.engagement_scope === engagementScope) return { error: null };
+
+  // A tier change reshapes who can do what for the whole organisation, so it needs an explicit
+  // confirmation (the form's checkbox) and says what it will touch.
+  if (String(formData.get("confirm") ?? "") !== "yes") {
+    const downgrade = before.engagement_scope === "client_managed";
+    return {
+      error: `Tick the confirmation to change this organisation from ${before.engagement_scope} to ${engagementScope}.${
+        downgrade ? " Moving away from Full Client-Managed also removes the approve-ITP, provision-login and standalone permissions from this organisation's custom roles." : ""
+      }`,
+    };
+  }
+
   const { error } = await supabase
     .from("organizations")
     .update({ engagement_scope: engagementScope })
@@ -103,14 +129,30 @@ export async function updateEngagementScopeAction(
     return { error: "Could not update engagement scope. Check you have permission and try again." };
   }
 
+  // Leaving client_managed: tier-only permissions no longer make sense on the org's custom roles.
+  let revokedPermissions = 0;
+  if (before.engagement_scope === "client_managed" && engagementScope !== "client_managed") {
+    const { data: roles } = await supabase.from("custom_roles").select("id").eq("organization_id", organizationId).returns<{ id: string }[]>();
+    const roleIds = (roles ?? []).map((r) => r.id);
+    if (roleIds.length > 0) {
+      const { data: removed } = await supabase
+        .from("custom_role_permissions")
+        .delete()
+        .in("role_id", roleIds)
+        .in("permission_key", [...CLIENT_MANAGED_ONLY_PERMISSION_KEYS])
+        .select("role_id");
+      revokedPermissions = removed?.length ?? 0;
+    }
+  }
+
   await recordAuditEvent(supabase, {
     organizationId,
     entityType: "organization",
     entityId: organizationId,
     action: "engagement_scope_updated",
     actorId: session.userId,
-    summary: `Engagement scope set to ${engagementScope}`,
-    changes: { engagement_scope: engagementScope },
+    summary: `Engagement scope changed from ${before.engagement_scope} to ${engagementScope}${revokedPermissions ? ` (${revokedPermissions} tier-only role permission(s) removed)` : ""}`,
+    changes: { from: before.engagement_scope, to: engagementScope, revoked_permissions: revokedPermissions },
   });
 
   revalidatePath("/inspect/organisation/numbering");
@@ -144,8 +186,8 @@ export async function upsertNumberingConfigAction(
   }
 
   const docType = String(formData.get("doc_type") ?? "").trim() as NumberingDocType;
-  const clientCode = String(formData.get("client_code") ?? "").trim();
-  const originatorCode = String(formData.get("originator_code") ?? "JAGS").trim() || "JAGS";
+  const clientCode = normaliseCode(String(formData.get("client_code") ?? ""));
+  const originatorCode = normaliseCode(String(formData.get("originator_code") ?? "JAGS") || "JAGS");
   const separator = String(formData.get("separator") ?? "-").trim() || "-";
   const sequencePaddingRaw = String(formData.get("sequence_padding") ?? "3").trim();
   const includeYear = formData.get("include_year") === "on";
@@ -156,6 +198,11 @@ export async function upsertNumberingConfigAction(
   if (!organizationId || !docType || !clientCode || Number.isNaN(sequencePadding) || sequencePadding < 1 || sequencePadding > 10) {
     return { error: "Client code and a sequence padding between 1 and 10 are required." };
   }
+
+  // These flow into document numbers, file names and storage keys, so keep them to a safe charset.
+  const codeError =
+    validateCode("Client code", clientCode) ?? validateCode("Originator code", originatorCode) ?? validateSeparator(separator);
+  if (codeError) return { error: codeError };
 
   const supabase = await createSupabaseServerClient();
   // Org-level config only (project_id null) — per-project overrides aren't exposed in this

@@ -1,12 +1,12 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { generateTempPassword, tempPasswordExpiry } from "./temp-password";
 
 export interface ProvisionPartyLoginState {
   error: string | null;
@@ -19,25 +19,21 @@ export interface ProvisionPartyLoginState {
   /** The email this result is for, so the UI can show "Temporary password for jane@…" even after
    *  the form's own input has been cleared/revalidated. */
   email: string | null;
+  /** When the temporary password stops working (ISO). Shown next to it so the admin knows how long
+   *  they have to hand it over. */
+  expiresAt?: string | null;
 }
 
 // Not exported: a "use server" file may only export async functions — see
 // provision-party-login-form.tsx, which defines its own copy of this shape as every other
 // useActionState initial-state constant in this app already does (e.g. reassign-party-form.tsx).
-const INITIAL_STATE: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null };
+const INITIAL_STATE: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null };
 
-/**
- * A strong, single-use temporary password — 16 random bytes, base64url-encoded and trimmed to 22
- * characters, well past Supabase Auth's own minimum length. Never a fixed/shared "default password"
- * (that would be a real credential-stuffing risk the moment more than one org used this), never
- * reused across accounts, and never persisted anywhere in plain text beyond this one action's
- * return value — the admin who provisions the login is trusted to hand it to that person directly
- * (in person, over the phone, a password manager's share feature — whatever this org already uses
- * for that), the same way handing over any other one-time credential works.
- */
-function generateTempPassword(): string {
-  return randomBytes(16).toString("base64url").slice(0, 22);
-}
+/** Provisioning is rate limited per actor: this many credential-issuing events per hour. */
+const PROVISION_LIMIT_PER_HOUR = 20;
+
+const NEUTRAL_UNAVAILABLE =
+  "That email can't be provisioned from here. Check the address, or ask a JAGS Admin to set this person up.";
 
 /**
  * Closes the real gap behind "when I add parties, they can't access the platform by that email":
@@ -51,9 +47,19 @@ function generateTempPassword(): string {
  * Two paths, exactly like addSelfManagedPartyAction's own split:
  *   1. An account for this email already exists (public.users, case-insensitively) → just link it
  *      (project_parties.user_id) and grant project access. No new credential, nothing to hand over.
+ *      A JAGS Admin may link any account; anyone else (a client_managed provisioner) only an account
+ *      that already belongs to the same organisation — never another tenant's user or JAGS staff.
  *   2. No account exists → create one via the Supabase Auth admin API with a random temporary
- *      password, flag it must_change_password so the next sign-in is forced through /reset-password
- *      before anywhere else (proxy.ts), then link + grant exactly as path 1.
+ *      password that expires (TEMP_PASSWORD_TTL_HOURS, default 72h), flag it must_change_password
+ *      (both on public.users and in the auth user's app_metadata, which proxy.ts reads without a DB
+ *      query) so the next sign-in is forced through /reset-password before anywhere else, then link +
+ *      grant exactly as path 1.
+ *
+ * The create + link + grant sequence is all-or-nothing: if linking or granting fails, the link is
+ * undone and a newly created account is deleted again, so no orphaned credential survives. The
+ * access grant itself is written with the service role AFTER the permission check above (the RLS
+ * insert policy is deliberately narrow — see 20261104000200 — and this action is the one audited,
+ * permission-checked place that may mint a party login).
  *
  * JAGS-Admin only, OR a custom "provision_party_login" RBAC grant on the party's project — this
  * calls the service-role auth admin API, which is a materially more sensitive capability than
@@ -99,11 +105,12 @@ export async function provisionPartyLoginAction(
 
   if (!party) return { ...INITIAL_STATE, error: "Party not found." };
 
+  const admin = isAdminStaff(session);
   // JAGS Admin, always; OR — the "Full Client-Managed" tier's whole point — someone holding the
   // provision_party_login custom permission on this party's own project, which the RLS side
   // (project_parties_client_managed_provision, if/when the DB grant is added) would enforce anyway.
   // This app-layer check exists for a clear error message; hasPermission() is never the real gate.
-  if (!isAdminStaff(session) && !(await hasPermission(session.userId, "provision_party_login", party.project_id))) {
+  if (!admin && !(await hasPermission(session.userId, "provision_party_login", party.project_id))) {
     return { ...INITIAL_STATE, error: "Only a JAGS Admin (or someone granted this permission) can grant a party platform access." };
   }
 
@@ -111,9 +118,27 @@ export async function provisionPartyLoginAction(
 
   const email = (emailInput || party.contact_email || "").trim();
   if (!email) return { ...INITIAL_STATE, error: "Add a contact email for this party first." };
-  if (!party.projects?.organization_id) return { ...INITIAL_STATE, error: "Could not resolve this party's organisation." };
+  const organizationId = party.projects?.organization_id;
+  if (!organizationId) return { ...INITIAL_STATE, error: "Could not resolve this party's organisation." };
 
   const serviceClient = createSupabaseServiceRoleClient();
+
+  // Per-actor rate limit (counts credential issuances recorded in the audit log, which RLS lets this
+  // actor read for their own organisation). Fails open if the log can't be read.
+  try {
+    const since = new Date(Date.now() - 3_600_000).toISOString();
+    const { count } = await serviceClient
+      .from("audit_log" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("actor_id", session.userId)
+      .in("action", ["login_provisioned", "login_linked", "login_provision_failed"])
+      .gte("created_at", since);
+    if ((count ?? 0) >= PROVISION_LIMIT_PER_HOUR) {
+      return { ...INITIAL_STATE, error: "Too many logins provisioned in the last hour. Try again later." };
+    }
+  } catch {
+    // Fail open — the permission check above is the real gate.
+  }
 
   // Escape ILIKE's own wildcard characters so a literal email is matched (mirrors
   // addSelfManagedPartyAction's identical lookup) — case-insensitive since Supabase Auth normalises
@@ -121,52 +146,61 @@ export async function provisionPartyLoginAction(
   const escapedEmail = email.replace(/[%_\\]/g, (match) => `\\${match}`);
   const { data: existingUser } = await serviceClient
     .from("users")
-    .select("id, is_active")
+    .select("id, is_active, is_jags_staff")
     .ilike("email", escapedEmail)
-    .maybeSingle<{ id: string; is_active: boolean }>();
+    .maybeSingle<{ id: string; is_active: boolean; is_jags_staff: boolean }>();
 
   let linkedUserId: string;
   let tempPassword: string | null = null;
+  let expiresAt: string | null = null;
+  let createdAccount = false;
 
   if (existingUser) {
-    if (!existingUser.is_active) {
-      return { ...INITIAL_STATE, error: "An account already exists for that email but has been deactivated." };
+    // Linking someone else's account hands this project to a person who never agreed to it, and
+    // differing messages would confirm which emails have accounts. A JAGS Admin may link any active
+    // account; everyone else only an account already inside this organisation, and every refusal
+    // reads the same.
+    if (!existingUser.is_active) return { ...INITIAL_STATE, error: NEUTRAL_UNAVAILABLE };
+    if (!admin) {
+      const { data: sameOrg } = await serviceClient.rpc("user_has_org_access", {
+        target_user_id: existingUser.id,
+        target_org_id: organizationId,
+      });
+      if (sameOrg !== true || existingUser.is_jags_staff) return { ...INITIAL_STATE, error: NEUTRAL_UNAVAILABLE };
     }
     linkedUserId = existingUser.id;
   } else {
     tempPassword = generateTempPassword();
+    expiresAt = tempPasswordExpiry();
     const { data: created, error: createError } = await serviceClient.auth.admin.createUser({
       email,
       password: tempPassword,
       email_confirm: true,
       user_metadata: { full_name: party.contact_name || party.name },
+      // Read by proxy.ts straight from the verified auth user — no database query per request.
+      app_metadata: { must_change_password: true, temp_password_expires_at: expiresAt },
     });
 
     if (createError || !created?.user) {
-      return { ...INITIAL_STATE, error: `Could not create the account: ${createError?.message ?? "unknown error"}.` };
+      console.error(`[provisioning] createUser failed: ${createError?.message ?? "unknown error"}`);
+      return { ...INITIAL_STATE, error: "Could not create the account. Check the email address and try again." };
     }
 
     linkedUserId = created.user.id;
+    createdAccount = true;
 
     // public.users.must_change_password is set by public.handle_new_auth_user()'s trigger (default
-    // false); flip it true here so the next sign-in is forced through /reset-password. Must go
-    // through the service-role client — guard_must_change_password
-    // (20260929010000_party_login_provisioning.sql) blocks a plain RLS self-update of this column,
-    // and this write isn't the linked user's own session anyway (they don't have one yet).
+    // false); flip it true here as well so the database-level enforcement (has_org_access() and
+    // friends refuse a user who still has to change their password) applies too. Must go through the
+    // service-role client — guard_must_change_password blocks a plain RLS self-update of this column.
     const { error: flagError } = await serviceClient
       .from("users")
       .update({ must_change_password: true })
       .eq("id", linkedUserId);
     if (flagError) {
-      // Real gap found in a transactional-integrity audit: this used to just error out, leaving
-      // the just-created auth account behind with no tempPassword returned to the admin and no
-      // party link — a genuinely orphaned, invisible login nobody could find or clean up.
       // Compensating rollback: delete the account we just created, so a retry starts clean
       // instead of leaving a stray credential behind.
-      await serviceClient.auth.admin.deleteUser(linkedUserId).catch(() => {
-        // Best-effort — if even the rollback fails, the error message below still tells the admin
-        // an account may exist for this email so they know to check rather than assume nothing happened.
-      });
+      await serviceClient.auth.admin.deleteUser(linkedUserId).catch(() => undefined);
       return {
         ...INITIAL_STATE,
         error: "Could not finish setting up the new account, so it was rolled back — try again. If this repeats, check whether an account for this email already exists before retrying.",
@@ -174,58 +208,80 @@ export async function provisionPartyLoginAction(
     }
   }
 
+  // Undoes everything this call did, in reverse. Used for any failure after the account exists.
+  const rollback = async () => {
+    await serviceClient.from("project_parties").update({ user_id: null }).eq("id", projectPartyId);
+    if (createdAccount) await serviceClient.auth.admin.deleteUser(linkedUserId).catch(() => undefined);
+  };
+
   const { error: linkError } = await supabase
     .from("project_parties")
     .update({ user_id: linkedUserId })
     .eq("id", projectPartyId);
   if (linkError) {
-    return {
-      ...INITIAL_STATE,
-      error: tempPassword
-        ? "The account was created, but linking it to this party failed. Check with a JAGS Admin before sharing the password below."
-        : "Could not link that account to this party. Check with a JAGS Admin.",
-      tempPassword,
-      email: tempPassword ? email : null,
-    };
+    if (createdAccount) await serviceClient.auth.admin.deleteUser(linkedUserId).catch(() => undefined);
+    await auditProvisioning(supabase, party, organizationId, session.userId, "login_provision_failed", email, "link failed");
+    return { ...INITIAL_STATE, error: "Could not link that account to this party, so nothing was created. Check with a JAGS Admin." };
   }
 
-  // Same best-effort, ignore-duplicate grant pattern as reassignSignoffPartyAction and
-  // addSelfManagedPartyAction — has_org_access()/has_project_access() only ever look at
-  // access_grants, never at project_parties.user_id, so this is what actually gives the new login
-  // anything to see.
-  const { error: grantError } = await supabase.from("access_grants").insert({
+  // Written with the service role after the permission check above — see this function's header.
+  // Duplicate-tolerant (the user may already hold this project grant), and the seat-limit trigger
+  // still applies.
+  const { error: grantError } = await serviceClient.from("access_grants").insert({
     user_id: linkedUserId,
     scope_type: "project",
-    organization_id: party.projects.organization_id,
+    organization_id: organizationId,
     project_id: party.project_id,
     role: party.party_type,
   });
   if (grantError && grantError.code !== "23505") {
+    await rollback();
+    await auditProvisioning(supabase, party, organizationId, session.userId, "login_provision_failed", email, "grant failed");
     return {
+      ...INITIAL_STATE,
       error: grantError.message.includes("seat limit")
-        ? `${grantError.message} (the party is linked, but has no platform access yet.)`
-        : "The party is linked, but granting platform access failed. Check with a JAGS Admin.",
-      tempPassword,
-      email: tempPassword ? email : null,
+        ? `${grantError.message} Nothing was created.`
+        : "Granting platform access failed, so the account was not created. Try again, or check with a JAGS Admin.",
     };
   }
 
-  try {
-    await recordAuditEvent(supabase, {
-      organizationId: party.projects.organization_id,
-      projectId: party.project_id,
-      entityType: "project_party",
-      entityId: projectPartyId,
-      action: tempPassword ? "login_provisioned" : "login_linked",
-      actorId: session.userId,
-      summary: tempPassword
-        ? `New login created and granted access for party "${party.name}" (${email})`
-        : `Existing account (${email}) linked and granted access for party "${party.name}"`,
-    });
-  } catch {
-    // Best-effort — see lib/audit/log.ts's doc comment.
-  }
+  await auditProvisioning(
+    supabase,
+    party,
+    organizationId,
+    session.userId,
+    createdAccount ? "login_provisioned" : "login_linked",
+    email,
+    createdAccount ? `temporary password expires ${expiresAt}` : "existing account linked"
+  );
 
   revalidatePath(`/inspect/projects/${party.project_id}`);
-  return { error: null, tempPassword, email: tempPassword ? email : null };
+  return { error: null, tempPassword, email: tempPassword ? email : null, expiresAt };
+}
+
+async function auditProvisioning(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  party: { id: string; project_id: string; name: string },
+  organizationId: string,
+  actorId: string,
+  action: "login_provisioned" | "login_linked" | "login_provision_failed",
+  email: string,
+  detail: string
+) {
+  const summary =
+    action === "login_provisioned"
+      ? `New login created and granted access for party "${party.name}" (${email})`
+      : action === "login_linked"
+        ? `Existing account (${email}) linked and granted access for party "${party.name}"`
+        : `Login provisioning for party "${party.name}" (${email}) failed and was rolled back`;
+  await recordAuditEvent(supabase, {
+    organizationId,
+    projectId: party.project_id,
+    entityType: "project_party",
+    entityId: party.id,
+    action,
+    actorId,
+    summary,
+    changes: { detail },
+  });
 }

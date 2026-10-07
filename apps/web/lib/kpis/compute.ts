@@ -18,6 +18,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type SignoffStatus } from "@/lib/signoff/db-types";
 import { NCRS_TABLE, type NcrRow } from "@/lib/ncrs/types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { fetchAllInChunks, loadItemsForSections, loadProjectItpIds, loadSectionsForItps } from "./queries";
 
 export interface OpenNcrItem {
   kind: "ncr";
@@ -112,47 +114,34 @@ export interface QualityByPartyRow {
  * 0/0 = 0%, and never shown as an all-zero row with nothing real behind it).
  */
 export async function computeQualityByParty(supabase: SupabaseClient, projectId: string): Promise<QualityByPartyRow[]> {
-  const { data: itps } = await supabase.from("itps").select("id").eq("project_id", projectId).returns<{ id: string }[]>();
-  const itpIds = (itps ?? []).map((itp) => itp.id);
+  const itpIds = await loadProjectItpIds(supabase, projectId);
+  const sectionIds = (await loadSectionsForItps(supabase, itpIds)).map((sec) => sec.id);
+  const itemIds = (await loadItemsForSections<{ id: string }>(supabase, sectionIds, "id")).map((i) => i.id);
 
-  let sectionIds: string[] = [];
-  if (itpIds.length > 0) {
-    const { data: sections } = await supabase
-      .from("itp_sections")
-      .select("id")
-      .in("itp_id", itpIds)
-      .returns<{ id: string }[]>();
-    sectionIds = (sections ?? []).map((s) => s.id);
-  }
-
-  let itemIds: string[] = [];
-  if (sectionIds.length > 0) {
-    const { data: items } = await supabase
-      .from("itp_items")
-      .select("id")
-      .in("section_id", sectionIds)
-      .returns<{ id: string }[]>();
-    itemIds = (items ?? []).map((i) => i.id);
-  }
-
-  const [signoffsResult, ncrsForRollupResult] = await Promise.all([
-    itemIds.length > 0
-      ? supabase
-          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-          .select("project_party_id, status")
-          .in("itp_item_id", itemIds)
-          .returns<{ project_party_id: string; status: SignoffStatus }[]>()
-      : Promise.resolve({ data: [] as { project_party_id: string; status: SignoffStatus }[] }),
-    supabase
-      .from(NCRS_TABLE)
-      .select("responsible_party_id")
-      .eq("project_id", projectId)
-      .not("responsible_party_id", "is", null)
-      .returns<{ responsible_party_id: string }[]>(),
+  const [signoffRows, ncrRollupRows] = await Promise.all([
+    fetchAllInChunks<{ project_party_id: string; status: SignoffStatus }, string>(itemIds, (chunk, from, to) =>
+      supabase
+        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+        .select("project_party_id, status")
+        .in("itp_item_id", chunk)
+        .order("id")
+        .range(from, to)
+        .returns<{ project_party_id: string; status: SignoffStatus }[]>()
+    ),
+    fetchAll<{ responsible_party_id: string }>((from, to) =>
+      supabase
+        .from(NCRS_TABLE)
+        .select("responsible_party_id")
+        .eq("project_id", projectId)
+        .not("responsible_party_id", "is", null)
+        .order("id")
+        .range(from, to)
+        .returns<{ responsible_party_id: string }[]>()
+    ),
   ]);
 
   const totalsByParty = new Map<string, { total: number; signedOff: number }>();
-  for (const row of signoffsResult.data ?? []) {
+  for (const row of signoffRows) {
     const entry = totalsByParty.get(row.project_party_id) ?? { total: 0, signedOff: 0 };
     entry.total += 1;
     if (row.status === "signed_off") entry.signedOff += 1;
@@ -160,7 +149,7 @@ export async function computeQualityByParty(supabase: SupabaseClient, projectId:
   }
 
   const ncrCountByParty = new Map<string, number>();
-  for (const row of ncrsForRollupResult.data ?? []) {
+  for (const row of ncrRollupRows) {
     ncrCountByParty.set(row.responsible_party_id, (ncrCountByParty.get(row.responsible_party_id) ?? 0) + 1);
   }
 
@@ -207,34 +196,38 @@ export async function computeFirstTimePassRateByDiscipline(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<DisciplinePassRateRow[]> {
-  const { data: itps } = await supabase.from("itps").select("id").eq("project_id", projectId).returns<{ id: string }[]>();
-  const itpIds = (itps ?? []).map((itp) => itp.id);
+  const itpIds = await loadProjectItpIds(supabase, projectId);
   if (itpIds.length === 0) return [];
 
-  const { data: sections } = await supabase.from("itp_sections").select("id").in("itp_id", itpIds).returns<{ id: string }[]>();
-  const sectionIds = (sections ?? []).map((s) => s.id);
+  const sectionIds = (await loadSectionsForItps(supabase, itpIds)).map((sec) => sec.id);
   if (sectionIds.length === 0) return [];
 
-  const { data: items } = await supabase
-    .from("itp_items")
-    .select("id, discipline_id")
-    .in("section_id", sectionIds)
-    .not("discipline_id", "is", null)
-    .returns<{ id: string; discipline_id: string }[]>();
-  const itemIds = (items ?? []).map((i) => i.id);
+  const items = (await loadItemsForSections<{ id: string; discipline_id: string | null }>(supabase, sectionIds, "id, discipline_id")).filter(
+    (i): i is { id: string; discipline_id: string } => i.discipline_id !== null
+  );
+  const itemIds = items.map((i) => i.id);
   if (itemIds.length === 0) return [];
 
-  const disciplineByItem = new Map(items!.map((i) => [i.id, i.discipline_id]));
+  const disciplineByItem = new Map(items.map((i) => [i.id, i.discipline_id]));
 
-  const { data: records } = await supabase
-    .from("inspection_records")
-    .select("itp_item_id, overall_result, created_at")
-    .in("itp_item_id", itemIds)
-    .order("created_at", { ascending: true })
-    .returns<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null; created_at: string }[]>();
+  const records = await fetchAllInChunks<
+    { itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null; created_at: string },
+    string
+  >(itemIds, (chunk, from, to) =>
+    supabase
+      .from("inspection_records")
+      .select("itp_item_id, overall_result, created_at")
+      .in("itp_item_id", chunk)
+      .order("created_at", { ascending: true })
+      .order("id")
+      .range(from, to)
+      .returns<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null; created_at: string }[]>()
+  );
+  // Chunks are concatenated, so restore the global first-attempt order.
+  records.sort((x, y) => x.created_at.localeCompare(y.created_at));
 
-  const firstAttemptByItem = new Map<string, (typeof records extends (infer T)[] | null ? T : never)>();
-  for (const record of records ?? []) {
+  const firstAttemptByItem = new Map<string, (typeof records)[number]>();
+  for (const record of records) {
     if (!firstAttemptByItem.has(record.itp_item_id)) firstAttemptByItem.set(record.itp_item_id, record);
   }
 
@@ -307,17 +300,22 @@ export async function computeMonthlyTrends(
   projectId: string,
   projectCreatedAt: string
 ): Promise<MonthlyTrendPoint[]> {
-  const [ncrsResult, recordsResult] = await Promise.all([
-    supabase.from(NCRS_TABLE).select("created_at").eq("project_id", projectId).returns<{ created_at: string }[]>(),
-    supabase
-      .from("inspection_records")
-      .select("created_at, overall_result")
-      .eq("project_id", projectId)
-      .returns<{ created_at: string; overall_result: "pass" | "fail" | "partial" | null }[]>(),
+  const [ncrs, records] = await Promise.all([
+    fetchAll<{ created_at: string }>((from, to) =>
+      supabase.from(NCRS_TABLE).select("created_at").eq("project_id", projectId).order("id").range(from, to).returns<{ created_at: string }[]>()
+    ),
+    fetchAll<{ created_at: string; overall_result: "pass" | "fail" | "partial" | null }>((from, to) =>
+      supabase
+        .from("inspection_records")
+        .select("created_at, overall_result")
+        .eq("project_id", projectId)
+        .order("id")
+        .range(from, to)
+        .returns<{ created_at: string; overall_result: "pass" | "fail" | "partial" | null }[]>()
+    ),
   ]);
 
-  const ncrs = ncrsResult.data ?? [];
-  const completedRecords = (recordsResult.data ?? []).filter((r) => r.overall_result !== null);
+  const completedRecords = records.filter((r) => r.overall_result !== null);
 
   const now = new Date();
   const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -373,17 +371,25 @@ export async function computeProjectKpis(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<ProjectKpis> {
-  const [itpsResult, ncrsResult, projectResult] = await Promise.all([
-    supabase
-      .from("itps")
-      .select("id, itp_number, status, updated_at")
-      .eq("project_id", projectId)
-      .returns<{ id: string; itp_number: string; status: "draft" | "under_review" | "approved" | "client_accepted"; updated_at: string }[]>(),
-    supabase
-      .from(NCRS_TABLE)
-      .select("id, ncr_number, description, status, created_at, closed_at")
-      .eq("project_id", projectId)
-      .returns<Pick<NcrRow, "id" | "ncr_number" | "description" | "status" | "created_at" | "closed_at">[]>(),
+  const [itps, ncrs, projectResult] = await Promise.all([
+    fetchAll<{ id: string; itp_number: string; status: "draft" | "under_review" | "approved" | "client_accepted"; updated_at: string }>((from, to) =>
+      supabase
+        .from("itps")
+        .select("id, itp_number, status, updated_at")
+        .eq("project_id", projectId)
+        .order("id")
+        .range(from, to)
+        .returns<{ id: string; itp_number: string; status: "draft" | "under_review" | "approved" | "client_accepted"; updated_at: string }[]>()
+    ),
+    fetchAll<Pick<NcrRow, "id" | "ncr_number" | "description" | "status" | "created_at" | "closed_at">>((from, to) =>
+      supabase
+        .from(NCRS_TABLE)
+        .select("id, ncr_number, description, status, created_at, closed_at")
+        .eq("project_id", projectId)
+        .order("id")
+        .range(from, to)
+        .returns<Pick<NcrRow, "id" | "ncr_number" | "description" | "status" | "created_at" | "closed_at">[]>()
+    ),
     supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>(),
   ]);
 
@@ -400,64 +406,66 @@ export async function computeProjectKpis(
     : { data: [] as { code: string }[] };
   const blockingCodes = (blockingLevelsForProject ?? []).map((l) => l.code);
 
-  const itps = itpsResult.data ?? [];
-  const ncrs = ncrsResult.data ?? [];
   const itpIds = itps.map((itp) => itp.id);
   const approvedOrAcceptedItpIds = itps
     .filter((itp) => itp.status === "approved" || itp.status === "client_accepted")
     .map((itp) => itp.id);
 
-  const itpSectionsResult =
-    itpIds.length > 0
-      ? await supabase.from("itp_sections").select("id, itp_id").in("itp_id", itpIds).returns<{ id: string; itp_id: string }[]>()
-      : { data: [] as { id: string; itp_id: string }[] };
-  const sections = itpSectionsResult.data ?? [];
-  const sectionIds = sections.map((s) => s.id);
-  const sectionToItp = new Map(sections.map((s) => [s.id, s.itp_id]));
+  const sections = await loadSectionsForItps(supabase, itpIds);
+  const sectionIds = sections.map((sec) => sec.id);
+  const sectionToItp = new Map(sections.map((sec) => [sec.id, sec.itp_id]));
 
-  const itpItemsResult =
-    sectionIds.length > 0
-      ? await supabase
-          .from("itp_items")
-          .select("id, section_id, evidence_type")
-          .in("section_id", sectionIds)
-          .returns<{ id: string; section_id: string; evidence_type: 1 | 2 | 3 }[]>()
-      : { data: [] as { id: string; section_id: string; evidence_type: 1 | 2 | 3 }[] };
-  const itpItems = itpItemsResult.data ?? [];
+  const itpItems = await loadItemsForSections<{ id: string; section_id: string; evidence_type: 1 | 2 | 3 }>(
+    supabase,
+    sectionIds,
+    "id, section_id, evidence_type"
+  );
   const itemToItp = new Map(itpItems.map((item) => [item.id, sectionToItp.get(item.section_id) ?? null]));
 
-  const [inspectionRecordsResult, holdSignoffsResult] = await Promise.all([
-    supabase
-      .from("inspection_records")
-      .select("id, record_number, activity, itp_item_id, overall_result, notes, created_at")
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: true })
-      .returns<
-        {
-          id: string;
-          record_number: string;
-          activity: string;
-          itp_item_id: string;
-          overall_result: "pass" | "fail" | "partial" | null;
-          notes: string | null;
-          created_at: string;
-        }[]
-      >(),
+  const [inspectionRecords, holdSignoffs] = await Promise.all([
+    fetchAll<{
+      id: string;
+      record_number: string;
+      activity: string;
+      itp_item_id: string;
+      overall_result: "pass" | "fail" | "partial" | null;
+      notes: string | null;
+      created_at: string;
+    }>((from, to) =>
+      supabase
+        .from("inspection_records")
+        .select("id, record_number, activity, itp_item_id, overall_result, notes, created_at")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true })
+        .order("id")
+        .range(from, to)
+        .returns<
+          {
+            id: string;
+            record_number: string;
+            activity: string;
+            itp_item_id: string;
+            overall_result: "pass" | "fail" | "partial" | null;
+            notes: string | null;
+            created_at: string;
+          }[]
+        >()
+    ),
     itpItems.length > 0 && blockingCodes.length > 0
-      ? supabase
-          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-          .select("itp_item_id, intervention, notified_at, signed_off_at")
-          .in("intervention", blockingCodes)
-          .in(
-            "itp_item_id",
-            itpItems.map((item) => item.id)
-          )
-          .returns<{ itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }[]>()
-      : Promise.resolve({ data: [] as { itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }[] }),
+      ? fetchAllInChunks<{ itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }, string>(
+          itpItems.map((item) => item.id),
+          (chunk, from, to) =>
+            supabase
+              .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+              .select("itp_item_id, intervention, notified_at, signed_off_at")
+              .in("intervention", blockingCodes)
+              .in("itp_item_id", chunk)
+              .order("id")
+              .range(from, to)
+              .returns<{ itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }[]>()
+        )
+      : Promise.resolve([] as { itp_item_id: string; intervention: string; notified_at: string | null; signed_off_at: string | null }[]),
   ]);
-
-  const inspectionRecords = inspectionRecordsResult.data ?? [];
-  const holdSignoffs = holdSignoffsResult.data ?? [];
 
   // --- 1. First-time pass rate ---
   const firstAttemptByItem = new Map<string, (typeof inspectionRecords)[number]>();

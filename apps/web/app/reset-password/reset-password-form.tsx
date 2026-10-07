@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updatePasswordAction, type UpdatePasswordState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/domain/password-field";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: UpdatePasswordState = { error: null };
 
@@ -39,8 +40,10 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
           onChange={setConfirmPassword}
         />
 
-        <p id="pw-hint" className="text-xs text-muted">Use at least 8 characters. Both fields must match.</p>
-        {state.error && <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{state.error}</p>}
+        <p id="pw-hint" className="text-xs text-muted">
+          Use at least 10 characters, avoid common passwords and don&apos;t include your email. Both fields must match.
+        </p>
+        <FormMessage error={state.error} />
 
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Updating…" : "Update password"}

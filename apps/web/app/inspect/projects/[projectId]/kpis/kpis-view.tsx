@@ -1,3 +1,5 @@
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { loadItemsForSections, loadSectionsForItps } from "@/lib/kpis/queries";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -235,17 +237,23 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
   if (!project) notFound();
 
-  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itpsResult, ncrSeverityResult, overdueItems, punchBySource, openHolds, readiness] = await Promise.all([
+  const [kpis, qualityByParty, qualityByDiscipline, monthlyTrends, itps, ncrSeverityRows, overdueItems, punchBySource, openHolds, readiness] = await Promise.all([
     computeProjectKpis(supabase, projectId),
     computeQualityByParty(supabase, projectId),
     computeFirstTimePassRateByDiscipline(supabase, projectId),
     computeMonthlyTrends(supabase, projectId, project.created_at),
-    supabase
-      .from("itps")
-      .select("id, itp_number, title, status")
-      .eq("project_id", projectId)
-      .returns<{ id: string; itp_number: string; title: string; status: string }[]>(),
-    supabase.from(NCRS_TABLE).select("severity").eq("project_id", projectId).returns<{ severity: NcrSeverity }[]>(),
+    fetchAll<{ id: string; itp_number: string; title: string; status: string }>((from, to) =>
+      supabase
+        .from("itps")
+        .select("id, itp_number, title, status")
+        .eq("project_id", projectId)
+        .order("id")
+        .range(from, to)
+        .returns<{ id: string; itp_number: string; title: string; status: string }[]>()
+    ),
+    fetchAll<{ severity: NcrSeverity }>((from, to) =>
+      supabase.from(NCRS_TABLE).select("severity").eq("project_id", projectId).order("id").range(from, to).returns<{ severity: NcrSeverity }[]>()
+    ),
     computeOverdueItems(supabase, projectId),
     computePunchListBySource(supabase, projectId),
     computeOpenHolds(supabase, projectId),
@@ -256,36 +264,30 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
   // Real per-ITP inspection-completion chart data — same "evidence-type-1 item has a recorded
   // result" methodology as kpis.inspectionsCompletionRate above, just grouped per ITP instead of
   // aggregated project-wide. No historical/trend data is invented here, only current counts.
-  const itps = itpsResult.data ?? [];
   const itpIds = itps.map((itp) => itp.id);
-  const sectionsResult =
-    itpIds.length > 0
-      ? await supabase.from("itp_sections").select("id, itp_id").in("itp_id", itpIds).returns<{ id: string; itp_id: string }[]>()
-      : { data: [] as { id: string; itp_id: string }[] };
-  const sections = sectionsResult.data ?? [];
-  const sectionIds = sections.map((s) => s.id);
-  const sectionToItp = new Map(sections.map((s) => [s.id, s.itp_id]));
+  const sections = await loadSectionsForItps(supabase, itpIds);
+  const sectionIds = sections.map((sec) => sec.id);
+  const sectionToItp = new Map(sections.map((sec) => [sec.id, sec.itp_id]));
 
-  const itemsResult =
-    sectionIds.length > 0
-      ? await supabase
-          .from("itp_items")
-          .select("id, section_id, evidence_type")
-          .in("section_id", sectionIds)
-          .returns<{ id: string; section_id: string; evidence_type: 1 | 2 | 3 }[]>()
-      : { data: [] as { id: string; section_id: string; evidence_type: 1 | 2 | 3 }[] };
-  const items = itemsResult.data ?? [];
+  const items = await loadItemsForSections<{ id: string; section_id: string; evidence_type: 1 | 2 | 3 }>(
+    supabase,
+    sectionIds,
+    "id, section_id, evidence_type"
+  );
   const itemToItp = new Map(items.map((item) => [item.id, sectionToItp.get(item.section_id) ?? null]));
 
-  const recordsResult =
+  const records =
     items.length > 0
-      ? await supabase
-          .from("inspection_records")
-          .select("itp_item_id, overall_result")
-          .eq("project_id", projectId)
-          .returns<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null }[]>()
-      : { data: [] as { itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null }[] };
-  const records = recordsResult.data ?? [];
+      ? await fetchAll<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null }>((from, to) =>
+          supabase
+            .from("inspection_records")
+            .select("itp_item_id, overall_result")
+            .eq("project_id", projectId)
+            .order("id")
+            .range(from, to)
+            .returns<{ itp_item_id: string; overall_result: "pass" | "fail" | "partial" | null }[]>()
+        )
+      : [];
   const completedItemIds = new Set(records.filter((r) => r.overall_result !== null).map((r) => r.itp_item_id));
 
   const itpCompletionRows = itps
@@ -304,7 +306,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
     .sort((a, b) => b.percent - a.percent);
 
   const ncrSeverityCounts: Record<NcrSeverity, number> = { major_ncr: 0, minor_ncr: 0, observation: 0 };
-  for (const row of ncrSeverityResult.data ?? []) {
+  for (const row of ncrSeverityRows) {
     ncrSeverityCounts[row.severity] += 1;
   }
   const totalNcrs = NCR_SEVERITIES.reduce((sum, sev) => sum + ncrSeverityCounts[sev], 0);

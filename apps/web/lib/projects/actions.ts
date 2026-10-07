@@ -128,6 +128,10 @@ export interface AddProjectPartyState {
 const VALID_PARTY_TYPES = ["subcontractor", "main_contractor", "tpi_lab", "vendor", "client", "jags"] as const;
 type PartyType = (typeof VALID_PARTY_TYPES)[number];
 
+/** Party types a non-JAGS actor may create: "jags" and "tpi_lab" carry staff-like rights in several
+ *  policies (expected-record provider, register contributor), so only a JAGS Admin may mint them. */
+const CLIENT_ADDABLE_PARTY_TYPES: readonly PartyType[] = ["subcontractor", "main_contractor", "vendor", "client"];
+
 /**
  * Client onboarding gap this closes: previously project_parties could only be populated by hand-
  * written seed data — the project detail page displayed the party list but had no way to add to it,
@@ -302,6 +306,9 @@ export async function addSelfManagedPartyAction(
   }
 
   const session = await requireSession();
+  if (!isAdminStaff(session) && !CLIENT_ADDABLE_PARTY_TYPES.includes(partyType as PartyType)) {
+    return { error: "You can add contractors, subcontractors, vendors and client parties. JAGS and TPI/lab parties are set up by a JAGS Admin." };
+  }
   const supabase = await createSupabaseServerClient();
 
   const { data: project } = await supabase
@@ -807,7 +814,14 @@ export async function deactivateAllProjectPartiesAction(
 
   const userIds = [...new Set((parties ?? []).map((p) => p.user_id).filter((id): id is string => Boolean(id)))];
   if (userIds.length > 0) {
-    await supabase.from("access_grants").delete().eq("project_id", projectId).eq("scope_type", "project").in("user_id", userIds);
+    // JAGS staff who happen to be linked to a party keep their own project grants (they work on the
+    // project in their own right, not through the party).
+    const { data: staffRows } = await supabase.from("users").select("id").in("id", userIds).eq("is_jags_staff", true).returns<{ id: string }[]>();
+    const staffIds = new Set((staffRows ?? []).map((r) => r.id));
+    const revokeIds = userIds.filter((id) => !staffIds.has(id));
+    if (revokeIds.length > 0) {
+      await supabase.from("access_grants").delete().eq("project_id", projectId).eq("scope_type", "project").in("user_id", revokeIds);
+    }
   }
 
   await auditProjectSetting(supabase, projectId, session.userId, "all_parties_deactivated", true);
@@ -1013,11 +1027,19 @@ export async function getProjectCloseSummaryAction(projectId: string): Promise<P
   const session = await requireSession();
   if (!isAdminStaff(session) || !projectId) return null;
   const supabase = await createSupabaseServerClient();
-  const [ncr, punch, drafts, project] = await Promise.all([
-    supabase.from("ncrs" as never).select("id", { count: "exact", head: true }).eq("project_id" as never, projectId as never).neq("status" as never, "closed" as never),
+  const [ncr, punch, drafts, project, books, revisions] = await Promise.all([
+    // Mirrors projects_status_guard (20261104000600): a null severity counts, only observations don't.
+    supabase
+      .from("ncrs" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("project_id" as never, projectId as never)
+      .neq("status" as never, "closed" as never)
+      .or("severity.is.null,severity.neq.observation" as never),
     supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase.from("inspection_records").select("id", { count: "exact", head: true }).eq("project_id", projectId).is("overall_result", null),
     supabase.from("projects").select("project_number, name").eq("id", projectId).maybeSingle<{ project_number: string; name: string }>(),
+    supabase.from("data_books").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "issued"),
+    supabase.from("itps").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("revision_needs_approval", true),
   ]);
   let overdueHolds = 0;
   try {
@@ -1033,6 +1055,8 @@ export async function getProjectCloseSummaryAction(projectId: string): Promise<P
     openPunch: punch.count ?? 0,
     overdueHolds,
     draftInspections: drafts.count ?? 0,
+    unissuedDataBooks: books.count ?? 0,
+    pendingItpRevisions: revisions.count ?? 0,
   };
   return { ...counts, blockers: describeCloseBlockers(counts) };
 }

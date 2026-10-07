@@ -115,7 +115,10 @@ export function SidePanel({
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
-      openerRef.current?.focus?.();
+      // After a server refresh the opener may have been replaced; fall back to the page's main region.
+      const opener = openerRef.current;
+      if (opener && opener.isConnected) opener.focus?.();
+      else document.getElementById("main-content")?.focus?.();
     };
   }, [open]);
 
@@ -130,8 +133,15 @@ export function SidePanel({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        onInput={() => {
-          dirtyRef.current = true;
+        onInput={(e) => {
+          // Only real form fields count as "unsaved" — typing in a search / filter box must not make
+          // Esc or a backdrop click raise a discard prompt.
+          const t = e.target as HTMLElement;
+          const isField = t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement;
+          const isSearch =
+            (t instanceof HTMLInputElement && (t.type === "search" || t.getAttribute("role") === "searchbox")) ||
+            t.closest("[data-no-dirty]") !== null;
+          if (isField && !isSearch) dirtyRef.current = true;
         }}
         className={cn(
           "relative z-10 h-full w-full overflow-y-auto border-l border-border bg-surface p-5 shadow-xl outline-none sm:p-6",
@@ -204,28 +214,66 @@ export function useUrlPanel(param: string) {
   return { value, open, close };
 }
 
-/** Tiny transient confirmation ("Observation OBS-012 raised") that clears itself. */
+// Toasts pause while the pointer or keyboard focus is on one (WCAG 2.2.1 Timing Adjustable) — a
+// module-level flag + event so existing useToast()/<Toast> call sites need no changes.
+let toastPaused = false;
+const TOAST_RESUME_EVENT = "jags-toast-resume";
+
+/** Tiny transient confirmation ("Observation OBS-012 raised") that clears itself — unless the user
+ *  is hovering it or has focus inside it, in which case the countdown restarts when they leave. */
 export function useToast(durationMs = 6000) {
   const [message, setMessage] = useState<ReactNode | null>(null);
+  const [resumeTick, setResumeTick] = useState(0);
+  useEffect(() => {
+    const onResume = () => setResumeTick((n) => n + 1);
+    window.addEventListener(TOAST_RESUME_EVENT, onResume);
+    return () => window.removeEventListener(TOAST_RESUME_EVENT, onResume);
+  }, []);
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(() => setMessage(null), durationMs);
+    const t = setTimeout(() => {
+      if (!toastPaused) setMessage(null);
+    }, durationMs);
     return () => clearTimeout(t);
-  }, [message, durationMs]);
+  }, [message, durationMs, resumeTick]);
   return { message, show: setMessage, dismiss: () => setMessage(null) };
 }
 
+function setToastPaused(paused: boolean) {
+  toastPaused = paused;
+  if (!paused) window.dispatchEvent(new Event(TOAST_RESUME_EVENT));
+}
+
+/**
+ * The live region is rendered on every pass (empty when there is no message) and only its content
+ * changes — text inserted into an existing live region is announced reliably, text mounted together
+ * with its own role="status" element often is not.
+ */
 export function Toast({ message, onDismiss }: { message: ReactNode | null; onDismiss: () => void }) {
-  if (!message) return null;
   return (
-    <div
-      role="status"
-      className="fixed bottom-4 left-1/2 z-50 flex max-w-[92vw] -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-ink px-4 py-3 text-sm text-white shadow-xl"
-    >
-      <span>{message}</span>
-      <button type="button" onClick={onDismiss} aria-label="Dismiss" className="h-8 w-8 rounded-md hover:bg-white/10">
-        ✕
-      </button>
+    <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2">
+      {message ? (
+        <div
+          onMouseEnter={() => setToastPaused(true)}
+          onMouseLeave={() => setToastPaused(false)}
+          onFocus={() => setToastPaused(true)}
+          onBlur={() => setToastPaused(false)}
+          className="pointer-events-auto flex max-w-[92vw] items-center gap-3 rounded-lg border border-border bg-ink px-4 py-3 text-sm text-white shadow-xl"
+        >
+          <span>{message}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setToastPaused(false);
+              onDismiss();
+            }}
+            aria-label="Dismiss"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-white/10"
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
