@@ -33,6 +33,7 @@ import {
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { aggregateReportSummaryData } from "@/lib/reports/report-summary";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { canRunStandaloneAssignment } from "@/lib/standalone/actions";
 
 export interface GenerateMonthlyReportPackState {
   error: string | null;
@@ -354,8 +355,26 @@ export async function requestInspectionReportPdfAction(
   if (!inspectionRecordId) return { error: "Missing inspection record." };
 
   const supabase = await createSupabaseServerClient();
-  const { data: existing } = await supabase.from("inspection_records").select("id").eq("id", inspectionRecordId).maybeSingle();
+  const { data: existing } = await supabase
+    .from("inspection_records")
+    .select("id, overall_result")
+    .eq("id", inspectionRecordId)
+    .maybeSingle<{ id: string; overall_result: string | null }>();
   if (!existing) return { error: "Inspection not found, or you do not have access to it." };
+  if (!existing.overall_result) return { error: "The report can only be generated once the inspection is completed." };
+
+  // Don't queue a duplicate while a render for this record is already pending/processing.
+  const { data: inFlight } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id")
+    .eq("job_type", "render_inspection_report_pdf")
+    .eq("payload->>inspection_record_id", inspectionRecordId)
+    .in("status", ["pending", "processing"])
+    .limit(1);
+  if (inFlight && inFlight.length > 0) {
+    revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+    return { error: null, success: true };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_inspection_report_pdf",
     payload: { inspection_record_id: inspectionRecordId, requested_by: session.userId } satisfies RenderInspectionReportPdfPayload,
@@ -442,9 +461,22 @@ export async function requestFatReportPdfAction(
   if (!assignmentId) return { error: "Missing assignment." };
 
   const supabase = await createSupabaseServerClient();
+  const { data: assignmentRow } = await supabase
+    .from("standalone_assignments")
+    .select("project_id, status")
+    .eq("id", assignmentId)
+    .maybeSingle<{ project_id: string; status: string }>();
+  if (!assignmentRow) return { error: "Assignment not found." };
+  if (!(await canRunStandaloneAssignment(session, supabase, assignmentRow.project_id))) {
+    return { error: "Only someone with access to run this assignment can request its report." };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_fat_report_pdf",
-    payload: { assignment_id: assignmentId, requested_by: session.userId } satisfies RenderFatReportPdfPayload,
+    payload: {
+      assignment_id: assignmentId,
+      requested_by: session.userId,
+      draft: assignmentRow.status !== "completed",
+    } satisfies RenderFatReportPdfPayload,
   });
 
   if (error) {

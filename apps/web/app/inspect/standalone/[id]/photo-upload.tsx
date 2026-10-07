@@ -13,6 +13,7 @@ import { compressImageFile } from "@/lib/media/compress-image";
 export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function uploadOne(rawFile: File): Promise<string | null> {
@@ -30,7 +31,17 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
     const formData = new FormData();
     formData.set("assignment_id", assignmentId);
     formData.set("storage_path", path);
-    const result = await addPhotoAction({ error: null }, formData);
+    if (caption.trim()) formData.set("caption", caption.trim());
+    let result: { error: string | null };
+    try {
+      result = await addPhotoAction({ error: null }, formData);
+    } catch {
+      result = { error: "Could not save the photo record. Try again." };
+    }
+    if (result.error) {
+      // Do not leave an orphan object in Storage when the record could not be saved.
+      await supabase.storage.from("inspection-evidence").remove([path]).catch(() => undefined);
+    }
     return result.error;
   }
 
@@ -51,16 +62,26 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
     if (lastError) setError(lastError);
 
     setUploading(false);
+    if (!lastError) setCaption("");
     if (inputRef.current) inputRef.current.value = "";
   }
 
   return (
     <div className="mt-4 border-t border-border pt-4">
+      <label className="block text-xs text-muted">Caption (optional)</label>
+      <input
+        value={caption}
+        onChange={(e) => setCaption(e.target.value)}
+        maxLength={200}
+        placeholder="What does this photo show?"
+        className="mt-1 mb-3 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+      />
       <label className="block text-xs text-muted">Upload photo</label>
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         multiple
         disabled={uploading}
         onChange={handleFileChange}

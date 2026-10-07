@@ -387,8 +387,19 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // Notice period: warn (never block) when the activity's planned date is closer than its hold/witness notice requires.
   let noticeWarning: string | null = null;
   try {
-    const check = await getNoticeCheck(supabase, itpItem.id, "H");
-    if (check.status === "short_notice" || check.status === "overdue") noticeWarning = check.message;
+    // Loop over the intervention codes this activity actually has (not a hardcoded "H").
+    const { data: progressCodes } = await supabase
+      .from("activity_signoff_progress")
+      .select("intervention")
+      .eq("itp_item_id", itpItem.id)
+      .returns<{ intervention: string }[]>();
+    const codes = [...new Set((progressCodes ?? []).map((r) => r.intervention))];
+    const messages: string[] = [];
+    for (const code of codes) {
+      const check = await getNoticeCheck(supabase, itpItem.id, code);
+      if ((check.status === "short_notice" || check.status === "overdue") && check.message && !messages.includes(check.message)) messages.push(check.message);
+    }
+    if (messages.length > 0) noticeWarning = messages.join(" ");
   } catch {
     // Best-effort — the warning is advisory.
   }

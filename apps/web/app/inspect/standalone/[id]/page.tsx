@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { canRunStandaloneAssignment } from "@/lib/standalone/actions";
 import { Badge } from "@/components/ui/badge";
 import type {
@@ -79,6 +80,9 @@ export default async function StandaloneAssignmentDetailPage({
   // Same 3-way rule as requireStandaloneAccess (lib/standalone/actions.ts) — reused directly
   // rather than re-derived here, so this can never drift from the actual server-side gate.
   const canManage = await canRunStandaloneAssignment(session, supabase, assignment.project_id);
+
+  const isAdmin = isAdminStaff(session);
+  const canClose = isAdmin || (await hasPermission(session.userId, "close_punch_item", assignment.project_id));
 
   const latestReportPdf = await getLatestFatReportPdf(id);
 
@@ -225,10 +229,12 @@ export default async function StandaloneAssignmentDetailPage({
           linkedOpenPunchCount={linkedOpenPunchCount ?? 0}
           linkedTotalPunchCount={linkedTotalPunchCount ?? 0}
           canManage={canManage}
+          canClose={canClose}
+          isAdmin={isAdmin}
         />
       </div>
 
-      {session.isJagsStaff && (
+      {session.isJagsStaff && canManage && (
         <div className="mt-6">
           <NarrativeEditor
             recordIdFieldName="assignment_id"

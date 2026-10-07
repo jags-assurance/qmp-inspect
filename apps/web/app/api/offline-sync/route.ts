@@ -4,7 +4,8 @@ import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/check
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { validateOfflinePhoto } from "@/lib/checklists/photo-validation";
 import { observationMarkerPath, parseObservationMarker, serializeObservationMarker } from "@/lib/offline/idempotency";
-import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE } from "@/lib/checklists/db-types";
+import { MAX_PHOTO_BYTES } from "@/lib/checklists/photo-validation";
+import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 
 /**
  * The server side of the offline outbox (lib/offline/db.ts, R60): replays one queued item once
@@ -66,7 +67,19 @@ export async function POST(request: Request) {
 
       case "complete_inspection": {
         const result = await completeInspectionCore(formData);
-        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        if (result.error) {
+          // A replay after a lost response: the inspection already completed with an overall result.
+          if (/already (been )?completed/i.test(result.error)) {
+            const recId = String(formData.get("inspection_record_id") ?? "");
+            const { data: rec } = await authClient
+              .from(INSPECTION_RECORDS_TABLE)
+              .select("overall_result")
+              .eq("id", recId)
+              .maybeSingle<{ overall_result: string | null }>();
+            if (rec?.overall_result) return NextResponse.json({ ok: true });
+          }
+          return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        }
         return NextResponse.json({ ok: true });
       }
 
@@ -96,7 +109,8 @@ export async function POST(request: Request) {
         // Optional photo taken with the quick form. Best-effort AFTER the NCR exists: failing the
         // whole item here would leave it in the outbox and a retry would raise a duplicate NCR.
         const photo = formData.get("file");
-        if (photo instanceof Blob) {
+        // Validate type/size like the checklist photo path; an invalid one is skipped (NCR already exists).
+        if (photo instanceof Blob && photo.type.startsWith("image/") && photo.size <= MAX_PHOTO_BYTES) {
           const projectId = String(formData.get("project_id") ?? "").trim();
           const safeName = String(formData.get("file_name") ?? "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
           const path = `${projectId}/ncrs/${result.created.id}/${Date.now()}-${safeName}`;
@@ -149,7 +163,7 @@ export async function POST(request: Request) {
         }
 
         const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file, { upsert: Boolean(clientKey) });
-        if (uploadError) return NextResponse.json({ ok: false, error: uploadError.message }, { status: 422 });
+        if (uploadError) return NextResponse.json({ ok: false, error: "Could not upload the photo. Try again." }, { status: 422 });
 
         const { error: insertError } = await supabase.from(INSPECTION_PHOTOS_TABLE).insert({
           inspection_record_id: inspectionRecordId,
@@ -157,18 +171,16 @@ export async function POST(request: Request) {
           uploaded_by: user?.id ?? null,
           checklist_item_id: checklistItemId,
         });
-        if (insertError) return NextResponse.json({ ok: false, error: insertError.message }, { status: 422 });
+        if (insertError) return NextResponse.json({ ok: false, error: "Could not save the photo record. Try again." }, { status: 422 });
 
         return NextResponse.json({ ok: true });
       }
 
       default:
-        return NextResponse.json({ ok: false, error: `Unknown offline queue item kind: ${kind}` }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Unknown offline queue item kind." }, { status: 400 });
     }
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Sync failed." },
-      { status: 500 }
-    );
+    console.error("[offline-sync] failed", err);
+    return NextResponse.json({ ok: false, error: "Sync failed. Will retry." }, { status: 500 });
   }
 }

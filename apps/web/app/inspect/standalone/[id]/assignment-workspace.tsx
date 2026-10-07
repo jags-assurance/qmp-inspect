@@ -16,7 +16,9 @@ import type {
   StandaloneAssignmentPunchItemRow,
   StandaloneAssignmentSignatureRow,
 } from "@/lib/standalone/actions";
-import { togglePunchItemAction } from "@/lib/standalone/actions";
+import { deleteMeasurementAction, deletePhotoAction, deleteSignatureAction } from "@/lib/standalone/actions";
+import { PunchToggleButton } from "./punch-toggle-button";
+import { ReopenForm } from "./reopen-form";
 import { AddMeasurementForm } from "./add-measurement-form";
 import { SuggestMeasurements } from "./suggest-measurements";
 import { AddPunchItemForm } from "./add-punch-item-form";
@@ -89,6 +91,8 @@ export function AssignmentWorkspace({
   linkedOpenPunchCount,
   linkedTotalPunchCount,
   canManage,
+  canClose,
+  isAdmin,
 }: {
   assignment: Assignment;
   measurements: StandaloneAssignmentMeasurementRow[];
@@ -117,6 +121,10 @@ export function AssignmentWorkspace({
    * Add measurement" or "Finalize" and only find out it was blocked after submitting. Gating on
    * isDraft alone was never enough; it has to be isDraft && canManage. */
   canManage: boolean;
+  /** close_punch_item authority (JAGS admin or permission holder): gates Mark closed and clearance. */
+  canClose: boolean;
+  /** JAGS admin: may reopen a completed assignment. */
+  isAdmin: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("measurements");
   const isDraft = assignment.status === "draft";
@@ -127,6 +135,8 @@ export function AssignmentWorkspace({
   // controls from rendering for a party who'd only find that out after clicking submit.
   const canEdit = isDraft && canManage;
   const canEditPunch = (isDraft || isConditionalOpen) && canManage;
+  // Photos and evidence documents are still allowed while awaiting clearance.
+  const canAddEvidence = canEditPunch;
   const openPunchCount = punchItems.filter((p) => p.status === "open").length;
 
   return (
@@ -218,6 +228,7 @@ export function AssignmentWorkspace({
                     <th className="px-3 py-2 font-medium">Actual</th>
                     <th className="px-3 py-2 font-medium">Unit</th>
                     <th className="px-3 py-2 font-medium">Result</th>
+                    {canEdit && <th className="px-3 py-2 font-medium">&nbsp;</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -235,11 +246,27 @@ export function AssignmentWorkspace({
                           "—"
                         )}
                       </td>
+                      {canEdit && (
+                        <td className="px-3 py-2 text-right">
+                          <form
+                            action={deleteMeasurementAction}
+                            onSubmit={(e) => {
+                              if (!confirm("Delete this measurement?")) e.preventDefault();
+                            }}
+                          >
+                            <input type="hidden" name="assignment_id" value={assignment.id} />
+                            <input type="hidden" name="measurement_id" value={m.id} />
+                            <button type="submit" className="text-xs text-danger hover:underline">
+                              Delete
+                            </button>
+                          </form>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {measurements.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-muted">
+                      <td colSpan={canEdit ? 7 : 6} className="px-3 py-6 text-center text-muted">
                         No measurements recorded yet.
                       </td>
                     </tr>
@@ -256,11 +283,17 @@ export function AssignmentWorkspace({
           <div className="p-4">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
               {photos.map((photo) => (
-                <PhotoTile key={photo.id} photo={photo} url={photoSignedUrls.get(photo.storage_path) ?? null} />
+                <PhotoTile
+                  key={photo.id}
+                  photo={photo}
+                  url={photoSignedUrls.get(photo.storage_path) ?? null}
+                  assignmentId={assignment.id}
+                  canDelete={canAddEvidence}
+                />
               ))}
               {photos.length === 0 && <p className="col-span-full text-center text-sm text-muted">No photos uploaded yet.</p>}
             </div>
-            {canEdit && <PhotoUpload assignmentId={assignment.id} />}
+            {canAddEvidence && <PhotoUpload assignmentId={assignment.id} />}
           </div>
         )}
 
@@ -271,7 +304,7 @@ export function AssignmentWorkspace({
             vaultDocuments={vaultDocuments}
             projectId={projectId}
             vaultFolders={vaultFolders}
-            canEdit={canEdit}
+            canEdit={canAddEvidence}
           />
         )}
 
@@ -295,17 +328,12 @@ export function AssignmentWorkspace({
                       </td>
                       {canEditPunch && (
                         <td className="px-3 py-2 text-right">
-                          <form action={togglePunchItemAction}>
-                            <input type="hidden" name="assignment_id" value={assignment.id} />
-                            <input type="hidden" name="punch_item_id" value={item.id} />
-                            <input type="hidden" name="current_status" value={item.status} />
-                            <button
-                              type="submit"
-                              className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white"
-                            >
-                              Mark {item.status === "open" ? "closed" : "open"}
-                            </button>
-                          </form>
+                          <PunchToggleButton
+                            assignmentId={assignment.id}
+                            punchItemId={item.id}
+                            status={item.status}
+                            canClose={canClose}
+                          />
                         </td>
                       )}
                     </tr>
@@ -337,6 +365,20 @@ export function AssignmentWorkspace({
                   </p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={sig.signature_data} alt={`Signature of ${sig.signatory_name}`} className="mt-2 h-24 w-full rounded bg-off-white object-contain" />
+                  {canEdit && (
+                    <form
+                      action={deleteSignatureAction}
+                      onSubmit={(e) => {
+                        if (!confirm("Delete this signature?")) e.preventDefault();
+                      }}
+                    >
+                      <input type="hidden" name="assignment_id" value={assignment.id} />
+                      <input type="hidden" name="signature_id" value={sig.id} />
+                      <button type="submit" className="mt-1 text-xs text-danger hover:underline">
+                        Delete
+                      </button>
+                    </form>
+                  )}
                 </div>
               ))}
               {signatures.length === 0 && <p className="col-span-full text-center text-sm text-muted">No signatures captured yet.</p>}
@@ -360,14 +402,14 @@ export function AssignmentWorkspace({
       {isDraft && !canEdit && (
         <p className="mt-6 text-sm text-muted">This assignment is still in progress — someone with access to run it will finalize it.</p>
       )}
-      {isConditionalOpen && canManage && (
+      {isConditionalOpen && canManage && canClose && (
         <div className="mt-6">
           <IssueClearanceForm assignmentId={assignment.id} canClear={linkedOpenPunchCount === 0} />
         </div>
       )}
-      {isConditionalOpen && !canManage && (
+      {isConditionalOpen && !(canManage && canClose) && (
         <p className="mt-6 text-sm text-muted">
-          Conditionally passed — someone with access to run it will issue clearance once the linked punch item(s) are closed.
+          Conditionally passed — someone allowed to close punch items will issue clearance once the linked punch item(s) are closed.
         </p>
       )}
       {assignment.status === "completed" && (
@@ -379,11 +421,22 @@ export function AssignmentWorkspace({
           .
         </p>
       )}
+      {assignment.status === "completed" && isAdmin && <ReopenForm assignmentId={assignment.id} />}
     </div>
   );
 }
 
-function PhotoTile({ photo, url }: { photo: StandaloneAssignmentPhotoRow; url: string | null }) {
+function PhotoTile({
+  photo,
+  url,
+  assignmentId,
+  canDelete,
+}: {
+  photo: StandaloneAssignmentPhotoRow;
+  url: string | null;
+  assignmentId: string;
+  canDelete: boolean;
+}) {
   return (
     <div className="rounded-md border border-border p-2">
       <div className="aspect-square overflow-hidden rounded-md bg-off-white">
@@ -397,6 +450,20 @@ function PhotoTile({ photo, url }: { photo: StandaloneAssignmentPhotoRow; url: s
         )}
       </div>
       {photo.caption && <p className="mt-1 truncate text-sm text-ink" title={photo.caption}>{photo.caption}</p>}
+      {canDelete && (
+        <form
+          action={deletePhotoAction}
+          onSubmit={(e) => {
+            if (!confirm("Delete this photo?")) e.preventDefault();
+          }}
+        >
+          <input type="hidden" name="assignment_id" value={assignmentId} />
+          <input type="hidden" name="photo_id" value={photo.id} />
+          <button type="submit" className="mt-1 text-xs text-danger hover:underline">
+            Delete
+          </button>
+        </form>
+      )}
     </div>
   );
 }

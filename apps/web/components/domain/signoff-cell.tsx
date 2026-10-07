@@ -3,6 +3,7 @@
 import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { notifyPartyAction, proceedWithoutResponseAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
+import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
 
 /** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
  *  the same notified_at + noticeHours the server already enforces (proceedWithoutResponseAction),
@@ -171,7 +172,7 @@ export function SignoffCell({
             disabled={isPending}
             onClick={() => run(() => notifyPartyAction(progressId), "notified")}
             className={btn}
-            title="Send the reminder again (restarts the notice period)"
+            title="Record another reminder (does not restart the notice period)"
           >
             Re-notify
           </button>
@@ -180,7 +181,17 @@ export function SignoffCell({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => run(() => signOffAction(progressId), "signed_off")}
+            onClick={() =>
+              run(async () => {
+                const first = await signOffAction(progressId);
+                if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
+                  const why = window.prompt("You are signing on behalf of this party. Enter the reason (at least 10 characters):");
+                  if (!why) return { error: null };
+                  return signOffAction(progressId, why);
+                }
+                return first;
+              }, "signed_off")
+            }
             className={btn}
           >
             Sign off

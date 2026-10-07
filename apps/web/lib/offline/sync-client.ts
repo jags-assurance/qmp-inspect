@@ -24,6 +24,9 @@ function buildFormData(item: OutboxItem): FormData {
   return formData;
 }
 
+/** After this many failed attempts a transiently-failing item is marked rejected so it stops blocking the queue. */
+const MAX_ATTEMPTS = 5;
+
 let syncInFlight: Promise<{ synced: number; failed: number }> | null = null;
 
 /**
@@ -86,15 +89,31 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
         if (group) blockedInspections.add(group);
         failed++;
       } else {
-        // 5xx / unparseable: transient, keep pending and stop this run.
-        await recordOutboxFailure(item.id, body?.error ?? `Server error (${response.status}). Will retry.`, "pending");
+        // 5xx / unparseable: transient. After MAX_ATTEMPTS the item is rejected (user must Retry/Discard)
+        // and later groups continue; before that it stays pending and this inspection's later items wait.
+        const exhausted = (item.attempts ?? 0) + 1 >= MAX_ATTEMPTS;
+        await recordOutboxFailure(
+          item.id,
+          exhausted ? "The server keeps failing to process this item. Retry or discard it." : "Server error. Will retry.",
+          exhausted ? "rejected" : "pending"
+        );
         failed++;
-        break;
+        if (group) {
+          blockedInspections.add(group);
+        } else if (!exhausted) {
+          break;
+        }
       }
     } catch (err) {
-      await recordOutboxFailure(item.id, err instanceof Error ? err.message : "Network error.", "pending");
+      const exhausted = (item.attempts ?? 0) + 1 >= MAX_ATTEMPTS;
+      await recordOutboxFailure(
+        item.id,
+        exhausted ? "This item could not be sent after several attempts. Retry or discard it." : "Network error. Will retry.",
+        exhausted ? "rejected" : "pending"
+      );
       failed++;
-      break;
+      if (!exhausted) break;
+      if (group) blockedInspections.add(group);
     }
   }
 

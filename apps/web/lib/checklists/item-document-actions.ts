@@ -48,6 +48,26 @@ async function loadOpenRecord(supabase: Awaited<ReturnType<typeof createSupabase
   return { error: null, record };
 }
 
+/** Confirms the uploaded object really exists in Storage and its size/mime are sane; returns the real size or an error. */
+async function verifyStorageObject(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  storagePath: string
+): Promise<{ error: string | null; size?: number }> {
+  const slash = storagePath.lastIndexOf("/");
+  const dir = storagePath.slice(0, slash);
+  const name = storagePath.slice(slash + 1);
+  const { data, error } = await supabase.storage.from("inspection-evidence").list(dir, { search: name, limit: 20 });
+  if (error) return { error: "Could not verify the uploaded file. Try again." };
+  const obj = (data ?? []).find((o) => o.name === name);
+  if (!obj) return { error: "The uploaded file was not found in storage — upload it again." };
+  const meta = (obj.metadata ?? {}) as { size?: number; mimetype?: string };
+  const size = Number(meta.size ?? 0);
+  if (!Number.isFinite(size) || size <= 0 || size > ITEM_DOC_MAX_BYTES) return { error: "The uploaded file is empty or larger than 25 MB." };
+  const mime = String(meta.mimetype ?? "").toLowerCase();
+  if (/(html|javascript|x-msdownload|x-sh|php)/.test(mime)) return { error: "This file type isn't allowed." };
+  return { error: null, size };
+}
+
 async function audit(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   projectId: string,
@@ -102,6 +122,8 @@ export async function uploadItemDocumentAction(input: {
   if (!storagePath.startsWith(`vault/${record.project_id}/${CHECKLISTS_FOLDER_KEY}/`) || storagePath.includes("..")) {
     return { error: "Invalid upload location." };
   }
+  const verified = await verifyStorageObject(supabase, storagePath);
+  if (verified.error) return { error: verified.error };
   const { data: item } = await supabase
     .from("checklist_items")
     .select("id, item_number, template_id")
@@ -133,7 +155,7 @@ export async function uploadItemDocumentAction(input: {
     documentDate: "",
     notes: `Uploaded from checklist item ${item.item_number} of inspection ${record.record_number}.`,
     storagePath,
-    fileSize: String(input.fileSize),
+    fileSize: String(verified.size ?? input.fileSize),
     uploadedBy: user?.id ?? null,
   });
   if (created.error) return { error: created.error };

@@ -77,7 +77,7 @@ async function requireStandaloneAccess(
   session: Session,
   supabase: SupabaseClient,
   assignmentId: string,
-  opts: { requireDraft?: boolean; blockCompleted?: boolean } = {}
+  opts: { requireDraft?: boolean; requireOpen?: boolean; blockCompleted?: boolean } = {}
 ): Promise<{ error: string | null; projectId: string | null }> {
   const { data } = await supabase
     .from(STANDALONE_ASSIGNMENTS)
@@ -87,6 +87,9 @@ async function requireStandaloneAccess(
   if (!data) return { error: "Assignment not found.", projectId: null };
   if (opts.requireDraft && data.status !== "draft") {
     return { error: "This assignment is finalized and locked. Records can no longer be added or changed.", projectId: data.project_id };
+  }
+  if (opts.requireOpen && data.status !== "draft" && data.status !== "conditional_open") {
+    return { error: "This assignment is completed and locked. Records can no longer be added or changed.", projectId: data.project_id };
   }
   if (opts.blockCompleted && data.status === "completed") {
     return { error: "This assignment is completed and locked.", projectId: data.project_id };
@@ -608,7 +611,11 @@ export async function addPunchItemAction(
   return { error: null };
 }
 
-export async function togglePunchItemAction(formData: FormData) {
+export interface TogglePunchItemState {
+  error: string | null;
+}
+
+export async function togglePunchItemAction(_prev: TogglePunchItemState, formData: FormData): Promise<TogglePunchItemState> {
   const session = await requireSession();
 
   const assignmentId = String(formData.get("assignment_id") ?? "").trim();
@@ -616,11 +623,11 @@ export async function togglePunchItemAction(formData: FormData) {
   const currentStatus = String(formData.get("current_status") ?? "").trim() as PunchItemStatus;
   const nextStatus: PunchItemStatus = currentStatus === "open" ? "closed" : "open";
 
-  if (!assignmentId || !punchItemId || (currentStatus !== "open" && currentStatus !== "closed")) return;
+  if (!assignmentId || !punchItemId || (currentStatus !== "open" && currentStatus !== "closed")) return { error: "Invalid request." };
 
   const supabase = await createSupabaseServerClient();
   const access = await requireStandaloneAccess(session, supabase, assignmentId, { blockCompleted: true });
-  if (access.error) return;
+  if (access.error) return { error: access.error };
 
   // Real gap the audit found: this single click was the ONLY gate between "conditional pass" and
   // fully cleared (issueClearanceAction below trusts punch items being non-'open' as its clearance
@@ -630,7 +637,7 @@ export async function togglePunchItemAction(formData: FormData) {
   // than building a second, inconsistent two-step flow for this smaller feature.
   if (access.projectId && nextStatus === "closed") {
     const canClose = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", access.projectId));
-    if (!canClose) return;
+    if (!canClose) return { error: "Only a JAGS admin or someone allowed to close punch items can close a punch item." };
   }
 
   // Only applies if the row is still in the state the user saw: a double-click or stale tab can
@@ -645,7 +652,7 @@ export async function togglePunchItemAction(formData: FormData) {
     .returns<{ id: string }[]>();
   if (!toggled || toggled.length === 0) {
     revalidatePath(`/inspect/standalone/${assignmentId}`);
-    return;
+    return { error: "This punch item was already changed. Refreshed." };
   }
 
   try {
@@ -670,6 +677,7 @@ export async function togglePunchItemAction(formData: FormData) {
   }
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
+  return { error: null };
 }
 
 export interface AddPhotoState {
@@ -696,7 +704,7 @@ export async function addPhotoAction(_prev: AddPhotoState, formData: FormData): 
   }
 
   const supabase = await createSupabaseServerClient();
-  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireOpen: true });
   if (access.error) return { error: access.error };
 
   const {
@@ -855,6 +863,14 @@ export async function finalizeAssignmentAction(
       .select("id", { count: "exact", head: true })
       .eq("assignment_id", assignmentId)
       .eq("result", "fail");
+    const { count: unresolvedCount } = await supabase
+      .from(STANDALONE_ASSIGNMENT_MEASUREMENTS)
+      .select("id", { count: "exact", head: true })
+      .eq("assignment_id", assignmentId)
+      .is("result", null);
+    if (unresolvedCount) {
+      return { error: `${unresolvedCount} measurement(s) have no pass/fail result. Record a result for each (or remove it) before finalizing as Pass.` };
+    }
     if (failedCount) {
       return { error: `${failedCount} measurement(s) failed. Choose Conditional Pass (with a punch item) or Fail instead of Pass.` };
     }
@@ -929,6 +945,17 @@ export async function finalizeAssignmentAction(
       revalidatePath(`/inspect/standalone/${assignmentId}`);
       return { error: "Could not create the linked punch-list item, so the assignment was not finalized. Try again." };
     }
+  }
+
+  // A failed FAT/assignment must be tracked to resolution: raise a linked punch item (best-effort;
+  // the assignment has no responsible party / due date of its own, so those are left for triage).
+  if (conclusion === "fail") {
+    await createPunchItemFromSource({
+      projectId: assignment.project_id,
+      description: `Failed: ${assignment.equipment_description} (${assignment.assignment_number})`,
+      source: "manual",
+      sourceStandaloneAssignmentId: assignmentId,
+    });
   }
 
   await notifyAssignmentParties(supabase, {
@@ -1182,5 +1209,130 @@ export async function unlinkAssignmentEvidenceDocumentAction(formData: FormData)
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+}
+
+async function auditStandalone(
+  supabase: SupabaseClient,
+  assignmentId: string,
+  session: Session,
+  entityType: string,
+  action: string,
+  summaryPrefix: string,
+  changes?: Record<string, unknown>
+) {
+  try {
+    const { data: row } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .select("project_id, assignment_number, projects(organization_id)")
+      .eq("id", assignmentId)
+      .maybeSingle<{ project_id: string; assignment_number: string; projects: { organization_id: string } | null }>();
+    if (row?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: row.projects.organization_id,
+        projectId: row.project_id,
+        entityType,
+        entityId: assignmentId,
+        action,
+        actorId: session.userId,
+        summary: `${summaryPrefix} (${row.assignment_number})`,
+        ...(changes ? { changes } : {}),
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+}
+
+export interface ReopenAssignmentState {
+  error: string | null;
+}
+
+/** Admin-only: returns a completed assignment (e.g. a failed FAT being re-tested) to draft, with a recorded reason. */
+export async function reopenAssignmentAction(_prev: ReopenAssignmentState, formData: FormData): Promise<ReopenAssignmentState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS admin can reopen a completed assignment." };
+
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!assignmentId) return { error: "Missing assignment." };
+  if (reason.length < 10) return { error: "Record a reason for reopening (at least 10 characters)." };
+  if (reason.length > 2000) return { error: "Reason is too long (max 2000 characters)." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from(STANDALONE_ASSIGNMENTS)
+    .update({
+      status: "draft",
+      conclusion: null,
+      completed_at: null,
+      cleared_by: null,
+      cleared_at: null,
+      clearance_notes: null,
+      clearance_number: null,
+    })
+    .eq("id", assignmentId)
+    .eq("status", "completed")
+    .select("id")
+    .returns<{ id: string }[]>();
+  if (error) return { error: "Could not reopen the assignment. Check you have permission and try again." };
+  if (!data || data.length === 0) return { error: "Only a completed assignment can be reopened." };
+
+  await auditStandalone(supabase, assignmentId, session, "standalone_assignment", "reopened", "Assignment reopened to draft", { reason });
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+  return { error: null };
+}
+
+export async function deleteMeasurementAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const id = String(formData.get("measurement_id") ?? "").trim();
+  if (!assignmentId || !id) return;
+  const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
+  if (access.error) return;
+  const { error } = await supabase.from(STANDALONE_ASSIGNMENT_MEASUREMENTS).delete().eq("id", id).eq("assignment_id", assignmentId);
+  if (error) return;
+  await auditStandalone(supabase, assignmentId, session, "standalone_assignment_measurement", "deleted", "Measurement deleted", { measurement_id: id });
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+}
+
+export async function deletePhotoAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const id = String(formData.get("photo_id") ?? "").trim();
+  if (!assignmentId || !id) return;
+  const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireOpen: true });
+  if (access.error) return;
+  const { data: photo } = await supabase
+    .from(STANDALONE_ASSIGNMENT_PHOTOS)
+    .select("storage_path")
+    .eq("id", id)
+    .eq("assignment_id", assignmentId)
+    .maybeSingle<{ storage_path: string }>();
+  if (!photo) return;
+  const { error } = await supabase.from(STANDALONE_ASSIGNMENT_PHOTOS).delete().eq("id", id).eq("assignment_id", assignmentId);
+  if (error) return;
+  try {
+    await supabase.storage.from("inspection-evidence").remove([photo.storage_path]);
+  } catch {
+    // Best-effort: the record is gone either way.
+  }
+  await auditStandalone(supabase, assignmentId, session, "standalone_assignment_photo", "deleted", "Photo deleted", { photo_id: id, storage_path: photo.storage_path });
+  revalidatePath(`/inspect/standalone/${assignmentId}`);
+}
+
+export async function deleteSignatureAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const assignmentId = String(formData.get("assignment_id") ?? "").trim();
+  const id = String(formData.get("signature_id") ?? "").trim();
+  if (!assignmentId || !id) return;
+  const supabase = await createSupabaseServerClient();
+  const access = await requireStandaloneAccess(session, supabase, assignmentId, { requireDraft: true });
+  if (access.error) return;
+  const { error } = await supabase.from(STANDALONE_ASSIGNMENT_SIGNATURES).delete().eq("id", id).eq("assignment_id", assignmentId);
+  if (error) return;
+  await auditStandalone(supabase, assignmentId, session, "standalone_assignment_signature", "deleted", "Signature deleted", { signature_id: id });
   revalidatePath(`/inspect/standalone/${assignmentId}`);
 }

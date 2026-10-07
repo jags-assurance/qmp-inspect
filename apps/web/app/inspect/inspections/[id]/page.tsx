@@ -3,6 +3,7 @@ import { formatLocationForDisplay, mapsUrl } from "@/lib/checklists/location";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
 import { Badge } from "@/components/ui/badge";
 import {
   CHECKLIST_RESPONSES_TABLE,
@@ -81,6 +82,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
     >();
 
   if (!record) notFound();
+  const canIssueIrn = await canExecuteItpItem(supabase, record.itp_item_id);
 
   // Real FK linkage now that createNcrAction persists it (see lib/ncrs/actions.ts) — surfaces any
   // NCR raised directly from this record, both ways, instead of relying on someone finding it by
@@ -394,7 +396,11 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             {voidedIrns.length > 0 && (
               <p className="mb-2 text-sm text-muted">The previous IRN was voided; a replacement can be issued.</p>
             )}
-            <IssueIrnForm inspectionRecordId={record.id} />
+            {canIssueIrn ? (
+              <IssueIrnForm inspectionRecordId={record.id} />
+            ) : (
+              <p className="text-sm text-muted">Only JAGS staff or the party assigned to execute this activity can issue its IRN.</p>
+            )}
           </div>
         ) : (
           <p className="mt-2 text-sm text-muted">An IRN can only be issued once this inspection has passed (or conditionally passed).</p>

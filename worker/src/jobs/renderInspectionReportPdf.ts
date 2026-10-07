@@ -99,7 +99,14 @@ export async function renderInspectionReportPdf(
         .select("storage_path, caption")
         .eq("inspection_record_id", record.id)
         .returns<{ storage_path: string; caption: string | null }[]>(),
-      supabase.from("irns").select("irn_number").eq("inspection_record_id", record.id).maybeSingle(),
+      supabase
+        .from("irns")
+        .select("irn_number")
+        .eq("inspection_record_id", record.id)
+        .is("voided_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       // organization_id/name for branding (Reqs R113-R118) — record.project_name is a denormalised
       // string, not a join, so the org has to be looked up separately via project_id.
       supabase

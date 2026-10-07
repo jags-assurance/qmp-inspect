@@ -37,6 +37,14 @@ import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { normaliseLocation } from "./location";
 import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
+import {
+  validateSignatureDataUrl,
+  isCountableEvidenceDoc,
+  mandatoryNaWithoutComment,
+  itemsMissingEvidence,
+  hasMandatoryNa,
+  type EvidenceDocLink,
+} from "./evidence-rules";
 
 export interface GenerateChecklistsState {
   error: string | null;
@@ -612,12 +620,11 @@ export async function startInspectionAction(
   const templateId = String(formData.get("template_id") ?? "").trim();
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
-  const projectName = String(formData.get("project_name") ?? "").trim();
-  const itpNumber = String(formData.get("itp_number") ?? "").trim();
-  const activity = String(formData.get("activity") ?? "").trim();
+  // project_name / itp_number / activity are NOT read from the form: they are client-supplied and
+  // would be frozen onto a controlled record. They are read from the DB rows below instead.
   const rawLocation = String(formData.get("location") ?? "").trim();
 
-  if (!templateId || !itpItemId || !projectId || !projectName || !itpNumber || !activity) {
+  if (!templateId || !itpItemId || !projectId) {
     return { error: "Missing required fields to start the inspection." };
   }
 
@@ -635,6 +642,7 @@ export async function startInspectionAction(
     const norm = normaliseLocation(rawLocation, presetNames);
     if ("error" in norm) return { error: norm.error };
     location = norm.value;
+    if (!location) return { error: "A location is required to start the inspection — use live GPS or choose one of the project's locations." };
   }
   if (!(await canExecuteItpItem(supabase, itpItemId))) {
     return { error: "Only JAGS staff or the party assigned to this activity can start a field inspection." };
@@ -645,16 +653,20 @@ export async function startInspectionAction(
   // starts — the same gate activity sign-off uses.
   const { data: gate } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
-    .select("id, itp_item_id, itp_items(itp_sections(itps(status, projects(id))))")
+    .select("id, itp_item_id, itp_items(activity, itp_sections(itps(status, itp_number, projects(id, name))))")
     .eq("id", templateId)
     .maybeSingle<{
       id: string;
       itp_item_id: string | null;
-      itp_items: { itp_sections: { itps: { status: string; projects: { id: string } | null } | null } | null } | null;
+      itp_items: { activity: string; itp_sections: { itps: { status: string; itp_number: string; projects: { id: string; name: string } | null } | null } | null } | null;
     }>();
   if (!gate || gate.itp_item_id !== itpItemId || gate.itp_items?.itp_sections?.itps?.projects?.id !== projectId) {
     return { error: "This checklist does not belong to that activity or project." };
   }
+  const itpNumber = gate.itp_items?.itp_sections?.itps?.itp_number ?? "";
+  const activity = gate.itp_items?.activity ?? "";
+  const projectName = gate.itp_items?.itp_sections?.itps?.projects?.name ?? "";
+  if (!itpNumber || !activity || !projectName) return { error: "Could not read this activity's ITP details. Refresh and try again." };
   const itpStatus = gate.itp_items?.itp_sections?.itps?.status;
   if (itpStatus !== "approved" && itpStatus !== "client_accepted") {
     return { error: "This ITP hasn't been approved yet, so site inspections can't start. Work opens once the ITP is approved." };
@@ -765,6 +777,21 @@ export async function startInspectionAction(
   });
 
   if (error) {
+    if (error.code === "23505") {
+      // A concurrent start (double click / second device) already opened the draft: resume it.
+      const { data: existing } = await supabase
+        .from(INSPECTION_RECORDS_TABLE)
+        .select("id")
+        .eq("itp_item_id", itpItemId)
+        .eq("checklist_template_id", templateId)
+        .is("overall_result", null)
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      if (existing) {
+        revalidatePath(`/inspect/checklists/${templateId}`);
+        return { error: null };
+      }
+    }
     return { error: "Could not start the inspection. Check you have permission and try again." };
   }
 
@@ -825,27 +852,60 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   if (!inspectionRecordId || !templateId) return { error: "Missing inspection record." };
   if (witnessSignature && !witnessName) return { error: "Enter the witness's name alongside their signature." };
   if (!signature) return { error: "A signature is required to complete the inspection." };
+  {
+    const sigError = validateSignatureDataUrl(signature, "signature");
+    if (sigError) return { error: sigError };
+    if (witnessSignature) {
+      const wErr = validateSignatureDataUrl(witnessSignature, "witness signature");
+      if (wErr) return { error: wErr };
+    }
+  }
 
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user: evidenceUser },
+  } = await supabase.auth.getUser();
 
   // Real gap found live: the "Photo evidence" section looked optional (no enforcement client- or
   // server-side), even though a completed inspection with zero evidence is close to worthless in a
   // dispute or ISO audit. At least one photo OR one linked Vault document — attached to the
   // inspection as a whole, or to any individual item — is now required to complete, mirroring the
   // signature check just above.
-  const [{ count: photoCount }, { count: evidenceDocCount }] = await Promise.all([
+  const [{ count: photoCount }, { data: evidenceDocRows }, { data: itemPhotoRows }] = await Promise.all([
     supabase.from(INSPECTION_PHOTOS_TABLE).select("id", { count: "exact", head: true }).eq("inspection_record_id", inspectionRecordId),
     supabase
       .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
-      .select("id", { count: "exact", head: true })
-      .eq("inspection_record_id", inspectionRecordId),
+      .select("checklist_item_id, vault_documents(status, uploaded_by, vault_folders(folder_key))")
+      .eq("inspection_record_id", inspectionRecordId)
+      .returns<
+        {
+          checklist_item_id: string | null;
+          vault_documents: { status: string; uploaded_by: string | null; vault_folders: { folder_key: string | null } | null } | null;
+        }[]
+      >(),
+    supabase
+      .from(INSPECTION_PHOTOS_TABLE)
+      .select("checklist_item_id")
+      .eq("inspection_record_id", inspectionRecordId)
+      .not("checklist_item_id", "is", null)
+      .returns<{ checklist_item_id: string | null }[]>(),
   ]);
+  // Only approved vault documents (or the signer's own for-review upload in Checklists & Forms) count; rejected never.
+  const countableDocs: EvidenceDocLink[] = (evidenceDocRows ?? [])
+    .map((r) => ({
+      checklist_item_id: r.checklist_item_id,
+      status: r.vault_documents?.status ?? null,
+      uploaded_by: r.vault_documents?.uploaded_by ?? null,
+      folder_key: r.vault_documents?.vault_folders?.folder_key ?? null,
+    }))
+    .filter((d) => isCountableEvidenceDoc(d, evidenceUser?.id ?? null));
+  const evidenceDocCount = countableDocs.length;
   const evidenceWaived = !photoCount && !evidenceDocCount && noEvidenceReason.length >= MIN_NO_EVIDENCE_REASON_LENGTH;
   if (!photoCount && !evidenceDocCount && !evidenceWaived) {
     return {
       error: noEvidenceReason
-        ? `Explain why no evidence applies (at least ${MIN_NO_EVIDENCE_REASON_LENGTH} characters), or attach a photo or document.`
-        : "At least one evidence photo or linked document is required to complete the inspection.",
+        ? `Explain why no evidence applies (at least ${MIN_NO_EVIDENCE_REASON_LENGTH} characters), or attach a photo or approved document.`
+        : "At least one evidence photo or approved linked document is required to complete the inspection.",
     };
   }
   const notes = evidenceWaived ? `[No evidence attached — reason: ${noEvidenceReason}]${rawNotes ? `\n${rawNotes}` : ""}` : rawNotes;
@@ -872,14 +932,14 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
 
   const { data: items } = await supabase
     .from(CHECKLIST_ITEMS_TABLE)
-    .select("id")
+    .select("id, item_number, is_mandatory")
     .eq("template_id", templateId)
-    .returns<Pick<ChecklistItemRow, "id">[]>();
+    .returns<Pick<ChecklistItemRow, "id" | "item_number" | "is_mandatory">[]>();
   const { data: responses } = await supabase
     .from(CHECKLIST_RESPONSES_TABLE)
-    .select("checklist_item_id, result")
+    .select("checklist_item_id, result, comment")
     .eq("inspection_record_id", inspectionRecordId)
-    .returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result">[]>();
+    .returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result" | "comment">[]>();
 
   const itemIds = new Set((items ?? []).map((i) => i.id));
   const responseByItem = new Map((responses ?? []).map((r) => [r.checklist_item_id, r.result]));
@@ -893,6 +953,25 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const validationError = validateChecklistItemsAnswered(itemIds, responseByItem);
   if (validationError) {
     return { error: validationError };
+  }
+
+  // Server-side: mandatory N/A needs a >=10 char comment; every "No" and mandatory item needs an item
+  // photo/document unless the inspection carries the written no-evidence waiver.
+  {
+    const naBad = mandatoryNaWithoutComment(items ?? [], responses ?? []);
+    if (naBad.length > 0) {
+      return { error: `Mandatory item(s) ${naBad.join(", ")} marked N/A need a comment of at least 10 characters.` };
+    }
+    if (!evidenceWaived) {
+      const itemPhotoIds = new Set((itemPhotoRows ?? []).map((r) => r.checklist_item_id).filter((v): v is string => !!v));
+      const itemDocIds = new Set(countableDocs.map((d) => d.checklist_item_id).filter((v): v is string => !!v));
+      const missing = itemsMissingEvidence(items ?? [], responses ?? [], itemPhotoIds, itemDocIds);
+      if (missing.length > 0) {
+        return {
+          error: `Item(s) ${missing.join(", ")} (a "No" answer or a mandatory item) need a photo or approved document attached to the item, or a written reason for no evidence.`,
+        };
+      }
+    }
   }
 
   // Every "No" must be traced to a raised NCR/observation on this inspection, or carry an explicit
@@ -959,6 +1038,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       notes: notes || null,
       inspector_signature: signature || null,
       signed_by_name: signedByName || null,
+      signed_by_user_id: signer?.id ?? null,
       signed_at: new Date().toISOString(),
       witness_name: witnessName || null,
       witness_signature: witnessSignature || null,
@@ -1239,6 +1319,25 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
   }
   if (record.overall_result !== "pass" && record.overall_result !== "partial") {
     return { error: "An IRN can only be issued from a passed (or conditionally passed) inspection." };
+  }
+  if (!(await canCompleteInspection(record.itp_item_id))) {
+    return { error: "This activity has an open Hold — it must be signed off before an IRN can be issued." };
+  }
+  if (record.overall_result === "partial") {
+    const { data: tplRow } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("checklist_template_id")
+      .eq("id", inspectionRecordId)
+      .maybeSingle<{ checklist_template_id: string | null }>();
+    if (tplRow?.checklist_template_id) {
+      const [{ data: its }, { data: resp }] = await Promise.all([
+        supabase.from(CHECKLIST_ITEMS_TABLE).select("id, item_number, is_mandatory").eq("template_id", tplRow.checklist_template_id).returns<Pick<ChecklistItemRow, "id" | "item_number" | "is_mandatory">[]>(),
+        supabase.from(CHECKLIST_RESPONSES_TABLE).select("checklist_item_id, result, comment").eq("inspection_record_id", inspectionRecordId).returns<Pick<ChecklistResponseRow, "checklist_item_id" | "result" | "comment">[]>(),
+      ]);
+      if (hasMandatoryNa(its ?? [], resp ?? [])) {
+        return { error: "An IRN can't be issued while a mandatory checklist item is marked N/A." };
+      }
+    }
   }
   const { count: openNcrCount } = await supabase
     .from("ncrs")

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { notifyAfterIrnVoided, notifyInspectorReopened } from "./irn-notifications";
 
@@ -31,7 +32,7 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
   const supabase = await createSupabaseServerClient();
   const { data: record } = await supabase
     .from("inspection_records")
-    .select("id, project_id, record_number, inspector_id, overall_result, signed_by_name, signed_at, notes")
+    .select("id, project_id, record_number, inspector_id, overall_result, signed_by_name, signed_at, notes, itp_item_id, checklist_template_id, inspector_signature, witness_name, witness_signature")
     .eq("id", recordId)
     .maybeSingle<{
       id: string;
@@ -42,9 +43,52 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
       signed_by_name: string | null;
       signed_at: string | null;
       notes: string | null;
+      itp_item_id: string;
+      checklist_template_id: string | null;
+      inspector_signature: string | null;
+      witness_name: string | null;
+      witness_signature: string | null;
     }>();
   if (!record) return { error: "Inspection record not found." };
   if (!record.overall_result) return { error: "This inspection is not completed, so there is nothing to re-open." };
+
+  // Re-opening is a controlled amendment: admin staff or a lead of a team assigned to this project.
+  if (!isAdminStaff(session) && !(await isTeamLeadForProject(supabase, session.userId, record.project_id))) {
+    return { error: "Only an admin or a team lead on this project can re-open a completed inspection." };
+  }
+
+  // One open draft per checklist: block re-opening while another draft is in progress.
+  {
+    let draftQuery = supabase
+      .from("inspection_records")
+      .select("id, record_number")
+      .eq("itp_item_id", record.itp_item_id)
+      .is("overall_result", null)
+      .neq("id", record.id)
+      .limit(1);
+    draftQuery = record.checklist_template_id ? draftQuery.eq("checklist_template_id", record.checklist_template_id) : draftQuery;
+    const { data: openDraft } = await draftQuery.maybeSingle<{ id: string; record_number: string }>();
+    if (openDraft) {
+      return { error: `Can't re-open: an open draft inspection (${openDraft.record_number}) already exists for this checklist. Complete or discard it first.` };
+    }
+  }
+
+  // 1) Null the result first (conditional on still being completed). Only on success do the IRN void
+  //    and the amendment row follow, so a failed re-open never voids a released document.
+  const { data: reopened, error: updError } = await untypedFrom(supabase, "inspection_records")
+    .update({
+      overall_result: null,
+      inspector_signature: null,
+      signed_by_name: null,
+      signed_at: null,
+      witness_name: null,
+      witness_signature: null,
+    })
+    .eq("id", record.id)
+    .not("overall_result", "is", null)
+    .select("id");
+  if (updError) return { error: "The inspection could not be re-opened. Try again." };
+  if (!reopened || reopened.length === 0) return { error: "This inspection was already re-opened." };
 
   const { error: histError } = await untypedFrom(supabase, "inspection_record_amendments").insert({
     record_id: record.id,
@@ -55,9 +99,22 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     previous_signed_at: record.signed_at,
     previous_notes: record.notes,
   });
-  if (histError) return { error: "Could not save the amendment history, so the inspection was not re-opened." };
+  if (histError) {
+    // Roll the re-open back so no un-logged amendment exists.
+    await untypedFrom(supabase, "inspection_records")
+      .update({
+        overall_result: record.overall_result,
+        inspector_signature: record.inspector_signature,
+        signed_by_name: record.signed_by_name,
+        signed_at: record.signed_at,
+        witness_name: record.witness_name,
+        witness_signature: record.witness_signature,
+      })
+      .eq("id", record.id);
+    return { error: "Could not save the amendment history, so the inspection was not re-opened." };
+  }
 
-  // Void a live IRN first so a released document never outlives its re-opened inspection.
+  // 2) Void a live IRN so a released document never outlives its re-opened inspection.
   const voidReason = `Inspection re-opened: ${reason}`;
   const { data: irn } = await supabase
     .from("irns")
@@ -75,18 +132,6 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
       .select("id");
     if (voided?.length) voidedIrnNumber = irn.irn_number;
   }
-
-  const { error: updError } = await untypedFrom(supabase, "inspection_records")
-    .update({
-      overall_result: null,
-      inspector_signature: null,
-      signed_by_name: null,
-      signed_at: null,
-      witness_name: null,
-      witness_signature: null,
-    })
-    .eq("id", record.id);
-  if (updError) return { error: "The amendment was logged but the record could not be re-opened. Try again." };
 
   const { data: project } = await supabase
     .from("projects")

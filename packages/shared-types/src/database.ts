@@ -1525,6 +1525,7 @@ export type Database = {
           project_name: string
           record_number: string
           signed_by_name: string | null
+          signed_by_user_id: string | null
           signed_at: string | null
           witness_name: string | null
           witness_signature: string | null
@@ -1551,6 +1552,7 @@ export type Database = {
           project_name: string
           record_number: string
           signed_by_name?: string | null
+          signed_by_user_id?: string | null
           signed_at?: string | null
           witness_name?: string | null
           witness_signature?: string | null
@@ -1577,6 +1579,7 @@ export type Database = {
           project_name?: string
           record_number?: string
           signed_by_name?: string | null
+          signed_by_user_id?: string | null
           signed_at?: string | null
           witness_name?: string | null
           witness_signature?: string | null

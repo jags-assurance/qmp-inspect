@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, type PointerEvent } from "react";
+import { useActionState, useEffect, useRef, useState, type PointerEvent } from "react";
 import { addSignatureAction, type AddSignatureState } from "@/lib/standalone/actions";
 
 const initialState: AddSignatureState = { error: null };
@@ -14,14 +14,23 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
   const [hasDrawn, setHasDrawn] = useState(false);
 
   function pointerPos(e: PointerEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const canvas = e.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    // The canvas is CSS-scaled (w-full) so map screen pixels to canvas pixels.
+    const sx = rect.width ? canvas.width / rect.width : 1;
+    const sy = rect.height ? canvas.height / rect.height : 1;
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
   }
 
   function handlePointerDown(e: PointerEvent<HTMLCanvasElement>) {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     drawingRef.current = true;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // not supported / pointer already released
+    }
     const { x, y } = pointerPos(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -46,6 +55,18 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
     const canvas = canvasRef.current;
     if (canvas) setSignatureData(canvas.toDataURL("image/png"));
   }
+
+  // Clear the pad after a successful save so the same signature cannot be double-submitted.
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (pending) {
+      wasPending.current = true;
+    } else if (wasPending.current) {
+      wasPending.current = false;
+      if (!state.error) handleClear();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleClear only touches refs/setters
+  }, [pending]);
 
   function handleClear() {
     const canvas = canvasRef.current;
@@ -89,7 +110,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
+          onPointerCancel={handlePointerUp}
           className="mt-1 w-full touch-none rounded-md border border-border bg-off-white"
         />
         <button type="button" onClick={handleClear} className="mt-1 text-xs text-muted hover:text-ink">

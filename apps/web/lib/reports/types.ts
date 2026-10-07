@@ -37,6 +37,8 @@ export interface RenderInspectionReportPdfPayload {
 export interface RenderFatReportPdfPayload {
   assignment_id: string;
   requested_by: string;
+  /** True when the assignment is not yet completed: the renderer should watermark the PDF DRAFT. */
+  draft?: boolean;
 }
 
 /** Payload for "render_portfolio_summary_pdf" — the one-click portfolio-wide PDF summary (every

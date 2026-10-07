@@ -17,6 +17,22 @@ import {
 } from "./db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { resolveUnclearedLowerLevel } from "./sequencing";
+import { evaluateSignoffAuthority } from "./on-behalf";
+import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
+
+/** True when the ITP owning this activity is approved / client accepted (sign-off and notify only open then). */
+async function isItpApprovedForItem(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpItemId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("itp_items")
+    .select("itp_sections(itps(status))")
+    .eq("id", itpItemId)
+    .maybeSingle<{ itp_sections: { itps: { status: string } | null } | null }>();
+  const status = data?.itp_sections?.itps?.status;
+  return status === "approved" || status === "client_accepted";
+}
 
 /** Looks up a level's label/is_blocking, resolving this activity's organisation via
  *  itp_item -> itp_section -> itp -> project -> organization — replaces the old hardcoded
@@ -108,16 +124,25 @@ async function notifySignoffRow(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   progress: Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">
 ): Promise<SignoffActionResult> {
-  // Only an open (pending/notified) row can be (re-)notified — never reopen a signed-off or
-  // proceeded row. select() lets us detect 0 rows affected (already cleared by someone else).
-  const { data: updated, error } = await supabase
-    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .update({ status: "notified", notified_at: new Date().toISOString() })
-    .eq("id", progress.id)
-    .in("status", ["pending", "notified"])
-    .select("id");
-
-  if (!error && (!updated || updated.length === 0)) {
+  // Only a pending row flips to notified (and gets notified_at, which starts the notice clock). A
+  // re-notify of an already-notified row must NOT reset notified_at (that would restart the notice
+  // period indefinitely) — it is recorded in the audit trail only.
+  let renotifyOnly = false;
+  let error: { message: string } | null = null;
+  if (progress.status === "pending") {
+    const res = await supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .update({ status: "notified", notified_at: new Date().toISOString() })
+      .eq("id", progress.id)
+      .eq("status", "pending")
+      .select("id");
+    error = res.error;
+    if (!error && (!res.data || res.data.length === 0)) {
+      return { error: "This sign-off changed in the meantime. Refresh and check its status." };
+    }
+  } else if (progress.status === "notified") {
+    renotifyOnly = true;
+  } else {
     return { error: "This sign-off has already been cleared, so it can't be notified again." };
   }
 
@@ -170,7 +195,7 @@ async function notifySignoffRow(
       levelLabel = levelType?.label ?? null;
     }
 
-    if (party?.user_id && itp && organizationId) {
+    if (!renotifyOnly && party?.user_id && itp && organizationId) {
       await createNotification(supabase, {
         organizationId,
         projectId: itp.project_id,
@@ -195,9 +220,9 @@ async function notifySignoffRow(
         projectId: itp.project_id,
         entityType: "signoff",
         entityId: progress.id,
-        action: "notified",
+        action: renotifyOnly ? "renotified" : "notified",
         actorId: user?.id ?? null,
-        summary: `${party?.name ?? "Party"} notified of ${levelLabel ?? progress.intervention} sign-off on ${itp.itp_number}`,
+        summary: `${party?.name ?? "Party"} ${renotifyOnly ? "re-notified (reminder logged, notice period unchanged)" : "notified"} of ${levelLabel ?? progress.intervention} sign-off on ${itp.itp_number}`,
       });
     }
   } catch {
@@ -231,8 +256,14 @@ export async function notifyPartyAction(progressId: string): Promise<SignoffActi
   // JAGS staff's, who run the overall process) — not any other party's on the project. Previously
   // ungated, so any logged-in viewer with project access could click Notify on any other party's
   // cell. Mirrors canSignOffForParty's exact rule, reused here rather than duplicated.
-  const canNotify = await canSignOffForParty(supabase, progress.project_party_id);
-  if (!canNotify) return { error: "Only this party's own login (or JAGS staff) can notify them." };
+  // Allowed for staff or a party that may execute this activity (canExecuteItpItem), and only once the
+  // ITP is approved.
+  if (!(await canExecuteItpItem(supabase, progress.itp_item_id))) {
+    return { error: "Only JAGS staff or a party assigned to execute this activity can notify for it." };
+  }
+  if (!(await isItpApprovedForItem(supabase, progress.itp_item_id))) {
+    return { error: "This ITP hasn't been approved yet, so sign-offs can't be notified." };
+  }
 
   const result = await notifySignoffRow(supabase, progress);
   if (result.error) return result;
@@ -259,6 +290,11 @@ export async function notifyAllPendingForItpAction(formData: FormData): Promise<
   if (!session.isJagsStaff) return;
 
   const supabase = await createSupabaseServerClient();
+
+  {
+    const { data: itpRow } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
+    if (!itpRow || (itpRow.status !== "approved" && itpRow.status !== "client_accepted")) return;
+  }
 
   const { data: sections } = await supabase
     .from("itp_sections")
@@ -291,7 +327,8 @@ export async function notifyAllPendingForItpAction(formData: FormData): Promise<
       const { error: bulkError } = await supabase
         .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
         .update({ status: "notified", notified_at: new Date().toISOString() })
-        .in("id", pendingIds);
+        .in("id", pendingIds)
+        .eq("status", "pending");
 
       if (!bulkError) {
         try {
@@ -441,7 +478,7 @@ async function findUnclearedLowerBlockingLevel(
 }
 
 /** Records sign-off. Valid for any intervention level, regardless of whether it was ever notified. */
-export async function signOffAction(progressId: string): Promise<SignoffActionResult> {
+export async function signOffAction(progressId: string, onBehalfReason?: string): Promise<SignoffActionResult> {
   if (!progressId) return { error: "Missing sign-off record." };
 
   const supabase = await createSupabaseServerClient();
@@ -457,9 +494,21 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
 
   if (!progress) return { error: "Sign-off record not found." };
 
-  if (!(await canSignOffForParty(supabase, progress.project_party_id))) {
-    return { error: "You can only sign off on behalf of your own party on this project." };
-  }
+  const session = await requireSession();
+  const { data: signParty } = await supabase
+    .from("project_parties")
+    .select("user_id, is_active, name, project_id")
+    .eq("id", progress.project_party_id)
+    .maybeSingle<{ user_id: string | null; is_active: boolean; name: string; project_id: string }>();
+  const isLinkedActiveParty = signParty?.is_active === true && signParty?.user_id === session.userId;
+  const authority = evaluateSignoffAuthority({
+    isJagsStaff: session.isJagsStaff,
+    isAdminOrTeamLead:
+      isAdminStaff(session) || (!!signParty && (await isTeamLeadForProject(supabase, session.userId, signParty.project_id))),
+    isLinkedActiveParty,
+    reason: onBehalfReason ?? "",
+  });
+  if (!authority.allowed) return { error: authority.error };
 
   // Approval before work: activity sign-offs only count on an ITP that has been approved (or accepted).
   {
@@ -540,10 +589,20 @@ export async function signOffAction(progressId: string): Promise<SignoffActionRe
         projectId: itp.project_id,
         entityType: "signoff",
         entityId: progressId,
-        action: "signed_off",
+        action: authority.onBehalf ? "signed_off_on_behalf" : "signed_off",
         actorId: user?.id ?? null,
-        summary: `${levelLabel ?? progress.intervention} sign-off recorded on ${itp.itp_number} — ${context?.activity ?? "an activity"}`,
+        summary: `${levelLabel ?? progress.intervention} sign-off recorded on ${itp.itp_number} — ${context?.activity ?? "an activity"}${authority.onBehalf ? ` (signed on behalf of ${signParty?.name ?? "party"} by JAGS staff — reason: ${authority.reason})` : ""}`,
       });
+      if (authority.onBehalf && signParty?.user_id) {
+        await createNotification(supabase, {
+          organizationId,
+          projectId: itp.project_id,
+          recipientUserId: signParty.user_id,
+          title: `${levelLabel ?? progress.intervention} signed on your behalf`,
+          body: `${itp.itp_number} — ${context?.activity ?? "an activity"}. Reason: ${authority.reason}`,
+          link: itpId ? `/inspect/itps/${itpId}` : `/inspect/projects/${itp.project_id}`,
+        });
+      }
     }
   } catch {
     // Best-effort — see doc comment above.

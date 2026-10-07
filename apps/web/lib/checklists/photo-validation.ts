@@ -1,5 +1,6 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import { INSPECTION_RECORDS_TABLE, CHECKLIST_ITEMS_TABLE } from "@/lib/checklists/db-types";
+import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -29,12 +30,16 @@ export async function validateOfflinePhoto(
 
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("project_id, overall_result, checklist_template_id")
+    .select("project_id, overall_result, checklist_template_id, itp_item_id")
     .eq("id", inspectionRecordId)
-    .maybeSingle<{ project_id: string; overall_result: string | null; checklist_template_id: string | null }>();
+    .maybeSingle<{ project_id: string; overall_result: string | null; checklist_template_id: string | null; itp_item_id: string }>();
   if (!record) return { error: "Inspection not found or you don't have permission to add photos to it." };
   if (record.project_id !== projectId) return { error: "That photo's project does not match this inspection." };
   if (record.overall_result) return { error: "This inspection is completed — photos can no longer be changed." };
+  // Same execution-party rule as the live photo path: RLS alone would let any party with project access attach photos.
+  if (!(await canExecuteItpItem(supabase, record.itp_item_id))) {
+    return { error: "You are not assigned to execute this inspection, so you cannot add photos to it." };
+  }
 
   if (checklistItemId) {
     const { data: item } = await supabase
