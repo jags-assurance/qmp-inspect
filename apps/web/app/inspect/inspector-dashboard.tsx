@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +80,10 @@ export function InspectorDashboard({
   pendingOverdue,
   pendingStandaloneAssignments,
   ncrsAssignedToMe = [],
+  clearancesWidget = null,
 }: {
+  /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
+  clearancesWidget?: ReactNode;
   /** The worst overdue holds (capped), each deep-linking to its ITP. */
   overdueHoldItems?: OverdueHoldRow[];
   firstName: string;
@@ -143,6 +147,7 @@ export function InspectorDashboard({
         })}
         emptyText="Nothing waiting. Start a new inspection from Start work, or review Inspections."
       />
+      {clearancesWidget}
 
       {overdueHoldItems.length > 0 && (
         <div id="overdue-holds" className="mt-6 scroll-mt-20 rounded-lg border border-border bg-surface p-4">

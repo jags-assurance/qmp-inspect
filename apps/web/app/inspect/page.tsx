@@ -17,6 +17,7 @@ import type { PendingActionItem } from "@/components/domain/pending-actions-tabl
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 import { InspectorDashboard, type OverdueHoldRow } from "./inspector-dashboard";
 import { Suspense } from "react";
+import { ExpiringClearancesCard } from "@/components/domain/expiring-clearances-card";
 import { AdminDashboard } from "./admin-dashboard";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
@@ -839,6 +840,11 @@ export default async function InspectDashboardPage() {
 
     return (
       <ExternalPartyDashboard
+        clearancesWidget={
+          <Suspense fallback={null}>
+            <ExpiringClearancesCard />
+          </Suspense>
+        }
         // The grant role is the login's real role; the first linked party row is only a fallback
         // (a login linked to several parties used to show whichever happened to sort first — a
         // client login rendered as "Subcontractor" with another company's name).
@@ -904,6 +910,11 @@ export default async function InspectDashboardPage() {
   if (isInspector) {
     return (
       <InspectorDashboard
+        clearancesWidget={
+          <Suspense fallback={null}>
+            <ExpiringClearancesCard />
+          </Suspense>
+        }
         firstName={session.fullName.split(" ")[0] ?? session.fullName}
         today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         activeProjects={activeProjects ?? 0}
@@ -932,6 +943,11 @@ export default async function InspectDashboardPage() {
   // dedicated dashboard component above.
   return (
     <AdminDashboard
+        clearancesWidget={
+          <Suspense fallback={null}>
+            <ExpiringClearancesCard />
+          </Suspense>
+        }
       firstName={session.fullName.split(" ")[0] ?? session.fullName}
       today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       activeProjects={activeProjects ?? 0}
