@@ -7,6 +7,8 @@ import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
 import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { buildReopenSnapshot } from "./review-logic";
 import { notifyAfterIrnVoided, notifyInspectorReopened } from "./irn-notifications";
 
 // inspection_record_amendments is not in the generated shared-types yet; regenerate types and drop this.
@@ -93,6 +95,31 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
   const voidReason = `Inspection re-opened: ${reason}`;
 
   if (!reopenedViaRpc) {
+  // Snapshot of the answers / signatures / review decision being cleared (20261106000300 columns).
+  const { data: snapResponses } = await untypedFrom(supabase, "checklist_responses")
+    .select("checklist_item_id, result, comment, checklist_items(item_number, description, sort_order)")
+    .eq("inspection_record_id", record.id);
+  const { data: reviewRow } = await untypedFrom(supabase, "inspection_records").select("review_status").eq("id", record.id).maybeSingle();
+  const snapshot = buildReopenSnapshot({
+    responses: ((snapResponses ?? []) as {
+      checklist_item_id: string;
+      result: string;
+      comment: string | null;
+      checklist_items: { item_number: string; description: string; sort_order: number } | null;
+    }[]).map((r) => ({
+      checklist_item_id: r.checklist_item_id,
+      result: r.result,
+      comment: r.comment,
+      item_number: r.checklist_items?.item_number,
+      description: r.checklist_items?.description,
+      sort_order: r.checklist_items?.sort_order,
+    })),
+    inspectorSignature: record.inspector_signature,
+    witnessName: record.witness_name,
+    witnessSignature: record.witness_signature,
+    reviewStatus: (reviewRow as { review_status?: "approved" | "rejected" | null } | null)?.review_status ?? null,
+  });
+
   // 1) Null the result first (conditional on still being completed). Only on success do the IRN void
   //    and the amendment row follow, so a failed re-open never voids a released document.
   const { data: reopened, error: updError } = await untypedFrom(supabase, "inspection_records")
@@ -111,7 +138,7 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
   if (updError) return { error: "The inspection could not be re-opened. Try again." };
   if (!reopened || reopened.length === 0) return { error: "This inspection was already re-opened." };
 
-  const { error: histError } = await untypedFrom(supabase, "inspection_record_amendments").insert({
+  const amendmentRow = {
     record_id: record.id,
     amended_by: session.userId,
     reason,
@@ -119,7 +146,12 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     previous_signed_by_name: record.signed_by_name,
     previous_signed_at: record.signed_at,
     previous_notes: record.notes,
-  });
+  };
+  let { error: histError } = await untypedFrom(supabase, "inspection_record_amendments").insert({ ...amendmentRow, ...snapshot });
+  if (histError && isMissingSchemaError(histError)) {
+    // Snapshot migration not applied yet: keep the original behaviour.
+    ({ error: histError } = await untypedFrom(supabase, "inspection_record_amendments").insert(amendmentRow));
+  }
   if (histError) {
     // Roll the re-open back so no un-logged amendment exists.
     await untypedFrom(supabase, "inspection_records")
@@ -134,6 +166,11 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
       .eq("id", record.id);
     return { error: "Could not save the amendment history, so the inspection was not re-opened." };
   }
+
+  // A re-opened inspection must be reviewed again (no-op until the review migration is applied).
+  await untypedFrom(supabase, "inspection_records")
+    .update({ review_status: null, reviewed_by: null, reviewed_at: null, review_comment: null })
+    .eq("id", record.id);
 
   // 2) Void a live IRN so a released document never outlives its re-opened inspection.
   const { data: irn } = await supabase
@@ -215,15 +252,26 @@ export interface InspectionAmendment {
   previous_overall_result: string | null;
   previous_signed_by_name: string | null;
   previous_signed_at: string | null;
+  /** Snapshot of the answers / signatures cleared by the re-open (null for amendments made before it existed). */
+  previous_responses?: { checklist_item_id: string; item_number: string | null; description: string | null; result: string; comment: string | null }[] | null;
+  previous_inspector_signature?: string | null;
+  previous_witness_name?: string | null;
+  previous_witness_signature?: string | null;
+  previous_review_status?: string | null;
   users: { full_name: string } | null;
 }
 
 /** Amendment history for one inspection (RLS-scoped read), newest first. */
 export async function listInspectionAmendments(recordId: string): Promise<InspectionAmendment[]> {
   const supabase = await createSupabaseServerClient();
-  const { data } = await untypedFrom(supabase, "inspection_record_amendments")
-    .select("id, amended_at, reason, previous_overall_result, previous_signed_by_name, previous_signed_at, users(full_name)")
+  const base = "id, amended_at, reason, previous_overall_result, previous_signed_by_name, previous_signed_at, users(full_name)";
+  const snapshotCols = "previous_responses, previous_inspector_signature, previous_witness_name, previous_witness_signature, previous_review_status";
+  let { data, error } = await untypedFrom(supabase, "inspection_record_amendments")
+    .select(`${base}, ${snapshotCols}`)
     .eq("record_id", recordId)
     .order("amended_at", { ascending: false });
+  if (error && isMissingSchemaError(error)) {
+    ({ data } = await untypedFrom(supabase, "inspection_record_amendments").select(base).eq("record_id", recordId).order("amended_at", { ascending: false }));
+  }
   return (data ?? []) as InspectionAmendment[];
 }

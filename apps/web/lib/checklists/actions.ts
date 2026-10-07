@@ -38,6 +38,8 @@ import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
 import { normaliseLocation } from "./location";
+import { buildItemsSnapshot } from "./template-logic";
+import { bumpTemplateVersion } from "./template-context";
 import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
 import { boundedCapturedAt } from "@/lib/offline/policy";
@@ -377,6 +379,7 @@ export async function addChecklistItemAction(
   if (error) {
     return { error: error.code === "23505" ? "That item number is already used on this checklist." : "Could not add the item." };
   }
+  await bumpTemplateVersion(supabase, templateId);
 
   try {
     const { data: context } = await supabase
@@ -763,7 +766,27 @@ export async function startInspectionAction(
     .select("id", { count: "exact", head: true })
     .eq("itp_item_id", itpItemId);
 
-  const { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert({
+  // Phase 3 versioning: freeze the template version and its item set onto the record at start.
+  // Best-effort: if the template/item read fails or the columns do not exist yet (migration
+  // 20261106000100 not applied) the record is created without them, exactly as before.
+  let versionColumns: { checklist_template_version: number; checklist_items_snapshot: ReturnType<typeof buildItemsSnapshot> } | null = null;
+  {
+    const { data: tplVersion, error: tplVersionError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("version")
+      .eq("id", templateId)
+      .maybeSingle<{ version: number }>();
+    if (!tplVersionError && tplVersion) {
+      const { data: snapItems } = await supabase
+        .from(CHECKLIST_ITEMS_TABLE)
+        .select("id, item_number, description, is_mandatory, sort_order, acceptance_criteria, evidence_type")
+        .eq("template_id", templateId)
+        .returns<ChecklistItemRow[]>();
+      if (snapItems) versionColumns = { checklist_template_version: tplVersion.version, checklist_items_snapshot: buildItemsSnapshot(snapItems) };
+    }
+  }
+
+  const recordInsert = {
     project_id: projectId,
     itp_item_id: itpItemId,
     checklist_template_id: templateId,
@@ -780,7 +803,11 @@ export async function startInspectionAction(
       ? itpItemForHeader.governing_drawing.document_reference ?? itpItemForHeader.governing_drawing.title
       : null,
     governing_drawing_revision: itpItemForHeader?.governing_drawing?.revision ?? null,
-  });
+  };
+  let { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(versionColumns ? { ...recordInsert, ...versionColumns } : recordInsert);
+  if (error && versionColumns && isMissingSchemaError(error)) {
+    ({ error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(recordInsert));
+  }
 
   if (error) {
     if (error.code === "23505") {

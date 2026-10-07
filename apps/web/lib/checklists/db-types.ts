@@ -23,6 +23,9 @@ export interface ChecklistTemplateRow {
   checklist_number: string;
   name: string;
   created_at: string;
+  /** 20261106000100: bumped on every item change; archived_at set when archived. Absent until applied. */
+  version?: number;
+  archived_at?: string | null;
 }
 
 export interface ChecklistItemRow {
@@ -65,6 +68,14 @@ export interface InspectionRecordRow {
   notes: string | null;
   narrative: string | null;
   created_at: string;
+  /** 20261106000100: template version + frozen item set captured at start. */
+  checklist_template_version?: number | null;
+  checklist_items_snapshot?: unknown[] | null;
+  /** 20261106000200: reviewer decision; null = not reviewed. */
+  review_status?: "approved" | "rejected" | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_comment?: string | null;
 }
 
 export type ChecklistResponseResult = "yes" | "no" | "na";
