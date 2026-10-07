@@ -4,6 +4,7 @@ import { useState } from "react";
 import { completeInspectionAction, type CompleteInspectionState } from "@/lib/checklists/actions";
 import { SignaturePad } from "@/components/domain/signature-pad";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
@@ -28,6 +29,7 @@ export function CompleteInspectionForm({
   const [witnessOpen, setWitnessOpen] = useState(false);
   const [queued, setQueued] = useState(false);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const { ask, dialog } = useConfirm();
 
   // Offline (R60): completeInspectionAction always redirects on success, which needs a live
   // navigation — it can't be the fallback path. Instead, queue the same fields the action expects
@@ -51,7 +53,12 @@ export function CompleteInspectionForm({
     setQueueError(null);
     const formData = new FormData(e.currentTarget);
     // One tap permanently locks the record (a Fail also raises punch items and notifications): confirm first.
-    if (!window.confirm("Complete and sign this inspection? It is locked once completed and can only be changed by re-opening it (audited).")) return;
+    const ok = await ask({
+      title: "Complete and sign this inspection?",
+      message: "It is locked once completed and can only be changed by re-opening it (audited).",
+      confirmLabel: "Complete and sign",
+    });
+    if (ok === null) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       await queueCompletion(formData);
       return;
@@ -72,6 +79,7 @@ export function CompleteInspectionForm({
 
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface p-6">
+      {dialog}
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="signature" value={signature ?? ""} />

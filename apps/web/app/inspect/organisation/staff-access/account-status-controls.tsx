@@ -9,24 +9,31 @@ import {
 } from "@/lib/auth/deactivation-actions";
 import { FormMessage } from "@/components/ui/form-message";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const initialState: DeactivationState = { error: null, message: null };
 
 /** Deactivate / reactivate one known account (used on each staff card). */
 export function AccountStatusButton({ userId, active, name }: { userId: string; active: boolean; name: string }) {
   const [state, formAction, pending] = useActionState(active ? deactivateUserAction : reactivateUserAction, initialState);
+  const { askThenSubmit, dialog } = useConfirm();
   return (
-    <form
-      action={formAction}
-      onSubmit={(e) => {
-        if (active && !window.confirm(`Deactivate ${name}? They are signed out and lose all access immediately.`)) e.preventDefault();
-      }}
-      className="flex flex-col items-end gap-1"
-    >
+    <form action={formAction} className="flex flex-col items-end gap-1">
+      {dialog}
       <input type="hidden" name="user_id" value={userId} />
       <button
         type="submit"
         disabled={pending}
+        onClick={
+          active
+            ? askThenSubmit({
+                title: `Deactivate ${name}?`,
+                message: "They are signed out and lose all access immediately.",
+                confirmLabel: "Deactivate",
+                destructive: true,
+              })
+            : undefined
+        }
         className="min-h-9 text-xs font-medium text-burgundy hover:underline disabled:opacity-50"
       >
         {pending ? "Working…" : active ? "Deactivate account" : "Reactivate account"}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useRef, useState, type FormEvent } from "react";
+import { useActionState, useState } from "react";
 import { bulkAddItpItemsAction, type BulkAddItemsState } from "@/lib/itps/actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const initialState: BulkAddItemsState = { error: null };
 
@@ -12,19 +13,20 @@ const initialState: BulkAddItemsState = { error: null };
 export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string; sectionId: string; isIssued: boolean }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(bulkAddItpItemsAction, initialState);
-  const reasonRef = useRef<HTMLInputElement>(null);
+  const { gateSubmit, dialog } = useConfirm();
   const [text, setText] = useState("");
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    if (isIssued) {
-      const reason = prompt("This ITP has already been issued — reason for adding these activities (starts a new revision):");
-      if (!reason || !reason.trim()) {
-        e.preventDefault();
-        return;
-      }
-      reasonRef.current!.value = reason.trim();
-    }
-  }
+  const handleSubmit = gateSubmit(
+    isIssued
+      ? {
+          title: "Add activities to an issued ITP",
+          message: "This ITP has already been issued. Adding these activities will start a new revision.",
+          confirmLabel: "Add activities",
+          reason: { label: "Reason for adding these activities", required: true },
+        }
+      : null,
+    "revision_reason"
+  );
 
   if (!open) {
     return (
@@ -44,7 +46,8 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
     <form action={formAction} onSubmit={handleSubmit} className="space-y-2 border-t border-border bg-off-white px-4 py-4">
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="section_id" value={sectionId} />
-      <input type="hidden" name="revision_reason" ref={reasonRef} />
+      {dialog}
+      <input type="hidden" name="revision_reason" />
       <p className="text-xs text-muted">
         Paste rows copied from Excel or Google Sheets — one activity per line, columns:{" "}
         <strong>Item no. · Activity · Acceptance criteria · Reference/clause · Method · Frequency</strong>. Leave the item number blank to

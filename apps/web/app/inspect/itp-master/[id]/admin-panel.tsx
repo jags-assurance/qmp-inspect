@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updateMasterTemplateMetaAction, setMasterTemplateActiveAction, type MasterAdminState } from "@/lib/itp-master/admin-actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const initial: MasterAdminState = { error: null };
 const field = "mt-1 w-full min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
@@ -27,6 +28,7 @@ export function MasterAdminPanel({
   const [open, setOpen] = useState(false);
   const [metaState, metaAction, metaPending] = useActionState(updateMasterTemplateMetaAction, initial);
   const [activeState, activeAction, activePending] = useActionState(setMasterTemplateActiveAction, initial);
+  const { gateSubmit, dialog } = useConfirm();
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
@@ -76,13 +78,16 @@ export function MasterAdminPanel({
       <form
         action={activeAction}
         className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3"
-        onSubmit={(e) => {
-          const msg = isActive
-            ? "Retire this template? It will no longer be offered for new ITPs."
-            : "Reactivate this template so it can be used for new ITPs?";
-          if (!window.confirm(msg)) e.preventDefault();
-        }}
+        onSubmit={gateSubmit({
+          title: isActive ? "Retire this template?" : "Reactivate this template?",
+          message: isActive
+            ? "It will no longer be offered for new ITPs."
+            : "It will be available again for new ITPs.",
+          confirmLabel: isActive ? "Retire template" : "Reactivate template",
+          destructive: isActive,
+        })}
       >
+        {dialog}
         <input type="hidden" name="template_id" value={templateId} />
         <input type="hidden" name="active" value={isActive ? "false" : "true"} />
         {isActive && (

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useConfirm, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import {
   deleteItpItemAction,
   editItpItemAction,
@@ -17,7 +18,7 @@ const initialDeleteState: DeleteItemState = { error: null };
  * Edit + Delete for a single ITP item row in the sign-off grid — previously the grid only supported
  * Add (see AddItemForm), with no way to fix or remove an activity short of the staff-only offline
  * .xlsx re-upload. Shown in place of the plain item-number/activity text once canEditContent is
- * true, mirroring SectionControls' inline-toggle + prompt()-for-revision-reason pattern.
+ * true, mirroring SectionControls' inline-toggle + revision-reason dialog pattern.
  */
 export function ItemControls({
   itpId,
@@ -53,8 +54,7 @@ export function ItemControls({
   const [isEditing, setIsEditing] = useState(false);
   const [state, formAction, pending] = useActionState(editItpItemAction, initialState);
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteItpItemAction, initialDeleteState);
-  const editReasonRef = useRef<HTMLInputElement>(null);
-  const deleteReasonRef = useRef<HTMLInputElement>(null);
+  const { gateSubmit, dialog } = useConfirm();
   const hasSubmittedRef = useRef(false);
 
   // Close the edit form once a save actually succeeds (state flips to no-error after a real
@@ -67,52 +67,32 @@ export function ItemControls({
     }
   }, [state, pending]);
 
-  function askRevisionReason(): string | null {
-    const reason = prompt("This ITP has already been issued — reason for this change (will start a new revision):");
-    return reason && reason.trim() ? reason.trim() : null;
-  }
-
-  function handleEditSubmit(e: FormEvent<HTMLFormElement>) {
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return;
+  const revisionReason = {
+    label: "Reason for this change",
+    required: true,
+  } as const;
+  const revisionOpts: ConfirmOptions | null = isIssued
+    ? {
+        title: "Change an issued ITP",
+        message: "This ITP has already been issued. The change will start a new revision.",
+        confirmLabel: "Apply change",
+        reason: revisionReason,
       }
-      editReasonRef.current!.value = reason;
-    }
-    hasSubmittedRef.current = true;
-  }
-
-  function handleMoveSubmit(e: FormEvent<HTMLFormElement>) {
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return;
-      }
-      (e.currentTarget.elements.namedItem("revision_reason") as HTMLInputElement).value = reason;
-    }
-  }
-
-  function handleDeleteSubmit(e: FormEvent<HTMLFormElement>) {
-    if (!confirm(`Delete activity "${itemNumber}: ${activity}"? This also deletes its sign-off levels. An activity with inspection, sign-off or evidence history cannot be deleted. This cannot be undone.`)) {
-      e.preventDefault();
-      return;
-    }
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return;
-      }
-      deleteReasonRef.current!.value = reason;
-    }
-  }
+    : null;
+  const deleteOpts: ConfirmOptions = {
+    title: "Delete activity?",
+    message: `Delete activity "${itemNumber}: ${activity}"? This also deletes its sign-off levels. An activity with inspection, sign-off or evidence history cannot be deleted. This cannot be undone.${
+      isIssued ? " This ITP has already been issued, so the deletion will start a new revision." : ""
+    }`,
+    confirmLabel: "Delete",
+    destructive: true,
+    reason: isIssued ? revisionReason : undefined,
+  };
 
   if (!isEditing) {
     return (
       <div>
+        {dialog}
         <p className="text-sm text-ink">
           <span className="doc-id mr-1.5 text-muted">{itemNumber}</span>
           {activity}
@@ -134,7 +114,7 @@ export function ItemControls({
             Edit
           </button>
           {(["up", "down"] as const).map((direction) => (
-            <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={handleMoveSubmit}>
+            <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={gateSubmit(revisionOpts, "revision_reason")}>
               <input type="hidden" name="item_id" value={itemId} />
               <input type="hidden" name="revision_reason" />
               <button
@@ -146,10 +126,10 @@ export function ItemControls({
               </button>
             </form>
           ))}
-          <form action={deleteFormAction} onSubmit={handleDeleteSubmit}>
+          <form action={deleteFormAction} onSubmit={gateSubmit(deleteOpts, "revision_reason")}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="item_id" value={itemId} />
-            <input type="hidden" name="revision_reason" ref={deleteReasonRef} />
+            <input type="hidden" name="revision_reason" />
             <button
               type="submit"
               disabled={deletePending}
@@ -165,10 +145,11 @@ export function ItemControls({
   }
 
   return (
-    <form action={formAction} onSubmit={handleEditSubmit} className="flex flex-col gap-1.5">
+    <form action={formAction} onSubmit={gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })} className="flex flex-col gap-1.5">
+      {dialog}
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="item_id" value={itemId} />
-      <input type="hidden" name="revision_reason" ref={editReasonRef} />
+      <input type="hidden" name="revision_reason" />
       <div className="flex gap-1.5">
         <input
           name="item_number"

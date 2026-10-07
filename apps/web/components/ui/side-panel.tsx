@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -66,8 +67,12 @@ export function SidePanel({
     });
   }
 
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const requestClose = useCallback(() => {
-    if (guardUnsaved && dirtyRef.current && !window.confirm("Discard what you've typed?")) return;
+    if (guardUnsaved && dirtyRef.current) {
+      setConfirmingDiscard(true);
+      return;
+    }
     onClose();
   }, [guardUnsaved, onClose]);
 
@@ -178,6 +183,19 @@ export function SidePanel({
         </div>
         {children}
       </div>
+      {confirmingDiscard && (
+        <ConfirmDialog
+          title="Discard what you've typed?"
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          destructive
+          onCancel={() => setConfirmingDiscard(false)}
+          onConfirm={() => {
+            setConfirmingDiscard(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }

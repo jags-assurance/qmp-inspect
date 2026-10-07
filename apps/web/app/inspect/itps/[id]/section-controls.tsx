@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FocusEvent, type FormEvent } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { renameItpSectionAction, deleteItpSectionAction, moveSectionUpAction, moveSectionDownAction } from "@/lib/itps/sections";
 
 /**
@@ -8,9 +9,8 @@ import { renameItpSectionAction, deleteItpSectionAction, moveSectionUpAction, mo
  * the plain "{section_number}. {title}" heading once canEditContent is true. Since a section edit
  * after issue is an R101 edit-after-issue too, every mutating form here prompts for a revision
  * reason first when isIssued — same "record why, then apply" gate as AddItemForm/AddSectionForm,
- * just collected via prompt() since there's no persistent form field to host it inline in a
- * heading row (prompt()/confirm() are already this app's lightweight style for this — see
- * issue-clearance-form.tsx and finalize-form.tsx).
+ * just collected via the shared accessible ConfirmDialog since there's no persistent form field to
+ * host it inline in a heading row.
  */
 export function SectionControls({
   itpId,
@@ -32,81 +32,34 @@ export function SectionControls({
   isOnlySection: boolean;
 }) {
   const [value, setValue] = useState(title);
-  const renameFormRef = useRef<HTMLFormElement>(null);
-  const renameReasonRef = useRef<HTMLInputElement>(null);
-  const deleteReasonRef = useRef<HTMLInputElement>(null);
-  const upReasonRef = useRef<HTMLInputElement>(null);
-  const downReasonRef = useRef<HTMLInputElement>(null);
-
-  function askRevisionReason(): string | null {
-    const reason = prompt("This ITP has already been issued — reason for this change (will start a new revision):");
-    return reason && reason.trim() ? reason.trim() : null;
-  }
-
-  function handleRenameBlur() {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === title) {
-      setValue(title);
-      return;
-    }
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        setValue(title);
-        return;
-      }
-      renameReasonRef.current!.value = reason;
-    }
-    renameFormRef.current?.requestSubmit();
-  }
-
-  // Each handler returns true when the submit should go ahead (after any confirm / reason prompt).
-  function handleDeleteSubmit(e: FormEvent<HTMLFormElement>): boolean {
-    if (!confirm(`Delete section "${sectionNumber}. ${title}"? This also deletes every activity in it. This cannot be undone.`)) {
-      e.preventDefault();
-      return false;
-    }
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return false;
-      }
-      deleteReasonRef.current!.value = reason;
-    }
-    return true;
-  }
-
-  function handleMoveUpSubmit(e: FormEvent<HTMLFormElement>): boolean {
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return false;
-      }
-      upReasonRef.current!.value = reason;
-    }
-    return true;
-  }
-
-  function handleMoveDownSubmit(e: FormEvent<HTMLFormElement>): boolean {
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return false;
-      }
-      downReasonRef.current!.value = reason;
-    }
-    return true;
-  }
+  const { ask, dialog } = useConfirm();
 
   // The section actions return { error } (they used to return nothing, so a refused change was invisible).
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-  function run(e: FormEvent<HTMLFormElement>, action: (formData: FormData) => Promise<{ error: string | null }>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+
+  // Applies the action; on an issued ITP first asks (in an accessible dialog) why, and starts a new
+  // revision with that reason. `confirm` adds the destructive-action warning to the same dialog.
+  async function gate(
+    form: HTMLFormElement,
+    action: (formData: FormData) => Promise<{ error: string | null }>,
+    opts: { confirm?: string } = {}
+  ): Promise<boolean> {
+    const formData = new FormData(form);
+    if (isIssued) {
+      const reason = await ask({
+        title: opts.confirm ? "Delete section?" : "Change an issued ITP",
+        message: opts.confirm ?? "This ITP has already been issued. The change will start a new revision.",
+        confirmLabel: opts.confirm ? "Delete" : "Apply change",
+        destructive: !!opts.confirm,
+        reason: { label: "Reason for this change", required: true },
+      });
+      if (!reason) return false;
+      formData.set("revision_reason", reason);
+    } else if (opts.confirm) {
+      const ok = await ask({ title: "Delete section?", message: opts.confirm, confirmLabel: "Delete", destructive: true });
+      if (ok === null) return false;
+    }
     setError(null);
     startTransition(async () => {
       const result = await action(formData);
@@ -115,15 +68,34 @@ export function SectionControls({
         setValue(title);
       }
     });
+    return true;
+  }
+
+  async function handleRenameBlur(e: FocusEvent<HTMLInputElement>) {
+    const form = e.currentTarget.form;
+    const trimmed = value.trim();
+    if (!form) return;
+    if (!trimmed || trimmed === title) {
+      setValue(title);
+      return;
+    }
+    if (!(await gate(form, renameItpSectionAction))) setValue(title);
+  }
+
+  function submitWith(action: (formData: FormData) => Promise<{ error: string | null }>, confirmText?: string) {
+    return (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      void gate(e.currentTarget, action, { confirm: confirmText });
+    };
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {dialog}
       <span className="text-sm font-medium text-muted">{sectionNumber}.</span>
-      <form ref={renameFormRef} onSubmit={(e) => run(e, renameItpSectionAction)} className="min-w-0 flex-1">
+      <form onSubmit={submitWith(renameItpSectionAction)} className="min-w-0 flex-1">
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="section_id" value={sectionId} />
-        <input type="hidden" name="revision_reason" ref={renameReasonRef} />
         <input
           name="title"
           value={value}
@@ -135,30 +107,27 @@ export function SectionControls({
 
       <div className="flex items-center gap-1">
         {!isFirst && (
-          <form onSubmit={(e) => { if (handleMoveUpSubmit(e)) run(e, moveSectionUpAction); }}>
+          <form onSubmit={submitWith(moveSectionUpAction)}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
-            <input type="hidden" name="revision_reason" ref={upReasonRef} />
             <button type="submit" title="Move section up" className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-off-white">
               ↑
             </button>
           </form>
         )}
         {!isLast && (
-          <form onSubmit={(e) => { if (handleMoveDownSubmit(e)) run(e, moveSectionDownAction); }}>
+          <form onSubmit={submitWith(moveSectionDownAction)}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
-            <input type="hidden" name="revision_reason" ref={downReasonRef} />
             <button type="submit" title="Move section down" className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-off-white">
               ↓
             </button>
           </form>
         )}
         {!isOnlySection && (
-          <form onSubmit={(e) => { if (handleDeleteSubmit(e)) run(e, deleteItpSectionAction); }}>
+          <form onSubmit={submitWith(deleteItpSectionAction, `Delete section "${sectionNumber}. ${title}"? This also deletes every activity in it. This cannot be undone.`)}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
-            <input type="hidden" name="revision_reason" ref={deleteReasonRef} />
             <button type="submit" title="Delete section" className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-danger hover:bg-danger/10">
               Delete
             </button>

@@ -4,6 +4,7 @@ import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { notifyPartyAction, proceedWithoutResponseAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
  *  the same notified_at + noticeHours the server already enforces (proceedWithoutResponseAction),
@@ -72,6 +73,7 @@ export function SignoffCell({
   noticeWarning?: { status: "short_notice" | "overdue"; message: string | null } | null;
 }) {
   const [isPending, startTransition] = useTransition();
+  const { ask, dialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
   // Which action is collecting a mandatory written reason (proceed / withdraw) before it runs.
   const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | null>(null);
@@ -130,6 +132,7 @@ export function SignoffCell({
 
   return (
     <div className="flex flex-col items-center gap-1">
+      {dialog}
       <span
         className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[optimisticStatus]}`}
         title={STATUS_HELP[optimisticStatus]}
@@ -185,7 +188,12 @@ export function SignoffCell({
               run(async () => {
                 const first = await signOffAction(progressId);
                 if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
-                  const why = window.prompt("You are signing on behalf of this party. Enter the reason (at least 10 characters):");
+                  const why = await ask({
+                    title: "Sign off on behalf of this party",
+                    message: "You are signing on behalf of this party. Your reason is recorded.",
+                    confirmLabel: "Sign off",
+                    reason: { label: "Reason (at least 10 characters)", minLength: 10 },
+                  });
                   if (!why) return { error: null };
                   return signOffAction(progressId, why);
                 }

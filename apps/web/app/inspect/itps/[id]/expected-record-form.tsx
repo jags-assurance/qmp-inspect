@@ -12,6 +12,7 @@ import {
 } from "@/lib/expected-records/actions";
 import { EXPECTED_RECORD_PROVIDERS, type ActivityExpectedRecordRow, type ExpectedRecordProvider } from "@/lib/expected-records/db-types";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const PROVIDER_LABEL: Record<ExpectedRecordProvider, string> = {
   jags: "Jags",
@@ -87,6 +88,7 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
   const [editing, setEditing] = useState(false);
   const [updateState, updateAction, updating] = useActionState(updateExpectedRecordAction, { error: null } as ExpectedRecordActionResult);
   const [deleteState, deleteAction, deleting] = useActionState(deleteExpectedRecordAction, { error: null } as ExpectedRecordActionResult);
+  const { gateSubmit, dialog } = useConfirm();
   const submittedRef = useRef(false);
   useEffect(() => {
     if (submittedRef.current && !updating && updateState.error === null) {
@@ -128,11 +130,15 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
       <button type="button" onClick={() => setEditing(true)} className="text-[10px] text-muted hover:underline">
         Edit
       </button>
+      {dialog}
       <form
         action={deleteAction}
-        onSubmit={(e) => {
-          if (!confirm(`Remove the expected record "${record.record_type}"?`)) e.preventDefault();
-        }}
+        onSubmit={gateSubmit({
+          title: "Remove expected record?",
+          message: `Remove the expected record "${record.record_type}"?`,
+          confirmLabel: "Remove",
+          destructive: true,
+        })}
       >
         <input type="hidden" name="record_id" value={record.id} />
         <button type="submit" disabled={deleting} className="text-[10px] text-danger hover:underline">

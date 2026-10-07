@@ -4,6 +4,7 @@ import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
 import type {
   AssignmentConclusion,
@@ -138,9 +139,11 @@ export function AssignmentWorkspace({
   // Photos and evidence documents are still allowed while awaiting clearance.
   const canAddEvidence = canEditPunch;
   const openPunchCount = punchItems.filter((p) => p.status === "open").length;
+  const { gateSubmit, dialog } = useConfirm();
 
   return (
     <div>
+      {dialog}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Measurements" value={measurements.length} />
         <StatCard label="Photos" value={photos.length} />
@@ -250,9 +253,7 @@ export function AssignmentWorkspace({
                         <td className="px-3 py-2 text-right">
                           <form
                             action={deleteMeasurementAction}
-                            onSubmit={(e) => {
-                              if (!confirm("Delete this measurement?")) e.preventDefault();
-                            }}
+                            onSubmit={gateSubmit({ title: "Delete this measurement?", confirmLabel: "Delete", destructive: true })}
                           >
                             <input type="hidden" name="assignment_id" value={assignment.id} />
                             <input type="hidden" name="measurement_id" value={m.id} />
@@ -368,9 +369,7 @@ export function AssignmentWorkspace({
                   {canEdit && (
                     <form
                       action={deleteSignatureAction}
-                      onSubmit={(e) => {
-                        if (!confirm("Delete this signature?")) e.preventDefault();
-                      }}
+                      onSubmit={gateSubmit({ title: "Delete this signature?", confirmLabel: "Delete", destructive: true })}
                     >
                       <input type="hidden" name="assignment_id" value={assignment.id} />
                       <input type="hidden" name="signature_id" value={sig.id} />
@@ -437,8 +436,10 @@ function PhotoTile({
   assignmentId: string;
   canDelete: boolean;
 }) {
+  const { gateSubmit, dialog } = useConfirm();
   return (
     <div className="rounded-md border border-border p-2">
+      {dialog}
       <div className="aspect-square overflow-hidden rounded-md bg-off-white">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
@@ -453,9 +454,7 @@ function PhotoTile({
       {canDelete && (
         <form
           action={deletePhotoAction}
-          onSubmit={(e) => {
-            if (!confirm("Delete this photo?")) e.preventDefault();
-          }}
+          onSubmit={gateSubmit({ title: "Delete this photo?", confirmLabel: "Delete", destructive: true })}
         >
           <input type="hidden" name="assignment_id" value={assignmentId} />
           <input type="hidden" name="photo_id" value={photo.id} />

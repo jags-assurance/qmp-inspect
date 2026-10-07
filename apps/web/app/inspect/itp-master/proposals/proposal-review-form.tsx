@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { reviewProposalAction, type ReviewProposalState } from "@/lib/itp-master/actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const initialState: ReviewProposalState = { error: null };
 
@@ -12,9 +13,17 @@ const initialState: ReviewProposalState = { error: null };
 // state needed to know which one was pressed.
 export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
   const [state, formAction, pending] = useActionState(reviewProposalAction, initialState);
+  const { askThenSubmit, dialog } = useConfirm();
+  const confirmReject = askThenSubmit({
+    title: "Reject this proposal?",
+    message: "The reviewer notes will be recorded.",
+    confirmLabel: "Reject",
+    destructive: true,
+  });
 
   return (
     <form action={formAction} className="mt-3 space-y-2">
+      {dialog}
       <input type="hidden" name="proposal_id" value={proposalId} />
 
       <textarea
@@ -46,7 +55,7 @@ export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
               (form?.elements.namedItem("review_notes") as HTMLTextAreaElement | null)?.focus();
               return;
             }
-            if (!window.confirm("Reject this proposal? The reviewer notes will be recorded.")) e.preventDefault();
+            confirmReject(e);
           }}
         >
           {pending ? "Saving…" : "Reject"}
