@@ -15,6 +15,7 @@ import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
 import { ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/itps/evidence-types";
 import { INSPECTION_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/checklists/db-types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
+import { TransmittalSection } from "@/components/domain/transmittal-section";
 
 interface DocumentRow {
   id: string;
@@ -356,6 +357,10 @@ export async function VaultDocumentView({
           </ul>
         )}
       </section>
+
+      {session.isJagsStaff && document.status === "approved" && (
+        <TransmittalSection entityType="vault_document" entityId={documentId} projectId={projectId} status={document.status} />
+      )}
 
       <section className="mt-6" aria-label="Audit trail">
         <h3 className="text-sm font-semibold text-ink">Audit trail</h3>

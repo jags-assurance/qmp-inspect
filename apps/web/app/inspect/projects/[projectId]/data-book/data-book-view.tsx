@@ -28,6 +28,7 @@ import { DataBookIndex, DataBookMiniNav, buildDataBookParts } from "./structure-
 import { DoneActivitiesPanel } from "./done-activities-panel";
 import { DataBookUpdatesPanel } from "./updates-panel";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { TransmittalSection } from "@/components/domain/transmittal-section";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   draft: "neutral",
@@ -534,6 +535,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               <div>
                 <p className="mb-3 text-sm text-muted">The latest book is issued. Start a new book to produce a further revision.</p>
                 <CreateDataBookForm projectId={projectId} revisionOf={latest.book_number} />
+                <TransmittalSection entityType="data_book" entityId={latest.id} projectId={projectId} status={latest.status} />
               </div>
             )}
             {latest && (

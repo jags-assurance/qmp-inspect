@@ -16,6 +16,7 @@ import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
 import { shouldRetry, retryDelayMs, MAX_JOB_ATTEMPTS, jobTimeoutMs, orphanAction, pickClaimable } from "./jobs/retryPolicy";
 import { runAutomationSweep } from "./automation";
+import { sweepTransmittalOutbox } from "./emailOutbox";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -65,6 +66,9 @@ const OBSERVABILITY_LOG_EVERY_N_CYCLES = 20; // ~once a minute at POLL_INTERVAL_
 // 20x more Supabase round trips than useful. ~15 minutes at POLL_INTERVAL_MS = 3000 is frequent
 // enough that a real automation_rules threshold_hours (minimum 1) is never meaningfully delayed.
 const AUTOMATION_SWEEP_EVERY_N_CYCLES = 300;
+
+// Transmittal emails the web app could not finish sending (S7-26) are retried about once a minute.
+const EMAIL_OUTBOX_EVERY_N_CYCLES = 20;
 
 // `background_jobs` isn't in `@jags/shared-types` yet (see jobs/types.ts) — this worker is the
 // only thing that queries it, so a single narrow `as unknown as` cast here stands in for
@@ -398,6 +402,10 @@ async function pollOnce(cycle: number): Promise<void> {
 
   if (cycle % AUTOMATION_SWEEP_EVERY_N_CYCLES === 0) {
     await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
+  }
+
+  if (cycle % EMAIL_OUTBOX_EVERY_N_CYCLES === 0) {
+    await sweepTransmittalOutbox().catch((err) => reportError("[worker] Transmittal email sweep failed:", err));
   }
 
   const job = await claimNextPendingJob();
