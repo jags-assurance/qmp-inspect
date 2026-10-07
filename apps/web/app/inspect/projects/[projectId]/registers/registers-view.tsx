@@ -1,10 +1,15 @@
-import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { refreshRegisterStatuses } from "@/lib/registers/refresh";
 import { getRegisterAccess } from "@/lib/registers/permissions";
-import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus, daysUntil } from "@/lib/registers/status";
+import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus, daysUntil, todayInTimeZone } from "@/lib/registers/status";
+import { selectRegisterRows } from "@/lib/registers/verify";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
+import { projectTimezone as readProjectTimezone } from "@/lib/registers/server-check";
+import { isRegisterRowActive, isRegisterRowVerified } from "@/lib/registers/lifecycle";
 import {
   CALIBRATION_REGISTER_TABLE,
   MATERIAL_REGISTER_TABLE,
@@ -57,7 +62,19 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
   // R112 module licensing (page-level — see reports/page.tsx's doc comment for why: no single org
   // to gate at the shared /inspect layout). JAGS staff always bypass.
   if (!session.isJagsStaff && !(await isModuleLicensed(supabase, project.organization_id, "registers"))) {
-    redirect(`/inspect/projects/${projectId}`);
+    // Say why instead of silently bouncing back to the hub.
+    return (
+      <div className="rounded-lg border border-border bg-surface p-5 text-sm">
+        <h2 className="text-base font-semibold text-ink">Registers aren&apos;t enabled for this organisation</h2>
+        <p className="mt-1 text-muted">
+          The Registers module (calibration, welder, material and personnel certificate registers) isn&apos;t licensed for {project.organizations?.name ?? "this organisation"}.
+          Ask your JAGS administrator to enable it.
+        </p>
+        <Link href={`/inspect/projects/${projectId}`} className="mt-3 inline-block text-burgundy hover:underline">
+          Back to the project
+        </Link>
+      </div>
+    );
   }
 
   const access = await getRegisterAccess(supabase, session, projectId);
@@ -65,34 +82,34 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
   // the dates below either way, so a read-only viewer is never shown a stale "valid".
   if (access.canManage) await refreshRegisterStatuses(supabase, projectId);
 
-  const [{ data: calibrationRows }, { data: welderRows }, { data: materialRows }, { data: personnelCertRows }, { data: projectParties }] =
+  // The four register reads also fetch verification/lifecycle state; selectRegisterRows falls back to the
+  // base columns when the database hasn't had that migration yet.
+  const [calibrationRows, welderRows, materialRows, personnelCertRows, { data: projectParties }] =
     await Promise.all([
-      supabase
-        .from(CALIBRATION_REGISTER_TABLE)
-        .select("id, instrument_name, instrument_tag, calibration_lab, cert_number, cal_date, due_date, status, certificate_path, notes")
-        .eq("project_id", projectId)
-        .order("due_date")
-        .returns<CalibrationRegisterDisplayRow[]>(),
-      supabase
-        .from(WELDER_QUALIFICATION_REGISTER_TABLE)
-        .select("id, welder_identifier, wpq_number, process, position, qualified_wps, qualified_ranges, expiry_date, status, certificate_path, notes")
-        .eq("project_id", projectId)
-        .order("expiry_date")
-        .returns<WelderQualificationDisplayRow[]>(),
-      supabase
-        .from(MATERIAL_REGISTER_TABLE)
-        .select(
-          "id, material_description, submittal_reference, approval_status, approved_date, heat_number, batch_number, po_reference, supplier, quantity, certificate_reference, certificate_path, receipt_status, disposition_notes, released_at, notes"
-        )
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .returns<MaterialRegisterDisplayRow[]>(),
-      supabase
-        .from(PERSONNEL_CERTIFICATIONS_TABLE)
-        .select("id, certification_type, cert_number, issued_date, expiry_date, status, certificate_path, notes, project_parties(name)")
-        .eq("project_id", projectId)
-        .order("expiry_date")
-        .returns<PersonnelCertificationDisplayRow[]>(),
+      selectRegisterRows<CalibrationRegisterDisplayRow>(
+        supabase,
+        CALIBRATION_REGISTER_TABLE,
+        "id, instrument_name, instrument_tag, calibration_lab, cert_number, cal_date, due_date, status, certificate_path, notes",
+        (q) => q.eq("project_id", projectId).order("due_date")
+      ),
+      selectRegisterRows<WelderQualificationDisplayRow>(
+        supabase,
+        WELDER_QUALIFICATION_REGISTER_TABLE,
+        "id, welder_identifier, wpq_number, process, position, qualified_wps, qualified_ranges, expiry_date, status, certificate_path, notes",
+        (q) => q.eq("project_id", projectId).order("expiry_date")
+      ),
+      selectRegisterRows<MaterialRegisterDisplayRow>(
+        supabase,
+        MATERIAL_REGISTER_TABLE,
+        "id, material_description, submittal_reference, approval_status, approved_date, heat_number, batch_number, po_reference, supplier, quantity, certificate_reference, certificate_path, receipt_status, disposition_notes, released_at, notes",
+        (q) => q.eq("project_id", projectId).order("created_at", { ascending: false })
+      ),
+      selectRegisterRows<PersonnelCertificationDisplayRow>(
+        supabase,
+        PERSONNEL_CERTIFICATIONS_TABLE,
+        "id, certification_type, cert_number, issued_date, expiry_date, status, certificate_path, notes, project_parties(name)",
+        (q) => q.eq("project_id", projectId).order("expiry_date")
+      ),
       supabase
         .from("project_parties")
         .select("id, name")
@@ -103,22 +120,43 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
     ]);
 
   // Statuses recomputed from the dates (never trust a stored value that may not have been refreshed).
-  const calibrationList = (calibrationRows ?? []).map((r) => ({ ...r, status: computeCalibrationStatus(r.due_date) }));
-  const welderList = (welderRows ?? []).map((r) => ({ ...r, status: computeWelderStatus(r.expiry_date) }));
-  const personnelList = (personnelCertRows ?? []).map((r) => ({ ...r, status: computePersonnelCertificationStatus(r.expiry_date) }));
-  const materialList = materialRows ?? [];
+  // Named people per party (primary login + added members) so a certificate can be assigned to one person.
+  const partyNameById = new Map((projectParties ?? []).map((p) => [p.id, p.name]));
+  const { data: memberRows } = await supabase
+    .from(PROJECT_PARTY_MEMBERS_TABLE)
+    .select("project_party_id, user_id, users(full_name)")
+    .in("project_party_id", [...partyNameById.keys()])
+    .not("user_id", "is", null)
+    .returns<{ project_party_id: string; user_id: string; users: { full_name: string } | null }[]>();
+  const partyMembers = (memberRows ?? []).map((m) => ({
+    user_id: m.user_id,
+    party_id: m.project_party_id,
+    party_name: partyNameById.get(m.project_party_id) ?? "",
+    name: m.users?.full_name ?? "Member",
+  }));
 
+  const projectTz = await readProjectTimezone(supabase, projectId);
+  const today = todayInTimeZone(projectTz);
+  const calibrationList = calibrationRows.map((r) => ({ ...r, status: computeCalibrationStatus(r.due_date, today) }));
+  const welderList = welderRows.map((r) => ({ ...r, status: computeWelderStatus(r.expiry_date, today) }));
+  const personnelList = personnelCertRows.map((r) => ({ ...r, status: computePersonnelCertificationStatus(r.expiry_date, today) }));
+  const materialList = materialRows;
+
+  // Superseded / retired / withdrawn entries are history, not something that needs attention.
+  const live = <T extends { lifecycle_status?: string | null }>(rows: T[]) => rows.filter(isRegisterRowActive);
+  const unverifiedCount = [...calibrationList, ...welderList, ...personnelList, ...materialList].filter((r) => isRegisterRowActive(r) && !isRegisterRowVerified(r)).length;
   const attention = [
-    { label: "calibration expired", count: calibrationList.filter((r) => r.status === "expired").length, tone: "danger" as const },
-    { label: "welder qualification expired", count: welderList.filter((r) => r.status === "expired").length, tone: "danger" as const },
-    { label: "personnel certification expired", count: personnelList.filter((r) => r.status === "expired").length, tone: "danger" as const },
-    { label: "due or expiring soon", count: [...calibrationList.filter((r) => r.status === "due_soon"), ...welderList.filter((r) => r.status === "expiring"), ...personnelList.filter((r) => r.status === "expiring_soon")].length, tone: "warning" as const },
-    { label: "material awaiting receiving inspection or on hold", count: materialList.filter((r) => r.receipt_status !== "released").length, tone: "warning" as const },
+    { label: "calibration expired", count: live(calibrationList).filter((r) => r.status === "expired").length, tone: "danger" as const },
+    { label: "welder qualification expired", count: live(welderList).filter((r) => r.status === "expired").length, tone: "danger" as const },
+    { label: "personnel certification expired", count: live(personnelList).filter((r) => r.status === "expired").length, tone: "danger" as const },
+    { label: "due or expiring soon", count: [...live(calibrationList).filter((r) => r.status === "due_soon"), ...live(welderList).filter((r) => r.status === "expiring"), ...live(personnelList).filter((r) => r.status === "expiring_soon")].length, tone: "warning" as const },
+    { label: "material awaiting receiving inspection or on hold", count: live(materialList).filter((r) => r.receipt_status !== "released").length, tone: "warning" as const },
+    { label: "entries awaiting JAGS verification (not counted until verified)", count: unverifiedCount, tone: "warning" as const },
   ].filter((a) => a.count > 0);
   const nextDue = [
-    ...calibrationList.map((r) => ({ what: r.instrument_name, date: r.due_date })),
-    ...welderList.map((r) => ({ what: r.welder_identifier, date: r.expiry_date })),
-    ...personnelList.map((r) => ({ what: r.certification_type, date: r.expiry_date })),
+    ...live(calibrationList).map((r) => ({ what: r.instrument_name, date: r.due_date })),
+    ...live(welderList).map((r) => ({ what: r.welder_identifier, date: r.expiry_date })),
+    ...live(personnelList).map((r) => ({ what: r.certification_type, date: r.expiry_date })),
   ]
     .filter((r) => daysUntil(r.date) >= 0)
     .sort((a, b) => a.date.localeCompare(b.date))[0];
@@ -179,6 +217,7 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
         materialRows={materialList}
         personnelCertRows={personnelList}
         projectParties={projectParties ?? []}
+        partyMembers={partyMembers}
         extractCalibrationRowsAction={extractCalibrationRowsAction as unknown as GenericExtractAction}
         addExtractedCalibrationRowsAction={addExtractedCalibrationRowsAction as unknown as GenericAddAction}
         extractWelderRowsAction={extractWelderRowsAction as unknown as GenericExtractAction}

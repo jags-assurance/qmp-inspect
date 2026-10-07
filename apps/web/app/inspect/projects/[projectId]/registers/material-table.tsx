@@ -9,6 +9,7 @@ import {
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
 import { CertificateLink, formatRegisterDate, RegisterRowActions } from "./register-cells";
+import { RegisterRowFlags } from "./register-lifecycle-actions";
 
 export interface MaterialRegisterDisplayRow {
   id: string;
@@ -23,6 +24,8 @@ export interface MaterialRegisterDisplayRow {
   quantity: string | null;
   certificate_reference: string | null;
   certificate_path: string | null;
+  verified_at?: string | null;
+  lifecycle_status?: string | null;
   receipt_status: MaterialReceiptStatus;
   disposition_notes: string | null;
   released_at: string | null;
@@ -92,6 +95,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       render: (row) => (
         <div>
           <Badge showIcon tone={RECEIPT_TONE[row.receipt_status]}>{MATERIAL_RECEIPT_STATUS_LABELS[row.receipt_status]}</Badge>
+          <RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} />
           {row.released_at && <p className="mt-1 text-xs text-muted">Released {formatRegisterDate(row.released_at)}</p>}
           {row.disposition_notes && <p className="mt-1 text-xs text-muted">{row.disposition_notes}</p>}
         </div>
@@ -108,6 +112,8 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
         <RegisterRowActions
           kind="material"
           projectId={projectId}
+          verifiedAt={row.verified_at}
+          lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,
             material_description: row.material_description,

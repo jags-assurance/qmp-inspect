@@ -5,6 +5,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { WELDER_EXPIRING_DAYS } from "@/lib/registers/status";
 import type { WelderQualificationStatus } from "@/lib/registers/types";
 import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { RegisterRowFlags } from "./register-lifecycle-actions";
 
 export interface WelderQualificationDisplayRow {
   id: string;
@@ -17,6 +18,8 @@ export interface WelderQualificationDisplayRow {
   expiry_date: string;
   status: WelderQualificationStatus;
   certificate_path: string | null;
+  verified_at?: string | null;
+  lifecycle_status?: string | null;
   notes: string | null;
 }
 
@@ -59,7 +62,7 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
     },
     { key: "qualified_ranges", header: "Ranges", render: (row) => row.qualified_ranges ?? "—" },
     { key: "expiry_date", header: "Expiry", render: (row) => <ExpiryDate date={row.expiry_date} warnWithinDays={WELDER_EXPIRING_DAYS} /> },
-    { key: "status", header: "Status", render: (row) => <Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
+    { key: "status", header: "Status", render: (row) => (<span><Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge><RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} /></span>) },
     { key: "certificate", header: "WPQ file", render: (row) => <CertificateLink kind="welder" id={row.id} hasFile={!!row.certificate_path} /> },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];
@@ -71,6 +74,8 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
         <RegisterRowActions
           kind="welder"
           projectId={projectId}
+          verifiedAt={row.verified_at}
+          lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,
             welder_identifier: row.welder_identifier,

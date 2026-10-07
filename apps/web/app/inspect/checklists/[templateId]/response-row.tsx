@@ -192,6 +192,10 @@ export function ResponseRow({
     formData.set("checklist_item_id", checklistItemId);
     formData.set("result", nextResult);
     formData.set("comment", combineStoredComment(nextOverrideReason, nextComment));
+    // Structured copies for the server: the override reason, and WHEN the answer was given (an offline
+    // replay carries this, so registers are judged on the inspection day, not the sync day).
+    if (nextOverrideReason.trim()) formData.set("override_reason", nextOverrideReason.trim());
+    formData.set("captured_at", new Date().toISOString());
     if (nextCalibrationAssetId) formData.set("calibration_asset_id", nextCalibrationAssetId);
     if (nextMaterialId) formData.set("material_id", nextMaterialId);
     if (nextWelderId) formData.set("welder_id", nextWelderId);

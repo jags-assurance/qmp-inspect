@@ -355,7 +355,8 @@ function daysUntilDate(dateStr: string): number {
 
 /** Tightest threshold already reached (e.g. 7 days left -> 7), or null if still outside the window. */
 function reachedThreshold(days: number, windowDays: number): number | null {
-  const thresholds = [0, 7, 14, windowDays].sort((a, b) => a - b);
+  // Negative thresholds are overdue reminders (7 and 14 days after expiry), so a lapse isn't announced once and forgotten.
+  const thresholds = [-14, -7, 0, 7, 14, windowDays].sort((a, b) => a - b);
   for (const t of thresholds) if (days <= t) return t;
   return null;
 }
@@ -374,7 +375,9 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
   const { data: projectRows } = await db
     .from("projects")
     .select("id, name, responsible_person_id")
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)
+    // Finished, cancelled and not-yet-started jobs don't need renewal alerts.
+    .in("status", ["active", "on_hold"]);
   const projects = (projectRows ?? []) as { id: string; name: string; responsible_person_id: string | null }[];
   if (projects.length === 0) return 0;
   const projectIds = projects.map((p) => p.id);
@@ -383,29 +386,34 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
   const horizon = (days: number) => new Date(Date.now() + days * MS_PER_DAY).toISOString().slice(0, 10);
   const items: ExpiryItem[] = [];
 
-  const { data: cals } = await db
-    .from("calibration_register")
-    .select("id, project_id, instrument_name, cert_number, due_date")
-    .in("project_id", projectIds)
-    .lte("due_date", horizon(30));
+  // Superseded / retired / withdrawn rows are skipped; before the lifecycle migration the filter is simply omitted.
+  const activeRows = async (table: string, columns: string, dateColumn: string, days: number) => {
+    const run = (activeOnly: boolean) => {
+      let q = db.from(table).select(columns).in("project_id", projectIds).lte(dateColumn, horizon(days));
+      if (activeOnly) q = q.eq("lifecycle_status", "active");
+      return q;
+    };
+    const first = await run(true);
+    if (!first.error) return first.data as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const fallback = await run(false);
+    return (fallback.data ?? []) as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
+  const cals = await activeRows("calibration_register", "id, project_id, instrument_name, cert_number, due_date", "due_date", 30);
   for (const c of cals ?? []) {
     items.push({ entityType: "calibration", id: c.id, projectId: c.project_id, label: `Calibration ${c.instrument_name} (cert ${c.cert_number})`, expiryDate: c.due_date, windowDays: 30, extraRecipient: null });
   }
 
-  const { data: welders } = await db
-    .from("welder_qualification_register")
-    .select("id, project_id, welder_identifier, wpq_number, expiry_date")
-    .in("project_id", projectIds)
-    .lte("expiry_date", horizon(90));
+  const welders = await activeRows("welder_qualification_register", "id, project_id, welder_identifier, wpq_number, expiry_date", "expiry_date", 90);
   for (const w of welders ?? []) {
     items.push({ entityType: "welder", id: w.id, projectId: w.project_id, label: `Welder qualification ${w.welder_identifier} (WPQ ${w.wpq_number ?? "n/a"})`, expiryDate: w.expiry_date, windowDays: 90, extraRecipient: null });
   }
 
-  const { data: certs } = await db
-    .from("personnel_certifications")
-    .select("id, project_id, certification_type, cert_number, expiry_date, project_parties(name, user_id)")
-    .in("project_id", projectIds)
-    .lte("expiry_date", horizon(90));
+  const certs = await activeRows(
+    "personnel_certifications",
+    "id, project_id, certification_type, cert_number, expiry_date, project_parties(name, user_id)",
+    "expiry_date",
+    90
+  );
   for (const c of certs ?? []) {
     items.push({
       entityType: "personnel",
@@ -416,6 +424,20 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
       windowDays: 90,
       extraRecipient: c.project_parties?.user_id ?? null,
     });
+  }
+
+  const performingPartyUsers = new Map<string, string[]>();
+  if (items.length > 0) {
+    const { data: parties } = await db
+      .from("project_parties")
+      .select("project_id, user_id")
+      .in("project_id", projectIds)
+      .eq("is_active", true)
+      .in("party_type", ["main_contractor", "subcontractor", "tpi_lab"])
+      .not("user_id", "is", null);
+    for (const p of (parties ?? []) as { project_id: string; user_id: string }[]) {
+      performingPartyUsers.set(p.project_id, [...(performingPartyUsers.get(p.project_id) ?? []), p.user_id]);
+    }
   }
 
   let sent = 0;
@@ -441,6 +463,8 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
     const recipients = new Set<string>();
     if (project?.responsible_person_id) recipients.add(project.responsible_person_id);
     if (item.extraRecipient) recipients.add(item.extraRecipient);
+    // The parties that must renew calibration / welder records (contractor, subcontractor, TPI/lab).
+    for (const u of performingPartyUsers.get(item.projectId) ?? []) recipients.add(u);
     if (recipients.size === 0) {
       admins ??= await getOrgAdminUserIds(organizationId);
       for (const a of admins) recipients.add(a);
@@ -450,9 +474,19 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
     const body = `${project?.name ?? "Project"} — expiry date ${item.expiryDate}. Renew or replace it before it is used on further inspections.`;
     const link = `/inspect/projects/${item.projectId}/registers`;
     try {
+      // One recipient failing must not stop (or, on retry, repeat) the others: collect failures, and only
+      // release the claim when nobody could be notified.
+      let delivered = 0;
+      let lastErr: unknown = null;
       for (const userId of recipients) {
-        await notify(organizationId, item.projectId, userId, title, body, link);
+        try {
+          await notify(organizationId, item.projectId, userId, title, body, link);
+          delivered += 1;
+        } catch (err) {
+          lastErr = err;
+        }
       }
+      if (delivered === 0 && lastErr) throw lastErr;
       sent += 1;
     } catch (err) {
       // Release the claimed slot so the next sweep retries instead of silently losing the alert.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { renameItpSectionAction, deleteItpSectionAction, moveSectionUpAction, moveSectionDownAction } from "@/lib/itps/sections";
 
 /**
@@ -60,47 +60,67 @@ export function SectionControls({
     renameFormRef.current?.requestSubmit();
   }
 
-  function handleDeleteSubmit(e: FormEvent<HTMLFormElement>) {
+  // Each handler returns true when the submit should go ahead (after any confirm / reason prompt).
+  function handleDeleteSubmit(e: FormEvent<HTMLFormElement>): boolean {
     if (!confirm(`Delete section "${sectionNumber}. ${title}"? This also deletes every activity in it. This cannot be undone.`)) {
       e.preventDefault();
-      return;
+      return false;
     }
     if (isIssued) {
       const reason = askRevisionReason();
       if (!reason) {
         e.preventDefault();
-        return;
+        return false;
       }
       deleteReasonRef.current!.value = reason;
     }
+    return true;
   }
 
-  function handleMoveUpSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleMoveUpSubmit(e: FormEvent<HTMLFormElement>): boolean {
     if (isIssued) {
       const reason = askRevisionReason();
       if (!reason) {
         e.preventDefault();
-        return;
+        return false;
       }
       upReasonRef.current!.value = reason;
     }
+    return true;
   }
 
-  function handleMoveDownSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleMoveDownSubmit(e: FormEvent<HTMLFormElement>): boolean {
     if (isIssued) {
       const reason = askRevisionReason();
       if (!reason) {
         e.preventDefault();
-        return;
+        return false;
       }
       downReasonRef.current!.value = reason;
     }
+    return true;
+  }
+
+  // The section actions return { error } (they used to return nothing, so a refused change was invisible).
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+  function run(e: FormEvent<HTMLFormElement>, action: (formData: FormData) => Promise<{ error: string | null }>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      const result = await action(formData);
+      if (result.error) {
+        setError(result.error);
+        setValue(title);
+      }
+    });
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium text-muted">{sectionNumber}.</span>
-      <form ref={renameFormRef} action={renameItpSectionAction} className="min-w-0 flex-1">
+      <form ref={renameFormRef} onSubmit={(e) => run(e, renameItpSectionAction)} className="min-w-0 flex-1">
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="section_id" value={sectionId} />
         <input type="hidden" name="revision_reason" ref={renameReasonRef} />
@@ -115,7 +135,7 @@ export function SectionControls({
 
       <div className="flex items-center gap-1">
         {!isFirst && (
-          <form action={moveSectionUpAction} onSubmit={handleMoveUpSubmit}>
+          <form onSubmit={(e) => { if (handleMoveUpSubmit(e)) run(e, moveSectionUpAction); }}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
             <input type="hidden" name="revision_reason" ref={upReasonRef} />
@@ -125,7 +145,7 @@ export function SectionControls({
           </form>
         )}
         {!isLast && (
-          <form action={moveSectionDownAction} onSubmit={handleMoveDownSubmit}>
+          <form onSubmit={(e) => { if (handleMoveDownSubmit(e)) run(e, moveSectionDownAction); }}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
             <input type="hidden" name="revision_reason" ref={downReasonRef} />
@@ -135,7 +155,7 @@ export function SectionControls({
           </form>
         )}
         {!isOnlySection && (
-          <form action={deleteItpSectionAction} onSubmit={handleDeleteSubmit}>
+          <form onSubmit={(e) => { if (handleDeleteSubmit(e)) run(e, deleteItpSectionAction); }}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
             <input type="hidden" name="revision_reason" ref={deleteReasonRef} />
@@ -145,6 +165,11 @@ export function SectionControls({
           </form>
         )}
       </div>
+      {error && (
+        <p role="alert" className="w-full text-xs text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

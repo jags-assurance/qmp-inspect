@@ -6,7 +6,7 @@ import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { computeCalibrationStatus, computeWelderStatus } from "@/lib/registers/status";
+import { evaluateRegisterGate, structuredResponseColumns } from "@/lib/registers/server-check";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CHECKLIST_ITEMS_TABLE,
@@ -483,44 +483,27 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
 
   // Traceability links must point at a row on THIS project; calibration/welder must also be in date,
   // and material must be released. (Empty = not recorded, always allowed.)
-  if (calibrationAssetId) {
-    const { data: row } = await supabase
-      .from("calibration_register")
-      .select("due_date")
-      .eq("id", calibrationAssetId)
-      .eq("project_id", record.project_id)
-      .maybeSingle<{ due_date: string }>();
-    if (!row) return { error: "The selected instrument does not belong to this project." };
-    if (computeCalibrationStatus(row.due_date) === "expired") {
-      return { error: "The selected instrument's calibration has expired — choose an in-date instrument." };
-    }
-  }
-  if (welderId) {
-    const { data: row } = await supabase
-      .from("welder_qualification_register")
-      .select("expiry_date")
-      .eq("id", welderId)
-      .eq("project_id", record.project_id)
-      .maybeSingle<{ expiry_date: string }>();
-    if (!row) return { error: "The selected welder does not belong to this project." };
-    if (computeWelderStatus(row.expiry_date) === "expired") {
-      return { error: "The selected welder's qualification has expired — choose a qualified welder." };
-    }
-  }
-  if (materialId) {
-    const { data: row } = await supabase
-      .from("material_register")
-      .select("receipt_status")
-      .eq("id", materialId)
-      .eq("project_id", record.project_id)
-      .maybeSingle<{ receipt_status: string }>();
-    if (!row) return { error: "The selected material does not belong to this project." };
-    if (row.receipt_status !== "released") {
-      return { error: "The selected material has not been released at receiving inspection." };
-    }
-  }
+  // The same checks (now judged on the inspection date, with verified/active rows only) plus the
+  // register soft-stop recomputed server-side (S3-05/S3-07) live in lib/registers/server-check.ts.
+  const {
+    data: { user: gateUser },
+  } = await supabase.auth.getUser();
+  const gate = await evaluateRegisterGate(supabase, {
+    projectId: record.project_id,
+    itpItemId: record.itp_item_id,
+    userId: gateUser?.id ?? null,
+    result,
+    comment,
+    overrideReasonField: String(formData.get("override_reason") ?? ""),
+    capturedAtRaw: String(formData.get("captured_at") ?? "") || null,
+    calibrationAssetId,
+    materialId,
+    welderId,
+  });
+  if (gate.error) return { error: gate.error };
 
   const payload = {
+    ...(await structuredResponseColumns(supabase, gate)),
     inspection_record_id: inspectionRecordId,
     checklist_item_id: checklistItemId,
     result,

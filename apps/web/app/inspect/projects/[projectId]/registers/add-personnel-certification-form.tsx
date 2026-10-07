@@ -14,9 +14,12 @@ const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 
 export function AddPersonnelCertificationForm({
   projectId,
   projectParties,
+  partyMembers = [],
 }: {
   projectId: string;
   projectParties: { id: string; name: string }[];
+  /** Named people in each party; a certificate can be assigned to one so the check follows the person. */
+  partyMembers?: { user_id: string; party_id: string; party_name: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(addPersonnelCertificationEntryAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -63,6 +66,22 @@ export function AddPersonnelCertificationForm({
           ))}
         </select>
       </div>
+
+      {partyMembers.length > 0 && (
+        <div className="min-w-40 flex-1">
+          <label htmlFor="holder_user_id" className="block text-xs font-medium text-ink">
+            Named holder (optional)
+          </label>
+          <select id="holder_user_id" name="holder_user_id" defaultValue="" className={inputClass}>
+            <option value="">Whole party</option>
+            {partyMembers.map((m) => (
+              <option key={`${m.party_id}-${m.user_id}`} value={m.user_id}>
+                {m.name} ({m.party_name})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="min-w-40 flex-1">
         <label htmlFor="certification_type" className="block text-xs font-medium text-ink">

@@ -8,6 +8,8 @@ import {
   type RegisterKind,
 } from "@/lib/registers/manage-actions";
 import { daysUntil, describeDays } from "@/lib/registers/status";
+import { RegisterLifecycleActions } from "./register-lifecycle-actions";
+import { CertificateUpload } from "./certificate-upload";
 import { MATERIAL_APPROVAL_STATUS_LABELS, MATERIAL_RECEIPT_STATUS_LABELS } from "@/lib/registers/types";
 
 /** Formats a plain YYYY-MM-DD date as dd/mm/yyyy without the timezone shift `new Date("YYYY-MM-DD")` causes west of UTC. */
@@ -108,12 +110,46 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
   const [state, formAction, pending] = useActionState(updateRegisterEntryAction, initialState);
   const submitted = useRef(false);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (submitted.current && !pending && state.error === null) onClose();
   }, [pending, state, onClose]);
 
+  // Dialog basics: Escape closes, focus moves in on open, Tab stays inside, focus returns to the trigger on close.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const root = dialogRef.current;
+    const focusables = () => Array.from(root?.querySelectorAll<HTMLElement>("input, select, textarea, button, a[href]") ?? []).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("type") !== "hidden");
+    focusables()[0]?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "Tab") {
+        const items = focusables();
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previouslyFocused?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={KIND_TITLE[kind]}>
+    <div ref={dialogRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={KIND_TITLE[kind]}>
       <form
         action={formAction}
         onSubmit={() => (submitted.current = true)}
@@ -152,6 +188,7 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
             </div>
           ))}
         </div>
+        <CertificateUpload projectId={projectId} kind={kind} label="Attach or replace certificate (optional)" />
         {kind === "material" && (
           <p className="text-xs text-muted">Setting the receiving status to “Released” releases the material for use; who released it and when is recorded.</p>
         )}
@@ -174,10 +211,14 @@ export function RegisterRowActions({
   kind,
   projectId,
   row,
+  verifiedAt,
+  lifecycleStatus,
 }: {
   kind: RegisterKind;
   projectId: string;
   row: Record<string, string | null>;
+  verifiedAt?: string | null;
+  lifecycleStatus?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [deleteState, deleteAction, deleting] = useActionState(deleteRegisterEntryAction, initialState);
@@ -213,6 +254,7 @@ export function RegisterRowActions({
           {deleting ? "Deleting…" : "Delete"}
         </button>
       </form>
+      {row.id && <RegisterLifecycleActions kind={kind} projectId={projectId} id={row.id} verifiedAt={verifiedAt} lifecycleStatus={lifecycleStatus} />}
       {(deleteState.error || releaseState.error) && <span className="block max-w-xs whitespace-normal text-xs text-danger">{deleteState.error ?? releaseState.error}</span>}
       {editing && <EditDialog kind={kind} projectId={projectId} row={row} onClose={() => setEditing(false)} />}
     </div>

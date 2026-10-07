@@ -5,6 +5,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { CALIBRATION_DUE_SOON_DAYS } from "@/lib/registers/status";
 import type { CalibrationStatus } from "@/lib/registers/types";
 import { CertificateLink, formatRegisterDate, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { RegisterRowFlags } from "./register-lifecycle-actions";
 
 export interface CalibrationRegisterDisplayRow {
   id: string;
@@ -16,6 +17,8 @@ export interface CalibrationRegisterDisplayRow {
   due_date: string;
   status: CalibrationStatus;
   certificate_path: string | null;
+  verified_at?: string | null;
+  lifecycle_status?: string | null;
   notes: string | null;
 }
 
@@ -58,7 +61,7 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
     },
     { key: "cal_date", header: "Cal. date", render: (row) => formatRegisterDate(row.cal_date) },
     { key: "due_date", header: "Due", render: (row) => <ExpiryDate date={row.due_date} warnWithinDays={CALIBRATION_DUE_SOON_DAYS} /> },
-    { key: "status", header: "Status", render: (row) => <Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
+    { key: "status", header: "Status", render: (row) => (<span><Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge><RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} /></span>) },
     { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="calibration" id={row.id} hasFile={!!row.certificate_path} /> },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];
@@ -70,6 +73,8 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
         <RegisterRowActions
           kind="calibration"
           projectId={projectId}
+          verifiedAt={row.verified_at}
+          lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,
             instrument_name: row.instrument_name,

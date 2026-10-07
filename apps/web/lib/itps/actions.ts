@@ -8,9 +8,11 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { checklistReviewError } from "@/lib/itps/checklist-review";
+import { checklistReviewError, recordChecklistReviewTick } from "@/lib/itps/checklist-review";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
-import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
+import { bumpRevisionIfIssued, snapshotInitialIssue, snapshotApprovedRevision, type BumpResult } from "@/lib/itps/revisions";
+import { itemDeleteBlocker } from "@/lib/itps/guards";
+import { parseBulkActivityRows } from "@/lib/itps/bulk-import";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
 import { startReviewChainForItp, getItpReviewProgress, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
@@ -202,32 +204,6 @@ async function resolveItemItp(supabase: Awaited<ReturnType<typeof createSupabase
   };
 }
 
-/** Why an activity can't be deleted (it has real execution history), or null if it can. */
-async function itemDeleteBlocker(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itemId: string): Promise<string | null> {
-  const count = async (table: string, build: (q: any) => any) => {
-    const { count: c } = await build(supabase.from(table as never).select("id", { count: "exact", head: true }));
-    return c ?? 0;
-  };
-  if (await count("inspection_records", (q) => q.eq("itp_item_id", itemId))) {
-    return "This activity has inspection records, so it can't be deleted. Its history must be kept.";
-  }
-  if (await count("activity_signoff_progress", (q) => q.eq("itp_item_id", itemId).in("status", ["signed_off", "proceeded_no_response"]))) {
-    return "This activity has signed-off Hold/Witness/Review points, so it can't be deleted. Its history must be kept.";
-  }
-  if (await count("ncrs", (q) => q.eq("itp_item_id", itemId))) {
-    return "An NCR refers to this activity, so it can't be deleted.";
-  }
-  if (await count("punch_list_items", (q) => q.eq("source_itp_item_id", itemId))) {
-    return "A punch-list item refers to this activity, so it can't be deleted.";
-  }
-  if (await count("itp_item_evidence_documents", (q) => q.eq("itp_item_id", itemId))) {
-    return "Evidence documents are linked to this activity — unlink them first.";
-  }
-  if (await count("itp_item_measurements", (q) => q.eq("itp_item_id", itemId).not("actual_value", "is", null))) {
-    return "Measurements have been recorded for this activity, so it can't be deleted.";
-  }
-  return null;
-}
 
 export interface AddItemState {
   error: string | null;
@@ -307,6 +283,10 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     .eq("id", itpId)
     .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
+  if (itpForRevisionCheck?.status === "superseded" || itpForRevisionCheck?.status === "withdrawn") {
+    return { error: `This ITP is ${itpForRevisionCheck.status} and can no longer be edited.` };
+  }
+  let addBump: BumpResult | null = null;
 
   if (isIssued) {
     if (!revisionReason) {
@@ -315,13 +295,13 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(
+    addBump = await bumpRevisionIfIssued(
       supabase,
       itpId,
       `Added activity ${itemNumber}: ${activity} — ${revisionReason}`,
       user?.id ?? null
     );
-    if (revisionError) return { error: revisionError };
+    if (addBump.error) return { error: addBump.error };
   }
 
   // itp_items.sort_order defaults to 0 in the schema, and this was the only item-creation path that
@@ -360,6 +340,7 @@ export async function addItpItemAction(_prev: AddItemState, formData: FormData):
   }).select("id").single<{ id: string }>();
 
   if (error || !newItem) {
+    await addBump?.undo?.();
     return { error: "Could not add the activity. Check you have permission and try again." };
   }
 
@@ -447,11 +428,21 @@ export async function bulkAddItpItemsAction(_prev: BulkAddItemsState, formData: 
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
   if (!sectionId || !itpId) return { error: "Missing section." };
 
-  const lines = pasted.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return { error: "Paste at least one row." };
-  if (lines.length > 200) return { error: "Paste up to 200 rows at a time." };
+  if (pasted.length > 400_000) return { error: "That paste is too large." };
 
   const supabase = await createSupabaseServerClient();
+  const { data: itpHead } = await supabase.from("itps").select("project_id").eq("id", itpId).maybeSingle<{ project_id: string }>();
+  if (!itpHead) return { error: "ITP not found." };
+  const { data: partyRows } = await supabase
+    .from("project_parties")
+    .select("id, name")
+    .eq("project_id", itpHead.project_id)
+    .eq("is_active", true)
+    .returns<{ id: string; name: string }[]>();
+  const parsed = parseBulkActivityRows(pasted, (partyRows ?? []).map((p) => p.name));
+  if (parsed.error) return { error: parsed.error };
+  if (parsed.rows.length > 200) return { error: "Paste up to 200 rows at a time." };
+  const lines = parsed.rows;
   const { data: sectionRow } = await supabase
     .from("itp_sections")
     .select("itp_id, section_number")
@@ -477,12 +468,17 @@ export async function bulkAddItpItemsAction(_prev: BulkAddItemsState, formData: 
     method: string | null;
     frequency: string | null;
     evidence_type: number;
+    planned_date: string | null;
     sort_order: number;
   }[] = [];
+  const levelsByNumber = new Map<string, Record<string, string>>();
   for (const [index, line] of lines.entries()) {
-    const cells = line.includes("\t") ? line.split("\t") : line.split(",");
-    const [numberRaw = "", activityRaw = "", criteriaRaw = "", referenceRaw = "", methodRaw = "", frequencyRaw = ""] = cells.map((c) => c.trim());
-    if (!activityRaw) return { error: `Row ${index + 1}: the activity text (second column) is empty.` };
+    const numberRaw = line.itemNumber;
+    const activityRaw = line.activity;
+    const criteriaRaw = line.acceptanceCriteria ?? "";
+    const referenceRaw = line.referenceSpec ?? "";
+    const methodRaw = line.method ?? "";
+    const frequencyRaw = line.frequency ?? "";
     let itemNumber = numberRaw;
     if (!itemNumber) {
       do {
@@ -500,9 +496,11 @@ export async function bulkAddItpItemsAction(_prev: BulkAddItemsState, formData: 
       reference_spec: referenceRaw || null,
       method: methodRaw || null,
       frequency: frequencyRaw || null,
-      evidence_type: 1,
+      evidence_type: line.evidenceType,
+      planned_date: line.plannedDate,
       sort_order: nextSort++,
     });
+    if (Object.keys(line.levels).length > 0) levelsByNumber.set(itemNumber, line.levels);
   }
 
   const { data: itp } = await supabase
@@ -511,17 +509,52 @@ export async function bulkAddItpItemsAction(_prev: BulkAddItemsState, formData: 
     .eq("id", itpId)
     .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   const isIssued = itp?.status === "approved" || itp?.status === "client_accepted";
+  let bulkBump: BumpResult | null = null;
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (isIssued) {
     if (!revisionReason) return { error: "This ITP has already been issued — a reason is required to add activities and create a new revision." };
-    const { error: revisionError } = await bumpRevisionIfIssued(supabase, itpId, `Added ${rows.length} activities (bulk) — ${revisionReason}`, user?.id ?? null);
-    if (revisionError) return { error: revisionError };
+    bulkBump = await bumpRevisionIfIssued(supabase, itpId, `Added ${rows.length} activities (bulk) — ${revisionReason}`, user?.id ?? null);
+    if (bulkBump.error) return { error: bulkBump.error };
+  }
+  if (itp?.status === "superseded" || itp?.status === "withdrawn") return { error: `This ITP is ${itp.status} and can no longer be edited.` };
+
+  const { data: insertedItems, error } = await supabase.from("itp_items").insert(rows).select("id, item_number");
+  if (error || !insertedItems) {
+    await bulkBump?.undo?.();
+    return { error: "Could not add the activities. Check you have permission and try again — nothing was added." };
   }
 
-  const { error } = await supabase.from("itp_items").insert(rows);
-  if (error) return { error: "Could not add the activities. Check you have permission and try again — nothing was added." };
+  // Sign-off levels given per party column (validated by the database against the org's configured levels).
+  const partyIdByName = new Map((partyRows ?? []).map((p) => [p.name.trim().toLowerCase(), p.id]));
+  const levelRows = insertedItems.flatMap((it) =>
+    Object.entries(levelsByNumber.get(it.item_number) ?? {}).flatMap(([partyName, code]) => {
+      const partyId = partyIdByName.get(partyName.trim().toLowerCase());
+      return partyId ? [{ itp_item_id: it.id, project_party_id: partyId, intervention: code }] : [];
+    })
+  );
+  let levelWarning: string | undefined;
+  if (levelRows.length > 0) {
+    const { error: levelError } = await supabase.from("activity_party_intervention").insert(levelRows);
+    if (levelError) levelWarning = "The activities were added, but some sign-off levels were rejected (check the level codes) — set them in the grid.";
+  }
+
+  // Checklist-type activities added to an issued ITP get their checklist now, like single add does.
+  if (isIssued && itp?.projects?.organization_id && rows.some((r) => r.evidence_type === 1)) {
+    try {
+      const { data: numberRow } = await supabase.from("itps").select("itp_number").eq("id", itpId).maybeSingle<{ itp_number: string }>();
+      await generateChecklistsForItp(supabase, {
+        itpId,
+        itpNumber: numberRow?.itp_number ?? "",
+        projectId: itp.project_id,
+        organizationId: itp.projects.organization_id,
+        userId: user?.id ?? null,
+      });
+    } catch {
+      // Best-effort — the checklist can still be generated manually.
+    }
+  }
 
   await resetReviewIfUnderReview(supabase, itpId, `${rows.length} activities added`, null);
   if (itp?.projects?.organization_id) {
@@ -541,7 +574,7 @@ export async function bulkAddItpItemsAction(_prev: BulkAddItemsState, formData: 
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
-  return { error: null, added: rows.length };
+  return { error: levelWarning ?? null, added: rows.length };
 }
 
 export interface EditItemState {
@@ -605,6 +638,8 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     .eq("id", itpId)
     .maybeSingle<{ status: string; project_id: string; projects: { organization_id: string } | null }>();
   const isIssued = itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted";
+  if (itpForRevisionCheck?.status === "superseded" || itpForRevisionCheck?.status === "withdrawn") return { error: `This ITP is ${itpForRevisionCheck.status} and can no longer be edited.` };
+  let editBump: BumpResult | null = null;
 
   if (isIssued) {
     if (!revisionReason) {
@@ -613,18 +648,24 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(
+    editBump = await bumpRevisionIfIssued(
       supabase,
       itpId,
       `Edited activity ${itemNumber}: ${activity} — ${revisionReason}`,
       user?.id ?? null
     );
-    if (revisionError) return { error: revisionError };
+    if (editBump.error) return { error: editBump.error };
   }
+
+  // Editing an activity's drawing: the field is only changed when the form sends it (older forms don't).
+  const drawingFieldSent = formData.has("governing_drawing_document_id");
+  const drawingId = String(formData.get("governing_drawing_document_id") ?? "").trim();
+  const { data: previousItem } = await supabase.from("itp_items").select("evidence_type").eq("id", itemId).maybeSingle<{ evidence_type: number }>();
 
   const { data: updatedItems, error } = await supabase
     .from("itp_items")
     .update({
+      ...(drawingFieldSent ? { governing_drawing_document_id: drawingId || null } : {}),
       item_number: itemNumber,
       activity,
       acceptance_criteria: acceptanceCriteria || null,
@@ -640,7 +681,21 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     .select("id");
 
   if (error || !updatedItems?.length) {
-    return { error: "Could not update the activity. Check you have permission and try again." };
+    await editBump?.undo?.();
+    return { error: error?.code === "23505" ? `Activity number ${itemNumber} is already used in this section.` : "Could not update the activity. Check you have permission and try again." };
+  }
+
+  // Switching an activity away from "checklist" leaves its checklist template behind, still counted as
+  // outstanding by readiness. Say so instead of leaving a silent orphan.
+  let evidenceNote: string | null = null;
+  if (previousItem && previousItem.evidence_type === 1 && (evidenceType === 2 || evidenceType === 3)) {
+    const { count: templateCount } = await supabase
+      .from("checklist_templates" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("itp_item_id" as never, itemId as never);
+    if (templateCount) {
+      evidenceNote = "Saved. This activity still has a checklist from when it was a checklist-type activity — it is no longer used, so review or remove it under the ITP's checklists.";
+    }
   }
 
   await resetReviewIfUnderReview(supabase, itpId, `activity ${itemNumber} edited`, null);
@@ -666,7 +721,7 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
-  return { error: null };
+  return { error: evidenceNote };
 }
 
 /**
@@ -697,23 +752,26 @@ export async function deleteItpItemAction(_prev: DeleteItemState, formData: Form
   const blocker = await itemDeleteBlocker(supabase, itemId);
   if (blocker) return { error: blocker };
 
+  if (resolved.status === "superseded" || resolved.status === "withdrawn") return { error: `This ITP is ${resolved.status} and can no longer be edited.` };
   const isIssued = resolved.status === "approved" || resolved.status === "client_accepted";
+  let deleteBump: BumpResult | null = null;
   if (isIssued) {
     if (!revisionReason) return { error: "This ITP has already been issued — a reason is required to delete an activity." };
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(
+    deleteBump = await bumpRevisionIfIssued(
       supabase,
       itpId,
       `Deleted activity ${resolved.itemNumber}: ${resolved.activity} — ${revisionReason}`,
       user?.id ?? null
     );
-    if (revisionError) return { error: revisionError };
+    if (deleteBump.error) return { error: deleteBump.error };
   }
 
   const { data: deletedRows, error: deleteError } = await supabase.from("itp_items").delete().eq("id", itemId).select("id");
   if (deleteError || !deletedRows?.length) {
+    await deleteBump?.undo?.();
     return {
       error:
         deleteError?.code === "P0001" || deleteError?.code === "23503"
@@ -768,24 +826,30 @@ async function moveItpItem(formData: FormData, direction: "up" | "down") {
   const swapIndex = direction === "up" ? index - 1 : index + 1;
   if (index === -1 || swapIndex < 0 || swapIndex >= ordered.length) return;
 
+  if (resolved.status === "superseded" || resolved.status === "withdrawn") return;
+  let moveBump: BumpResult | null = null;
   if (resolved.status === "approved" || resolved.status === "client_accepted") {
     if (!revisionReason) return;
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(
+    moveBump = await bumpRevisionIfIssued(
       supabase,
       resolved.itpId,
       `Moved activity ${resolved.itemNumber} ${direction} — ${revisionReason}`,
       user?.id ?? null
     );
-    if (revisionError) return;
+    if (moveBump.error) return;
   }
 
   // Re-number sort_order 0..n so equal/zero values (older manually-added items) can't tie.
   const reordered = [...ordered];
   [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
-  await Promise.all(reordered.map((row, i) => supabase.from("itp_items").update({ sort_order: i }).eq("id", row.id)));
+  const moveResults = await Promise.all(reordered.map((row, i) => supabase.from("itp_items").update({ sort_order: i }).eq("id", row.id)));
+  if (moveResults.some((r) => r.error)) {
+    await moveBump?.undo?.();
+    return;
+  }
   await resetReviewIfUnderReview(supabase, resolved.itpId, `activity ${resolved.itemNumber} moved`, null);
 
   revalidatePath(`/inspect/itps/${resolved.itpId}`);
@@ -799,14 +863,45 @@ export async function moveItemDownAction(formData: FormData) {
   await moveItpItem(formData, "down");
 }
 
-export async function setInterventionAction(formData: FormData) {
-  const itpId = String(formData.get("itp_id") ?? "").trim();
+export interface SetInterventionState {
+  error: string | null;
+}
+
+export async function setInterventionAction(formData: FormData): Promise<SetInterventionState> {
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
   const projectPartyId = String(formData.get("project_party_id") ?? "").trim();
   const intervention = String(formData.get("intervention") ?? "").trim();
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  if (!itpItemId || !projectPartyId) return { error: "Missing activity or party." };
 
   const supabase = await createSupabaseServerClient();
+
+  // The ITP is resolved from the ACTIVITY (never the posted itp_id, which used to decide whether a
+  // revision was needed while the write targeted the item), and the party must belong to the same project.
+  const resolvedItem = await resolveItemItp(supabase, itpItemId);
+  if (!resolvedItem) return { error: "Activity not found." };
+  const itpId = resolvedItem.itpId;
+  if (resolvedItem.status === "superseded" || resolvedItem.status === "withdrawn") {
+    return { error: `This ITP is ${resolvedItem.status} and can no longer be edited.` };
+  }
+  const { data: partyRow } = await supabase
+    .from("project_parties")
+    .select("id")
+    .eq("id", projectPartyId)
+    .eq("project_id", resolvedItem.projectId)
+    .maybeSingle<{ id: string }>();
+  if (!partyRow) return { error: "That party isn't on this project." };
+
+  // A signed-off point keeps its level (the database refuses the change too).
+  const { data: signedRow } = await supabase
+    .from("activity_signoff_progress")
+    .select("status")
+    .eq("itp_item_id", itpItemId)
+    .eq("project_party_id", projectPartyId)
+    .maybeSingle<{ status: string }>();
+  if (signedRow && (signedRow.status === "signed_off" || signedRow.status === "proceeded_no_response")) {
+    return { error: "This point has already been signed off, so its level can't be changed. Raise a new activity or a revision instead." };
+  }
 
   // Changing a sign-off level on an issued ITP is an edit-after-issue like adding/editing an
   // activity: freeze the pre-change content and bump the revision (with the reason) BEFORE applying
@@ -819,27 +914,23 @@ export async function setInterventionAction(formData: FormData) {
     .maybeSingle<{ intervention: string }>();
   if ((currentLevel?.intervention ?? "") === intervention) {
     revalidatePath(`/inspect/itps/${itpId}`);
-    return;
+    return { error: null };
   }
-  const { data: itpForRevisionCheck } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
-  if (itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted") {
+  let revisionBump: BumpResult | null = null;
+  if (resolvedItem.status === "approved" || resolvedItem.status === "client_accepted") {
     if (!revisionReason) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
+      return { error: "This ITP has already been issued — a reason is required to change a sign-off level." };
     }
     const {
       data: { user: revisionUser },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(
+    revisionBump = await bumpRevisionIfIssued(
       supabase,
       itpId,
       `Sign-off level ${intervention || "cleared"} (was ${currentLevel?.intervention ?? "none"}) — ${revisionReason}`,
       revisionUser?.id ?? null
     );
-    if (revisionError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
-    }
+    if (revisionBump.error) return { error: revisionBump.error };
   }
 
   if (!intervention) {
@@ -849,8 +940,8 @@ export async function setInterventionAction(formData: FormData) {
       .eq("itp_item_id", itpItemId)
       .eq("project_party_id", projectPartyId);
     if (clearError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
+      await revisionBump?.undo?.();
+      return { error: "Could not clear the sign-off level. It may already be signed off, or you may not have permission." };
     }
 
     try {
@@ -923,8 +1014,8 @@ export async function setInterventionAction(formData: FormData) {
     );
 
     if (upsertError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
+      await revisionBump?.undo?.();
+      return { error: "Could not set the sign-off level. The point may already be signed off, or you may not have permission." };
     }
 
     if (organizationId) {
@@ -976,6 +1067,7 @@ export async function setInterventionAction(formData: FormData) {
 
   await resetReviewIfUnderReview(supabase, itpId, "sign-off level changed", null);
   revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
 }
 
 const NEXT_STATUS = {
@@ -1199,6 +1291,7 @@ export async function advanceItpStatusAction(
         // R101: revision 0's baseline snapshot is written the moment the document is first
         // genuinely "issued" — this is that moment.
         await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
+        await recordChecklistReviewTick(supabase, { itpId, decision: "approve", formData, actorId: user?.id ?? null });
 
         // Once Approved, the client's own acceptance is the next real step in the workflow
         // (accept_itp()) — notify their linked user directly rather than relying on them noticing
@@ -1463,6 +1556,7 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
         actorId: user?.id ?? null,
         summary: `ITP ${itp.itp_number} accepted by client`,
       });
+      await recordChecklistReviewTick(supabase, { itpId, decision: "accept", formData, actorId: user?.id ?? null });
     }
   } catch {
     // Best-effort — see doc comment above.
