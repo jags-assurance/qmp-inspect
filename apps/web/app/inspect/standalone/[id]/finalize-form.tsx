@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, type FormEvent } from "react";
+import { useActionState } from "react";
 import { finalizeAssignmentAction, type FinalizeAssignmentState } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
 
 const initialState: FinalizeAssignmentState = { error: null };
@@ -32,11 +33,12 @@ const CONCLUSION_OPTIONS: {
 export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: string; hasSignature: boolean }) {
   const [state, formAction, pending] = useActionState(finalizeAssignmentAction, initialState);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    if (!confirm("Finalizing records the conclusion and locks this assignment from further edits. Continue?")) {
-      e.preventDefault();
-    }
-  }
+  const { gateSubmit, dialog } = useConfirm();
+  const handleSubmit = gateSubmit({
+    title: "Finalize this assignment?",
+    message: "Finalizing records the conclusion and locks this assignment from further edits.",
+    confirmLabel: "Finalize",
+  });
 
   return (
     <form
@@ -44,6 +46,7 @@ export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: str
       onSubmit={handleSubmit}
       className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
     >
+      {dialog}
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <div>
         <span className="block text-xs text-muted">Conclusion</span>

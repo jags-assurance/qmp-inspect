@@ -173,6 +173,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
         {reportPacks.length === 0 ? (
           <p className="mt-4 text-sm text-muted">No report packs have been generated for your organisation yet.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="mt-4 w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -210,6 +211,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

@@ -42,7 +42,7 @@ export function ProvisionPartyLoginForm({
           change it on first sign-in
           {state.expiresAt ? `; it stops working on ${formatDateTime(state.expiresAt, "UTC")} UTC if unused` : ""}):
         </p>
-        <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-[11px] text-ink">{state.tempPassword}</p>
+        <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-xs text-ink">{state.tempPassword}</p>
       </div>
     );
   }

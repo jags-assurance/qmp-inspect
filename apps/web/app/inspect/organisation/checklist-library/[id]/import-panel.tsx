@@ -108,7 +108,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
               >
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <div>
-                    <label className="block text-[10px] font-medium uppercase text-muted">Item #</label>
+                    <label className="block text-xs font-medium uppercase text-muted">Item #</label>
                     <input
                       value={row.item_number}
                       onChange={(e) => updateRow(index, { item_number: e.target.value })}
@@ -116,7 +116,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-medium uppercase text-muted">Evidence type</label>
+                    <label className="block text-xs font-medium uppercase text-muted">Evidence type</label>
                     <input
                       value={row.evidence_type}
                       onChange={(e) => updateRow(index, { evidence_type: e.target.value })}
@@ -124,7 +124,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[10px] font-medium uppercase text-muted">Description</label>
+                    <label className="block text-xs font-medium uppercase text-muted">Description</label>
                     <input
                       value={row.description}
                       onChange={(e) => updateRow(index, { description: e.target.value })}
@@ -132,7 +132,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                     />
                   </div>
                   <div className="col-span-2 sm:col-span-3">
-                    <label className="block text-[10px] font-medium uppercase text-muted">Acceptance criteria</label>
+                    <label className="block text-xs font-medium uppercase text-muted">Acceptance criteria</label>
                     <input
                       value={row.acceptance_criteria}
                       onChange={(e) => updateRow(index, { acceptance_criteria: e.target.value })}
@@ -140,7 +140,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                     />
                   </div>
                   <div className="flex items-end justify-between gap-2">
-                    <label className="flex items-center gap-1 text-[10px] text-ink">
+                    <label className="flex items-center gap-1 text-xs text-ink">
                       <input
                         type="checkbox"
                         checked={row.is_mandatory}
@@ -149,12 +149,12 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                       />
                       Mandatory
                     </label>
-                    <button type="button" onClick={() => removeRow(index)} className="text-[10px] font-medium text-danger hover:underline">
+                    <button type="button" onClick={() => removeRow(index)} className="text-xs font-medium text-danger hover:underline">
                       Remove
                     </button>
                   </div>
                 </div>
-                {row.validationError && <p className="mt-1 text-[10px] text-danger">{row.validationError}</p>}
+                {row.validationError && <p className="mt-1 text-xs text-danger">{row.validationError}</p>}
               </div>
             ))}
             {rows.length === 0 && <p className="text-xs text-muted">Every parsed row has been removed.</p>}

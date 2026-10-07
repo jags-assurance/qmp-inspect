@@ -73,7 +73,7 @@ export function ItpApprovalRoadmap({
         {stages.map((stage) => (
           <li key={stage.key} className="flex items-start gap-2.5">
             <span
-              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 stage.done
                   ? "bg-success text-white"
                   : stage.current

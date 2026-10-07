@@ -4,6 +4,7 @@ import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { notifyPartyAction, proceedWithoutResponseAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
  *  the same notified_at + noticeHours the server already enforces (proceedWithoutResponseAction),
@@ -72,6 +73,7 @@ export function SignoffCell({
   noticeWarning?: { status: "short_notice" | "overdue"; message: string | null } | null;
 }) {
   const [isPending, startTransition] = useTransition();
+  const { ask, dialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
   // Which action is collecting a mandatory written reason (proceed / withdraw) before it runs.
   const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | null>(null);
@@ -124,21 +126,22 @@ export function SignoffCell({
     });
   }
 
-  const btn = "min-h-8 rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-off-white disabled:opacity-50";
+  const btn = "min-h-8 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50";
   const canWithdraw = isJagsStaff && (optimisticStatus === "signed_off" || optimisticStatus === "proceeded_no_response");
   const canRenotify = optimisticStatus === "notified" && canSignOffForThisParty;
 
   return (
     <div className="flex flex-col items-center gap-1">
+      {dialog}
       <span
-        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_TONE[optimisticStatus]}`}
+        className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_TONE[optimisticStatus]}`}
         title={STATUS_HELP[optimisticStatus]}
       >
         {STATUS_LABEL[optimisticStatus]}
       </span>
       {deadlineMs != null && now != null && (
         <span
-          className={`text-[10px] ${noticeElapsed ? (isBlocking ? "text-danger" : "text-info") : "text-muted"}`}
+          className={`text-xs ${noticeElapsed ? (isBlocking ? "text-danger" : "text-info") : "text-muted"}`}
           title={isBlocking ? "A Hold always waits for release regardless of elapsed time (R77)" : undefined}
         >
           {noticeElapsed && isBlocking ? "Elapsed — still waiting for release" : formatCountdown(deadlineMs, now)}
@@ -146,14 +149,14 @@ export function SignoffCell({
       )}
       {noticeWarning && optimisticStatus === "pending" && (
         <span
-          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${noticeWarning.status === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}
+          className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${noticeWarning.status === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}
           title={noticeWarning.message ?? undefined}
         >
           {noticeWarning.status === "overdue" ? "Planned date passed" : "Short notice"}
         </span>
       )}
       {noticeWarning?.message && optimisticStatus === "pending" && (
-        <span className="max-w-40 text-[10px] text-muted">{noticeWarning.message}</span>
+        <span className="max-w-40 text-xs text-muted">{noticeWarning.message}</span>
       )}
       <div className="flex gap-1">
         {canNotify && (
@@ -185,7 +188,12 @@ export function SignoffCell({
               run(async () => {
                 const first = await signOffAction(progressId);
                 if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
-                  const why = window.prompt("You are signing on behalf of this party. Enter the reason (at least 10 characters):");
+                  const why = await ask({
+                    title: "Sign off on behalf of this party",
+                    message: "You are signing on behalf of this party. Your reason is recorded.",
+                    confirmLabel: "Sign off",
+                    reason: { label: "Reason (at least 10 characters)", minLength: 10 },
+                  });
                   if (!why) return { error: null };
                   return signOffAction(progressId, why);
                 }
@@ -198,7 +206,7 @@ export function SignoffCell({
           </button>
         )}
         {!canSignOff && (optimisticStatus === "pending" || optimisticStatus === "notified") && !canSignOffForThisParty && (
-          <span className="text-[10px] text-muted" title="Only this party's own login (or JAGS staff) can sign off">
+          <span className="text-xs text-muted" title="Only this party's own login (or JAGS staff) can sign off">
             Awaiting party
           </span>
         )}
@@ -225,7 +233,7 @@ export function SignoffCell({
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder={reasonFor === "proceed" ? "Reason for proceeding without response" : "Reason for withdrawing sign-off"}
-            className="w-full rounded border border-border bg-surface px-1.5 py-1 text-[11px]"
+            className="w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
           />
           <div className="flex justify-center gap-1">
             <button
@@ -246,7 +254,7 @@ export function SignoffCell({
           </div>
         </div>
       )}
-      {error && <span className="text-[10px] text-danger">{error}</span>}
+      {error && <span className="text-xs text-danger">{error}</span>}
     </div>
   );
 }

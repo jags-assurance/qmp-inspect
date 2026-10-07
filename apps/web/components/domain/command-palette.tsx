@@ -147,7 +147,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
           <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         <span className="flex-1">Search pages and records…</span>
-        <kbd className="rounded border border-border px-1 text-[10px]">Ctrl K</kbd>
+        <kbd className="rounded border border-border px-1 text-xs">Ctrl K</kbd>
       </button>
 
       {/* Phone / small tablet: the box above is hidden, so there is a dedicated search button. */}

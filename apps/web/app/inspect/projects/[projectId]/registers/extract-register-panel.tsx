@@ -145,7 +145,7 @@ export function ExtractRegisterPanel({
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
                         {fields.map((field) => (
                           <div key={field.key}>
-                            <label className="block text-[10px] font-medium uppercase text-muted">{field.label}</label>
+                            <label className="block text-xs font-medium uppercase text-muted">{field.label}</label>
                             <input
                               value={row[field.key] ?? ""}
                               onChange={(e) => updateField(rowIdx, field.key, e.target.value)}

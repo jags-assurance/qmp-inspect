@@ -321,6 +321,7 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
   if (events.length === 0) return <p className="text-sm text-muted">No audit events recorded for this document.</p>;
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -350,6 +351,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -933,6 +935,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
       {usage.length === 0 ? (
         <p className="mt-1 text-sm text-muted">No inspection checklist answer has been verified against this entry yet.</p>
       ) : (
+        <div className="overflow-x-auto">
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -969,6 +972,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </SectionCard>
   );

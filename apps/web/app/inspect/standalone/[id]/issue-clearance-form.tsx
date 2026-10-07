@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, type FormEvent } from "react";
+import { useActionState } from "react";
 import { issueClearanceAction, type IssueClearanceState } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const initialState: IssueClearanceState = { error: null };
 
@@ -12,14 +13,16 @@ const initialState: IssueClearanceState = { error: null };
 export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: string; canClear: boolean }) {
   const [state, formAction, pending] = useActionState(issueClearanceAction, initialState);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    if (!confirm("Issue clearance and mark this assignment as completed? This cannot be undone.")) {
-      e.preventDefault();
-    }
-  }
+  const { gateSubmit, dialog } = useConfirm();
+  const handleSubmit = gateSubmit({
+    title: "Issue clearance?",
+    message: "This marks the assignment as completed. This cannot be undone.",
+    confirmLabel: "Issue clearance",
+  });
 
   return (
     <form action={formAction} onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+      {dialog}
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <div>
         <label htmlFor="clearance_notes" className="block text-sm font-medium text-ink">

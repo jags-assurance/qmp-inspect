@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { addCalibrationEntryAction, type AddCalibrationEntryState } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 
 const initialState: AddCalibrationEntryState = { error: null };
@@ -101,8 +102,8 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
         {pending ? "Adding…" : "+ Add instrument"}
       </Button>
 
-      {added && <p className="text-sm text-green-700">Added</p>}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
+      <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />
     </form>
   );
 }

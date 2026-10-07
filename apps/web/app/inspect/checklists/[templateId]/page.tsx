@@ -680,7 +680,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
               </li>
             ))}
           </ul>
-          <p className="border-t border-border px-4 py-2 text-[11px] text-muted">
+          <p className="border-t border-border px-4 py-2 text-xs text-muted">
             &quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be
             answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.
           </p>

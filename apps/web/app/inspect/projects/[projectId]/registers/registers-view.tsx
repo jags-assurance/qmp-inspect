@@ -199,7 +199,7 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
         </div>
       ) : (
         <p className="mt-4 text-sm text-success" role="status">
-          Everything in the registers is currently valid{nextDue ? ` — next date to watch: ${nextDue.what} on ${new Date(nextDue.date).toLocaleDateString("en-GB")}` : ""}.
+          <span aria-hidden="true">✓ </span>Everything in the registers is currently valid{nextDue ? ` — next date to watch: ${nextDue.what} on ${new Date(nextDue.date).toLocaleDateString("en-GB")}` : ""}.
         </p>
       )}
       {!access.canAdd && (

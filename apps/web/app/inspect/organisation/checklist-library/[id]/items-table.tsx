@@ -35,6 +35,7 @@ export function ItemsTable({
 }) {
   return (
     <div className="rounded-lg border border-border bg-surface">
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs text-muted">
@@ -72,6 +73,7 @@ export function ItemsTable({
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

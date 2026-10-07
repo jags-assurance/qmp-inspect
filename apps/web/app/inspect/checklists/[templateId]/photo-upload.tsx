@@ -94,7 +94,7 @@ export function PhotoUpload({
           <div key={url} className="relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={url} alt={`Queued photo ${i + 1}`} className="aspect-square w-full rounded-md object-cover opacity-70" />
-            <span className="absolute bottom-1 left-1 rounded bg-warning/90 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="absolute bottom-1 left-1 rounded bg-warning/90 px-1.5 py-0.5 text-xs font-medium text-white">
               Queued
             </span>
           </div>
