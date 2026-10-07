@@ -5,6 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { requireSession } from "@/lib/auth/session";
 import { getRegisterAccess } from "@/lib/registers/permissions";
+import { checkCertificateInput } from "@/lib/registers/certificate-input";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 import {
   CALIBRATION_REGISTER_TABLE,
@@ -76,9 +78,7 @@ function badDate(value: string, label: string): string | null {
 }
 
 /** Certificate files are uploaded straight to storage by the form; only accept a path under THIS project's registers folder (<project>/registers/…, which the storage policy already scopes to project access). */
-function certificatePathFor(projectId: string, raw: string): string | null {
-  return raw && raw.startsWith(`${projectId}/registers/`) ? raw : null;
-}
+const DUPLICATE_MESSAGE = "An active entry with the same identifiers already exists in this register — edit it or recalibrate/renew it instead.";
 
 async function entryExists(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -126,6 +126,9 @@ export async function addCalibrationEntryAction(
     return { error: `${instrumentName} with certificate ${certNumber} is already in this register.` };
   }
 
+  const cert = await checkCertificateInput(supabase, projectId, String(formData.get("certificate_path") ?? ""));
+  if (cert.error) return { error: cert.error };
+
   const { data: entry, error } = await supabase
     .from(CALIBRATION_REGISTER_TABLE)
     .insert({
@@ -137,12 +140,13 @@ export async function addCalibrationEntryAction(
       cal_date: calDate || null,
       due_date: dueDate,
       status: computeCalibrationStatus(dueDate),
-      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
+      certificate_path: cert.path,
       notes: notes || null,
     })
     .select("id")
     .single<{ id: string }>();
 
+  if (error?.code === "23505") return { error: DUPLICATE_MESSAGE };
   if (error || !entry) {
     return { error: "Could not add the calibration entry. Check you have permission and try again." };
   }
@@ -192,6 +196,9 @@ export async function addWelderQualificationEntryAction(
     return { error: `${welderIdentifier} is already qualified on ${qualifiedWps} in this register — edit that entry instead.` };
   }
 
+  const cert = await checkCertificateInput(supabase, projectId, String(formData.get("certificate_path") ?? ""));
+  if (cert.error) return { error: cert.error };
+
   const { data: entry, error } = await supabase
     .from(WELDER_QUALIFICATION_REGISTER_TABLE)
     .insert({
@@ -204,12 +211,13 @@ export async function addWelderQualificationEntryAction(
       qualified_ranges: qualifiedRanges || null,
       expiry_date: expiryDate,
       status: computeWelderStatus(expiryDate),
-      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
+      certificate_path: cert.path,
       notes: notes || null,
     })
     .select("id")
     .single<{ id: string }>();
 
+  if (error?.code === "23505") return { error: DUPLICATE_MESSAGE };
   if (error || !entry) {
     return { error: "Could not add the welder qualification entry. Check you have permission and try again." };
   }
@@ -275,6 +283,9 @@ export async function addMaterialEntryAction(
     return { error: `${materialDescription} with heat number ${heatNumber} is already in this register.` };
   }
 
+  const cert = await checkCertificateInput(supabase, projectId, String(formData.get("certificate_path") ?? ""));
+  if (cert.error) return { error: cert.error };
+
   const { data: entry, error } = await supabase
     .from(MATERIAL_REGISTER_TABLE)
     .insert({
@@ -289,7 +300,7 @@ export async function addMaterialEntryAction(
       supplier: supplier || null,
       quantity: quantity || null,
       certificate_reference: certificateReference || null,
-      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
+      certificate_path: cert.path,
       receipt_status: receiptStatus,
       disposition_notes: dispositionNotes || null,
       notes: notes || null,
@@ -297,6 +308,7 @@ export async function addMaterialEntryAction(
     .select("id")
     .single<{ id: string }>();
 
+  if (error?.code === "23505") return { error: DUPLICATE_MESSAGE };
   if (error || !entry) {
     return { error: "Could not add the material entry. Check you have permission and try again." };
   }
@@ -349,6 +361,16 @@ export async function addPersonnelCertificationEntryAction(
     .maybeSingle<{ id: string }>();
   if (!partyRow) return { error: "That person isn't a party on this project." };
 
+  // Optional: the certificate belongs to one named person (a member of that party), not the whole party.
+  const holderUserId = String(formData.get("holder_user_id") ?? "").trim();
+  if (holderUserId) {
+    const [{ data: primary }, { data: member }] = await Promise.all([
+      supabase.from("project_parties").select("id").eq("id", projectPartyId).eq("user_id", holderUserId).maybeSingle<{ id: string }>(),
+      supabase.from(PROJECT_PARTY_MEMBERS_TABLE).select("id").eq("project_party_id", projectPartyId).eq("user_id", holderUserId).maybeSingle<{ id: string }>(),
+    ]);
+    if (!primary && !member) return { error: "That person isn't a member of the selected party." };
+  }
+
   if (certNumber) {
     const { count } = await supabase
       .from(PERSONNEL_CERTIFICATIONS_TABLE)
@@ -360,22 +382,27 @@ export async function addPersonnelCertificationEntryAction(
     if (count) return { error: `Certificate ${certNumber} (${certificationType}) is already recorded for this person.` };
   }
 
+  const cert = await checkCertificateInput(supabase, projectId, String(formData.get("certificate_path") ?? ""));
+  if (cert.error) return { error: cert.error };
+
   const { data: entry, error } = await supabase
     .from(PERSONNEL_CERTIFICATIONS_TABLE)
     .insert({
       project_id: projectId,
       project_party_id: projectPartyId,
+      ...(holderUserId ? { holder_user_id: holderUserId } : {}),
       certification_type: certificationType,
       cert_number: certNumber || null,
       issued_date: issuedDate || null,
       expiry_date: expiryDate,
       status: computePersonnelCertificationStatus(expiryDate),
-      certificate_path: certificatePathFor(projectId, String(formData.get("certificate_path") ?? "").trim()),
+      certificate_path: cert.path,
       notes: notes || null,
     })
     .select("id")
     .single<{ id: string }>();
 
+  if (error?.code === "23505") return { error: DUPLICATE_MESSAGE };
   if (error || !entry) {
     return { error: "Could not add the certification entry. Check you have permission and try again." };
   }

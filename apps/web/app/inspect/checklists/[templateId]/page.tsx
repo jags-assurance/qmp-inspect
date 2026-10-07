@@ -345,12 +345,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         projectId: project.id,
         itpItemReferenceSpec: itpItem.reference_spec,
         itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+        itpItemId: itpItem.id,
       }),
       checkPersonnelCertification(supabase, {
         projectId: project.id,
         executingProjectPartyId,
+        executingUserId: session.userId,
         itpItemReferenceSpec: itpItem.reference_spec,
         itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+        itpItemId: itpItem.id,
       }),
     ]);
 

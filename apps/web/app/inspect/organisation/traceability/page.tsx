@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { ITP_REVISIONS_TABLE } from "@/lib/itps/revision-types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { computeCalibrationStatus, computeWelderStatus, daysUntil, describeDays } from "@/lib/registers/status";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { fetchRegisterUsage } from "@/lib/registers/usage";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -134,7 +135,7 @@ export default async function DocumentTraceabilityPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!session.isJagsStaff) redirect("/inspect"); // JAGS staff; row-level security limits what each person can see to their own projects
 
   const { q } = await searchParams;
   const query = q?.trim() ?? "";
@@ -164,7 +165,7 @@ export default async function DocumentTraceabilityPage({
         <PageGuide
           title="Document Traceability — how this works"
           points={[
-            "Admin-only, read-only lookup — enter any ITP, NCR or inspection report number and see its full lineage: identity, revision history, related records and audit trail. It writes nothing.",
+            "JAGS-staff, read-only lookup (you only see projects you have access to) — enter any ITP, NCR or inspection report number and see its full lineage: identity, revision history, related records and audit trail. It writes nothing.",
             "An ITP's items are reached through its sections (itp_items has no direct itp_id column) — that's how related inspection records and NCRs for an ITP get found.",
             "An NCR's link to a specific ITP item and/or inspection record is optional — an NCR raised without going through a specific checklist item legitimately shows neither.",
             "This aggregates real foreign keys that already exist elsewhere (numbering, ITP revisions, the audit log) — it does not fabricate any relationship the schema doesn't actually have, e.g. there's no link from a record to the master template library it was originally copied from.",
@@ -837,21 +838,8 @@ const TONE_CLASS: Record<RegisterHit["statusTone"], string> = {
   bad: "bg-red-100 text-red-800",
 };
 
-async function fetchUsage(supabase: SupabaseClient, hit: RegisterHit): Promise<UsageRow[]> {
-  const column = hit.kind === "calibration" ? "calibration_asset_id" : hit.kind === "material" ? "material_id" : "welder_id";
-  const { data } = await supabase
-    .from("checklist_responses")
-    .select(
-      `id, result, inspection_record_id,
-       checklist_item:checklist_items(item_number, description),
-       record:inspection_records(id, record_number, activity, overall_result, inspection_date)`
-    )
-    .eq(column as "calibration_asset_id", hit.id)
-    .limit(500)
-    .returns<UsageRow[]>();
-  return (data ?? []).sort((a, b) =>
-    (b.record?.inspection_date ?? "").localeCompare(a.record?.inspection_date ?? "")
-  );
+function fetchUsage(supabase: SupabaseClient, hit: RegisterHit) {
+  return fetchRegisterUsage(supabase, { kind: hit.kind, id: hit.id, projectId: hit.project?.id ?? null });
 }
 
 async function RegisterHits({ supabase, hits }: { supabase: SupabaseClient; hits: RegisterHit[] }) {
@@ -859,15 +847,17 @@ async function RegisterHits({ supabase, hits }: { supabase: SupabaseClient; hits
   return (
     <>
       {hits.map((hit, i) => (
-        <RegisterHitCard key={`${hit.kind}-${hit.id}`} hit={hit} usage={usages[i]} />
+        <RegisterHitCard key={`${hit.kind}-${hit.id}`} hit={hit} usage={usages[i].usage} cycleCount={usages[i].cycleCount} />
       ))}
     </>
   );
 }
 
-function RegisterHitCard({ hit, usage }: { hit: RegisterHit; usage: UsageRow[] }) {
+function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: UsageRow[]; cycleCount: number }) {
   const inspectionIds = new Set(usage.map((u) => u.record?.id).filter(Boolean));
-  const sinceCal = hit.kind === "calibration" && hit.calDate ? hit.calDate : null;
+  // Rows linked into a recalibration chain are judged by the chain; a legacy row (its certificate was
+  // overwritten in place before recalibration became a new row) falls back to "since the calibration date".
+  const sinceCal = hit.kind === "calibration" && hit.calDate && cycleCount === 1 ? hit.calDate : null;
   const impacted = sinceCal
     ? usage.filter((u) => u.record && u.record.inspection_date.slice(0, 10) >= sinceCal)
     : usage;
@@ -908,9 +898,20 @@ function RegisterHitCard({ hit, usage }: { hit: RegisterHit; usage: UsageRow[] }
             inspection{impactedRecords.length === 1 ? "" : "s"} used it
             {sinceCal
               ? ` since ${new Date(sinceCal).toLocaleDateString("en-GB")} (last calibration)`
-              : " (no calibration date recorded, so all recorded uses are listed)"}
+              : cycleCount > 1
+                ? ` across ${cycleCount} calibration cycles (back to the last cycle recorded as in tolerance when it was recalibrated)`
+                : " (all recorded uses are listed)"}
             .
           </p>
+          <p className="mt-1 text-xs text-muted">
+            A recalibration is recorded as a new certificate linked to the old one, so uses before it stay attached to the certificate that was valid at the time.
+          </p>
+          <a
+            href={`/api/registers/usage-export?kind=${hit.kind}&id=${hit.id}`}
+            className="mt-2 inline-block text-xs text-burgundy hover:underline"
+          >
+            Export impacted inspections (CSV)
+          </a>
           {impactedRecords.length > 0 && (
             <ul className="mt-2 list-disc space-y-0.5 pl-5">
               {impactedRecords.map((r) => (

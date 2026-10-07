@@ -15,6 +15,8 @@ import {
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
+import { checkCertificateInput } from "@/lib/registers/certificate-input";
+import { isMissingDbObject, REGISTER_LIFECYCLE_STATUSES, type RegisterLifecycleStatus } from "@/lib/registers/lifecycle";
 
 export type RegisterKind = "calibration" | "welder" | "material" | "personnel";
 
@@ -177,12 +179,18 @@ export async function updateRegisterEntryAction(_prev: ManageRegisterState, form
     summary = `Material entry edited: ${description} (${approvalStatus}/${receiptStatus})`;
   }
 
+  // A certificate can be attached or replaced after the row was created (S3-11).
+  const cert = await checkCertificateInput(supabase, projectId, text(formData, "certificate_path"));
+  if (cert.error) return { error: cert.error };
+  if (cert.path) patch.certificate_path = cert.path;
+
   const { data: updated, error } = await supabase
     .from(TABLE_BY_KIND[kind])
     .update(patch)
     .eq("id", id)
     .eq("project_id", projectId)
     .select("id");
+  if (error?.code === "23505") return { error: "Another active entry with the same identifiers already exists in this register." };
   if (error || !updated?.length) return { error: `Could not update the ${KIND_LABEL[kind]}. Check you have permission and try again.` };
 
   await audit(supabase, projectId, staff.userId, `${kind}_register_entry`, id, "updated", summary);
@@ -221,6 +229,159 @@ export async function deleteRegisterEntryAction(_prev: ManageRegisterState, form
   if (error || !deleted?.length) return { error: `Could not delete the ${KIND_LABEL[kind]}. Check you have permission and try again.` };
 
   await audit(supabase, projectId, staff.userId, `${kind}_register_entry`, id, "deleted", `${KIND_LABEL[kind]} deleted`);
+  revalidatePath(`/inspect/projects/${projectId}/registers`);
+  return { error: null };
+}
+
+const NEEDS_MIGRATION = "This needs a pending database update (registers verification / lifecycle). Ask an administrator to apply the latest migrations.";
+
+/** Verifies a register entry (JAGS staff only). Until verified, an entry typed in by a contractor/sub/TPI is ignored by the soft-stop and the Data Book. */
+export async function verifyRegisterEntryAction(_prev: ManageRegisterState, formData: FormData): Promise<ManageRegisterState> {
+  const kind = text(formData, "kind") as RegisterKind;
+  const id = text(formData, "id");
+  const projectId = text(formData, "project_id");
+  if (!id || !projectId || !(kind in TABLE_BY_KIND)) return { error: "Missing entry." };
+  const staff = await requireStaff();
+  if (staff.error) return { error: staff.error };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: updated, error } = await supabase
+    .from(TABLE_BY_KIND[kind])
+    .update({ verified_by: staff.userId, verified_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .select("id");
+  if (isMissingDbObject(error)) return { error: NEEDS_MIGRATION };
+  if (error || !updated?.length) return { error: `Could not verify the ${KIND_LABEL[kind]}. Check you have permission and try again.` };
+
+  await audit(supabase, projectId, staff.userId, `${kind}_register_entry`, id, "verified", `${KIND_LABEL[kind]} verified by JAGS staff`);
+  revalidatePath(`/inspect/projects/${projectId}/registers`);
+  return { error: null };
+}
+
+/**
+ * Marks an entry superseded / retired / withdrawn (reason required), or reactivates it. A retired entry is
+ * kept as evidence for the inspections that used it but no longer counts toward the Data Book readiness.
+ */
+export async function setRegisterLifecycleAction(_prev: ManageRegisterState, formData: FormData): Promise<ManageRegisterState> {
+  const kind = text(formData, "kind") as RegisterKind;
+  const id = text(formData, "id");
+  const projectId = text(formData, "project_id");
+  const next = text(formData, "lifecycle_status") as RegisterLifecycleStatus;
+  const reason = text(formData, "reason").slice(0, 500);
+  if (!id || !projectId || !(kind in TABLE_BY_KIND)) return { error: "Missing entry." };
+  if (!REGISTER_LIFECYCLE_STATUSES.includes(next)) return { error: "Unrecognised status." };
+  if (next !== "active" && !reason) return { error: "Give a short reason (for example 'welder left the project' or 'replaced by thermometer T-12')." };
+  const staff = await requireStaff();
+  if (staff.error) return { error: staff.error };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: updated, error } = await supabase
+    .from(TABLE_BY_KIND[kind])
+    .update({
+      lifecycle_status: next,
+      lifecycle_reason: next === "active" ? null : reason,
+      lifecycle_changed_by: staff.userId,
+      lifecycle_changed_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .select("id");
+  if (isMissingDbObject(error)) return { error: NEEDS_MIGRATION };
+  if (error?.code === "23505") return { error: "Another active entry with the same identifiers exists, so this one can't be reactivated." };
+  if (error || !updated?.length) return { error: `Could not update the ${KIND_LABEL[kind]}. Check you have permission and try again.` };
+
+  await audit(supabase, projectId, staff.userId, `${kind}_register_entry`, id, "lifecycle_changed", `${KIND_LABEL[kind]} marked ${next}${reason ? `: ${reason}` : ""}`);
+  revalidatePath(`/inspect/projects/${projectId}/registers`);
+  return { error: null };
+}
+
+/**
+ * Recalibrates an instrument: the old row is kept (superseded, with the as-found result of the cycle that
+ * just ended) and a NEW row is created, linked back to it. Every checklist answer already linked to the old
+ * row keeps pointing at the certificate that was valid when it was used, so an out-of-tolerance finding can
+ * still be traced back through the whole previous cycle (see the traceability impact report).
+ */
+export async function recalibrateInstrumentAction(_prev: ManageRegisterState, formData: FormData): Promise<ManageRegisterState> {
+  const id = text(formData, "id");
+  const projectId = text(formData, "project_id");
+  const certNumber = text(formData, "cert_number");
+  const calDate = text(formData, "cal_date");
+  const dueDate = text(formData, "due_date");
+  const asFound = text(formData, "as_found_result") || "not_recorded";
+  const asFoundNotes = text(formData, "as_found_notes").slice(0, 1000);
+  if (!id || !projectId) return { error: "Missing entry." };
+  if (!certNumber || !calDate || !dueDate) return { error: "The new certificate number, calibration date and due date are required." };
+  const problem = badDate(calDate, "The calibration date") ?? badDate(dueDate, "The due date");
+  if (problem) return { error: problem };
+  if (dueDate < calDate) return { error: "The due date can't be before the calibration date." };
+  if (!["in_tolerance", "out_of_tolerance", "not_recorded"].includes(asFound)) return { error: "Unrecognised as-found result." };
+  if (asFound === "out_of_tolerance" && !asFoundNotes) return { error: "Describe the out-of-tolerance finding so the impacted inspections can be assessed." };
+  const staff = await requireStaff();
+  if (staff.error) return { error: staff.error };
+
+  const supabase = await createSupabaseServerClient();
+  const cert = await checkCertificateInput(supabase, projectId, text(formData, "certificate_path"));
+  if (cert.error) return { error: cert.error };
+
+  const { data: old } = await supabase
+    .from(CALIBRATION_REGISTER_TABLE)
+    .select("instrument_name, instrument_tag, calibration_lab, cert_number, cal_date, due_date, notes, lifecycle_status")
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .maybeSingle<{ instrument_name: string; instrument_tag: string | null; calibration_lab: string | null; cert_number: string; cal_date: string | null; due_date: string; notes: string | null; lifecycle_status: string | null }>();
+  if (!old) return { error: "Calibration entry not found." };
+  if (old.lifecycle_status && old.lifecycle_status !== "active") return { error: "That entry has already been superseded or retired." };
+  if (old.cert_number.toLowerCase() === certNumber.toLowerCase()) return { error: "The new certificate number must differ from the one being replaced." };
+
+  const { data: created, error: insertError } = await supabase
+    .from(CALIBRATION_REGISTER_TABLE)
+    .insert({
+      project_id: projectId,
+      instrument_name: old.instrument_name,
+      instrument_tag: old.instrument_tag,
+      calibration_lab: text(formData, "calibration_lab") || old.calibration_lab,
+      cert_number: certNumber,
+      cal_date: calDate,
+      due_date: dueDate,
+      status: computeCalibrationStatus(dueDate),
+      certificate_path: cert.path,
+      notes: old.notes,
+      supersedes_id: id,
+    })
+    .select("id")
+    .single<{ id: string }>();
+  if (isMissingDbObject(insertError)) return { error: NEEDS_MIGRATION };
+  if (insertError?.code === "23505") return { error: `${old.instrument_name} with certificate ${certNumber} is already in this register.` };
+  if (insertError || !created) return { error: "Could not record the recalibration. Check you have permission and try again." };
+
+  const { error: supersedeError } = await supabase
+    .from(CALIBRATION_REGISTER_TABLE)
+    .update({
+      lifecycle_status: "superseded",
+      lifecycle_reason: `Recalibrated — replaced by certificate ${certNumber}`,
+      lifecycle_changed_by: staff.userId,
+      lifecycle_changed_at: new Date().toISOString(),
+      as_found_result: asFound,
+      as_found_notes: asFoundNotes || null,
+      as_found_recorded_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (supersedeError) {
+    // Don't leave two active rows for one instrument: undo the new row.
+    await supabase.from(CALIBRATION_REGISTER_TABLE).delete().eq("id", created.id);
+    return { error: "Could not supersede the previous calibration, so nothing was changed. Try again." };
+  }
+
+  await audit(
+    supabase,
+    projectId,
+    staff.userId,
+    "calibration_register_entry",
+    created.id,
+    "recalibrated",
+    `${old.instrument_name} recalibrated (cert ${old.cert_number} -> ${certNumber}); as-found: ${asFound.replace(/_/g, " ")}${asFoundNotes ? ` — ${asFoundNotes}` : ""}`
+  );
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return { error: null };
 }

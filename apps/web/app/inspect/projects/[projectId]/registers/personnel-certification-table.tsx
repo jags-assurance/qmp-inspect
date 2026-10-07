@@ -5,6 +5,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { PERSONNEL_CERTIFICATION_EXPIRING_DAYS } from "@/lib/registers/status";
 import type { PersonnelCertificationStatus } from "@/lib/registers/types";
 import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { RegisterRowFlags } from "./register-lifecycle-actions";
 
 export interface PersonnelCertificationDisplayRow {
   id: string;
@@ -14,6 +15,8 @@ export interface PersonnelCertificationDisplayRow {
   expiry_date: string;
   status: PersonnelCertificationStatus;
   certificate_path: string | null;
+  verified_at?: string | null;
+  lifecycle_status?: string | null;
   notes: string | null;
   project_parties: { name: string } | null;
 }
@@ -38,7 +41,7 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
     { key: "certification_type", header: "Certification", render: (row) => row.certification_type },
     { key: "cert_number", header: "Cert No.", render: (row) => row.cert_number ?? "—" },
     { key: "expiry_date", header: "Expiry", render: (row) => <ExpiryDate date={row.expiry_date} warnWithinDays={PERSONNEL_CERTIFICATION_EXPIRING_DAYS} /> },
-    { key: "status", header: "Status", render: (row) => <Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge> },
+    { key: "status", header: "Status", render: (row) => (<span><Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge><RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} /></span>) },
     { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="personnel" id={row.id} hasFile={!!row.certificate_path} /> },
     { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
   ];
@@ -50,6 +53,8 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
         <RegisterRowActions
           kind="personnel"
           projectId={projectId}
+          verifiedAt={row.verified_at}
+          lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,
             certification_type: row.certification_type,

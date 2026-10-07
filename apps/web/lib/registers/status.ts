@@ -13,6 +13,26 @@ export function todayUtc(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+/**
+ * The calendar date (as a UTC-midnight Date, like todayUtc) that `now` falls on in an IANA time zone, so
+ * "due today" flips at the site's midnight rather than at UTC midnight. Falls back to UTC for a missing
+ * or unrecognised zone.
+ */
+export function todayInTimeZone(timeZone: string | null | undefined, now: Date = new Date()): Date {
+  if (!timeZone) return todayUtc(now);
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const y = get("year");
+    const m = get("month");
+    const d = get("day");
+    if (!y || !m || !d) return todayUtc(now);
+    return new Date(Date.UTC(y, m - 1, d));
+  } catch {
+    return todayUtc(now);
+  }
+}
+
 /** Whole days from `today` until the (YYYY-MM-DD) date: 0 = due today, negative = already past. */
 export function daysUntil(dateStr: string, today: Date = todayUtc()): number {
   const target = new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);

@@ -9,6 +9,7 @@ import { CalibrationTable, type CalibrationRegisterDisplayRow } from "./calibrat
 import { WelderQualificationTable, type WelderQualificationDisplayRow } from "./welder-qualification-table";
 import { MaterialTable, type MaterialRegisterDisplayRow } from "./material-table";
 import { PersonnelCertificationTable, type PersonnelCertificationDisplayRow } from "./personnel-certification-table";
+import { RegisterCsvTools } from "./csv-tools";
 import { ExtractRegisterPanel, type ExtractState, type AddState } from "./extract-register-panel";
 
 type GenericExtractAction = (state: ExtractState, formData: FormData) => Promise<ExtractState>;
@@ -38,6 +39,7 @@ export function RegistersTabs({
   materialRows,
   personnelCertRows,
   projectParties,
+  partyMembers,
   extractCalibrationRowsAction,
   addExtractedCalibrationRowsAction,
   extractWelderRowsAction,
@@ -55,6 +57,7 @@ export function RegistersTabs({
   materialRows: MaterialRegisterDisplayRow[];
   personnelCertRows: PersonnelCertificationDisplayRow[];
   projectParties: { id: string; name: string }[];
+  partyMembers: { user_id: string; party_id: string; party_name: string; name: string }[];
   extractCalibrationRowsAction: GenericExtractAction;
   addExtractedCalibrationRowsAction: GenericAddAction;
   extractWelderRowsAction: GenericExtractAction;
@@ -91,6 +94,7 @@ export function RegistersTabs({
               addAction={addExtractedCalibrationRowsAction}
             />}
             <div className="mt-3">
+              <RegisterCsvTools projectId={projectId} kind="calibration" canAdd={canAdd} />
               <CalibrationTable rows={calibrationRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
@@ -118,6 +122,7 @@ export function RegistersTabs({
               addAction={addExtractedWelderRowsAction}
             />}
             <div className="mt-3">
+              <RegisterCsvTools projectId={projectId} kind="welder" canAdd={canAdd} />
               <WelderQualificationTable rows={welderRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
@@ -147,6 +152,7 @@ export function RegistersTabs({
               addAction={addExtractedMaterialRowsAction}
             />}
             <div className="mt-3">
+              <RegisterCsvTools projectId={projectId} kind="material" canAdd={canAdd} />
               <MaterialTable rows={materialRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
@@ -160,10 +166,11 @@ export function RegistersTabs({
             </p>
             {canAdd && (
               <div className="mt-3">
-                <AddPersonnelCertificationForm projectId={projectId} projectParties={projectParties} />
+                <AddPersonnelCertificationForm projectId={projectId} projectParties={projectParties} partyMembers={partyMembers} />
               </div>
             )}
             <div className="mt-3">
+              <RegisterCsvTools projectId={projectId} kind="personnel" canAdd={canAdd} />
               <PersonnelCertificationTable rows={personnelCertRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>

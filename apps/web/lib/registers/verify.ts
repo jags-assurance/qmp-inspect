@@ -11,7 +11,14 @@ import {
   type PersonnelCertificationRow,
   type WelderQualificationRegisterRow,
 } from "./types";
-import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "./status";
+import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus, todayUtc } from "./status";
+import {
+  isMissingDbObject,
+  isRegisterRowActive,
+  isRegisterRowCounted,
+  isRegisterRowVerified,
+  type RegisterRowMeta,
+} from "./lifecycle";
 
 export type RegisterVerificationTone = "info" | "warning";
 
@@ -41,11 +48,14 @@ export interface SelectedRegisterRows {
 }
 
 /**
- * Simple keyword-based heuristic (R92-R100): looks at an ITP activity's reference_spec/
- * acceptance_criteria text for words suggesting it's checking something a register tracks, and if
- * so, looks up a relevant register row for this project and summarises it. This is meant as
- * an assist for the inspector, not a hard classifier — most activities won't match anything and
- * this returns null for them, unchanged from today's plain Yes/No/N-A flow.
+ * Looks at what an ITP activity needs from the registers and, if it needs one, looks up a relevant
+ * register row for this project and summarises it. The requirement is the activity's explicit
+ * required_registers when set; otherwise it falls back to a keyword heuristic over the reference_spec /
+ * acceptance_criteria prose (see pickRegisterKind). Most activities need nothing and this returns null
+ * for them, unchanged from the plain Yes/No/N-A flow.
+ *
+ * Only rows that are ACTIVE (not superseded/retired/withdrawn) and VERIFIED by JAGS staff count; a row a
+ * contractor typed in but staff haven't verified yet is reported as such, never as "current".
  *
  * Without a chosen row this checks "does *any* register entry of the relevant kind look current for
  * this project"; when the inspector has picked a specific row (selected) that exact row is checked.
@@ -57,25 +67,29 @@ export async function checkRegisterVerification(
     itpItemReferenceSpec: string | null;
     itpItemAcceptanceCriteria: string | null;
     selected?: SelectedRegisterRows;
+    /** Explicit per-activity requirement (itp_items.required_registers); wins over the keyword heuristic. */
+    requiredRegisters?: string[] | null;
+    /** When given and requiredRegisters isn't, the requirement is read from this activity (tolerates the column missing). */
+    itpItemId?: string | null;
+    /** The calendar day to judge "in date" against (the inspection date); defaults to today (UTC). */
+    today?: Date;
   }
 ): Promise<RegisterVerificationResult | null> {
-  const haystack = `${params.itpItemReferenceSpec ?? ""} ${params.itpItemAcceptanceCriteria ?? ""}`.toLowerCase();
+  const required = params.requiredRegisters ?? (params.itpItemId ? await fetchRequiredRegisters(supabase, params.itpItemId) : null);
+  const kind = pickRegisterKind(params.itpItemReferenceSpec, params.itpItemAcceptanceCriteria, required);
+  const today = params.today ?? todayUtc();
 
-  const mentionsCalibration = haystack.includes("calibrat");
-  const mentionsWelder = haystack.includes("weld");
-  const mentionsMaterial = haystack.includes("material") || haystack.includes("submittal");
-
-  if (mentionsCalibration) {
+  if (kind === "calibration") {
     return params.selected?.calibrationAssetId
-      ? verifyCalibrationAssetById(supabase, params.projectId, params.selected.calibrationAssetId)
-      : checkCalibration(supabase, params.projectId);
+      ? verifyCalibrationAssetById(supabase, params.projectId, params.selected.calibrationAssetId, today)
+      : checkCalibration(supabase, params.projectId, today);
   }
-  if (mentionsWelder) {
+  if (kind === "welder") {
     return params.selected?.welderId
-      ? verifyWelderById(supabase, params.projectId, params.selected.welderId)
-      : checkWelder(supabase, params.projectId);
+      ? verifyWelderById(supabase, params.projectId, params.selected.welderId, today)
+      : checkWelder(supabase, params.projectId, today);
   }
-  if (mentionsMaterial) {
+  if (kind === "material") {
     return params.selected?.materialId
       ? verifyMaterialById(supabase, params.projectId, params.selected.materialId)
       : checkMaterial(supabase, params.projectId);
@@ -83,12 +97,91 @@ export async function checkRegisterVerification(
   return null;
 }
 
+/** One register row an inspector linked a checklist answer to, with its verification/lifecycle state. */
+export async function fetchLinkedRegisterRow(
+  supabase: SupabaseClient,
+  kind: "calibration" | "welder" | "material",
+  projectId: string,
+  id: string
+): Promise<(RegisterRowMeta & { due_date?: string; expiry_date?: string; receipt_status?: string }) | null> {
+  const table = kind === "calibration" ? CALIBRATION_REGISTER_TABLE : kind === "welder" ? WELDER_QUALIFICATION_REGISTER_TABLE : MATERIAL_REGISTER_TABLE;
+  const columns = kind === "calibration" ? "due_date" : kind === "welder" ? "expiry_date" : "receipt_status";
+  const rows = await selectRegisterRows<RegisterRowMeta & { due_date?: string; expiry_date?: string; receipt_status?: string }>(
+    supabase,
+    table,
+    columns,
+    (q) => q.eq("project_id", projectId).eq("id", id).limit(1)
+  );
+  return rows[0] ?? null;
+}
+
+/** Reads itp_items.required_registers; null when unset or when the column isn't deployed yet. */
+export async function fetchRequiredRegisters(supabase: SupabaseClient, itpItemId: string): Promise<string[] | null> {
+  const { data, error } = await supabase
+    .from("itp_items")
+    .select("required_registers" as never)
+    .eq("id", itpItemId)
+    .maybeSingle<{ required_registers: string[] | null }>();
+  if (error || !data?.required_registers || data.required_registers.length === 0) return null;
+  return data.required_registers;
+}
+
+/**
+ * Which register an activity needs. An explicit per-activity requirement wins (calibration, then
+ * welder, then material when several are named); only without one does the keyword heuristic over the
+ * activity prose apply (calibration beats weld beats material).
+ */
+export function pickRegisterKind(
+  referenceSpec: string | null,
+  acceptanceCriteria: string | null,
+  required?: string[] | null
+): "calibration" | "welder" | "material" | null {
+  if (required && required.length > 0) {
+    for (const k of ["calibration", "welder", "material"] as const) if (required.includes(k)) return k;
+    return null; // e.g. only "personnel" — handled by checkPersonnelCertification
+  }
+  const haystack = `${referenceSpec ?? ""} ${acceptanceCriteria ?? ""}`.toLowerCase();
+  if (haystack.includes("calibrat")) return "calibration";
+  if (haystack.includes("weld")) return "welder";
+  if (haystack.includes("material") || haystack.includes("submittal")) return "material";
+  return null;
+}
+
+/**
+ * select with the verification/lifecycle columns, falling back to the base columns when the database
+ * hasn't had migration 20261103000100 applied yet (those rows are then treated as verified + active).
+ */
+export async function selectRegisterRows<T>(
+  supabase: SupabaseClient,
+  table: unknown,
+  baseColumns: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registers tables aren't in the generated types
+  build: (query: any) => PromiseLike<{ data: unknown; error: { code?: string | null } | null }>,
+  extraColumns = ""
+): Promise<T[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const run = (columns: string) => build((supabase as any).from(table).select(columns));
+  const extra = extraColumns ? `, ${extraColumns}` : "";
+  let res = await run(`${baseColumns}, verified_at, lifecycle_status${extra}`);
+  if (res.error && isMissingDbObject(res.error)) res = await run(baseColumns);
+  return (res.data as T[] | null) ?? [];
+}
+
+const unverifiedNote = "has not been verified by JAGS staff yet";
+const inactiveNote = (row: RegisterRowMeta) => `is ${row.lifecycle_status ?? "no longer active"} and no longer an active entry`;
+
+/** Picks the best row for the coarse "any entry on the project" check: counted rows first. */
+function bestRow<T extends RegisterRowMeta>(rows: T[], isCurrent: (r: T) => boolean): T | undefined {
+  const counted = rows.filter(isRegisterRowCounted);
+  return counted.find(isCurrent) ?? counted[0] ?? rows.find(isRegisterRowActive) ?? rows[0];
+}
+
 // ── Calibration ─────────────────────────────────────────────────────────────────────────────
 
-type CalibrationEntry = Pick<CalibrationRegisterRow, "instrument_name" | "cert_number" | "due_date">;
+type CalibrationEntry = Pick<CalibrationRegisterRow, "instrument_name" | "cert_number" | "due_date"> & RegisterRowMeta;
 const CALIBRATION_COLUMNS = "instrument_name, cert_number, due_date";
 
-function calibrationResult(entry: CalibrationEntry | null | undefined): RegisterVerificationResult {
+function calibrationResult(entry: CalibrationEntry | null | undefined, today: Date = todayUtc()): RegisterVerificationResult {
   if (!entry) {
     return {
       tone: "warning",
@@ -97,8 +190,15 @@ function calibrationResult(entry: CalibrationEntry | null | undefined): Register
       kind: "calibration",
     };
   }
+  const label = `${entry.instrument_name} (cert ${entry.cert_number})`;
+  if (!isRegisterRowActive(entry)) {
+    return { tone: "warning", message: `Calibration ${label} ${inactiveNote(entry)} (Calibration Register). ${SOFT_STOP_SUFFIX}`, requiresOverrideReason: true, kind: "calibration" };
+  }
+  if (!isRegisterRowVerified(entry)) {
+    return { tone: "warning", message: `Calibration ${label} ${unverifiedNote} (Calibration Register). ${SOFT_STOP_SUFFIX}`, requiresOverrideReason: true, kind: "calibration" };
+  }
   // Recomputed from the date, never the stored status, which goes stale between page visits.
-  if (computeCalibrationStatus(entry.due_date) === "expired") {
+  if (computeCalibrationStatus(entry.due_date, today) === "expired") {
     return {
       tone: "warning",
       message: `Calibration expired — ${entry.instrument_name} (cert ${entry.cert_number}) was due ${entry.due_date} (Calibration Register). ${SOFT_STOP_SUFFIX}`,
@@ -114,48 +214,41 @@ function calibrationResult(entry: CalibrationEntry | null | undefined): Register
   };
 }
 
-async function checkCalibration(supabase: SupabaseClient, projectId: string): Promise<RegisterVerificationResult> {
-  const { data } = await supabase
-    .from(CALIBRATION_REGISTER_TABLE)
-    .select(CALIBRATION_COLUMNS)
-    .eq("project_id", projectId)
-    .order("due_date", { ascending: false })
-    .returns<CalibrationEntry[]>();
-  const rows = data ?? [];
-  // Any current instrument satisfies the coarse check; otherwise surface an expired one.
-  const entry = rows.find((r) => computeCalibrationStatus(r.due_date) !== "expired") ?? rows[0];
-  return calibrationResult(entry);
+async function checkCalibration(supabase: SupabaseClient, projectId: string, today: Date): Promise<RegisterVerificationResult> {
+  const rows = await selectRegisterRows<CalibrationEntry>(supabase, CALIBRATION_REGISTER_TABLE, CALIBRATION_COLUMNS, (q) =>
+    q.eq("project_id", projectId).order("due_date", { ascending: false })
+  );
+  // Any current, verified instrument satisfies the coarse check; otherwise surface an expired one.
+  return calibrationResult(bestRow(rows, (r) => computeCalibrationStatus(r.due_date, today) !== "expired"), today);
 }
 
 /** Checks the specific calibration-register row the inspector chose (must belong to the project). */
 export async function verifyCalibrationAssetById(
   supabase: SupabaseClient,
   projectId: string,
-  id: string
+  id: string,
+  today: Date = todayUtc()
 ): Promise<RegisterVerificationResult> {
-  const { data } = await supabase
-    .from(CALIBRATION_REGISTER_TABLE)
-    .select(CALIBRATION_COLUMNS)
-    .eq("project_id", projectId)
-    .eq("id", id)
-    .maybeSingle<CalibrationEntry>();
-  return calibrationResult(data);
+  const rows = await selectRegisterRows<CalibrationEntry>(supabase, CALIBRATION_REGISTER_TABLE, CALIBRATION_COLUMNS, (q) =>
+    q.eq("project_id", projectId).eq("id", id).limit(1)
+  );
+  return calibrationResult(rows[0], today);
 }
 
-/** All calibration-register rows for a project, for the "which instrument did you use" picker shown
+/** Active calibration-register rows for a project, for the "which instrument did you use" picker shown
  *  alongside a calibration-kind registerVerification — see response-row.tsx. A separate query
  *  because the picker needs every candidate instrument the inspector might have actually used. */
 export async function listCalibrationOptions(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<{ id: string; instrument_name: string; cert_number: string; status: string }[]> {
-  const { data } = await supabase
-    .from(CALIBRATION_REGISTER_TABLE)
-    .select("id, instrument_name, cert_number, due_date")
-    .eq("project_id", projectId)
-    .order("instrument_name")
-    .returns<Pick<CalibrationRegisterRow, "id" | "instrument_name" | "cert_number" | "due_date">[]>();
-  return (data ?? []).map((r) => ({
+  const rows = await selectRegisterRows<Pick<CalibrationRegisterRow, "id" | "instrument_name" | "cert_number" | "due_date"> & RegisterRowMeta>(
+    supabase,
+    CALIBRATION_REGISTER_TABLE,
+    "id, instrument_name, cert_number, due_date",
+    (q) => q.eq("project_id", projectId).order("instrument_name")
+  );
+  return rows.filter(isRegisterRowCounted).map((r) => ({
     id: r.id,
     instrument_name: r.instrument_name,
     cert_number: r.cert_number,
@@ -165,10 +258,10 @@ export async function listCalibrationOptions(
 
 // ── Welder ──────────────────────────────────────────────────────────────────────────────────
 
-type WelderEntry = Pick<WelderQualificationRegisterRow, "welder_identifier" | "qualified_wps" | "expiry_date">;
+type WelderEntry = Pick<WelderQualificationRegisterRow, "welder_identifier" | "qualified_wps" | "expiry_date"> & RegisterRowMeta;
 const WELDER_COLUMNS = "welder_identifier, qualified_wps, expiry_date";
 
-function welderResult(entry: WelderEntry | null | undefined): RegisterVerificationResult {
+function welderResult(entry: WelderEntry | null | undefined, today: Date = todayUtc()): RegisterVerificationResult {
   if (!entry) {
     return {
       tone: "warning",
@@ -177,7 +270,14 @@ function welderResult(entry: WelderEntry | null | undefined): RegisterVerificati
       kind: "welder",
     };
   }
-  if (computeWelderStatus(entry.expiry_date) === "expired") {
+  const label = `${entry.welder_identifier} on ${entry.qualified_wps}`;
+  if (!isRegisterRowActive(entry)) {
+    return { tone: "warning", message: `Welder qualification ${label} ${inactiveNote(entry)} (Welder Qualification Register). ${SOFT_STOP_SUFFIX}`, requiresOverrideReason: true, kind: "welder" };
+  }
+  if (!isRegisterRowVerified(entry)) {
+    return { tone: "warning", message: `Welder qualification ${label} ${unverifiedNote} (Welder Qualification Register). ${SOFT_STOP_SUFFIX}`, requiresOverrideReason: true, kind: "welder" };
+  }
+  if (computeWelderStatus(entry.expiry_date, today) === "expired") {
     return {
       tone: "warning",
       message: `Welder qualification expired — ${entry.welder_identifier} on ${entry.qualified_wps} expired ${entry.expiry_date} (Welder Qualification Register). ${SOFT_STOP_SUFFIX}`,
@@ -193,45 +293,37 @@ function welderResult(entry: WelderEntry | null | undefined): RegisterVerificati
   };
 }
 
-async function checkWelder(supabase: SupabaseClient, projectId: string): Promise<RegisterVerificationResult> {
-  const { data } = await supabase
-    .from(WELDER_QUALIFICATION_REGISTER_TABLE)
-    .select(WELDER_COLUMNS)
-    .eq("project_id", projectId)
-    .order("expiry_date", { ascending: false })
-    .returns<WelderEntry[]>();
-  const rows = data ?? [];
-  const entry = rows.find((r) => computeWelderStatus(r.expiry_date) !== "expired") ?? rows[0];
-  return welderResult(entry);
+async function checkWelder(supabase: SupabaseClient, projectId: string, today: Date): Promise<RegisterVerificationResult> {
+  const rows = await selectRegisterRows<WelderEntry>(supabase, WELDER_QUALIFICATION_REGISTER_TABLE, WELDER_COLUMNS, (q) =>
+    q.eq("project_id", projectId).order("expiry_date", { ascending: false })
+  );
+  return welderResult(bestRow(rows, (r) => computeWelderStatus(r.expiry_date, today) !== "expired"), today);
 }
 
 /** Checks the specific welder-register row the inspector chose (must belong to the project). */
 export async function verifyWelderById(
   supabase: SupabaseClient,
   projectId: string,
-  id: string
+  id: string,
+  today: Date = todayUtc()
 ): Promise<RegisterVerificationResult> {
-  const { data } = await supabase
-    .from(WELDER_QUALIFICATION_REGISTER_TABLE)
-    .select(WELDER_COLUMNS)
-    .eq("project_id", projectId)
-    .eq("id", id)
-    .maybeSingle<WelderEntry>();
-  return welderResult(data);
+  const rows = await selectRegisterRows<WelderEntry>(supabase, WELDER_QUALIFICATION_REGISTER_TABLE, WELDER_COLUMNS, (q) =>
+    q.eq("project_id", projectId).eq("id", id).limit(1)
+  );
+  return welderResult(rows[0], today);
 }
 
-/** Welder rows for the "which welder" picker. */
+/** Welder rows for the "which welder" picker (active, verified rows only). */
 export async function listWelderOptions(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<{ id: string; welder_identifier: string; qualified_wps: string; status: string }[]> {
-  const { data } = await supabase
-    .from(WELDER_QUALIFICATION_REGISTER_TABLE)
-    .select("id, welder_identifier, qualified_wps, expiry_date")
-    .eq("project_id", projectId)
-    .order("welder_identifier")
-    .returns<Pick<WelderQualificationRegisterRow, "id" | "welder_identifier" | "qualified_wps" | "expiry_date">[]>();
-  return (data ?? []).map((r) => ({
+  const rows = await selectRegisterRows<
+    Pick<WelderQualificationRegisterRow, "id" | "welder_identifier" | "qualified_wps" | "expiry_date"> & RegisterRowMeta
+  >(supabase, WELDER_QUALIFICATION_REGISTER_TABLE, "id, welder_identifier, qualified_wps, expiry_date", (q) =>
+    q.eq("project_id", projectId).order("welder_identifier")
+  );
+  return rows.filter(isRegisterRowCounted).map((r) => ({
     id: r.id,
     welder_identifier: r.welder_identifier,
     qualified_wps: r.qualified_wps,
@@ -244,7 +336,8 @@ export async function listWelderOptions(
 type MaterialEntry = Pick<
   MaterialRegisterRow,
   "material_description" | "submittal_reference" | "approval_status" | "receipt_status" | "disposition_notes"
->;
+> &
+  RegisterRowMeta;
 const MATERIAL_COLUMNS = "material_description, submittal_reference, approval_status, receipt_status, disposition_notes";
 
 function materialResult(entry: MaterialEntry | null | undefined): RegisterVerificationResult {
@@ -259,6 +352,23 @@ function materialResult(entry: MaterialEntry | null | undefined): RegisterVerifi
 
   const refSuffix = entry.submittal_reference ? ` — submittal ref ${entry.submittal_reference}` : "";
   const label = MATERIAL_APPROVAL_STATUS_LABELS[entry.approval_status];
+
+  if (!isRegisterRowActive(entry)) {
+    return {
+      tone: "warning",
+      message: `Material ${entry.material_description}${refSuffix} ${inactiveNote(entry)} (Material Register). ${SOFT_STOP_SUFFIX}`,
+      requiresOverrideReason: true,
+      kind: "material",
+    };
+  }
+  if (!isRegisterRowVerified(entry)) {
+    return {
+      tone: "warning",
+      message: `Material ${entry.material_description}${refSuffix} ${unverifiedNote} (Material Register). ${SOFT_STOP_SUFFIX}`,
+      requiresOverrideReason: true,
+      kind: "material",
+    };
+  }
 
   if (entry.approval_status === "C" || entry.approval_status === "D") {
     return {
@@ -296,15 +406,10 @@ function isUsableMaterial(m: MaterialEntry): boolean {
 }
 
 async function checkMaterial(supabase: SupabaseClient, projectId: string): Promise<RegisterVerificationResult> {
-  const { data } = await supabase
-    .from(MATERIAL_REGISTER_TABLE)
-    .select(MATERIAL_COLUMNS)
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .returns<MaterialEntry[]>();
-  const rows = data ?? [];
-  const entry = rows.find(isUsableMaterial) ?? rows[0];
-  return materialResult(entry);
+  const rows = await selectRegisterRows<MaterialEntry>(supabase, MATERIAL_REGISTER_TABLE, MATERIAL_COLUMNS, (q) =>
+    q.eq("project_id", projectId).order("created_at", { ascending: false })
+  );
+  return materialResult(bestRow(rows, isUsableMaterial));
 }
 
 /** Checks the specific material-register row the inspector chose (must belong to the project). */
@@ -313,37 +418,37 @@ export async function verifyMaterialById(
   projectId: string,
   id: string
 ): Promise<RegisterVerificationResult> {
-  const { data } = await supabase
-    .from(MATERIAL_REGISTER_TABLE)
-    .select(MATERIAL_COLUMNS)
-    .eq("project_id", projectId)
-    .eq("id", id)
-    .maybeSingle<MaterialEntry>();
-  return materialResult(data);
+  const rows = await selectRegisterRows<MaterialEntry>(supabase, MATERIAL_REGISTER_TABLE, MATERIAL_COLUMNS, (q) =>
+    q.eq("project_id", projectId).eq("id", id).limit(1)
+  );
+  return materialResult(rows[0]);
 }
 
-/** Released materials only, for the "material used (heat/batch)" picker. */
+/** Released, active, verified materials only, for the "material used (heat/batch)" picker. */
 export async function listMaterialOptions(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<{ id: string; material_description: string; heat_number: string | null; batch_number: string | null }[]> {
-  const { data } = await supabase
-    .from(MATERIAL_REGISTER_TABLE)
-    .select("id, material_description, heat_number, batch_number")
-    .eq("project_id", projectId)
-    .eq("receipt_status", "released")
-    .order("material_description")
-    .returns<{ id: string; material_description: string; heat_number: string | null; batch_number: string | null }[]>();
-  return data ?? [];
+  const rows = await selectRegisterRows<
+    { id: string; material_description: string; heat_number: string | null; batch_number: string | null } & RegisterRowMeta
+  >(supabase, MATERIAL_REGISTER_TABLE, "id, material_description, heat_number, batch_number", (q) =>
+    q.eq("project_id", projectId).eq("receipt_status", "released").order("material_description")
+  );
+  return rows.filter(isRegisterRowCounted).map(({ id, material_description, heat_number, batch_number }) => ({
+    id,
+    material_description,
+    heat_number,
+    batch_number,
+  }));
 }
 
 // ── Personnel ───────────────────────────────────────────────────────────────────────────────
 
-// Same coarse heuristic as checkRegisterVerification above, but mapping activity text to the kind of
+// Same coarse heuristic as pickRegisterKind above, but mapping activity text to the kind of
 // personal certification it plausibly requires (rather than to a register table). certification_type
 // is free text (see types.ts), so the second half of the match is also a keyword check against it
-// rather than an exact code lookup — "does some cert this person holds look like the right kind" is
-// the same spirit as "does some register entry of the relevant kind look current" above.
+// rather than an exact code lookup. An activity whose required_registers names "personnel" matches ANY
+// certificate the executing person holds.
 const PERSONNEL_CERT_ACTIVITY_MATCHES: { activityKeywords: string[]; certKeywords: string[] }[] = [
   { activityKeywords: ["weld"], certKeywords: ["weld"] },
   {
@@ -353,14 +458,17 @@ const PERSONNEL_CERT_ACTIVITY_MATCHES: { activityKeywords: string[]; certKeyword
   { activityKeywords: ["electric"], certKeywords: ["electric"] },
 ];
 
+type PersonnelEntry = Pick<PersonnelCertificationRow, "certification_type" | "cert_number" | "expiry_date" | "project_party_id"> &
+  RegisterRowMeta & { holder_user_id?: string | null };
+
 /**
- * Personnel-certification soft-stop (round-table finding, same R92-R100 spirit as
- * checkRegisterVerification above): confirms the PERSON about to record the response actually holds
- * a current certification for that kind of work, scoped to the one project_party executing this
- * checklist.
+ * Personnel-certification soft-stop: confirms the PERSON about to record the response holds a current
+ * certification for that kind of work. A certificate with a named holder (holder_user_id) is matched to
+ * the executing user; certificates without one belong to the whole party and are matched by party. When
+ * the executing user is JAGS staff (no party), only certificates naming them as holder are considered.
  *
- * executingProjectPartyId is null when the current user isn't linked to a project_party here (e.g.
- * JAGS staff running the inspection directly) — then this returns null, same as "not applicable."
+ * Returns null (not applicable) when the activity doesn't need a certificate, or when there is nobody to
+ * check (no party link and no holder-named certificate for the user).
  */
 export async function checkPersonnelCertification(
   supabase: SupabaseClient,
@@ -369,27 +477,43 @@ export async function checkPersonnelCertification(
     executingProjectPartyId: string | null;
     itpItemReferenceSpec: string | null;
     itpItemAcceptanceCriteria: string | null;
+    executingUserId?: string | null;
+    requiredRegisters?: string[] | null;
+    itpItemId?: string | null;
+    today?: Date;
   }
 ): Promise<RegisterVerificationResult | null> {
-  if (!params.executingProjectPartyId) return null;
+  if (!params.executingProjectPartyId && !params.executingUserId) return null;
+  const today = params.today ?? todayUtc();
 
-  const haystack = `${params.itpItemReferenceSpec ?? ""} ${params.itpItemAcceptanceCriteria ?? ""}`.toLowerCase();
-  const match = PERSONNEL_CERT_ACTIVITY_MATCHES.find((m) => m.activityKeywords.some((kw) => haystack.includes(kw)));
-  if (!match) return null;
+  const required = params.requiredRegisters ?? (params.itpItemId ? await fetchRequiredRegisters(supabase, params.itpItemId) : null);
+  let certKeywords: string[] | null = null; // null = any certificate type
+  if (required && required.length > 0) {
+    if (!required.includes("personnel")) return null;
+  } else {
+    const haystack = `${params.itpItemReferenceSpec ?? ""} ${params.itpItemAcceptanceCriteria ?? ""}`.toLowerCase();
+    const match = PERSONNEL_CERT_ACTIVITY_MATCHES.find((m) => m.activityKeywords.some((kw) => haystack.includes(kw)));
+    if (!match) return null;
+    certKeywords = match.certKeywords;
+  }
 
-  const { data } = await supabase
-    .from(PERSONNEL_CERTIFICATIONS_TABLE)
-    .select("certification_type, cert_number, expiry_date")
-    .eq("project_id", params.projectId)
-    .eq("project_party_id", params.executingProjectPartyId)
-    .order("expiry_date", { ascending: false })
-    .returns<Pick<PersonnelCertificationRow, "certification_type" | "cert_number" | "expiry_date">[]>();
-
-  const candidates = (data ?? []).filter((row) =>
-    match.certKeywords.some((kw) => row.certification_type.toLowerCase().includes(kw))
+  const rows = await selectRegisterRows<PersonnelEntry>(
+    supabase,
+    PERSONNEL_CERTIFICATIONS_TABLE,
+    "certification_type, cert_number, expiry_date, project_party_id",
+    (q) => q.eq("project_id", params.projectId).order("expiry_date", { ascending: false }),
+    "holder_user_id"
   );
-  // Prefer a current certificate; fall back to the most recently expired one to report it.
-  const entry = candidates.find((r) => computePersonnelCertificationStatus(r.expiry_date) !== "expired") ?? candidates[0];
+
+  const mine = rows.filter((row) => {
+    if (row.holder_user_id) return !!params.executingUserId && row.holder_user_id === params.executingUserId;
+    return !!params.executingProjectPartyId && row.project_party_id === params.executingProjectPartyId;
+  });
+  // JAGS staff with no certificate naming them: nothing to check (same as before).
+  if (!params.executingProjectPartyId && mine.length === 0 && !required) return null;
+
+  const candidates = mine.filter((row) => !certKeywords || certKeywords.some((kw) => row.certification_type.toLowerCase().includes(kw)));
+  const entry = bestRow(candidates, (r) => computePersonnelCertificationStatus(r.expiry_date, today) !== "expired");
 
   if (!entry) {
     return {
@@ -398,8 +522,15 @@ export async function checkPersonnelCertification(
       requiresOverrideReason: true,
     };
   }
+  const label = `${entry.certification_type}${entry.cert_number ? ` (cert ${entry.cert_number})` : ""}`;
+  if (!isRegisterRowActive(entry)) {
+    return { tone: "warning", message: `Personnel certification ${label} ${inactiveNote(entry)} (Personnel Certification Register). ${SOFT_STOP_SUFFIX}`, requiresOverrideReason: true };
+  }
+  if (!isRegisterRowVerified(entry)) {
+    return { tone: "warning", message: `Personnel certification ${label} ${unverifiedNote} (Personnel Certification Register). ${SOFT_STOP_SUFFIX}`, requiresOverrideReason: true };
+  }
 
-  if (computePersonnelCertificationStatus(entry.expiry_date) === "expired") {
+  if (computePersonnelCertificationStatus(entry.expiry_date, today) === "expired") {
     return {
       tone: "warning",
       message: `Personnel certification expired — ${entry.certification_type}${entry.cert_number ? ` (cert ${entry.cert_number})` : ""} was due ${entry.expiry_date} (Personnel Certification Register). ${SOFT_STOP_SUFFIX}`,
