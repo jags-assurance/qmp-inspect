@@ -1315,6 +1315,7 @@ export async function reopenNcrAction(_prev: ReopenNcrState, formData: FormData)
         reopened_by: session.userId,
         reopened_at: new Date().toISOString(),
         reopen_count: (item.reopen_count ?? 0) + 1,
+        closing_photo_paths: [],
         resolved_by: null,
         resolved_at: null,
         closed_by: null,
