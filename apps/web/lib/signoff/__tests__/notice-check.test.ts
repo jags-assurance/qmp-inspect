@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateNotice } from "../notice-check";
+import { dayInZone, evaluateNotice, startOfDayInZone } from "../notice-check";
 
 // Local-time "now" (evaluateNotice uses local dates).
 const NOW = new Date(2026, 5, 15, 10, 0, 0); // 15 Jun 2026 10:00 local
@@ -42,5 +42,25 @@ describe("evaluateNotice", () => {
   });
   it("default label is Hold", () => {
     expect(evaluateNotice("2026-06-15", 99, undefined, NOW).message).toMatch(/^Hold needs/);
+  });
+});
+
+describe("project time zone (S4-19)", () => {
+  // 15 Jun 2026 22:30 UTC is already 16 Jun 02:30 in Dubai (UTC+4), still 15 Jun 18:30 in New York (UTC-4).
+  const instant = new Date(Date.UTC(2026, 5, 15, 22, 30, 0));
+  it("finds the calendar day in a zone", () => {
+    expect(dayInZone(instant, "Asia/Dubai")).toBe("2026-06-16");
+    expect(dayInZone(instant, "America/New_York")).toBe("2026-06-15");
+  });
+  it("computes the start of a day in a zone", () => {
+    expect(new Date(startOfDayInZone("2026-06-16", "Asia/Dubai")).toISOString()).toBe("2026-06-15T20:00:00.000Z");
+    expect(new Date(startOfDayInZone("2026-06-15", "America/New_York")).toISOString()).toBe("2026-06-15T04:00:00.000Z");
+  });
+  it("the same planned date is overdue in Dubai but still today in New York", () => {
+    expect(evaluateNotice("2026-06-15", 24, "Hold", instant, "Asia/Dubai").status).toBe("overdue");
+    expect(evaluateNotice("2026-06-15", 24, "Hold", instant, "America/New_York").status).toBe("short_notice");
+  });
+  it("an unknown zone falls back to server-local behaviour", () => {
+    expect(evaluateNotice("2026-06-14", 24, "Hold", NOW, "Not/AZone").status).toBe("overdue");
   });
 });
