@@ -10,6 +10,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "check:migrations": "node scripts/check-migration-names.mjs",
+    "backup:storage": "node scripts/export-storage.mjs",
     "db:push": "npx supabase db push",
     "db:types": "npx supabase gen types typescript --linked > packages/shared-types/src/database.ts"
   },

@@ -7,8 +7,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { ProjectOverviewView } from "./project-overview-view";
-import { PunchListView } from "./punch-list/punch-list-view";
-import { RegistersView } from "./registers/registers-view";
+import { PunchListView, PUNCH_CLOSED_LIMITS } from "./punch-list/punch-list-view";
+import { parseListLimit } from "@/lib/pagination/list-limit";
+import { RegistersView, REGISTER_LIMITS } from "./registers/registers-view";
 import { ActivityView } from "./activity/activity-view";
 import { KpisView } from "./kpis/kpis-view";
 import { DataBookView } from "./data-book/data-book-view";
@@ -39,10 +40,10 @@ export default async function ProjectWorkspacePage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ tab?: string; range?: string }>;
+  searchParams: Promise<{ tab?: string; range?: string; limit?: string }>;
 }) {
   const { projectId } = await params;
-  const { tab: tabParam, range } = await searchParams;
+  const { tab: tabParam, range, limit: limitParam } = await searchParams;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -120,13 +121,13 @@ export default async function ProjectWorkspacePage({
 
       {tabBar}
 
-      <Suspense key={`${active}:${range ?? ""}`} fallback={<WorkspaceSkeleton />}>
+      <Suspense key={`${active}:${range ?? ""}:${limitParam ?? ""}`} fallback={<WorkspaceSkeleton />}>
         <div className="pt-4">
-          {active === "punch-list" && <PunchListView projectId={projectId} embedded />}
+          {active === "punch-list" && <PunchListView projectId={projectId} embedded closedLimit={parseListLimit(limitParam, PUNCH_CLOSED_LIMITS)} searchParams={{ tab: "punch-list", range, limit: limitParam }} />}
           {active === "ncrs" && <NcrsTabView projectId={projectId} />}
           {active === "observations" && <NcrsTabView projectId={projectId} observations />}
           {active === "itps" && <ItpsTabView projectId={projectId} />}
-          {active === "registers" && <RegistersView projectId={projectId} embedded />}
+          {active === "registers" && <RegistersView projectId={projectId} embedded limit={parseListLimit(limitParam, REGISTER_LIMITS)} searchParams={{ tab: "registers", range, limit: limitParam }} />}
           {active === "activity" && <ActivityView projectId={projectId} range={range} embedded />}
           {active === "kpis" && <KpisView projectId={projectId} embedded />}
           {active === "data-book" && <DataBookView projectId={projectId} embedded />}

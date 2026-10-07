@@ -16,6 +16,8 @@ import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
 import { shouldRetry, retryDelayMs, MAX_JOB_ATTEMPTS, jobTimeoutMs, orphanAction, pickClaimable } from "./jobs/retryPolicy";
 import { runAutomationSweep } from "./automation";
+import { dropBreadcrumb, scrubEvent } from "./observability/scrub";
+import { isRpcMissing, parseClaimRpcResult, replicaId, sweepLeaseSeconds, type RpcError } from "./jobs/claim";
 import type {
   BackgroundJobRow,
   GenerateMonthlyReportPackPayload,
@@ -35,7 +37,15 @@ import type {
 // exists yet) — see apps/web/sentry.server.config.ts for the same gating pattern on the web side,
 // and docs/INCIDENT_RESPONSE.md for the current status.
 if (process.env.SENTRY_DSN) {
-  Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 0.1,
+    // E-08: job errors embed names, emails and document text; send no PII and scrub what remains.
+    sendDefaultPii: false,
+    beforeSend: (event) => scrubEvent(event),
+    beforeSendTransaction: (event) => scrubEvent(event),
+    beforeBreadcrumb: dropBreadcrumb,
+  });
 }
 
 /** console.error plus (when configured) Sentry.captureException — never instead of the console log,
@@ -77,21 +87,60 @@ const jobsTable = () => supabase.from("background_jobs" as never) as unknown as 
       };
     };
   };
-  update: (values: Partial<BackgroundJobRow>) => {
-    eq: (column: string, value: string) => {
-      eq: (
-        column: string,
-        value: string
-      ) => { select: () => Promise<{ data: BackgroundJobRow[] | null; error: { message: string } | null }> };
-    };
-  };
+  update: (values: Partial<BackgroundJobRow>) => JobsUpdateBuilder;
 };
+interface JobsUpdateBuilder {
+  eq: (column: string, value: string | number) => JobsUpdateBuilder;
+  select: () => Promise<{ data: BackgroundJobRow[] | null; error: { message: string } | null }>;
+}
 
 // In-memory backoff for retried jobs (job id -> earliest next claim time). A worker restart simply
 // clears it, which only means a retry happens sooner.
 const retryNotBefore = new Map<string, number>();
 
+// F-04: false once the database says claim_next_background_job() does not exist (migration
+// 20261111000103 not applied yet); the worker then uses the compare-and-swap path below for the
+// rest of its life, so deploy order of worker vs migration does not matter.
+let claimRpcAvailable = true;
+
+/**
+ * Preferred claim: ONE atomic statement in the database (UPDATE ... WHERE id = (SELECT ... FOR UPDATE
+ * SKIP LOCKED LIMIT 1) RETURNING *). Concurrent replicas each get a different job (or none), attempts is
+ * incremented in SQL, and retry backoff is applied there too. Returns { handled: false } when the RPC is
+ * unavailable so the caller falls back.
+ */
+async function claimViaRpc(): Promise<{ handled: boolean; job: BackgroundJobRow | null }> {
+  const { data, error } = await (
+    supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: RpcError | null }>
+  ).call(supabase, "claim_next_background_job");
+  if (error) {
+    if (isRpcMissing(error)) {
+      claimRpcAvailable = false;
+      console.warn("[worker] claim_next_background_job() is not installed; using the compare-and-swap claim. Apply migration 20261111000103.");
+      return { handled: false, job: null };
+    }
+    console.error("[worker] Failed to claim a job:", error.message);
+    return { handled: true, job: null };
+  }
+  return { handled: true, job: parseClaimRpcResult<BackgroundJobRow>(data) };
+}
+
 async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
+  if (claimRpcAvailable) {
+    const viaRpc = await claimViaRpc();
+    if (viaRpc.handled) return viaRpc.job;
+  }
+  return claimNextPendingJobCompareAndSwap();
+}
+
+/**
+ * Fallback claim (used only until the claim RPC is installed). Safe against a second replica winning
+ * the same row because the UPDATE is conditioned on status = 'pending' AND the attempts value that was
+ * read, so a job another replica claimed, failed and requeued in between (status back to 'pending' but
+ * attempts changed) is not claimed from stale data. Its weaknesses (every replica picks the same oldest
+ * job; backoff partly in-memory) are what claimNextPendingJob's RPC path removes.
+ */
+async function claimNextPendingJobCompareAndSwap(): Promise<BackgroundJobRow | null> {
   const { data: candidates, error } = await jobsTable()
     .select("*")
     .eq("status", "pending")
@@ -108,19 +157,13 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
   const candidate = pickClaimable(candidates ?? [], now, (c) => (retryNotBefore.get(c.id) ?? 0) > now);
   if (!candidate) return null;
 
-  // Optimistic claim: only succeeds if the row is still 'pending' (guards against a second worker
-  // instance racing this one — there is only one deployed today, but the queue is shared state).
-  // This compare-and-swap is what makes it already safe to run 2+ replicas of this same process
-  // (e.g. to parallelize across the per-org rate-limited queue) without any further code change —
-  // only one replica's UPDATE ... WHERE status = 'pending' can win per row; the loser gets 0 rows
-  // back and simply polls again. Scaling replicas is a Railway dashboard/infra change, not a code
-  // change, and is intentionally out of scope here.
   // started_at is the timestamp the reaper measures a stuck job from (created_at is when it was
   // QUEUED, which can be long before it was claimed). If the column does not exist yet, claim without it.
   let { data: claimed, error: claimError } = await jobsTable()
     .update({ status: "processing", attempts: candidate.attempts + 1, started_at: new Date().toISOString() } as Partial<BackgroundJobRow>)
     .eq("id", candidate.id)
     .eq("status", "pending")
+    .eq("attempts", candidate.attempts)
     .select();
 
   if (claimError) {
@@ -129,6 +172,7 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
       .update({ status: "processing", attempts: candidate.attempts + 1 })
       .eq("id", candidate.id)
       .eq("status", "pending")
+      .eq("attempts", candidate.attempts)
       .select());
   }
 
@@ -390,13 +434,35 @@ async function reclaimOrphanedJobs(): Promise<void> {
   }
 }
 
+const REPLICA_ID = replicaId();
+
+/**
+ * Lease so a once-per-interval sweep runs on ONE replica at a time (F-04): the automation sweep sends
+ * notifications, and N replicas each running it on their own 15-minute cadence would race
+ * (alreadyNotifiedRecently is check-then-insert). Fails open — if the lease RPC is not installed yet
+ * (single replica, migration pending) or errors, the sweep runs, exactly as before this change.
+ */
+async function tryAcquireLease(name: string, ttlSeconds: number): Promise<boolean> {
+  const { data, error } = await (
+    supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: RpcError | null }>
+  ).call(supabase, "try_acquire_worker_lease", { p_name: name, p_holder: REPLICA_ID, p_ttl_seconds: ttlSeconds });
+  if (error) {
+    if (!isRpcMissing(error)) console.warn(`[worker] Lease check for ${name} failed, running anyway:`, error.message);
+    return true;
+  }
+  return data === true;
+}
+
 async function pollOnce(cycle: number): Promise<void> {
   if (cycle % OBSERVABILITY_LOG_EVERY_N_CYCLES === 0) {
     await logQueueHealth();
     await reclaimOrphanedJobs();
   }
 
-  if (cycle % AUTOMATION_SWEEP_EVERY_N_CYCLES === 0) {
+  if (
+    cycle % AUTOMATION_SWEEP_EVERY_N_CYCLES === 0 &&
+    (await tryAcquireLease("automation_sweep", sweepLeaseSeconds(AUTOMATION_SWEEP_EVERY_N_CYCLES * POLL_INTERVAL_MS)))
+  ) {
     await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
   }
 

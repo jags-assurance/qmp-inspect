@@ -6,6 +6,7 @@ import { ProjectPickerForm, type ProjectOption } from "./project-picker-form";
 import { AddCategoryForm } from "./add-category-form";
 import { ConnectorsPanel } from "./connectors-panel";
 import { PageGuide } from "@/components/domain/page-guide";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 interface DocSummary {
   id: string;
@@ -29,6 +30,7 @@ export default async function VaultPage({
     .from("projects")
     .select("id, project_number, name")
     .order("created_at", { ascending: false })
+    .limit(500) // picker options only; a portfolio beyond this uses ?project=
     .returns<ProjectOption[]>();
 
   const selectedProject = projectId ?? projects?.[0]?.id ?? null;
@@ -60,26 +62,42 @@ export default async function VaultPage({
       .returns<VaultFolderRow[]>();
 
     const folderIds = (folderRows ?? []).map((f) => f.id);
-    const { data: documentRows } = folderIds.length
-      ? await supabase
-          .from(VAULT_DOCUMENTS_TABLE)
-          .select("id, folder_id, title, revision, status, created_at")
-          .in("folder_id", folderIds)
-          .neq("status", "superseded")
-          .order("created_at", { ascending: false })
-          .returns<DocSummary[]>()
-      : { data: [] as DocSummary[] };
+    // Counts need every non-superseded document but only two narrow columns, read in pages (a plain
+    // select stops silently at 1000 rows and used to drag the full row of every document along); the
+    // "recent" strip is its own 5-row query.
+    const [countRows, { data: recentRows }] = folderIds.length
+      ? await Promise.all([
+          fetchAll<{ id: string; folder_id: string; status: string }>((from, to) =>
+            supabase
+              .from(VAULT_DOCUMENTS_TABLE)
+              .select("id, folder_id, status")
+              .in("folder_id", folderIds)
+              .neq("status", "superseded")
+              .order("id")
+              .range(from, to)
+              .returns<{ id: string; folder_id: string; status: string }[]>()
+          ),
+          supabase
+            .from(VAULT_DOCUMENTS_TABLE)
+            .select("id, folder_id, title, revision, status, created_at")
+            .in("folder_id", folderIds)
+            .neq("status", "superseded")
+            .order("created_at", { ascending: false })
+            .limit(5)
+            .returns<DocSummary[]>(),
+        ])
+      : [[] as { id: string; folder_id: string; status: string }[], { data: [] as DocSummary[] }];
 
     const counts = new Map<string, number>();
-    for (const row of documentRows ?? []) {
+    for (const row of countRows) {
       counts.set(row.folder_id, (counts.get(row.folder_id) ?? 0) + 1);
       if (row.status === "for_review") {
         pendingCount += 1;
         pendingByFolder.set(row.folder_id, (pendingByFolder.get(row.folder_id) ?? 0) + 1);
       }
     }
-    recent = (documentRows ?? []).slice(0, 5);
-    totalDocs = (documentRows ?? []).length;
+    recent = recentRows ?? [];
+    totalDocs = countRows.length;
     folderNameById = new Map((folderRows ?? []).map((f) => [f.id, f.name] as const));
 
     folders = (folderRows ?? []).map((f) => ({ ...f, documentCount: counts.get(f.id) ?? 0 }));

@@ -31,6 +31,8 @@ import {
   addExtractedMaterialRowsAction,
 } from "@/lib/registers/actions";
 import { PageGuide } from "@/components/domain/page-guide";
+import { LoadMore } from "@/components/domain/load-more";
+import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
 
 // The three extract*Action/addExtracted*RowsAction pairs are typed against their own specific row
 // shapes (ExtractedCalibrationRow, etc.) for type safety inside lib/registers/actions.ts, but
@@ -47,7 +49,22 @@ type GenericAddAction = (state: AddState, formData: FormData) => Promise<AddStat
  * are refreshed from today's date before every read — see lib/registers/refresh.ts for why that's
  * a read-time recompute rather than a scheduled job.
  */
-export async function RegistersView({ projectId, embedded = false }: { projectId: string; embedded?: boolean }) {
+export const REGISTER_LIMITS: ListLimitOptions = { defaultLimit: 300, step: 300, max: 3000 };
+
+export async function RegistersView({
+  projectId,
+  embedded = false,
+  limit = REGISTER_LIMITS.defaultLimit,
+  searchParams = {},
+}: {
+  projectId: string;
+  embedded?: boolean;
+  /** Rows loaded PER register (`?limit=`, parsed by the page). */
+  limit?: number;
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  // One extra row per register tells us whether more exist without a count query.
+  const fetchLimit = limit + 1;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -84,31 +101,31 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
 
   // The four register reads also fetch verification/lifecycle state; selectRegisterRows falls back to the
   // base columns when the database hasn't had that migration yet.
-  const [calibrationRows, welderRows, materialRows, personnelCertRows, { data: projectParties }] =
+  const [calibrationFetched, welderFetched, materialFetched, personnelFetched, { data: projectParties }] =
     await Promise.all([
       selectRegisterRows<CalibrationRegisterDisplayRow>(
         supabase,
         CALIBRATION_REGISTER_TABLE,
         "id, instrument_name, instrument_tag, calibration_lab, cert_number, cal_date, due_date, status, certificate_path, notes",
-        (q) => q.eq("project_id", projectId).order("due_date")
+        (q) => q.eq("project_id", projectId).order("due_date").limit(fetchLimit)
       ),
       selectRegisterRows<WelderQualificationDisplayRow>(
         supabase,
         WELDER_QUALIFICATION_REGISTER_TABLE,
         "id, welder_identifier, wpq_number, process, position, qualified_wps, qualified_ranges, expiry_date, status, certificate_path, notes",
-        (q) => q.eq("project_id", projectId).order("expiry_date")
+        (q) => q.eq("project_id", projectId).order("expiry_date").limit(fetchLimit)
       ),
       selectRegisterRows<MaterialRegisterDisplayRow>(
         supabase,
         MATERIAL_REGISTER_TABLE,
         "id, material_description, submittal_reference, approval_status, approved_date, heat_number, batch_number, po_reference, supplier, quantity, certificate_reference, certificate_path, receipt_status, disposition_notes, released_at, notes",
-        (q) => q.eq("project_id", projectId).order("created_at", { ascending: false })
+        (q) => q.eq("project_id", projectId).order("created_at", { ascending: false }).limit(fetchLimit)
       ),
       selectRegisterRows<PersonnelCertificationDisplayRow>(
         supabase,
         PERSONNEL_CERTIFICATIONS_TABLE,
         "id, certification_type, cert_number, issued_date, expiry_date, status, certificate_path, notes, project_party_id, project_parties(name)",
-        (q) => q.eq("project_id", projectId).order("expiry_date"),
+        (q) => q.eq("project_id", projectId).order("expiry_date").limit(fetchLimit),
         "holder_user_id"
       ),
       supabase
@@ -119,6 +136,21 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
         .order("name")
         .returns<{ id: string; name: string }[]>(),
     ]);
+
+  // Window each register to `limit` rows (date-ordered, so the expired / due-soon entries that drive the
+  // "Needs attention" strip load first).
+  const calibrationRows = calibrationFetched.slice(0, limit);
+  const welderRows = welderFetched.slice(0, limit);
+  const materialRows = materialFetched.slice(0, limit);
+  const personnelCertRows = personnelFetched.slice(0, limit);
+  const registerWindow = describeListWindow({
+    limit,
+    fetched: Math.max(calibrationFetched.length, welderFetched.length, materialFetched.length, personnelFetched.length),
+    options: REGISTER_LIMITS,
+  });
+  const loadMoreHref = registerWindow.next
+    ? hrefWithLimit(embedded ? `/inspect/projects/${projectId}` : `/inspect/projects/${projectId}/registers`, embedded ? { ...searchParams, tab: "registers" } : searchParams, registerWindow.next)
+    : null;
 
   // Statuses recomputed from the dates (never trust a stored value that may not have been refreshed).
   // Named people per party (primary login + added members) so a certificate can be assigned to one person.
@@ -237,6 +269,7 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
         extractMaterialRowsAction={extractMaterialRowsAction as unknown as GenericExtractAction}
         addExtractedMaterialRowsAction={addExtractedMaterialRowsAction as unknown as GenericAddAction}
       />
+      <LoadMore window={registerWindow} nextHref={loadMoreHref} noun="entries per register (the summary above counts loaded entries only)" />
     </div>
   );
 }

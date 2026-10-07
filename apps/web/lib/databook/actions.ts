@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateDataBookReadiness } from "@/lib/databook/readiness-cached";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -107,6 +108,7 @@ export async function createDataBookAction(
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
+  invalidateDataBookReadiness(projectId);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
   return { error: null };
 }
@@ -268,6 +270,7 @@ export async function compileDataBookAction(
     // Best-effort — see lib/audit/log.ts's doc comment.
   }
 
+  invalidateDataBookReadiness(projectId);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
   return { error: null };
 }
@@ -321,6 +324,7 @@ export async function withdrawDataBookAction(
     // Best-effort audit.
   }
 
+  invalidateDataBookReadiness(projectId);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
   return { error: null };
 }
