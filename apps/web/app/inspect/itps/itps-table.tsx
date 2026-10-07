@@ -32,6 +32,8 @@ export const ITP_STATUS_TONE: Record<string, "success" | "warning" | "neutral" |
   under_review: "warning",
   approved: "gold",
   client_accepted: "success",
+  superseded: "neutral",
+  withdrawn: "neutral",
 };
 
 export const ITP_STATUS_LABEL: Record<string, string> = {
@@ -39,6 +41,8 @@ export const ITP_STATUS_LABEL: Record<string, string> = {
   under_review: "Under review",
   approved: "Approved",
   client_accepted: "Client accepted",
+  superseded: "Superseded",
+  withdrawn: "Withdrawn",
 };
 
 function buildColumns(hrefFor: (id: string) => string, selectedId: string | null): DataTableColumn<ItpRow>[] {

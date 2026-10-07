@@ -113,6 +113,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
           kind="material"
           projectId={projectId}
           verifiedAt={row.verified_at}
+          hasCertificate={!!row.certificate_path}
           lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,

@@ -135,7 +135,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
   // RLS layer by is_client_checklist_generator (20260921000000_self_managed_submit_and_checklist_
   // gen.sql). Approve itself stays JAGS-only and is untouched by this.
   let isEligibleChecklistGenerator = false;
-  if (!session.isJagsStaff && itp.status === "approved") {
+  if (!session.isJagsStaff && (itp.status === "approved" || itp.status === "client_accepted")) {
     const { data: myParty } = await supabase
       .from("project_parties")
       .select("party_type, is_active")
@@ -155,7 +155,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
     }
   }
 
-  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && itp.status === "approved";
+  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && (itp.status === "approved" || itp.status === "client_accepted");
 
   const Heading = embedded ? "h2" : "h1";
   return (
@@ -186,7 +186,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
         <p className="mt-1 text-sm text-muted">{itp.title}</p>
       </div>
 
-      {itp.status !== "approved" && (
+      {itp.status !== "approved" && itp.status !== "client_accepted" && (
         <>
           <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
             Checklists are generated once this ITP is approved. Current status:{" "}

@@ -3,7 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StaffGrantForm, type StaffOption, type OrgOption, type ProjectOption } from "./staff-grant-form";
 import { RemoveGrantButton } from "./remove-grant-button";
-import { AccountStatusButton, OffboardByEmailForm } from "./account-status-controls";
+import { AccountStatusButton, BulkOffboardForm, OffboardByEmailForm } from "./account-status-controls";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +129,9 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
 
       <div className="mt-6">
         <OffboardByEmailForm />
+      </div>
+      <div className="mt-4">
+        <BulkOffboardForm />
       </div>
 
       <div className="mt-8 space-y-4">
