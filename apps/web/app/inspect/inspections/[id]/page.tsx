@@ -47,7 +47,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select(
-      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, signed_by_name, signed_at, witness_name, witness_signature, users(full_name)"
+      "id, record_number, project_id, itp_item_id, project_name, itp_number, activity, location, client_name, applicable_standard, governing_drawing_reference, governing_drawing_revision, inspection_date, overall_result, notes, narrative, inspector_signature, checklist_template_id, inspector_id, signed_by_name, signed_at, witness_name, witness_signature, users!inspection_records_inspector_id_fkey(full_name)"
     )
     .eq("id", id)
     .maybeSingle<

@@ -58,7 +58,7 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
       .select(
         head || idsOnly
           ? `id${embed}`
-          : `id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users(full_name)${embed}`,
+          : `id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users!inspection_records_inspector_id_fkey(full_name)${embed}`,
         head ? { count: "exact", head: true } : undefined
       );
     if (irnMode === "issued") query = query.is("irns.voided_at", null);
@@ -101,7 +101,7 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
     if (pageIds.length) {
       const { data: pageRecs } = await supabase
         .from("inspection_records")
-        .select("id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users(full_name)")
+        .select("id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users!inspection_records_inspector_id_fkey(full_name)")
         .in("id", pageIds)
         .returns<RecordQueryRow[]>();
       const order = new Map(pageIds.map((pid, i) => [pid, i]));
