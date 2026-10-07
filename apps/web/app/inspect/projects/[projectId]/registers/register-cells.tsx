@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   deleteRegisterEntryAction,
+  replaceRegisterCertificateAction,
   updateRegisterEntryAction,
   type ManageRegisterState,
   type RegisterKind,
@@ -206,6 +207,54 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
   );
 }
 
+/** S3-11: replace (or attach) just the certificate file of one entry; the previous file stays on record. */
+function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKind; projectId: string; id: string; hasFile: boolean }) {
+  const [state, formAction, pending] = useActionState(replaceRegisterCertificateAction, initialState);
+  const [open, setOpen] = useState(false);
+  const submitted = useRef(false);
+  useEffect(() => {
+    if (submitted.current && !pending && state.error === null) {
+      submitted.current = false;
+      setOpen(false);
+    }
+  }, [pending, state]);
+  return (
+    <span className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="text-xs text-burgundy hover:underline">
+        {hasFile ? "Replace file" : "Attach file"}
+      </button>
+      {open && (
+        <form
+          action={formAction}
+          onSubmit={() => (submitted.current = true)}
+          className="absolute right-0 z-20 mt-1 w-72 space-y-2 whitespace-normal rounded-md border border-border bg-surface p-3 shadow-lg"
+        >
+          <input type="hidden" name="kind" value={kind} />
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="project_id" value={projectId} />
+          <CertificateUpload projectId={projectId} kind={kind} label={hasFile ? "New certificate file" : "Certificate file"} />
+          {hasFile && (
+            <label className="block text-xs font-medium text-ink">
+              Reason for replacing
+              <input name="reason" required minLength={5} className={INPUT} placeholder="e.g. re-issued certificate" />
+            </label>
+          )}
+          {hasFile && <p className="text-xs text-muted">The previous file is kept on record.</p>}
+          {state.error && <p className="text-xs text-danger">{state.error}</p>}
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
+              {pending ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </span>
+  );
+}
+
 /** Edit / Delete (and, for materials, a one-click Release) for one register row. JAGS staff only — rendered only when `canManage`. */
 export function RegisterRowActions({
   kind,
@@ -213,10 +262,12 @@ export function RegisterRowActions({
   row,
   verifiedAt,
   lifecycleStatus,
+  hasCertificate = false,
 }: {
   kind: RegisterKind;
   projectId: string;
   row: Record<string, string | null>;
+  hasCertificate?: boolean;
   verifiedAt?: string | null;
   lifecycleStatus?: string | null;
 }) {
@@ -241,6 +292,7 @@ export function RegisterRowActions({
       <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
         Edit
       </button>
+      {row.id && <ReplaceCertificate kind={kind} projectId={projectId} id={row.id} hasFile={hasCertificate} />}
       <form
         action={deleteAction}
         onSubmit={(e) => {

@@ -75,6 +75,7 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
           kind="welder"
           projectId={projectId}
           verifiedAt={row.verified_at}
+          hasCertificate={!!row.certificate_path}
           lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,

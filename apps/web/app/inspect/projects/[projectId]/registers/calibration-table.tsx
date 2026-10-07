@@ -74,6 +74,7 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
           kind="calibration"
           projectId={projectId}
           verifiedAt={row.verified_at}
+          hasCertificate={!!row.certificate_path}
           lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,

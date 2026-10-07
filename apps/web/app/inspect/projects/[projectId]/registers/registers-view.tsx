@@ -107,8 +107,9 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
       selectRegisterRows<PersonnelCertificationDisplayRow>(
         supabase,
         PERSONNEL_CERTIFICATIONS_TABLE,
-        "id, certification_type, cert_number, issued_date, expiry_date, status, certificate_path, notes, project_parties(name)",
-        (q) => q.eq("project_id", projectId).order("expiry_date")
+        "id, certification_type, cert_number, issued_date, expiry_date, status, certificate_path, notes, project_party_id, project_parties(name)",
+        (q) => q.eq("project_id", projectId).order("expiry_date"),
+        "holder_user_id"
       ),
       supabase
         .from("project_parties")
@@ -139,7 +140,18 @@ export async function RegistersView({ projectId, embedded = false }: { projectId
   const today = todayInTimeZone(projectTz);
   const calibrationList = calibrationRows.map((r) => ({ ...r, status: computeCalibrationStatus(r.due_date, today) }));
   const welderList = welderRows.map((r) => ({ ...r, status: computeWelderStatus(r.expiry_date, today) }));
-  const personnelList = personnelCertRows.map((r) => ({ ...r, status: computePersonnelCertificationStatus(r.expiry_date, today) }));
+  // S3-09: names of the people certificates are assigned to.
+  const holderIds = [...new Set(personnelCertRows.map((r) => r.holder_user_id).filter((v): v is string => !!v))];
+  const holderNameById = new Map<string, string>();
+  if (holderIds.length > 0) {
+    const { data: holders } = await supabase.from("users").select("id, full_name").in("id", holderIds).returns<{ id: string; full_name: string }[]>();
+    for (const h of holders ?? []) holderNameById.set(h.id, h.full_name);
+  }
+  const personnelList = personnelCertRows.map((r) => ({
+    ...r,
+    holder_name: r.holder_user_id ? (holderNameById.get(r.holder_user_id) ?? null) : null,
+    status: computePersonnelCertificationStatus(r.expiry_date, today),
+  }));
   const materialList = materialRows;
 
   // Superseded / retired / withdrawn entries are history, not something that needs attention.
