@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "@/lib/notifications/actions";
 import type { NotificationRow } from "@/lib/notifications/types";
+import { safeSitePath } from "@/lib/notifications/render";
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -95,7 +96,8 @@ export function NotificationsBell({
       await markNotificationReadAction(n.id);
     }
     setOpen(false);
-    if (n.link) router.push(n.link);
+    // Same-site paths only: a stored link such as "https://evil.example" or "//evil.example" is ignored.
+    if (n.link && safeSitePath(n.link)) router.push(n.link);
   }
 
   async function handleMarkAllRead() {

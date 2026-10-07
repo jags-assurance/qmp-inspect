@@ -1,13 +1,20 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { after } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
+import { recordAuditEvent } from "@/lib/audit/log";
+import { getAppUrl } from "./app-url";
+import { checkPasswordPolicy } from "./password-policy";
+import { safeNextPath } from "./safe-redirect";
+import { checkThrottle, clearAttempts, recordAttempt } from "./throttle";
 
 export interface SignInState {
   error: string | null;
 }
+
+const TOO_MANY_ATTEMPTS = "Too many attempts. Wait a few minutes and try again, or use Forgot password.";
 
 export async function signInAction(_prev: SignInState, formData: FormData): Promise<SignInState> {
   const email = String(formData.get("email") ?? "").trim();
@@ -17,15 +24,35 @@ export async function signInAction(_prev: SignInState, formData: FormData): Prom
     return { error: "Enter your email and password." };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  // App-level throttle (in addition to Supabase's own limits): refuse before even checking the
+  // password so a guessing run gets no signal once the limit is reached.
+  if ((await checkThrottle("signin", email)).blocked) {
+    return { error: TOO_MANY_ATTEMPTS };
+  }
 
-  if (error) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error || !data?.user) {
+    await recordAttempt("signin", email);
+    // Same message for a wrong password, an unknown email, an unconfirmed or a deactivated account.
     return { error: "Invalid email or password." };
   }
 
-  const next = String(formData.get("next") ?? "/");
-  redirect(next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/");
+  await clearAttempts("signin", email);
+  const userId = data.user.id;
+  // Audit the sign-in without delaying the redirect; failures are logged by recordAuditEvent.
+  after(() =>
+    recordAuditEvent(supabase, {
+      entityType: "auth",
+      entityId: userId,
+      action: "sign_in",
+      actorId: userId,
+      summary: "Signed in",
+    })
+  );
+
+  redirect(safeNextPath(String(formData.get("next") ?? "/")));
 }
 
 export interface RequestPasswordResetState {
@@ -36,7 +63,7 @@ export interface RequestPasswordResetState {
 /**
  * Always reports success (never reveals whether the email is a real account) — the standard
  * anti-enumeration practice for a "forgot password" flow. Supabase's own resetPasswordForEmail
- * call is likewise silent about whether the address exists.
+ * call is likewise silent about whether the address exists. Requests are throttled per email and IP.
  */
 export async function requestPasswordResetAction(
   _prev: RequestPasswordResetState,
@@ -45,11 +72,18 @@ export async function requestPasswordResetAction(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email address.", sent: false };
 
+  // Over the limit: pretend it worked (no signal to an attacker, no mail flood to the victim).
+  if ((await checkThrottle("reset", email)).blocked) {
+    return { error: null, sent: true };
+  }
+  await recordAttempt("reset", email);
+
   const supabase = await createSupabaseServerClient();
-  const origin = (await headers()).get("origin") ?? "";
+  // Built from the configured public URL, never from the request's (spoofable) Origin header.
+  const appUrl = await getAppUrl();
 
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/confirm?next=/reset-password`,
+    redirectTo: `${appUrl}/auth/confirm?next=/reset-password`,
   });
 
   return { error: null, sent: true };
@@ -74,37 +108,75 @@ export async function updatePasswordAction(
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirm_password") ?? "");
 
-  if (password.length < 8) return { error: "Password must be at least 8 characters." };
-  if (password !== confirmPassword) return { error: "Passwords don't match." };
-
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) return { error: "Your reset link has expired. Request a new one and try again." };
+
+  const policy = checkPasswordPolicy(password, { email: user.email });
+  if (!policy.ok) return { error: policy.error };
+  if (password !== confirmPassword) return { error: "Passwords don't match." };
+
   const { error } = await supabase.auth.updateUser({ password });
-  if (error) return { error: "Could not update your password. Request a new reset link and try again." };
+  // A retry after a previous partial success (password changed, flag clear failed) re-submits the
+  // same password, which Supabase refuses as "same password"; that is fine — carry on to clear the flag.
+  if (error && (error as { code?: string }).code !== "same_password") {
+    return { error: "Could not update your password. Request a new reset link and try again." };
+  }
 
   // Clears the forced-first-login flag once a real new password has actually been accepted above.
   // Deliberately done via the service-role client, not the user's own RLS-scoped session — see
   // guard_must_change_password (supabase/migrations/20260929010000_party_login_provisioning.sql)
-  // for why an ordinary self-update of this column is blocked outright. Best-effort: a user who
-  // reached this via the plain "forgot password" flow rather than a forced first login simply has
-  // nothing to clear either way, and a failure here should never block a password change that has
-  // already genuinely succeeded.
-  if (user?.id && isServiceRoleConfigured()) {
-    try {
-      const serviceClient = createSupabaseServiceRoleClient();
-      await serviceClient.from("users").update({ must_change_password: false }).eq("id", user.id);
-    } catch {
-      // Best-effort — see comment above.
+  // and users_guard_privileged_columns (20261104000100) for why a self-update of this column is
+  // blocked outright. Both the table column and the auth app_metadata claim (which proxy.ts reads
+  // without a DB query) are cleared. A failure is surfaced rather than swallowed: otherwise the user
+  // is bounced back to /reset-password with no explanation.
+  if (isServiceRoleConfigured()) {
+    const serviceClient = createSupabaseServiceRoleClient();
+    const [profileResult, metaResult] = await Promise.all([
+      serviceClient.from("users").update({ must_change_password: false }).eq("id", user.id),
+      serviceClient.auth.admin.updateUserById(user.id, { app_metadata: { must_change_password: false } }),
+    ]);
+    if (profileResult.error || metaResult.error) {
+      console.error(
+        `[auth] could not clear must_change_password for ${user.id}: ${profileResult.error?.message ?? metaResult.error?.message}`
+      );
+      return {
+        error:
+          "Your password was updated, but we couldn't finish activating your account. Submit the form once more; if it keeps failing, contact your administrator.",
+      };
     }
   }
+
+  // Revoke every other session for this user (a leaked temporary password stops working elsewhere).
+  await supabase.auth.signOut({ scope: "others" }).catch(() => undefined);
+
+  await recordAuditEvent(supabase, {
+    entityType: "auth",
+    entityId: user.id,
+    action: "password_changed",
+    actorId: user.id,
+    summary: "Password changed",
+  });
 
   redirect("/login");
 }
 
 export async function signOutAction() {
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    await recordAuditEvent(supabase, {
+      entityType: "auth",
+      entityId: user.id,
+      action: "sign_out",
+      actorId: user.id,
+      summary: "Signed out",
+    });
+  }
   await supabase.auth.signOut();
   redirect("/login");
 }

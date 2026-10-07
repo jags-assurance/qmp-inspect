@@ -20,6 +20,8 @@ import { AUDIT_LOG_TABLE } from "./types";
  * row, since a platform-wide event is inherently a staff-only concern — never omit organizationId
  * for an event that genuinely does belong to one organisation just because it's convenient.
  *
+ * Failures are logged (console.error, which Sentry captures once enabled) instead of swallowed, but never thrown.
+ *
  * Best-effort: a failure here must never fail — or even surface an error on — the mutation it's
  * recording. The underlying business event (the ITP approval, the NCR close, the sign-off, ...) has
  * already happened and is the source of truth; this is a convenience trail on top, not part of the
@@ -41,7 +43,29 @@ export async function recordAuditEvent(
   }
 ): Promise<void> {
   try {
-    await supabase.from(AUDIT_LOG_TABLE).insert({
+    // Preferred path: record_audit_event() (20261104000300) is SECURITY DEFINER and forces
+    // actor_id = auth.uid() and checks project/org access itself, so a caller can never attribute an
+    // event to someone else. params.actorId is therefore informational only.
+    const { error: rpcError } = await (supabase as unknown as RpcClient).rpc("record_audit_event", {
+      p_organization_id: params.organizationId ?? null,
+      p_project_id: params.projectId ?? null,
+      p_entity_type: params.entityType,
+      p_entity_id: params.entityId,
+      p_action: params.action,
+      p_summary: params.summary,
+      p_changes: params.changes ?? null,
+    });
+    if (!rpcError) return;
+
+    if (!RPC_MISSING_CODES.has(rpcError.code ?? "")) {
+      // The function exists and refused (or the database errored): a real failure, never retried
+      // through the direct-insert path (that would be the very forgery route the function closes).
+      console.error(`[audit] record_audit_event failed (${params.entityType}/${params.action}): ${rpcError.message}`);
+      return;
+    }
+
+    // Function not deployed yet (migration pending): fall back to the original direct insert.
+    const { error } = await supabase.from(AUDIT_LOG_TABLE).insert({
       organization_id: params.organizationId ?? null,
       project_id: params.projectId ?? null,
       entity_type: params.entityType,
@@ -51,7 +75,18 @@ export async function recordAuditEvent(
       summary: params.summary,
       changes: params.changes ?? null,
     });
-  } catch {
-    // Best-effort — see doc comment above. Never throws; never blocks the caller's own mutation.
+    if (error) {
+      console.error(`[audit] insert failed (${params.entityType}/${params.action}): ${error.message}`);
+    }
+  } catch (err) {
+    console.error(`[audit] unexpected failure (${params.entityType}/${params.action}):`, err instanceof Error ? err.message : err);
   }
+}
+
+// Same "object not there yet" codes used across the app for graceful degradation before a migration
+// is applied: undefined function, undefined column, undefined table, and PostgREST's schema-cache misses.
+const RPC_MISSING_CODES = new Set(["42883", "42703", "42P01", "PGRST202", "PGRST204", "PGRST205"]);
+
+interface RpcClient {
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ error: { code?: string; message: string } | null }>;
 }

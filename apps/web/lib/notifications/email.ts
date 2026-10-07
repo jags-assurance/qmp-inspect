@@ -9,6 +9,8 @@
 // Uses Resend's plain HTTP API via fetch rather than adding the `resend` npm package — one POST
 // request, no SDK needed, keeps this dependency-free until there's a second reason to add the SDK.
 
+import { renderNotificationEmailHtml } from "./render";
+
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 // Must be a domain verified in the Resend account this key belongs to — resend.com rejects sends
@@ -40,9 +42,9 @@ export async function sendNotificationEmail(params: NotificationEmailParams): Pr
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const linkHtml = params.link
-    ? `<p><a href="${appUrl}${params.link}">Open in JAGS Assurance →</a></p>`
-    : "";
+  // Title, body and link are user-influenced (party names, NCR text, reasons): escaped, and the link
+  // is only ever a same-site path — see ./render.ts.
+  const html = renderNotificationEmailHtml({ title: params.title, body: params.body, link: params.link, appUrl });
 
   const response = await fetch(RESEND_API_URL, {
     method: "POST",
@@ -54,7 +56,7 @@ export async function sendNotificationEmail(params: NotificationEmailParams): Pr
       from: DEFAULT_FROM,
       to: params.toEmail,
       subject: params.title,
-      html: `<p>${params.body ?? params.title}</p>${linkHtml}`,
+      html,
     }),
   });
 
