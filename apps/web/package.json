@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
+    "e2e:report": "node e2e/scripts/summarize-results.mjs"
   },
   "dependencies": {
     "@jags/shared-types": "workspace:*",
@@ -28,6 +30,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "^4",
     "@types/archiver": "^8.0.0",
     "@types/node": "^20",

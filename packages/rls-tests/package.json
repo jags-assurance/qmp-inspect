@@ -3,13 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "test": "tsx src/tenant-isolation.test.ts"
+    "test": "tsx src/tenant-isolation.test.ts",
+    "test:guards": "tsx src/guards.test.ts",
+    "test:all": "tsx src/tenant-isolation.test.ts && tsx src/guards.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

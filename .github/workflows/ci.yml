@@ -4,6 +4,11 @@ name: CI
 # replaced); it can still be triggered by hand from the Actions tab (Run workflow).
 on:
   workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "Also run the read-only Playwright e2e suite against the deployed site (see the e2e job at the bottom for the secrets it needs)"
+        type: boolean
+        default: false
   push:
     branches: [main, dev]
   pull_request:
@@ -120,3 +125,66 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: pnpm test
+
+  # Read-only browser suite (apps/web/e2e) against a DEPLOYED site: signs in with the seeded demo
+  # accounts and only navigates and reads. Manual only: start it from the Actions tab with "Run
+  # workflow" and tick "run_e2e". It never runs on push or pull_request, so it cannot slow or break
+  # the normal checks, and it is never pointed at a site by default in CI.
+  #
+  # Repo secrets (Settings -> Secrets and variables -> Actions):
+  #   E2E_BASE_URL   site under test, e.g. https://jags-qmp-client-dev.vercel.app (empty = that dev URL)
+  #   E2E_PASSWORD   the shared demo password (empty = the documented demo default)
+  #   E2E_ADMIN_EMAIL, E2E_INSPECTOR_EMAIL, E2E_INSPECTOR_SCOPED_EMAIL, E2E_CLIENT_EMAIL,
+  #   E2E_SUBCONTRACTOR_EMAIL, E2E_CONTRACTOR_EMAIL, E2E_TPI_EMAIL   (each optional; empty = the
+  #   seeded demo address). Details: apps/web/e2e/README.md.
+  e2e:
+    name: E2E (read-only, manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.run_e2e
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # CI runner only: it has no preinstalled browser. (Local/sandbox runs use PLAYWRIGHT_BROWSERS_PATH.)
+      - name: Install Chromium for Playwright
+        run: pnpm --filter @jags/web exec playwright install --with-deps chromium
+      - name: Run e2e suite
+        working-directory: apps/web
+        env:
+          CI: "true"
+          BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_INSPECTOR_EMAIL: ${{ secrets.E2E_INSPECTOR_EMAIL }}
+          E2E_INSPECTOR_SCOPED_EMAIL: ${{ secrets.E2E_INSPECTOR_SCOPED_EMAIL }}
+          E2E_CLIENT_EMAIL: ${{ secrets.E2E_CLIENT_EMAIL }}
+          E2E_SUBCONTRACTOR_EMAIL: ${{ secrets.E2E_SUBCONTRACTOR_EMAIL }}
+          E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
+          E2E_TPI_EMAIL: ${{ secrets.E2E_TPI_EMAIL }}
+        run: pnpm e2e
+      - name: Summarise results
+        if: always()
+        working-directory: apps/web
+        run: |
+          if [ -f e2e/test-results/results.json ]; then
+            node e2e/scripts/summarize-results.mjs >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No results.json was produced (the run did not start)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            apps/web/e2e/playwright-report
+            apps/web/e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 14
