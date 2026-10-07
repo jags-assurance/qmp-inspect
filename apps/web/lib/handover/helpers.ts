@@ -52,6 +52,8 @@ export function acknowledgeErrorMessage(message: string | null | undefined): str
   if (m.includes("already acknowledged")) return "This handover has already been acknowledged.";
   if (m.includes("rejected")) return "This certificate was rejected and can no longer be acknowledged.";
   if (m.includes("superseded")) return "This certificate was superseded by a later revision.";
+  if (m.includes("signature")) return "The signature was not accepted. Clear the pad, sign again and retry.";
+  if (m.includes("evidence")) return "The supporting file could not be verified in storage. Attach it again and retry.";
   if (m.includes("client")) return "Only the client organisation can acknowledge receipt of a handover.";
   if (m.includes("package")) return "No package file is attached to this certificate, so it cannot be acknowledged. Contact JAGS Assurance.";
   if (m.includes("name")) return "Enter a valid name (check the length) to acknowledge receipt.";
@@ -71,4 +73,42 @@ export function issueErrorMessage(code: string | null | undefined, message: stri
   if (m.includes("staff")) return "Only JAGS staff can issue a handover certificate.";
   if (m.includes("path") || m.includes("sha")) return "The uploaded package reference was rejected. Re-upload the file and try again.";
   return "Could not issue the handover certificate. Check you have permission and try again.";
+}
+
+// ---------------------------------------------------------------------------------------------
+// S7-18: acknowledgement signature + evidence file
+// ---------------------------------------------------------------------------------------------
+
+/** Largest supporting file accepted with an acknowledgement (a signed letter, an email export, photos). */
+export const ACK_EVIDENCE_MAX_BYTES = 25 * 1024 * 1024;
+const ACK_EVIDENCE_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "webp", "heic", "doc", "docx", "xls", "xlsx", "txt", "eml", "msg"];
+
+/** Client-side check of the chosen evidence file. Returns an error message or null. */
+export function validateAckEvidenceFile(file: { name: string; size: number }): string | null {
+  if (file.size <= 0) return "That file is empty.";
+  if (file.size > ACK_EVIDENCE_MAX_BYTES) return `The supporting file must be ${Math.round(ACK_EVIDENCE_MAX_BYTES / (1024 * 1024))} MB or smaller.`;
+  const ext = file.name.includes(".") ? (file.name.split(".").pop() ?? "").toLowerCase() : "";
+  if (!ACK_EVIDENCE_EXTENSIONS.includes(ext)) return "Attach a PDF, image, Word, Excel, text or email file.";
+  return null;
+}
+
+/** Storage path (generated-documents bucket) for an acknowledgement evidence file: handover-ack/<book>/<ts>-<name>. */
+export function buildAckEvidencePath(dataBookId: string, fileName: string, now: number = Date.now()): string {
+  const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "").slice(-120) || "evidence";
+  return `handover-ack/${dataBookId}/${now}-${safe}`;
+}
+
+/** Whether a stored evidence path is well formed for this Data Book (the database re-checks this). */
+export function isValidAckEvidencePath(path: string, dataBookId: string): boolean {
+  const prefix = `handover-ack/${dataBookId}/`;
+  return path.startsWith(prefix) && path.length > prefix.length && path.length <= 400 && !path.includes("..") && !/[\u0000-\u001f]/.test(path);
+}
+
+/**
+ * Whether the signature pad must be signed. The client's own acknowledgement needs a signature once
+ * the signature columns exist; an admin recording acceptance on the client's behalf may rely on the
+ * evidence file / on-behalf basis instead (they cannot sign as the client).
+ */
+export function isAckSignatureRequired(opts: { signatureEnabled: boolean; onBehalf: boolean }): boolean {
+  return opts.signatureEnabled && !opts.onBehalf;
 }

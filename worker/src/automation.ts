@@ -44,7 +44,7 @@ async function recordSent(ruleId: string, entityId: string): Promise<void> {
 /** Every JAGS admin login with access (global, or specifically to this org) — the fallback
  *  recipient for every rule type, since an admin can always act on a stuck item regardless of who
  *  else it's aimed at. */
-async function getOrgAdminUserIds(organizationId: string): Promise<string[]> {
+export async function getOrgAdminUserIds(organizationId: string): Promise<string[]> {
   const { data: grants } = await supabase
     .from("access_grants")
     .select("user_id, scope_type, organization_id")
@@ -79,7 +79,7 @@ async function onlyActiveUsers(ids: Iterable<string>): Promise<string[]> {
   }
 }
 
-async function notify(organizationId: string, projectId: string | null, recipientUserId: string, title: string, body: string, link: string): Promise<void> {
+export async function notify(organizationId: string, projectId: string | null, recipientUserId: string, title: string, body: string, link: string): Promise<void> {
   await supabase.from("notifications").insert({
     organization_id: organizationId,
     project_id: projectId,

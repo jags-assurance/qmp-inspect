@@ -69,7 +69,7 @@ export function DropdownMenu({
           onClick={() => setTimeout(() => setOpen(false), 0)}
           className={
             "absolute z-20 mt-1 min-w-[14rem] overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg " +
-            (align === "end" ? "right-0" : "left-0")
+            (align === "end" ? "end-0" : "start-0")
           }
         >
           {children}

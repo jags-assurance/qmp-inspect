@@ -63,7 +63,7 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
       onClick={() => setOpen(false)}
       className={
         "flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold " +
-        (collapsed ? "justify-center px-0" : indent ? "pl-9" : "") +
+        (collapsed ? "justify-center px-0" : indent ? "ps-9" : "") +
         " " +
         (isActive ? "bg-white/10 text-gold" : "text-white/85 hover:bg-white/10 hover:text-white")
       }
@@ -138,14 +138,14 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        style={depth > 0 ? { paddingLeft: `${12 + depth * 20}px` } : undefined}
+        style={depth > 0 ? { paddingInlineStart: `${12 + depth * 20}px` } : undefined}
         className={
           "flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
           (hasActiveChild ? "text-gold" : "text-white/85 hover:bg-white/10 hover:text-white")
         }
       >
         {depth === 0 && <NavIcon label={item.label} />}
-        <span className="flex-1 truncate text-left">{item.label}</span>
+        <span className="flex-1 truncate text-start">{item.label}</span>
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"
@@ -154,7 +154,7 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={"h-3.5 w-3.5 shrink-0 transition-transform " + (open ? "rotate-90" : "")}
+          className={"h-3.5 w-3.5 shrink-0 transition-transform rtl:-scale-x-100 " + (open ? "rotate-90" : "")}
         >
           <path d="M7 4.5l5.5 5.5-5.5 5.5" />
         </svg>

@@ -21,6 +21,9 @@ interface CertificateRow {
   received_by_name: string | null;
   received_by_company: string | null;
   acknowledged_on_behalf: boolean | null;
+  /** Added by 20261112000101; absent until applied. */
+  ack_signature?: string | null;
+  ack_evidence_name?: string | null;
   /** Added by 20261101000300; absent until applied. */
   verification_token?: string | null;
 }
@@ -76,6 +79,8 @@ export async function renderHandoverCertificatePdf(payload: RenderDataBookPdfPay
     receivedByName: cert.received_by_name,
     receivedByCompany: cert.received_by_company,
     acknowledgedOnBehalf: Boolean(cert.acknowledged_on_behalf),
+    acknowledgementSignatureDataUri: cert.ack_signature ?? null,
+    acknowledgementEvidenceName: cert.ack_evidence_name ?? null,
     revision,
     generatedAt: new Date(),
     branding: await getOrgBranding(supabase, project?.organization_id),

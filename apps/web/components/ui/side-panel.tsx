@@ -149,7 +149,7 @@ export function SidePanel({
           if (isField && !isSearch) dirtyRef.current = true;
         }}
         className={cn(
-          "relative z-10 h-full w-full overflow-y-auto border-l border-border bg-surface p-5 shadow-xl outline-none sm:p-6",
+          "relative z-10 h-full w-full overflow-y-auto border-s border-border bg-surface p-5 shadow-xl outline-none sm:p-6",
           expanded ? EXPANDED_CLASS : WIDTH_CLASS[width]
         )}
       >
@@ -160,7 +160,7 @@ export function SidePanel({
             </h2>
             {description && <p className="mt-1 text-sm text-muted">{description}</p>}
           </div>
-          <div className="-mr-2 -mt-1 flex shrink-0 items-center">
+          <div className="-me-2 -mt-1 flex shrink-0 items-center">
             <button
               type="button"
               onClick={toggleExpanded}

@@ -49,9 +49,9 @@ export function PageGuide({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-9 z-20 w-80 rounded-lg border border-border bg-surface p-4 shadow-lg sm:w-96">
+        <div className="absolute start-0 top-9 z-20 w-80 rounded-lg border border-border bg-surface p-4 shadow-lg sm:w-96">
           <p className="text-sm font-semibold text-ink">{title}</p>
-          <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs text-ink">
+          <ul className="mt-2 list-disc space-y-1.5 ps-4 text-xs text-ink">
             {points.map((p, i) => (
               <li key={i}>{p}</li>
             ))}

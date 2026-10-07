@@ -21,7 +21,17 @@ import {
 import { isMissingDbObject } from "@/lib/databook/db-errors";
 import { buildOverrideItems } from "@/lib/databook/override-items";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
-import { MIN_REJECT_REASON_LENGTH, acknowledgeErrorMessage, clientRecipientIds, issueErrorMessage, rejectErrorMessage } from "./helpers";
+import {
+  ACK_EVIDENCE_MAX_BYTES,
+  MIN_REJECT_REASON_LENGTH,
+  acknowledgeErrorMessage,
+  clientRecipientIds,
+  isAckSignatureRequired,
+  isValidAckEvidencePath,
+  issueErrorMessage,
+  rejectErrorMessage,
+} from "./helpers";
+import { validateSignatureDataUrl } from "@/lib/checklists/evidence-rules";
 import { untypedRpc } from "@/lib/supabase/untyped";
 import { verifyStoredPackageHash } from "./package-hash";
 import { queueHandoverCertificatePdf, queueIssuedDataBookPdf } from "./certificate-pdf";
@@ -322,6 +332,13 @@ export async function acknowledgeHandoverAction(
   const ackComment = String(formData.get("ack_comment") ?? "").trim();
   const onBehalfBasis = String(formData.get("on_behalf_basis") ?? "").trim();
   const confirmed = formData.get("confirm") === "on" || formData.get("confirm") === "true";
+  // S7-18: drawn signature (data URL) and an optional supporting file already uploaded from the browser.
+  const signature = String(formData.get("signature") ?? "").trim();
+  const signatureEnabled = formData.get("signature_enabled") === "1";
+  const evidencePath = String(formData.get("evidence_path") ?? "").trim();
+  const evidenceName = String(formData.get("evidence_name") ?? "").trim().slice(0, 255);
+  const evidenceSizeRaw = Number(formData.get("evidence_size") ?? 0);
+  const evidenceSize = Number.isFinite(evidenceSizeRaw) && evidenceSizeRaw > 0 && evidenceSizeRaw <= ACK_EVIDENCE_MAX_BYTES ? Math.floor(evidenceSizeRaw) : null;
 
   if (!certificateId || !receivedByName) {
     return { error: "Your name is required to acknowledge receipt." };
@@ -347,6 +364,13 @@ export async function acknowledgeHandoverAction(
     return { error: "Say how the client confirmed (for example the email or signed document reference) before recording this on their behalf." };
   }
 
+  if (signature) {
+    const sigError = validateSignatureDataUrl(signature, "signature");
+    if (sigError) return { error: sigError };
+  } else if (isAckSignatureRequired({ signatureEnabled, onBehalf: !isClient })) {
+    return { error: "Sign in the signature box to record this formal acceptance." };
+  }
+
   // Evidence metadata (S7-18): who from where. Best-effort - never blocks the acknowledgement.
   let userAgent: string | null = null;
   let ip: string | null = null;
@@ -359,23 +383,54 @@ export async function acknowledgeHandoverAction(
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // The evidence file must sit under THIS Data Book's handover-ack folder (the RPC re-checks that the
+  // object exists). Look the book up from the certificate, under the caller's own RLS.
+  if (evidencePath) {
+    const { data: bookRef } = await supabase
+      .from(HANDOVER_CERTIFICATES_TABLE)
+      .select("data_book_id")
+      .eq("id", certificateId)
+      .maybeSingle<{ data_book_id: string }>();
+    if (!bookRef || !isValidAckEvidencePath(evidencePath, bookRef.data_book_id)) {
+      return { error: "The supporting file reference was rejected. Attach it again and retry." };
+    }
+  }
+
   const baseArgs = {
     target_certificate_id: certificateId,
     received_name: receivedByName,
     received_company: receivedByCompany || null,
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
-  let { error } = await (supabase.rpc as any)("acknowledge_handover", {
+  const ackArgs = {
     ...baseArgs,
     p_comment: ackComment || null,
     p_user_agent: userAgent,
     p_ip: ip,
     p_on_behalf_basis: !isClient ? onBehalfBasis : null,
+  };
+  // All arguments are always sent, so the call resolves to exactly one function overload.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  let { error } = await (supabase.rpc as any)("acknowledge_handover", {
+    ...ackArgs,
+    p_signature: signature || null,
+    p_evidence_path: evidencePath || null,
+    p_evidence_name: evidencePath ? evidenceName || null : null,
+    p_evidence_size: evidencePath ? evidenceSize : null,
   });
   if (error && isMissingDbObject(error)) {
-    // The extended RPC arrives with a migration; the 3-argument version keeps working until then.
+    if (signature || evidencePath) {
+      // Never silently drop a signature or evidence file: the database update that stores them is
+      // not applied yet, so say so instead of recording a weaker acceptance than the client signed.
+      return { error: "Signature and evidence capture needs the latest database update (migration 20261112000101). Ask a JAGS Admin to apply it, then try again." };
+    }
+    // The extended RPC arrives with a migration; the earlier version keeps working until then.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
-    ({ error } = await (supabase.rpc as any)("acknowledge_handover", baseArgs));
+    ({ error } = await (supabase.rpc as any)("acknowledge_handover", ackArgs));
+    if (error && isMissingDbObject(error)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+      ({ error } = await (supabase.rpc as any)("acknowledge_handover", baseArgs));
+    }
   }
 
   if (error) {
@@ -411,7 +466,7 @@ export async function acknowledgeHandoverAction(
         entityId: certificateId,
         action: onBehalf ? "acknowledged_on_behalf" : "acknowledged",
         actorId: session.userId,
-        summary: `Handover certificate ${cert.certificate_number} acknowledged by ${who}`,
+        summary: `Handover certificate ${cert.certificate_number} acknowledged by ${who}${signature ? " (signed)" : ""}${evidencePath ? " with a supporting file" : ""}`,
       });
       const recipients = [...new Set([cert.issued_by, cert.data_books?.projects?.responsible_person_id].filter((v): v is string => Boolean(v)))].filter(
         (id) => id !== session.userId

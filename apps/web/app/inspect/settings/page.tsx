@@ -21,6 +21,7 @@ import { ReportingView } from "../organisation/reporting/reporting-view";
 import { CloudFolderSyncView } from "../organisation/cloud-sync/cloud-sync-view";
 import { InterventionLevelsSettingsView } from "../organisation/intervention-levels/intervention-levels-view";
 import { PlansSettingsView } from "../organisation/plans/plans-view";
+import { RetentionSettingsView } from "../organisation/retention/retention-view";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -40,6 +41,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "cloud-sync": "Mirror documents to a cloud folder.",
   "intervention-levels": "Hold, witness and review level definitions.",
   plans: "Plan limits and seats in use.",
+  retention: "How long documents are kept, and the ones past that period.",
 };
 
 type Params = Record<string, string | string[] | undefined>;
@@ -65,6 +67,7 @@ const RENDERERS: Record<string, Render> = {
   "cloud-sync": (sp) => <CloudFolderSyncView searchParams={asView(sp)} embedded />,
   "intervention-levels": (sp) => <InterventionLevelsSettingsView searchParams={asView(sp)} embedded />,
   plans: () => <PlansSettingsView embedded />,
+  retention: (sp) => <RetentionSettingsView searchParams={asView(sp)} embedded />,
 };
 
 /** Same grouping as the admin "Settings" tree in app/inspect/layout.tsx. Items with `href` are link-only. */
@@ -115,6 +118,7 @@ const ALL_GROUPS: SettingsNavGroup[] = [
       { key: "traceability", label: "Document Traceability", href: "/inspect/organisation/traceability" },
       { key: "intervention-levels", label: "Intervention Levels" },
       { key: "plans", label: "Plans & Seats" },
+      { key: "retention", label: "Document Retention" },
     ],
   },
 ];

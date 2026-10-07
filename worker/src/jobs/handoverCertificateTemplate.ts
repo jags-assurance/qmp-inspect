@@ -22,6 +22,10 @@ export interface HandoverCertificatePdfData {
   receivedByName: string | null;
   receivedByCompany: string | null;
   acknowledgedOnBehalf: boolean;
+  /** Signature drawn on the acknowledgement pad (PNG/JPEG data URL; S7-18). Anything else is ignored. */
+  acknowledgementSignatureDataUri?: string | null;
+  /** File name of the supporting evidence attached to the acknowledgement, if any. */
+  acknowledgementEvidenceName?: string | null;
   /** Vault revision this render is filed as, so the printed REV matches the vault. */
   revision: string | null;
   /** QR code (data URI) + target URL of the public verification page; omitted when unavailable. */
@@ -48,10 +52,16 @@ function brandBlock(d: HandoverCertificatePdfData): string {
   return JAGS_BRAND_BLOCK;
 }
 
-function fieldTable(title: string, rows: [string, string | null][]): string {
+/** Only a bounded base64 PNG/JPEG data URL is ever embedded as an image (same rule the database enforces). */
+export function safeSignatureDataUri(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(value) && value.length <= 700_000 ? value : null;
+}
+
+function fieldTable(title: string, rows: [string, string | null][], afterTableHtml = ""): string {
   return `<div class="section"><h2>${esc(title)}</h2><table class="fv"><tbody>${rows
     .map(([l, v]) => `<tr><th>${esc(l)}</th><td>${cell(v)}</td></tr>`)
-    .join("")}</tbody></table></div>`;
+    .join("")}</tbody></table>${afterTableHtml}</div>`;
 }
 
 export function buildHandoverCertificateHtml(d: HandoverCertificatePdfData): string {
@@ -74,13 +84,15 @@ export function buildHandoverCertificateHtml(d: HandoverCertificatePdfData): str
         }</div>`
     : "";
 
+  const signature = safeSignatureDataUri(d.acknowledgementSignatureDataUri);
   const ack = d.acknowledgedAt
     ? fieldTable("Client acknowledgement", [
         ["Received by", d.receivedByName],
         ["Company", d.receivedByCompany],
         ["Acknowledged at", d.acknowledgedAt.replace("T", " ").slice(0, 19) + " UTC"],
         ["Recorded", d.acknowledgedOnBehalf ? "By JAGS staff on behalf of the client" : "By the client"],
-      ])
+        ...(d.acknowledgementEvidenceName ? ([["Supporting file", d.acknowledgementEvidenceName]] as [string, string | null][]) : []),
+      ], signature ? `<div class="signature"><span class="sig-label">Signature</span><img src="${signature}" alt="Client signature" /></div>` : "")
     : `<div class="section"><h2>Client acknowledgement</h2><p class="note">Awaiting the client's formal acknowledgement of receipt.</p></div>`;
 
   return `<!doctype html>
@@ -105,6 +117,9 @@ export function buildHandoverCertificateHtml(d: HandoverCertificatePdfData): str
   table.fv th, table.fv td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; vertical-align: top; }
   table.fv tbody th { width: 32%; background: #f6f1ee; font-weight: 600; }
   table.fv thead th { background: #f6f1ee; }
+  .signature { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+  .signature .sig-label { font-size: 11px; color: #555; }
+  .signature img { max-height: 70px; max-width: 260px; border-bottom: 1px solid #999; }
   .note { margin: 0; padding: 8px; background: #faf6f2; border-left: 3px solid var(--gold); }
   .hash { font-family: "Courier New", monospace; font-size: 9px; word-break: break-all; }
   .powered-by { margin-top: 18px; text-align: center; font-size: 8px; color: #777; }

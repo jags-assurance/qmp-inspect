@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { NUMBERING_CONFIGS_TABLE, NUMBERING_DOC_TYPES, type NumberingConfigRow } from "@/lib/numbering/types";
+import { countTierOnlyPermissions } from "@/lib/numbering/tier-permissions";
 import {
   ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE,
   type ItpApprovalWorkflowConfigRow,
@@ -162,7 +163,12 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-semibold text-ink">Engagement scope</h2>
                 <div className="mt-3">
-                  <EngagementScopeForm organizationId={selectedOrg.id} engagementScope={selectedOrg.engagement_scope} />
+                  <EngagementScopeForm
+                    key={`${selectedOrg.id}-${selectedOrg.engagement_scope}`}
+                    organizationId={selectedOrg.id}
+                    engagementScope={selectedOrg.engagement_scope}
+                    tierOnlyPermissionCount={await countTierOnlyPermissions(supabase, selectedOrg.id, selectedOrg.engagement_scope)}
+                  />
                 </div>
               </div>
 
