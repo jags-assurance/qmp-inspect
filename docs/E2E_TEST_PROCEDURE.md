@@ -63,3 +63,6 @@ Roles: A JAGS admin, B JAGS inspector, C client, D main contractor, E subcontrac
 Copy the list above into a checklist and mark each step PASS/FAIL/NOTE. Remove `E2E-` data afterwards.
 
 See also `docs/E2E_DATABOOK_TEST_PROCEDURE.md` (older Data Book focused script, superseded by section 6 here).
+
+## 9. Automated read-only coverage
+`apps/web/e2e` (Playwright) automates the read-only parts of this procedure: login and landing page per role, admin-only page guards, list pages per role and the project -> ITP -> checklist -> inspection -> NCR -> vault -> handover walk. It never mutates data, so the create/submit/sign/close steps above remain manual. See `apps/web/e2e/README.md`; the last recorded run is in `docs/E2E_RUN_RESULTS.md`.

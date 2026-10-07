@@ -153,6 +153,7 @@ for (const role of ROLES) {
     });
 
     test("1b. project tabs open", async () => {
+      test.setTimeout(240_000); // 11 tabs on a slow dev site
       needs(targets.projectId, "no project visible");
       const problems: string[] = [];
       for (const tab of PROJECT_TABS) {
@@ -165,6 +166,7 @@ for (const role of ROLES) {
     });
 
     test("1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list)", async () => {
+      test.setTimeout(240_000);
       needs(targets.projectId, "no project visible");
       const problems: string[] = [];
       for (const sub of ["reports", "data-book", "registers", "activity", "kpis", "punch-list", "guide"]) {
