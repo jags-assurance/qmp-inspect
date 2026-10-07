@@ -20,6 +20,9 @@ import { DisciplineBreakdownPanel } from "./discipline-breakdown-panel";
 import { CreateDataBookForm } from "./create-databook-form";
 import { CompileDataBookForm, type OpenPunchItemPreview } from "./compile-databook-form";
 import { IssueHandoverForm } from "./issue-handover-form";
+import { WithdrawDataBookForm } from "./withdraw-databook-form";
+import { formatUtcDate, formatUtcDateTime } from "@/lib/databook/db-errors";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { DataBookPdfButton } from "./data-book-pdf-button";
 import { DataBookIndex, DataBookMiniNav, buildDataBookParts } from "./structure-panel";
 import { DoneActivitiesPanel } from "./done-activities-panel";
@@ -48,8 +51,9 @@ const PARTY_TYPE_LABEL: Record<string, string> = {
   jags: "JAGS Assurance",
 };
 
+// Dates are shown in UTC with an explicit label where a time is shown (the server zone differs from the viewer's).
 function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleDateString("en-GB") : "—";
+  return value ? formatUtcDate(value) : "—";
 }
 
 function Card({ id, title, children, hint }: { id: string; title: string; hint?: string; children: React.ReactNode }) {
@@ -118,7 +122,11 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { count: punchAllCount },
     { count: punchClosedCount },
   ] = await Promise.all([
-    computeDataBookReadiness(projectId),
+    computeDataBookReadiness(projectId).catch((err: unknown) => {
+      // Fail closed: show the problem instead of a fabricated "100% ready".
+      console.error("[data-book] readiness failed", err);
+      return null;
+    }),
     computeDataBookDisciplineBreakdown(projectId),
     supabase
       .from(DATA_BOOKS_TABLE)
@@ -126,12 +134,20 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .returns<DataBookRow[]>(),
-    supabase
-      .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, location, due_date, project_parties(name)")
-      .eq("project_id", projectId)
-      .neq("status", "closed")
-      .returns<OpenPunchItemPreview[]>(),
+    // Paged: PostgREST caps one response at 1000 rows, which silently truncated this list.
+    fetchAll<OpenPunchItemPreview>((from, to) =>
+      supabase
+        .from(PUNCH_LIST_ITEMS_TABLE)
+        .select("id, description, location, due_date, project_parties(name)")
+        .eq("project_id", projectId)
+        .neq("status", "closed")
+        .order("id")
+        .range(from, to)
+        .returns<OpenPunchItemPreview[]>()
+    ).then(
+      (rows) => ({ data: rows as OpenPunchItemPreview[] | null }),
+      () => ({ data: null as OpenPunchItemPreview[] | null })
+    ),
     supabase
       .from("project_parties")
       .select("id, name, party_type, is_active")
@@ -155,6 +171,16 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "closed"),
   ]);
 
+  if (!readiness) {
+    return (
+      <div className={embedded ? "" : "max-w-6xl"}>
+        <div className="rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm text-ink" role="alert">
+          <p className="font-medium">The Data Book readiness could not be calculated right now.</p>
+          <p className="mt-1 text-muted">A data query failed, so no readiness figures are shown rather than showing figures that might be wrong. Reload the page to try again.</p>
+        </div>
+      </div>
+    );
+  }
   const books = dataBooks ?? [];
   const openPunchItems: OpenPunchItemPreview[] = openPunchItemRows ?? [];
 
@@ -251,6 +277,8 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { label: "Materials approved and released", cat: readiness.materialRegister, href: `${base}/registers` },
     { label: "Standalone assignments cleared", cat: readiness.standaloneAssignments, href: "/inspect/standalone" },
     { label: "NCRs closed", cat: readiness.ncrs, href: "/inspect/ncrs" },
+    { label: "ITP activities inspected and passed", cat: readiness.activitiesExecuted, href: "/inspect/inspections" },
+    { label: "Hold and witness points signed off", cat: readiness.holdPoints, href: `${base}/workspace` },
   ].map((g) => ({
     label: g.label,
     ok: g.cat.percentage === 100,
@@ -333,6 +361,13 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
         </dl>
       </header>
 
+      {latest?.status === "issued" && !projectCompleted && (
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-ink" role="status">
+          This project was re-opened after Data Book {latest.book_number} was issued ({statusText}). The issued handover still stands as it was certified;
+          start a new revision when the re-opened work is finished.
+        </div>
+      )}
+
       {/* Status banner */}
       <section id="status" aria-label="Data Book status" className="mt-4 scroll-mt-24 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -398,7 +433,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
           <li>A final book needs every category at 100%, zero open or unverified punch items, and a Completed project. Draft books can be generated at any time and are marked DRAFT.</li>
           <li>JAGS staff can compile anyway (a &quot;Conditional Handover&quot;) with a required documented reason; still-open punch items are snapshotted on the record with the reason and approver.</li>
-          <li>Only JAGS staff can create a book, compile a draft, or issue a handover. Everyone with project access can view readiness and download PDFs.</li>
+          <li>Only JAGS staff can create a book, compile a draft, or issue a handover (a JAGS Admin for anything with an override). Books, certificates and packages are visible to JAGS staff and the client only.</li>
           <li>&quot;Data-book readiness&quot; on the Client KPIs page is a proxy metric; this page computes it directly from the project&apos;s own records.</li>
         </ul>
       </details>
@@ -475,7 +510,15 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                       : "Gates are not all met. Staff may compile anyway with a documented override reason."}
                   </p>
                   <div className="mt-3">
-                    <CompileDataBookForm projectId={projectId} dataBookId={latest.id} isReady={allGatesPass} openPunchItems={openPunchItems} />
+                    <CompileDataBookForm
+                      projectId={projectId}
+                      dataBookId={latest.id}
+                      bookNumber={latest.book_number}
+                      isReady={allGatesPass}
+                      isAdmin={isAdmin}
+                      outstanding={failingGates.map((g) => `${g.label}: ${g.fix ?? g.detail}`)}
+                      openPunchItems={openPunchItems}
+                    />
                   </div>
                 </div>
               </div>
@@ -483,21 +526,22 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
             {session.isJagsStaff && latest?.status === "compiled" && (
               <div>
                 <p className="mb-2 text-sm text-muted">Book {latest.book_number} is compiled and awaiting review. Issue the handover to finalise it.</p>
-                <IssueHandoverForm projectId={projectId} dataBookId={latest.id} />
+                <IssueHandoverForm projectId={projectId} dataBookId={latest.id} bookNumber={latest.book_number} isConditional={latest.override_open_punch_items} />
+                {isAdmin && <WithdrawDataBookForm projectId={projectId} dataBookId={latest.id} />}
               </div>
             )}
             {session.isJagsStaff && latest?.status === "issued" && (
               <div>
                 <p className="mb-3 text-sm text-muted">The latest book is issued. Start a new book to produce a further revision.</p>
-                <CreateDataBookForm projectId={projectId} />
+                <CreateDataBookForm projectId={projectId} revisionOf={latest.book_number} />
               </div>
             )}
             {latest && (
               <p className="mt-3 text-xs text-muted">
                 Latest: {latest.book_number}
                 {latest.compiled_at
-                  ? ` · generated ${new Date(latest.compiled_at).toLocaleString("en-GB")} by ${(latest.compiled_by && compilerNames.get(latest.compiled_by)) || "—"}`
-                  : ` · created ${new Date(latest.created_at).toLocaleString("en-GB")} (not yet compiled)`}
+                  ? ` · generated ${formatUtcDateTime(latest.compiled_at)} by ${(latest.compiled_by && compilerNames.get(latest.compiled_by)) || "—"}`
+                  : ` · created ${formatUtcDateTime(latest.created_at)} (not yet compiled)`}
                 {" · "}Rev {latest.revision ?? 0}
               </p>
             )}
@@ -574,7 +618,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
                           {pdf?.status === "completed" && pdf.downloadUrl ? (
                             <>
-                              <span className="text-xs text-muted">PDF {new Date(pdf.createdAt).toLocaleDateString("en-GB")}</span>
+                              <span className="text-xs text-muted">PDF {formatUtcDate(pdf.createdAt)}</span>
                               {pdf.pdfUrl && (
                                 <a href={pdf.pdfUrl} target="_blank" rel="noreferrer" className="text-burgundy hover:underline">View ↗</a>
                               )}

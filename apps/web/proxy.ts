@@ -7,6 +7,8 @@ const PUBLIC_PATHS = [
   "/auth/confirm",
   "/forgot-password",
   "/reset-password",
+  // Public QR verification of handover certificates / IRNs (unguessable token, minimal facts only).
+  "/verify/",
   // Health check must be reachable by uptime monitors / load balancers with no session.
   "/api/health",
   // PWA / offline-support assets: the browser fetches the service worker script (and installs the

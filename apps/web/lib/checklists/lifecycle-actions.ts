@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
 import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
 import { notifyAfterIrnVoided, notifyInspectorReopened } from "./irn-notifications";
 
@@ -74,6 +75,24 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     }
   }
 
+  // Preferred: one transaction re-opens the record, writes the amendment history, voids the live IRN and
+  // supersedes the filed inspection report / IRN certificate (reopen_inspection RPC). Falls back to the
+  // step-by-step path below until that migration is applied.
+  let voidedIrnNumber: string | null = null;
+  let reopenedViaRpc = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  const rpc = await (supabase.rpc as any)("reopen_inspection", { p_record_id: record.id, p_reason: reason });
+  if (!rpc.error) {
+    reopenedViaRpc = true;
+    voidedIrnNumber = (rpc.data as { voided_irn?: string | null } | null)?.voided_irn ?? null;
+    if (voidedIrnNumber) await supersedeIrnVaultDocuments(supabase, record.project_id, voidedIrnNumber);
+  } else if (!(rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(rpc.error.message ?? ""))) {
+    console.error("[reopen] reopen_inspection failed", rpc.error.message);
+    return { error: /already re-opened/i.test(rpc.error.message ?? "") ? "This inspection was already re-opened." : "The inspection could not be re-opened. Nothing was changed - try again." };
+  }
+  const voidReason = `Inspection re-opened: ${reason}`;
+
+  if (!reopenedViaRpc) {
   // 1) Null the result first (conditional on still being completed). Only on success do the IRN void
   //    and the amendment row follow, so a failed re-open never voids a released document.
   const { data: reopened, error: updError } = await untypedFrom(supabase, "inspection_records")
@@ -116,7 +135,6 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
   }
 
   // 2) Void a live IRN so a released document never outlives its re-opened inspection.
-  const voidReason = `Inspection re-opened: ${reason}`;
   const { data: irn } = await supabase
     .from("irns")
     .select("id, irn_number, voided_at")
@@ -124,7 +142,6 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     .is("voided_at", null)
     .limit(1)
     .maybeSingle<{ id: string; irn_number: string; voided_at: string | null }>();
-  let voidedIrnNumber: string | null = null;
   if (irn && !irn.voided_at) {
     const { data: voided } = await untypedFrom(supabase, "irns")
       .update({ voided_at: new Date().toISOString(), voided_by: session.userId, void_reason: voidReason })
@@ -134,7 +151,22 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     if (voided?.length) {
       voidedIrnNumber = irn.irn_number;
       await supersedeIrnVaultDocuments(supabase, record.project_id, irn.irn_number);
+    } else {
+      // A live IRN must never outlive a re-opened inspection: put the record back and report it.
+      await untypedFrom(supabase, "inspection_records")
+        .update({
+          overall_result: record.overall_result,
+          inspector_signature: record.inspector_signature,
+          signed_by_name: record.signed_by_name,
+          signed_at: record.signed_at,
+          witness_name: record.witness_name,
+          witness_signature: record.witness_signature,
+        })
+        .eq("id", record.id);
+      return { error: "The live IRN could not be voided, so the inspection was not re-opened. Try again or ask an admin." };
     }
+  }
+
   }
 
   const { data: project } = await supabase
@@ -161,6 +193,15 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
 
   await notifyInspectorReopened(supabase, record.id, record.inspector_id, reason);
   if (voidedIrnNumber) await notifyAfterIrnVoided(supabase, record.id, voidedIrnNumber, voidReason);
+  if (voidedIrnNumber) {
+    // Stamp the previously issued IRN PDF as VOID (best-effort).
+    try {
+      const { data: v } = await supabase.from("irns").select("id").eq("inspection_record_id", record.id).eq("irn_number", voidedIrnNumber).maybeSingle<{ id: string }>();
+      if (v) await supabase.from(BACKGROUND_JOBS_TABLE).insert({ job_type: "render_irn_pdf", payload: { irn_id: v.id, requested_by: session.userId } });
+    } catch {
+      // Best-effort.
+    }
+  }
 
   revalidatePath(`/inspect/inspections/${record.id}`);
   return { error: null };

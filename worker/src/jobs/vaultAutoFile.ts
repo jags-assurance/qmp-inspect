@@ -48,9 +48,17 @@ function safeSegment(value: string): string {
 }
 
 /** `<prefix>/<base>-rev<revision>-<timestamp>.pdf` — unique per generation. */
-export function buildGeneratedPath(prefix: string, base: string, revision: string | null | undefined, now: number = Date.now()): string {
+export function buildGeneratedPath(
+  prefix: string,
+  base: string,
+  revision: string | null | undefined,
+  now: number = Date.now(),
+  /** Source-content tag (see generatedDocument.ts): lets an identical regeneration find this file again. */
+  tag?: string
+): string {
   const rev = revision === null || revision === undefined || revision === "" ? "" : `-rev${safeSegment(String(revision))}`;
-  return `${prefix.replace(/\/+$/, "")}/${safeSegment(base)}${rev}-${now}.pdf`;
+  const h = tag ? `-h${tag}` : "";
+  return `${prefix.replace(/\/+$/, "")}/${safeSegment(base)}${rev}${h}-${now}.pdf`;
 }
 
 /** `<prefix>/<timestamp>/<fileName>` — for packs whose consumers derive sibling paths by file name. */

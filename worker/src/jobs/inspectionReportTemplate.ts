@@ -72,6 +72,8 @@ export interface InspectionReportData {
   irnNumber?: string | null;
   results: InspectionReportResult[];
   photos: InspectionReportPhoto[];
+  /** Photos that exist on the record but are NOT in this report (too large / over the cap / unreadable). */
+  skippedPhotos?: string[];
   approvals: InspectionReportApproval[];
   inspectorName?: string | null;
   generatedAt: Date;
@@ -302,8 +304,11 @@ function renderSigning(data: InspectionReportData): string {
   return `<table class="traceability-table"><tbody>${rows.join("")}</tbody></table>`;
 }
 
-function renderPhotos(photos: InspectionReportPhoto[]): string {
-  if (photos.length === 0) return "";
+function renderPhotos(photos: InspectionReportPhoto[], skipped: string[] = []): string {
+  if (photos.length === 0 && skipped.length === 0) return "";
+  const skippedNote = skipped.length
+    ? `<p class="note">${skipped.length} photo(s) are recorded on this inspection but are not shown here (too large, over the per-report limit, or unreadable): ${escapeHtml(skipped.slice(0, 20).join("; "))}${skipped.length > 20 ? "; ..." : ""}. They remain in the inspection record.</p>`
+    : "";
   const tiles = photos
     .map(
       (p, i) => `
@@ -317,6 +322,7 @@ function renderPhotos(photos: InspectionReportPhoto[]): string {
     <div class="section">
       <h2>Evidence Photos</h2>
       <div class="photo-grid">${tiles}</div>
+      ${skippedNote}
     </div>`;
 }
 
@@ -593,7 +599,7 @@ ${renderBrandColorOverride(data)}
 
   ${renderVerifiedAgainst(data)}
 
-  ${renderPhotos(data.photos)}
+  ${renderPhotos(data.photos, data.skippedPhotos)}
 
   ${buildFieldResultBanner(data)}
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { supersedeVaultDocumentsByReference } from "@/lib/vault/supersede-refs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -1297,6 +1298,9 @@ export async function reopenNcrAction(_prev: ReopenNcrState, formData: FormData)
       .maybeSingle<ReopenedNcr>());
   }
   if (error || !ncr) return { error: dbMessage(error, "Could not re-open: the NCR is not closed or you lack permission.") };
+
+  // The filed close-out certificate / dossier no longer describes a closed NCR.
+  await supersedeVaultDocumentsByReference(supabase, ncr.project_id, [ncr.ncr_number, `${ncr.ncr_number}-closeout`]);
 
   // Re-open linked punch items with the same bookkeeping as reopenPunchItemAction.
   const { data: linked } = await supabase

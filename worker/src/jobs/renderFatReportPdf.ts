@@ -1,4 +1,5 @@
 import { getOrgBranding } from "./orgBranding";
+import { withBidi } from "./bidi";
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, shouldFileFatAsFinal } from "./vaultAutoFile";
@@ -193,7 +194,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
     pdfBuffer = Buffer.from(

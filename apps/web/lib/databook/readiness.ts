@@ -28,6 +28,10 @@ export interface DataBookReadiness {
   /** Completed FAT / pre-shipment / other standalone assignments: Pass, or Conditional Pass with clearance issued. */
   standaloneAssignments: ReadinessCategory;
   ncrs: ReadinessCategory;
+  /** Checklist-driven ITP activities whose latest completed inspection passed (an activity with no inspection at all is NOT ready). */
+  activitiesExecuted: ReadinessCategory;
+  /** Hold and Witness sign-offs on approved ITPs that are signed off (Witness may also be "proceeded after notice"). */
+  holdPoints: ReadinessCategory;
   /** Informational only — a handover certificate is the OUTCOME of compiling, not a precondition for
    *  it, so this is excluded from isReady/overallPercentage below (see the client sample pack's own
    *  data-book layout, where "Handover certificate" is the last section, gated by everything above
@@ -80,7 +84,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     itps,
     inspectionRecords,
     ncrs,
-    { count: openPunchItems },
+    { count: openPunchItems, error: punchError },
     calibrationRows,
     welderRows,
     materialRows,
@@ -162,6 +166,9 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     ),
   ]);
 
+  // A failed count must not read as "0 open punch items" (fail closed).
+  if (punchError) throw new Error(`Data Book query failed: ${punchError.message}`);
+
   const itpTotal = itps.length;
   const itpReady = itps.filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
@@ -193,18 +200,46 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   ).then((rows) => rows.map((i) => i.id));
   let checklistTotal = 0;
   let checklistReady = 0;
+  let activityTotal = 0;
+  let activityReady = 0;
+  let holdTotal = 0;
+  let holdReady = 0;
   if (itpIds.length > 0) {
     const sections = await fetchInChunks(itpIds, (ids) =>
       fetchAllRows<{ id: string }>((from, to) => supabase.from("itp_sections").select("id").in("itp_id", ids).order("id").range(from, to).returns<{ id: string }[]>())
     );
     const sectionIds = sections.map((s) => s.id);
     if (sectionIds.length > 0) {
-      const items = await fetchInChunks(sectionIds, (ids) =>
-        fetchAllRows<{ id: string }>((from, to) =>
-          supabase.from("itp_items").select("id").in("section_id", ids).eq("evidence_type", 1).order("id").range(from, to).returns<{ id: string }[]>()
+      const allItems = await fetchInChunks(sectionIds, (ids) =>
+        fetchAllRows<{ id: string; evidence_type: number }>((from, to) =>
+          supabase.from("itp_items").select("id, evidence_type").in("section_id", ids).order("id").range(from, to).returns<{ id: string; evidence_type: number }[]>()
         )
       );
+      const items = allItems.filter((i) => i.evidence_type === 1);
       const itemIds = items.map((i) => i.id);
+
+      // Execution gates (S7-06): readiness used to be derived only from records that EXIST, so a
+      // project with half its activities never inspected read as 100%. KEEP IN SYNC with the worker.
+      activityTotal = items.length;
+      activityReady = items.filter((i) => {
+        const latest = latestByItem.get(i.id);
+        return latest && (latest.overall_result === "pass" || latest.overall_result === "partial");
+      }).length;
+      const holds = await fetchInChunks(allItems.map((i) => i.id), (ids) =>
+        fetchAllRows<{ id: string; status: string; intervention: string }>((from, to) =>
+          supabase
+            .from("activity_signoff_progress")
+            .select("id, status, intervention")
+            .in("itp_item_id", ids)
+            .in("intervention", ["H", "W"])
+            .order("id")
+            .range(from, to)
+            .returns<{ id: string; status: string; intervention: string }[]>()
+        )
+      );
+      holdTotal = holds.length;
+      holdReady = holds.filter((h) => h.status === "signed_off" || (h.intervention === "W" && h.status === "proceeded_no_response")).length;
+
       if (itemIds.length > 0) {
         const templates = await fetchInChunks(itemIds, (ids) =>
           fetchAllRows<{ id: string }>((from, to) =>
@@ -257,6 +292,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   const personnelCategory = toCategory("Personnel certifications valid", personnelReady, personnelTotal);
   const standaloneCategory = toCategory("Standalone assignments cleared", standaloneReady, standaloneTotal);
   const ncrsCategory = toCategory("NCRs closed", ncrReady, ncrTotal);
+  const activitiesCategory = toCategory("ITP activities inspected and passed", activityReady, activityTotal);
+  const holdPointsCategory = toCategory("Hold and witness points signed off", holdReady, holdTotal);
   const handoverCertificateCategory = toCategory(
     "Handover certificate issued",
     issuedDataBooks.length > 0 ? 1 : 0,
@@ -273,6 +310,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     materialCategory,
     standaloneCategory,
     ncrsCategory,
+    activitiesCategory,
+    holdPointsCategory,
   ];
   const totalReady = gatingCategories.reduce((sum, c) => sum + c.ready, 0);
   const totalRequired = gatingCategories.reduce((sum, c) => sum + c.total, 0);
@@ -290,6 +329,8 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     materialRegister: materialCategory,
     standaloneAssignments: standaloneCategory,
     ncrs: ncrsCategory,
+    activitiesExecuted: activitiesCategory,
+    holdPoints: holdPointsCategory,
     handoverCertificate: handoverCertificateCategory,
     openPunchItems: openPunchItemCount,
     overallPercentage,

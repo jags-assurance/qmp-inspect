@@ -3,15 +3,23 @@
 import { useRef, useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { issueHandoverAction } from "@/lib/handover/actions";
+import { sha256HexOfBlob } from "@/lib/databook/sha256-stream";
 import { Button } from "@/components/ui/button";
+import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 
-/** SHA-256 of the file's exact bytes, hex-encoded — computed client-side before upload so the
- *  fingerprint reflects what was actually selected, not anything that could change in transit. */
-async function sha256Hex(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+/** Storage keys must be plain ASCII: keep the readable part, replace the rest. The ORIGINAL file name
+ *  (Arabic, Chinese, ...) is recorded in the certificate notes instead of being lost as "____.pdf". */
+function storageSafeName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot).replace(/[^a-zA-Z0-9.]/g, "").slice(0, 12) : "";
+  const stem = (dot > 0 ? name.slice(0, dot) : name).normalize("NFKD").replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+  return `${stem || "package"}${ext}`;
+}
+
+function formatBytes(n: number): string {
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(2)} GB`;
+  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
 /**
@@ -24,13 +32,28 @@ async function sha256Hex(file: File): Promise<string> {
  * handover snapshot, in miniature): once issued, the Handover Portal shows this hash next to the
  * download link, so anyone who receives the file separately (e.g. forwarded by email) can verify
  * their copy is byte-for-byte the one that was actually certified, not a since-modified version.
+ * The hash is computed in slices (a package of 1 GB+ must not be loaded into memory at once) and the
+ * form confirms the irreversible issue before anything is uploaded.
  */
-export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string; dataBookId: string }) {
+export function IssueHandoverForm({
+  projectId,
+  dataBookId,
+  bookNumber,
+  isConditional = false,
+}: {
+  projectId: string;
+  dataBookId: string;
+  bookNumber: string;
+  isConditional?: boolean;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ file: File; formData: FormData } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const fileInput = form.elements.namedItem("package_file") as HTMLInputElement;
@@ -39,78 +62,142 @@ export function IssueHandoverForm({ projectId, dataBookId }: { projectId: string
       setError("Choose the handover package file to upload.");
       return;
     }
-
+    if (file.size === 0) {
+      setError("The selected file is empty.");
+      return;
+    }
     // Snapshot the fields BEFORE disabling them: disabled inputs are left out of FormData, so building
     // it after setPending(true) (as this used to) dropped the certificate number and every issue
     // attempt failed with "Certificate number is required."
-    const formData = new FormData(form);
+    setError(null);
+    setNotice(null);
+    setConfirming({ file, formData: new FormData(form) });
+  }
 
+  async function issue(file: File, formData: FormData) {
+    setConfirming(null);
     setPending(true);
     setError(null);
 
     const supabase = createSupabaseBrowserClient();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `handover/${dataBookId}/${Date.now()}-${safeName}`;
+    const path = `handover/${dataBookId}/${Date.now()}-${storageSafeName(file.name)}`;
 
-    const [sha256, { error: uploadError }] = await Promise.all([
-      sha256Hex(file),
-      supabase.storage.from("generated-documents").upload(path, file),
-    ]);
-    if (uploadError) {
-      setError("Package upload failed. Check your connection and try again.");
+    setStatus("Fingerprinting the package (0%)…");
+    let sha256: string;
+    try {
+      sha256 = await sha256HexOfBlob(file, (f) => setStatus(`Fingerprinting the package (${Math.round(f * 100)}%)…`));
+    } catch {
+      setError("Could not read the selected file to fingerprint it. Choose it again and retry.");
       setPending(false);
+      setStatus(null);
       return;
     }
 
+    setStatus(`Uploading ${formatBytes(file.size)}…`);
+    const { error: uploadError } = await supabase.storage.from("generated-documents").upload(path, file, { contentType: file.type || undefined });
+    if (uploadError) {
+      setError("Package upload failed. Check your connection and try again.");
+      setPending(false);
+      setStatus(null);
+      return;
+    }
+
+    setStatus("Issuing the certificate…");
+    // The file already went to storage; never send its bytes through the server action as well.
+    formData.delete("package_file");
     formData.set("data_book_id", dataBookId);
     formData.set("project_id", projectId);
     formData.set("package_storage_path", path);
     formData.set("package_sha256", sha256);
+    // Keep the original (possibly non-ASCII) file name with the certificate.
+    const typedNotes = String(formData.get("handover_notes") ?? "").trim();
+    formData.set("handover_notes", [typedNotes, `Package file: ${file.name} (${formatBytes(file.size)})`].filter(Boolean).join("\n"));
 
     const result = await issueHandoverAction({ error: null }, formData);
     if (result.error) {
       setError(result.error);
     } else {
+      if (result.notice) setNotice(result.notice);
       formRef.current?.reset();
     }
     setPending(false);
+    setStatus(null);
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
-      <div>
-        <label htmlFor={`certificate_number_${dataBookId}`} className="block text-xs font-medium text-ink">
-          Certificate reference (optional)
-        </label>
-        <input
-          id={`certificate_number_${dataBookId}`}
-          name="certificate_number"
-          maxLength={60}
-          placeholder="e.g. HC-001"
-          disabled={pending}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
-        />
-      </div>
+    <>
+      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
+        <div>
+          <label htmlFor={`certificate_number_${dataBookId}`} className="block text-xs font-medium text-ink">
+            Certificate reference (optional)
+          </label>
+          <input
+            id={`certificate_number_${dataBookId}`}
+            name="certificate_number"
+            maxLength={60}
+            placeholder="blank = next HC-###"
+            disabled={pending}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
+          />
+        </div>
 
-      <div>
-        <label htmlFor={`package_file_${dataBookId}`} className="block text-xs font-medium text-ink">
-          Package file
-        </label>
-        <input
-          id={`package_file_${dataBookId}`}
-          name="package_file"
-          type="file"
-          required
-          disabled={pending}
-          className="mt-1 block text-sm text-ink file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
-        />
-      </div>
+        <div>
+          <label htmlFor={`package_file_${dataBookId}`} className="block text-xs font-medium text-ink">
+            Package file
+          </label>
+          <input
+            id={`package_file_${dataBookId}`}
+            name="package_file"
+            type="file"
+            required
+            disabled={pending}
+            className="mt-1 block text-sm text-ink file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
+          />
+        </div>
 
-      <Button type="submit" size="sm" disabled={pending}>
-        {pending ? "Issuing…" : "Issue for handover"}
-      </Button>
+        <div className="w-full">
+          <label htmlFor={`handover_notes_${dataBookId}`} className="block text-xs font-medium text-ink">
+            Notes for the certificate (optional)
+          </label>
+          <textarea
+            id={`handover_notes_${dataBookId}`}
+            name="handover_notes"
+            rows={2}
+            maxLength={1500}
+            disabled={pending}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50"
+          />
+        </div>
 
-      {error && <p className="w-full text-sm text-danger">{error}</p>}
-    </form>
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? "Issuing…" : "Issue for handover"}
+        </Button>
+
+        {status && (
+          <p className="w-full text-xs text-muted" role="status" aria-live="polite">
+            {status}
+          </p>
+        )}
+        {error && <p className="w-full text-sm text-danger" role="alert">{error}</p>}
+        {notice && <p className="w-full text-sm text-warning" role="status">{notice}</p>}
+      </form>
+
+      {confirming && (
+        <ConfirmTypeDialog
+          title="Issue this handover to the client?"
+          phrase={bookNumber}
+          confirmLabel="Issue handover"
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void issue(confirming.file, confirming.formData)}
+        >
+          <p>
+            This certifies Data Book <strong>{bookNumber}</strong> and the package <strong>{confirming.file.name}</strong> ({formatBytes(confirming.file.size)}) and makes both visible
+            to the client. It cannot be undone.
+          </p>
+          {isConditional && <p className="text-warning">This is a Conditional Handover: the open items recorded at compile time will be listed on the certificate.</p>}
+          <p className="text-xs text-muted">The client will be notified and asked to acknowledge receipt.</p>
+        </ConfirmTypeDialog>
+      )}
+    </>
   );
 }
