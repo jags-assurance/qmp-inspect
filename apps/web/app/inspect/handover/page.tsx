@@ -100,7 +100,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
   // Newest schema first, then progressively older ones, so a pending migration never blanks the page.
   let { data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}, ${REJECT_COLUMNS}, ${SIGNATURE_COLUMNS}`);
   // The signature pad and evidence upload only appear once the signature columns exist (migration 20261112000101).
-  let signatureEnabled = !loadError;
+  const signatureEnabled = !loadError;
   if (loadError && isMissingDbObject(loadError)) {
     ({ data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}, ${REJECT_COLUMNS}`));
   }

@@ -60,6 +60,8 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
     }
   }
   const awaiting = flags.filter((f) => !f.review_outcome);
+  // Server component: evaluated once per request, which is the intended "now".
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
   return (
