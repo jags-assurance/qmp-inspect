@@ -32,6 +32,8 @@ export function classifyHttpFailure(status: number, parsedBody: boolean): Failur
   if (status === 401 || status === 403) return "auth";
   if (status === 409) return "conflict";
   if (status === 413) return "too_large";
+  // Rate limited (app/api rate-limit): not the item's fault, so it must not spend the retry budget.
+  if (status === 429) return "network";
   if (status === 400 || status === 422) return "rejected";
   // A 5xx with an unparseable body usually comes from a gateway or captive portal, not our handler.
   if (status >= 500 && !parsedBody) return "network";

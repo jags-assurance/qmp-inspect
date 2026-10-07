@@ -4,6 +4,7 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { toCsv } from "@/lib/registers/csv";
 import { REGISTER_CSV_COLUMNS, type CsvRegisterKind } from "@/lib/registers/csv-columns";
 import { CALIBRATION_REGISTER_TABLE, MATERIAL_REGISTER_TABLE, PERSONNEL_CERTIFICATIONS_TABLE, WELDER_QUALIFICATION_REGISTER_TABLE } from "@/lib/registers/types";
+import { rateLimitResponse } from "@/lib/api/rate-limit";
 
 const TABLES = {
   calibration: CALIBRATION_REGISTER_TABLE,
@@ -24,6 +25,8 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in to export." }, { status: 401 });
+  const limited = rateLimitResponse("export", user.id);
+  if (limited) return limited;
 
   const columns = REGISTER_CSV_COLUMNS[kind];
   const header = columns.map((c) => c.header);

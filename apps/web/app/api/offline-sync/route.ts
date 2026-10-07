@@ -8,6 +8,7 @@ import { validateOfflinePhoto, MAX_PHOTO_BYTES } from "@/lib/checklists/photo-va
 import { isMissingSchemaError, isStoragePermissionError } from "@/lib/offline/missing-schema";
 import { boundedCapturedAt } from "@/lib/offline/policy";
 import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { rateLimitResponse } from "@/lib/api/rate-limit";
 
 /**
  * The server side of the offline outbox (lib/offline/db.ts, R60): replays one queued item once
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
   if (!authUser) {
     return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
   }
+  const limited = rateLimitResponse("offlineSync", authUser.id);
+  if (limited) return limited;
 
   // Shared-tablet safety: an item queued by one user must never be replayed under another user's
   // session (it would attribute answers and sign-offs to the wrong person).

@@ -30,6 +30,7 @@ describe("backoffMs", () => {
 describe("classifyHttpFailure", () => {
   it("maps auth, conflict, size and validation statuses", () => {
     expect(classifyHttpFailure(401, true)).toBe("auth");
+    expect(classifyHttpFailure(429, true)).toBe("network");
     expect(classifyHttpFailure(403, false)).toBe("auth");
     expect(classifyHttpFailure(409, true)).toBe("conflict");
     expect(classifyHttpFailure(413, false)).toBe("too_large");

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildItpDocx, type ItpDocxInterventionCell, type ItpDocxParty, type ItpDocxSection } from "@/lib/itps/docx";
+import { rateLimitResponse } from "@/lib/api/rate-limit";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
@@ -26,6 +27,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
+  const limited = rateLimitResponse("export", user.id);
+  if (limited) return limited;
 
   const { data: itp } = await supabase
     .from("itps")
