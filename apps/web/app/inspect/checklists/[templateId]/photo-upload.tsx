@@ -45,6 +45,8 @@ export function PhotoUpload({
   const [markupFirst, setMarkupFirst] = useState(false);
   useEffect(() => {
     try {
+      // Hydration-safe: localStorage is only readable after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMarkupFirst(window.localStorage.getItem(MARKUP_PREF_KEY) === "1");
     } catch {
       // storage unavailable: leave it off
