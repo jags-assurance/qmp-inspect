@@ -12,6 +12,13 @@
 aptPkgs = [
   "ca-certificates",
   "fonts-liberation",
+  # Names in Arabic / Chinese / Japanese / Korean (inspectors, witnesses, parties, NCR text) printed as empty
+  # boxes with only Liberation installed. Noto core covers Arabic, Hebrew, Devanagari, Thai and more.
+  "fonts-noto-core",
+  "fonts-noto-cjk",
+  "fonts-noto-color-emoji",
+  "fonts-noto-ui-core",
+  "fonts-hosny-amiri",
   "libasound2",
   "libatk-bridge2.0-0",
   "libatk1.0-0",

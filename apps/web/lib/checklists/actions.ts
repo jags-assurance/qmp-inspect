@@ -1,7 +1,9 @@
 "use server";
 
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
+import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { computeCalibrationStatus, computeWelderStatus } from "@/lib/registers/status";
@@ -1352,18 +1354,16 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .neq("status", "closed");
   if (openNcrCount) return { error: "An NCR raised from this inspection is still open — close it before issuing the IRN." };
 
-  // One IRN per inspection record: if one already exists, don't burn another number.
+  // One LIVE IRN per inspection record. Only a live IRN counts: a voided one (void / re-open) must be
+  // replaceable, otherwise the replacement can never be issued and the Data Book gate stays below 100%.
   const { data: existingIrn } = await supabase
     .from(IRNS_TABLE)
-    .select("id, voided_at")
+    .select("id")
     .eq("inspection_record_id", inspectionRecordId)
-    .order("created_at", { ascending: false })
+    .is("voided_at", null)
     .limit(1)
-    .maybeSingle<{ id: string; voided_at: string | null }>();
-  if (existingIrn) {
-    if (!existingIrn.voided_at) return { error: null };
-    return { error: "An IRN for this inspection was voided. Re-open and re-complete the inspection to issue a new one." };
-  }
+    .maybeSingle<{ id: string }>();
+  if (existingIrn) return { error: null };
 
   const { data: project } = await supabase
     .from("projects")
@@ -1372,66 +1372,83 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .maybeSingle<{ organization_id: string }>();
   if (!project?.organization_id) return { error: "Could not resolve the project's organisation, so no IRN number was allocated." };
 
-  // Atomic per-ITP counter (next_document_sequence). Fails CLOSED: an IRN is a controlled release
-  // document, so there is deliberately no Date.now() fallback number (nextSequenceNumber has one
-  // that is fine for lower-stakes documents but could duplicate/skip IRN numbers).
-  const { data: seqData, error: seqError } = await supabase.rpc("next_document_sequence", {
-    org_id: project.organization_id,
-    proj_id: record.project_id,
-    seq_doc_type: `irn:${record.itp_number}`,
-  });
-  if (seqError || typeof seqData !== "number") {
-    console.error("[irn] next_document_sequence failed", seqError?.message ?? seqData);
-    return { error: "Could not allocate an IRN number. Please try again." };
-  }
-  const seq = seqData;
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from(IRNS_TABLE).insert({
-    inspection_record_id: inspectionRecordId,
-    irn_number: `${record.itp_number}-IRN-${seq}`,
-    issued_by: user?.id ?? null,
-  });
-
-  if (error) {
-    if (error.code === "23505") {
-      // Concurrent issue: the other request won - return the existing live IRN rather than failing.
-      const { data: winner } = await supabase
-        .from(IRNS_TABLE)
-        .select("id")
-        .eq("inspection_record_id", inspectionRecordId)
-        .is("voided_at", null)
-        .limit(1)
-        .maybeSingle<{ id: string }>();
-      if (winner) {
-        revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
-        return { error: null };
-      }
-      return { error: "An IRN already exists for this inspection." };
+  // Preferred: one transaction allocates the number AND inserts the IRN, so a failed insert or a lost race
+  // burns no number in the controlled series (issue_irn RPC). Falls back to the two-step path below until
+  // that migration is applied.
+  let irnNumber: string | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  const rpc = await (supabase.rpc as any)("issue_irn", { p_inspection_record_id: inspectionRecordId });
+  if (!rpc.error) {
+    const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+    if (!row) return { error: "Could not issue the IRN." };
+    if (row.out_already) {
+      revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+      return { error: null };
     }
+    irnNumber = String(row.out_number);
+  } else if (!(rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(rpc.error.message ?? ""))) {
+    if (rpc.error.code === "42501") return { error: "You are not allowed to issue an IRN for this inspection." };
+    console.error("[irn] issue_irn failed", rpc.error.message);
     return { error: "Could not issue the IRN." };
   }
 
-  if (project?.organization_id) {
-    try {
-      await recordAuditEvent(supabase, {
-        organizationId: project.organization_id,
-        projectId: record.project_id,
-        entityType: "irn",
-        entityId: inspectionRecordId,
-        action: "issued",
-        actorId: user?.id ?? null,
-        summary: `IRN ${record.itp_number}-IRN-${seq} issued`,
-      });
-    } catch {
-      // Best-effort — see lib/audit/log.ts's doc comment.
+  if (irnNumber === null) {
+    // Atomic per-ITP counter (next_document_sequence). Fails CLOSED: an IRN is a controlled release
+    // document, so there is deliberately no Date.now() fallback number.
+    const { data: seqData, error: seqError } = await supabase.rpc("next_document_sequence", {
+      org_id: project.organization_id,
+      proj_id: record.project_id,
+      seq_doc_type: `irn:${record.itp_number}`,
+    });
+    if (seqError || typeof seqData !== "number") {
+      console.error("[irn] next_document_sequence failed", seqError?.message ?? seqData);
+      return { error: "Could not allocate an IRN number. Please try again." };
+    }
+    irnNumber = `${record.itp_number}-IRN-${seqData}`;
+    const { error } = await supabase.from(IRNS_TABLE).insert({
+      inspection_record_id: inspectionRecordId,
+      irn_number: irnNumber,
+      issued_by: user?.id ?? null,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        // Concurrent issue: the other request won - return the existing live IRN rather than failing.
+        const { data: winner } = await supabase
+          .from(IRNS_TABLE)
+          .select("id")
+          .eq("inspection_record_id", inspectionRecordId)
+          .is("voided_at", null)
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+        if (winner) {
+          revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+          return { error: null };
+        }
+        return { error: "An IRN already exists for this inspection." };
+      }
+      return { error: "Could not issue the IRN." };
     }
   }
 
-  await notifyAfterIrnIssued(supabase, inspectionRecordId, `${record.itp_number}-IRN-${seq}`);
+  try {
+    await recordAuditEvent(supabase, {
+      organizationId: project.organization_id,
+      projectId: record.project_id,
+      entityType: "irn",
+      entityId: inspectionRecordId,
+      action: "issued",
+      actorId: user?.id ?? null,
+      summary: `IRN ${irnNumber} issued`,
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  await notifyAfterIrnIssued(supabase, inspectionRecordId, irnNumber);
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
   return { error: null };
 }
@@ -1458,6 +1475,17 @@ export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): P
     .maybeSingle<{ id: string; irn_number: string; inspection_record_id: string; voided_at: string | null }>();
   if (!irn) return { error: "IRN not found." };
   if (irn.voided_at) return { error: "This IRN is already void." };
+
+  // Same authority as re-opening an inspection (admin or a team lead on the project): an inspector must not
+  // be able to leave a signed, passed record with no IRN that only an admin can then repair.
+  const { data: voidRec } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("project_id")
+    .eq("id", irn.inspection_record_id)
+    .maybeSingle<{ project_id: string }>();
+  if (!isAdminStaff(session) && !(voidRec && (await isTeamLeadForProject(supabase, session.userId, voidRec.project_id)))) {
+    return { error: "Only an admin or a team lead on this project can void an IRN." };
+  }
 
   const { data: updated, error } = await supabase
     .from(IRNS_TABLE)
@@ -1490,6 +1518,13 @@ export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): P
     }
   } catch {
     // Best-effort audit.
+  }
+
+  // Stamp the already-issued PDF as VOID: queue the VOID copy (the worker renders voided IRNs with the banner).
+  try {
+    await supabase.from(BACKGROUND_JOBS_TABLE).insert({ job_type: "render_irn_pdf", payload: { irn_id: irnId, requested_by: session.userId } });
+  } catch {
+    // Best-effort; staff can still generate it from the IRN page.
   }
 
   await notifyAfterIrnVoided(supabase, irn.inspection_record_id, irn.irn_number, reason);

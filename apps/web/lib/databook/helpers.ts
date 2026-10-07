@@ -17,11 +17,19 @@ export function chunk<T>(items: T[], size = IN_CHUNK_SIZE): T[][] {
 
 type Page<T> = PromiseLike<{ data: T[] | null; error?: unknown }>;
 
-/** Reads every row of a query by looping .range() pages (PostgREST silently caps a single response at 1000 rows). */
+/**
+ * Reads every row of a query by looping .range() pages (PostgREST silently caps a single response at 1000 rows).
+ * A page that errors THROWS: an unreadable table must never read as "no rows" (that made a transient DB error
+ * look like a 100% ready category and let the compile / issue gate pass).
+ */
 export async function fetchAllRows<T>(page: (from: number, to: number) => Page<T>, pageSize = PAGE_SIZE): Promise<T[]> {
   const all: T[] = [];
   for (let from = 0; ; from += pageSize) {
-    const { data } = await page(from, from + pageSize - 1);
+    const { data, error } = await page(from, from + pageSize - 1);
+    if (error) {
+      const message = typeof error === "object" && error && "message" in error ? String((error as { message: unknown }).message) : String(error);
+      throw new Error(`Data Book query failed: ${message}`);
+    }
     const rows = data ?? [];
     all.push(...rows);
     if (rows.length < pageSize) break;
@@ -55,7 +63,7 @@ export interface OutstandingCategory {
 
 /** Every failing readiness category (including punch) as a plain list, for override snapshots and messages. */
 export function failingReadinessCategories(r: DataBookReadiness): OutstandingCategory[] {
-  const cats = [r.itps, r.inspectionRecords, r.checklists, r.calibrationRegister, r.welderRegister, r.personnelRegister, r.materialRegister, r.standaloneAssignments, r.ncrs];
+  const cats = [r.itps, r.inspectionRecords, r.checklists, r.calibrationRegister, r.welderRegister, r.personnelRegister, r.materialRegister, r.standaloneAssignments, r.ncrs, r.activitiesExecuted, r.holdPoints];
   const out: OutstandingCategory[] = cats
     .filter((c) => c.percentage !== 100)
     .map((c) => ({ category: c.label, outstanding: c.total - c.ready, total: c.total, ready: c.ready }));

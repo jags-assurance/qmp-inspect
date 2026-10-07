@@ -1,9 +1,11 @@
 "use client";
 
 import { formatLocationForDisplay } from "@/lib/checklists/location";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState, type FormEvent } from "react";
 import { compileDataBookAction, type CompileDataBookState } from "@/lib/databook/actions";
 import { Button } from "@/components/ui/button";
+import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
+import { formatUtcDate } from "@/lib/databook/db-errors";
 
 const initialState: CompileDataBookState = { error: null };
 
@@ -27,25 +29,50 @@ export interface OpenPunchItemPreview {
 export function CompileDataBookForm({
   projectId,
   dataBookId,
+  bookNumber,
   isReady,
+  isAdmin = true,
+  outstanding = [],
   openPunchItems,
 }: {
   projectId: string;
   dataBookId: string;
+  bookNumber: string;
   isReady: boolean;
+  /** Overriding creates a Conditional Handover, which only a JAGS Admin may do. */
+  isAdmin?: boolean;
+  /** Short labels of every gate that is not met, shown in the confirmation. */
+  outstanding?: string[];
   openPunchItems: OpenPunchItemPreview[];
 }) {
   const [state, formAction, pending] = useActionState(compileDataBookAction, initialState);
   const [useOverride, setUseOverride] = useState(false);
   const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmed = useRef(false);
+
+  // Compiling locks the book for review and issue and cannot be undone by the staff user, so confirm first.
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    if (confirmed.current) {
+      confirmed.current = false;
+      return;
+    }
+    e.preventDefault();
+    setConfirming(true);
+  }
 
   return (
-    <form action={formAction} className="flex flex-col gap-2">
+    <>
+    <form ref={formRef} action={formAction} onSubmit={onSubmit} className="flex flex-col gap-2">
       <input type="hidden" name="data_book_id" value={dataBookId} />
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="override" value={useOverride ? "true" : "false"} />
 
-      {!isReady && (
+      {!isReady && !isAdmin && (
+        <p className="text-xs text-muted">Not all gates are met. Only a JAGS Admin can compile with an override (Conditional Handover).</p>
+      )}
+      {!isReady && isAdmin && (
         <label className="flex items-center gap-2 text-xs text-ink">
           <input
             type="checkbox"
@@ -69,7 +96,7 @@ export function CompileDataBookForm({
                   <li key={item.id}>
                     • {item.description}
                     {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.project_parties?.name ?? "unassigned"}, due{" "}
-                    {item.due_date ? new Date(item.due_date).toLocaleDateString("en-GB") : "no date set"}
+                    {item.due_date ? formatUtcDate(item.due_date) : "no date set"}
                   </li>
                 ))}
               </ul>
@@ -93,10 +120,40 @@ export function CompileDataBookForm({
         type="submit"
         size="sm"
         variant={isReady ? "primary" : "outline"}
-        disabled={pending || (!isReady && (!useOverride || !reason.trim()))}
+        disabled={pending || (!isReady && (!isAdmin || !useOverride || !reason.trim()))}
       >
         {pending ? "Compiling…" : "Compile Data Book"}
       </Button>
     </form>
+    {confirming && (
+      <ConfirmTypeDialog
+        title={useOverride ? "Compile with an override?" : "Compile this Data Book?"}
+        phrase={bookNumber}
+        confirmLabel="Compile"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          confirmed.current = true;
+          setConfirming(false);
+          formRef.current?.requestSubmit();
+        }}
+      >
+        <p>
+          Compiling locks Data Book <strong>{bookNumber}</strong> for review and issue. Only a JAGS Admin can take it back to draft.
+        </p>
+        {useOverride && outstanding.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/5 p-2">
+            <p className="text-xs font-medium">This Conditional Handover carries these outstanding items:</p>
+            <ul className="mt-1 list-disc pl-4 text-xs">
+              {outstanding.slice(0, 12).map((o) => (
+                <li key={o}>{o}</li>
+              ))}
+              {outstanding.length > 12 && <li>… and {outstanding.length - 12} more</li>}
+            </ul>
+            {reason.trim() && <p className="mt-1 text-xs">Reason: {reason.trim()}</p>}
+          </div>
+        )}
+      </ConfirmTypeDialog>
+    )}
+    </>
   );
 }

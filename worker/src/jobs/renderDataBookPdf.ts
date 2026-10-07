@@ -1,4 +1,5 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
 import {
   buildDataBookPdfHtml,
@@ -14,6 +15,8 @@ import {
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, shouldFileDataBook } from "./vaultAutoFile";
+import { createHash } from "node:crypto";
+import { removeGeneratedFile } from "./generatedDocument";
 import { PermanentJobError } from "./jobAbort";
 import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
@@ -161,16 +164,39 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
   ).map((i) => i.id);
   let checklistTotal = 0;
   let checklistReady = 0;
+  let activityTotal = 0;
+  let activityReady = 0;
+  let holdTotal = 0;
+  let holdReady = 0;
   if (itpIds.length > 0) {
     const sections = await fetchAllIn("itp_sections", itpIds, (ids, f, t) =>
       supabase.from("itp_sections").select("id").in("itp_id", ids).order("id").range(f, t).returns<{ id: string }[]>()
     );
     const sectionIds = sections.map((s) => s.id);
     if (sectionIds.length > 0) {
-      const items = await fetchAllIn("itp_items", sectionIds, (ids, f, t) =>
-        supabase.from("itp_items").select("id").in("section_id", ids).eq("evidence_type", 1).order("id").range(f, t).returns<{ id: string }[]>()
+      const allItems = await fetchAllIn("itp_items", sectionIds, (ids, f, t) =>
+        supabase.from("itp_items").select("id, evidence_type").in("section_id", ids).order("id").range(f, t).returns<{ id: string; evidence_type: number }[]>()
       );
+      const items = allItems.filter((i) => i.evidence_type === 1);
       const itemIds = items.map((i) => i.id);
+      // KEEP IN SYNC with apps/web/lib/databook/readiness.ts: execution gates (S7-06).
+      activityTotal = items.length;
+      activityReady = items.filter((i) => {
+        const latest = latestByItem.get(i.id);
+        return latest && (latest.overall_result === "pass" || latest.overall_result === "partial");
+      }).length;
+      const holds = await fetchAllIn("activity_signoff_progress", allItems.map((i) => i.id), (ids, f, t) =>
+        supabase
+          .from("activity_signoff_progress")
+          .select("id, status, intervention")
+          .in("itp_item_id", ids)
+          .in("intervention", ["H", "W"])
+          .order("id")
+          .range(f, t)
+          .returns<{ id: string; status: string; intervention: string }[]>()
+      );
+      holdTotal = holds.length;
+      holdReady = holds.filter((h) => h.status === "signed_off" || (h.intervention === "W" && h.status === "proceeded_no_response")).length;
       if (itemIds.length > 0) {
         const templates = await fetchAllIn("checklist_templates", itemIds, (ids, f, t) =>
           supabase.from("checklist_templates" as never).select("id").in("itp_item_id", ids).order("id").range(f, t).returns<{ id: string }[]>()
@@ -215,6 +241,8 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
   const personnelCategory = toCategory("Personnel certifications valid", personnelReady, personnelTotal);
   const standaloneCategory = toCategory("Standalone assignments cleared", standaloneReady, standaloneTotal);
   const ncrsCategory = toCategory("NCRs closed", ncrReady, ncrTotal);
+  const activitiesCategory = toCategory("ITP activities inspected and passed", activityReady, activityTotal);
+  const holdPointsCategory = toCategory("Hold and witness points signed off", holdReady, holdTotal);
   const handoverCertificateCategory = toCategory("Handover certificate issued", (issuedDataBooks?.length ?? 0) > 0 ? 1 : 0, 1);
 
   const gatingCategories = [
@@ -227,6 +255,8 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
     materialCategory,
     standaloneCategory,
     ncrsCategory,
+    activitiesCategory,
+    holdPointsCategory,
   ];
   const totalReady = gatingCategories.reduce((sum, c) => sum + c.ready, 0);
   const totalRequired = gatingCategories.reduce((sum, c) => sum + c.total, 0);
@@ -806,7 +836,7 @@ async function printBookPdf(html: string, footerLabel: string, bookNumber: strin
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     return Buffer.from(
       await page.pdf({
         format: "A4",
@@ -939,21 +969,43 @@ export async function renderDataBookPdf(
   // Only an ISSUED data book is a controlled record; drafts / compiled books are download-only.
   // A forced reprint keeps the originally filed copy of this revision as the controlled one.
   if (shouldFileDataBook(dataBook.status) && !reprint) {
-    await autoFileVaultDocument(supabase, {
-      projectId: dataBook.project_id,
-      folderKey: "certificates",
-      title: `Data Book ${dataBook.book_number} — ${dataBook.title}`,
-      documentReference: dataBook.book_number,
-      // Vault revision follows data_books.revision so the printed "Rev n" matches the vault row.
-      revision: String(dataBook.revision ?? 0),
-      keepRevision: true,
-      storagePath,
-      fileSize: pdfBuffer.length,
-      generatedBy: payload.requested_by,
-    });
+    try {
+      await autoFileVaultDocument(supabase, {
+        projectId: dataBook.project_id,
+        folderKey: "certificates",
+        title: `Data Book ${dataBook.book_number} — ${dataBook.title}`,
+        documentReference: dataBook.book_number,
+        // Vault revision follows data_books.revision so the printed "Rev n" matches the vault row.
+        revision: String(dataBook.revision ?? 0),
+        keepRevision: true,
+        storagePath,
+        fileSize: pdfBuffer.length,
+        generatedBy: payload.requested_by,
+      });
+    } catch (err) {
+      // Do not leave the uploaded object orphaned when filing fails (the retry renders to a new path).
+      await removeGeneratedFile(supabase, storagePath);
+      throw err;
+    }
+    await recordIssuedBookHash(dataBook.id, storagePath, pdfBuffer);
   }
 
   return { resultStoragePath: storagePath };
+}
+
+/**
+ * Freezes the book that was certified (S7-03): the FIRST render of an issued book stores its path and
+ * SHA-256 on the handover certificate. Later reprints never overwrite it. Best-effort - the columns
+ * arrive with a migration, so an error (missing column) is logged and ignored.
+ */
+async function recordIssuedBookHash(dataBookId: string, storagePath: string, pdf: Buffer): Promise<void> {
+  const sha = createHash("sha256").update(pdf).digest("hex");
+  const { error } = await supabase
+    .from("handover_certificates" as never)
+    .update({ rendered_book_path: storagePath, rendered_book_sha256: sha } as never)
+    .eq("data_book_id", dataBookId)
+    .is("rendered_book_sha256", null);
+  if (error) console.warn(`[renderDataBookPdf] Could not record the issued book hash for ${dataBookId}: ${error.message}`);
 }
 
 async function loadDataBookRow(dataBookId: string): Promise<DataBookRow> {

@@ -1,4 +1,5 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
 import {
   buildInspectionReportHtml,
@@ -9,7 +10,8 @@ import {
 } from "./inspectionReportTemplate";
 import type { RenderInspectionReportPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertInspectionFileable } from "./vaultAutoFile";
+import { buildGeneratedPath, resolveNextRevision, assertInspectionFileable } from "./vaultAutoFile";
+import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
@@ -17,12 +19,22 @@ const EVIDENCE_BUCKET = "inspection-evidence";
 /** Downloads a photo from the (private) evidence bucket and inlines it as a data: URI, so the
  *  rendered PDF is a self-contained permanent record — never dependent on a signed URL staying
  *  valid after the fact. Best-effort per photo: one bad/missing file is skipped, not fatal. */
-async function toDataUri(storagePath: string): Promise<string | null> {
+// An inline base64 photo is ~1.33x its size and the whole report is ONE html string in a shared browser:
+// 80 photos at 5 MB would be a 500 MB+ document that times out or takes the queue down. Cap per photo, per
+// report and in count; whatever is left out is LISTED in the report instead of silently dropped.
+const MAX_PHOTO_BYTES = 6 * 1024 * 1024;
+const MAX_TOTAL_PHOTO_BYTES = 48 * 1024 * 1024;
+const MAX_PHOTOS = 60;
+
+type PhotoOutcome = { dataUri: string; bytes: number } | { skipped: string };
+
+async function toDataUri(storagePath: string): Promise<PhotoOutcome> {
   const { data, error } = await supabase.storage.from(EVIDENCE_BUCKET).download(storagePath);
-  if (error || !data) return null;
+  if (error || !data) return { skipped: "could not be read" };
+  if (data.size > MAX_PHOTO_BYTES) return { skipped: `larger than ${Math.round(MAX_PHOTO_BYTES / 1024 / 1024)} MB` };
   const buffer = Buffer.from(await data.arrayBuffer());
   const contentType = data.type || "image/jpeg";
-  return `data:${contentType};base64,${buffer.toString("base64")}`;
+  return { dataUri: `data:${contentType};base64,${buffer.toString("base64")}`, bytes: buffer.length };
 }
 
 /**
@@ -150,10 +162,27 @@ export async function renderInspectionReportPdf(
     id: w.welder_identifier, wpq: w.wpq_number, expiry: w.expiry_date,
   }));
 
-  const photoDataUris = await Promise.all((photoRows ?? []).map((p) => toDataUri(p.storage_path)));
-  const photos: InspectionReportPhoto[] = (photoRows ?? [])
-    .map((p, i) => ({ caption: p.caption, dataUri: photoDataUris[i] }))
-    .filter((p): p is InspectionReportPhoto => Boolean(p.dataUri));
+  const photos: InspectionReportPhoto[] = [];
+  const skippedPhotos: string[] = [];
+  let totalPhotoBytes = 0;
+  // Sequential in small batches so memory stays bounded (the old code downloaded every photo at once).
+  const allPhotos = photoRows ?? [];
+  for (let i = 0; i < allPhotos.length; i += 4) {
+    const batch = allPhotos.slice(i, i + 4);
+    const outcomes = await Promise.all(
+      batch.map((p, j) => (i + j >= MAX_PHOTOS ? Promise.resolve<PhotoOutcome>({ skipped: `over the ${MAX_PHOTOS}-photo limit` }) : toDataUri(p.storage_path)))
+    );
+    outcomes.forEach((o, j) => {
+      const p = batch[j];
+      const label = p.caption?.trim() ? p.caption.trim() : p.storage_path.split("/").pop() ?? "photo";
+      if ("skipped" in o) skippedPhotos.push(`${label} (${o.skipped})`);
+      else if (totalPhotoBytes + o.bytes > MAX_TOTAL_PHOTO_BYTES) skippedPhotos.push(`${label} (report photo size limit reached)`);
+      else {
+        totalPhotoBytes += o.bytes;
+        photos.push({ caption: p.caption, dataUri: o.dataUri });
+      }
+    });
+  }
 
   // Only a completed inspection (overall result recorded) is a final report.
   assertInspectionFileable(record.overall_result);
@@ -239,6 +268,7 @@ export async function renderInspectionReportPdf(
     irnNumber: irn?.irn_number ?? null,
     results,
     photos,
+    skippedPhotos,
     signedByName: record.signed_by_name,
     signedAt: record.signed_at ? new Date(record.signed_at) : null,
     witnessName: record.witness_name,
@@ -252,13 +282,19 @@ export async function renderInspectionReportPdf(
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
+  // Identical source content already filed? Return that file instead of minting another identical revision.
+  const fingerprint = sourceHash({ ...templateData, generatedAt: null, revision: null });
+  const tag = hashTag(fingerprint);
+  const existing = await findFiledByHash(supabase, record.project_id, "checklists_forms", record.record_number, tag);
+  if (existing) return { resultStoragePath: existing };
+
   const html = buildInspectionReportHtml(templateData);
 
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
     pdfBuffer = Buffer.from(
@@ -284,14 +320,14 @@ export async function renderInspectionReportPdf(
     await page.close();
   }
 
-  const storagePath = buildGeneratedPath(`inspections/${record.id}`, record.record_number, revision);
-
-  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
+  const storagePath = buildGeneratedPath(`inspections/${record.id}`, record.record_number, revision, Date.now(), tag);
+  // Only staff / approvers cause an APPROVED copy; anyone else's render is filed for review.
+  const approved = await canFileApproved(supabase, payload.requested_by, record.project_id);
 
   // "checklists_forms" — an Inspection Report is the rendered output of a completed checklist
   // execution, which this category already covers; there is no separate "inspection reports"
   // category in the fixed vault taxonomy.
-  await autoFileVaultDocument(supabase, {
+  await uploadAndFile(supabase, storagePath, pdfBuffer, {
     projectId: record.project_id,
     folderKey: "checklists_forms",
     title: `Inspection Report ${record.record_number} — ${record.activity}`,
@@ -300,6 +336,7 @@ export async function renderInspectionReportPdf(
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
+    status: approved ? "approved" : "for_review",
   });
 
   return { resultStoragePath: storagePath };

@@ -1,9 +1,12 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
 import { buildIrnPdfHtml, type IrnPdfData } from "./irnTemplate";
 import type { IrnApproval } from "./irnTemplate";
 import type { RenderIrnPdfPayload } from "./types";
-import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertIrnFileable } from "./vaultAutoFile";
+import { uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertIrnFileable } from "./vaultAutoFile";
+import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
+import { buildVerifyUrl, qrDataUri } from "./verification";
 import { getOrgBranding } from "./orgBranding";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -16,6 +19,8 @@ interface IrnRow {
   issued_by: string | null;
   voided_at: string | null;
   void_reason: string | null;
+  /** Added by 20261101000300; absent until applied. */
+  verification_token?: string | null;
 }
 
 interface InspectionRecordRow {
@@ -46,7 +51,7 @@ interface InspectionRecordRow {
 export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resultStoragePath: string }> {
   const { data: irn, error: irnError } = await supabase
     .from("irns" as never)
-    .select("id, inspection_record_id, irn_number, release_date, issued_by, voided_at, void_reason")
+    .select("*")
     .eq("id", payload.irn_id)
     .single<IrnRow>();
 
@@ -54,8 +59,10 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     throw new Error(`IRN ${payload.irn_id} not found: ${irnError?.message ?? "no row"}`);
   }
 
-  // Only live IRNs are rendered and filed; a voided IRN aborts (the void flow does not use this job).
-  assertIrnFileable(irn.voided_at);
+  // A voided IRN is rendered as a VOID copy (banner + watermark) for the requester; it is never filed in the
+  // vault as a current document (the void flow already marked the filed copy superseded).
+  assertIrnFileable(irn.voided_at, true);
+  const isVoidCopy = Boolean(irn.voided_at);
 
   const { data: record, error: recordError } = await supabase
     .from("inspection_records")
@@ -160,13 +167,26 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
+  // Same source content as an already-filed copy: return that file instead of minting an identical new
+  // controlled revision on every click (live IRNs only).
+  const fingerprint = sourceHash({ ...templateData, generatedAt: null, revision: null });
+  const tag = hashTag(fingerprint);
+  if (!isVoidCopy) {
+    const existing = await findFiledByHash(supabase, record.project_id, "certificates", irn.irn_number, tag);
+    if (existing) return { resultStoragePath: existing };
+  }
+
+  const verifyUrl = buildVerifyUrl("irn", irn.verification_token);
+  templateData.verifyUrl = verifyUrl;
+  templateData.verifyQrDataUri = await qrDataUri(verifyUrl);
+
   const html = buildIrnPdfHtml(templateData);
 
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",
@@ -187,12 +207,19 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     await page.close();
   }
 
-  const storagePath = buildGeneratedPath(`irns/${irn.id}`, irn.irn_number, revision);
+  const storagePath = buildGeneratedPath(`irns/${irn.id}`, isVoidCopy ? `${irn.irn_number}-VOID` : irn.irn_number, revision, Date.now(), tag);
 
-  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
+  if (isVoidCopy) {
+    await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
+    return { resultStoragePath: storagePath };
+  }
 
-  // Filed in the vault like every other generated record; each regeneration becomes the next revision.
-  await autoFileVaultDocument(supabase, {
+  // Only staff, the issuer or an issue_irn holder cause an APPROVED copy; anyone else's render is filed for review.
+  const approved = await canFileApproved(supabase, payload.requested_by, record.project_id, { permissionKeys: ["issue_irn"], allowUserIds: [irn.issued_by] });
+
+  // Filed in the vault like every other generated record; a changed IRN becomes the next revision. If filing
+  // fails the uploaded object is removed again so a retry does not orphan it.
+  await uploadAndFile(supabase, storagePath, pdfBuffer, {
     projectId: record.project_id,
     folderKey: "certificates",
     title: `Inspection Release Note ${irn.irn_number} — ${record.activity}`,
@@ -201,6 +228,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
+    status: approved ? "approved" : "for_review",
   });
 
   return { resultStoragePath: storagePath };

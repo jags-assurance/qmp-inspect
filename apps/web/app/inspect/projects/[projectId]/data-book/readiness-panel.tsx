@@ -54,6 +54,8 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
     readiness.materialRegister,
     readiness.standaloneAssignments,
     readiness.ncrs,
+    readiness.activitiesExecuted,
+    readiness.holdPoints,
   ].every((c) => c.total === 0);
   const overallTone = nothingProvisionedYet ? "neutral" : readiness.overallPercentage === 100 ? "success" : "warning";
   return (
@@ -76,6 +78,8 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
         <CategoryRow {...readiness.materialRegister} />
         <CategoryRow {...readiness.standaloneAssignments} />
         <CategoryRow {...readiness.ncrs} />
+        <CategoryRow {...readiness.activitiesExecuted} />
+        <CategoryRow {...readiness.holdPoints} />
         <div className="flex items-center justify-between py-3">
           <span className="text-sm text-ink">Open punch list items</span>
           <Badge tone={readiness.openPunchItems === 0 ? "success" : "danger"}>
