@@ -26,6 +26,11 @@ export interface NcrCloseoutPdfData {
 
   closedByName: string | null;
   closedAt: string;
+  assigneeName?: string | null;
+  dueDate?: string | null;
+  raisedAt?: string | null;
+  /** e.g. "2 photos; documents: DOC-001, DOC-002". */
+  evidenceSummary?: string | null;
 
   generatedAt: Date;
   approvals?: NcrApprovalBox[];
@@ -107,6 +112,9 @@ export function buildNcrCloseoutPdfHtml(data: NcrCloseoutPdfData): string {
     ["Finding", data.description],
     ["Severity", severityLabel],
     ["Responsible party", data.responsiblePartyName],
+    ["Assigned to", data.assigneeName ?? null],
+    ["Raised", data.raisedAt ? data.raisedAt.slice(0, 10) : null],
+    ["Due date", data.dueDate ? data.dueDate.slice(0, 10) : null],
   ];
 
   const closeOutRows: [string, string | null][] = [
@@ -114,6 +122,7 @@ export function buildNcrCloseoutPdfHtml(data: NcrCloseoutPdfData): string {
     ["Corrective action", data.correctiveAction],
     ["Preventive action", data.preventiveAction],
     ["Verification", data.verificationNotes],
+    ["Evidence", data.evidenceSummary ?? null],
   ];
 
   return `<!doctype html>
@@ -260,6 +269,18 @@ ${brandColorStyle(data.branding)}
   ${renderFieldValueTable("Finding", findingRows)}
 
   ${renderFieldValueTable("Close-out", closeOutRows)}
+
+  <div class="section">
+    <h2>Verification and closure</h2>
+    <div class="signoff-grid">
+      <div class="signoff-card">
+        <div class="signoff-card-label">Verified and closed by</div>
+        <div class="signoff-card-name">${cell(data.closedByName)}</div>
+        <div class="signoff-card-line"></div>
+        <div class="signoff-card-date"><span class="label">Date</span>${escapeHtml(data.closedAt.slice(0, 10))}</div>
+      </div>
+    </div>
+  </div>
 
   ${renderNcrApprovalsHtml(data.approvals ?? [])}
 

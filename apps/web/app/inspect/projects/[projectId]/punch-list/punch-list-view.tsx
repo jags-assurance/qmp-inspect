@@ -10,6 +10,8 @@ import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 
+type RawPunchRow = Omit<PunchListItemDisplayRow, "photo_urls" | "closing_photo_urls" | "resolved_by_name" | "closed_by_name">;
+
 export async function PunchListView({ projectId, embedded = false }: { projectId: string; embedded?: boolean }) {
   const session = await requireSession();
   const canVerifyClose = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", projectId));
@@ -26,10 +28,10 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
   const [{ data: items }, { data: projectParties }] = await Promise.all([
     supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, reopen_reason, reopen_count, responsible_party_id, project_parties(name, user_id)")
+      .select("id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, closing_photo_paths, reopen_reason, reopen_count, responsible_party_id, resolved_by, resolved_at, closed_by, closed_at, project_parties(name, user_id)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
-      .returns<PunchListItemDisplayRow[]>(),
+      .returns<RawPunchRow[]>(),
     supabase
       .from("project_parties")
       .select("id, name")
@@ -42,18 +44,30 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
   // blocks compilation until someone independently verifies it (see readiness.ts's matching count).
   const openCount = (items ?? []).filter((item) => item.status !== "closed").length;
 
-  // Signed URLs for the photos so the verifier can actually see them (bucket is private).
-  const rows: PunchListItemDisplayRow[] = await Promise.all(
-    (items ?? []).map(async (item) => {
-      const paths = item.photo_paths ?? [];
-      let photo_urls: string[] = [];
-      if (paths.length > 0) {
-        const { data: signed } = await supabase.storage.from("inspection-evidence").createSignedUrls(paths, 3600);
-        photo_urls = (signed ?? []).map((s) => s.signedUrl).filter((u): u is string => !!u);
-      }
-      return { ...item, photo_urls };
-    })
-  );
+  // ONE batched call signs every photo path of every item (bucket is private), then maps back.
+  const allPaths = [...new Set((items ?? []).flatMap((i) => [...(i.photo_paths ?? []), ...(i.closing_photo_paths ?? [])]))];
+  const urlByPath = new Map<string, string>();
+  if (allPaths.length > 0) {
+    const { data: signed } = await supabase.storage.from("inspection-evidence").createSignedUrls(allPaths, 3600);
+    for (const s of signed ?? []) if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
+  }
+  const urlsFor = (paths: string[] | null) => (paths ?? []).map((p) => urlByPath.get(p)).filter((u): u is string => !!u);
+
+  // Resolver / verifier names in one query.
+  const userIds = [...new Set((items ?? []).flatMap((i) => [i.resolved_by, i.closed_by]).filter((u): u is string => !!u))];
+  const nameById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: users } = await supabase.from("users").select("id, full_name").in("id", userIds).returns<{ id: string; full_name: string }[]>();
+    for (const u of users ?? []) nameById.set(u.id, u.full_name);
+  }
+
+  const rows: PunchListItemDisplayRow[] = (items ?? []).map((item) => ({
+    ...item,
+    photo_urls: urlsFor(item.photo_paths),
+    closing_photo_urls: urlsFor(item.closing_photo_paths),
+    resolved_by_name: item.resolved_by ? nameById.get(item.resolved_by) ?? null : null,
+    closed_by_name: item.closed_by ? nameById.get(item.closed_by) ?? null : null,
+  }));
 
   const resolvedCount = rows.filter((item) => item.status === "resolved").length;
   const reallyOpenCount = rows.filter((item) => item.status === "open").length;

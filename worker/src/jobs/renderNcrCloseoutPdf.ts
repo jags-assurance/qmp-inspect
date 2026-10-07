@@ -24,6 +24,8 @@ interface NcrRow {
   closed_at: string | null;
   raised_by: string | null;
   created_at: string;
+  assigned_to: string | null;
+  due_date: string | null;
 }
 
 /**
@@ -43,7 +45,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
   const { data: ncr, error: ncrError } = await supabase
     .from("ncrs" as never)
     .select(
-      "id, ncr_number, project_id, severity, description, status, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_by, closed_at, raised_by, created_at"
+      "id, ncr_number, project_id, severity, description, status, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_by, closed_at, raised_by, created_at, assigned_to, due_date"
     )
     .eq("id", payload.ncr_id)
     .single<NcrRow>();
@@ -79,6 +81,23 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
       }>(),
   ]);
 
+  const [{ data: assignee }, { count: photoCount }, { data: docLinks }] = await Promise.all([
+    ncr.assigned_to
+      ? supabase.from("users").select("full_name").eq("id", ncr.assigned_to).maybeSingle<{ full_name: string }>()
+      : Promise.resolve({ data: null }),
+    supabase.from("ncr_photos" as never).select("id", { count: "exact", head: true }).eq("ncr_id", ncr.id),
+    supabase
+      .from("ncr_documents" as never)
+      .select("vault_documents(title, document_reference)")
+      .eq("ncr_id", ncr.id)
+      .returns<{ vault_documents: { title: string; document_reference: string | null } | null }[]>(),
+  ]);
+  const docRefs = (docLinks ?? []).map((d) => d.vault_documents?.document_reference || d.vault_documents?.title).filter((x): x is string => !!x);
+  const evidenceParts: string[] = [];
+  if (photoCount) evidenceParts.push(`${photoCount} photo${photoCount === 1 ? "" : "s"}`);
+  if (docRefs.length) evidenceParts.push(`documents: ${docRefs.join(", ")}`);
+  const evidenceSummary = evidenceParts.length ? evidenceParts.join("; ") : null;
+
   const parties = await loadNcrParties(supabase, ncr.project_id);
   const raiserUser = ncr.raised_by
     ? (await supabase.from("users").select("full_name").eq("id", ncr.raised_by).maybeSingle<{ full_name: string }>()).data
@@ -107,6 +126,10 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     responsiblePartyName: responsibleParty?.name ?? null,
     closedByName: closer?.full_name ?? null,
     closedAt: ncr.closed_at,
+    assigneeName: assignee?.full_name ?? null,
+    dueDate: ncr.due_date,
+    raisedAt: ncr.created_at,
+    evidenceSummary,
     generatedAt: new Date(),
     approvals,
     branding: await getOrgBranding(supabase, project?.organization_id),

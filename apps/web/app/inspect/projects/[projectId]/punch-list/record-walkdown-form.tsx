@@ -152,7 +152,7 @@ export function RecordWalkdownForm({
                 id={`walkdown-photo-${rowId}`}
                 name={`photos_${rowId}`}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/heic"
                 capture="environment"
                 multiple
                 className="mt-1 w-full text-xs"

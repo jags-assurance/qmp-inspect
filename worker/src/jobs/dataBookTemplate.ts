@@ -127,6 +127,12 @@ export interface DataBookPdfPunch {
   status: string;
   dueDate: string | null;
   closedAt: string | null;
+  priority: string | null;
+  source: string | null;
+  responsibleParty: string | null;
+  closingEvidence: string | null;
+  verificationNotes: string | null;
+  verifiedBy: string | null;
 }
 
 export interface DataBookPdfData {
@@ -195,6 +201,14 @@ export function dataBookIssueLabel(status: DataBookPdfData["status"], conditiona
 /** An issued book that was compiled with outstanding items is a Conditional Handover, never an unqualified Final. */
 function issuePurpose(data: Pick<DataBookPdfData, "status" | "overrideReason">): string {
   return data.status === "issued" && data.overrideReason ? "Final — Conditional handover" : ISSUE_PURPOSE[data.status];
+}
+
+/** minor_ncr -> "Minor NCR". Observations stay out of readiness and the open-NCR exceptions count. */
+function severityLabel(severity: string): string {
+  if (severity === "major_ncr") return "Major NCR";
+  if (severity === "minor_ncr") return "Minor NCR";
+  if (severity === "observation") return "Observation";
+  return severity.replace(/_/g, " ");
 }
 
 function escapeHtml(value: string): string {
@@ -654,7 +668,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Nonconformance deviation and exceptions",
     "Every nonconformance raised on the project with its disposition. A book cannot be final while an NCR remains open.",
     ["NCR", "Description", "Severity", "Status", "Closed"],
-    data.ncrs.map((n) => [escapeHtml(n.number), escapeHtml(n.description), escapeHtml(n.severity), escapeHtml(n.status.replace(/_/g, " ")), fmtDate(n.closedAt)]),
+    data.ncrs.map((n) => [escapeHtml(n.number), escapeHtml(n.description), escapeHtml(severityLabel(n.severity)), escapeHtml(n.status.replace(/_/g, " ")), fmtDate(n.closedAt)]),
     "No nonconformances raised on this project.",
     "NCR forms with root cause, corrective action, verification notes and closure evidence.",
     "A blocking NCR prevents release regardless of the completion percentage."
@@ -664,8 +678,19 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "punch",
     "Mechanical completion and punch list",
     "Open punch-list items are completion exceptions; they must be verified closed or carried as listed conditions.",
-    ["Item", "Location", "Status", "Due", "Closed"],
-    data.punchItems.map((p) => [escapeHtml(p.description), cell(p.location), escapeHtml(p.status), fmtDate(p.dueDate), fmtDate(p.closedAt)]),
+    ["Pri.", "Item", "Source", "Location", "Responsible", "Status", "Due", "Closed", "Closing evidence", "Verification (verifier)"],
+    data.punchItems.map((p) => [
+      cell(p.priority),
+      escapeHtml(p.description),
+      escapeHtml((p.source ?? "").replace(/_/g, " ")),
+      cell(p.location),
+      cell(p.responsibleParty),
+      escapeHtml(p.status),
+      fmtDate(p.dueDate),
+      fmtDate(p.closedAt),
+      cell(p.closingEvidence),
+      p.verificationNotes || p.verifiedBy ? `${escapeHtml(p.verificationNotes ?? "")}${p.verifiedBy ? ` <i>(${escapeHtml(p.verifiedBy)})</i>` : ""}` : cell(null),
+    ]),
     "No punch-list items on this project.",
     "Resolver's closing evidence and the verifier's closure record for every item.",
     `${data.openPunchItems} open item${data.openPunchItems === 1 ? "" : "s"} at generation; ${data.punchItems.filter((p) => p.status !== "closed").length} not yet verified closed.`
@@ -702,12 +727,13 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     <p class="small">Applicable count = expected records. Accepted completeness = accepted ÷ applicable. A missing record is never removed from the denominator.</p>`
   );
 
+  const openNcrCount = data.ncrs.filter((n) => n.status !== "closed" && n.severity !== "observation").length;
   const certRows: string[][] = [
     ["Book", `${escapeHtml(data.bookNumber)} | ${escapeHtml(projectLabel)}`],
     ["Applicable records", `${planned}`],
     ["Accepted records", `${accepted} of ${planned} | ${pct(accepted, planned)}`],
     ["Unresolved deliverables", `${inReview} in review; ${rejected} rejected; ${missing} missing; ${draft} draft`],
-    ["Open exceptions", `${data.punchItems.filter((p) => p.status !== "closed").length} punch item${data.punchItems.filter((p) => p.status !== "closed").length === 1 ? "" : "s"} not verified closed; ${data.ncrs.filter((n) => n.status !== "closed").length} open NCR${data.ncrs.filter((n) => n.status !== "closed").length === 1 ? "" : "s"}`],
+    ["Open exceptions", `${data.punchItems.filter((p) => p.status !== "closed").length} punch item${data.punchItems.filter((p) => p.status !== "closed").length === 1 ? "" : "s"} not verified closed; ${openNcrCount} open NCR${openNcrCount === 1 ? "" : "s"}`],
     ["Final issue decision", data.isReady && data.status === "issued" ? "READY | Issued" : data.isReady ? "READY | Awaiting issue" : "NOT READY | Certificate unsigned"],
   ];
   const certification = page(

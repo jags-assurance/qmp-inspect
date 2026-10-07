@@ -12,6 +12,8 @@ import {
   type PunchListStatus,
 } from "@/lib/punch-list/types";
 import { useState } from "react";
+import { csvCell, csvLine, isPunchOverdue } from "@/lib/punch-list/helpers";
+import { EditPunchItemForm } from "./edit-punch-item-form";
 import { ReopenPunchItemForm } from "./reopen-punch-item-form";
 import { ResolvePunchItemForm } from "./resolve-punch-item-form";
 import { VerifyClosePunchItemForm } from "./verify-close-punch-item-form";
@@ -34,18 +36,17 @@ export interface PunchListItemDisplayRow {
   reopen_reason: string | null;
   reopen_count: number | null;
   responsible_party_id: string | null;
+  closing_photo_paths: string[] | null;
+  closing_photo_urls: string[];
+  resolved_by: string | null;
+  resolved_by_name: string | null;
+  resolved_at: string | null;
+  closed_by: string | null;
+  closed_by_name: string | null;
+  closed_at: string | null;
 }
 
-function isOverdueRow(r: { due_date: string | null; status: PunchListStatus }): boolean {
-  if (!r.due_date || r.status === "closed") return false;
-  return r.due_date < new Date().toISOString().slice(0, 10);
-}
-
-function csvCell(v: string): string {
-  // Neutralise spreadsheet formula injection (leading = + - @ tab CR).
-  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
+const isOverdueRow = (r: { due_date: string | null; status: string }) => isPunchOverdue(r);
 
 const STATUS_TONE: Record<PunchListStatus, "success" | "neutral" | "warning"> = {
   open: "neutral",
@@ -112,26 +113,37 @@ export function PunchListTable({
           ? r.project_parties?.user_id === currentUserId
           : true));
 
-  function exportCsv() {
-    const header = ["Priority", "Description", "Source", "Location", "Responsible party", "Due", "Status", "Closing evidence", "Verification notes"];
-    const lines = visibleRows.map((r) =>
-      [
+  function exportCsv(all: boolean) {
+    const source = all ? rows : visibleRows;
+    const header = ["Priority", "Description", "Source", "Location", "Responsible party", "Due", "Overdue", "Status", "Closing evidence", "Closing photos", "Photos", "Resolved by", "Resolved on", "Verification notes", "Closed by", "Closed on", "Reopen count", "Reopen reason"];
+    const day = (v: string | null) => (v ? v.slice(0, 10) : "");
+    const lines = source.map((r) =>
+      csvLine([
         r.priority,
         r.description,
         PUNCH_LIST_SOURCE_LABELS[r.source],
         formatLocationForDisplay(r.location) ?? "",
         r.project_parties?.name ?? "",
         r.due_date ?? "",
+        isOverdueRow(r) ? "Yes" : "No",
         r.status,
         r.closing_evidence ?? "",
+        (r.closing_photo_paths ?? []).length,
+        (r.photo_paths ?? []).length,
+        r.resolved_by_name ?? "",
+        day(r.resolved_at),
         r.verification_notes ?? "",
-      ].map((c) => csvCell(String(c))).join(",")
+        r.closed_by_name ?? "",
+        day(r.closed_at),
+        r.reopen_count ?? 0,
+        r.reopen_reason ?? "",
+      ])
     );
     const blob = new Blob(["\uFEFF" + [header.map(csvCell).join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${exportName}.csv`;
+    a.download = `${exportName}${all ? "-all" : "-filtered"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -224,8 +236,11 @@ export function PunchListTable({
         </label>
         {overdueCount > 0 && <Badge tone="danger">{overdueCount} overdue</Badge>}
         <div className="ml-auto flex gap-2">
-          <button type="button" onClick={exportCsv} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
-            Export CSV
+          <button type="button" onClick={() => exportCsv(false)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
+            Export filtered ({visibleRows.length})
+          </button>
+          <button type="button" onClick={() => exportCsv(true)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
+            Export all ({rows.length})
           </button>
           <button type="button" onClick={() => window.print()} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
             Print
@@ -241,7 +256,7 @@ export function PunchListTable({
         searchKeys={(row) => `${row.description} ${row.location ?? ""} ${row.project_parties?.name ?? ""}`}
         emptyMessage={view === "all" && !partyFilter && !priorityFilter && !locationFilter ? "No punch list items yet. Use Record walk-down or Add punch item above." : "Nothing matches these filters."}
       />
-      <SidePanel open={!!openRow} onClose={panel.close} title="Punch list item" guardUnsaved={false}>
+      <SidePanel open={!!openRow} onClose={panel.close} title="Punch list item">
         {openRow && (
           <div className="mt-4 space-y-3 text-sm">
             <p className="text-ink">{openRow.description}</p>
@@ -274,6 +289,28 @@ export function PunchListTable({
                 ))}
               </div>
             )}
+            {openRow.closing_photo_urls.length > 0 && (
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">Photos of the fix</p>
+                <div className="flex flex-wrap gap-2">
+                  {openRow.closing_photo_urls.map((u) => (
+                    <a key={u} href={u} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} alt="Photo of the fix" className="h-20 w-20 rounded-md border border-border object-cover" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {canVerifyClose && openRow.status !== "closed" && (
+              <EditPunchItemForm
+                key={openRow.id}
+                projectId={projectId}
+                punchItemId={openRow.id}
+                projectParties={projectParties}
+                current={{ responsible_party_id: openRow.responsible_party_id, due_date: openRow.due_date, priority: openRow.priority, location: openRow.location }}
+              />
+            )}
             {openRow.status === "closed" && (
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
@@ -284,7 +321,8 @@ export function PunchListTable({
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Verification notes</p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.verification_notes || "—"}</p>
                 </div>
-                {canVerifyClose && <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} />}
+                {openRow.resolved_by_name && <p className="text-xs text-muted">Resolved by {openRow.resolved_by_name}; closed by {openRow.closed_by_name ?? "unknown"}.</p>}
+                {canVerifyClose && <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} label="Reopen closed item" />}
               </div>
             )}
             {openRow.status === "open" && <ResolvePunchItemForm projectId={projectId} punchItemId={openRow.id} />}
@@ -300,7 +338,7 @@ export function PunchListTable({
                     <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} label="Reject fix - send back to open" />
                   </>
                 ) : (
-                  <p className="text-xs text-muted">Awaiting verification by someone with close permission.</p>
+                  <p className="text-xs text-muted">Awaiting verification by a JAGS Admin or someone granted the close punch item permission (not the person who resolved it).</p>
                 )}
               </div>
             )}

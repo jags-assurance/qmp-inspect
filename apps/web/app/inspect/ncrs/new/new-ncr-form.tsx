@@ -79,6 +79,11 @@ export function NewNcrForm({
   onCreated?: (created: { id: string; ncrNumber: string }) => void;
 }) {
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
+  // Idempotency key for this raise attempt; a fresh one is issued after each successful create.
+  const [requestId, setRequestId] = useState("");
+  useEffect(() => {
+    setRequestId(crypto.randomUUID());
+  }, [state.created?.id]);
   const [draftState, draftFormAction, draftPending] = useActionState(
     draftNcrDescriptionAction,
     initialDraftState
@@ -131,6 +136,7 @@ export function NewNcrForm({
   return (
     <form action={formAction} className="mt-6 space-y-6">
       {onCreated && <input type="hidden" name="stay_on_page" value="true" />}
+      <input type="hidden" name="request_id" value={requestId} />
       <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
       <input type="hidden" name="ai_original_description" value={aiOriginalDescription ?? ""} />
       {itpItemId && <input type="hidden" name="itp_item_id" value={itpItemId} />}

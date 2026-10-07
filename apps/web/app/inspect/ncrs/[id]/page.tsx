@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
-import { setNcrStatusAction } from "@/lib/ncrs/actions";
+import { NcrStatusButton } from "./ncr-status-controls";
 import { loadNcrDetail } from "@/lib/ncrs/load-detail";
 import { isOverdue } from "../is-overdue";
 import { NcrPdfButton } from "./ncr-pdf-button";
@@ -19,8 +19,6 @@ import {
   SEVERITY_LABEL,
   STATUS_TONE,
   STATUS_LABEL,
-  NEXT_STATUS,
-  NEXT_STATUS_LABEL,
   StatusTimeline,
 } from "../ncr-shared";
 
@@ -33,7 +31,6 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
   const { history, documents, vaultOptions, canVerify, ncr, latestNcrPdf, latestCloseoutCertificate, photos, people, responsibleParties, closeConsequences } = detail;
 
   const isClosed = ncr.status === "closed";
-  const nextStatus = NEXT_STATUS[ncr.status];
 
   return (
     <div className="max-w-6xl">
@@ -56,7 +53,7 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
               title="NCR detail — how this works"
               points={[
                 "Flow: Open, In progress, Pending verification, Closed. \"Send for verification\" needs root cause, corrective action and preventive action saved first.",
-                "Only JAGS staff verify and close, and not on an NCR they raised themselves (admins excepted). Closing needs root cause, corrective, preventive action, verification notes and at least one evidence photo.",
+                "Only a JAGS admin or someone granted the close NCR permission verifies and closes, and not on an NCR they raised themselves (admins excepted). Closing needs root cause, corrective, preventive action, verification notes and at least one evidence photo or linked document. JAGS staff can return a pending NCR for rework with a reason; CAPA is locked for others while it awaits verification.",
                 "A closed NCR can be re-opened by JAGS staff with a reason; it returns to In progress and its punch item re-opens.",
                 "\"Save progress\" keeps the current status (Open becomes In progress).",
                 "The assignee and responsible-party pickers are built from real people with access to this NCR's project (access grants plus linked project parties) — not free text.",
@@ -71,18 +68,12 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
         <div className="flex flex-col items-end gap-2">
           <NcrPdfButton ncrId={ncr.id} latest={latestNcrPdf} />
           {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={latestCloseoutCertificate} />}
-          {nextStatus && (
-            <form action={setNcrStatusAction}>
-              <input type="hidden" name="ncr_id" value={ncr.id} />
-              <input type="hidden" name="status" value={nextStatus} />
-              <button
-                type="submit"
-                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
-              >
-                {NEXT_STATUS_LABEL[ncr.status]}
-              </button>
-            </form>
-          )}
+          <NcrStatusButton
+            ncrId={ncr.id}
+            status={ncr.status}
+            canWork={detail.canWork}
+            capaSaved={Boolean(ncr.root_cause && ncr.corrective_action && ncr.preventive_action)}
+          />
         </div>
       </div>
 
@@ -138,7 +129,10 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
                 isClosed={isClosed}
                 status={ncr.status}
                 canVerify={detail.canVerify}
-                photoCount={photos.length}
+                canClose={detail.canClose}
+                canAssign={detail.canAssign}
+                capaLocked={detail.capaLocked}
+                photoCount={detail.evidenceTotal}
               />
             </div>
           </div>

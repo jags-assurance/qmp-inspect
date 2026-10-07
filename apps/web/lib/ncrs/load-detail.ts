@@ -4,7 +4,9 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { getLatestNcrPdf, getLatestNcrCloseoutCertificate } from "@/lib/reports/actions";
-import { getSessionContext } from "@/lib/auth/session";
+import { getSessionContext, isAdminStaff } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/rbac/permissions";
+import { canEditAssignment, canEditCapa, canWorkNcr, evidenceCount } from "@/lib/ncrs/rules";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 
 export interface NcrDetail {
@@ -22,6 +24,8 @@ export interface NcrDetail {
   preventive_action: string | null;
   verification_notes: string | null;
   closed_at: string | null;
+  closed_by: string | null;
+  raised_by: string | null;
   created_at: string;
   project_id: string;
   inspection_record_id: string | null;
@@ -71,6 +75,18 @@ export interface NcrDetailData {
   otherNcrs: NcrSiblingNcr[];
   /** JAGS staff: may verify, close and re-open. */
   canVerify: boolean;
+  /** Admin staff or a close_ncr permission holder: may verify/close/re-open. */
+  canClose: boolean;
+  /** Raiser / assignee / responsible-party user / staff: may work the NCR. */
+  canWork: boolean;
+  /** Staff or raiser: may change assignee, due date and party. */
+  canAssign: boolean;
+  /** CAPA text is locked for this viewer (pending verification, non-staff). */
+  capaLocked: boolean;
+  /** Photos plus linked documents. */
+  evidenceTotal: number;
+  /** Names for the certificate-style summary. */
+  closedByName: string | null;
   documents: { linkId: string; vaultDocumentId: string; title: string; documentReference: string | null; status: string }[];
   vaultOptions: { id: string; title: string; documentReference: string | null; folderName: string; revision: string | null; status: string; createdAt: string; storagePath: string | null }[];
 }
@@ -82,7 +98,7 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   const { data: ncr } = await supabase
     .from(NCRS_TABLE)
     .select(
-      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
+      "id, ncr_number, severity, description, requirement_not_met, status, assigned_to, due_date, responsible_party_id, root_cause, corrective_action, preventive_action, verification_notes, closed_at, closed_by, raised_by, created_at, project_id, inspection_record_id, projects(name, project_number, organization_id, organizations(name)), itp_items(item_number, activity)"
     )
     .eq("id", id)
     .maybeSingle<
@@ -92,7 +108,7 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   if (!ncr) return null;
 
   const latestNcrPdf = await getLatestNcrPdf(id);
-  const latestCloseoutCertificate = ncr.status === "closed" ? await getLatestNcrCloseoutCertificate(id) : null;
+  const latestCloseoutCertificate = ncr.status === "closed" ? await getLatestNcrCloseoutCertificate(id, ncr.closed_at) : null;
 
   // Related context — each query is non-fatal: a failure just yields an empty list / null.
   const [punchItems, history, inspectionRecord, otherNcrs] = await Promise.all([
@@ -244,6 +260,21 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     closeConsequences.push("Notifies the original inspector the activity is ready to re-inspect");
   }
 
+  const session = await getSessionContext();
+  const isStaff = Boolean(session?.isJagsStaff);
+  const partyUser = ncr.responsible_party_id
+    ? ((await supabase.from("project_parties").select("user_id").eq("id", ncr.responsible_party_id).maybeSingle<{ user_id: string | null }>()).data?.user_id ?? null)
+    : null;
+  const actor = {
+    isStaff,
+    userId: session?.userId ?? "",
+    raisedBy: ncr.raised_by,
+    assignedTo: ncr.assigned_to,
+    partyUserId: partyUser,
+  };
+  const canClose = Boolean(session) && (isAdminStaff(session!) || (await hasPermission(session!.userId, "close_ncr", ncr.project_id)));
+  const closedByName = ncr.closed_by ? (userById.get(ncr.closed_by)?.full_name || userById.get(ncr.closed_by)?.email || null) : null;
+
   return {
     ncr,
     latestNcrPdf,
@@ -273,6 +304,12 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
       createdAt: d.created_at,
       storagePath: d.storage_path,
     })),
-    canVerify: Boolean((await getSessionContext())?.isJagsStaff),
+    canVerify: isStaff,
+    canClose,
+    canWork: Boolean(session) && canWorkNcr(actor),
+    canAssign: Boolean(session) && canEditAssignment(actor),
+    capaLocked: !canEditCapa(ncr.status, isStaff),
+    evidenceTotal: evidenceCount((photos ?? []).length, (docRows ?? []).length),
+    closedByName,
   };
 }

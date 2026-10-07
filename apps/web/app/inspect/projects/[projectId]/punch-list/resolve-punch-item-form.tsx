@@ -30,7 +30,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
   }
 
   return (
-    <form action={formAction} className="flex min-w-56 flex-col gap-2">
+    <form action={formAction} encType="multipart/form-data" className="flex min-w-56 flex-col gap-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <textarea
@@ -42,6 +42,10 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
         placeholder="What was done to fix it (reference photo/record)…"
         className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
       />
+      <label className="text-xs font-medium text-ink">
+        Photos of the fix (optional)
+        <input name="closing_photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic" capture="environment" multiple className="mt-1 w-full text-xs" />
+      </label>
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending || !evidence.trim()}>

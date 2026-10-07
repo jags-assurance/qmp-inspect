@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
-import { setNcrStatusAction } from "@/lib/ncrs/actions";
+import { NcrStatusButton } from "./[id]/ncr-status-controls";
 import { getNcrDetailAction } from "@/lib/ncrs/detail-actions";
 import type { NcrDetailData } from "@/lib/ncrs/load-detail";
 import { NcrPdfButton } from "./[id]/ncr-pdf-button";
@@ -211,26 +211,13 @@ export function NcrPanel() {
               <div className="flex flex-wrap items-center gap-2">
                 <NcrPdfButton ncrId={ncr.id} latest={detail.latestNcrPdf} />
                 {isClosed && <NcrCloseoutCertificateButton ncrId={ncr.id} latest={detail.latestCloseoutCertificate} />}
-                {nextStatus && (
-                  <form
-                    action={(formData) => {
-                      startTransition(async () => {
-                        await setNcrStatusAction(formData);
-                        refresh();
-                      });
-                    }}
-                  >
-                    <input type="hidden" name="ncr_id" value={ncr.id} />
-                    <input type="hidden" name="status" value={nextStatus} />
-                    <button
-                      type="submit"
-                      disabled={pending}
-                      className="min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white disabled:opacity-50"
-                    >
-                      {NEXT_STATUS_LABEL[ncr.status]}
-                    </button>
-                  </form>
-                )}
+                <NcrStatusButton
+                  ncrId={ncr.id}
+                  status={ncr.status}
+                  canWork={detail.canWork}
+                  capaSaved={Boolean(ncr.root_cause && ncr.corrective_action && ncr.preventive_action)}
+                  onDone={refresh}
+                />
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
                 <h3 className="text-base font-medium text-ink">Corrective action close-out</h3>
@@ -265,7 +252,10 @@ export function NcrPanel() {
                     isClosed={isClosed}
                     status={ncr.status}
                     canVerify={detail.canVerify}
-                    photoCount={detail.photos.length}
+                    canClose={detail.canClose}
+                    canAssign={detail.canAssign}
+                    capaLocked={detail.capaLocked}
+                    photoCount={detail.evidenceTotal}
                     onSaved={refresh}
                   />
                 </div>

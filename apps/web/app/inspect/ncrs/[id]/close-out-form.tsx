@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { updateNcrAction, reopenNcrAction, suggestNcrRootCauseAction, type ReopenNcrState, type UpdateNcrState, type SuggestRootCauseState } from "@/lib/ncrs/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ReturnForReworkForm } from "./ncr-status-controls";
 
 const initialState: UpdateNcrState = { error: null };
 const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
@@ -22,6 +23,9 @@ export function CloseOutForm({
   isClosed,
   status,
   canVerify,
+  canClose,
+  canAssign,
+  capaLocked,
   photoCount,
   onSaved,
 }: {
@@ -41,6 +45,13 @@ export function CloseOutForm({
   status: string;
   /** JAGS staff may verify/close/reopen. */
   canVerify: boolean;
+  /** Admin staff or close_ncr holder: may verify/close/re-open. */
+  canClose: boolean;
+  /** Staff or raiser: may change assignee, due date and party. */
+  canAssign: boolean;
+  /** CAPA text locked for this viewer (pending verification, non-staff). */
+  capaLocked: boolean;
+  /** Evidence items: photos plus linked documents. */
   photoCount: number;
   /** Called after a successful save (used by the register side panel to refetch). */
   onSaved?: () => void;
@@ -76,7 +87,7 @@ export function CloseOutForm({
   const [fields2, setFields2] = useState({ preventive: preventiveAction ?? "" });
   const [reopenState, reopenAction, reopenPending] = useActionState(reopenNcrAction, { error: null } as ReopenNcrState);
   const capaComplete = Boolean(fields.rootCause.trim() && fields.correctiveAction.trim() && fields2.preventive.trim() && fields.verificationNotes.trim());
-  const canClose = capaComplete && photoCount > 0 && status === "pending_verification" && canVerify;
+  const canCloseNow = capaComplete && photoCount > 0 && status === "pending_verification" && canClose;
 
   return (
     <div>
@@ -94,7 +105,7 @@ export function CloseOutForm({
             id="assigned_to"
             name="assigned_to"
             defaultValue={assignedTo ?? ""}
-            disabled={isClosed}
+            disabled={isClosed || !canAssign}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           >
             <option value="">Unassigned</option>
@@ -115,7 +126,7 @@ export function CloseOutForm({
             type="date"
             required
             defaultValue={dueDate ?? ""}
-            disabled={isClosed}
+            disabled={isClosed || !canAssign}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           />
         </div>
@@ -129,7 +140,7 @@ export function CloseOutForm({
           id="responsible_party_id"
           name="responsible_party_id"
           defaultValue={responsiblePartyId ?? ""}
-          disabled={isClosed}
+          disabled={isClosed || !canAssign}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         >
           <option value="">Not specified</option>
@@ -146,7 +157,7 @@ export function CloseOutForm({
           <label htmlFor="root_cause" className="block text-sm font-medium text-ink">
             Root cause
           </label>
-          {!isClosed && (
+          {!isClosed && !capaLocked && (
             <button
               type="button"
               onClick={() => {
@@ -166,7 +177,7 @@ export function CloseOutForm({
           name="root_cause"
           rows={3}
           value={fields.rootCause}
-          disabled={isClosed}
+          disabled={isClosed || capaLocked}
           onChange={(e) => setFields((f) => ({ ...f, rootCause: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
@@ -187,7 +198,7 @@ export function CloseOutForm({
           name="corrective_action"
           rows={3}
           defaultValue={correctiveAction ?? ""}
-          disabled={isClosed}
+          disabled={isClosed || capaLocked}
           onChange={(e) => setFields((f) => ({ ...f, correctiveAction: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
@@ -203,7 +214,7 @@ export function CloseOutForm({
           rows={3}
           defaultValue={preventiveAction ?? ""}
           onChange={(e) => setFields2({ preventive: e.target.value })}
-          disabled={isClosed}
+          disabled={isClosed || capaLocked}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
       </div>
@@ -217,7 +228,7 @@ export function CloseOutForm({
           name="verification_notes"
           rows={3}
           defaultValue={verificationNotes ?? ""}
-          disabled={isClosed}
+          disabled={isClosed || capaLocked}
           onChange={(e) => setFields((f) => ({ ...f, verificationNotes: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
@@ -227,28 +238,30 @@ export function CloseOutForm({
 
       {!isClosed && (
         <div className="flex gap-3">
-          <Button type="submit" name="close_now" value="false" variant="outline" disabled={pending}>
+          <Button type="submit" name="close_now" value="false" variant="outline" disabled={pending || capaLocked}>
             {pending ? "Saving…" : "Save progress"}
           </Button>
-          {canVerify && (
-            <Button type="submit" name="close_now" value="true" disabled={pending || !canClose}>
+          {canClose && (
+            <Button type="submit" name="close_now" value="true" disabled={pending || !canCloseNow}>
               {pending ? "Closing…" : "Verify and close NCR"}
             </Button>
           )}
         </div>
       )}
-      {!isClosed && canVerify && !canClose && (
+      {!isClosed && canClose && !canCloseNow && (
         <p className="text-xs text-muted">
           To close: status must be Pending verification, with root cause, corrective action, preventive action,
-          verification notes and at least one evidence photo.
-          {photoCount === 0 ? " No evidence photo yet." : ""}
+          verification notes and at least one evidence photo or linked document.
+          {photoCount === 0 ? " No evidence yet." : ""}
         </p>
       )}
-      {!isClosed && !canVerify && (
+      {capaLocked && <p className="text-xs text-muted">Awaiting verification: CAPA is locked until JAGS staff verify or return it for rework.</p>}
+      {!isClosed && !canClose && (
         <p className="text-xs text-muted">Closing is done by a JAGS verifier after you send the NCR for verification.</p>
       )}
     </form>
-    {isClosed && canVerify && (
+    {!isClosed && canVerify && status === "pending_verification" && <ReturnForReworkForm ncrId={ncrId} onDone={onSaved} />}
+    {isClosed && canClose && (
       <form action={reopenAction} className="mt-4 space-y-2 border-t border-border pt-4">
         <input type="hidden" name="ncr_id" value={ncrId} />
         <label htmlFor="reopen_reason" className="block text-sm font-medium text-ink">Re-open this NCR</label>

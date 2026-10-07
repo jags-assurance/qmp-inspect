@@ -3509,6 +3509,7 @@ export type Database = {
           reopened_by: string | null
           reopened_at: string | null
           reopen_count: number
+          closing_photo_paths: string[]
         }
         Insert: {
           closed_at?: string | null
@@ -3537,6 +3538,7 @@ export type Database = {
           reopened_by?: string | null
           reopened_at?: string | null
           reopen_count?: number
+          closing_photo_paths?: string[]
         }
         Update: {
           closed_at?: string | null
@@ -3565,6 +3567,7 @@ export type Database = {
           reopened_by?: string | null
           reopened_at?: string | null
           reopen_count?: number
+          closing_photo_paths?: string[]
         }
         Relationships: [
           {

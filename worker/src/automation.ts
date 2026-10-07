@@ -144,6 +144,10 @@ interface NcrRow {
   project_id: string;
   due_date: string;
   assigned_to: string | null;
+  raised_by: string | null;
+  status: string;
+  responsible_party_id: string | null;
+  project_parties: { user_id: string | null } | null;
 }
 
 async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
@@ -158,7 +162,7 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
   const cutoffDate = new Date(Date.now() - rule.threshold_hours * 3600 * 1000).toISOString().slice(0, 10);
   const { data: ncrs } = await supabase
     .from("ncrs")
-    .select("id, ncr_number, project_id, due_date, assigned_to")
+    .select("id, ncr_number, project_id, due_date, assigned_to, raised_by, status, responsible_party_id, project_parties(user_id)")
     .in("project_id", projectIds)
     .neq("status", "closed")
     .not("due_date", "is", null)
@@ -170,9 +174,17 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
   for (const ncr of ncrs ?? []) {
     if (await alreadyNotifiedRecently(rule.id, ncr.id, rule.repeat_hours)) continue;
     const recipients = new Set<string>(admins);
-    if (ncr.assigned_to) recipients.add(ncr.assigned_to);
-    const title = `Overdue NCR: ${ncr.ncr_number}`;
-    const body = `Due ${ncr.due_date}, still open.`;
+    const awaitingVerification = ncr.status === "pending_verification";
+    // Pending verification: the work is done, so nudge the verifiers (staff/admins) and the raiser,
+    // not the assignee. Otherwise nudge the assignee, raiser and the responsible party's user too.
+    if (ncr.raised_by) recipients.add(ncr.raised_by);
+    if (!awaitingVerification) {
+      if (ncr.assigned_to) recipients.add(ncr.assigned_to);
+      const partyUser = ncr.project_parties?.user_id;
+      if (partyUser) recipients.add(partyUser);
+    }
+    const title = awaitingVerification ? `NCR overdue for verification: ${ncr.ncr_number}` : `Overdue NCR: ${ncr.ncr_number}`;
+    const body = awaitingVerification ? `Due ${ncr.due_date}, awaiting verification.` : `Due ${ncr.due_date}, still open.`;
     const link = `/inspect/ncrs/${ncr.id}`;
     for (const userId of recipients) {
       await notify(rule.organization_id, ncr.project_id, userId, title, body, link);
@@ -189,7 +201,28 @@ interface PunchRow {
   project_id: string;
   due_date: string;
   responsible_party_id: string | null;
+  status: string;
+  created_by: string | null;
   project_parties: { user_id: string | null } | null;
+}
+
+/** Users holding close_punch_item for a project (project-scoped or org/platform-wide assignment). */
+async function getPunchVerifierUserIds(projectId: string): Promise<string[]> {
+  try {
+    const { data: perms } = await db.from("custom_role_permissions").select("role_id").eq("permission_key", "close_punch_item");
+    const roleIds = [...new Set(((perms ?? []) as { role_id: string }[]).map((p) => p.role_id))];
+    if (roleIds.length === 0) return [];
+    const { data: assigns } = await db.from("custom_role_assignments").select("user_id, project_id").in("role_id", roleIds);
+    return [
+      ...new Set(
+        ((assigns ?? []) as { user_id: string; project_id: string | null }[])
+          .filter((a) => a.project_id === null || a.project_id === projectId)
+          .map((a) => a.user_id)
+      ),
+    ];
+  } catch {
+    return [];
+  }
 }
 
 async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
@@ -204,7 +237,7 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
   const cutoffDate = new Date(Date.now() - rule.threshold_hours * 3600 * 1000).toISOString().slice(0, 10);
   const { data: rawItems } = await db
     .from("punch_list_items")
-    .select("id, description, project_id, due_date, responsible_party_id, project_parties(user_id)")
+    .select("id, description, project_id, due_date, responsible_party_id, status, created_by, project_parties(user_id)")
     .in("project_id", projectIds)
     .neq("status", "closed")
     .not("due_date", "is", null)
@@ -216,10 +249,20 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
   for (const item of items ?? []) {
     if (await alreadyNotifiedRecently(rule.id, item.id, rule.repeat_hours)) continue;
     const recipients = new Set<string>(admins);
-    if (item.project_parties?.user_id) recipients.add(item.project_parties.user_id);
+    const partyUser = item.project_parties?.user_id ?? null;
+    let body: string;
+    if (item.status === "resolved") {
+      // Fixed but unverified: the ball is with the verifiers, not the resolver's party.
+      for (const id of await getPunchVerifierUserIds(item.project_id)) recipients.add(id);
+      if (recipients.size === 0 && item.created_by) recipients.add(item.created_by);
+      body = `${item.description} — due ${item.due_date}, resolved but still awaiting verification.`;
+    } else {
+      if (partyUser) recipients.add(partyUser);
+      else if (item.created_by) recipients.add(item.created_by); // party has no login
+      body = `${item.description} — due ${item.due_date}, still open.`;
+    }
     const title = "Overdue punch item";
-    const body = `${item.description} — due ${item.due_date}, still open.`;
-    const link = `/inspect/projects/${item.project_id}/punch-list`;
+    const link = `/inspect/projects/${item.project_id}/punch-list?item=${item.id}`;
     for (const userId of recipients) {
       await notify(rule.organization_id, item.project_id, userId, title, body, link);
     }

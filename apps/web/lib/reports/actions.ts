@@ -862,7 +862,7 @@ export interface NcrCloseoutCertificateStatus {
  * (lib/reports/use-pdf-polling.ts) — see getLatestItpPdf's doc comment for the View/Download URL
  * split.
  */
-export async function getLatestNcrCloseoutCertificate(ncrId: string): Promise<NcrCloseoutCertificateStatus | null> {
+export async function getLatestNcrCloseoutCertificate(ncrId: string, closedAt?: string | null): Promise<NcrCloseoutCertificateStatus | null> {
   const supabase = await createSupabaseServerClient();
 
   const { data: latest } = await supabase
@@ -880,6 +880,9 @@ export async function getLatestNcrCloseoutCertificate(ncrId: string): Promise<Nc
     >();
 
   if (!latest) return null;
+  // A certificate rendered before the NCR's most recent close (e.g. before a re-open and re-close)
+  // describes a stale close-out; ignore it so the user regenerates a current one.
+  if (closedAt && new Date(latest.created_at).getTime() < new Date(closedAt).getTime()) return null;
 
   let pdfUrl: string | null = null;
   let downloadUrl: string | null = null;

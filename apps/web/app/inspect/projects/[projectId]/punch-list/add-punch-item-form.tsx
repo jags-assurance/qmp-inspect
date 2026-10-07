@@ -98,7 +98,7 @@ export function AddPunchItemForm({
           id="photos"
           name="photos"
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,image/heic"
           capture="environment"
           multiple
           className="mt-1 w-full text-xs"

@@ -427,10 +427,24 @@ async function gatherDataBookContent(projectId: string): Promise<{
         .returns<{ ncr_number: string; description: string; severity: string; status: string; closed_at: string | null }[]>(),
       supabase
         .from("punch_list_items" as never)
-        .select("description, location, status, due_date, closed_at")
+        .select("description, location, status, due_date, closed_at, priority, source, closing_evidence, verification_notes, closed_by, project_parties(name)")
         .eq("project_id", projectId)
         .order("created_at", { ascending: true })
-        .returns<{ description: string; location: string | null; status: string; due_date: string | null; closed_at: string | null }[]>(),
+        .returns<
+          {
+            description: string;
+            location: string | null;
+            status: string;
+            due_date: string | null;
+            closed_at: string | null;
+            priority: string | null;
+            source: string | null;
+            closing_evidence: string | null;
+            verification_notes: string | null;
+            closed_by: string | null;
+            project_parties: { name: string } | { name: string }[] | null;
+          }[]
+        >(),
       supabase
         .from("personnel_certifications" as never)
         .select("project_party_id, certification_type, cert_number, expiry_date, project_parties(name)")
@@ -540,6 +554,7 @@ async function gatherDataBookContent(projectId: string): Promise<{
     for (const id of [i.prepared_by, i.reviewed_by, i.approved_by, i.client_accepted_by]) if (id) userIds.add(id);
   }
   for (const s of signoffs) if (s.signed_off_by) userIds.add(s.signed_off_by);
+  for (const p of punchRows ?? []) if (p.closed_by) userIds.add(p.closed_by);
   for (const r of records) if (r.inspector_id) userIds.add(r.inspector_id);
   const users: { id: string; full_name: string }[] = userIds.size
     ? ((await supabase.from("users").select("id, full_name").in("id", [...userIds]).returns<{ id: string; full_name: string }[]>()).data ?? [])
@@ -675,6 +690,12 @@ async function gatherDataBookContent(projectId: string): Promise<{
       status: p.status,
       dueDate: p.due_date,
       closedAt: p.closed_at,
+      priority: p.priority,
+      source: p.source,
+      responsibleParty: (Array.isArray(p.project_parties) ? p.project_parties[0] : p.project_parties)?.name ?? null,
+      closingEvidence: p.closing_evidence,
+      verificationNotes: p.verification_notes,
+      verifiedBy: name(p.closed_by),
     })),
     nameById,
     parties: (projectPartyRows ?? []).map((p) => ({ name: p.name, partyType: p.party_type })),

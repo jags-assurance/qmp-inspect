@@ -57,6 +57,8 @@ export interface PunchListItemRow {
   created_by: string | null;
   reopen_reason: string | null;
   reopen_count: number;
+  /** Photos of the fix, attached by the resolver (column punch_list_items.closing_photo_paths). */
+  closing_photo_paths: string[];
   id: string;
   project_id: string;
   description: string;
