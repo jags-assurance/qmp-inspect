@@ -29,10 +29,29 @@ export function clientRecipientIds(
   return [...ids];
 }
 
+/** Minimum length of a rejection / reopen reason (mirrors the 10-character check in reject_handover()). */
+export const MIN_REJECT_REASON_LENGTH = 10;
+
+/** Maps a reject_handover() / reopen_handover_rejection() error message to a distinct user-facing message. */
+export function rejectErrorMessage(message: string | null | undefined): string {
+  const m = (message ?? "").toLowerCase();
+  if (m.includes("already acknowledged")) return "This handover has already been acknowledged, so it can no longer be rejected.";
+  if (m.includes("already rejected")) return "This handover has already been rejected.";
+  if (m.includes("superseded")) return "This certificate was superseded by a later revision.";
+  if (m.includes("has not been rejected")) return "This certificate has not been rejected.";
+  if (m.includes("admin staff")) return "Only a JAGS Admin can reopen a rejected handover certificate.";
+  if (m.includes("client")) return "Only the client organisation can reject a handover package.";
+  if (m.includes("reason")) return "Enter a reason (at least 10 characters).";
+  if (m.includes("not found")) return "Certificate not found, or you do not have access to it.";
+  return "Could not record this. Please try again, or contact JAGS Assurance.";
+}
+
 /** Maps an acknowledge_handover() error message to a distinct user-facing message. */
 export function acknowledgeErrorMessage(message: string | null | undefined): string {
   const m = (message ?? "").toLowerCase();
   if (m.includes("already acknowledged")) return "This handover has already been acknowledged.";
+  if (m.includes("rejected")) return "This certificate was rejected and can no longer be acknowledged.";
+  if (m.includes("superseded")) return "This certificate was superseded by a later revision.";
   if (m.includes("client")) return "Only the client organisation can acknowledge receipt of a handover.";
   if (m.includes("package")) return "No package file is attached to this certificate, so it cannot be acknowledged. Contact JAGS Assurance.";
   if (m.includes("name")) return "Enter a valid name (check the length) to acknowledge receipt.";
@@ -46,7 +65,7 @@ export function issueErrorMessage(code: string | null | undefined, message: stri
   if (code === "23505") return "A handover certificate already exists for this Data Book, or that certificate number is in use.";
   if (m.includes("not found in storage")) return "The uploaded package file could not be found in storage. Upload it again.";
   if (m.includes("not ready to issue")) return "The project no longer passes the Data Book gates (open punch items, NCRs, unapproved ITPs or project not completed). Resolve them or withdraw the book and compile with an override.";
-  if (m.includes("admin staff")) return "Only a JAGS Admin can issue a conditional handover.";
+  if (m.includes("admin staff")) return "Only a JAGS Admin, or JAGS staff granted the issue_handover permission, can issue a conditional handover.";
   if (m.includes("punch")) return "Open punch items exist, so the handover cannot be issued. Close them first.";
   if (m.includes("compiled")) return "Only a compiled Data Book can be issued. Refresh the page.";
   if (m.includes("staff")) return "Only JAGS staff can issue a handover certificate.";

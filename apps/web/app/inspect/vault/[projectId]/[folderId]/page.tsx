@@ -149,7 +149,7 @@ export default async function VaultFolderPage({
     };
   });
 
-  let approverOptions: { id: string; name: string }[] = [];
+  const approverOptions: { id: string; name: string }[] = [];
   if (isAdminStaff(session)) {
     const { data: parties } = await supabase
       .from("project_parties")

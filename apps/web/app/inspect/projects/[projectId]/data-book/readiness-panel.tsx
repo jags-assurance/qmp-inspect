@@ -97,7 +97,7 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
 
       <p className="mt-3 text-xs text-muted">
         Overall % = total items provided ÷ total items required, summed across every category above
-        (handover certificate excluded — it's produced by compiling, not required to compile).
+        (handover certificate excluded — it&apos;s produced by compiling, not required to compile).
       </p>
 
       {!readiness.isReady && (

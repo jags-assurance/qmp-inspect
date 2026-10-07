@@ -16,9 +16,10 @@ const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "touchstart"] as const
  * modal; the round-table ask was the timeout itself, not an "are you still there" UX.
  */
 export function IdleTimeout() {
-  const lastActivityRef = useRef(Date.now());
+  const lastActivityRef = useRef(0);
 
   useEffect(() => {
+    lastActivityRef.current = Date.now();
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout>;
 

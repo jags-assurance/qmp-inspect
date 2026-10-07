@@ -14,13 +14,14 @@
 | NEXT_PUBLIC_SUPABASE_URL | no | Supabase URL |
 | NEXT_PUBLIC_SUPABASE_ANON_KEY | no | Public anon key |
 | SUPABASE_SERVICE_ROLE_KEY | YES | Server-only admin client (party login provisioning, etc.) |
-| NEXT_PUBLIC_APP_URL | no | Absolute links in emails/notifications |
+| NEXT_PUBLIC_APP_URL | no | Absolute links in emails/notifications, reset-password links, QR codes |
+| VAULT_EMAIL_ALLOWED_SENDERS | no | Optional allow-list of inbound vault email senders |
+| NEXT_PUBLIC_SITE_TIMEZONE | no | Site timezone for date logic (default `Asia/Dubai`) |
 | RESEND_API_KEY | YES | Email sending |
 | NOTIFICATIONS_EMAIL_FROM | no | From address |
 | VAULT_EMAIL_WEBHOOK_SECRET | YES | Inbound vault email webhook |
 | GEMINI_API_KEY | YES | AI features |
 | GEMINI_MODEL_LIGHT / GEMINI_MODEL_HEAVY / AI_TIER | no | AI model selection |
-| FILE_ORG_PACKS_IN_PROJECT_VAULTS | no | `false` stops weekly/monthly org packs being filed into project vaults (default on) |
 | ACONEX_API_KEY, PROCORE_CLIENT_ID/SECRET, PROJECTWISE_API_BASE_URL/KEY, MICROSOFT_GRAPH_CLIENT_ID/SECRET/TENANT_ID | YES (keys/secrets) | Cloud Folder Sync connectors, only if used |
 | NEXT_PUBLIC_SENTRY_DSN / SENTRY_DSN | no | Error reporting |
 
@@ -30,16 +31,18 @@
 | SUPABASE_URL | no | Supabase URL |
 | SUPABASE_SERVICE_ROLE_KEY | YES | Service role (bypasses RLS) |
 | PUPPETEER_EXECUTABLE_PATH | no | Chromium path in the container |
-| SENTRY_DSN | no | Error reporting |
-| FILE_ORG_PACKS_IN_PROJECT_VAULTS | no | Same switch as web; the worker reads it when filing packs |
+| NEXT_PUBLIC_APP_URL or PUBLIC_APP_URL | no | Public app URL used for QR codes on PDFs |
+| SITE_UTC_OFFSET_HOURS | no | Site UTC offset for calendar-day escalation logic (default 4) |
+| SENTRY_DSN | no | Error reporting (currently off until set) |
+| FILE_ORG_PACKS_IN_PROJECT_VAULTS | no | `false` stops weekly/monthly org packs being filed into project vaults (default on); read by the worker |
 
 Never commit secrets; the service role key must exist only in Vercel server env and Railway.
 
 ## 3. Deploy checklist
-1. Apply new SQL migrations from `supabase/migrations/` in filename order (oldest `20260909…` through latest `20261013N70001_itp_master_audit.sql`). All current migrations are applied on the live project. Never edit an applied migration; add a new one.
-2. Merge to the deploy branch; Vercel builds the web app (`npx tsc --noEmit` should be clean first).
-3. **Redeploy the Railway worker after any change under `worker/` or any PDF template/layout change** (the worker holds the PDF code, the web app does not).
-4. Smoke test: log in, generate an ITP PDF, check the job reaches `completed`.
+1. Apply new SQL migrations from `supabase/migrations/` in filename order, one file at a time, each idempotent. The ordered list of recent migrations still to apply (through `20261105…`, plus any `20261108…` from the Phase 6/7 batch) is in `docs/fixes/REMAINING.md` section A. The repo has 7 duplicate versions and 30 non-numeric names that `supabase db push` ignores or rejects; reconcile history with `docs/MIGRATION_REPAIR.md` before using `db push`. Never edit an applied migration; add a new one with a 14-digit numeric version (CI enforces this).
+2. Merge to the deploy branch. CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, the migration-name check and the build on every push to `main`/`dev` and every pull request; it should be green before Vercel promotes. Locally: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+3. **Redeploy the Railway worker after any change under `worker/` or any PDF template/layout change** (the worker holds the PDF code, fonts and the `qrcode` package; the web app does not).
+4. Smoke test: `GET /api/health` returns `status: ok`; log in, generate an ITP PDF, check the job reaches `completed`.
 
 ## 4. Background jobs
 Table `background_jobs`; a job is queued by the web app (insert allowed by RLS only for a user with access to the target record), the worker claims it and writes `result_storage_path` or an error. Per-organisation rate limit trigger applies.
@@ -67,15 +70,25 @@ Vault documents are controlled: once approved they are immutable; a new revision
 | Main contractor | Project-scoped | Execute own checklists, sign own cells, create ITPs if project toggle on | Release material (IRN), approve own work as client, create projects |
 | Subcontractor | Project-scoped | Execute own scope, sign own cells, resolve punch/NCR actions | Same as above |
 | TPI / lab | Project-scoped | Witness/verify, own cells | Execute checklist |
-Custom-role permissions (per project or org-wide grant): `approve_vault_document` (admin-grantable only, plus client-managed orgs where allowed), `close_punch_item` (admin or permission holder; not grantable by client-managed orgs), `approve_itp`, `provision_party_login`. Register contributors: named project party members who may add/edit register rows (calibration, welder, personnel, material). Org settings need an org-wide grant, not a project-only one. Org-wide grants see all projects of the org; project-scoped grants see only the listed projects.
+Custom-role permissions (per project or org-wide grant, scoped to the grantee's organisation): `issue_handover` (JAGS staff only, admin-grantable only: lets named staff issue a conditional handover, otherwise Admin-only), `approve_vault_document` (admin-grantable only, plus client-managed orgs where allowed), `close_punch_item` (admin or permission holder; not grantable by client-managed orgs), `approve_itp`, `provision_party_login`. Register contributors: named project party members who may add/edit register rows (calibration, welder, personnel, material). Org settings need an org-wide grant, not a project-only one. Org-wide grants see all projects of the org; project-scoped grants see only the listed projects.
 
 ## 8. Backup and restore
 - Supabase daily backups (and PITR if enabled) cover Postgres. Storage objects are NOT in a DB restore: export the three buckets periodically.
 - Restore: restore to a new Supabase project, re-point env vars in Vercel and Railway, redeploy both.
 - Do not hard-delete records; voided IRNs, superseded vault documents and audit log entries are intentional history.
 
-## 9. Incident notes
+## 9. Health check and rate limits
+- `GET /api/health` (public): `checks` has `database`, `schema`, `storage`, `worker` as `ok`/`error`/`skipped`, `latencyMs` has the per-check round trip, plus `build` (short commit id) and `timestamp`. Each probe times out after 5 s. 503 = database or storage failing; `degraded` (HTTP 200) = a background job has been pending for over 15 minutes (worker stalled). Needs `SUPABASE_SERVICE_ROLE_KEY`; without it only an anonymous database round trip runs. It never returns error text, keys or hostnames; details are in the server log.
+- Sign-in and password-reset attempts are throttled in the database (`auth_attempts`, 5 failed sign-ins per email / 30 per IP per 15 min; resets 3 per email / 15 per IP per hour).
+- Handover acknowledgement: the client can acknowledge or reject (with a reason) an issued certificate. A rejection is final for that certificate (the issuer is notified and issues a new revision; an Admin can reopen a rejection made in error). The worker's automation sweep reminds the client 3 days after issue, then weekly, at most 4 times (the issuer is told on the last), using `handover_certificates.ack_reminder_count` / `last_ack_reminder_at`.
+- Background-job retries: a transiently failed job is retried up to 3 times with 30 s / 2 min / 8 min backoff, persisted in `background_jobs.retry_not_before` so restarts and replicas respect it.
+- PDF photos: inspection and FAT reports downscale photos (longest edge 1600 px, JPEG) in the worker's Chromium before embedding; if that fails the original is embedded.
+- Export and sync API routes are rate-limited per user, in memory per server instance (`apps/web/lib/api/rate-limit.ts`): exports 20/min, offline-sync replay 240/min, vault download-all 5 per 10 min. A limited request gets HTTP 429 with `Retry-After`; the offline queue treats 429 as a transient failure and retries without spending its retry budget.
+
+## 10. Incident notes
+- **PDF shows a 'generated before the latest change' warning**: the NCR/inspection changed after that PDF was queued; click Regenerate.
 - **PDF fails**: check `background_jobs` row (`status`, `error`). Check Railway logs (Chromium launch, memory, timeouts). Confirm the worker is running the latest deploy and `SUPABASE_SERVICE_ROLE_KEY` is valid. Re-queue by generating again from the app. Check the rate limit for the organisation.
 - **Notification does not arrive**: check the `notifications` row exists for the user; for email check `RESEND_API_KEY`, `NOTIFICATIONS_EMAIL_FROM`, Resend dashboard; for automation alerts check the rule is enabled and the worker sweep ran (worker logs).
+- **Users report 'Too many requests'**: a per-user API limit (see section 9) was hit; it clears within the `Retry-After` interval. Persistent cases usually mean a client retry loop; check the offline outbox on that device.
 - **User cannot see a project**: check their grant (org-wide vs project-scoped), that the party is active on the project (`project_parties.is_active`), the party login is provisioned/linked to their user, and the module is licensed for the org (Module Licensing).
 - See also `docs/INCIDENT_RESPONSE.md`.

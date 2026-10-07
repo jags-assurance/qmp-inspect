@@ -70,7 +70,7 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Every ITP activity's per-party sign-off level (Hold/Witness/Review/Surveillance by default)
+        Every ITP activity&apos;s per-party sign-off level (Hold/Witness/Review/Surveillance by default)
         is now custom per organisation, not a fixed set. A <strong>blocking</strong> level (like Hold)
         stops an inspection completing until it&rsquo;s signed off; a non-blocking level doesn&rsquo;t.
         Default notice hours is how long the originator waits before a non-blocking level can

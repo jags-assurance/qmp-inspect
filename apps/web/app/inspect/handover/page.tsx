@@ -10,6 +10,7 @@ import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { isMissingDbObject, formatUtcDate, formatUtcDateTime } from "@/lib/databook/db-errors";
 import { AcknowledgeForm } from "./acknowledge-form";
+import { RejectForm, ReopenRejectionForm } from "./reject-form";
 import { CertificatePdfButton } from "./certificate-pdf-button";
 import { getHandoverCertificatePdfInfo } from "@/lib/handover/certificate-pdf";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -37,6 +38,9 @@ interface HandoverRow {
   rendered_book_sha256?: string | null;
   verification_token?: string | null;
   ack_comment?: string | null;
+  // Columns added by 20261108000102 (absent until applied).
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
   data_books: {
     project_id: string;
     book_number: string;
@@ -53,6 +57,7 @@ const LINK_TTL_SECONDS = 600;
 const BASE_COLUMNS =
   "id, data_book_id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, acknowledged_by, acknowledged_by_role, acknowledged_on_behalf, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(project_id, book_number, title, projects(name, project_number, organization_id, organizations(name)))";
 const EXTRA_COLUMNS = "notes, superseded_at, rendered_book_sha256, verification_token, ack_comment";
+const REJECT_COLUMNS = "rejected_at, rejection_reason";
 
 // Handover Portal (Part C): softer, still-branded client-facing view of every handover certificate
 // the signed-in user's access reaches. handover_certificates_select now limits reads to JAGS staff
@@ -87,7 +92,11 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
     if (q) query = query.ilike("certificate_number", `%${q}%`);
     return query.returns<HandoverRow[]>();
   }
-  let { data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}`);
+  // Newest schema first, then progressively older ones, so a pending migration never blanks the page.
+  let { data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}, ${REJECT_COLUMNS}`);
+  if (loadError && isMissingDbObject(loadError)) {
+    ({ data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}`));
+  }
   if (loadError && isMissingDbObject(loadError)) {
     ({ data: certificates, count, error: loadError } = await load(BASE_COLUMNS));
   }
@@ -198,10 +207,13 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div className="flex items-center gap-2">
                   {cert.superseded_at && <Badge tone="neutral">Superseded</Badge>}
+                  {cert.rejected_at && <Badge tone="danger">Rejected</Badge>}
                   {cert.is_conditional && <Badge tone="warning">Conditional</Badge>}
-                  <Badge tone={cert.acknowledged_at ? "success" : "warning"}>
-                    {cert.acknowledged_at ? "Acknowledged" : "Awaiting acknowledgment"}
-                  </Badge>
+                  {!cert.rejected_at && (
+                    <Badge tone={cert.acknowledged_at ? "success" : "warning"}>
+                      {cert.acknowledged_at ? "Acknowledged" : "Awaiting acknowledgment"}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -309,12 +321,26 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                     </p>
                     {cert.ack_comment && <p className="mt-1 text-xs text-ink">Comment: {cert.ack_comment}</p>}
                   </div>
+                ) : cert.rejected_at ? (
+                  <div className="w-full text-sm">
+                    <p className="font-medium text-danger">Rejected by the client on {formatUtcDateTime(cert.rejected_at)}.</p>
+                    {cert.rejection_reason && <p className="mt-1 whitespace-pre-line text-xs text-ink">Reason: {cert.rejection_reason}</p>}
+                    <p className="mt-1 text-xs text-muted">JAGS will correct the package and issue a new revision, which supersedes this certificate.</p>
+                    {onBehalfAllowed && !cert.superseded_at && (
+                      <div className="mt-2">
+                        <ReopenRejectionForm certificateId={cert.id} />
+                      </div>
+                    )}
+                  </div>
                 ) : !packageLinks.has(cert.id) ? (
                   <p className="text-sm text-muted">Acknowledgement is unavailable until a package file is attached to this certificate.</p>
                 ) : cert.superseded_at ? (
                   <p className="text-sm text-muted">This certificate was superseded by a later revision.</p>
                 ) : isClient || onBehalfAllowed ? (
-                  <AcknowledgeForm certificateId={cert.id} certificateNumber={cert.certificate_number} onBehalf={!isClient && onBehalfAllowed} userName={session.fullName} />
+                  <div className="flex w-full flex-wrap items-start gap-2">
+                    <AcknowledgeForm certificateId={cert.id} certificateNumber={cert.certificate_number} onBehalf={!isClient && onBehalfAllowed} userName={session.fullName} />
+                    {isClient && <RejectForm certificateId={cert.id} certificateNumber={cert.certificate_number} />}
+                  </div>
                 ) : (
                   <p className="text-sm text-muted">Awaiting client acknowledgement.</p>
                 )}

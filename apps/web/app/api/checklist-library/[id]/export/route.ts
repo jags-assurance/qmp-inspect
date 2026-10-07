@@ -7,6 +7,7 @@ import {
   type ChecklistLibraryItemRow,
 } from "@/lib/checklist-library/types";
 import { buildLibraryTemplateWorkbook } from "@/lib/checklist-library/xlsx";
+import { rateLimitResponse } from "@/lib/api/rate-limit";
 
 /**
  * R47: a real .xlsx download of a checklist library template's structure (item number,
@@ -16,6 +17,8 @@ import { buildLibraryTemplateWorkbook } from "@/lib/checklist-library/xlsx";
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await requireSession();
+  const limited = rateLimitResponse("export", session.userId);
+  if (limited) return limited;
   if (!session.isJagsStaff) {
     return NextResponse.json({ error: "Only JAGS staff can export checklist library templates." }, { status: 403 });
   }

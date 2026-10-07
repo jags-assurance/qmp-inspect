@@ -1,11 +1,36 @@
 name: CI
 
-# Disabled from running automatically on every push/PR per org decision — trigger manually from
-# the Actions tab (Run workflow) when a CI check is actually needed.
+# Runs on every push to main/dev and on every pull request (the earlier manual-only setting is
+# replaced); it can still be triggered by hand from the Actions tab (Run workflow).
 on:
   workflow_dispatch:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
+  lint:
+    name: Lint (web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
   typecheck:
     name: Typecheck (web + worker)
     runs-on: ubuntu-latest
@@ -20,6 +45,32 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+
+  test:
+    name: Unit tests (web + worker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @jags/web --filter @jags/worker test
+
+  migration-names:
+    name: Migration file names
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # New migrations must have a pure 14-digit numeric version (see docs/MIGRATION_REPAIR.md).
+      - run: node scripts/check-migration-names.mjs
 
   build:
     name: Build (web)

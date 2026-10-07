@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_PHASES, ITP_PHASE_LABEL, normalizeItpPhase } from "@/lib/itps/phase";
+import { rateLimitResponse } from "@/lib/api/rate-limit";
 
 /**
  * R91 — "exportable ITP Register... filterable and exportable to PDF and Excel." This is the
@@ -21,6 +22,8 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
+  const limited = rateLimitResponse("export", user.id);
+  if (limited) return limited;
 
   const url = new URL(request.url);
   const disciplineId = url.searchParams.get("discipline") ?? "";

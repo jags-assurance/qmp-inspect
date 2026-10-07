@@ -93,7 +93,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
         <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
-        <p className="mt-1 text-sm text-muted">This module isn't included in your organisation's plan. Ask a JAGS Admin to enable it.</p>
+        <p className="mt-1 text-sm text-muted">This module isn&apos;t included in your organisation&apos;s plan. Ask a JAGS Admin to enable it.</p>
       </div>
     );
   }

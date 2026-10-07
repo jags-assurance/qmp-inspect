@@ -316,6 +316,8 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
         />
       </div>
 
+      {/* Server component: Date.now() is evaluated once per request, which is the intended 'now'. */}
+      {/* eslint-disable-next-line react-hooks/purity */}
       <HwrsSection levels={levels} parties={hwrsParties} points={hwrsPoints} nowMs={Date.now()} />
     </div>
   );

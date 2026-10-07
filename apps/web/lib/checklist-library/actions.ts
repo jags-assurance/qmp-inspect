@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedRpc } from "@/lib/supabase/untyped";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import {
@@ -412,7 +413,7 @@ export async function attachLibraryTemplateToActivityAction(
   // Preferred path: one transaction (20261105000200). Falls back to the two-step copy, with cleanup,
   // until that migration has been applied.
   let newTemplate: { id: string } | null = null;
-  const rpc: { data: unknown; error: { code?: string } | null } = await (supabase as any).rpc("attach_library_template_atomic", {
+  const rpc: { data: unknown; error: { code?: string } | null } = await untypedRpc(supabase, "attach_library_template_atomic", {
     p_library_template_id: libraryTemplateId,
     p_itp_item_id: itpItemId,
     p_checklist_number: checklistNumber,

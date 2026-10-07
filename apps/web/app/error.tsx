@@ -27,6 +27,8 @@ export default function RootError({ error, reset }: { error: Error & { digest?: 
         >
           Try again
         </button>
+        {/* Deliberate hard navigation: after a render error, a full reload resets client state. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/"
           className="inline-flex min-h-11 items-center rounded-md border border-border px-5 text-sm font-medium text-ink hover:bg-off-white"

@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedFrom } from "@/lib/supabase/untyped";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { CHECKLIST_TEMPLATES_TABLE } from "@/lib/checklists/db-types";
 import {
@@ -115,8 +116,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     // Observations are advisory notes, not nonconformances — they must not hold the book at "not ready".
     // .or() keeps rows whose severity is NULL (a plain .neq would drop them in SQL).
     fetchAllRows<{ id: string; status: string }>((from, to) =>
-      supabase
-        .from("ncrs" as any)
+      untypedFrom(supabase, "ncrs")
         .select("id, status")
         .eq("project_id", projectId)
         .or("severity.is.null,severity.neq.observation")
@@ -145,7 +145,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
         .returns<{ id: string; approval_status: string; receipt_status: string }[]>()
     ),
     fetchAllRows<{ id: string }>((from, to) =>
-      supabase.from("data_books" as any).select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(from, to).returns<{ id: string }[]>()
+      untypedFrom(supabase, "data_books").select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(from, to).returns<{ id: string }[]>()
     ),
     fetchAllRows<{ id: string; expiry_date: string }>((from, to) =>
       supabase

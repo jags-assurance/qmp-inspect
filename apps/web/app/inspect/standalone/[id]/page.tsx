@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedFrom } from "@/lib/supabase/untyped";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { canRunStandaloneAssignment } from "@/lib/standalone/actions";
@@ -69,8 +70,7 @@ export default async function StandaloneAssignmentDetailPage({
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: assignment } = await supabase
-    .from("standalone_assignments" as any)
+  const { data: assignment } = await untypedFrom(supabase, "standalone_assignments")
     .select("*, projects(id, name, organizations(name))")
     .eq("id", id)
     .maybeSingle<AssignmentDetail>();
@@ -103,14 +103,12 @@ export default async function StandaloneAssignmentDetailPage({
     { count: linkedOpenPunchCount },
     { count: linkedTotalPunchCount },
   ] = await Promise.all([
-      supabase
-        .from("standalone_assignment_measurements" as any)
+      untypedFrom(supabase, "standalone_assignment_measurements")
         .select("*")
         .eq("assignment_id", id)
         .order("sort_order")
         .returns<StandaloneAssignmentMeasurementRow[]>(),
-      supabase
-        .from("standalone_assignment_photos" as any)
+      untypedFrom(supabase, "standalone_assignment_photos")
         .select("*")
         .eq("assignment_id", id)
         .order("created_at")
@@ -128,14 +126,12 @@ export default async function StandaloneAssignmentDetailPage({
         .eq("status", "approved")
         .order("title")
         .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
-      supabase
-        .from("standalone_assignment_punch_items" as any)
+      untypedFrom(supabase, "standalone_assignment_punch_items")
         .select("*")
         .eq("assignment_id", id)
         .order("created_at")
         .returns<StandaloneAssignmentPunchItemRow[]>(),
-      supabase
-        .from("standalone_assignment_signatures" as any)
+      untypedFrom(supabase, "standalone_assignment_signatures")
         .select("*")
         .eq("assignment_id", id)
         .order("signed_at")
@@ -146,15 +142,13 @@ export default async function StandaloneAssignmentDetailPage({
       // assignment's own internal punch tab). issueClearanceAction checks this same table server-
       // side; querying it here too so the UI's "ready to clear" hint can never say something the
       // server would actually reject.
-      supabase
-        .from("punch_list_items" as any)
+      untypedFrom(supabase, "punch_list_items")
         .select("id", { count: "exact", head: true })
         .eq("source_standalone_assignment_id", id)
         .neq("status", "closed"),
       // Same linkage as linkedOpenPunchCount above, unfiltered by status — lets the clearance banner
       // read as a real "N of M closed" ratio instead of just the remaining-open count.
-      supabase
-        .from("punch_list_items" as any)
+      untypedFrom(supabase, "punch_list_items")
         .select("id", { count: "exact", head: true })
         .eq("source_standalone_assignment_id", id),
     ]);
