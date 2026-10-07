@@ -6,6 +6,8 @@
 // through a Server Action or a direct Supabase call, both of which require a live connection; this
 // is the one place state survives a dropped connection until it can actually reach the server.
 
+import { getLocalUserId } from "./user";
+
 const DB_NAME = "qmp-inspect-offline";
 const DB_VERSION = 1;
 const STORE_NAME = "outbox";
@@ -37,8 +39,15 @@ export interface OutboxItem {
    * rejected = server refused it (422): stays queued for the user to Retry/Discard
    * conflict = the answer changed on the server since this one was based on it (409): review required
    * auth     = session expired; resumes after sign-in
+   * foreign  = queued by a different signed-in user; never replayed under the current user (Export / Discard)
    */
-  status?: "pending" | "rejected" | "conflict" | "auth";
+  status?: "pending" | "rejected" | "conflict" | "auth" | "foreign";
+  /** The user who queued this item (shared-tablet safety). Absent on items queued before this existed. */
+  userId?: string;
+  /** Earliest time (epoch ms) the next automatic attempt may run — exponential backoff after 5xx. */
+  nextAttemptAt?: number;
+  /** Server-confirmed failures so far (5xx); network failures are not counted. */
+  serverFailures?: number;
   /** Server updated_at this queued answer was based on (checklist answers), for conflict detection. */
   expectedUpdatedAt?: string;
 }
@@ -76,8 +85,10 @@ async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore
 export async function enqueueOutboxItem(item: Omit<OutboxItem, "id" | "createdAt" | "attempts" | "lastError">): Promise<OutboxItem> {
   if (!isBrowser()) throw new Error("Offline queue is not available in this environment.");
   const id = crypto.randomUUID();
+  const userId = (await getLocalUserId()) ?? undefined;
   const full: OutboxItem = {
     ...item,
+    userId,
     id,
     clientKey: id,
     status: "pending",
@@ -147,6 +158,8 @@ export async function resetOutboxItem(id: string): Promise<void> {
       if (!item) return resolve();
       item.status = "pending";
       item.lastError = null;
+      item.serverFailures = 0;
+      item.nextAttemptAt = undefined;
       const p = store.put(item);
       p.onsuccess = () => resolve();
       p.onerror = () => reject(p.error);
@@ -168,6 +181,8 @@ export async function forceOutboxItem(id: string): Promise<void> {
       if (!item) return resolve();
       item.status = "pending";
       item.lastError = null;
+      item.serverFailures = 0;
+      item.nextAttemptAt = undefined;
       item.expectedUpdatedAt = undefined;
       delete item.fields.expected_updated_at;
       const p = store.put(item);
@@ -176,6 +191,87 @@ export async function forceOutboxItem(id: string): Promise<void> {
     };
     g.onerror = () => reject(g.error);
   });
+}
+
+/** Replaces fields on a queued item (used to chain the server baseline across queued answers). */
+export async function patchOutboxItem(id: string, patch: (item: OutboxItem) => void): Promise<void> {
+  if (!isBrowser()) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const g = store.get(id);
+    g.onsuccess = () => {
+      const item = g.result as OutboxItem | undefined;
+      if (!item) return resolve();
+      patch(item);
+      const p = store.put(item);
+      p.onsuccess = () => resolve();
+      p.onerror = () => reject(p.error);
+    };
+    g.onerror = () => reject(g.error);
+  });
+}
+
+/** Records a server-confirmed failure and schedules the next attempt (backoff). */
+export async function recordOutboxBackoff(id: string, error: string, failures: number, nextAttemptAt: number, status: NonNullable<OutboxItem["status"]>): Promise<void> {
+  await patchOutboxItem(id, (item) => {
+    item.attempts += 1;
+    item.serverFailures = failures;
+    item.nextAttemptAt = nextAttemptAt;
+    item.lastError = error;
+    item.status = status;
+  });
+}
+
+/** Notes a network-level failure without spending the retry budget (offline / timeout / captive portal). */
+export async function recordOutboxNetworkError(id: string, error: string): Promise<void> {
+  await patchOutboxItem(id, (item) => {
+    item.attempts += 1;
+    item.lastError = error;
+  });
+}
+
+export interface OutboxStats {
+  count: number;
+  /** Approximate bytes held (photo blobs plus field text). */
+  bytes: number;
+  oldestCreatedAt: number | null;
+}
+
+export async function getOutboxStats(): Promise<OutboxStats> {
+  const items = await getOutboxItems();
+  let bytes = 0;
+  let oldest: number | null = null;
+  for (const i of items) {
+    bytes += i.file?.size ?? 0;
+    for (const v of Object.values(i.fields)) bytes += v.length;
+    if (oldest === null || i.createdAt < oldest) oldest = i.createdAt;
+  }
+  return { count: items.length, bytes, oldestCreatedAt: oldest };
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Last-resort backup: serialises the whole queue (photos inline as data URLs) so a tester whose
+ * storage is about to be evicted can save it to a file and hand it to support.
+ */
+export async function exportOutboxJson(): Promise<string> {
+  const items = await getOutboxItems();
+  const out = [];
+  for (const i of items) {
+    const { file, ...rest } = i;
+    out.push({ ...rest, file: file ? await blobToDataUrl(file).catch(() => null) : null });
+  }
+  return JSON.stringify({ exportedAt: new Date().toISOString(), items: out }, null, 2);
 }
 
 export async function getOutboxCount(): Promise<number> {

@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { SaveOfflineButton } from "./save-offline-button";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -236,6 +237,8 @@ export default async function StartWorkPage({
               : "No activities match these filters."}
           </p>
         ) : (
+          <>
+          <SaveOfflineButton urls={visible.filter((a) => a.status !== "completed").map((a) => `/inspect/checklists/${a.templateId}`)} />
           <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
             {visible.map((a) => (
               <li key={a.templateId}>
@@ -257,6 +260,7 @@ export default async function StartWorkPage({
               </li>
             ))}
           </ul>
+          </>
         )}
       </section>
     </div>

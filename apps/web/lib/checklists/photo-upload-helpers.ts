@@ -10,6 +10,7 @@ import { saveInspectionPhotoAction } from "@/lib/checklists/actions";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { compressImageFile } from "@/lib/media/compress-image";
+import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 
 export interface UploadPhotoParams {
   projectId: string;
@@ -33,7 +34,11 @@ function buildStoragePath(projectId: string, inspectionRecordId: string, checkli
 
 export class PhotoRejectedError extends Error {}
 
-async function queueForOffline({ projectId, inspectionRecordId, checklistItemId, file }: UploadPhotoParams) {
+async function queueForOffline({ projectId, inspectionRecordId, checklistItemId, file: rawFile }: UploadPhotoParams): Promise<File> {
+  // The queue replays through one serverless route with a ~4.5 MB body cap: squeeze the photo first,
+  // and refuse (rather than queue something that can never sync) when it cannot be made small enough.
+  const { file, tooLarge } = await prepareOfflinePhoto(rawFile);
+  if (tooLarge) throw new PhotoRejectedError("This photo is too large to save offline. Take it again at a lower resolution.");
   await enqueueOutboxItem({
     kind: "photo",
     fields: {
@@ -46,6 +51,7 @@ async function queueForOffline({ projectId, inspectionRecordId, checklistItemId,
     fileName: file.name,
   });
   notifyOutboxChanged();
+  return file;
 }
 
 /**
@@ -60,8 +66,8 @@ export async function uploadOrQueuePhoto(params: UploadPhotoParams): Promise<{ q
   const next = { ...params, file };
 
   if (typeof navigator !== "undefined" && !navigator.onLine) {
-    await queueForOffline(next);
-    return { queuedPreviewUrl: URL.createObjectURL(file) };
+    const queued = await queueForOffline(next);
+    return { queuedPreviewUrl: URL.createObjectURL(queued) };
   }
 
   try {
@@ -88,7 +94,7 @@ export async function uploadOrQueuePhoto(params: UploadPhotoParams): Promise<{ q
     if (err instanceof PhotoRejectedError) throw err;
     // Could be a genuine failure or a connection that dropped mid-upload — either way, don't lose
     // the photo: queue it the same as the offline path instead of just showing an error.
-    await queueForOffline(next);
-    return { queuedPreviewUrl: URL.createObjectURL(file) };
+    const queued = await queueForOffline(next);
+    return { queuedPreviewUrl: URL.createObjectURL(queued) };
   }
 }

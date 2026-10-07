@@ -2,7 +2,12 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    // Server Actions default to a 1 MB body; forms that post photos (NCR raise, punch add/resolve) need
+    // more. 4 MB stays under the ~4.5 MB serverless request cap on Vercel — the forms compress photos
+    // client-side (lib/media/compress-image) so a handful of photos fits.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
 };
 
 // Only wraps the build with Sentry's webpack/turbopack plugin (source-map upload, etc.) when a DSN

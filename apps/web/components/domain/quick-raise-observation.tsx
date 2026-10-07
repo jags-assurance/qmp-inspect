@@ -6,7 +6,7 @@ import { SidePanel, Toast, useToast } from "@/components/ui/side-panel";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
-import { compressImageFile } from "@/lib/media/compress-image";
+import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 
 const PROJECTS_CACHE_KEY = "jags.quickRaise.projects";
 
@@ -69,11 +69,22 @@ export function QuickRaiseObservation() {
       setError("Project, what you saw and a due date are all required.");
       return;
     }
+    // Same minimum the server enforces when the queued item is replayed — fail now, not hours later.
+    if (description.length < 10) {
+      setError("Describe what you saw in at least 10 characters.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const rawPhoto = form.get("photo");
-      const photo = rawPhoto instanceof File && rawPhoto.size > 0 ? await compressImageFile(rawPhoto) : null;
+      const prepared = rawPhoto instanceof File && rawPhoto.size > 0 ? await prepareOfflinePhoto(rawPhoto) : null;
+      if (prepared?.tooLarge) {
+        setError("That photo is too large to save offline. Take it again at a lower resolution.");
+        setSaving(false);
+        return;
+      }
+      const photo = prepared?.file ?? null;
       await enqueueOutboxItem({
         kind: "raise_observation",
         fields: {

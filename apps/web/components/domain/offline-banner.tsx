@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
+  exportOutboxJson,
   forceOutboxItem,
   getOutboxItems,
+  getOutboxStats,
   isStoragePersisted,
   removeOutboxItem,
   requestPersistentStorage,
@@ -11,6 +14,14 @@ import {
   type OutboxItem,
 } from "@/lib/offline/db";
 import { notifyOutboxChanged, onOutboxChanged, syncOutbox } from "@/lib/offline/sync-client";
+import { getLocalUserId } from "@/lib/offline/user";
+import { STALE_QUEUE_DAYS, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const KIND_LABEL: Record<OutboxItem["kind"], string> = {
   checklist_response: "Checklist answer",
@@ -59,6 +70,31 @@ export function OfflineBanner() {
   // evict it silently), so persistence is requested on every mount.
   const [storagePersisted, setStoragePersisted] = useState(true);
   const [waitingSw, setWaitingSw] = useState<ServiceWorker | null>(null);
+  const [queueBytes, setQueueBytes] = useState(0);
+  const [oldestAgeDays, setOldestAgeDays] = useState(0);
+  const [staleCount, setStaleCount] = useState(0);
+  const pathname = usePathname();
+
+  // Tell the service worker who is signed in (its offline page cache is per user and is wiped for any
+  // other user) and ask it to keep a copy of the field page that is open right now, so a reload or an
+  // app relaunch without signal still opens it with the queued-answers UI.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [userId, reg] = await Promise.all([getLocalUserId(), navigator.serviceWorker.ready]);
+        if (cancelled || !userId || !reg.active) return;
+        reg.active.postMessage({ type: "REGISTER_USER", userId });
+        reg.active.postMessage({ type: "CACHE_PAGES", userId, urls: [window.location.pathname + window.location.search] });
+      } catch {
+        // Offline caching is a convenience only.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
@@ -81,12 +117,23 @@ export function OfflineBanner() {
     };
   }, []);
 
-  const applyUpdate = useCallback(() => {
+  // A new worker only takes over when the user asks, and never while queued work could be lost or
+  // an unsent form could be wiped: reloading replaces the page, so the user confirms it first.
+  const applyUpdate = useCallback(async () => {
     if (!waitingSw) return;
+    let queued = 0;
+    try {
+      queued = (await getOutboxItems()).length;
+    } catch {
+      // unknown: treat as idle
+    }
+    const message =
+      queued > 0
+        ? `${queued} change${queued === 1 ? " is" : "s are"} still queued. They are kept on this device, but any form you have not saved will be lost. Reload now?`
+        : "Reloading updates the app. Any form you have not saved will be lost. Reload now?";
+    if (!window.confirm(message)) return;
     navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
     waitingSw.postMessage({ type: "SKIP_WAITING" });
-    // Fallback if the worker already activated (it self-skips on install).
-    setTimeout(() => window.location.reload(), 1500);
   }, [waitingSw]);
 
   const updateBar = waitingSw ? (
@@ -102,11 +149,15 @@ export function OfflineBanner() {
     try {
       const items = await getOutboxItems();
       setPendingCount(items.length);
-      const failing = items.filter((i) => i.status === "rejected" || i.status === "conflict" || i.status === "auth");
+      const failing = items.filter((i) => i.status === "rejected" || i.status === "conflict" || i.status === "auth" || i.status === "foreign");
       setReviewItems(failing);
       setAuthBlocked(failing.some((i) => i.status === "auth"));
       setFailedCount(failing.length);
       setLastError(failing.length > 0 ? failing[failing.length - 1].lastError : null);
+      const stats = await getOutboxStats();
+      setQueueBytes(stats.bytes);
+      setOldestAgeDays(stats.oldestCreatedAt ? queueAgeDays(stats.oldestCreatedAt) : 0);
+      setStaleCount(items.filter((i) => isStaleItem(i.createdAt)).length);
     } catch {
       // IndexedDB unavailable: nothing to show.
     }
@@ -122,6 +173,20 @@ export function OfflineBanner() {
       await refreshCounts();
     }
   }, [refreshCounts]);
+
+  const exportQueue = useCallback(async () => {
+    try {
+      const json = await exportOutboxJson();
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `qmp-offline-queue-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      window.alert("Could not export the queue from this browser.");
+    }
+  }, []);
 
   const act = useCallback(async (fn: (id: string) => Promise<void>, id: string) => {
     await fn(id);
@@ -245,7 +310,10 @@ export function OfflineBanner() {
           {!isOnline && "You're offline. "}
           {syncing && "Syncing… "}
           {pendingCount > 0 && `${pendingCount} change${pendingCount === 1 ? "" : "s"} queued`}
+          {pendingCount > 0 && ` (${formatBytes(queueBytes)}${oldestAgeDays > 0 ? `, oldest ${oldestAgeDays} day${oldestAgeDays === 1 ? "" : "s"} old` : ""})`}
           {pendingCount > 0 && !isOnline && " — will sync automatically when you're back online."}
+          {staleCount > 0 &&
+            ` — ${staleCount} waiting ${STALE_QUEUE_DAYS}+ days: connect and sync soon, this browser can clear idle storage.`}
           {failedCount > 0 && ` — ${failedCount} need${failedCount === 1 ? "s" : ""} review${authBlocked && lastError ? `: ${lastError}` : ""}.`}
           {showStorageWarning &&
             " — this browser did not grant protected storage for queued data; sync as soon as you're back online to avoid losing it."}
@@ -254,6 +322,11 @@ export function OfflineBanner() {
           {isOnline && pendingCount > 0 && !syncing && (
             <button type="button" onClick={attemptSync} className="font-medium underline">
               Sync now
+            </button>
+          )}
+          {pendingCount > 0 && (staleCount > 0 || failedCount > 0 || !storagePersisted) && (
+            <button type="button" onClick={exportQueue} className="underline">
+              Export queue
             </button>
           )}
           {authBlocked && (
@@ -269,7 +342,11 @@ export function OfflineBanner() {
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
               <span>
                 <strong>{describeItem(item)}</strong>
-                {item.status === "conflict" ? " — changed by someone else: " : item.status === "auth" ? " — " : " — not accepted: "}
+                {item.status === "conflict"
+                  ? " — changed by someone else: "
+                  : item.status === "auth" || item.status === "foreign"
+                    ? " — "
+                    : " — not accepted: "}
                 {item.lastError}
               </span>
               <span className="flex shrink-0 gap-3">

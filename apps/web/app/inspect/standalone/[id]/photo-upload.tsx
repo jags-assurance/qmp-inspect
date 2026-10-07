@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { addPhotoAction } from "@/lib/standalone/actions";
 import { compressImageFile } from "@/lib/media/compress-image";
 import { enqueueOutboxItem } from "@/lib/offline/db";
+import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 
 /**
@@ -30,11 +31,14 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
 
     // Keep the photo on this device and send it when the connection returns.
     async function queueForLater(): Promise<string | null> {
+      // The queue replays through one serverless route with a ~4.5 MB body cap.
+      const prepared = await prepareOfflinePhoto(file);
+      if (prepared.tooLarge) return `${file.name} is too large to save offline. Take it again at a lower resolution.`;
       await enqueueOutboxItem({
         kind: "standalone_photo",
-        fields: { kind: "standalone_photo", assignment_id: assignmentId, file_name: file.name, ...(caption.trim() ? { caption: caption.trim() } : {}) },
-        file,
-        fileName: file.name,
+        fields: { kind: "standalone_photo", assignment_id: assignmentId, file_name: prepared.file.name, ...(caption.trim() ? { caption: caption.trim() } : {}) },
+        file: prepared.file,
+        fileName: prepared.file.name,
       });
       notifyOutboxChanged();
       setNotice("Saved on this device — it will be sent when you're back online.");
