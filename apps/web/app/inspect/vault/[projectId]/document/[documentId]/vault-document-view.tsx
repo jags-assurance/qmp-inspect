@@ -72,7 +72,7 @@ export async function VaultDocumentView({
   documentId: string;
   embedded?: boolean;
 }) {
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
   const { data: document } = await supabase
@@ -162,6 +162,20 @@ export async function VaultDocumentView({
     : { data: null };
   const canEditMeta = !!myProfile?.staff_role || (myId !== null && document.uploaded_by === myId);
   const canRevise = document.status !== "superseded";
+  // A superseded certificate whose reference is a voided IRN number is a VOID IRN copy: staff keep
+  // read access for the record, everyone else gets the banner but no file link.
+  let isVoidIrnDoc = false;
+  if (document.status === "superseded" && document.document_reference) {
+    const { data: voidedIrn } = await supabase
+      .from("irns")
+      .select("id")
+      .eq("irn_number", document.document_reference)
+      .not("voided_at", "is", null)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    isVoidIrnDoc = !!voidedIrn;
+  }
+  const hideFileForViewer = isVoidIrnDoc && !session.isJagsStaff;
   const fmt = (iso: string) => new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
   const usedCount = (itpLinks ?? []).length + (inspectionLinks ?? []).length + linkedNcrs.length;
 
@@ -204,6 +218,14 @@ export async function VaultDocumentView({
         <Badge showIcon tone={STATUS_TONE[document.status] ?? "neutral"}>{STATUS_LABEL[document.status] ?? document.status}</Badge>
         <p className="text-sm text-muted">{STATUS_EXPLAIN[document.status]}</p>
       </div>
+      {document.status === "superseded" && (
+        <p role="alert" className="mt-2 rounded-md border border-danger bg-off-white px-3 py-2 text-sm font-medium text-danger">
+          {isVoidIrnDoc
+            ? "VOID - this Inspection Release Note has been voided and is no longer a valid release. Do not use it for work."
+            : "SUPERSEDED - a newer revision exists. Do not use this copy for work."}
+          {hideFileForViewer ? " The file is withheld; contact JAGS staff if you need the voided copy." : ""}
+        </p>
+      )}
       {document.status === "rejected" && document.rejection_reason && (
         <p className="mt-2 rounded-md bg-off-white px-3 py-2 text-sm text-ink">Rejection reason: {document.rejection_reason}</p>
       )}
@@ -253,6 +275,7 @@ export async function VaultDocumentView({
         {document.document_date ? ` · Document date ${new Date(document.document_date).toLocaleDateString("en-GB")}` : ""}
       </p>
 
+      {hideFileForViewer ? null : (
       <div className="mt-6">
         <DrawingMarkupViewer
           projectId={projectId}
@@ -262,6 +285,7 @@ export async function VaultDocumentView({
           ncrOptions={(ncrs ?? []).map((n) => ({ id: n.id, label: `${n.ncr_number} — ${n.description}` }))}
         />
       </div>
+      )}
 
       <section className="mt-8" aria-label="Revision history">
         <h3 className="text-sm font-semibold text-ink">Revision history</h3>

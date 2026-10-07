@@ -34,6 +34,7 @@ import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
 import { normaliseLocation } from "./location";
 import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
@@ -1347,20 +1348,39 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .neq("status", "closed");
   if (openNcrCount) return { error: "An NCR raised from this inspection is still open — close it before issuing the IRN." };
 
+  // One IRN per inspection record: if one already exists, don't burn another number.
+  const { data: existingIrn } = await supabase
+    .from(IRNS_TABLE)
+    .select("id, voided_at")
+    .eq("inspection_record_id", inspectionRecordId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; voided_at: string | null }>();
+  if (existingIrn) {
+    if (!existingIrn.voided_at) return { error: null };
+    return { error: "An IRN for this inspection was voided. Re-open and re-complete the inspection to issue a new one." };
+  }
+
   const { data: project } = await supabase
     .from("projects")
     .select("organization_id")
     .eq("id", record.project_id)
     .maybeSingle<{ organization_id: string }>();
+  if (!project?.organization_id) return { error: "Could not resolve the project's organisation, so no IRN number was allocated." };
 
-  // Atomic per-ITP counter (next_document_sequence), same as checklist_number and the INSP suffix
-  // above — replaces the earlier count-then-insert, which wasn't collision-proof under concurrent
-  // IRN issuance against the same ITP.
-  const seq = await nextSequenceNumber(supabase, {
-    organizationId: project?.organization_id ?? "",
-    projectId: record.project_id,
-    seqKey: `irn:${record.itp_number}`,
+  // Atomic per-ITP counter (next_document_sequence). Fails CLOSED: an IRN is a controlled release
+  // document, so there is deliberately no Date.now() fallback number (nextSequenceNumber has one
+  // that is fine for lower-stakes documents but could duplicate/skip IRN numbers).
+  const { data: seqData, error: seqError } = await supabase.rpc("next_document_sequence", {
+    org_id: project.organization_id,
+    proj_id: record.project_id,
+    seq_doc_type: `irn:${record.itp_number}`,
   });
+  if (seqError || typeof seqData !== "number") {
+    console.error("[irn] next_document_sequence failed", seqError?.message ?? seqData);
+    return { error: "Could not allocate an IRN number. Please try again." };
+  }
+  const seq = seqData;
 
   const {
     data: { user },
@@ -1373,7 +1393,22 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
   });
 
   if (error) {
-    return { error: error.code === "23505" ? "An IRN already exists for this inspection." : "Could not issue the IRN." };
+    if (error.code === "23505") {
+      // Concurrent issue: the other request won - return the existing live IRN rather than failing.
+      const { data: winner } = await supabase
+        .from(IRNS_TABLE)
+        .select("id")
+        .eq("inspection_record_id", inspectionRecordId)
+        .is("voided_at", null)
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      if (winner) {
+        revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+        return { error: null };
+      }
+      return { error: "An IRN already exists for this inspection." };
+    }
+    return { error: "Could not issue the IRN." };
   }
 
   if (project?.organization_id) {
@@ -1437,6 +1472,7 @@ export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): P
     const { data: project } = rec
       ? await supabase.from("projects").select("organization_id").eq("id", rec.project_id).maybeSingle<{ organization_id: string }>()
       : { data: null };
+    if (rec) await supersedeIrnVaultDocuments(supabase, rec.project_id, irn.irn_number);
     if (rec && project) {
       await recordAuditEvent(supabase, {
         organizationId: project.organization_id,

@@ -12,6 +12,8 @@ import { renderIrnPdf } from "./jobs/renderIrnPdf";
 import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
 import { closeSharedBrowser } from "./browserPool";
+import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
+import { shouldRetry, retryDelayMs, MAX_JOB_ATTEMPTS } from "./jobs/retryPolicy";
 import { runAutomationSweep } from "./automation";
 import type {
   BackgroundJobRow,
@@ -85,19 +87,24 @@ const jobsTable = () => supabase.from("background_jobs" as never) as unknown as 
   };
 };
 
+// In-memory backoff for retried jobs (job id -> earliest next claim time). A worker restart simply
+// clears it, which only means a retry happens sooner.
+const retryNotBefore = new Map<string, number>();
+
 async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
   const { data: candidates, error } = await jobsTable()
     .select("*")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
-    .limit(1);
+    .limit(10);
 
   if (error) {
     console.error("[worker] Failed to poll background_jobs:", error.message);
     return null;
   }
 
-  const candidate = candidates?.[0];
+  const now = Date.now();
+  const candidate = candidates?.find((c) => (retryNotBefore.get(c.id) ?? 0) <= now);
   if (!candidate) return null;
 
   // Optimistic claim: only succeeds if the row is still 'pending' (guards against a second worker
@@ -107,11 +114,22 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
   // only one replica's UPDATE ... WHERE status = 'pending' can win per row; the loser gets 0 rows
   // back and simply polls again. Scaling replicas is a Railway dashboard/infra change, not a code
   // change, and is intentionally out of scope here.
-  const { data: claimed, error: claimError } = await jobsTable()
-    .update({ status: "processing", attempts: candidate.attempts + 1 })
+  // started_at is the timestamp the reaper measures a stuck job from (created_at is when it was
+  // QUEUED, which can be long before it was claimed). If the column does not exist yet, claim without it.
+  let { data: claimed, error: claimError } = await jobsTable()
+    .update({ status: "processing", attempts: candidate.attempts + 1, started_at: new Date().toISOString() } as Partial<BackgroundJobRow>)
     .eq("id", candidate.id)
     .eq("status", "pending")
     .select();
+
+  if (claimError) {
+    console.warn("[worker] Claim with started_at failed, retrying without it:", claimError.message);
+    ({ data: claimed, error: claimError } = await jobsTable()
+      .update({ status: "processing", attempts: candidate.attempts + 1 })
+      .eq("id", candidate.id)
+      .eq("status", "pending")
+      .select());
+  }
 
   if (claimError) {
     console.error("[worker] Failed to claim job", candidate.id, claimError.message);
@@ -139,6 +157,21 @@ async function markFailed(jobId: string, errorMessage: string): Promise<void> {
     .select();
 
   if (error) console.error("[worker] Failed to mark job failed", jobId, error.message);
+}
+
+/** Puts a transiently failed job back in the queue (backoff enforced in-process). */
+async function markRetry(jobId: string, errorMessage: string, attempts: number): Promise<boolean> {
+  const { error } = await jobsTable()
+    .update({ status: "pending", error_message: `Attempt ${attempts} failed, will retry: ${errorMessage.slice(0, 1900)}` })
+    .eq("id", jobId)
+    .eq("status", "processing")
+    .select();
+  if (error) {
+    console.error("[worker] Failed to requeue job", jobId, error.message);
+    return false;
+  }
+  retryNotBefore.set(jobId, Date.now() + retryDelayMs(attempts));
+  return true;
 }
 
 async function processJob(job: BackgroundJobRow): Promise<void> {
@@ -219,7 +252,11 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     reportError(`[worker] Job ${job.id} (${job.job_type}) failed:`, err);
-    await markFailed(job.id, message);
+    if (shouldRetry(job.attempts, err) && (await markRetry(job.id, message, job.attempts))) {
+      console.log(`[worker] Job ${job.id} requeued (attempt ${job.attempts} of ${MAX_JOB_ATTEMPTS}).`);
+    } else {
+      await markFailed(job.id, message);
+    }
   }
 }
 
@@ -235,14 +272,20 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
  */
 async function processJobWithTimeout(job: BackgroundJobRow): Promise<void> {
   let timedOut = false;
+  // Checked by renderers / the vault filer before any upload or filing (see jobs/jobAbort.ts), so a
+  // job we have already given up on cannot publish a document afterwards.
+  const ctx: JobAbortContext = { aborted: false };
+  let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<void>((resolve) => {
-    setTimeout(() => {
+    timer = setTimeout(() => {
       timedOut = true;
+      ctx.aborted = true;
       resolve();
     }, JOB_TIMEOUT_MS);
   });
 
-  await Promise.race([processJob(job), timeout]);
+  await Promise.race([jobAbortStorage.run(ctx, () => processJob(job)), timeout]);
+  if (timer) clearTimeout(timer);
 
   if (timedOut) {
     console.error(`[worker] Job ${job.id} (${job.job_type}) exceeded ${JOB_TIMEOUT_MS}ms — marking failed.`);
@@ -279,14 +322,21 @@ async function logQueueHealth(): Promise<void> {
  */
 async function reclaimOrphanedJobs(): Promise<void> {
   const cutoff = new Date(Date.now() - JOB_TIMEOUT_MS).toISOString();
-  const { data: stale, error } = (await supabase
+  type StaleResult = { data: { id: string; job_type: string }[] | null; error: { message: string } | null };
+  // Measure from started_at (set on claim); rows without it fall back to created_at. If the column
+  // is missing (migration not applied yet) the first query errors and we use created_at alone.
+  let { data: stale, error } = (await supabase
     .from("background_jobs" as never)
     .select("id, job_type")
     .eq("status", "processing")
-    .lt("created_at", cutoff)) as unknown as {
-    data: { id: string; job_type: string }[] | null;
-    error: { message: string } | null;
-  };
+    .or(`started_at.lt.${cutoff},and(started_at.is.null,created_at.lt.${cutoff})`)) as unknown as StaleResult;
+  if (error) {
+    ({ data: stale, error } = (await supabase
+      .from("background_jobs" as never)
+      .select("id, job_type")
+      .eq("status", "processing")
+      .lt("created_at", cutoff)) as unknown as StaleResult);
+  }
 
   if (error) {
     console.error("[worker] Failed to check for orphaned jobs:", error.message);

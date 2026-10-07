@@ -3,7 +3,7 @@ import { supabase } from "../supabase";
 import { buildIrnPdfHtml, type IrnPdfData } from "./irnTemplate";
 import type { IrnApproval } from "./irnTemplate";
 import type { RenderIrnPdfPayload } from "./types";
-import { autoFileVaultDocument } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertIrnFileable } from "./vaultAutoFile";
 import { getOrgBranding } from "./orgBranding";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -29,6 +29,11 @@ interface InspectionRecordRow {
   inspector_id: string | null;
   record_number: string;
   itp_item_id: string | null;
+  inspector_signature: string | null;
+  signed_by_name: string | null;
+  signed_at: string | null;
+  witness_name: string | null;
+  witness_signature: string | null;
 }
 
 /**
@@ -49,9 +54,12 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     throw new Error(`IRN ${payload.irn_id} not found: ${irnError?.message ?? "no row"}`);
   }
 
+  // Only live IRNs are rendered and filed; a voided IRN aborts (the void flow does not use this job).
+  assertIrnFileable(irn.voided_at);
+
   const { data: record, error: recordError } = await supabase
     .from("inspection_records")
-    .select("id, project_id, itp_number, activity, location, inspection_date, overall_result, inspector_id, record_number, itp_item_id")
+    .select("id, project_id, itp_number, activity, location, inspection_date, overall_result, inspector_id, record_number, itp_item_id, inspector_signature, signed_by_name, signed_at, witness_name, witness_signature")
     .eq("id", irn.inspection_record_id)
     .single<InspectionRecordRow>();
 
@@ -96,6 +104,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
       .from("activity_signoff_progress" as never)
       .select("project_party_id, signed_off_at, signed_off_by")
       .eq("itp_item_id", record.itp_item_id)
+      .order("signed_off_at", { ascending: false })
       .returns<{ project_party_id: string; signed_off_at: string | null; signed_off_by: string | null }[]>();
     signoffRows = (data ?? []).filter((r) => r.signed_off_at);
   }
@@ -110,6 +119,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     const parties = partyRows.filter((p) => p.party_type === box.type);
     if (parties.length === 0) continue;
     const ids = new Set(parties.map((p) => p.id));
+    // signoffRows are ordered latest first, so find() picks the most recent sign-off deterministically.
     const so = signoffRows.find((r) => ids.has(r.project_party_id));
     approvals.push({
       label: box.label,
@@ -120,6 +130,9 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     });
   }
 
+  const validSig = (s: string | null): string | null =>
+    s && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : null;
+  const revision = await resolveNextRevision(supabase, record.project_id, "certificates", irn.irn_number);
   const projectName = project ? `${project.project_number} · ${project.name}` : "";
 
   const templateData: IrnPdfData = {
@@ -132,7 +145,12 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     inspectionDate: record.inspection_date,
     location: record.location,
     overallResult: record.overall_result,
-    inspectorName: inspector?.full_name ?? null,
+    inspectorName: record.signed_by_name || inspector?.full_name || null,
+    inspectorSignatureDataUri: validSig(record.inspector_signature),
+    inspectorSignedAt: record.signed_at,
+    witnessName: record.witness_name,
+    witnessSignatureDataUri: validSig(record.witness_signature),
+    revision,
     releaseDate: irn.release_date,
     issuedByName: issuer?.full_name ?? null,
     voidedAt: irn.voided_at,
@@ -169,15 +187,9 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     await page.close();
   }
 
-  const storagePath = `irns/${irn.id}/${irn.irn_number}.pdf`;
+  const storagePath = buildGeneratedPath(`irns/${irn.id}`, irn.irn_number, revision);
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 
   // Filed in the vault like every other generated record; each regeneration becomes the next revision.
   await autoFileVaultDocument(supabase, {
@@ -185,11 +197,10 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
     folderKey: "certificates",
     title: `Inspection Release Note ${irn.irn_number} — ${record.activity}`,
     documentReference: irn.irn_number,
-    revision: "0",
+    revision,
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
-    autoRevision: true,
   });
 
   return { resultStoragePath: storagePath };

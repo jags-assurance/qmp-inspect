@@ -1,30 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertNotAborted, PermanentJobError } from "./jobAbort";
 
 /**
- * Auto-files a worker-rendered PDF (ITP / NCR / Inspection Report, and any future template) into
- * the project's Document Vault, so generated documents are findable alongside manually-uploaded
- * ones (apps/web/lib/vault/*, apps/web/app/inspect/vault/*).
+ * Auto-files a worker-rendered PDF into the project's Document Vault, so generated documents are
+ * findable alongside manually-uploaded ones (apps/web/lib/vault/*).
  *
  * Vault folders are the fixed, per-project set auto-created by the `create_default_vault_folders`
- * trigger (supabase/migrations/20260910010000_phase2_document_vault.sql,
- * .../20260917050000_add_test_reports_vault_folder.sql) — this never creates a new category, it
- * only resolves the existing folder_key for this project and inserts a vault_documents row into it.
+ * trigger; this never invents a category, it only resolves (or re-creates) the standard folder.
  *
- * Bucket note: every other vault document's storage_path is implicitly relative to the
- * "inspection-evidence" bucket (see vault_documents_insert's storage.objects policies and
- * drawing-markup-viewer.tsx's hardcoded `.from("inspection-evidence")`). Worker-rendered PDFs live
- * in the separate "generated-documents" bucket instead, so the path stored here is prefixed
- * "generated-documents:<path>" — drawing-markup-viewer.tsx (the vault document viewer) and the
- * vault download-all route both parse that optional "<bucket>:<path>" prefix, defaulting to
- * inspection-evidence when it's absent, so every existing manually-uploaded document keeps working
- * unchanged.
+ * Bucket note: worker-rendered PDFs live in the "generated-documents" bucket, so the path stored
+ * here is prefixed "generated-documents:<path>" (the vault viewer and download-all route parse that
+ * optional "<bucket>:<path>" prefix; unprefixed paths default to inspection-evidence).
  *
- * Status: 'approved', not 'for_review' — these are JAGS-issued official records (not a client
- * upload awaiting review), same convention as itps.approved_by/ncrs.closed_by elsewhere in this
- * app: an already-controlled document doesn't re-enter a draft review queue just because it landed
- * in the vault too. Failure here is logged and swallowed, never thrown — a vault-filing hiccup
- * must not fail the underlying job the user actually asked for (the PDF itself already
- * rendered/uploaded successfully by the time this runs).
+ * Rules enforced here and in the per-document gates below:
+ *  - Only FINAL documents are filed as 'approved' (see the should/assert gates below).
+ *  - Every generation uses a unique storage path (buildGeneratedPath) and is never upserted over a
+ *    path a vault row references.
+ *  - Revisions are computed from the numeric maximum already filed (computeNextRevision), the new
+ *    row only supersedes lower-revision 'approved' rows (selectSupersedable).
+ *  - Failures THROW so the job fails and can be retried; a retry is idempotent per storage_path.
  */
 const DEFAULT_FOLDER_NAMES: Record<string, string> = {
   drawings: "Drawings",
@@ -41,6 +35,150 @@ const DEFAULT_FOLDER_NAMES: Record<string, string> = {
   test_reports: "Test Reports",
 };
 
+export const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
+
+type PreviousRow = { id: string; revision: string; status: string };
+
+// ---------------------------------------------------------------------------------------------
+// Pure helpers (unit tested)
+// ---------------------------------------------------------------------------------------------
+
+function safeSegment(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "doc";
+}
+
+/** `<prefix>/<base>-rev<revision>-<timestamp>.pdf` — unique per generation. */
+export function buildGeneratedPath(prefix: string, base: string, revision: string | null | undefined, now: number = Date.now()): string {
+  const rev = revision === null || revision === undefined || revision === "" ? "" : `-rev${safeSegment(String(revision))}`;
+  return `${prefix.replace(/\/+$/, "")}/${safeSegment(base)}${rev}-${now}.pdf`;
+}
+
+/** `<prefix>/<timestamp>/<fileName>` — for packs whose consumers derive sibling paths by file name. */
+export function buildGeneratedDirPath(prefix: string, fileName: string, now: number = Date.now()): string {
+  return `${prefix.replace(/\/+$/, "")}/${now}/${fileName}`;
+}
+
+function numericRevision(revision: string): number | null {
+  return /^\d+$/.test(revision.trim()) ? Number.parseInt(revision.trim(), 10) : null;
+}
+
+/**
+ * Next revision label: highest NUMERIC revision + 1 (0 when nothing is filed). Non-numeric labels
+ * ("A", "draft") never restart the count at 0. If the candidate collides with an existing label it
+ * keeps incrementing, so the label is always unique among `rows`.
+ */
+export function computeNextRevision(rows: { revision: string }[]): string {
+  const taken = new Set(rows.map((r) => r.revision.trim()));
+  const numerics = rows.map((r) => numericRevision(r.revision)).filter((n): n is number => n !== null);
+  let candidate = numerics.length > 0 ? Math.max(...numerics) + 1 : rows.length === 0 ? 0 : rows.length;
+  while (taken.has(String(candidate))) candidate += 1;
+  return String(candidate);
+}
+
+/** Ids a newly filed revision may supersede: only 'approved' rows with a LOWER numeric revision. */
+export function selectSupersedable(previous: PreviousRow[], newRevision: string, inclusive = false): string[] {
+  const next = numericRevision(newRevision);
+  if (next === null) return [];
+  return previous
+    .filter((d) => {
+      if (d.status !== "approved") return false;
+      const n = numericRevision(d.revision);
+      return n !== null && (inclusive ? n <= next : n < next);
+    })
+    .map((d) => d.id);
+}
+
+export function shouldFileFatAsFinal(assignmentStatus: string | null | undefined): boolean {
+  return assignmentStatus === "completed";
+}
+
+export function shouldFileDataBook(status: string | null | undefined): boolean {
+  return status === "issued";
+}
+
+export function assertInspectionFileable(overallResult: string | null | undefined): void {
+  if (!overallResult) {
+    throw new PermanentJobError("Inspection has no overall result yet; refusing to render/file a final inspection report.");
+  }
+}
+
+export function assertIrnFileable(voidedAt: string | null | undefined, allowVoid = false): void {
+  if (voidedAt && !allowVoid) {
+    throw new PermanentJobError("IRN is voided; refusing to render/file it as a live certificate.");
+  }
+}
+
+export function assertNcrCloseoutFileable<
+  T extends { status: string | null; root_cause: string | null; corrective_action: string | null; verification_notes: string | null },
+>(ncr: T): asserts ncr is T & { root_cause: string; corrective_action: string; verification_notes: string } {
+  if (ncr.status !== "closed" || !ncr.root_cause || !ncr.corrective_action || !ncr.verification_notes) {
+    throw new PermanentJobError("NCR is not closed with root cause, corrective action and verification; refusing to render/file a close-out certificate.");
+  }
+}
+
+export function shouldFileOrgPacks(): boolean {
+  return process.env.FILE_ORG_PACKS_IN_PROJECT_VAULTS === "true";
+}
+
+// ---------------------------------------------------------------------------------------------
+// Storage / vault operations
+// ---------------------------------------------------------------------------------------------
+
+/** Uploads a generated file to a unique path (never upserts) unless the job was aborted. */
+export async function uploadGeneratedFile(
+  supabase: SupabaseClient,
+  path: string,
+  body: Buffer | Uint8Array,
+  contentType = "application/pdf"
+): Promise<void> {
+  assertNotAborted();
+  const { error } = await supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).upload(path, body, { contentType, upsert: false });
+  if (error) throw new Error(`Failed to upload generated file: ${error.message}`);
+}
+
+async function loadPreviousRows(supabase: SupabaseClient, folderId: string, documentReference: string): Promise<PreviousRow[]> {
+  const PAGE = 500;
+  const MAX_PAGES = 20;
+  const all: PreviousRow[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await supabase
+      .from("vault_documents" as never)
+      .select("id, revision, status")
+      .eq("folder_id", folderId)
+      .eq("document_reference", documentReference)
+      .order("created_at", { ascending: true })
+      .range(page * PAGE, page * PAGE + PAGE - 1)
+      .returns<PreviousRow[]>();
+    if (error) throw new Error(`Could not read earlier vault revisions: ${error.message}`);
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
+}
+
+/**
+ * Read-only: the revision the next generation of this document will be filed as. Renderers call this
+ * BEFORE rendering so the printed "Rev" matches the vault row. Best-effort: returns "0" when the
+ * folder does not exist yet; throws on a read error (job is retryable).
+ */
+export async function resolveNextRevision(
+  supabase: SupabaseClient,
+  projectId: string,
+  folderKey: string,
+  documentReference: string
+): Promise<string> {
+  const { data: folder, error } = await supabase
+    .from("vault_folders" as never)
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("folder_key", folderKey)
+    .maybeSingle<{ id: string }>();
+  if (error) throw new Error(`Could not resolve vault folder '${folderKey}': ${error.message}`);
+  if (!folder) return "0";
+  return computeNextRevision(await loadPreviousRows(supabase, folder.id, documentReference));
+}
+
 export async function autoFileVaultDocument(
   supabase: SupabaseClient,
   params: {
@@ -51,101 +189,90 @@ export async function autoFileVaultDocument(
     revision: string;
     storagePath: string;
     fileSize: number | null;
-    /** The person who asked for this document to be generated — shown as its "Generated by" in the
-     *  vault. Null only for system-initiated renders. */
     generatedBy?: string | null;
-    /** When true the revision is not taken from `revision` but counted up from the highest revision
-     *  already filed under the same document_reference (NCR dossiers have no revision of their own:
-     *  regenerating after an edit should read Rev 1, Rev 2, …, not Rev 0 again). */
+    /** Count the revision up from the numeric maximum already filed (ignores `revision`). */
     autoRevision?: boolean;
-    /** "approved" (default) for issued records; "for_review" files the document without making it the controlled copy and without superseding the current approved one (e.g. an ITP revision still awaiting approval). */
+    /** "approved" (default) for issued records; "for_review" files without superseding anything. */
     status?: "approved" | "for_review";
+    /** Document revisions are owned by the source record (ITPs): keep `revision` as given and let a
+     *  regeneration of the same revision supersede the earlier copy of that revision. */
+    keepRevision?: boolean;
   }
 ): Promise<void> {
-  try {
-    let { data: folder, error: folderError } = await supabase
+  assertNotAborted();
+
+  let { data: folder, error: folderError } = await supabase
+    .from("vault_folders" as never)
+    .select("id")
+    .eq("project_id", params.projectId)
+    .eq("folder_key", params.folderKey)
+    .maybeSingle<{ id: string }>();
+
+  if (!folder && !folderError && DEFAULT_FOLDER_NAMES[params.folderKey]) {
+    const created = await supabase
       .from("vault_folders" as never)
-      .select("id")
-      .eq("project_id", params.projectId)
-      .eq("folder_key", params.folderKey)
-      .maybeSingle<{ id: string }>();
-
-    // A project created before a default folder existed (or one removed since) must not make the
-    // document silently vanish: recreate the standard folder on demand.
-    if (!folder && !folderError && DEFAULT_FOLDER_NAMES[params.folderKey]) {
-      const created = await supabase
-        .from("vault_folders" as never)
-        .insert({ project_id: params.projectId, folder_key: params.folderKey, name: DEFAULT_FOLDER_NAMES[params.folderKey] } as never)
-        .select("id")
-        .single<{ id: string }>();
-      folder = created.data;
-      folderError = created.error as typeof folderError;
-    }
-
-    if (folderError || !folder) {
-      console.error(
-        `[vaultAutoFile] Could not resolve vault folder '${params.folderKey}' for project ${params.projectId}:`,
-        folderError?.message ?? "no folder row"
-      );
-      return;
-    }
-
-    // Without a reference a regenerated document could never supersede its earlier copy, so every
-    // regeneration piled up another "approved" row. Fall back to the title as the matching key.
-    const documentReference = params.documentReference ?? params.title;
-
-    // Earlier copies of the same logical document in this folder (matched on document_reference,
-    // exactly like the manual-upload revision rule in apps/web/lib/vault/actions.ts).
-    let previous: { id: string; revision: string; status: string }[] = [];
-    {
-      const { data } = await supabase
-        .from("vault_documents" as never)
-        .select("id, revision, status")
-        .eq("folder_id", folder.id)
-        .eq("document_reference", documentReference)
-        .returns<{ id: string; revision: string; status: string }[]>();
-      previous = data ?? [];
-    }
-
-    let revision = params.revision;
-    if (params.autoRevision && previous.length > 0) {
-      const highest = Math.max(...previous.map((d) => Number.parseInt(d.revision, 10)).filter((n) => Number.isFinite(n)), -1);
-      revision = String(highest + 1);
-    }
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("vault_documents" as never)
-      .insert({
-        folder_id: folder.id,
-        title: params.title,
-        document_reference: documentReference,
-        revision,
-        storage_path: `generated-documents:${params.storagePath}`,
-        file_size: params.fileSize,
-        status: params.status ?? "approved",
-        uploaded_by: params.generatedBy ?? null,
-      } as never)
+      .insert({ project_id: params.projectId, folder_key: params.folderKey, name: DEFAULT_FOLDER_NAMES[params.folderKey] } as never)
       .select("id")
       .single<{ id: string }>();
+    folder = created.data;
+    folderError = created.error as typeof folderError;
+  }
 
-    if (insertError || !inserted) {
-      console.error(`[vaultAutoFile] Failed to insert vault_documents row for '${params.title}':`, insertError?.message);
-      return;
-    }
+  if (folderError || !folder) {
+    throw new Error(`Could not resolve vault folder '${params.folderKey}' for project ${params.projectId}: ${folderError?.message ?? "no folder row"}`);
+  }
 
-    // The new copy is the controlled one; earlier copies stay visible, marked superseded.
-    const stale = params.status === "for_review" ? [] : previous.filter((d) => d.status !== "superseded").map((d) => d.id);
-    if (stale.length > 0) {
-      const { error: supersedeError } = await supabase
-        .from("vault_documents" as never)
-        .update({ status: "superseded", superseded_by: inserted.id } as never)
-        .in("id", stale);
-      if (supersedeError) {
-        console.error(`[vaultAutoFile] Filed '${params.title}' but could not supersede earlier copies:`, supersedeError.message);
-      }
+  const storedPath = `${GENERATED_DOCUMENTS_BUCKET}:${params.storagePath}`;
+
+  // Idempotency: a retried job (or double call) must not file the same stored object twice.
+  const { data: existing, error: existingError } = await supabase
+    .from("vault_documents" as never)
+    .select("id")
+    .eq("folder_id", folder.id)
+    .eq("storage_path", storedPath)
+    .limit(1)
+    .returns<{ id: string }[]>();
+  if (existingError) throw new Error(`Could not check for an existing vault row: ${existingError.message}`);
+  if (existing && existing.length > 0) return;
+
+  const documentReference = params.documentReference ?? params.title;
+  const status = params.status ?? "approved";
+  const previous = await loadPreviousRows(supabase, folder.id, documentReference);
+
+  let revision = params.revision;
+  if (!params.keepRevision && (params.autoRevision || previous.some((d) => d.revision.trim() === revision.trim()))) {
+    revision = computeNextRevision(previous);
+  }
+
+  assertNotAborted();
+  const { data: inserted, error: insertError } = await supabase
+    .from("vault_documents" as never)
+    .insert({
+      folder_id: folder.id,
+      title: params.title,
+      document_reference: documentReference,
+      revision,
+      storage_path: storedPath,
+      file_size: params.fileSize,
+      status,
+      uploaded_by: params.generatedBy ?? null,
+    } as never)
+    .select("id")
+    .single<{ id: string }>();
+
+  if (insertError || !inserted) {
+    throw new Error(`Failed to insert vault_documents row for '${params.title}': ${insertError?.message ?? "no row returned"}`);
+  }
+
+  const stale = status === "for_review" ? [] : selectSupersedable(previous, revision, params.keepRevision === true);
+  if (stale.length > 0) {
+    const { error: supersedeError } = await supabase
+      .from("vault_documents" as never)
+      .update({ status: "superseded", superseded_by: inserted.id } as never)
+      .in("id", stale);
+    if (supersedeError) {
+      throw new Error(`Filed '${params.title}' but could not supersede earlier copies: ${supersedeError.message}`);
     }
-  } catch (err) {
-    console.error("[vaultAutoFile] Unexpected error while auto-filing to the vault:", err);
   }
 }
 
@@ -154,9 +281,8 @@ export async function autoFileVaultDocument(
  * of every project it covers, under "General Reference".
  *
  * CAUTION: these PDFs contain figures for every project in the organisation, and a project's vault is
- * visible to its client / contractor / TPI. This is switched on for the current development and test
- * data. Before real client data goes in, set FILE_ORG_PACKS_IN_PROJECT_VAULTS=false (or move to
- * per-project filtered copies) so one project's parties never see another project's numbers.
+ * visible to its client / contractor / TPI. Off by default; only set
+ * FILE_ORG_PACKS_IN_PROJECT_VAULTS=true for development/test data.
  */
 export async function fileOrgPackInProjectVaults(
   supabase: SupabaseClient,
@@ -169,7 +295,7 @@ export async function fileOrgPackInProjectVaults(
     generatedBy?: string | null;
   }
 ): Promise<void> {
-  if (process.env.FILE_ORG_PACKS_IN_PROJECT_VAULTS === "false") return;
+  if (!shouldFileOrgPacks()) return;
   for (const projectId of [...new Set(params.projectIds)]) {
     await autoFileVaultDocument(supabase, {
       projectId,

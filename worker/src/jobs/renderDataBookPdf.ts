@@ -12,7 +12,7 @@ import {
 } from "./dataBookTemplate";
 import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, shouldFileDataBook } from "./vaultAutoFile";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -70,11 +70,13 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
     supabase.from("itps" as never).select("id, status, revision_needs_approval").eq("project_id" as never, projectId as never).returns<{ id: string; status: string; revision_needs_approval: boolean }[]>(),
     supabase
       .from("inspection_records")
-      .select("id, checklist_template_id, overall_result, irns(id, voided_at)")
+      .select("id, itp_item_id, created_at, checklist_template_id, overall_result, irns(id, voided_at)")
       .eq("project_id", projectId)
       .returns<
         {
           id: string;
+          itp_item_id: string | null;
+          created_at: string;
           checklist_template_id: string | null;
           overall_result: string | null;
           irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
@@ -113,8 +115,17 @@ async function computeDataBookReadinessForWorker(projectId: string): Promise<{
   const itpTotal = itps?.length ?? 0;
   const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
-  const recordTotal = inspectionRecords?.length ?? 0;
-  const recordReady = (inspectionRecords ?? []).filter((record) =>
+  // KEEP IN SYNC with apps/web/lib/databook/readiness.ts: latest COMPLETED record per itp_item, pass/partial only.
+  const latestByItem = new Map<string, NonNullable<typeof inspectionRecords>[number]>();
+  for (const r of inspectionRecords ?? []) {
+    if (!r.overall_result) continue;
+    const key = r.itp_item_id ?? r.id;
+    const cur = latestByItem.get(key);
+    if (!cur || r.created_at > cur.created_at) latestByItem.set(key, r);
+  }
+  const countedRecords = [...latestByItem.values()].filter((r) => r.overall_result === "pass" || r.overall_result === "partial");
+  const recordTotal = countedRecords.length;
+  const recordReady = countedRecords.filter((record) =>
     (Array.isArray(record.irns) ? record.irns : record.irns ? [record.irns] : []).some((i) => !i.voided_at)
   ).length;
 
@@ -788,27 +799,24 @@ export async function renderDataBookPdf(payload: RenderDataBookPdfPayload): Prom
     pdfBuffer = await printBookPdf(buildDataBookPdfHtml(data, pageMap), dataBook);
   }
 
-  const storagePath = `databooks/${dataBook.id}/${dataBook.book_number}.pdf`;
+  const storagePath = buildGeneratedPath(`databooks/${dataBook.id}`, dataBook.book_number, null);
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 
-  if (uploadError) {
-    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
+  // Only an ISSUED data book is a controlled record; drafts / compiled books are download-only.
+  if (shouldFileDataBook(dataBook.status)) {
+    await autoFileVaultDocument(supabase, {
+      projectId: dataBook.project_id,
+      folderKey: "certificates",
+      title: `Data Book ${dataBook.book_number} — ${dataBook.title}`,
+      documentReference: dataBook.book_number,
+      revision: "0",
+      storagePath,
+      fileSize: pdfBuffer.length,
+      generatedBy: payload.requested_by,
+      autoRevision: true,
+    });
   }
-
-  await autoFileVaultDocument(supabase, {
-    projectId: dataBook.project_id,
-    folderKey: "certificates",
-    title: `Data Book ${dataBook.book_number} — ${dataBook.title} (${dataBook.status})`,
-    documentReference: dataBook.book_number,
-    revision: "0",
-    storagePath,
-    fileSize: pdfBuffer.length,
-    generatedBy: payload.requested_by,
-    autoRevision: true,
-  });
 
   return { resultStoragePath: storagePath };
 }

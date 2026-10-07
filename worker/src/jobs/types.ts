@@ -20,6 +20,8 @@ export interface BackgroundJobRow {
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
   error_message: string | null;
+  /** Set when the worker claims the job (nullable; added by a later migration). */
+  started_at?: string | null;
   attempts: number;
   created_at: string;
   updated_at: string;

@@ -9,7 +9,7 @@ import {
 } from "./inspectionReportTemplate";
 import type { RenderInspectionReportPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertInspectionFileable } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
@@ -155,12 +155,10 @@ export async function renderInspectionReportPdf(
     .map((p, i) => ({ caption: p.caption, dataUri: photoDataUris[i] }))
     .filter((p): p is InspectionReportPhoto => Boolean(p.dataUri));
 
-  // Revision: number of re-open/amend events (0 = original). Falls back to the stored column.
-  const { count: amendCount } = await (supabase as unknown as { from: (t: string) => any })
-    .from("inspection_record_amendments")
-    .select("id", { count: "exact", head: true })
-    .eq("record_id", record.id);
-  const revision = typeof amendCount === "number" ? amendCount : record.revision ?? 0;
+  // Only a completed inspection (overall result recorded) is a final report.
+  assertInspectionFileable(record.overall_result);
+  // The printed REV is the vault revision this render will be filed as.
+  const revision = await resolveNextRevision(supabase, record.project_id, "checklists_forms", record.record_number);
 
   // Approvals: one box per party type present on the project, plus the JAGS inspector.
   const { data: partyRows } = await supabase
@@ -286,15 +284,9 @@ export async function renderInspectionReportPdf(
     await page.close();
   }
 
-  const storagePath = `inspections/${record.id}/${record.record_number}.pdf`;
+  const storagePath = buildGeneratedPath(`inspections/${record.id}`, record.record_number, revision);
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 
   // "checklists_forms" — an Inspection Report is the rendered output of a completed checklist
   // execution, which this category already covers; there is no separate "inspection reports"
@@ -304,11 +296,10 @@ export async function renderInspectionReportPdf(
     folderKey: "checklists_forms",
     title: `Inspection Report ${record.record_number} — ${record.activity}`,
     documentReference: record.record_number,
-    revision: String(record.revision ?? 0),
+    revision,
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
-    autoRevision: true,
   });
 
   return { resultStoragePath: storagePath };

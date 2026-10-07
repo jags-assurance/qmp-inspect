@@ -33,6 +33,8 @@ export interface NcrCloseoutPdfData {
   evidenceSummary?: string | null;
 
   generatedAt: Date;
+  /** Vault revision this render will be filed as, so the printed REV matches the vault. */
+  revision?: string | null;
   approvals?: NcrApprovalBox[];
   /**
    * Drives the letterhead/footer per the organisation's engagement_mode (Reqs R113-R118) — see
@@ -225,7 +227,7 @@ export function buildNcrCloseoutPdfHtml(data: NcrCloseoutPdfData): string {
 
   .signoff-grid { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; break-inside: avoid; }
   .signoff-card {
-    flex: 1 1 0; min-width: 180px; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
+    flex: 1 1 0; min-width: 180px; break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-top: 3px solid var(--burgundy);
     border-radius: 2px; padding: 6px 8px 8px 8px; background: #fff;
   }
   .signoff-card-label { font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.4px; color: var(--burgundy); margin-bottom: 10px; }
@@ -251,7 +253,7 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.ncrNumber)}</dd>
-        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>REV</dt><dd>Rev ${escapeHtml(data.revision ?? "0")}</dd>
         <dt>ISSUE DATE</dt><dd>${escapeHtml(data.closedAt.slice(0, 10))}</dd>
         <dt>STATUS</dt><dd>CLOSED</dd>
       </dl>

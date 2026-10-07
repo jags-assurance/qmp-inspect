@@ -30,7 +30,7 @@ export function IrnPdfButton({ irnId, latest }: { irnId: string; latest: IrnPdfS
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {liveStatus?.status === "completed" && liveStatus.pdfUrl && (
           <a
             href={liveStatus.pdfUrl}

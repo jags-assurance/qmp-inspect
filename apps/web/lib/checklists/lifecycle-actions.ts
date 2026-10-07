@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
 import { notifyAfterIrnVoided, notifyInspectorReopened } from "./irn-notifications";
 
 // inspection_record_amendments is not in the generated shared-types yet; regenerate types and drop this.
@@ -130,7 +131,10 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
       .eq("id", irn.id)
       .is("voided_at", null)
       .select("id");
-    if (voided?.length) voidedIrnNumber = irn.irn_number;
+    if (voided?.length) {
+      voidedIrnNumber = irn.irn_number;
+      await supersedeIrnVaultDocuments(supabase, record.project_id, irn.irn_number);
+    }
   }
 
   const { data: project } = await supabase

@@ -1,4 +1,4 @@
-import { fileOrgPackInProjectVaults } from "./vaultAutoFile";
+import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
@@ -135,27 +135,18 @@ export async function generateMonthlyReportPack(
 
   const monthTag = String(month).padStart(2, "0");
   const basePath = `monthly-reports/${organizationId}/${year}-${monthTag}`;
-  const pdfPath = `${basePath}/report-pack.pdf`;
-  const xlsxPath = `${basePath}/report-pack.xlsx`;
+  // Unique directory per generation; the file names stay fixed because the web app derives the
+  // .xlsx path from the PDF path (xlsxPathFromPdfPath). Never overwrites an earlier generation.
+  const pdfPath = buildGeneratedDirPath(basePath, "report-pack.pdf");
+  const xlsxPath = pdfPath.replace(/report-pack\.pdf$/, "report-pack.xlsx");
 
-  const { error: pdfUploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(pdfPath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (pdfUploadError) {
-    throw new Error(`Failed to upload monthly report PDF: ${pdfUploadError.message}`);
-  }
-
-  const { error: xlsxUploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(xlsxPath, xlsxBuffer, {
-      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      upsert: true,
-    });
-
-  if (xlsxUploadError) {
-    throw new Error(`Failed to upload monthly report Excel workbook: ${xlsxUploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, pdfPath, pdfBuffer);
+  await uploadGeneratedFile(
+    supabase,
+    xlsxPath,
+    xlsxBuffer as unknown as Buffer,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
 
   await fileOrgPackInProjectVaults(supabase, {
     projectIds: agg.perProject.map((p) => p.projectId),

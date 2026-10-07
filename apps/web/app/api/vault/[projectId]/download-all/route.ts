@@ -51,7 +51,7 @@ function sanitizeFilename(name: string): string {
  * documents the requesting session could already see one at a time in the UI.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
-  await requireSession();
+  const session = await requireSession();
   const { projectId } = await params;
   // ?ids=a,b,c : an explicit selection from the folder table (still RLS-scoped to this project's
   // folders). Selected documents may be any status except rejected; unapproved ones are flagged in
@@ -85,7 +85,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select("id, folder_id, title, document_number, revision, storage_path, status")
     .in("folder_id", folderIds);
   // Whole-project pack: approved, current documents only — a handover pack must not include drafts.
-  docQuery = selectedIds ? docQuery.in("id", selectedIds).neq("status", "rejected") : docQuery.eq("status", "approved");
+  // Non-staff roles only ever receive approved documents, even when ids are given explicitly:
+  // for_review / superseded (including voided IRN certificates) / rejected are excluded for them.
+  docQuery = selectedIds
+    ? session.isJagsStaff
+      ? docQuery.in("id", selectedIds).neq("status", "rejected")
+      : docQuery.in("id", selectedIds).eq("status", "approved")
+    : docQuery.eq("status", "approved");
   const { data: documents, error: documentsError } = await docQuery.returns<DocumentRow[]>();
 
   if (documentsError) {
@@ -93,8 +99,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   if (!documents || documents.length === 0) {
+    if (selectedIds && !session.isJagsStaff) {
+      return NextResponse.json(
+        { error: "None of the selected documents are approved, so none can be downloaded." },
+        { status: 403 }
+      );
+    }
     return NextResponse.json({ error: "This project's vault has no documents to download yet." }, { status: 404 });
   }
+
+  // Selected ids that did not come back (not approved for a non-staff caller, rejected, or not
+  // visible) are reported rather than silently dropped.
+  const returnedIds = new Set(documents.map((d) => d.id));
+  const preSkippedCount = selectedIds ? selectedIds.filter((id) => !returnedIds.has(id)).length : 0;
 
   const folderNameById = new Map((folders ?? []).map((f) => [f.id, f.name] as const));
 
@@ -143,8 +160,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
    } catch (err) {
     console.error("[vault download-all] aborted:", err);
    } finally {
-    if (skipped.length > 0) {
-      archive.append(`These files could not be included:\n${skipped.join("\n")}\n`, { name: "_NOT_INCLUDED.txt" });
+    if (skipped.length > 0 || preSkippedCount > 0) {
+      archive.append(`${preSkippedCount > 0 ? `${preSkippedCount} selected document(s) were not included (not approved or not accessible).\n` : ""}${skipped.length > 0 ? `These files could not be included:\n${skipped.join("\n")}\n` : ""}`, { name: "_NOT_INCLUDED.txt" });
     }
     void archive.finalize();
    }
@@ -156,6 +173,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${selectedIds ? "vault-selected-documents" : "vault-documents"}.zip"`,
+      ...(preSkippedCount > 0 ? { "X-Vault-Skipped-Count": String(preSkippedCount) } : {}),
     },
   });
 }

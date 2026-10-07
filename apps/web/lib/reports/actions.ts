@@ -232,6 +232,22 @@ export async function listWeeklyReportPacks(organizationId: string): Promise<Wee
   return items;
 }
 
+async function hasInFlightJob(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  jobType: string,
+  payloadKey: string,
+  id: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id")
+    .eq("job_type", jobType)
+    .eq(`payload->>${payloadKey}`, id)
+    .in("status", ["pending", "processing"])
+    .limit(1);
+  return Boolean(data && data.length > 0);
+}
+
 export interface RequestItpPdfState {
   error: string | null;
   success?: boolean;
@@ -470,6 +486,10 @@ export async function requestFatReportPdfAction(
   if (!(await canRunStandaloneAssignment(session, supabase, assignmentRow.project_id))) {
     return { error: "Only someone with access to run this assignment can request its report." };
   }
+  if (await hasInFlightJob(supabase, "render_fat_report_pdf", "assignment_id", assignmentId)) {
+    revalidatePath(`/inspect/standalone/${assignmentId}`);
+    return { error: null, success: true };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_fat_report_pdf",
     payload: {
@@ -559,6 +579,12 @@ export async function requestNcrPdfAction(_prev: RequestNcrPdfState, formData: F
   if (!ncrId) return { error: "Missing NCR." };
 
   const supabase = await createSupabaseServerClient();
+  const { data: ncrRow } = await supabase.from(NCRS_TABLE).select("id").eq("id", ncrId).maybeSingle<{ id: string }>();
+  if (!ncrRow) return { error: "NCR not found, or you do not have access to it." };
+  if (await hasInFlightJob(supabase, "render_ncr_pdf", "ncr_id", ncrId)) {
+    revalidatePath(`/inspect/ncrs/${ncrId}`);
+    return { error: null, success: true };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_ncr_pdf",
     payload: { ncr_id: ncrId, requested_by: session.userId } satisfies RenderNcrPdfPayload,
@@ -647,8 +673,12 @@ export async function requestIrnPdfAction(_prev: RequestIrnPdfState, formData: F
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: irnRow } = await (supabase.from("irns" as never) as any).select("id, voided_at").eq("id", irnId).maybeSingle();
   if (!irnRow) return { error: "IRN not found, or you do not have access to it." };
-  if ((irnRow as { voided_at: string | null }).voided_at) {
-    return { error: "This IRN has been voided. A PDF cannot be generated for a voided IRN." };
+  if ((irnRow as { voided_at: string | null }).voided_at && !session.isJagsStaff) {
+    return { error: "This IRN has been voided. Only JAGS staff can generate the VOID copy." };
+  }
+  if (await hasInFlightJob(supabase, "render_irn_pdf", "irn_id", irnId)) {
+    revalidatePath(`/inspect/inspections`);
+    return { error: null, success: true };
   }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_irn_pdf",
@@ -733,6 +763,12 @@ export async function requestDataBookPdfAction(_prev: RequestDataBookPdfState, f
   if (!dataBookId) return { error: "Missing data book." };
 
   const supabase = await createSupabaseServerClient();
+  const { data: dbRow } = await supabase.from("data_books").select("id").eq("id", dataBookId).maybeSingle<{ id: string }>();
+  if (!dbRow) return { error: "Data book not found, or you do not have access to it." };
+  if (await hasInFlightJob(supabase, "render_data_book_pdf", "data_book_id", dataBookId)) {
+    if (projectId) revalidatePath(`/inspect/projects/${projectId}/data-book`);
+    return { error: null, success: true };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_data_book_pdf",
     payload: { data_book_id: dataBookId, requested_by: session.userId } satisfies RenderDataBookPdfPayload,
@@ -835,6 +871,10 @@ export async function requestNcrCloseoutCertificateAction(
     return { error: "This NCR must be closed, with root cause, corrective action and verification recorded, before a close-out certificate can be generated." };
   }
 
+  if (await hasInFlightJob(supabase, "render_ncr_closeout_certificate", "ncr_id", ncrId)) {
+    revalidatePath(`/inspect/ncrs/${ncrId}`);
+    return { error: null, success: true };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_ncr_closeout_certificate",
     payload: { ncr_id: ncrId, requested_by: session.userId } satisfies RenderNcrCloseoutCertificatePayload,

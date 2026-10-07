@@ -17,14 +17,16 @@ interface RecordContext {
   itpId: string | null;
   itpNumber: string;
   activity: string;
+  overallResult: string | null;
+  itpItemId: string;
 }
 
 async function loadContext(supabase: Supabase, inspectionRecordId: string): Promise<RecordContext | null> {
   const { data: rec } = await supabase
     .from("inspection_records")
-    .select("record_number, project_id, itp_item_id, itp_number, activity")
+    .select("record_number, project_id, itp_item_id, itp_number, activity, overall_result")
     .eq("id", inspectionRecordId)
-    .maybeSingle<{ record_number: string; project_id: string; itp_item_id: string; itp_number: string; activity: string }>();
+    .maybeSingle<{ record_number: string; project_id: string; itp_item_id: string; itp_number: string; activity: string; overall_result: string | null }>();
   if (!rec) return null;
   const [{ data: project }, { data: item }] = await Promise.all([
     supabase.from("projects").select("organization_id").eq("id", rec.project_id).maybeSingle<{ organization_id: string }>(),
@@ -42,6 +44,8 @@ async function loadContext(supabase: Supabase, inspectionRecordId: string): Prom
     itpId: item?.itp_sections?.itp_id ?? null,
     itpNumber: rec.itp_number,
     activity: rec.activity,
+    overallResult: rec.overall_result,
+    itpItemId: rec.itp_item_id,
   };
 }
 
@@ -136,17 +140,63 @@ export async function notifyAfterIrnIssued(supabase: Supabase, inspectionRecordI
     if (!ctx) return;
     const recipients = await collectRecipients(supabase, ctx);
     const itpLink = ctx.itpId ? ` ITP: /inspect/itps/${ctx.itpId}` : "";
+    const conditional = ctx.overallResult === "partial";
     await fanOut(
       supabase,
       ctx,
       inspectionRecordId,
       recipients,
-      "Hold released — inspection passed",
-      `${ctx.itpNumber} — ${ctx.activity}: inspection ${ctx.recordNumber} passed${irnNumber ? ` and ${irnNumber} was issued` : ""}.${itpLink}`
+      conditional ? "Conditional release — inspection passed with conditions" : "Hold released — inspection passed",
+      `${ctx.itpNumber} — ${ctx.activity}: inspection ${ctx.recordNumber} ${conditional ? "passed conditionally" : "passed"}${irnNumber ? ` and ${irnNumber} was issued` : ""}.${itpLink}`
     );
   } catch {
     // Best-effort.
   }
+}
+
+/** Extra void recipients: the IRN issuer, the party executing this activity, and the main contractor
+ *  and TPI parties on the ITP (plus their team members). */
+async function collectVoidExtraRecipients(supabase: Supabase, ctx: RecordContext, inspectionRecordId: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  const { data: irnRows } = await supabase
+    .from("irns")
+    .select("issued_by")
+    .eq("inspection_record_id", inspectionRecordId)
+    .returns<{ issued_by: string | null }[]>();
+  for (const r of irnRows ?? []) if (r.issued_by) out.add(r.issued_by);
+
+  const partyIds = new Set<string>();
+  type PartyRow = { project_parties: { id: string; party_type: string; is_active: boolean } | null };
+  const { data: onItem } = await supabase
+    .from("activity_party_intervention")
+    .select("project_parties(id, party_type, is_active)")
+    .eq("itp_item_id", ctx.itpItemId)
+    .returns<PartyRow[]>();
+  for (const row of onItem ?? []) {
+    const p = row.project_parties;
+    if (p?.is_active && (p.party_type === "subcontractor" || p.party_type === "main_contractor")) partyIds.add(p.id);
+  }
+  if (ctx.itpId) {
+    const { data: items } = await supabase
+      .from("itp_items")
+      .select("id, itp_sections!inner(itp_id)")
+      .eq("itp_sections.itp_id", ctx.itpId)
+      .returns<{ id: string }[]>();
+    const itemIds = (items ?? []).map((i) => i.id);
+    if (itemIds.length > 0) {
+      const { data: onItp } = await supabase
+        .from("activity_party_intervention")
+        .select("project_parties(id, party_type, is_active)")
+        .in("itp_item_id", itemIds)
+        .returns<PartyRow[]>();
+      for (const row of onItp ?? []) {
+        const p = row.project_parties;
+        if (p?.is_active && (p.party_type === "main_contractor" || p.party_type === "tpi_lab")) partyIds.add(p.id);
+      }
+    }
+  }
+  for (const uid of await userIdsForParties(supabase, [...partyIds])) out.add(uid);
+  return out;
 }
 
 /** Call after an IRN is voided. Best-effort; never throws. */
@@ -160,6 +210,7 @@ export async function notifyAfterIrnVoided(
     const ctx = await loadContext(supabase, inspectionRecordId);
     if (!ctx) return;
     const recipients = await collectRecipients(supabase, ctx);
+    for (const uid of await collectVoidExtraRecipients(supabase, ctx, inspectionRecordId)) recipients.add(uid);
     await fanOut(
       supabase,
       ctx,

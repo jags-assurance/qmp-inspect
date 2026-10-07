@@ -12,7 +12,7 @@ import {
 } from "./itpTemplate";
 import type { RenderItpPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -347,13 +347,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   // Timestamped so regenerating the same revision never overwrites an earlier file that a vault row points at.
   const storagePath = `itps/${itp.id}/${itp.itp_number}-rev${itp.revision}-${Date.now()}.pdf`;
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 
   // Only an issued ITP belongs in "ITPs (Approved)". Drafts, ITPs under review and returned ITPs are not
   // filed at all; a revision still awaiting approval is filed for review so the approved copy stays current.
@@ -368,6 +362,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
       fileSize: pdfBuffer.length,
       generatedBy: payload.requested_by,
       status: itpExtra.revision_needs_approval ? "for_review" : "approved",
+      keepRevision: true,
     });
   }
 

@@ -80,11 +80,13 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     >(),
     supabase
       .from("inspection_records")
-      .select("id, checklist_template_id, overall_result, irns(id, voided_at)")
+      .select("id, itp_item_id, created_at, checklist_template_id, overall_result, irns(id, voided_at)")
       .eq("project_id", projectId)
       .returns<
         {
           id: string;
+          itp_item_id: string | null;
+          created_at: string;
           checklist_template_id: string | null;
           overall_result: string | null;
           irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
@@ -126,9 +128,21 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   const itpTotal = itps?.length ?? 0;
   const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
-  const recordTotal = inspectionRecords?.length ?? 0;
+  // "Inspection records with an issued IRN" denominator: ONLY the latest COMPLETED record per itp_item
+  // (overall_result not null), and only when that latest result is pass/partial. Drafts (no result)
+  // never count, and a fail that was re-inspected is superseded by the newer record.
+  // KEEP IN SYNC with worker/src/jobs/renderDataBookPdf.ts - it must apply this exact same rule.
+  const latestByItem = new Map<string, NonNullable<typeof inspectionRecords>[number]>();
+  for (const r of inspectionRecords ?? []) {
+    if (!r.overall_result) continue;
+    const key = r.itp_item_id ?? r.id;
+    const cur = latestByItem.get(key);
+    if (!cur || r.created_at > cur.created_at) latestByItem.set(key, r);
+  }
+  const countedRecords = [...latestByItem.values()].filter((r) => r.overall_result === "pass" || r.overall_result === "partial");
+  const recordTotal = countedRecords.length;
   // Voided IRNs do not count as issued.
-  const recordReady = (inspectionRecords ?? []).filter((record) =>
+  const recordReady = countedRecords.filter((record) =>
     (Array.isArray(record.irns) ? record.irns : record.irns ? [record.irns] : []).some((i) => !i.voided_at)
   ).length;
 

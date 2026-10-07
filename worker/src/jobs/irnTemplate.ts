@@ -19,6 +19,13 @@ export interface IrnPdfData {
   location: string | null;
   overallResult: "pass" | "fail" | "partial" | null;
   inspectorName: string | null;
+  /** Inspector's captured signature (data: URL PNG) and when it was applied. */
+  inspectorSignatureDataUri?: string | null;
+  inspectorSignedAt?: string | null;
+  witnessName?: string | null;
+  witnessSignatureDataUri?: string | null;
+  /** Vault revision this render will be filed as, so the printed REV matches the vault. */
+  revision?: string | null;
 
   // Release
   releaseDate: string;
@@ -125,7 +132,14 @@ function renderPoweredByFooter(data: IrnPdfData): string {
 export function buildIrnPdfHtml(data: IrnPdfData): string {
   const generatedAtLabel = data.generatedAt.toISOString().replace("T", " ").slice(0, 19) + " UTC";
   const projectSubline = [data.organizationName, data.projectName].filter(Boolean).join(" · ");
-  const resultLabel = (data.overallResult ?? "pass").toUpperCase();
+  // Never default a missing result to PASS.
+  const resultLabel = data.overallResult ? data.overallResult.toUpperCase() : "NOT RECORDED";
+  const isPartial = data.overallResult === "partial";
+  const releaseTitle = data.voidedAt ? "HOLD RELEASE VOIDED" : isPartial ? "CONDITIONAL RELEASE" : "HOLD RELEASED";
+  const releaseText = isPartial
+    ? "This certificate confirms the activity below has been inspected with a PARTIAL result; the hold is released conditionally, subject to the outstanding items being closed out."
+    : "This certificate confirms the activity below has been inspected, passed, and its hold released for the next stage of work.";
+  const releaseStatus = data.voidedAt ? "VOID" : isPartial ? "CONDITIONAL RELEASE" : "RELEASED";
 
   const activityRows: [string, string | null][] = [
     ["Activity", data.activity],
@@ -137,7 +151,7 @@ export function buildIrnPdfHtml(data: IrnPdfData): string {
   ];
 
   const releaseRows: [string, string | null][] = [
-    ["Hold status", data.voidedAt ? "VOID" : "RELEASED"],
+    ["Hold status", releaseStatus],
   ];
 
   return `<!doctype html>
@@ -275,9 +289,9 @@ ${brandColorStyle(data.branding)}
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.irnNumber)}</dd>
-        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>REV</dt><dd>Rev ${escapeHtml(data.revision ?? "0")}</dd>
         <dt>ISSUE DATE</dt><dd>${escapeHtml(data.releaseDate)}</dd>
-        <dt>STATUS</dt><dd>${data.voidedAt ? "VOID" : "RELEASED"}</dd>
+        <dt>STATUS</dt><dd>${escapeHtml(releaseStatus)}</dd>
       </dl>
     </div>
   </div>
@@ -292,8 +306,8 @@ ${brandColorStyle(data.branding)}
   }
 
   <div class="release-banner">
-    <strong>${data.voidedAt ? "HOLD RELEASE VOIDED" : "HOLD RELEASED"} — ${escapeHtml(resultLabel)}</strong>
-    <span>This certificate confirms the activity below has been inspected, passed, and its hold released for the next stage of work.</span>
+    <strong>${releaseTitle} — ${escapeHtml(resultLabel)}</strong>
+    <span>${escapeHtml(releaseText)}</span>
   </div>
 
   ${renderFieldValueTable("Activity & inspection", activityRows)}
@@ -303,7 +317,8 @@ ${brandColorStyle(data.branding)}
   <div class="section approvals">
     <h2>Approvals</h2>
     <div class="signoff-grid">
-      ${renderApprovalCard("JAGS INSPECTOR", "JAGS Assurance", data.inspectorName, null, data.inspectionDate)}
+      ${renderApprovalCard("JAGS INSPECTOR", "JAGS Assurance", data.inspectorName, data.inspectorSignatureDataUri ?? null, data.inspectorSignedAt ? data.inspectorSignedAt.slice(0, 10) : data.inspectionDate)}
+      ${data.witnessName || data.witnessSignatureDataUri ? renderApprovalCard("WITNESS", null, data.witnessName ?? null, data.witnessSignatureDataUri ?? null, data.inspectorSignedAt ? data.inspectorSignedAt.slice(0, 10) : null) : ""}
       ${(data.approvals ?? []).map((a) => renderApprovalCard(a.label, a.organisation, a.signerName, a.signatureDataUri, a.date)).join("")}
     </div>
     <p class="released-by">Released by: <strong>${cell(data.issuedByName)}</strong> on ${cell(data.releaseDate)}</p>

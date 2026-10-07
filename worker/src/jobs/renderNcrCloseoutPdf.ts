@@ -4,7 +4,8 @@ import { buildNcrCloseoutPdfHtml, type NcrCloseoutPdfData, type NcrCloseoutSever
 import type { RenderNcrCloseoutCertificatePayload } from "./types";
 import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertNcrCloseoutFileable } from "./vaultAutoFile";
+import { PermanentJobError } from "./jobAbort";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -54,8 +55,9 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     throw new Error(`NCR ${payload.ncr_id} not found: ${ncrError?.message ?? "no row"}`);
   }
 
-  if (ncr.status !== "closed" || !ncr.root_cause || !ncr.corrective_action || !ncr.verification_notes || !ncr.closed_at) {
-    throw new Error(`NCR ${ncr.id} is not closed with complete close-out fields — refusing to render a close-out certificate.`);
+  assertNcrCloseoutFileable(ncr);
+  if (!ncr.closed_at) {
+    throw new PermanentJobError(`NCR ${ncr.id} has no closed_at — refusing to render a close-out certificate.`);
   }
 
   const [{ data: closer }, { data: responsibleParty }, { data: project }] = await Promise.all([
@@ -113,6 +115,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
 
   const projectName = project ? `${project.project_number} · ${project.name}` : "";
 
+  const closeoutRevision = await resolveNextRevision(supabase, ncr.project_id, "certificates", `${ncr.ncr_number}-closeout`);
   const templateData: NcrCloseoutPdfData = {
     ncrNumber: ncr.ncr_number,
     severity: ncr.severity,
@@ -131,6 +134,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     raisedAt: ncr.created_at,
     evidenceSummary,
     generatedAt: new Date(),
+    revision: closeoutRevision,
     approvals,
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
@@ -162,26 +166,19 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     await page.close();
   }
 
-  const storagePath = `ncr-closeouts/${ncr.id}/${ncr.ncr_number}-closeout.pdf`;
+  const storagePath = buildGeneratedPath(`ncr-closeouts/${ncr.id}`, `${ncr.ncr_number}-closeout`, closeoutRevision);
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 
   await autoFileVaultDocument(supabase, {
     projectId: ncr.project_id,
     folderKey: "certificates",
     title: `NCR ${ncr.ncr_number} — Close-out certificate`,
     documentReference: `${ncr.ncr_number}-closeout`,
-    revision: "0",
+    revision: closeoutRevision,
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
-    autoRevision: true,
   });
 
   return { resultStoragePath: storagePath };

@@ -1,4 +1,4 @@
-import { fileOrgPackInProjectVaults } from "./vaultAutoFile";
+import { fileOrgPackInProjectVaults, uploadGeneratedFile } from "./vaultAutoFile";
 import { getSharedBrowser } from "../browserPool";
 import { supabase } from "../supabase";
 import {
@@ -220,13 +220,7 @@ export async function renderPortfolioSummaryPdf(
   // is is_jags_staff()-gated instead of has_org_access()-scoped.
   const pdfPath = `portfolio-summary/${payload.requested_by}/${Date.now()}/report-pack.pdf`;
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(pdfPath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload portfolio summary PDF: ${uploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, pdfPath, pdfBuffer);
 
   await fileOrgPackInProjectVaults(supabase, {
     projectIds: projectIds,

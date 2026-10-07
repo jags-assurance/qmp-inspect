@@ -44,7 +44,7 @@ export interface InspectionReportData {
   recordNumber: string;
   /** Attempt count for this activity (0-indexed) — drives the Document Control "REV" cell, same
    *  idea as the ITP PDF's own `itps.revision`, scoped to re-inspections of this one activity. */
-  revision: number;
+  revision: number | string;
   activity: string;
   projectName: string;
   /** Best-effort, only used for the client logo's alt text when branding shows one. */

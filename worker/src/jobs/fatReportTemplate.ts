@@ -33,7 +33,14 @@ export interface FatReportSignature {
 
 export interface FatReportData {
   /** Organisation brand colours (co-branded / white-label only) — see orgBranding.ts. */
-  branding?: { brandPrimaryColor?: string | null; brandAccentColor?: string | null };
+  branding?: {
+    engagementMode?: "jags_led" | "co_branded" | "white_label";
+    logoUrl?: string | null;
+    brandPrimaryColor?: string | null;
+    brandAccentColor?: string | null;
+  };
+  /** Vault revision this render will be filed as, so the printed REV matches the vault. */
+  revision?: string | null;
   assignmentNumber: string;
   assignmentType: string;
   equipmentDescription: string;
@@ -73,6 +80,17 @@ const ASSIGNMENT_TYPE_LABEL: Record<string, string> = {
   specific_test: "Specific Test",
   pre_shipment: "Pre-Shipment Inspection",
 };
+
+const FAT_JAGS_BRAND_BLOCK = `<div class="brand-mark">JA</div>
+      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>`;
+
+function renderFatBrandBlock(data: FatReportData): string {
+  const mode = data.branding?.engagementMode ?? "jags_led";
+  const logoUrl = data.branding?.logoUrl ?? null;
+  if (!logoUrl || mode === "jags_led") return FAT_JAGS_BRAND_BLOCK;
+  const img = `<img class="org-logo${mode === "co_branded" ? " org-logo-co-branded" : ""}" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(data.organizationName || "Client")} logo" />`;
+  return mode === "white_label" ? img : `${FAT_JAGS_BRAND_BLOCK}${img}`;
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -237,6 +255,8 @@ export function buildFatReportHtml(data: FatReportData): string {
        same reliable box model every other section on this page already uses. */
     padding: 10px 16px; margin-bottom: 10px;
   }
+  .org-logo { max-height: 34px; max-width: 160px; object-fit: contain; }
+  .org-logo-co-branded { padding-left: 10px; border-left: 1px solid rgba(255, 255, 255, 0.3); }
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand-mark {
     width: 30px; height: 30px; border-radius: 50%; background: var(--gold); color: var(--burgundy);
@@ -315,15 +335,12 @@ export function buildFatReportHtml(data: FatReportData): string {
 ${brandColorStyle(data.branding)}
   ${data.status === "completed" ? "" : `<div class="watermark">${data.status === "draft" ? "DRAFT" : "NOT CLEARED"}</div>`}
   <div class="letterhead">
-    <div class="brand">
-      <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
-    </div>
+    <div class="brand">${renderFatBrandBlock(data)}</div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>
       <dl class="doc-control-body">
         <dt>DOC NO.</dt><dd>${escapeHtml(data.assignmentNumber)}</dd>
-        <dt>REV</dt><dd>Rev 0</dd>
+        <dt>REV</dt><dd>Rev ${escapeHtml(data.revision ?? "0")}</dd>
         <dt>ISSUE DATE</dt><dd>${escapeHtml(data.assignmentDate ?? data.generatedAt.toISOString().slice(0, 10))}</dd>
         <dt>STATUS</dt><dd>${data.status === "completed" ? "COMPLETED" : data.status === "draft" ? "DRAFT" : "NOT CLEARED"}</dd>
       </dl>

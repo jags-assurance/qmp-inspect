@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 
 /**
  * R76: "the originator (typically the subcontractor/contractor) raises the inspection request" —
@@ -73,17 +74,28 @@ export async function canExecuteItpItem(
 
   const { data: stakeholderParties } = await supabase
     .from("activity_party_intervention")
-    .select("project_parties(user_id, party_type, is_active)")
+    .select("project_parties(id, user_id, party_type, is_active)")
     .eq("itp_item_id", itpItemId)
-    .returns<{ project_parties: { user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
+    .returns<{ project_parties: { id: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
 
   const projectId = await findProjectIdForItpItem(supabase, itpItemId);
   const executingPartyTypes = projectId ? await getExecutingPartyTypes(supabase, projectId) : new Set<string>();
 
-  return (stakeholderParties ?? []).some(
-    (row) =>
-      row.project_parties?.user_id === session.userId &&
-      row.project_parties.is_active &&
-      executingPartyTypes.has(row.project_parties.party_type)
+  const eligible = (stakeholderParties ?? []).filter(
+    (row) => row.project_parties?.is_active && executingPartyTypes.has(row.project_parties.party_type)
   );
+  if (eligible.some((row) => row.project_parties?.user_id === session.userId)) return true;
+
+  // Team members of an eligible party (project_party_members) act for that party too - the same
+  // people the IRN/hold notifications go to.
+  const partyIds = eligible.map((row) => row.project_parties!.id);
+  if (partyIds.length === 0) return false;
+  const { data: membership } = await supabase
+    .from(PROJECT_PARTY_MEMBERS_TABLE)
+    .select("id")
+    .in("project_party_id", partyIds)
+    .eq("user_id", session.userId)
+    .limit(1)
+    .returns<{ id: string }[]>();
+  return (membership ?? []).length > 0;
 }

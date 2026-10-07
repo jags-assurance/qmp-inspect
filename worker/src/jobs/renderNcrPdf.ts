@@ -4,7 +4,7 @@ import { buildNcrPdfHtml, type NcrPdfData, type NcrPdfSeverity, type NcrPdfStatu
 import type { RenderNcrPdfPayload } from "./types";
 import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument } from "./vaultAutoFile";
+import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath } from "./vaultAutoFile";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -140,15 +140,9 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     await page.close();
   }
 
-  const storagePath = `ncrs/${ncr.id}/${ncr.ncr_number}.pdf`;
+  const storagePath = buildGeneratedPath(`ncrs/${ncr.id}`, ncr.ncr_number, null);
 
-  const { error: uploadError } = await supabase.storage
-    .from(GENERATED_DOCUMENTS_BUCKET)
-    .upload(storagePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Failed to upload rendered PDF: ${uploadError.message}`);
-  }
+  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 
   // "approvals_correspondence" — no dedicated NCR category exists in the fixed vault taxonomy
   // (lib/vault/types.ts's VAULT_FOLDER_KEYS), and "certificates" is reserved for
