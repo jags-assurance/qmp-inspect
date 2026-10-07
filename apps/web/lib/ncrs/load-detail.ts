@@ -137,6 +137,8 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
     ({ data: ncr, error: ncrError } = await supabase.from(NCRS_TABLE).select(baseCols).eq("id", id).maybeSingle<NcrWithOrg>());
   }
 
+  // A failed query (timeout, transient database error) must not look like a missing NCR.
+  if (ncrError) throw new Error(`Could not load this NCR: ${ncrError.message}`);
   if (!ncr) return null;
 
   const latestNcrPdf = await getLatestNcrPdf(id);

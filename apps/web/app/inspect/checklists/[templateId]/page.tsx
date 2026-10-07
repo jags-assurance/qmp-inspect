@@ -70,7 +70,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: template } = await supabase
+  const { data: template, error: templateError } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
     .select(
       "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start, organizations(name)))))"
@@ -103,6 +103,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       } | null;
     }>();
 
+  // A failed query (timeout, transient database error) must not look like a missing page.
+  if (templateError) throw new Error(`Could not load this checklist: ${templateError.message}`);
   if (!template) notFound();
 
   const itpItem = template.itp_items;
