@@ -41,6 +41,10 @@ interface HandoverRow {
   // Columns added by 20261108000102 (absent until applied).
   rejected_at?: string | null;
   rejection_reason?: string | null;
+  // Columns added by 20261112000101 (absent until applied).
+  ack_has_signature?: boolean | null;
+  ack_evidence_path?: string | null;
+  ack_evidence_name?: string | null;
   data_books: {
     project_id: string;
     book_number: string;
@@ -58,6 +62,7 @@ const BASE_COLUMNS =
   "id, data_book_id, certificate_number, issued_date, received_by_name, received_by_company, acknowledged_at, acknowledged_by, acknowledged_by_role, acknowledged_on_behalf, package_storage_path, package_sha256, is_conditional, conditional_reason, conditional_open_items, data_books(project_id, book_number, title, projects(name, project_number, organization_id, organizations(name)))";
 const EXTRA_COLUMNS = "notes, superseded_at, rendered_book_sha256, verification_token, ack_comment";
 const REJECT_COLUMNS = "rejected_at, rejection_reason";
+const SIGNATURE_COLUMNS = "ack_has_signature, ack_evidence_path, ack_evidence_name";
 
 // Handover Portal (Part C): softer, still-branded client-facing view of every handover certificate
 // the signed-in user's access reaches. handover_certificates_select now limits reads to JAGS staff
@@ -93,7 +98,12 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
     return query.returns<HandoverRow[]>();
   }
   // Newest schema first, then progressively older ones, so a pending migration never blanks the page.
-  let { data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}, ${REJECT_COLUMNS}`);
+  let { data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}, ${REJECT_COLUMNS}, ${SIGNATURE_COLUMNS}`);
+  // The signature pad and evidence upload only appear once the signature columns exist (migration 20261112000101).
+  let signatureEnabled = !loadError;
+  if (loadError && isMissingDbObject(loadError)) {
+    ({ data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}, ${REJECT_COLUMNS}`));
+  }
   if (loadError && isMissingDbObject(loadError)) {
     ({ data: certificates, count, error: loadError } = await load(`${BASE_COLUMNS}, ${EXTRA_COLUMNS}`));
   }
@@ -127,7 +137,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
   const pathToUrl = await getSignedPhotoUrls(
     supabase,
     GENERATED_DOCUMENTS_BUCKET,
-    certificatesShown.map((c) => c.package_storage_path).filter((p): p is string => Boolean(p)),
+    certificatesShown.flatMap((c) => [c.package_storage_path, c.ack_evidence_path]).filter((p): p is string => Boolean(p)),
     LINK_TTL_SECONDS
   );
   const certPdfInfo = await getHandoverCertificatePdfInfo(supabase, certificatesShown.map((c) => c.data_book_id));
@@ -155,7 +165,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
           title="Handover Portal — how this works"
           points={[
             "Each card is a certificate for a compiled Data Book that's been issued to your organisation — you only ever see certificates for your own org's projects.",
-            "Acknowledging receipt is a client-side action: enter your name (and optionally company), add any comments, and confirm — that timestamp becomes the formal record that you received the package.",
+            "Acknowledging receipt is a client-side action: enter your name (and optionally company), sign in the signature box, optionally attach a supporting file (for example a signed acceptance letter), add any comments, and confirm — that timestamp becomes the formal record that you received the package.",
             "A \"Conditional\" badge means the handover was issued with open items still outstanding — they're listed on the card along with who owns each one and its agreed due date.",
             "The SHA-256 fingerprint next to the download link lets you verify any copy of the package you receive elsewhere is byte-for-byte the certified file.",
             "A red warning banner instead of a download link means no package file is attached to that certificate (a pre-fix legacy record) — contact JAGS Assurance rather than treat it as complete.",
@@ -320,6 +330,23 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                           : ""}
                     </p>
                     {cert.ack_comment && <p className="mt-1 text-xs text-ink">Comment: {cert.ack_comment}</p>}
+                    {(cert.ack_has_signature || cert.ack_evidence_path) && (
+                      <p className="mt-1 text-xs text-ink">
+                        {cert.ack_has_signature ? "Signed on the signature pad (shown on the certificate PDF)." : ""}
+                        {cert.ack_has_signature && cert.ack_evidence_path ? " " : ""}
+                        {cert.ack_evidence_path &&
+                          (pathToUrl.get(cert.ack_evidence_path) ? (
+                            <>
+                              Supporting file:{" "}
+                              <a href={pathToUrl.get(cert.ack_evidence_path)} className="text-burgundy hover:underline" target="_blank" rel="noopener noreferrer">
+                                {cert.ack_evidence_name ?? "download"}
+                              </a>
+                            </>
+                          ) : (
+                            <>Supporting file attached{cert.ack_evidence_name ? `: ${cert.ack_evidence_name}` : ""}.</>
+                          ))}
+                      </p>
+                    )}
                   </div>
                 ) : cert.rejected_at ? (
                   <div className="w-full text-sm">
@@ -338,7 +365,14 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                   <p className="text-sm text-muted">This certificate was superseded by a later revision.</p>
                 ) : isClient || onBehalfAllowed ? (
                   <div className="flex w-full flex-wrap items-start gap-2">
-                    <AcknowledgeForm certificateId={cert.id} certificateNumber={cert.certificate_number} onBehalf={!isClient && onBehalfAllowed} userName={session.fullName} />
+                    <AcknowledgeForm
+                      certificateId={cert.id}
+                      dataBookId={cert.data_book_id}
+                      certificateNumber={cert.certificate_number}
+                      onBehalf={!isClient && onBehalfAllowed}
+                      userName={session.fullName}
+                      signatureEnabled={signatureEnabled}
+                    />
                     {isClient && <RejectForm certificateId={cert.id} certificateNumber={cert.certificate_number} />}
                   </div>
                 ) : (
