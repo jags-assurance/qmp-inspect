@@ -54,7 +54,7 @@ export function DataTable<T>({
   emptyContent,
   sort,
   caption,
-  mobileCards = false,
+  mobileCards = true,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -71,7 +71,8 @@ export function DataTable<T>({
   sort?: DataTableSort;
   /** Visually hidden caption / region label for screen readers. */
   caption?: string;
-  /** Below the sm breakpoint show each row as a stacked label/value card instead of the table. */
+  /** Below the sm breakpoint show each row as a stacked label/value card instead of the table
+   *  (default on; pass false for a table that must stay a scrolling grid on phones). */
   mobileCards?: boolean;
 }) {
   const [localQuery, setLocalQuery] = useState("");
@@ -95,7 +96,7 @@ export function DataTable<T>({
           onChange={(e) => (isServerDriven ? serverSearch.onChange(e.target.value) : setLocalQuery(e.target.value))}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
-          className="min-h-10 w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-sm focus:border-burgundy"
+          className="min-h-10 w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-base focus:border-burgundy sm:text-sm"
         />
       </div>
       <div className={mobileCards ? "table-scroll hidden sm:block" : "table-scroll"} tabIndex={0} role="region" aria-label={caption ?? "Data table"}>

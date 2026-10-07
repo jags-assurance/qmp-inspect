@@ -1,5 +1,6 @@
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
   type ActivitySignoffProgressRow,
@@ -120,19 +121,29 @@ export default async function InspectDashboardPage() {
         .order("created_at")
         .limit(5)
         .returns<PendingProposalRow[]>(),
-      supabase
-        .from("projects")
-        .select("id, project_number, name, organization_id")
-        .eq("status", "active")
-        .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>(),
+      // Paged (PostgREST caps a plain select at 1000 rows) and strict: a failed page throws instead of
+      // reading as "no projects".
+      fetchAll<{ id: string; project_number: string; name: string; organization_id: string }>((from, to) =>
+        supabase
+          .from("projects")
+          .select("id, project_number, name, organization_id")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to)
+          .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>()
+      ).then((data) => ({ data })),
       // All open minor/major NCRs, but ONLY the two ids the per-organisation / per-project counts
       // need — the full rows for the visible list come from the capped query right after.
-      supabase
-        .from("ncrs")
-        .select("id, project_id, projects(organization_id)")
-        .neq("status", "closed")
-        .neq("severity", "observation")
-        .returns<{ id: string; project_id: string; projects: { organization_id: string } | null }[]>(),
+      fetchAll<{ id: string; project_id: string; projects: { organization_id: string } | null }>((from, to) =>
+        supabase
+          .from("ncrs")
+          .select("id, project_id, projects(organization_id)")
+          .neq("status", "closed")
+          .neq("severity", "observation")
+          .order("id")
+          .range(from, to)
+          .returns<{ id: string; project_id: string; projects: { organization_id: string } | null }[]>()
+      ).then((data) => ({ data })),
       // The 8 most recent, with everything the list and its side panel show.
       supabase
         .from("ncrs")
