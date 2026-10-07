@@ -10,7 +10,8 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { checklistReviewError } from "@/lib/itps/checklist-review";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
-import { bumpRevisionIfIssued, snapshotInitialIssue } from "@/lib/itps/revisions";
+import { bumpRevisionIfIssued, snapshotInitialIssue, snapshotApprovedRevision, type BumpResult } from "@/lib/itps/revisions";
+import { itemDeleteBlocker } from "@/lib/itps/guards";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
 import { startReviewChainForItp, getItpReviewProgress, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
@@ -202,32 +203,6 @@ async function resolveItemItp(supabase: Awaited<ReturnType<typeof createSupabase
   };
 }
 
-/** Why an activity can't be deleted (it has real execution history), or null if it can. */
-async function itemDeleteBlocker(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itemId: string): Promise<string | null> {
-  const count = async (table: string, build: (q: any) => any) => {
-    const { count: c } = await build(supabase.from(table as never).select("id", { count: "exact", head: true }));
-    return c ?? 0;
-  };
-  if (await count("inspection_records", (q) => q.eq("itp_item_id", itemId))) {
-    return "This activity has inspection records, so it can't be deleted. Its history must be kept.";
-  }
-  if (await count("activity_signoff_progress", (q) => q.eq("itp_item_id", itemId).in("status", ["signed_off", "proceeded_no_response"]))) {
-    return "This activity has signed-off Hold/Witness/Review points, so it can't be deleted. Its history must be kept.";
-  }
-  if (await count("ncrs", (q) => q.eq("itp_item_id", itemId))) {
-    return "An NCR refers to this activity, so it can't be deleted.";
-  }
-  if (await count("punch_list_items", (q) => q.eq("source_itp_item_id", itemId))) {
-    return "A punch-list item refers to this activity, so it can't be deleted.";
-  }
-  if (await count("itp_item_evidence_documents", (q) => q.eq("itp_item_id", itemId))) {
-    return "Evidence documents are linked to this activity — unlink them first.";
-  }
-  if (await count("itp_item_measurements", (q) => q.eq("itp_item_id", itemId).not("actual_value", "is", null))) {
-    return "Measurements have been recorded for this activity, so it can't be deleted.";
-  }
-  return null;
-}
 
 export interface AddItemState {
   error: string | null;
@@ -799,14 +774,45 @@ export async function moveItemDownAction(formData: FormData) {
   await moveItpItem(formData, "down");
 }
 
-export async function setInterventionAction(formData: FormData) {
-  const itpId = String(formData.get("itp_id") ?? "").trim();
+export interface SetInterventionState {
+  error: string | null;
+}
+
+export async function setInterventionAction(formData: FormData): Promise<SetInterventionState> {
   const itpItemId = String(formData.get("itp_item_id") ?? "").trim();
   const projectPartyId = String(formData.get("project_party_id") ?? "").trim();
   const intervention = String(formData.get("intervention") ?? "").trim();
   const revisionReason = String(formData.get("revision_reason") ?? "").trim();
+  if (!itpItemId || !projectPartyId) return { error: "Missing activity or party." };
 
   const supabase = await createSupabaseServerClient();
+
+  // The ITP is resolved from the ACTIVITY (never the posted itp_id, which used to decide whether a
+  // revision was needed while the write targeted the item), and the party must belong to the same project.
+  const resolvedItem = await resolveItemItp(supabase, itpItemId);
+  if (!resolvedItem) return { error: "Activity not found." };
+  const itpId = resolvedItem.itpId;
+  if (resolvedItem.status === "superseded" || resolvedItem.status === "withdrawn") {
+    return { error: `This ITP is ${resolvedItem.status} and can no longer be edited.` };
+  }
+  const { data: partyRow } = await supabase
+    .from("project_parties")
+    .select("id")
+    .eq("id", projectPartyId)
+    .eq("project_id", resolvedItem.projectId)
+    .maybeSingle<{ id: string }>();
+  if (!partyRow) return { error: "That party isn't on this project." };
+
+  // A signed-off point keeps its level (the database refuses the change too).
+  const { data: signedRow } = await supabase
+    .from("activity_signoff_progress")
+    .select("status")
+    .eq("itp_item_id", itpItemId)
+    .eq("project_party_id", projectPartyId)
+    .maybeSingle<{ status: string }>();
+  if (signedRow && (signedRow.status === "signed_off" || signedRow.status === "proceeded_no_response")) {
+    return { error: "This point has already been signed off, so its level can't be changed. Raise a new activity or a revision instead." };
+  }
 
   // Changing a sign-off level on an issued ITP is an edit-after-issue like adding/editing an
   // activity: freeze the pre-change content and bump the revision (with the reason) BEFORE applying
@@ -819,27 +825,23 @@ export async function setInterventionAction(formData: FormData) {
     .maybeSingle<{ intervention: string }>();
   if ((currentLevel?.intervention ?? "") === intervention) {
     revalidatePath(`/inspect/itps/${itpId}`);
-    return;
+    return { error: null };
   }
-  const { data: itpForRevisionCheck } = await supabase.from("itps").select("status").eq("id", itpId).maybeSingle<{ status: string }>();
-  if (itpForRevisionCheck?.status === "approved" || itpForRevisionCheck?.status === "client_accepted") {
+  let revisionBump: BumpResult | null = null;
+  if (resolvedItem.status === "approved" || resolvedItem.status === "client_accepted") {
     if (!revisionReason) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
+      return { error: "This ITP has already been issued — a reason is required to change a sign-off level." };
     }
     const {
       data: { user: revisionUser },
     } = await supabase.auth.getUser();
-    const { error: revisionError } = await bumpRevisionIfIssued(
+    revisionBump = await bumpRevisionIfIssued(
       supabase,
       itpId,
       `Sign-off level ${intervention || "cleared"} (was ${currentLevel?.intervention ?? "none"}) — ${revisionReason}`,
       revisionUser?.id ?? null
     );
-    if (revisionError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
-    }
+    if (revisionBump.error) return { error: revisionBump.error };
   }
 
   if (!intervention) {
@@ -849,8 +851,8 @@ export async function setInterventionAction(formData: FormData) {
       .eq("itp_item_id", itpItemId)
       .eq("project_party_id", projectPartyId);
     if (clearError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
+      await revisionBump?.undo?.();
+      return { error: "Could not clear the sign-off level. It may already be signed off, or you may not have permission." };
     }
 
     try {
@@ -923,8 +925,8 @@ export async function setInterventionAction(formData: FormData) {
     );
 
     if (upsertError) {
-      revalidatePath(`/inspect/itps/${itpId}`);
-      return;
+      await revisionBump?.undo?.();
+      return { error: "Could not set the sign-off level. The point may already be signed off, or you may not have permission." };
     }
 
     if (organizationId) {
@@ -976,6 +978,7 @@ export async function setInterventionAction(formData: FormData) {
 
   await resetReviewIfUnderReview(supabase, itpId, "sign-off level changed", null);
   revalidatePath(`/inspect/itps/${itpId}`);
+  return { error: null };
 }
 
 const NEXT_STATUS = {

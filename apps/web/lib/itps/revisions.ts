@@ -1,5 +1,6 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_REVISIONS_TABLE, type ItpRevisionSnapshotSection } from "./revision-types";
+import { createNotification } from "@/lib/notifications/helpers";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -100,10 +101,10 @@ export async function bumpRevisionIfIssued(
   itpId: string,
   reason: string,
   userId: string | null
-): Promise<{ bumped: boolean; error: string | null }> {
+): Promise<BumpResult> {
   const { data: itp } = await supabase
     .from("itps")
-    .select("id, status, revision, title, scope, applicable_standard")
+    .select("id, status, revision, title, scope, applicable_standard, revision_needs_approval, itp_number, project_id")
     .eq("id", itpId)
     .maybeSingle<{
       id: string;
@@ -112,9 +113,15 @@ export async function bumpRevisionIfIssued(
       title: string;
       scope: string | null;
       applicable_standard: string | null;
+      revision_needs_approval: boolean | null;
+      itp_number: string;
+      project_id: string;
     }>();
   if (!itp) return { bumped: false, error: null };
   if (itp.status !== "approved" && itp.status !== "client_accepted") return { bumped: false, error: null };
+  // A revision that is already open for approval absorbs further edits: one revision per approval
+  // cycle, not one per click. (The content of the open revision is snapshotted when it is approved.)
+  if (itp.revision_needs_approval) return { bumped: false, error: null };
 
   // itp_revisions is UNIQUE (itp_id, revision), and revision 0's baseline row is already written at
   // initial approval (snapshotInitialIssue). Inserting "the current revision" again on the first
@@ -152,13 +159,91 @@ export async function bumpRevisionIfIssued(
     return { bumped: false, error: "Could not record revision history. The edit was not applied — try again." };
   }
 
-  const { error: bumpError } = await supabase
+  // Conditional on the revision still being the one we read and not yet pending, so two concurrent edits
+  // can't both bump: the loser sees zero rows updated and simply joins the revision the winner opened.
+  const { data: bumpedRows, error: bumpError } = await supabase
     .from("itps")
     .update({ revision: itp.revision + 1, revision_needs_approval: true, revision_changed_by: userId } as never)
-    .eq("id", itpId);
+    .eq("id", itpId)
+    .eq("revision", itp.revision)
+    .eq("revision_needs_approval" as never, false as never)
+    .select("id");
   if (bumpError) {
     return { bumped: false, error: "Could not increment the ITP revision. The edit was not applied — try again." };
   }
+  if (!bumpedRows?.length) return { bumped: false, error: null };
 
-  return { bumped: true, error: null };
+  await notifyRevisionPending(supabase, itp, userId, reason);
+
+  return {
+    bumped: true,
+    error: null,
+    // The caller's edit failed after the bump: put the revision back so no phantom revision is left behind.
+    undo: async () => {
+      await supabase
+        .from("itps")
+        .update({ revision: itp.revision, revision_needs_approval: false, revision_changed_by: null } as never)
+        .eq("id", itpId)
+        .eq("revision", itp.revision + 1);
+    },
+  };
+}
+
+export interface BumpResult {
+  bumped: boolean;
+  error: string | null;
+  undo?: () => Promise<void>;
+}
+
+/** Tells the project's responsible person (unless they made the change) that a revision now needs approval. Best-effort. */
+async function notifyRevisionPending(
+  supabase: SupabaseServerClient,
+  itp: { id: string; itp_number: string; project_id: string; revision: number },
+  changedBy: string | null,
+  reason: string
+): Promise<void> {
+  try {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("organization_id, responsible_person_id")
+      .eq("id", itp.project_id)
+      .maybeSingle<{ organization_id: string; responsible_person_id: string | null }>();
+    if (!project?.responsible_person_id || project.responsible_person_id === changedBy) return;
+    await createNotification(supabase, {
+      organizationId: project.organization_id,
+      projectId: itp.project_id,
+      recipientUserId: project.responsible_person_id,
+      title: `ITP ${itp.itp_number} revision ${itp.revision + 1} needs approval`,
+      body: reason.slice(0, 200),
+      link: `/inspect/itps/${itp.id}`,
+    });
+  } catch {
+    // Best-effort — never blocks the edit.
+  }
+}
+
+/**
+ * Freezes the content of revision `revision` at the moment it is approved (the controlled copy), unless a
+ * history row for that revision already exists. Called by approveItpRevisionAction.
+ */
+export async function snapshotApprovedRevision(supabase: SupabaseServerClient, itpId: string, userId: string | null): Promise<void> {
+  const { data: itp } = await supabase
+    .from("itps")
+    .select("id, revision, title, scope, applicable_standard")
+    .eq("id", itpId)
+    .maybeSingle<{ id: string; revision: number; title: string; scope: string | null; applicable_standard: string | null }>();
+  if (!itp) return;
+  const { data: existing } = await supabase.from(ITP_REVISIONS_TABLE).select("id").eq("itp_id", itpId).eq("revision", itp.revision).maybeSingle<{ id: string }>();
+  if (existing) return;
+  const sections = await buildSectionsSnapshot(supabase, itpId);
+  await supabase.from(ITP_REVISIONS_TABLE).insert({
+    itp_id: itpId,
+    revision: itp.revision,
+    title: itp.title,
+    scope: itp.scope,
+    applicable_standard: itp.applicable_standard,
+    sections_snapshot: sections,
+    reason: "Approved revision",
+    created_by: userId,
+  });
 }

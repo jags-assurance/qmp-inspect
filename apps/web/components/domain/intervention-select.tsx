@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { setInterventionAction } from "@/lib/itps/actions";
 import type { InterventionLevel } from "@jags/shared-types";
 import { toneClassForLevelIndex } from "@/lib/intervention-levels/types";
@@ -44,6 +44,8 @@ export function InterventionSelect({
   const formRef = useRef<HTMLFormElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const reasonRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   function handleChange() {
     if (isIssued) {
@@ -76,8 +78,21 @@ export function InterventionSelect({
     );
   }
 
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      const result = await setInterventionAction(formData);
+      if (result.error) {
+        setError(result.error);
+        if (selectRef.current) selectRef.current.value = value ?? "";
+      }
+    });
+  }
+
   return (
-    <form ref={formRef} action={setInterventionAction} className="inline-flex items-center gap-1.5">
+    <form ref={formRef} onSubmit={submit} className="inline-flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="project_party_id" value={projectPartyId} />
@@ -106,6 +121,11 @@ export function InterventionSelect({
           </option>
         ))}
       </select>
+      {error && (
+        <span role="alert" className="basis-full text-xs text-danger">
+          {error}
+        </span>
+      )}
     </form>
   );
 }
