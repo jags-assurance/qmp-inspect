@@ -140,10 +140,10 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
       <button
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
-        className="relative hidden min-h-11 w-full max-w-xs items-center rounded-md border border-border bg-off-white py-1.5 pl-9 pr-3 text-left text-sm text-muted hover:border-burgundy sm:flex"
+        className="relative hidden min-h-11 w-full max-w-xs items-center rounded-md border border-border bg-off-white py-1.5 ps-9 pe-3 text-start text-sm text-muted hover:border-burgundy sm:flex"
         aria-label="Search pages and records (Ctrl+K)"
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2">
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>

@@ -4,6 +4,8 @@ import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/domain/service-worker-register";
 import { RouteProgressBar } from "@/components/domain/route-progress-bar";
+import { cookies } from "next/headers";
+import { LOCALE_COOKIE, htmlAttributesFor } from "@/lib/i18n/direction";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,9 +35,12 @@ export const viewport: Viewport = {
   themeColor: "#6B1E2C",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // G-02: <html lang dir> follows the locale the user chose (cookie set by the account menu).
+  // English / LTR is the default and is unchanged when no choice has been made.
+  const { lang, dir } = htmlAttributesFor((await cookies()).get(LOCALE_COOKIE)?.value);
   return (
-    <html lang="en" className={`${inter.variable} ${monoUi.variable} h-full antialiased`}>
+    <html lang={lang} dir={dir} className={`${inter.variable} ${monoUi.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <RouteProgressBar />
         {children}

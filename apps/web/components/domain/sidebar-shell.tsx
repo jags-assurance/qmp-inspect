@@ -143,8 +143,8 @@ export function SidebarShell({
           // Mobile (<=900px): fixed off-canvas drawer, closed by default, full nav width regardless
           // of the desktop collapse preference (a collapsed icon-only rail defeats the point of a
           // drawer meant to be opened deliberately).
-          " fixed inset-y-0 left-0 z-30 w-64 max-[900px]:shadow-xl " +
-          (mobileOpen ? "translate-x-0" : "-translate-x-full min-[901px]:translate-x-0") +
+          " fixed inset-y-0 start-0 z-30 w-64 max-[900px]:shadow-xl " +
+          (mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full min-[901px]:translate-x-0 min-[901px]:rtl:translate-x-0") +
           // Avoids a flash of the wrong width on first paint while the effect above hasn't run yet.
           (mounted ? "" : " duration-0")
         }
@@ -175,7 +175,7 @@ export function SidebarShell({
         )}
         {isCoBranded && !effectiveCollapsed && (
           // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
-          <img src={logoUrl!} alt="Organisation logo" className="ml-2 h-8 max-w-[6.5rem] border-l border-white/25 pl-2 object-contain" />
+          <img src={logoUrl!} alt="Organisation logo" className="ms-2 h-8 max-w-[6.5rem] border-s border-white/25 ps-2 object-contain" />
         )}
       </div>
 
@@ -200,7 +200,7 @@ export function SidebarShell({
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={"h-4 w-4 shrink-0 transition-transform " + (collapsed ? "rotate-180" : "")}
+            className={"h-4 w-4 shrink-0 transition-transform rtl:-scale-x-100 " + (collapsed ? "rotate-180" : "")}
           >
             <path d="M12.5 4.5L7 10l5.5 5.5" />
           </svg>
