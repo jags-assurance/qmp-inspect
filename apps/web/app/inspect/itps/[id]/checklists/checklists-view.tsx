@@ -11,6 +11,8 @@ import { GenerateChecklistsButton } from "./generate-button";
 import { AttachLibraryTemplateForm } from "./attach-library-template-form";
 import { ITP_STATUS_LABEL } from "../../itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
+import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
+import { filterByArchive, type ArchiveFilter } from "@/lib/checklists/template-ui-logic";
 
 /**
  * Lists every checklist-type (evidence_type = 1) activity on an ITP, generates checklists for an
@@ -18,7 +20,7 @@ import { PageGuide } from "@/components/domain/page-guide";
  * own route rather than folded into the ITP detail page so that page's existing content and tests
  * don't need to change.
  */
-export async function ChecklistsView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+export async function ChecklistsView({ id, embedded = false, archiveFilter = "active" }: { id: string; embedded?: boolean; archiveFilter?: ArchiveFilter }) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -71,7 +73,12 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
     .in("itp_item_id", itemIds.length > 0 ? itemIds : ["00000000-0000-0000-0000-000000000000"])
     .returns<Pick<ChecklistTemplateRow, "id" | "itp_item_id" | "checklist_number">[]>();
 
-  const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
+  // Archived checklists are hidden (their activity row too) unless the Archived filter is on.
+  const archivedIds = await loadArchivedTemplateIds(supabase);
+  const archivedOnItp = (templates ?? []).filter((t) => archivedIds.has(t.id));
+  const shownTemplates = filterByArchive(templates ?? [], archivedIds, archiveFilter);
+  const templateByItem = new Map(shownTemplates.map((t) => [t.itp_item_id, t]));
+  const archivedItemIds = new Set(archivedOnItp.map((t) => t.itp_item_id));
 
   // Real-world gap found live: this table previously had no status column at all — the only way to
   // tell whether a checklist had been started, or completed pass/fail, was to open every single one.
@@ -207,7 +214,27 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
         </div>
       )}
 
-      <div className="mt-6 rounded-lg border border-border bg-surface">
+      {(archivedOnItp.length > 0 || archiveFilter === "archived") && (
+        <p className="mt-6 text-sm text-muted">
+          {archiveFilter === "archived" ? (
+            <>
+              Showing archived checklists only.{" "}
+              <Link href={`/inspect/itps/${itp.id}/checklists`} className="font-medium text-burgundy hover:underline">
+                Back to active checklists
+              </Link>
+            </>
+          ) : (
+            <>
+              {archivedOnItp.length} archived checklist{archivedOnItp.length === 1 ? " is" : "s are"} hidden.{" "}
+              <Link href={`/inspect/itps/${itp.id}/checklists?archived=archived`} className="font-medium text-burgundy hover:underline">
+                Show Archived
+              </Link>
+            </>
+          )}
+        </p>
+      )}
+
+      <div className="mt-3 rounded-lg border border-border bg-surface">
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted">
@@ -219,7 +246,9 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
             </tr>
           </thead>
           <tbody>
-            {(items ?? []).map((item) => {
+            {(items ?? [])
+              .filter((item) => (archiveFilter === "archived" ? templateByItem.has(item.id) : !archivedItemIds.has(item.id)))
+              .map((item) => {
               const template = templateByItem.get(item.id);
               const status = statusFor(template?.id);
               return (

@@ -29,6 +29,11 @@ import {
 } from "@/lib/registers/verify";
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
 import { AddChecklistItemForm } from "./add-checklist-item-form";
+import { TemplateItemsEditor } from "./template-items-editor";
+import { TemplateLifecycleControls } from "./template-lifecycle-controls";
+import { countTemplateRecords, countTemplateResponses } from "@/lib/checklists/template-context";
+import { loadDuplicateTargets } from "@/lib/checklists/duplicate-targets";
+import { itemEditBlockReason, templateDeleteBlockReason } from "@/lib/checklists/template-ui-logic";
 import { StartInspectionForm } from "./start-inspection-form";
 import { getNoticeCheck } from "@/lib/signoff/notice-check";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -210,6 +215,25 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   ]);
 
   const draft = draftRecords?.[0] ?? null;
+
+  // Version / archive state. Read separately from the main template query so the page still works
+  // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
+  const { data: lifecycleRow, error: lifecycleError } = await supabase
+    .from(CHECKLIST_TEMPLATES_TABLE)
+    .select("version, archived_at")
+    .eq("id", templateId)
+    .maybeSingle<{ version: number | null; archived_at: string | null }>();
+  const templateVersion = lifecycleError ? null : (lifecycleRow?.version ?? null);
+  const archived = lifecycleError ? false : !!lifecycleRow?.archived_at;
+  const showEditor = session.isJagsStaff;
+  const [responseCount, recordCount, duplicateTargets] = showEditor
+    ? await Promise.all([
+        countTemplateResponses(supabase, templateId),
+        countTemplateRecords(supabase, templateId),
+        archived ? Promise.resolve([]) : loadDuplicateTargets(supabase, project.id, itpItem.id),
+      ])
+    : [0, 0, []];
+  const editBlockReason = itemEditBlockReason({ archived, responseCount });
 
   let responseByItem = new Map<
     string,
@@ -490,6 +514,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         <h1 className="text-2xl font-semibold text-ink">
           Checklist <span className="doc-id text-lg text-muted">{template.checklist_number}</span>
         </h1>
+        {templateVersion !== null && <Badge tone="info">Version {templateVersion}</Badge>}
+        {archived && <Badge tone="warning">Archived</Badge>}
         <PageGuide
           title="Checklist — how this works"
           points={[
@@ -505,7 +531,14 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         {itpItem.item_number}. {itpItem.activity}
       </p>
 
-      {!draft && canExecute && holdOpen && (
+      {archived && (
+        <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          This checklist is archived: new inspections cannot be started from it and it is hidden from the start-work and checklist lists.
+          {session.isJagsStaff ? " Restore it under \"Edit checklist template\" to use it again." : ""}
+        </p>
+      )}
+
+      {!draft && canExecute && !archived && holdOpen && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           This activity has an open <Badge tone="danger">Hold</Badge> — held by{" "}
           {openHoldHolders.length > 0 ? (
@@ -524,14 +557,14 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
-      {!draft && canExecute && !itpApproved && (
+      {!draft && canExecute && !archived && !itpApproved && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           This ITP hasn&apos;t been approved yet, so site inspections can&apos;t start. Work opens once it is approved on the{" "}
           <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>.
         </p>
       )}
 
-      {!draft && canExecute && itpApproved && !holdOpen && (
+      {!draft && canExecute && !archived && itpApproved && !holdOpen && (
         <div className="mt-6">
           {noticeWarning && (
             <p className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
@@ -550,7 +583,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      {!draft && !canExecute && (
+      {!draft && !canExecute && !archived && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           {isSignoffOnlyParty ? (
             "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
@@ -665,26 +698,25 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         // default, so answering and editing read as two distinct modes rather than one crowded page.
         <details className="mt-8 rounded-lg border border-border bg-surface">
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-ink">
-            Edit checklist template
+            Edit checklist template{templateVersion !== null ? ` (version ${templateVersion})` : ""}
           </summary>
-          <ul className="divide-y divide-border">
-            {(items ?? []).map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 text-sm text-ink">
-                {/* Icon-only drag handle — no real drag-and-drop reordering yet. */}
-                <span aria-hidden className="select-none text-muted">⠿</span>
-                <span className="doc-id text-muted">{item.item_number}.</span>
-                <span className="flex-1">{item.description}</span>
-                <span title="Only changes the red asterisk shown to the inspector — every item, mandatory or not, must still be answered, and a &quot;No&quot; on either kind still fails the whole inspection.">
-                  <Badge tone={item.is_mandatory ? "danger" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <TemplateItemsEditor
+            templateId={template.id}
+            items={(items ?? []).map((i) => ({ id: i.id, item_number: i.item_number, description: i.description, is_mandatory: i.is_mandatory }))}
+            blockedReason={editBlockReason}
+          />
           <p className="border-t border-border px-4 py-2 text-xs text-muted">
             &quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be
             answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.
           </p>
-          <AddChecklistItemForm templateId={template.id} />
+          <AddChecklistItemForm templateId={template.id} disabledReason={editBlockReason} />
+          <TemplateLifecycleControls
+            templateId={template.id}
+            archived={archived}
+            deleteBlockedReason={templateDeleteBlockReason(recordCount)}
+            duplicateTargets={duplicateTargets}
+            backHref={`/inspect/itps/${itp.id}/checklists`}
+          />
         </details>
       )}
 

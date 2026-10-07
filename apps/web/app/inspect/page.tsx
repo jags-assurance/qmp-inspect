@@ -9,6 +9,8 @@ import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
+import { filterByArchive } from "@/lib/checklists/template-ui-logic";
 import { sortByDynamicPriority } from "@/lib/checklists/priority-routing";
 import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -649,7 +651,7 @@ export default async function InspectDashboardPage() {
       updated_at: string;
       projects: { name: string } | null;
     }
-    const [{ data: templates }, { data: standaloneAssignments }] = await Promise.all([
+    const [{ data: allTemplates }, { data: standaloneAssignments }, archivedTemplateIds] = await Promise.all([
       supabase
         .from(CHECKLIST_TEMPLATES_TABLE)
         .select(
@@ -665,7 +667,10 @@ export default async function InspectDashboardPage() {
         .order("updated_at", { ascending: false })
         .limit(8)
         .returns<StandaloneAssignmentRow[]>(),
+      loadArchivedTemplateIds(supabase),
     ]);
+    // Archived checklists are not offered for new work.
+    const templates = filterByArchive(allTemplates ?? [], archivedTemplateIds, "active");
 
     // Perf: these two chains share no data dependency (pending actions starts from `templates`, overdue
     // holds is a single database function call) — run them concurrently as two async closures

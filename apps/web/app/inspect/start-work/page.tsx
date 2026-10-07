@@ -8,6 +8,8 @@ import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { SaveOfflineButton } from "./save-offline-button";
+import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
+import { filterByArchive, parseArchiveFilter } from "@/lib/checklists/template-ui-logic";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -37,7 +39,7 @@ interface TemplateRow {
 export default async function StartWorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string; archived?: string }>;
 }) {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
@@ -47,8 +49,11 @@ export default async function StartWorkPage({
   const projectFilter = sp.project ?? "";
   const dueFilter = (["overdue", "soon", "held"] as const).find((k) => k === sp.due) ?? "";
 
+  const archiveFilter = parseArchiveFilter(sp.archived);
+
   const supabase = await createSupabaseServerClient();
-  const [{ data: templates }, { data: records }] = await Promise.all([
+  const archivedIds = await loadArchivedTemplateIds(supabase);
+  const [{ data: allTemplates }, { data: records }] = await Promise.all([
     supabase
       .from(CHECKLIST_TEMPLATES_TABLE)
       .select(
@@ -62,6 +67,9 @@ export default async function StartWorkPage({
       .limit(5000)
       .returns<{ itp_item_id: string; checklist_template_id: string; overall_result: string | null }[]>(),
   ]);
+
+  // Archived checklists are hidden from start-work unless the Archived filter is on.
+  const templates = filterByArchive(allTemplates ?? [], archivedIds, archiveFilter);
 
   const stateByTemplate = new Map<string, StatusKey>();
   for (const r of records ?? []) {
@@ -214,6 +222,10 @@ export default async function StartWorkPage({
             <option value="overdue">Overdue ({overdueCount})</option>
             <option value="soon">Due soon - 7 days ({dueSoonCount})</option>
             <option value="held">Awaiting hold release ({heldCount})</option>
+          </select>
+          <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} aria-label="Archived" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">Active checklists</option>
+            <option value="archived">Archived ({archivedIds.size})</option>
           </select>
           <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">Filter</button>
         </form>

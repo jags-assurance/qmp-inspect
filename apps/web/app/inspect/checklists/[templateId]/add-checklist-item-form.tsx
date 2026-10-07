@@ -5,16 +5,18 @@ import { addChecklistItemAction, type AddChecklistItemState } from "@/lib/checkl
 
 const initialState: AddChecklistItemState = { error: null };
 
-export function AddChecklistItemForm({ templateId }: { templateId: string }) {
+export function AddChecklistItemForm({ templateId, disabledReason }: { templateId: string; disabledReason?: string | null }) {
   const [state, formAction, pending] = useActionState(addChecklistItemAction, initialState);
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border bg-off-white px-4 py-4">
+      <fieldset disabled={!!disabledReason || pending} className="contents">
       <input type="hidden" name="template_id" value={templateId} />
 
       <div>
-        <label className="block text-xs font-medium text-muted">Item no.</label>
+        <label htmlFor="add-item-number" className="block text-xs font-medium text-muted">Item no.</label>
         <input
+          id="add-item-number"
           name="item_number"
           required
           placeholder="2"
@@ -22,8 +24,9 @@ export function AddChecklistItemForm({ templateId }: { templateId: string }) {
         />
       </div>
       <div className="min-w-64 flex-1">
-        <label className="block text-xs font-medium text-muted">Description</label>
+        <label htmlFor="add-item-description" className="block text-xs font-medium text-muted">Description</label>
         <input
+          id="add-item-description"
           name="description"
           required
           placeholder="e.g. Cable route matches latest approved drawing"
@@ -46,7 +49,9 @@ export function AddChecklistItemForm({ templateId }: { templateId: string }) {
       >
         {pending ? "Adding…" : "+ Add item"}
       </button>
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      </fieldset>
+      {disabledReason && <p className="w-full text-xs text-muted">Adding items is disabled: {disabledReason}</p>}
+      {state.error && <p className="w-full text-sm text-danger" role="alert">{state.error}</p>}
     </form>
   );
 }

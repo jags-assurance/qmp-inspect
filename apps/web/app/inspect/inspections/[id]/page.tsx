@@ -18,6 +18,10 @@ import {
 import { PhotoGallery } from "./photo-gallery";
 import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
 import { ReopenInspectionForm } from "./reopen-inspection-form";
+import { ReviewInspectionForm } from "./review-inspection-form";
+import { reviewBlocker, type ReviewStatus } from "@/lib/checklists/review-logic";
+import { parsePreviousResponses, reviewStatusLabel, staleSnapshotWarning } from "@/lib/checklists/template-ui-logic";
+import { CHECKLIST_TEMPLATES_TABLE } from "@/lib/checklists/db-types";
 import { listInspectionAmendments } from "@/lib/checklists/lifecycle-actions";
 import {
   getLatestInspectionReportPdf,
@@ -92,6 +96,47 @@ export default async function InspectionRecordPage({ params }: { params: Promise
     .select("id, ncr_number, severity, status")
     .eq("inspection_record_id", record.id)
     .returns<{ id: string; ncr_number: string; severity: string; status: string }[]>();
+
+  // Versioning + review columns come from later migrations (20261106000100/200), so they are read
+  // separately and best-effort: on a database without them everything below simply stays hidden.
+  const { data: extra, error: extraError } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("checklist_template_version, review_status, reviewed_by, reviewed_at, review_comment, signed_by_user_id")
+    .eq("id", id)
+    .maybeSingle<{
+      checklist_template_version: number | null;
+      review_status: ReviewStatus | null;
+      reviewed_by: string | null;
+      reviewed_at: string | null;
+      review_comment: string | null;
+      signed_by_user_id: string | null;
+    }>();
+  const reviewSupported = !extraError && !!extra;
+  const reviewStatus = extra?.review_status ?? null;
+  const reviewerName = extra?.reviewed_by
+    ? ((await supabase.from("users").select("full_name").eq("id", extra.reviewed_by).maybeSingle<{ full_name: string }>()).data?.full_name ?? null)
+    : null;
+  let currentTemplateVersion: number | null = null;
+  if (record.checklist_template_id && extra?.checklist_template_version != null) {
+    const { data: tpl, error: tplError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("version")
+      .eq("id", record.checklist_template_id)
+      .maybeSingle<{ version: number | null }>();
+    currentTemplateVersion = tplError ? null : (tpl?.version ?? null);
+  }
+  const staleWarning = staleSnapshotWarning(extra?.checklist_template_version, currentTemplateVersion);
+  const blocker = reviewSupported
+    ? reviewBlocker({
+        overallResult: record.overall_result,
+        reviewStatus,
+        reviewerId: session.userId,
+        inspectorId: record.inspector_id,
+        signedByUserId: extra?.signed_by_user_id ?? null,
+        reviewerIsJagsStaff: session.isJagsStaff,
+      })
+    : null;
+  const reviewBadge = reviewStatusLabel(reviewStatus);
 
   const latestReportPdf = await getLatestInspectionReportPdf(id);
 
@@ -259,6 +304,39 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           </div>
         )}
       </div>
+
+      {staleWarning && (
+        <p className="mt-6 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          <span className="font-medium">Checklist changed since this inspection started.</span> {staleWarning}
+        </p>
+      )}
+
+      {reviewSupported && record.overall_result && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-medium text-ink">Review</h2>
+            <Badge tone={reviewBadge.tone}>{reviewBadge.label}</Badge>
+          </div>
+          {reviewStatus ? (
+            <p className="mt-2 text-sm text-ink">
+              {reviewStatus === "approved" ? "Approved" : "Rejected"}
+              {reviewerName ? ` by ${reviewerName}` : ""}
+              {extra?.reviewed_at ? ` on ${new Date(extra.reviewed_at).toLocaleString()}` : ""}
+              {extra?.review_comment ? <span className="block text-muted">Comment: {extra.review_comment}</span> : null}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-muted">No review has been recorded for this inspection.</p>
+          )}
+          {session.isJagsStaff &&
+            (blocker ? (
+              <p className="mt-3 text-sm text-muted">{blocker}</p>
+            ) : (
+              <div className="mt-3 border-t border-border pt-3">
+                <ReviewInspectionForm inspectionRecordId={record.id} hasPreviousReview={reviewStatus !== null} />
+              </div>
+            ))}
+        </div>
+      )}
 
       {(record.overall_result === "fail" || record.overall_result === "partial" || (linkedNcrs ?? []).length > 0) && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
@@ -442,12 +520,40 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                   Previous result: {(a.previous_overall_result ?? "—").toUpperCase()}
                   {a.previous_signed_by_name ? ` · signed by ${a.previous_signed_by_name}` : ""}
                   {a.previous_signed_at ? ` on ${new Date(a.previous_signed_at).toLocaleString()}` : ""}
+                  {a.previous_review_status ? ` · previous review: ${a.previous_review_status}` : ""}
                 </p>
+                <PreviousAnswers amendmentId={a.id} responses={parsePreviousResponses(a.previous_responses)} />
               </li>
             ))}
           </ul>
         </div>
       )}
     </div>
+  );
+}
+
+const PREV_TONE: Record<string, "success" | "danger" | "neutral"> = { yes: "success", no: "danger", na: "neutral" };
+
+/** Collapsible snapshot of the answers that were cleared when the inspection was re-opened. */
+function PreviousAnswers({ amendmentId, responses }: { amendmentId: string; responses: ReturnType<typeof parsePreviousResponses> }) {
+  if (responses.length === 0) return null;
+  return (
+    <details className="mt-2 text-xs">
+      <summary className="cursor-pointer font-medium text-burgundy">Previous answers ({responses.length})</summary>
+      <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-off-white" aria-label={`Answers before re-open ${amendmentId}`}>
+        {responses.map((r) => (
+          <li key={r.checklist_item_id} className="px-3 py-2">
+            <p className="text-ink">
+              {r.item_number && <span className="doc-id text-muted">{r.item_number}. </span>}
+              {r.description ?? "Item"}
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-2">
+              <Badge tone={PREV_TONE[r.result] ?? "neutral"}>{r.result.toUpperCase()}</Badge>
+              {r.comment && <span className="text-muted">{r.comment}</span>}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
