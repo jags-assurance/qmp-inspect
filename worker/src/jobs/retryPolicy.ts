@@ -24,3 +24,44 @@ export function shouldRetry(attempts: number, error: unknown): boolean {
   if (error instanceof PermanentJobError || error instanceof JobAbortedError) return false;
   return attempts < MAX_JOB_ATTEMPTS;
 }
+
+/** Default wall-clock budget of a job (short single-document renders). */
+export const DEFAULT_JOB_TIMEOUT_MS = 3 * 60 * 1000;
+/** A multi-pass Data Book render (numbering passes, up to 2000 pages) legitimately takes far longer. */
+export const DATA_BOOK_JOB_TIMEOUT_MS = 20 * 60 * 1000;
+
+/**
+ * Per-job-type timeout. The Data Book (not its one-page certificate variant) gets the long budget;
+ * org report packs aggregate every project so they get a middle one.
+ */
+export function jobTimeoutMs(jobType: string, payload?: Record<string, unknown> | null): number {
+  if (jobType === "render_data_book_pdf") {
+    return payload && payload.variant === "handover_certificate" ? DEFAULT_JOB_TIMEOUT_MS : DATA_BOOK_JOB_TIMEOUT_MS;
+  }
+  if (jobType === "generate_monthly_report_pack" || jobType === "generate_weekly_report_pack" || jobType === "render_portfolio_summary_pdf") {
+    return 8 * 60 * 1000;
+  }
+  return DEFAULT_JOB_TIMEOUT_MS;
+}
+
+/**
+ * Orphan decision for a job still 'processing' after a worker restart: requeue while attempts remain
+ * (a redeploy must not silently lose an auto-queued certificate), otherwise fail it.
+ */
+export function orphanAction(attempts: number): "requeue" | "fail" {
+  return attempts < MAX_JOB_ATTEMPTS ? "requeue" : "fail";
+}
+
+/**
+ * Claim order: jobs never attempted first (oldest first), then retries whose backoff has elapsed. Reading a
+ * wide window and filtering here stops a few jobs sitting in backoff from starving newer ones.
+ */
+export function pickClaimable<T extends { attempts: number; created_at: string; updated_at?: string | null }>(
+  candidates: T[],
+  now: number,
+  isBlocked: (job: T) => boolean = () => false
+): T | null {
+  const ok = candidates.filter((c) => !isBlocked(c) && isJobClaimable(c, now));
+  ok.sort((a, b) => (a.attempts > 0 ? 1 : 0) - (b.attempts > 0 ? 1 : 0) || a.created_at.localeCompare(b.created_at));
+  return ok[0] ?? null;
+}

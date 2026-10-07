@@ -4,10 +4,16 @@
   "description": "Field inspection and quality management — ITPs, checklists, NCRs, data books.",
   "start_url": "/inspect",
   "id": "/inspect",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#F9F7F4",
   "theme_color": "#6B1E2C",
   "orientation": "any",
+  "shortcuts": [
+    { "name": "Start work", "short_name": "Start work", "url": "/inspect/start-work", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "NCR register", "short_name": "NCRs", "url": "/inspect/ncrs", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Observations", "short_name": "Observations", "url": "/inspect/observations", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

@@ -1,7 +1,9 @@
 "use server";
 
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
+import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { evaluateRegisterGate, structuredResponseColumns } from "@/lib/registers/server-check";
@@ -38,6 +40,11 @@ import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
 import { normaliseLocation } from "./location";
 import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
+import { boundedCapturedAt } from "@/lib/offline/policy";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
+import { staffVerifierIds } from "@/lib/ncrs/recipients";
+import { stripWaiverPrefix, canWaiveEvidence } from "./evidence-waiver";
 import {
   validateSignatureDataUrl,
   isCountableEvidenceDoc,
@@ -656,6 +663,21 @@ export async function startInspectionAction(
     return { error: "This ITP hasn't been approved yet, so site inspections can't start. Work opens once the ITP is approved." };
   }
 
+  // An activity that already passed and carries a live IRN is released: it is amended by re-opening
+  // that inspection (audited, voids the IRN), not by quietly starting a second one beside it.
+  {
+    const { data: passed } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, record_number, irns(id, voided_at)")
+      .eq("itp_item_id", itpItemId)
+      .in("overall_result", ["pass", "partial"])
+      .returns<{ id: string; record_number: string; irns: { id: string; voided_at: string | null }[] | null }[]>();
+    const released = (passed ?? []).find((r) => (r.irns ?? []).some((i) => !i.voided_at));
+    if (released) {
+      return { error: `This activity already passed and was released (${released.record_number}). Re-open that inspection to amend it instead of starting a new one.` };
+    }
+  }
+
   // Resume rather than create a second draft for the same activity.
   {
     const { data: openDraft } = await supabase
@@ -885,6 +907,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     .filter((d) => isCountableEvidenceDoc(d, evidenceUser?.id ?? null));
   const evidenceDocCount = countableDocs.length;
   const evidenceWaived = !photoCount && !evidenceDocCount && noEvidenceReason.length >= MIN_NO_EVIDENCE_REASON_LENGTH;
+  // Waiver rules: see canWaiveEvidence (checked below once the answers are known).
   if (!photoCount && !evidenceDocCount && !evidenceWaived) {
     return {
       error: noEvidenceReason
@@ -892,16 +915,21 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
         : "At least one evidence photo or approved linked document is required to complete the inspection.",
     };
   }
-  const notes = evidenceWaived ? `[No evidence attached — reason: ${noEvidenceReason}]${rawNotes ? `\n${rawNotes}` : ""}` : rawNotes;
+  // A re-opened record keeps the previous waiver line in its notes: strip it so it is never duplicated.
+  const baseNotes = stripWaiverPrefix(rawNotes);
+  const notes = evidenceWaived ? `[No evidence attached — reason: ${noEvidenceReason}]${baseNotes ? `\n${baseNotes}` : ""}` : baseNotes;
 
   const { data: recordForAuth } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
-    .select("itp_item_id")
+    .select("itp_item_id, checklist_template_id")
     .eq("id", inspectionRecordId)
-    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id">>();
+    .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "checklist_template_id">>();
   if (!recordForAuth || !(await canExecuteItpItem(supabase, recordForAuth.itp_item_id))) {
     return { error: "Only JAGS staff or the party assigned to this activity can complete the inspection." };
   }
+  // The items to validate come from the record's OWN checklist, never from the posted template id
+  // (a crafted or stale request naming a smaller checklist must not be able to skip mandatory items).
+  const effectiveTemplateId = recordForAuth.checklist_template_id ?? templateId;
 
   // R66-R81: a Hold blocks inspection completion until the holding party has signed off.
   const { data: recordForHoldCheck } = await supabase
@@ -917,7 +945,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const { data: items } = await supabase
     .from(CHECKLIST_ITEMS_TABLE)
     .select("id, item_number, is_mandatory")
-    .eq("template_id", templateId)
+    .eq("template_id", effectiveTemplateId)
     .returns<Pick<ChecklistItemRow, "id" | "item_number" | "is_mandatory">[]>();
   const { data: responses } = await supabase
     .from(CHECKLIST_RESPONSES_TABLE)
@@ -1001,6 +1029,20 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   const results = [...responseByItem.values()];
   const overallResult: OverallResult = computeOverallResult(results);
 
+  // A written no-evidence waiver cannot paper over a failed inspection unless staff sign it.
+  if (evidenceWaived && !canWaiveEvidence({ isStaff: (await requireSession()).isJagsStaff, hasNoAnswers: results.includes("no") })) {
+    return { error: "A failed inspection needs real photo or document evidence; only JAGS staff can complete it with a written no-evidence reason." };
+  }
+
+  // Witness / review points that were never notified cannot be skipped silently: the party must have
+  // been notified (or have responded / been proceeded without response) before the work is signed off.
+  {
+    const unnotified = await unnotifiedNonBlockingLevels(supabase, recordForAuth.itp_item_id);
+    if (unnotified.length > 0) {
+      return { error: `Notify the ${unnotified.join(", ")} party before completing this inspection (Sign-off tab on the ITP).` };
+    }
+  }
+
   // .is("overall_result", null) makes this update conditional on the record still being open —
   // without it, a double-click or the offline-sync route replaying an at-least-once-delivered
   // "complete_inspection" item (see app/api/offline-sync/route.ts) could both pass the validation
@@ -1023,7 +1065,8 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       inspector_signature: signature || null,
       signed_by_name: signedByName || null,
       signed_by_user_id: signer?.id ?? null,
-      signed_at: new Date().toISOString(),
+      // A completion replayed from the offline queue carries the time it was really signed.
+      signed_at: boundedCapturedAt(String(formData.get("captured_at") ?? "")) ?? new Date().toISOString(),
       witness_name: witnessName || null,
       witness_signature: witnessSignature || null,
     })
@@ -1078,13 +1121,19 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     // Default the punch item's responsible party to the party that performs this activity, so that
     // party can resolve it (only the responsible party or staff can). Left unset if none is found.
     const executingPartyId = await executingPartyIdForItem(supabase, recordForHoldCheck.itp_item_id);
-    await createPunchItemFromSource({
+    const failurePunch = await createPunchItemFromSource({
       projectId: recordForHoldCheck.project_id,
       description: `Failed inspection: ${recordForHoldCheck.activity} (${recordForHoldCheck.record_number})`,
       source: "inspection_failure",
       sourceInspectionRecordId: inspectionRecordId,
       responsiblePartyId: executingPartyId ?? undefined,
+      priority: "A",
+      dedupe: true,
     });
+    if (failurePunch.error) {
+      // Never silent: the inspection is already locked, so tell the people who must follow it up.
+      await notifyPunchFailure(supabase, recordForHoldCheck.project_id, inspectionRecordId, recordForHoldCheck.record_number, recordForHoldCheck.activity);
+    }
 
     // Best-effort: let the ITP's preparer know their activity failed without them having to notice
     // it on the register. Never blocks inspection completion, which has already succeeded above.
@@ -1143,7 +1192,74 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     }
   }
 
+  // A re-opened inspection that now passes supersedes its earlier failure item: withdraw it so a
+  // stale defect never blocks the Data Book. Best-effort (needs verifier/staff rights or the migration).
+  if ((overallResult === "pass" || overallResult === "partial") && recordForHoldCheck) {
+    try {
+      const now = new Date().toISOString();
+      const note = `Superseded: inspection ${recordForHoldCheck.record_number} was re-completed as ${overallResult}`;
+      const { error: supersedeError } = await supabase
+        .from(PUNCH_LIST_ITEMS_TABLE)
+        .update({ status: "closed", closing_evidence: note, verification_notes: note, withdrawn_at: now, withdrawn_by: signer?.id ?? null, withdrawn_reason: note, closed_by: signer?.id ?? null, closed_at: now })
+        .eq("source_inspection_record_id", inspectionRecordId)
+        .eq("source", "inspection_failure")
+        .eq("status", "open");
+      if (supersedeError && !isMissingSchemaError(supersedeError)) console.error("[punch] supersede failed", supersedeError.message);
+    } catch {
+      // Best-effort.
+    }
+  }
+
   return { error: null, inspectionRecordId };
+}
+
+async function notifyPunchFailure(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  recordId: string,
+  recordNumber: string,
+  activity: string
+) {
+  try {
+    const { data: project } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+    if (!project) return;
+    const recipients = await staffVerifierIds(supabase);
+    for (const recipientUserId of recipients) {
+      await createNotification(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        recipientUserId,
+        title: "Failed inspection has no punch item",
+        body: `${recordNumber} (${activity}) failed but its punch-list item could not be created. Add it manually.`,
+        link: `/inspect/inspections/${recordId}`,
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+}
+
+/** Labels of non-blocking intervention levels (Witness, Review ...) whose sign-off row is still 'pending' (never notified). */
+async function unnotifiedNonBlockingLevels(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itpItemId: string): Promise<string[]> {
+  try {
+    const { data: ctx } = await supabase
+      .from("itp_items")
+      .select("itp_sections(itps(projects(organization_id)))")
+      .eq("id", itpItemId)
+      .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
+    const orgId = ctx?.itp_sections?.itps?.projects?.organization_id;
+    if (!orgId) return [];
+    const [{ data: levels }, { data: progress }] = await Promise.all([
+      supabase.from("intervention_level_types").select("code, label, is_blocking").eq("organization_id", orgId).eq("is_blocking", false).returns<{ code: string; label: string; is_blocking: boolean }[]>(),
+      supabase.from("activity_signoff_progress").select("intervention, status").eq("itp_item_id", itpItemId).eq("status", "pending").returns<{ intervention: string; status: string }[]>(),
+    ]);
+    // Only the Witness level is a notify-before-work requirement; Review / Surveillance are records only.
+    const witnessCodes = new Set((levels ?? []).filter((l) => l.code === "W").map((l) => l.code));
+    const labels = new Map((levels ?? []).map((l) => [l.code, l.label]));
+    return [...new Set((progress ?? []).filter((p) => witnessCodes.has(p.intervention)).map((p) => labels.get(p.intervention) ?? p.intervention))];
+  } catch {
+    return [];
+  }
 }
 
 export async function completeInspectionAction(
@@ -1335,18 +1451,16 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .neq("status", "closed");
   if (openNcrCount) return { error: "An NCR raised from this inspection is still open — close it before issuing the IRN." };
 
-  // One IRN per inspection record: if one already exists, don't burn another number.
+  // One LIVE IRN per inspection record. Only a live IRN counts: a voided one (void / re-open) must be
+  // replaceable, otherwise the replacement can never be issued and the Data Book gate stays below 100%.
   const { data: existingIrn } = await supabase
     .from(IRNS_TABLE)
-    .select("id, voided_at")
+    .select("id")
     .eq("inspection_record_id", inspectionRecordId)
-    .order("created_at", { ascending: false })
+    .is("voided_at", null)
     .limit(1)
-    .maybeSingle<{ id: string; voided_at: string | null }>();
-  if (existingIrn) {
-    if (!existingIrn.voided_at) return { error: null };
-    return { error: "An IRN for this inspection was voided. Re-open and re-complete the inspection to issue a new one." };
-  }
+    .maybeSingle<{ id: string }>();
+  if (existingIrn) return { error: null };
 
   const { data: project } = await supabase
     .from("projects")
@@ -1355,66 +1469,83 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .maybeSingle<{ organization_id: string }>();
   if (!project?.organization_id) return { error: "Could not resolve the project's organisation, so no IRN number was allocated." };
 
-  // Atomic per-ITP counter (next_document_sequence). Fails CLOSED: an IRN is a controlled release
-  // document, so there is deliberately no Date.now() fallback number (nextSequenceNumber has one
-  // that is fine for lower-stakes documents but could duplicate/skip IRN numbers).
-  const { data: seqData, error: seqError } = await supabase.rpc("next_document_sequence", {
-    org_id: project.organization_id,
-    proj_id: record.project_id,
-    seq_doc_type: `irn:${record.itp_number}`,
-  });
-  if (seqError || typeof seqData !== "number") {
-    console.error("[irn] next_document_sequence failed", seqError?.message ?? seqData);
-    return { error: "Could not allocate an IRN number. Please try again." };
-  }
-  const seq = seqData;
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from(IRNS_TABLE).insert({
-    inspection_record_id: inspectionRecordId,
-    irn_number: `${record.itp_number}-IRN-${seq}`,
-    issued_by: user?.id ?? null,
-  });
-
-  if (error) {
-    if (error.code === "23505") {
-      // Concurrent issue: the other request won - return the existing live IRN rather than failing.
-      const { data: winner } = await supabase
-        .from(IRNS_TABLE)
-        .select("id")
-        .eq("inspection_record_id", inspectionRecordId)
-        .is("voided_at", null)
-        .limit(1)
-        .maybeSingle<{ id: string }>();
-      if (winner) {
-        revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
-        return { error: null };
-      }
-      return { error: "An IRN already exists for this inspection." };
+  // Preferred: one transaction allocates the number AND inserts the IRN, so a failed insert or a lost race
+  // burns no number in the controlled series (issue_irn RPC). Falls back to the two-step path below until
+  // that migration is applied.
+  let irnNumber: string | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  const rpc = await (supabase.rpc as any)("issue_irn", { p_inspection_record_id: inspectionRecordId });
+  if (!rpc.error) {
+    const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+    if (!row) return { error: "Could not issue the IRN." };
+    if (row.out_already) {
+      revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+      return { error: null };
     }
+    irnNumber = String(row.out_number);
+  } else if (!(rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(rpc.error.message ?? ""))) {
+    if (rpc.error.code === "42501") return { error: "You are not allowed to issue an IRN for this inspection." };
+    console.error("[irn] issue_irn failed", rpc.error.message);
     return { error: "Could not issue the IRN." };
   }
 
-  if (project?.organization_id) {
-    try {
-      await recordAuditEvent(supabase, {
-        organizationId: project.organization_id,
-        projectId: record.project_id,
-        entityType: "irn",
-        entityId: inspectionRecordId,
-        action: "issued",
-        actorId: user?.id ?? null,
-        summary: `IRN ${record.itp_number}-IRN-${seq} issued`,
-      });
-    } catch {
-      // Best-effort — see lib/audit/log.ts's doc comment.
+  if (irnNumber === null) {
+    // Atomic per-ITP counter (next_document_sequence). Fails CLOSED: an IRN is a controlled release
+    // document, so there is deliberately no Date.now() fallback number.
+    const { data: seqData, error: seqError } = await supabase.rpc("next_document_sequence", {
+      org_id: project.organization_id,
+      proj_id: record.project_id,
+      seq_doc_type: `irn:${record.itp_number}`,
+    });
+    if (seqError || typeof seqData !== "number") {
+      console.error("[irn] next_document_sequence failed", seqError?.message ?? seqData);
+      return { error: "Could not allocate an IRN number. Please try again." };
+    }
+    irnNumber = `${record.itp_number}-IRN-${seqData}`;
+    const { error } = await supabase.from(IRNS_TABLE).insert({
+      inspection_record_id: inspectionRecordId,
+      irn_number: irnNumber,
+      issued_by: user?.id ?? null,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        // Concurrent issue: the other request won - return the existing live IRN rather than failing.
+        const { data: winner } = await supabase
+          .from(IRNS_TABLE)
+          .select("id")
+          .eq("inspection_record_id", inspectionRecordId)
+          .is("voided_at", null)
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+        if (winner) {
+          revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
+          return { error: null };
+        }
+        return { error: "An IRN already exists for this inspection." };
+      }
+      return { error: "Could not issue the IRN." };
     }
   }
 
-  await notifyAfterIrnIssued(supabase, inspectionRecordId, `${record.itp_number}-IRN-${seq}`);
+  try {
+    await recordAuditEvent(supabase, {
+      organizationId: project.organization_id,
+      projectId: record.project_id,
+      entityType: "irn",
+      entityId: inspectionRecordId,
+      action: "issued",
+      actorId: user?.id ?? null,
+      summary: `IRN ${irnNumber} issued`,
+    });
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
+
+  await notifyAfterIrnIssued(supabase, inspectionRecordId, irnNumber);
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
   return { error: null };
 }
@@ -1441,6 +1572,17 @@ export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): P
     .maybeSingle<{ id: string; irn_number: string; inspection_record_id: string; voided_at: string | null }>();
   if (!irn) return { error: "IRN not found." };
   if (irn.voided_at) return { error: "This IRN is already void." };
+
+  // Same authority as re-opening an inspection (admin or a team lead on the project): an inspector must not
+  // be able to leave a signed, passed record with no IRN that only an admin can then repair.
+  const { data: voidRec } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("project_id")
+    .eq("id", irn.inspection_record_id)
+    .maybeSingle<{ project_id: string }>();
+  if (!isAdminStaff(session) && !(voidRec && (await isTeamLeadForProject(supabase, session.userId, voidRec.project_id)))) {
+    return { error: "Only an admin or a team lead on this project can void an IRN." };
+  }
 
   const { data: updated, error } = await supabase
     .from(IRNS_TABLE)
@@ -1473,6 +1615,13 @@ export async function voidIrnAction(_prev: IssueIrnState, formData: FormData): P
     }
   } catch {
     // Best-effort audit.
+  }
+
+  // Stamp the already-issued PDF as VOID: queue the VOID copy (the worker renders voided IRNs with the banner).
+  try {
+    await supabase.from(BACKGROUND_JOBS_TABLE).insert({ job_type: "render_irn_pdf", payload: { irn_id: irnId, requested_by: session.userId } });
+  } catch {
+    // Best-effort; staff can still generate it from the IRN page.
   }
 
   await notifyAfterIrnVoided(supabase, irn.inspection_record_id, irn.irn_number, reason);

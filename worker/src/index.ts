@@ -14,7 +14,7 @@ import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
 import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
-import { shouldRetry, retryDelayMs, isJobClaimable, MAX_JOB_ATTEMPTS } from "./jobs/retryPolicy";
+import { shouldRetry, retryDelayMs, MAX_JOB_ATTEMPTS, jobTimeoutMs, orphanAction, pickClaimable } from "./jobs/retryPolicy";
 import { runAutomationSweep } from "./automation";
 import type {
   BackgroundJobRow,
@@ -51,11 +51,10 @@ function reportError(context: string, error: unknown): void {
 
 const POLL_INTERVAL_MS = 3000;
 
-// All 5 job types render a short, single-page-or-few-page PDF via Puppeteer — none of them should
-// legitimately take anywhere near this long. A hung/OOM'd Chromium render (or a network stall
-// mid-fetch) would otherwise sit in 'processing' forever, silently blocking every other job behind
+// Each job runs under a wall-clock budget from jobTimeoutMs() (jobs/retryPolicy.ts): 3 minutes for a
+// one-page render, much longer for a multi-pass Data Book. A hung/OOM'd Chromium render (or a network
+// stall mid-fetch) would otherwise sit in 'processing' forever, silently blocking every other job behind
 // it for every tenant, since this worker processes one row at a time.
-const JOB_TIMEOUT_MS = 3 * 60 * 1000;
 
 // Log queue depth / oldest-pending-job age this often (in poll cycles), not every single tick, so
 // a stuck queue is visible in Railway logs without spamming them.
@@ -97,7 +96,7 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
     .select("*")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
-    .limit(10);
+    .limit(60);
 
   if (error) {
     console.error("[worker] Failed to poll background_jobs:", error.message);
@@ -105,7 +104,8 @@ async function claimNextPendingJob(): Promise<BackgroundJobRow | null> {
   }
 
   const now = Date.now();
-  const candidate = candidates?.find((c) => (retryNotBefore.get(c.id) ?? 0) <= now && isJobClaimable(c, now));
+  // Wide window + never-attempted jobs first, so a few retries waiting out their backoff cannot starve newer jobs.
+  const candidate = pickClaimable(candidates ?? [], now, (c) => (retryNotBefore.get(c.id) ?? 0) > now);
   if (!candidate) return null;
 
   // Optimistic claim: only succeeds if the row is still 'pending' (guards against a second worker
@@ -275,6 +275,7 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
  */
 async function processJobWithTimeout(job: BackgroundJobRow): Promise<void> {
   let timedOut = false;
+  const timeoutMs = jobTimeoutMs(job.job_type, job.payload);
   // Checked by renderers / the vault filer before any upload or filing (see jobs/jobAbort.ts), so a
   // job we have already given up on cannot publish a document afterwards.
   const ctx: JobAbortContext = { aborted: false };
@@ -284,15 +285,15 @@ async function processJobWithTimeout(job: BackgroundJobRow): Promise<void> {
       timedOut = true;
       ctx.aborted = true;
       resolve();
-    }, JOB_TIMEOUT_MS);
+    }, timeoutMs);
   });
 
   await Promise.race([jobAbortStorage.run(ctx, () => processJob(job)), timeout]);
   if (timer) clearTimeout(timer);
 
   if (timedOut) {
-    console.error(`[worker] Job ${job.id} (${job.job_type}) exceeded ${JOB_TIMEOUT_MS}ms — marking failed.`);
-    await markFailed(job.id, `Render timed out after ${Math.round(JOB_TIMEOUT_MS / 1000)}s.`);
+    console.error(`[worker] Job ${job.id} (${job.job_type}) exceeded ${timeoutMs}ms — marking failed.`);
+    await markFailed(job.id, `Render timed out after ${Math.round(timeoutMs / 1000)}s.`);
   }
 }
 
@@ -313,55 +314,65 @@ async function logQueueHealth(): Promise<void> {
 }
 
 /**
- * `processJobWithTimeout`'s JOB_TIMEOUT_MS race only protects against a hung render *within this
+ * `processJobWithTimeout`'s per-type timeout race only protects against a hung render *within this
  * process* — if the whole worker process is killed (a Railway redeploy, an OOM, a crash) while a
  * job is claimed, the row is left in 'processing' forever: nothing else ever revisits it, so the
  * web app's "latest job for this ITP" lookup (getLatestItpPdf) shows an infinite "Rendering…" with
  * no way to retry. Found live: a render_itp_pdf job orphaned by a redeploy on 2026-09-15 sat in
  * 'processing' for 2+ days, making the Generate PDF button on that ITP look permanently broken.
- * This sweep reclaims any job that's been 'processing' longer than the same JOB_TIMEOUT_MS this
+ * This sweep reclaims any job that's been 'processing' longer than that job type's timeout this
  * worker itself uses to give up on an in-process render — by then a live worker would already have
  * timed it out, so anything still 'processing' past that point can only be orphaned.
  */
 async function reclaimOrphanedJobs(): Promise<void> {
-  const cutoff = new Date(Date.now() - JOB_TIMEOUT_MS).toISOString();
-  type StaleResult = { data: { id: string; job_type: string }[] | null; error: { message: string } | null };
-  // Measure from started_at (set on claim); rows without it fall back to created_at. If the column
-  // is missing (migration not applied yet) the first query errors and we use created_at alone.
-  let { data: stale, error } = (await supabase
+  // A job is orphaned once it has been 'processing' longer than ITS OWN type's timeout (a live worker would
+  // already have timed it out by then). Measure from started_at (set on claim); rows without it fall back to
+  // created_at. If the column is missing (migration not applied yet) the first query errors and we use created_at.
+  type Stale = { id: string; job_type: string; payload: Record<string, unknown> | null; attempts: number; started_at?: string | null; created_at: string };
+  type StaleResult = { data: Stale[] | null; error: { message: string } | null };
+  const oldest = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+  let { data: processing, error } = (await supabase
     .from("background_jobs" as never)
-    .select("id, job_type")
+    .select("id, job_type, payload, attempts, started_at, created_at")
     .eq("status", "processing")
-    .or(`started_at.lt.${cutoff},and(started_at.is.null,created_at.lt.${cutoff})`)) as unknown as StaleResult;
+    .or(`started_at.lt.${oldest},and(started_at.is.null,created_at.lt.${oldest})`)) as unknown as StaleResult;
   if (error) {
-    ({ data: stale, error } = (await supabase
+    ({ data: processing, error } = (await supabase
       .from("background_jobs" as never)
-      .select("id, job_type")
+      .select("id, job_type, payload, attempts, created_at")
       .eq("status", "processing")
-      .lt("created_at", cutoff)) as unknown as StaleResult);
+      .lt("created_at", oldest)) as unknown as StaleResult);
   }
 
   if (error) {
     console.error("[worker] Failed to check for orphaned jobs:", error.message);
     return;
   }
-  if (!stale || stale.length === 0) return;
+  const now = Date.now();
+  const stale = (processing ?? []).filter((j) => now - Date.parse(j.started_at ?? j.created_at) > jobTimeoutMs(j.job_type, j.payload));
+  if (stale.length === 0) return;
 
   for (const job of stale) {
+    // Requeue while attempts remain: a redeploy must not silently lose an auto-queued certificate or close-out.
+    const requeue = orphanAction(job.attempts ?? 0) === "requeue";
     const { error: updateError } = (await supabase
       .from("background_jobs" as never)
-      .update({
-        status: "failed",
-        error_message: "Orphaned: the worker was restarted before this job finished rendering. Please retry.",
-        completed_at: new Date().toISOString(),
-      } as never)
+      .update(
+        (requeue
+          ? { status: "pending", error_message: "Attempt interrupted by a worker restart; requeued automatically." }
+          : {
+              status: "failed",
+              error_message: "Orphaned: the worker was restarted before this job finished rendering, and it ran out of attempts. Please retry.",
+              completed_at: new Date().toISOString(),
+            }) as never
+      )
       .eq("id", job.id)
       .eq("status", "processing")) as unknown as { error: { message: string } | null };
 
     if (updateError) {
       console.error(`[worker] Failed to reclaim orphaned job ${job.id}:`, updateError.message);
     } else {
-      console.error(`[worker] Reclaimed orphaned job ${job.id} (${job.job_type}) — stuck in 'processing' since before ${cutoff}.`);
+      console.error(`[worker] ${requeue ? "Requeued" : "Failed"} orphaned job ${job.id} (${job.job_type}) — stuck in 'processing' since ${job.started_at ?? job.created_at}.`);
     }
   }
 }

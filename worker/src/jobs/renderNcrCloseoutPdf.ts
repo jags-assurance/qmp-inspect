@@ -1,10 +1,12 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
 import { buildNcrCloseoutPdfHtml, type NcrCloseoutPdfData, type NcrCloseoutSeverity } from "./ncrCloseoutTemplate";
 import type { RenderNcrCloseoutCertificatePayload } from "./types";
 import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, assertNcrCloseoutFileable } from "./vaultAutoFile";
+import { buildGeneratedPath, resolveNextRevision, assertNcrCloseoutFileable } from "./vaultAutoFile";
+import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
 import { PermanentJobError } from "./jobAbort";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -139,13 +141,18 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
+  // Identical close-out already filed (e.g. a second click): return it instead of another identical revision.
+  const tag = hashTag(sourceHash({ ...templateData, generatedAt: null, revision: null }));
+  const existing = await findFiledByHash(supabase, ncr.project_id, "certificates", `${ncr.ncr_number}-closeout`, tag);
+  if (existing) return { resultStoragePath: existing };
+
   const html = buildNcrCloseoutPdfHtml(templateData);
 
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",
@@ -166,11 +173,10 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     await page.close();
   }
 
-  const storagePath = buildGeneratedPath(`ncr-closeouts/${ncr.id}`, `${ncr.ncr_number}-closeout`, closeoutRevision);
+  const storagePath = buildGeneratedPath(`ncr-closeouts/${ncr.id}`, `${ncr.ncr_number}-closeout`, closeoutRevision, Date.now(), tag);
+  const approved = await canFileApproved(supabase, payload.requested_by, ncr.project_id, { permissionKeys: ["close_ncr"], allowUserIds: [ncr.closed_by] });
 
-  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
-
-  await autoFileVaultDocument(supabase, {
+  await uploadAndFile(supabase, storagePath, pdfBuffer, {
     projectId: ncr.project_id,
     folderKey: "certificates",
     title: `NCR ${ncr.ncr_number} — Close-out certificate`,
@@ -179,6 +185,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
+    status: approved ? "approved" : "for_review",
   });
 
   return { resultStoragePath: storagePath };

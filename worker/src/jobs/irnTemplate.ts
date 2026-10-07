@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { verifyBlockHtml } from "./verification";
 // Renders the printable HTML for a single IRN (Inspection Release Note) certificate — the branded
 // A4 document that confirms an activity has passed inspection and its hold has been released.
 // Puppeteer renders this to portrait A4 PDF in renderIrnPdf.ts; this module only builds the markup.
@@ -26,6 +27,9 @@ export interface IrnPdfData {
   witnessSignatureDataUri?: string | null;
   /** Vault revision this render will be filed as, so the printed REV matches the vault. */
   revision?: string | null;
+  /** QR code (data URI) + target URL of the public verification page; omitted when unavailable. */
+  verifyQrDataUri?: string | null;
+  verifyUrl?: string | null;
 
   // Release
   releaseDate: string;
@@ -324,6 +328,7 @@ ${brandColorStyle(data.branding)}
     <p class="released-by">Released by: <strong>${cell(data.issuedByName)}</strong> on ${cell(data.releaseDate)}</p>
   </div>
 
+  ${verifyBlockHtml(data.verifyQrDataUri ?? null, data.verifyUrl ?? null, escapeHtml)}
   <div class="footer-note">
     <span>Doc No. ${escapeHtml(data.irnNumber)} &middot; Uncontrolled when printed &middot; jagsassurance.com</span>
     <span>Generated ${escapeHtml(generatedAtLabel)}</span>

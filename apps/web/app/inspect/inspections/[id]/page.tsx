@@ -187,7 +187,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           </div>
         )}
         <div className="bg-surface px-5 py-3">
-          <InspectionReportPdfButton inspectionRecordId={record.id} latest={latestReportPdf} />
+          <InspectionReportPdfButton inspectionRecordId={record.id} latest={latestReportPdf} completed={Boolean(record.overall_result)} signedAt={record.signed_at} />
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 text-sm sm:grid-cols-4">
           <div>

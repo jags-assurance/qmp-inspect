@@ -1,5 +1,6 @@
 "use server";
 
+import { supersedeVaultDocumentsByReference } from "@/lib/vault/supersede-refs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -25,15 +26,30 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
 import { hasPermission } from "@/lib/rbac/permissions";
 import {
+  WITHDRAW_REASON_MIN,
+  canChangeEvidence,
   canEditAssignment,
   canEditCapa,
+  canEditNcrDetails,
+  canWithdrawNcr,
   canWorkNcr,
   diffField,
   evidenceCount,
   isValidNcrPhotoPath,
+  selfVerificationCheck,
   severityLabel,
   validateReturnReason,
 } from "@/lib/ncrs/rules";
+import { parseNcrExtended, stripExtendedColumns } from "@/lib/ncrs/extended";
+import {
+  partyUserIds,
+  permissionHolderIds,
+  staffVerifierIds as directoryStaffVerifierIds,
+  userHasProjectAccess,
+} from "@/lib/ncrs/recipients";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { detectPunchImage } from "@/lib/punch-list/helpers";
+import { PUNCH_PHOTO_MAX_BYTES } from "@/lib/punch-list/types";
 import { BACKGROUND_JOBS_TABLE, type RenderNcrCloseoutCertificatePayload } from "@/lib/reports/types";
 import { isStaleClaim, observationDonePath, observationMarkerPath, parseMarker, serializeClaimMarker, serializeObservationMarker } from "@/lib/offline/idempotency";
 
@@ -53,7 +69,7 @@ async function notifySafe(
   }
 }
 
-/** The login (if any) linked to a project party. */
+/** The primary login (if any) linked to a project party. */
 async function partyUserIdOf(supabase: Supabase, partyId: string | null | undefined): Promise<string | null> {
   if (!partyId) return null;
   const { data } = await supabase
@@ -64,40 +80,21 @@ async function partyUserIdOf(supabase: Supabase, partyId: string | null | undefi
   return data?.user_id ?? null;
 }
 
-/** JAGS staff who may verify/close: admin staff (null staff_role counts as admin). */
+/** JAGS staff who may verify/close: admin staff (null staff_role counts as admin). Read through the directory
+ *  helper so a non-staff caller (e.g. a subcontractor sending for verification) still reaches every verifier. */
 async function staffVerifierIds(supabase: Supabase): Promise<string[]> {
-  const { data } = await supabase
-    .from("users")
-    .select("id, staff_role")
-    .eq("is_jags_staff", true)
-    .eq("is_active", true)
-    .returns<{ id: string; staff_role: string | null }[]>();
-  return (data ?? []).filter((u) => u.staff_role !== "inspector").map((u) => u.id);
+  return directoryStaffVerifierIds(supabase);
 }
 
-/**
- * Users holding the custom-role close_ncr permission on a project (project-scoped or org-wide).
- * Best-effort: RLS lets JAGS staff see every assignment but other callers only their own, so a
- * non-staff caller may get an incomplete list (the worker overdue sweep uses the service client).
- */
+/** Users holding the custom-role close_ncr permission on a project (project-scoped or org-wide). */
 async function customCloseNcrHolderIds(supabase: Supabase, projectId: string): Promise<string[]> {
-  try {
-    const { data: perms } = await supabase
-      .from("custom_role_permissions" as never)
-      .select("role_id")
-      .eq("permission_key", "close_ncr")
-      .returns<{ role_id: string }[]>();
-    const roleIds = (perms ?? []).map((p) => p.role_id);
-    if (roleIds.length === 0) return [];
-    const { data: assigns } = await supabase
-      .from("custom_role_assignments" as never)
-      .select("user_id, project_id")
-      .in("role_id", roleIds)
-      .returns<{ user_id: string; project_id: string | null }[]>();
-    return (assigns ?? []).filter((a) => a.project_id === null || a.project_id === projectId).map((a) => a.user_id);
-  } catch {
-    return [];
-  }
+  return permissionHolderIds(supabase, "close_ncr", projectId);
+}
+
+/** Turns a database trigger rejection (raise exception) into the message the user should read. */
+function dbMessage(error: { code?: string; message?: string } | null | undefined, fallback: string): string {
+  if (error?.code === "P0001" && error.message) return error.message;
+  return fallback;
 }
 
 /** Close/reopen authority: admin staff or a close_ncr permission holder. */
@@ -123,22 +120,9 @@ async function validateAssignment(
     if (!party) return "The responsible party does not belong to this project.";
   }
   if (assignedTo) {
-    const [{ data: grants }, { data: parties }] = await Promise.all([
-      supabase
-        .from("access_grants")
-        .select("scope_type, organization_id, project_id")
-        .eq("user_id", assignedTo)
-        .returns<{ scope_type: string; organization_id: string | null; project_id: string | null }[]>(),
-      supabase.from("project_parties").select("id").eq("project_id", projectId).eq("user_id", assignedTo).limit(1),
-    ]);
-    const ok =
-      (grants ?? []).some(
-        (g) =>
-          g.scope_type === "global" ||
-          (g.scope_type === "organization" && g.organization_id === organizationId) ||
-          (g.scope_type === "project" && g.project_id === projectId)
-      ) || (parties ?? []).length > 0;
-    if (!ok) return "The assignee does not have access to this project.";
+    if (!(await userHasProjectAccess(supabase, assignedTo, projectId, organizationId))) {
+      return "The assignee does not have access to this project.";
+    }
   }
   return null;
 }
@@ -177,6 +161,8 @@ export async function createNcrAction(
   // first attempt created instead of raising a duplicate. Uses the same storage-marker approach as
   // the offline observation sync (no schema column).
   const requestId = String(formData.get("request_id") ?? "").trim();
+  const extended = parseNcrExtended((n) => formData.has(n), (n) => (formData.get(n) == null ? null : String(formData.get(n))));
+  if (extended.error) return { error: extended.error };
 
   if (!projectId || !severity || !description) {
     return { error: "Project, severity and description are required." };
@@ -252,6 +238,26 @@ export async function createNcrAction(
     return { error: assignmentError };
   }
 
+  // The source links come from the form: they must belong to THIS project (S5-07).
+  if (itpItemId) {
+    const { data: itemRow } = await supabase
+      .from("itp_items")
+      .select("itp_sections(itps(project_id))")
+      .eq("id", itpItemId)
+      .maybeSingle<{ itp_sections: { itps: { project_id: string } | null } | null }>();
+    if (itemRow?.itp_sections?.itps?.project_id !== projectId) {
+      await releaseClaim();
+      return { error: "The linked ITP item does not belong to this project." };
+    }
+  }
+  if (inspectionRecordId) {
+    const { data: recRow } = await supabase.from(INSPECTION_RECORDS_TABLE).select("project_id").eq("id", inspectionRecordId).maybeSingle<{ project_id: string }>();
+    if (recRow?.project_id !== projectId) {
+      await releaseClaim();
+      return { error: "The linked inspection does not belong to this project." };
+    }
+  }
+
   // R104: an NCR raised against a specific itp_item (see the FK comment above) can resolve that
   // item's own discipline — the only discipline an NCR is ever able to genuinely carry, since ncrs
   // has no discipline_id of its own. A standalone/walkdown NCR (itpItemId null) has nothing to
@@ -294,24 +300,30 @@ export async function createNcrAction(
     });
     ncrNumber = generated.documentNumber;
 
-    const { data, error } = await supabase
+    const basePayload = {
+      project_id: projectId,
+      ncr_number: ncrNumber,
+      severity,
+      description,
+      requirement_not_met: requirementNotMet || null,
+      assigned_to: assignedTo || null,
+      due_date: effectiveDueDate,
+      raised_by: user?.id ?? null,
+      itp_item_id: itpItemId,
+      inspection_record_id: inspectionRecordId,
+      checklist_item_id: checklistItemId,
+      responsible_party_id: responsiblePartyId,
+    };
+    const hasExtended = Object.keys(extended.values).length > 0;
+    let { data, error } = await supabase
       .from(NCRS_TABLE)
-      .insert({
-        project_id: projectId,
-        ncr_number: ncrNumber,
-        severity,
-        description,
-        requirement_not_met: requirementNotMet || null,
-        assigned_to: assignedTo || null,
-        due_date: effectiveDueDate,
-        raised_by: user?.id ?? null,
-        itp_item_id: itpItemId,
-        inspection_record_id: inspectionRecordId,
-        checklist_item_id: checklistItemId,
-        responsible_party_id: responsiblePartyId,
-      })
+      .insert(hasExtended ? { ...basePayload, ...extended.values } : basePayload)
       .select("id")
       .single<{ id: string }>();
+    if (!data && hasExtended && isMissingSchemaError(error)) {
+      // Extended-fields migration not applied yet: raise the NCR without them rather than failing.
+      ({ data, error } = await supabase.from(NCRS_TABLE).insert(basePayload).select("id").single<{ id: string }>());
+    }
 
     if (data) {
       ncr = data;
@@ -339,7 +351,7 @@ export async function createNcrAction(
       return { error: "Assigned-to and responsible party must be valid IDs (UUID)." };
     }
     await releaseClaim();
-    return { error: "Could not raise the NCR. Check you have permission and try again." };
+    return { error: dbMessage(error, "Could not raise the NCR. Check you have permission and try again.") };
   }
 
   if (aiLogId && user?.id) {
@@ -401,18 +413,35 @@ export async function createNcrAction(
   // Photos attached on the raise form (multipart, same rules as the punch list): uploaded only now
   // the NCR row exists. Best-effort per file — a failed photo never undoes the raised NCR; it can be
   // re-added from the NCR page.
+  const skippedPhotos: string[] = [];
   for (const f of formData.getAll("photos")) {
-    if (typeof f === "string" || !f.size || !f.type.startsWith("image/") || f.size > 25 * 1024 * 1024) continue;
+    if (typeof f === "string" || !f.size) continue;
+    if (f.size > PUNCH_PHOTO_MAX_BYTES) {
+      skippedPhotos.push(f.name);
+      continue;
+    }
     try {
-      const ext = (f.name.split(".").pop() ?? "jpg").replace(/[^a-zA-Z0-9]/g, "").slice(0, 5) || "jpg";
-      const path = `${projectId}/ncrs/${ncr.id}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("inspection-evidence").upload(path, f, { contentType: f.type });
-      if (upErr) continue;
-      await supabase.from(NCR_PHOTOS_TABLE).insert({ ncr_id: ncr.id, storage_path: path, caption: null, uploaded_by: user?.id ?? null });
+      const kind = detectPunchImage(new Uint8Array(await f.slice(0, 16).arrayBuffer()), f.name);
+      if (!kind) {
+        skippedPhotos.push(f.name);
+        continue;
+      }
+      const path = `${projectId}/ncrs/${ncr.id}/${crypto.randomUUID()}.${kind.ext}`;
+      const { error: upErr } = await supabase.storage.from("inspection-evidence").upload(path, f, { contentType: kind.contentType });
+      if (upErr) {
+        skippedPhotos.push(f.name);
+        continue;
+      }
+      const { error: rowErr } = await supabase.from(NCR_PHOTOS_TABLE).insert({ ncr_id: ncr.id, storage_path: path, caption: null, uploaded_by: user?.id ?? null });
+      if (rowErr) {
+        skippedPhotos.push(f.name);
+        await supabase.storage.from("inspection-evidence").remove([path]).catch(() => undefined);
+      }
     } catch {
-      // Best-effort.
+      skippedPhotos.push(f.name);
     }
   }
+  const photoWarning = skippedPhotos.length > 0 ? ` ${skippedPhotos.length} photo(s) could not be attached (${skippedPhotos.slice(0, 3).join(", ")}) - add them from the NCR page.` : "";
 
   // Best-effort: the audit trail is a convenience layer on top of the real, already-succeeded
   // creation above — see lib/audit/log.ts's doc comment.
@@ -427,8 +456,10 @@ export async function createNcrAction(
   });
 
   const punchMessage = punchError
-    ? `${ncrNumber} was raised, but its punch-list item could not be created. Do not raise it again - open it from the register and tell an administrator.`
-    : null;
+    ? `${ncrNumber} was raised, but its punch-list item could not be created. Do not raise it again - open the NCR and use "Create missing punch item".${photoWarning}`
+    : photoWarning
+      ? `${ncrNumber} was raised.${photoWarning}`
+      : null;
 
   // Opened from a side panel on a register: stay where the user is (they can see the new row and
   // follow the link) instead of navigating away from the list they were working in.
@@ -472,6 +503,9 @@ export async function updateNcrAction(
   const verificationNotes = String(formData.get("verification_notes") ?? "").trim();
   const closeNow = formData.get("close_now") === "true";
   const aiLogId = String(formData.get("root_cause_ai_log_id") ?? "").trim() || null;
+  const overrideReason = String(formData.get("close_override_reason") ?? "").trim();
+  const extended = parseNcrExtended((n) => formData.has(n), (n) => (formData.get(n) == null ? null : String(formData.get(n))));
+  if (extended.error) return { error: extended.error };
 
   if (!ncrId) {
     return { error: "Missing NCR." };
@@ -512,17 +546,30 @@ export async function updateNcrAction(
   const orgId = current.projects?.organization_id ?? null;
 
   const currentPartyUser = await partyUserIdOf(supabase, current.responsible_party_id);
+  const partyMemberIds = await partyUserIds(supabase, current.responsible_party_id);
   const actor = {
     isStaff: session.isJagsStaff,
     userId: session.userId,
     raisedBy: current.raised_by,
     assignedTo: current.assigned_to,
     partyUserId: currentPartyUser,
+    partyMemberIds,
   };
+  const closer = await mayCloseNcr(session, current.project_id);
+  // Who last wrote the CAPA text (column exists only after the NCR hardening migration).
+  let capaUpdatedBy: string | null = null;
+  {
+    const { data: capaRow, error: capaErr } = await supabase
+      .from(NCRS_TABLE)
+      .select("capa_updated_by")
+      .eq("id", ncrId)
+      .maybeSingle<{ capa_updated_by: string | null }>();
+    if (!capaErr) capaUpdatedBy = capaRow?.capa_updated_by ?? null;
+  }
 
   if (closeNow) {
     // Verification needs close authority (admin staff or close_ncr holder), only from awaiting-verification.
-    if (!(await mayCloseNcr(session, current.project_id))) {
+    if (!closer) {
       return { error: "Only a JAGS admin, or someone granted the close NCR permission, can verify and close an NCR." };
     }
     if (current.status !== "pending_verification") {
@@ -540,7 +587,7 @@ export async function updateNcrAction(
     return { error: "Only the raiser, the assignee, the responsible party or JAGS staff can update this NCR." };
   }
 
-  if (!canEditCapa(current.status, session.isJagsStaff)) {
+  if (!canEditCapa(current.status, session.isJagsStaff, closer)) {
     return { error: "This NCR is awaiting verification and its CAPA is locked. JAGS staff can return it for rework." };
   }
 
@@ -548,6 +595,19 @@ export async function updateNcrAction(
   // certifying that it's genuinely fixed. Admins are exempt, same as every other self-certification gate.
   if (closeNow && !isAdminStaff(session) && current.raised_by && current.raised_by === session.userId) {
     return { error: "You raised this NCR — a different person must close it out." };
+  }
+  // The assignee / the author of the corrective action must not verify their own work (admins only with a written override).
+  let sodOverride: string | null = null;
+  if (closeNow) {
+    const sod = selfVerificationCheck({
+      closerId: session.userId,
+      isAdmin: isAdminStaff(session),
+      assignedTo: current.assigned_to,
+      capaUpdatedBy,
+      overrideReason,
+    });
+    if (!sod.ok) return { error: sod.error };
+    sodOverride = sod.override;
   }
 
   // CAPA text: any worker may edit. Assignment / due date / party: staff or raiser only.
@@ -580,24 +640,45 @@ export async function updateNcrAction(
     update.status = "in_progress";
   }
 
+  // Extended fields (category, disposition, impacts, response, location ...): only what the form sent.
+  // Details that describe what was found (location / tag / spec clause) follow the raiser-or-staff rule.
+  const extendedUpdate: Record<string, unknown> = { ...extended.values };
+  if (!canEditNcrDetails(current.status, session.isJagsStaff, current.raised_by === session.userId)) {
+    delete extendedUpdate.location;
+    delete extendedUpdate.equipment_tag;
+    delete extendedUpdate.spec_reference;
+  }
+  const hasExtended = Object.keys(extendedUpdate).length > 0;
+  const closeColumns: Record<string, unknown> = closeNow && sodOverride ? { close_override_reason: sodOverride } : {};
+  const selectCols = "id, ncr_number, project_id, raised_by, itp_item_id, inspection_record_id, projects(organization_id)";
+  type UpdatedNcr = {
+    id: string;
+    ncr_number: string;
+    project_id: string;
+    raised_by: string | null;
+    itp_item_id: string | null;
+    inspection_record_id: string | null;
+    projects: { organization_id: string } | null;
+  };
+
   // Optimistic-concurrency guard: never clobber an NCR that closed meanwhile.
-  const { data: updatedNcr, error } = await supabase
+  let { data: updatedNcr, error } = await supabase
     .from(NCRS_TABLE)
-    .update(update)
+    .update({ ...update, ...extendedUpdate, ...closeColumns })
     .eq("id", ncrId)
     .neq("status", "closed")
-    .select(
-      "id, ncr_number, project_id, raised_by, itp_item_id, inspection_record_id, projects(organization_id)"
-    )
-    .maybeSingle<{
-      id: string;
-      ncr_number: string;
-      project_id: string;
-      raised_by: string | null;
-      itp_item_id: string | null;
-      inspection_record_id: string | null;
-      projects: { organization_id: string } | null;
-    }>();
+    .select(selectCols)
+    .maybeSingle<UpdatedNcr>();
+  if (error && (hasExtended || Object.keys(closeColumns).length > 0) && isMissingSchemaError(error)) {
+    // Hardening migration not applied yet: save what the old schema supports.
+    ({ data: updatedNcr, error } = await supabase
+      .from(NCRS_TABLE)
+      .update(stripExtendedColumns(update))
+      .eq("id", ncrId)
+      .neq("status", "closed")
+      .select(selectCols)
+      .maybeSingle<UpdatedNcr>());
+  }
 
   if (!error && !updatedNcr) {
     return { error: "This NCR is already closed." };
@@ -610,7 +691,16 @@ export async function updateNcrAction(
     if (error.code === "22P02") {
       return { error: "Assigned-to and responsible party must be valid IDs (UUID)." };
     }
-    return { error: "Could not update the NCR. Check you have permission and try again." };
+    return { error: dbMessage(error, "Could not update the NCR. Check you have permission and try again.") };
+  }
+
+  // Keep the linked punch item in step with the NCR (S5-05): due date and responsible party.
+  if (orgId && (newDue !== current.due_date || newParty !== current.responsible_party_id)) {
+    const patch: Record<string, unknown> = {};
+    if (newDue !== current.due_date) patch.due_date = newDue;
+    if (newParty !== current.responsible_party_id) patch.responsible_party_id = newParty;
+    const { error: syncErr } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).update(patch).eq("source_ncr_id", ncrId).neq("status", "closed");
+    if (syncErr) console.error("[ncr] punch sync failed", syncErr.message);
   }
 
   // Audit assignment changes with old/new values, and tell the new assignee / party.
@@ -739,17 +829,20 @@ export async function updateNcrAction(
     }
 
     if (updatedNcr?.projects?.organization_id) {
-      await notifySafe(
-        supabase,
-        {
-          organizationId: updatedNcr.projects.organization_id,
-          projectId: updatedNcr.project_id,
-          recipientUserId: updatedNcr.raised_by,
-          title: "Your NCR has been closed",
-          body: updatedNcr.ncr_number,
-          link: `/inspect/ncrs/${ncrId}`,
-        }
-      );
+      for (const recipient of new Set([updatedNcr.raised_by, current.assigned_to, ...partyMemberIds])) {
+        await notifySafe(
+          supabase,
+          {
+            organizationId: updatedNcr.projects.organization_id,
+            projectId: updatedNcr.project_id,
+            recipientUserId: recipient,
+            title: recipient === updatedNcr.raised_by ? "Your NCR has been closed" : "NCR closed",
+            body: updatedNcr.ncr_number,
+            link: `/inspect/ncrs/${ncrId}`,
+          },
+          session.userId
+        );
+      }
       await recordAuditEvent(supabase, {
         organizationId: updatedNcr.projects.organization_id,
         projectId: updatedNcr.project_id,
@@ -757,7 +850,8 @@ export async function updateNcrAction(
         entityId: ncrId,
         action: "closed",
         actorId: user?.id ?? null,
-        summary: `NCR ${updatedNcr.ncr_number} closed`,
+        summary: `NCR ${updatedNcr.ncr_number} closed${sodOverride ? ` (admin override of self-verification: ${sodOverride})` : ""}`,
+        ...(sodOverride ? { changes: { close_override_reason: sodOverride } } : {}),
       });
     }
 
@@ -1037,20 +1131,32 @@ export async function setNcrStatusAction(_prev: NcrStatusState, formData: FormDa
     (cur.status === "open" && status === "in_progress") || (cur.status === "in_progress" && status === "pending_verification");
   if (!allowed) return { error: "The NCR is no longer in a state where this change applies. Refresh and try again." };
   const partyUser = await partyUserIdOf(supabase, cur.responsible_party_id);
-  if (!canWorkNcr({ isStaff: session.isJagsStaff, userId: session.userId, raisedBy: cur.raised_by, assignedTo: cur.assigned_to, partyUserId: partyUser })) {
+  const partyMemberIds = await partyUserIds(supabase, cur.responsible_party_id);
+  if (!canWorkNcr({ isStaff: session.isJagsStaff, userId: session.userId, raisedBy: cur.raised_by, assignedTo: cur.assigned_to, partyUserId: partyUser, partyMemberIds })) {
     return { error: "Only the raiser, the assignee, the responsible party or JAGS staff can change this NCR's status." };
   }
   if (status === "pending_verification" && (!cur.root_cause || !cur.corrective_action || !cur.preventive_action)) {
     return { error: "Save root cause, corrective action and preventive action before sending for verification." };
   }
+  if (status === "pending_verification") {
+    // Evidence is required at submission, not first discovered by the verifier at close (S5-09).
+    const [{ count: photoCount }, { count: docCount }] = await Promise.all([
+      supabase.from(NCR_PHOTOS_TABLE).select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
+      supabase.from("ncr_documents" as any).select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
+    ]);
+    if (evidenceCount(photoCount ?? 0, docCount ?? 0) === 0) {
+      return { error: "Attach at least one photo or linked document as evidence before sending for verification." };
+    }
+  }
 
-  const { data: updatedNcr } = await supabase
+  const { data: updatedNcr, error: statusError } = await supabase
     .from(NCRS_TABLE)
     .update({ status })
     .eq("id", ncrId)
     .eq("status", cur.status)
     .select("ncr_number, project_id, projects(organization_id)")
     .maybeSingle<{ ncr_number: string; project_id: string; projects: { organization_id: string } | null }>();
+  if (statusError) return { error: dbMessage(statusError, "Could not change the status. Check you have permission and try again.") };
   if (!updatedNcr) return { error: "The NCR changed meanwhile. Refresh and try again." };
 
   const orgId = updatedNcr.projects?.organization_id;
@@ -1117,9 +1223,9 @@ export async function returnNcrForReworkAction(_prev: ReturnNcrState, formData: 
     .update({ status: "in_progress" })
     .eq("id", ncrId)
     .eq("status", "pending_verification")
-    .select("ncr_number, project_id, assigned_to, responsible_party_id, projects(organization_id)")
-    .maybeSingle<{ ncr_number: string; project_id: string; assigned_to: string | null; responsible_party_id: string | null; projects: { organization_id: string } | null }>();
-  if (error || !ncr) return { error: "Could not return it: the NCR is not awaiting verification, or you lack permission." };
+    .select("ncr_number, project_id, assigned_to, raised_by, responsible_party_id, projects(organization_id)")
+    .maybeSingle<{ ncr_number: string; project_id: string; assigned_to: string | null; raised_by: string | null; responsible_party_id: string | null; projects: { organization_id: string } | null }>();
+  if (error || !ncr) return { error: dbMessage(error, "Could not return it: the NCR is not awaiting verification, or you lack permission.") };
 
   const orgId = ncr.projects?.organization_id;
   if (orgId) {
@@ -1137,11 +1243,14 @@ export async function returnNcrForReworkAction(_prev: ReturnNcrState, formData: 
     } catch {
       // Best-effort.
     }
-    await notifySafe(
-      supabase,
-      { organizationId: orgId, projectId: ncr.project_id, recipientUserId: ncr.assigned_to, title: "NCR returned for rework", body: `${ncr.ncr_number}: ${reason}`, link: `/inspect/ncrs/${ncrId}` },
-      session.userId
-    );
+    const reworkRecipients = new Set<string | null>([ncr.assigned_to, ncr.raised_by, ...(await partyUserIds(supabase, ncr.responsible_party_id))]);
+    for (const recipient of reworkRecipients) {
+      await notifySafe(
+        supabase,
+        { organizationId: orgId, projectId: ncr.project_id, recipientUserId: recipient, title: "NCR returned for rework", body: `${ncr.ncr_number}: ${reason}`, link: `/inspect/ncrs/${ncrId}` },
+        session.userId
+      );
+    }
   }
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");
@@ -1169,14 +1278,29 @@ export async function reopenNcrAction(_prev: ReopenNcrState, formData: FormData)
     return { error: "Only a JAGS admin, or someone granted the close NCR permission, can re-open an NCR." };
   }
 
-  const { data: ncr, error } = await supabase
+  const { data: reopenInfo } = await supabase.from(NCRS_TABLE).select("reopen_count").eq("id", ncrId).maybeSingle<{ reopen_count: number | null }>();
+  type ReopenedNcr = { ncr_number: string; project_id: string; assigned_to: string | null; responsible_party_id: string | null; projects: { organization_id: string } | null };
+  const reopenCols = "ncr_number, project_id, assigned_to, responsible_party_id, projects(organization_id)";
+  let { data: ncr, error } = await supabase
     .from(NCRS_TABLE)
-    .update({ status: "in_progress", closed_by: null, closed_at: null })
+    .update({ status: "in_progress", closed_by: null, closed_at: null, last_reopen_reason: reason, reopen_count: (reopenInfo?.reopen_count ?? 0) + 1 })
     .eq("id", ncrId)
     .eq("status", "closed")
-    .select("ncr_number, project_id, assigned_to, responsible_party_id, projects(organization_id)")
-    .maybeSingle<{ ncr_number: string; project_id: string; assigned_to: string | null; responsible_party_id: string | null; projects: { organization_id: string } | null }>();
-  if (error || !ncr) return { error: "Could not re-open: the NCR is not closed or you lack permission." };
+    .select(reopenCols)
+    .maybeSingle<ReopenedNcr>();
+  if (error && isMissingSchemaError(error)) {
+    ({ data: ncr, error } = await supabase
+      .from(NCRS_TABLE)
+      .update({ status: "in_progress", closed_by: null, closed_at: null })
+      .eq("id", ncrId)
+      .eq("status", "closed")
+      .select(reopenCols)
+      .maybeSingle<ReopenedNcr>());
+  }
+  if (error || !ncr) return { error: dbMessage(error, "Could not re-open: the NCR is not closed or you lack permission.") };
+
+  // The filed close-out certificate / dossier no longer describes a closed NCR.
+  await supersedeVaultDocumentsByReference(supabase, ncr.project_id, [ncr.ncr_number, `${ncr.ncr_number}-closeout`]);
 
   // Re-open linked punch items with the same bookkeeping as reopenPunchItemAction.
   const { data: linked } = await supabase
@@ -1195,6 +1319,7 @@ export async function reopenNcrAction(_prev: ReopenNcrState, formData: FormData)
         reopened_by: session.userId,
         reopened_at: new Date().toISOString(),
         reopen_count: (item.reopen_count ?? 0) + 1,
+        closing_photo_paths: [],
         resolved_by: null,
         resolved_at: null,
         closed_by: null,
@@ -1216,8 +1341,7 @@ export async function reopenNcrAction(_prev: ReopenNcrState, formData: FormData)
       actorId: session.userId,
       summary: `NCR ${ncr.ncr_number} re-opened: ${reason}`,
     });
-    const partyUser = await partyUserIdOf(supabase, ncr.responsible_party_id);
-    for (const recipient of new Set([ncr.assigned_to, partyUser])) {
+    for (const recipient of new Set([ncr.assigned_to, ...(await partyUserIds(supabase, ncr.responsible_party_id))])) {
       await notifySafe(
         supabase,
         { organizationId: orgId, projectId: ncr.project_id, recipientUserId: recipient, title: "NCR re-opened", body: `${ncr.ncr_number}: ${reason}`, link: `/inspect/ncrs/${ncrId}` },
@@ -1263,10 +1387,14 @@ export async function addNcrPhotoAction(
   if (owner.status === "closed") return { error: "This NCR is closed. Re-open it to add evidence." };
 
   const partyUser = await partyUserIdOf(supabase, owner.responsible_party_id);
+  const photoPartyMembers = await partyUserIds(supabase, owner.responsible_party_id);
   if (
-    !canWorkNcr({ isStaff: session.isJagsStaff, userId: session.userId, raisedBy: owner.raised_by, assignedTo: owner.assigned_to, partyUserId: partyUser })
+    !canWorkNcr({ isStaff: session.isJagsStaff, userId: session.userId, raisedBy: owner.raised_by, assignedTo: owner.assigned_to, partyUserId: partyUser, partyMemberIds: photoPartyMembers })
   ) {
     return { error: "Only the raiser, the assignee, the responsible party or JAGS staff can add evidence." };
+  }
+  if (!canChangeEvidence(owner.status, session.isJagsStaff, await mayCloseNcr(session, owner.project_id))) {
+    return { error: "This NCR is awaiting verification, so its evidence is locked. JAGS staff can return it for rework." };
   }
 
   if (!isValidNcrPhotoPath(owner.project_id, ncrId, storagePath)) {
@@ -1277,19 +1405,38 @@ export async function addNcrPhotoAction(
   const { data: listed } = await supabase.storage
     .from("inspection-evidence")
     .list(storagePath.slice(0, slash), { search: storagePath.slice(slash + 1), limit: 10 });
-  if (!(listed ?? []).some((o) => o.name === storagePath.slice(slash + 1))) {
+  const listedObject = (listed ?? []).find((o) => o.name === storagePath.slice(slash + 1));
+  if (!listedObject) {
     return { error: "The uploaded file could not be found. Upload it again." };
   }
+  // Same type and size rules as every other photo path (the browser-declared name/type is not trusted).
+  const objectMeta = (listedObject.metadata ?? {}) as { mimetype?: string; size?: number };
+  const mime = String(objectMeta.mimetype ?? "");
+  if ((mime && !/^image\/(jpeg|png|webp|heic|heif)$/i.test(mime)) || (objectMeta.size ?? 0) > PUNCH_PHOTO_MAX_BYTES) {
+    await supabase.storage.from("inspection-evidence").remove([storagePath]).catch(() => undefined);
+    return { error: "Only JPEG, PNG, WebP or HEIC photos up to 25 MB can be attached." };
+  }
 
-  const { error } = await supabase.from(NCR_PHOTOS_TABLE).insert({
+  const photoTag = String(formData.get("photo_tag") ?? "").trim();
+  const capturedRaw = String(formData.get("captured_at") ?? "").trim();
+  const capturedAt = capturedRaw && !Number.isNaN(Date.parse(capturedRaw)) && Date.parse(capturedRaw) <= Date.now() + 5 * 60_000 ? new Date(capturedRaw).toISOString() : null;
+  const photoRow: Record<string, unknown> = {
     ncr_id: ncrId,
     storage_path: storagePath,
     caption: caption || null,
     uploaded_by: session.userId,
-  });
+  };
+  const photoMeta: Record<string, unknown> = {};
+  if (photoTag === "before" || photoTag === "after" || photoTag === "evidence") photoMeta.photo_tag = photoTag;
+  if (capturedAt) photoMeta.captured_at = capturedAt;
+  let { error } = await supabase.from(NCR_PHOTOS_TABLE).insert({ ...photoRow, ...photoMeta });
+  if (error && Object.keys(photoMeta).length > 0 && isMissingSchemaError(error)) {
+    ({ error } = await supabase.from(NCR_PHOTOS_TABLE).insert(photoRow));
+  }
 
   if (error) {
-    return { error: "Could not save the photo record. Check you have permission and try again." };
+    await supabase.storage.from("inspection-evidence").remove([storagePath]).catch(() => undefined);
+    return { error: dbMessage(error, "Could not save the photo record. Check you have permission and try again.") };
   }
 
   revalidatePath(`/inspect/ncrs/${ncrId}`);
@@ -1314,6 +1461,28 @@ export async function findOpenNcrsForItemAction(
   return data ?? [];
 }
 
+/** Shared actor + lock check for linking / unlinking evidence documents. */
+async function evidenceChangeError(
+  supabase: Supabase,
+  session: Awaited<ReturnType<typeof requireSession>>,
+  ncr: { project_id: string; status: string; raised_by: string | null; assigned_to: string | null; responsible_party_id: string | null }
+): Promise<string | null> {
+  const members = await partyUserIds(supabase, ncr.responsible_party_id);
+  const worker = canWorkNcr({
+    isStaff: session.isJagsStaff,
+    userId: session.userId,
+    raisedBy: ncr.raised_by,
+    assignedTo: ncr.assigned_to,
+    partyUserId: null,
+    partyMemberIds: members,
+  });
+  if (!worker) return "Only the raiser, the assignee, the responsible party or JAGS staff can change this NCR's evidence.";
+  if (!canChangeEvidence(ncr.status, session.isJagsStaff, await mayCloseNcr(session, ncr.project_id))) {
+    return "This NCR is awaiting verification, so its evidence is locked. JAGS staff can return it for rework.";
+  }
+  return null;
+}
+
 export interface NcrDocumentState {
   error: string | null;
   done?: boolean;
@@ -1326,7 +1495,7 @@ export async function linkNcrDocumentAction(_prev: NcrDocumentState, formData: F
   if (!ncrId) return { error: "Missing NCR." };
   if (ids.length === 0) return { error: "Select at least one file." };
 
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -1334,11 +1503,13 @@ export async function linkNcrDocumentAction(_prev: NcrDocumentState, formData: F
 
   const { data: ncr } = await supabase
     .from(NCRS_TABLE)
-    .select("project_id, status")
+    .select("project_id, status, raised_by, assigned_to, responsible_party_id")
     .eq("id", ncrId)
-    .maybeSingle<{ project_id: string; status: string }>();
+    .maybeSingle<{ project_id: string; status: string; raised_by: string | null; assigned_to: string | null; responsible_party_id: string | null }>();
   if (!ncr) return { error: "NCR not found, or you don't have access to it." };
   if (ncr.status === "closed") return { error: "This NCR is closed. Re-open it to add evidence." };
+  const evidenceError = await evidenceChangeError(supabase, session, ncr);
+  if (evidenceError) return { error: evidenceError };
 
   const { data: docs } = await supabase
     .from("vault_documents")
@@ -1361,11 +1532,17 @@ export async function linkNcrDocumentAction(_prev: NcrDocumentState, formData: F
 }
 
 export async function unlinkNcrDocumentAction(input: { ncrId: string; linkId: string }): Promise<NcrDocumentState> {
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
-  const { data: ncr } = await supabase.from(NCRS_TABLE).select("status").eq("id", input.ncrId).maybeSingle<{ status: string }>();
+  const { data: ncr } = await supabase
+    .from(NCRS_TABLE)
+    .select("project_id, status, raised_by, assigned_to, responsible_party_id")
+    .eq("id", input.ncrId)
+    .maybeSingle<{ project_id: string; status: string; raised_by: string | null; assigned_to: string | null; responsible_party_id: string | null }>();
   if (!ncr) return { error: "NCR not found." };
   if (ncr.status === "closed") return { error: "This NCR is closed. Re-open it to change evidence." };
+  const evidenceError = await evidenceChangeError(supabase, session, ncr);
+  if (evidenceError) return { error: evidenceError };
   const { error } = await supabase.from("ncr_documents" as any).delete().eq("id", input.linkId).eq("ncr_id", input.ncrId);
   if (error) return { error: "Could not remove the document." };
   revalidatePath(`/inspect/ncrs/${input.ncrId}`);
@@ -1469,4 +1646,206 @@ export async function gradeObservationToNcrAction(_prev: GradeNcrState, formData
   revalidatePath("/inspect/ncrs");
   revalidatePath("/inspect/observations");
   return { error: punchWarning ? `Graded to ${label}.${punchWarning}` : null, done: true };
+}
+
+export interface WithdrawNcrState {
+  error: string | null;
+  done?: boolean;
+}
+
+/**
+ * Withdraws an NCR / observation raised in error or as a duplicate (S5-17). It is closed with a
+ * mandatory reason (optionally naming the NCR it duplicates), flagged withdrawn, its linked punch
+ * items are closed with it, and every "open item" gate (Data Book, handover, KPIs) stops counting it.
+ * Needs the withdrawn_* columns from the NCR hardening migration.
+ */
+export async function withdrawNcrAction(_prev: WithdrawNcrState, formData: FormData): Promise<WithdrawNcrState> {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  const duplicateOf = String(formData.get("duplicate_of_ncr_id") ?? "").trim() || null;
+  if (!ncrId) return { error: "Missing NCR." };
+  if (reason.length < WITHDRAW_REASON_MIN) return { error: `Give a reason for withdrawing this NCR (at least ${WITHDRAW_REASON_MIN} characters).` };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const { data: cur } = await supabase
+    .from(NCRS_TABLE)
+    .select("status, raised_by, project_id, ncr_number, projects(organization_id)")
+    .eq("id", ncrId)
+    .maybeSingle<{ status: string; raised_by: string | null; project_id: string; ncr_number: string; projects: { organization_id: string } | null }>();
+  if (!cur) return { error: "NCR not found, or you don't have access to it." };
+  const closer = await mayCloseNcr(session, cur.project_id);
+  if (!canWithdrawNcr(cur.status, closer, cur.raised_by === session.userId)) {
+    return { error: "Only a JAGS admin or someone granted the close NCR permission can withdraw an NCR (the raiser can withdraw one that has not been started)." };
+  }
+  if (duplicateOf) {
+    const { data: dup } = await supabase.from(NCRS_TABLE).select("id").eq("id", duplicateOf).eq("project_id", cur.project_id).neq("id", ncrId).maybeSingle<{ id: string }>();
+    if (!dup) return { error: "The NCR it duplicates was not found on this project." };
+  }
+
+  const now = new Date().toISOString();
+  const { data: updated, error } = await supabase
+    .from(NCRS_TABLE)
+    .update({
+      status: "closed",
+      closed_by: session.userId,
+      closed_at: now,
+      withdrawn_at: now,
+      withdrawn_by: session.userId,
+      withdrawn_reason: reason,
+      duplicate_of_ncr_id: duplicateOf,
+    })
+    .eq("id", ncrId)
+    .neq("status", "closed")
+    .select("id")
+    .maybeSingle<{ id: string }>();
+  if (error) {
+    if (isMissingSchemaError(error)) return { error: "Withdrawing needs the latest database update, which has not been applied yet. Ask an administrator." };
+    return { error: dbMessage(error, "Could not withdraw the NCR. Check you have permission and try again.") };
+  }
+  if (!updated) return { error: "This NCR is already closed." };
+
+  // Close its punch items with it (flagged withdrawn so they never block handover).
+  const punchNote = `NCR withdrawn: ${reason}`;
+  const { error: punchErr } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .update({
+      status: "closed",
+      closing_evidence: punchNote,
+      verification_notes: punchNote,
+      withdrawn_at: now,
+      withdrawn_by: session.userId,
+      withdrawn_reason: reason,
+      closed_by: session.userId,
+      closed_at: now,
+    })
+    .eq("source_ncr_id", ncrId)
+    .in("status", ["open", "resolved"]);
+  if (punchErr) {
+    await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .update({ status: "closed", closing_evidence: punchNote, verification_notes: punchNote, closed_by: session.userId, closed_at: now })
+      .eq("source_ncr_id", ncrId)
+      .in("status", ["open", "resolved"]);
+  }
+
+  const orgId = cur.projects?.organization_id;
+  if (orgId) {
+    await recordAuditEvent(supabase, {
+      organizationId: orgId,
+      projectId: cur.project_id,
+      entityType: "ncr",
+      entityId: ncrId,
+      action: "withdrawn",
+      actorId: session.userId,
+      summary: `NCR ${cur.ncr_number} withdrawn: ${reason}${duplicateOf ? " (duplicate)" : ""}`,
+      changes: { reason, duplicate_of_ncr_id: duplicateOf },
+    });
+    await notifySafe(
+      supabase,
+      { organizationId: orgId, projectId: cur.project_id, recipientUserId: cur.raised_by, title: "NCR withdrawn", body: `${cur.ncr_number}: ${reason}`, link: `/inspect/ncrs/${ncrId}` },
+      session.userId
+    );
+  }
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  revalidatePath("/inspect/ncrs");
+  revalidatePath("/inspect/observations");
+  return { error: null, done: true };
+}
+
+export interface EditNcrDetailsState {
+  error: string | null;
+  done?: boolean;
+}
+
+/** Corrects what the NCR describes (description, requirement, location, tag, spec clause). Raiser or staff, until awaiting verification. */
+export async function editNcrDetailsAction(_prev: EditNcrDetailsState, formData: FormData): Promise<EditNcrDetailsState> {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const requirementNotMet = String(formData.get("requirement_not_met") ?? "").trim();
+  if (!ncrId) return { error: "Missing NCR." };
+  if (description.length < 10) return { error: "Describe the nonconformance (at least 10 characters)." };
+  const extended = parseNcrExtended((n) => formData.has(n), (n) => (formData.get(n) == null ? null : String(formData.get(n))));
+  if (extended.error) return { error: extended.error };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const { data: cur } = await supabase
+    .from(NCRS_TABLE)
+    .select("status, severity, raised_by, description, requirement_not_met, project_id, ncr_number, projects(organization_id)")
+    .eq("id", ncrId)
+    .maybeSingle<{ status: string; severity: string; raised_by: string | null; description: string; requirement_not_met: string | null; project_id: string; ncr_number: string; projects: { organization_id: string } | null }>();
+  if (!cur) return { error: "NCR not found, or you don't have access to it." };
+  if (!canEditNcrDetails(cur.status, session.isJagsStaff, cur.raised_by === session.userId)) {
+    return { error: "Only the raiser or JAGS staff can edit the description, and not once the NCR is awaiting verification or closed." };
+  }
+  const payload: Record<string, unknown> = { description, requirement_not_met: requirementNotMet || null };
+  const extendedPayload: Record<string, unknown> = {};
+  for (const k of ["location", "equipment_tag", "spec_reference"] as const) {
+    if (k in extended.values) extendedPayload[k] = extended.values[k];
+  }
+  let { error } = await supabase.from(NCRS_TABLE).update({ ...payload, ...extendedPayload }).eq("id", ncrId).neq("status", "closed");
+  if (error && isMissingSchemaError(error)) ({ error } = await supabase.from(NCRS_TABLE).update(payload).eq("id", ncrId).neq("status", "closed"));
+  if (error) return { error: dbMessage(error, "Could not save the changes. Check you have permission and try again.") };
+
+  const orgId = cur.projects?.organization_id;
+  if (orgId) {
+    await recordAuditEvent(supabase, {
+      organizationId: orgId,
+      projectId: cur.project_id,
+      entityType: "ncr",
+      entityId: ncrId,
+      action: "updated",
+      actorId: session.userId,
+      summary: `NCR ${cur.ncr_number} details corrected`,
+      changes: { description: { old: cur.description, new: description }, requirement_not_met: { old: cur.requirement_not_met, new: requirementNotMet || null } },
+    });
+  }
+  // Keep the punch item's wording in step.
+  await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .update({ description: `${severityLabel(cur.severity)}: ${description}` })
+    .eq("source_ncr_id", ncrId)
+    .neq("status", "closed");
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  revalidatePath("/inspect/ncrs");
+  revalidatePath("/inspect/observations");
+  return { error: null, done: true };
+}
+
+export interface EnsurePunchState {
+  error: string | null;
+  done?: boolean;
+}
+
+/**
+ * Repair path (S5-11): when the punch item for an NCR could not be created at raise / grade-up, this
+ * (idempotently) creates it. Does nothing when a punch item already exists for the NCR.
+ */
+export async function ensureNcrPunchItemAction(_prev: EnsurePunchState, formData: FormData): Promise<EnsurePunchState> {
+  const ncrId = String(formData.get("ncr_id") ?? "").trim();
+  if (!ncrId) return { error: "Missing NCR." };
+  await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const { data: ncr } = await supabase
+    .from(NCRS_TABLE)
+    .select("project_id, severity, status, description, due_date, responsible_party_id")
+    .eq("id", ncrId)
+    .maybeSingle<{ project_id: string; severity: NcrSeverity; status: string; description: string; due_date: string | null; responsible_party_id: string | null }>();
+  if (!ncr) return { error: "NCR not found, or you don't have access to it." };
+  if (ncr.severity === "observation") return { error: "Observations have no punch-list item until they are graded up." };
+  if (ncr.status === "closed") return { error: "This NCR is closed." };
+  const { count } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("source_ncr_id", ncrId);
+  if ((count ?? 0) > 0) return { error: null, done: true };
+  const created = await createPunchItemFromSource({
+    projectId: ncr.project_id,
+    description: `${severityLabel(ncr.severity)}: ${ncr.description}`,
+    source: "ncr",
+    sourceNcrId: ncrId,
+    dueDate: ncr.due_date ?? undefined,
+    responsiblePartyId: ncr.responsible_party_id ?? undefined,
+  });
+  if (created.error) return { error: created.error };
+  revalidatePath(`/inspect/ncrs/${ncrId}`);
+  return { error: null, done: true };
 }

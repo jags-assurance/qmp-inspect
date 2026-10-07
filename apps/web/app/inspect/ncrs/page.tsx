@@ -15,6 +15,7 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { applyNcrFilters, applyNcrSort, SORT_OPTIONS, type NcrListParams } from "@/lib/ncrs/list-filters";
 import { STATUS_LABEL } from "./ncr-shared";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export default async function NcrsPage({
   searchParams,
@@ -91,8 +92,12 @@ export default async function NcrsPage({
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
-  const [{ data: statsRows }, { count: totalCount }, { data: ncrs }] = await Promise.all([
-    statsQuery.returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>(),
+  // Stats read EVERY matching row (PostgREST caps one response at 1000): page through them and fail
+  // loudly rather than showing wrong totals on a big project.
+  const [statsRows, { count: totalCount }, { data: ncrs }] = await Promise.all([
+    fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
+      statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
+    ),
     countQuery,
     (applyNcrSort(tableQuery, sp.sort) as typeof tableQuery)
       .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
@@ -100,7 +105,7 @@ export default async function NcrsPage({
   ]);
 
   const rows = ncrs ?? [];
-  const statRows = statsRows ?? [];
+  const statRows = statsRows;
   const total = statRows.length;
   const open = statRows.filter((r) => r.status !== "closed").length;
   const closed = statRows.filter((r) => r.status === "closed").length;
@@ -137,9 +142,9 @@ export default async function NcrsPage({
               points={[
                 "Lists every minor/major NCR (observations are excluded — they have their own register) with server-side search, pagination and a discipline filter.",
                 "Anyone with project access can raise an NCR via \"+ Raise NCR\" — raising one always also creates a matching project punch-list item, since every NCR must be closed out before handover regardless of severity.",
-                "Closing an NCR requires root cause, corrective action and verification notes to be filled in (preventive action is optional) — enforced by the close-out action, not just the form. There's no separate reviewer/approver step: anyone with project access who fills those fields in can close it.",
+                "Sending an NCR for verification needs root cause, corrective and preventive action and at least one evidence photo or document. Closing additionally needs verification notes, and is done by a JAGS admin or someone granted the close NCR permission - not the raiser or the assignee. Raised in error? Withdraw it (with a reason) instead of working it to closure.",
                 "The discipline filter only matches NCRs raised against a specific ITP item — a standalone/walkdown NCR has no discipline of its own and always stays visible unfiltered.",
-                "Stat cards and the aging chart are computed from every matching NCR, not just the current page.",
+                "Stat cards and the aging chart are computed from every matching NCR, not just the current page. \"Overdue\" uses the site's calendar day.",
               ]}
             />
           </div>

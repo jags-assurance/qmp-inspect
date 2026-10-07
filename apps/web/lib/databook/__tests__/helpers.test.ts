@@ -30,6 +30,8 @@ function readiness(over: Partial<DataBookReadiness> = {}): DataBookReadiness {
     materialRegister: cat("Material", 1, 1),
     standaloneAssignments: cat("Standalone", 1, 1),
     ncrs: cat("NCRs", 0, 2),
+    activitiesExecuted: cat("Activities", 1, 1),
+    holdPoints: cat("Holds", 1, 1),
     handoverCertificate: cat("Handover", 0, 1),
     openPunchItems: 4,
     overallPercentage: 50,

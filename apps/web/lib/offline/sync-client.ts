@@ -1,6 +1,16 @@
 "use client";
 
-import { getOutboxItems, removeOutboxItem, recordOutboxFailure, type OutboxItem } from "./db";
+import {
+  getOutboxItems,
+  patchOutboxItem,
+  recordOutboxBackoff,
+  recordOutboxFailure,
+  recordOutboxNetworkError,
+  removeOutboxItem,
+  type OutboxItem,
+} from "./db";
+import { MAX_SERVER_FAILURES, backoffMs, classifyHttpFailure, mayReplayItem, responseKey } from "./policy";
+import { getLocalUserId } from "./user";
 
 const QUEUE_CHANGED_EVENT = "qmp-offline-queue-changed";
 
@@ -20,22 +30,32 @@ export function onOutboxChanged(handler: () => void): () => void {
 function buildFormData(item: OutboxItem): FormData {
   const formData = new FormData();
   for (const [key, value] of Object.entries(item.fields)) formData.set(key, value);
+  // Real capture time (the item was recorded now-ish on the device, replayed hours later): the
+  // server uses it for signed_at / photo timestamps instead of the sync time.
+  formData.set("captured_at", new Date(item.createdAt).toISOString());
   if (item.file) formData.set("file", item.file, item.fileName ?? "photo.jpg");
   return formData;
 }
 
-/** After this many failed attempts a transiently-failing item is marked rejected so it stops blocking the queue. */
-const MAX_ATTEMPTS = 5;
+const REQUEST_TIMEOUT_MS = 90_000;
 
 let syncInFlight: Promise<{ synced: number; failed: number }> | null = null;
 
 /**
  * Replays queued items against POST /api/offline-sync in queue order. Only "pending" items are
- * attempted automatically; rejected/conflict/auth items wait for the user (Retry / Keep mine /
- * Discard) so a permanently-bad item is not hammered forever. If an item for an inspection is
+ * attempted automatically; rejected/conflict/auth/foreign items wait for the user (Retry / Keep mine
+ * / Discard) so a permanently-bad item is not hammered forever. If an item for an inspection is
  * blocked, later items for the SAME inspection are held back (a "complete inspection" must never
- * run before the answers queued ahead of it). Network/5xx errors are transient: the item stays
- * pending and the run stops. A single run at a time (concurrent triggers share the same promise).
+ * run before the answers queued ahead of it).
+ *
+ * Retry budget: only server-confirmed failures (5xx from our own handler) count towards
+ * MAX_SERVER_FAILURES, each followed by exponential backoff. Network errors, timeouts and gateway or
+ * captive-portal responses never spend the budget, so hours on edge-of-coverage signal cannot flip
+ * good items to "rejected". A platform 413 (photo too large for the host) can never succeed and is
+ * rejected straight away with a clear message.
+ *
+ * Shared tablets: an item is replayed only by the user who queued it. A single run at a time
+ * (concurrent triggers share the same promise).
  */
 export function syncOutbox(): Promise<{ synced: number; failed: number }> {
   if (syncInFlight) return syncInFlight;
@@ -47,6 +67,7 @@ export function syncOutbox(): Promise<{ synced: number; failed: number }> {
 
 async function runSync(): Promise<{ synced: number; failed: number }> {
   const items = await getOutboxItems();
+  const currentUserId = await getLocalUserId();
   let synced = 0;
   let failed = 0;
   const blockedInspections = new Set<string>();
@@ -58,25 +79,82 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
       if (group) blockedInspections.add(group);
       continue;
     }
+
+    if (!mayReplayItem(item.userId, currentUserId)) {
+      // Queued by someone else (or we cannot tell who is signed in): never replay under this session.
+      if (currentUserId) {
+        await recordOutboxFailure(
+          item.id,
+          "Queued by a different user on this device. Sign in as that user to sync it, or export/discard it.",
+          "foreign"
+        );
+      }
+      if (group) blockedInspections.add(group);
+      continue;
+    }
+
+    if (item.nextAttemptAt && item.nextAttemptAt > Date.now()) {
+      if (group) blockedInspections.add(group);
+      continue;
+    }
+
+    const headers: Record<string, string> = { "X-Idempotency-Key": item.clientKey ?? item.id };
+    if (item.userId) headers["X-Queued-User"] = item.userId;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch("/api/offline-sync", {
         method: "POST",
         body: buildFormData(item),
-        headers: { "X-Idempotency-Key": item.clientKey ?? item.id },
+        headers,
         credentials: "same-origin",
         redirect: "manual",
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       // Expired session: middleware redirects (opaque redirect) or API answers 401/403.
       if (response.type === "opaqueredirect" || response.status === 401 || response.status === 403) {
         await recordOutboxFailure(item.id, "Your session expired. Sign in again to finish syncing — nothing has been lost.", "auth");
         failed++;
         break;
       }
-      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; conflict?: boolean } | null;
+      const body = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        conflict?: boolean;
+        wrongUser?: boolean;
+        updatedAt?: string;
+      } | null;
       if (response.ok && body?.ok) {
         await removeOutboxItem(item.id);
         synced++;
-      } else if (response.status === 409 || body?.conflict) {
+        // Chain the server baseline: later queued answers to the same item were based on the value
+        // this one just replaced, so they must expect the NEW updated_at (otherwise the second of two
+        // offline edits to one item would conflict with the first).
+        const key = responseKey(item);
+        if (key && body.updatedAt) {
+          for (const later of items) {
+            if (later.id === item.id || later.status !== "pending" || responseKey(later) !== key) continue;
+            if (!later.fields.expected_updated_at) continue;
+            later.fields.expected_updated_at = body.updatedAt;
+            later.expectedUpdatedAt = body.updatedAt;
+            await patchOutboxItem(later.id, (stored) => {
+              stored.fields.expected_updated_at = body.updatedAt as string;
+              stored.expectedUpdatedAt = body.updatedAt;
+            });
+          }
+        }
+        continue;
+      }
+      if (body?.wrongUser) {
+        await recordOutboxFailure(item.id, body.error ?? "Queued by a different user on this device.", "foreign");
+        if (group) blockedInspections.add(group);
+        failed++;
+        continue;
+      }
+      const klass = body?.conflict ? "conflict" : classifyHttpFailure(response.status, body !== null);
+      if (klass === "conflict") {
         await recordOutboxFailure(
           item.id,
           body?.error ?? "This answer was changed by someone else after you recorded it offline.",
@@ -84,36 +162,42 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
         );
         if (group) blockedInspections.add(group);
         failed++;
-      } else if (response.status === 422 || response.status === 400) {
+      } else if (klass === "too_large") {
+        await recordOutboxFailure(
+          item.id,
+          "This photo is too large to upload from the queue. Discard it and take it again (it will be compressed).",
+          "rejected"
+        );
+        if (group) blockedInspections.add(group);
+        failed++;
+      } else if (klass === "rejected") {
         await recordOutboxFailure(item.id, body?.error ?? `The server rejected this change (${response.status}).`, "rejected");
         if (group) blockedInspections.add(group);
         failed++;
-      } else {
-        // 5xx / unparseable: transient. After MAX_ATTEMPTS the item is rejected (user must Retry/Discard)
-        // and later groups continue; before that it stays pending and this inspection's later items wait.
-        const exhausted = (item.attempts ?? 0) + 1 >= MAX_ATTEMPTS;
-        await recordOutboxFailure(
+      } else if (klass === "server") {
+        // Our own handler failed (5xx): spend one unit of the budget and back off.
+        const failures = (item.serverFailures ?? 0) + 1;
+        const exhausted = failures >= MAX_SERVER_FAILURES;
+        await recordOutboxBackoff(
           item.id,
           exhausted ? "The server keeps failing to process this item. Retry or discard it." : "Server error. Will retry.",
+          failures,
+          Date.now() + backoffMs(failures),
           exhausted ? "rejected" : "pending"
         );
         failed++;
-        if (group) {
-          blockedInspections.add(group);
-        } else if (!exhausted) {
-          break;
-        }
+        if (group) blockedInspections.add(group);
+      } else {
+        // Gateway / captive portal / unparseable: not a server verdict, so the budget is untouched.
+        await recordOutboxNetworkError(item.id, "No usable answer from the server. Will retry.");
+        failed++;
+        break;
       }
-    } catch (err) {
-      const exhausted = (item.attempts ?? 0) + 1 >= MAX_ATTEMPTS;
-      await recordOutboxFailure(
-        item.id,
-        exhausted ? "This item could not be sent after several attempts. Retry or discard it." : "Network error. Will retry.",
-        exhausted ? "rejected" : "pending"
-      );
+    } catch {
+      clearTimeout(timer);
+      await recordOutboxNetworkError(item.id, "Network error. Will retry.");
       failed++;
-      if (!exhausted) break;
-      if (group) blockedInspections.add(group);
+      break;
     }
   }
 

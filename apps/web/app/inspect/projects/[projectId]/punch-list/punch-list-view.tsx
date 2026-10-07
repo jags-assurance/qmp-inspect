@@ -9,6 +9,7 @@ import { RecordWalkdownForm } from "./record-walkdown-form";
 import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
+import { userNames } from "@/lib/ncrs/recipients";
 
 type RawPunchRow = Omit<PunchListItemDisplayRow, "photo_urls" | "closing_photo_urls" | "resolved_by_name" | "closed_by_name">;
 
@@ -28,7 +29,7 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
   const [{ data: items }, { data: projectParties }] = await Promise.all([
     supabase
       .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, closing_photo_paths, reopen_reason, reopen_count, responsible_party_id, resolved_by, resolved_at, closed_by, closed_at, project_parties(name, user_id)")
+      .select("id, description, source, location, due_date, status, closing_evidence, verification_notes, priority, photo_paths, closing_photo_paths, reopen_reason, reopen_count, responsible_party_id, source_ncr_id, source_inspection_record_id, source_standalone_assignment_id, resolved_by, resolved_at, closed_by, closed_at, project_parties(name, user_id)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .returns<RawPunchRow[]>(),
@@ -57,8 +58,7 @@ export async function PunchListView({ projectId, embedded = false }: { projectId
   const userIds = [...new Set((items ?? []).flatMap((i) => [i.resolved_by, i.closed_by]).filter((u): u is string => !!u))];
   const nameById = new Map<string, string>();
   if (userIds.length > 0) {
-    const { data: users } = await supabase.from("users").select("id, full_name").in("id", userIds).returns<{ id: string; full_name: string }[]>();
-    for (const u of users ?? []) nameById.set(u.id, u.full_name);
+    for (const [id, name] of await userNames(supabase, userIds)) nameById.set(id, name);
   }
 
   const rows: PunchListItemDisplayRow[] = (items ?? []).map((item) => ({

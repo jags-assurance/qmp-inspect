@@ -17,6 +17,8 @@ import { EditPunchItemForm } from "./edit-punch-item-form";
 import { ReopenPunchItemForm } from "./reopen-punch-item-form";
 import { ResolvePunchItemForm } from "./resolve-punch-item-form";
 import { VerifyClosePunchItemForm } from "./verify-close-punch-item-form";
+import { BulkPunchBar, WithdrawPunchItemForm } from "./punch-extras";
+import Link from "next/link";
 
 export interface PunchListItemDisplayRow {
   id: string;
@@ -44,6 +46,9 @@ export interface PunchListItemDisplayRow {
   closed_by: string | null;
   closed_by_name: string | null;
   closed_at: string | null;
+  source_ncr_id?: string | null;
+  source_inspection_record_id?: string | null;
+  source_standalone_assignment_id?: string | null;
 }
 
 const isOverdueRow = (r: { due_date: string | null; status: string }) => isPunchOverdue(r);
@@ -97,6 +102,8 @@ export function PunchListTable({
     open: rows.filter((r) => r.status === "open").length,
     verify: rows.filter((r) => r.status === "resolved").length,
   };
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggleSelected = (id: string) => setSelected((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
   const [partyFilter, setPartyFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
@@ -152,6 +159,25 @@ export function PunchListTable({
   // The resolve / verify forms used to expand inside the table cell and shove every row around;
   // they now live in a side panel opened per row, so the list stays still and context stays visible.
   const columns: DataTableColumn<PunchListItemDisplayRow>[] = [
+    ...(canVerifyClose
+      ? [
+          {
+            key: "select",
+            header: "",
+            render: (row: PunchListItemDisplayRow) =>
+              row.status === "closed" ? null : (
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${row.description.slice(0, 40)}`}
+                  checked={selected.includes(row.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleSelected(row.id)}
+                  className="h-5 w-5"
+                />
+              ),
+          },
+        ]
+      : []),
     {
       key: "priority",
       header: "Pri.",
@@ -247,6 +273,7 @@ export function PunchListTable({
           </button>
         </div>
       </div>
+      {canVerifyClose && <BulkPunchBar projectId={projectId} selectedIds={selected} parties={projectParties} onDone={() => setSelected([])} />}
       <DataTable
         columns={columns}
         rows={visibleRows}
@@ -263,6 +290,21 @@ export function PunchListTable({
             <p className="flex flex-wrap items-center gap-2">
               <Badge tone={STATUS_TONE[openRow.status]} showIcon>{PUNCH_LIST_STATUS_LABELS[openRow.status]}</Badge>
               <Badge tone="neutral">{PUNCH_LIST_SOURCE_LABELS[openRow.source]}</Badge>
+              {openRow.source_ncr_id && (
+                <Link href={`/inspect/ncrs/${openRow.source_ncr_id}`} className="text-xs text-burgundy hover:underline">
+                  Open the NCR →
+                </Link>
+              )}
+              {openRow.source_inspection_record_id && (
+                <Link href={`/inspect/inspections/${openRow.source_inspection_record_id}`} className="text-xs text-burgundy hover:underline">
+                  Open the inspection →
+                </Link>
+              )}
+              {openRow.source_standalone_assignment_id && (
+                <Link href={`/inspect/standalone/${openRow.source_standalone_assignment_id}`} className="text-xs text-burgundy hover:underline">
+                  Open the assignment →
+                </Link>
+              )}
             </p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
               <dt className="text-muted">Location</dt>
@@ -326,6 +368,7 @@ export function PunchListTable({
               </div>
             )}
             {openRow.status === "open" && <ResolvePunchItemForm projectId={projectId} punchItemId={openRow.id} />}
+            {openRow.status !== "closed" && !openRow.source_ncr_id && <WithdrawPunchItemForm projectId={projectId} punchItemId={openRow.id} />}
             {openRow.status === "resolved" && (
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">

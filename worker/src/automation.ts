@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { escalationTier, isDueSoon, siteDate } from "./escalation";
 
 // automation_rules/automation_notification_log/notifications aren't in the generated Database type
 // (same documented escape hatch used throughout this worker for background_jobs — see index.ts).
@@ -57,10 +58,24 @@ async function getOrgAdminUserIds(organizationId: string): Promise<string[]> {
     .select("id")
     .in("id", candidateIds)
     .eq("is_jags_staff", true)
-    .eq("staff_role", "admin")
+    .eq("is_active", true)
+    // The app treats a null staff_role (legacy accounts) as admin; so does this.
+    .or("staff_role.eq.admin,staff_role.is.null")
     .returns<{ id: string }[]>();
 
   return (admins ?? []).map((a) => a.id);
+}
+
+/** Drops deactivated users from a recipient set: nobody should be nudged on an account that is switched off. */
+async function onlyActiveUsers(ids: Iterable<string>): Promise<string[]> {
+  const list = [...new Set(ids)];
+  if (list.length === 0) return [];
+  try {
+    const { data } = await db.from("users").select("id").in("id", list).eq("is_active", true);
+    return ((data ?? []) as { id: string }[]).map((u) => u.id);
+  } catch {
+    return list;
+  }
 }
 
 async function notify(organizationId: string, projectId: string | null, recipientUserId: string, title: string, body: string, link: string): Promise<void> {
@@ -180,37 +195,55 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
   const projectIds = (projects ?? []).map((p) => p.id);
   if (projectIds.length === 0) return 0;
 
-  const cutoffDate = new Date(Date.now() - rule.threshold_hours * 3600 * 1000).toISOString().slice(0, 10);
+  const today = siteDate();
+  const soonDate = siteDate(new Date(Date.now() + 2 * 86_400_000));
+  const cutoffDate = siteDate(new Date(Date.now() - rule.threshold_hours * 3600 * 1000));
+  // Overdue beyond the rule's threshold, plus items due within the next two days (pre-due reminder).
   const { data: ncrs } = await supabase
     .from("ncrs")
     .select("id, ncr_number, project_id, due_date, assigned_to, raised_by, status, responsible_party_id, project_parties(user_id)")
     .in("project_id", projectIds)
     .neq("status", "closed")
     .not("due_date", "is", null)
-    .lt("due_date", cutoffDate)
+    .or(`due_date.lt.${cutoffDate},and(due_date.gte.${today},due_date.lte.${soonDate})`)
     .returns<NcrRow[]>();
 
   let sent = 0;
   const admins = await getOrgAdminUserIds(rule.organization_id);
   for (const ncr of ncrs ?? []) {
+    if (!ncr.due_date) continue;
+    const dueSoon = isDueSoon(ncr.due_date, today);
+    const tier = escalationTier(ncr.due_date, today);
+    if (!dueSoon && tier === 0) continue;
     if (await alreadyNotifiedRecently(rule.id, ncr.id, rule.repeat_hours)) continue;
-    const recipients = new Set<string>(admins);
+    const recipients = new Set<string>();
     const awaitingVerification = ncr.status === "pending_verification";
-    // Pending verification: the work is done, so nudge the verifiers (staff/admins) and the raiser,
-    // not the assignee. Otherwise nudge the assignee, raiser and the responsible party's user too.
+    // Tier 1 / due soon: the people doing the work. Pending verification: the work is done, so the
+    // verifiers (close holders) and the raiser, not the assignee.
     if (ncr.raised_by) recipients.add(ncr.raised_by);
     if (awaitingVerification) {
       for (const holder of await getCloseNcrHolderIds(ncr.project_id)) recipients.add(holder);
-    }
-    if (!awaitingVerification) {
+      for (const admin of admins) recipients.add(admin);
+    } else {
       if (ncr.assigned_to) recipients.add(ncr.assigned_to);
       const partyUser = ncr.project_parties?.user_id;
       if (partyUser) recipients.add(partyUser);
+      // Tier 2: those who verify/close; tier 3: organisation admins.
+      if (tier >= 2) for (const holder of await getCloseNcrHolderIds(ncr.project_id)) recipients.add(holder);
+      if (tier >= 3) for (const admin of admins) recipients.add(admin);
     }
-    const title = awaitingVerification ? `NCR overdue for verification: ${ncr.ncr_number}` : `Overdue NCR: ${ncr.ncr_number}`;
-    const body = awaitingVerification ? `Due ${ncr.due_date}, awaiting verification.` : `Due ${ncr.due_date}, still open.`;
+    const title = dueSoon
+      ? `NCR due soon: ${ncr.ncr_number}`
+      : awaitingVerification
+        ? `NCR overdue for verification: ${ncr.ncr_number}`
+        : `Overdue NCR: ${ncr.ncr_number}${tier >= 3 ? " (escalated)" : ""}`;
+    const body = dueSoon
+      ? `Due ${ncr.due_date}.`
+      : awaitingVerification
+        ? `Due ${ncr.due_date}, awaiting verification.`
+        : `Due ${ncr.due_date}, still open.`;
     const link = `/inspect/ncrs/${ncr.id}`;
-    for (const userId of recipients) {
+    for (const userId of await onlyActiveUsers(recipients)) {
       await notify(rule.organization_id, ncr.project_id, userId, title, body, link);
     }
     await recordSent(rule.id, ncr.id);
@@ -258,36 +291,46 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
   const projectIds = (projects ?? []).map((p) => p.id);
   if (projectIds.length === 0) return 0;
 
-  const cutoffDate = new Date(Date.now() - rule.threshold_hours * 3600 * 1000).toISOString().slice(0, 10);
+  const today = siteDate();
+  const soonDate = siteDate(new Date(Date.now() + 2 * 86_400_000));
+  const cutoffDate = siteDate(new Date(Date.now() - rule.threshold_hours * 3600 * 1000));
   const { data: rawItems } = await db
     .from("punch_list_items")
     .select("id, description, project_id, due_date, responsible_party_id, status, created_by, project_parties(user_id)")
     .in("project_id", projectIds)
     .neq("status", "closed")
     .not("due_date", "is", null)
-    .lt("due_date", cutoffDate);
+    .or(`due_date.lt.${cutoffDate},and(due_date.gte.${today},due_date.lte.${soonDate})`);
   const items = rawItems as PunchRow[] | null;
 
   let sent = 0;
   const admins = await getOrgAdminUserIds(rule.organization_id);
   for (const item of items ?? []) {
+    const dueSoon = isDueSoon(item.due_date, today);
+    const tier = escalationTier(item.due_date, today);
+    if (!dueSoon && tier === 0) continue;
     if (await alreadyNotifiedRecently(rule.id, item.id, rule.repeat_hours)) continue;
-    const recipients = new Set<string>(admins);
+    const recipients = new Set<string>();
     const partyUser = item.project_parties?.user_id ?? null;
     let body: string;
     if (item.status === "resolved") {
       // Fixed but unverified: the ball is with the verifiers, not the resolver's party.
       for (const id of await getPunchVerifierUserIds(item.project_id)) recipients.add(id);
+      if (tier >= 3 || recipients.size === 0) for (const admin of admins) recipients.add(admin);
       if (recipients.size === 0 && item.created_by) recipients.add(item.created_by);
-      body = `${item.description} — due ${item.due_date}, resolved but still awaiting verification.`;
+      body = dueSoon
+        ? `${item.description} — due ${item.due_date}, awaiting verification.`
+        : `${item.description} — due ${item.due_date}, resolved but still awaiting verification.`;
     } else {
       if (partyUser) recipients.add(partyUser);
       else if (item.created_by) recipients.add(item.created_by); // party has no login
-      body = `${item.description} — due ${item.due_date}, still open.`;
+      if (tier >= 2) for (const id of await getPunchVerifierUserIds(item.project_id)) recipients.add(id);
+      if (tier >= 3) for (const admin of admins) recipients.add(admin);
+      body = dueSoon ? `${item.description} — due ${item.due_date}.` : `${item.description} — due ${item.due_date}, still open.`;
     }
-    const title = "Overdue punch item";
+    const title = dueSoon ? "Punch item due soon" : tier >= 3 ? "Overdue punch item (escalated)" : "Overdue punch item";
     const link = `/inspect/projects/${item.project_id}/punch-list?item=${item.id}`;
-    for (const userId of recipients) {
+    for (const userId of await onlyActiveUsers(recipients)) {
       await notify(rule.organization_id, item.project_id, userId, title, body, link);
     }
     await recordSent(rule.id, item.id);

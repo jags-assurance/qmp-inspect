@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
 
@@ -14,10 +15,36 @@ export function AddPunchItemForm({
   projectParties: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(addPunchItemAction, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Idempotency key per attempt: a double tap or a refresh-resubmit cannot add the item twice.
+  const [requestId, setRequestId] = useState("");
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    setRequestId(crypto.randomUUID());
+  }, []);
+  // Reset the fields and issue a fresh key after a successful add.
+  useEffect(() => {
+    if (state.added) {
+      formRef.current?.reset();
+      setRequestId(crypto.randomUUID());
+      setConfirmed(true);
+      const t = setTimeout(() => setConfirmed(false), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [state]);
+
+  async function submit(formData: FormData) {
+    const tooBig = await compressFormPhotos(formData, ["photos"]);
+    setPhotoError(tooBig);
+    if (tooBig) return;
+    formAction(formData);
+  }
 
   return (
-    <form action={formAction} encType="multipart/form-data" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={submit} encType="multipart/form-data" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="project_id" value={projectId} />
+      <input type="hidden" name="request_id" value={requestId} />
 
       <div className="w-full min-w-56 flex-1">
         <label htmlFor="description" className="block text-xs font-medium text-ink">
@@ -109,7 +136,9 @@ export function AddPunchItemForm({
         {pending ? "Adding…" : "+ Add punch item"}
       </Button>
 
+      {photoError && <p className="w-full text-sm text-danger">{photoError}</p>}
       {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {confirmed && <p role="status" className="w-full text-sm text-success">Punch item added.</p>}
     </form>
   );
 }

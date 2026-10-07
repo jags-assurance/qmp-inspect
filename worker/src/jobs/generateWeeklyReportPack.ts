@@ -1,4 +1,5 @@
 import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { withBidi } from "./bidi";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
 import ExcelJS from "exceljs";
@@ -130,7 +131,7 @@ export async function generateWeeklyReportPack(
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

@@ -1,10 +1,12 @@
 import { getSharedBrowser } from "../browserPool";
+import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
 import { buildNcrPdfHtml, type NcrPdfData, type NcrPdfSeverity, type NcrPdfStatus } from "./ncrTemplate";
 import type { RenderNcrPdfPayload } from "./types";
 import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
-import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, ncrDossierFilingStatus } from "./vaultAutoFile";
+import { buildGeneratedPath, ncrDossierFilingStatus } from "./vaultAutoFile";
+import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -113,13 +115,18 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     branding: await getOrgBranding(supabase, project?.organization_id),
   };
 
+  // Identical dossier already filed: reuse it (open NCRs otherwise pile up one for-review row per click).
+  const tag = hashTag(sourceHash({ ...templateData, generatedAt: null }));
+  const existing = await findFiledByHash(supabase, ncr.project_id, "approvals_correspondence", ncr.ncr_number, tag);
+  if (existing) return { resultStoragePath: existing };
+
   const html = buildNcrPdfHtml(templateData);
 
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",
@@ -140,9 +147,12 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     await page.close();
   }
 
-  const storagePath = buildGeneratedPath(`ncrs/${ncr.id}`, ncr.ncr_number, null);
-
-  await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
+  const storagePath = buildGeneratedPath(`ncrs/${ncr.id}`, ncr.ncr_number, null, Date.now(), tag);
+  // A closed NCR's dossier is a final record, but only staff / close_ncr holders cause an APPROVED copy.
+  const filingStatus =
+    ncrDossierFilingStatus(ncr.status) === "approved" && (await canFileApproved(supabase, payload.requested_by, ncr.project_id, { permissionKeys: ["close_ncr"] }))
+      ? "approved"
+      : "for_review";
 
   // "approvals_correspondence" — no dedicated NCR category exists in the fixed vault taxonomy
   // (lib/vault/types.ts's VAULT_FOLDER_KEYS), and "certificates" is reserved for
@@ -150,7 +160,7 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
   // 20260917050000_add_test_reports_vault_folder.sql's own header comment, so it would be a poor
   // fit. An NCR dossier is a formal, project-level record of correspondence about a
   // non-conformance, which this category otherwise already covers.
-  await autoFileVaultDocument(supabase, {
+  await uploadAndFile(supabase, storagePath, pdfBuffer, {
     projectId: ncr.project_id,
     folderKey: "approvals_correspondence",
     title: `NCR ${ncr.ncr_number}`,
@@ -162,7 +172,7 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     autoRevision: true,
     // Only a CLOSED NCR is a final record; an open dossier is filed for review and never supersedes
     // an approved copy.
-    status: ncrDossierFilingStatus(ncr.status),
+    status: filingStatus,
   });
 
   return { resultStoragePath: storagePath };

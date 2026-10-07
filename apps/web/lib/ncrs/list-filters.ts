@@ -1,4 +1,6 @@
 // Shared URL-param filters for the NCR register page and its CSV export.
+import { siteToday } from "@/lib/ncrs/site-date";
+
 export interface NcrListParams {
   status?: string;
   severity?: string;
@@ -24,7 +26,7 @@ export function applyNcrFilters(query: any, p: NcrListParams, userId: string): a
   if (p.project) query = query.eq("project_id", p.project);
   if (p.assignee === "me") query = query.eq("assigned_to", userId);
   else if (p.assignee === "unassigned") query = query.is("assigned_to", null);
-  if (p.overdue === "1") query = query.neq("status", "closed").lt("due_date", new Date().toISOString().slice(0, 10));
+  if (p.overdue === "1") query = query.neq("status", "closed").lt("due_date", siteToday());
   return query;
 }
 

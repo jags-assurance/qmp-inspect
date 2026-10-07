@@ -13,7 +13,8 @@ export interface PdfStatusLike {
 // appear" feels immediate, but stop well short of the worker's own 3-minute JOB_TIMEOUT_MS so a
 // genuinely stuck job doesn't poll forever in the background.
 const POLL_INTERVAL_MS = 2000;
-const MAX_POLLS = 60;
+// 5 minutes: a requeued job (retry backoff) can take longer than the old 2-minute window.
+const MAX_POLLS = 150;
 
 /**
  * Shared "queue a background PDF render, then wait for it" behaviour for every PDF/report button in
@@ -38,15 +39,14 @@ export function usePdfPolling<T extends PdfStatusLike, Id>(initialLatest: T | nu
   const [timedOut, setTimedOut] = useState(false);
   const pollCountRef = useRef(0);
   const autoOpenedRef = useRef(false);
-  // A window.open() called from inside the async polling effect, seconds after the click, has lost
-  // "user activation" and gets silently blocked by every major browser. The fix: open a blank tab
-  // synchronously inside the click handler itself, while it still counts as a direct result of the
-  // click, and just redirect that already-open tab's location once the PDF is ready — browsers
-  // don't block that.
-  const pendingWindowRef = useRef<Window | null>(null);
+  // The tab is NOT opened at click time any more: a blank about:blank tab was left behind whenever the
+  // request then failed validation (not completed, rate limit). Instead remember that the user asked
+  // for a document and open it once it is ready; if the browser blocks that popup, the View / Download
+  // links shown next to the button are always there.
+  const wantOpenRef = useRef(false);
 
   function beginGenerate() {
-    pendingWindowRef.current = window.open("", "_blank");
+    wantOpenRef.current = true;
   }
 
   function startPolling() {
@@ -80,34 +80,16 @@ export function usePdfPolling<T extends PdfStatusLike, Id>(initialLatest: T | nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polling, id]);
 
-  // Open the freshly-rendered PDF the moment it's ready, once, instead of making the user find and
-  // click a link themselves after watching it appear.
+  // Open the freshly-rendered PDF the moment it's ready, once, if the user just asked for it.
   useEffect(() => {
-    if (liveStatus?.status === "completed" && liveStatus.pdfUrl && !autoOpenedRef.current) {
+    if (liveStatus?.status === "completed" && liveStatus.pdfUrl && !autoOpenedRef.current && wantOpenRef.current) {
       autoOpenedRef.current = true;
-      const tab = pendingWindowRef.current;
-      if (tab && !tab.closed) {
-        tab.location.href = liveStatus.pdfUrl;
-      } else {
-        // The click-time window.open() can itself come back null (popups fully disabled, or this
-        // ran outside a real click, e.g. dev tooling) — fall back to a normal link click's worth of
-        // effort rather than silently doing nothing.
-        window.open(liveStatus.pdfUrl, "_blank", "noopener,noreferrer");
-      }
-    } else if (liveStatus?.status === "failed" && pendingWindowRef.current && !pendingWindowRef.current.closed) {
-      // Don't leave a blank about:blank tab sitting around when the render failed.
-      pendingWindowRef.current.close();
+      wantOpenRef.current = false;
+      window.open(liveStatus.pdfUrl, "_blank", "noopener,noreferrer");
+    } else if (liveStatus?.status === "failed") {
+      wantOpenRef.current = false;
     }
   }, [liveStatus]);
-
-  useEffect(() => {
-    if (timedOut && pendingWindowRef.current && !pendingWindowRef.current.closed) {
-      // Same reasoning as the "failed" branch above — a job stuck past the client's own patience
-      // shouldn't leave a dead blank tab behind either, even though the job itself might still be
-      // pending server-side (see the doc comment above timedOut's declaration).
-      pendingWindowRef.current.close();
-    }
-  }, [timedOut]);
 
   return { liveStatus, polling, timedOut, beginGenerate, startPolling };
 }

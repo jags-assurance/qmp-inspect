@@ -29,6 +29,10 @@ export function statusReasonError(from: string, to: string, reason: string): str
   if (isClosedStatus(from) && from !== to && reason.trim().length < MIN_STATUS_REASON_LENGTH) {
     return `Give a reason (at least ${MIN_STATUS_REASON_LENGTH} characters) for re-opening a ${from} project.`;
   }
+  // A closing override reason must be a real reason too (the RPC records it), not a single character.
+  if (to === "completed" && reason.trim().length > 0 && reason.trim().length < MIN_STATUS_REASON_LENGTH) {
+    return `A reason for closing with open items must be at least ${MIN_STATUS_REASON_LENGTH} characters.`;
+  }
   if (reason.length > 1000) return "Reason must be 1000 characters or fewer.";
   return null;
 }

@@ -6,6 +6,9 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/helpers";
+import { directoryClient, partyUserIds as directoryPartyUserIds } from "@/lib/ncrs/recipients";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { siteToday } from "@/lib/ncrs/site-date";
 import {
   PUNCH_LIST_ITEMS_TABLE,
   PUNCH_LIST_PRIORITIES,
@@ -19,6 +22,7 @@ import {
   PUNCH_MAX_FILES_PER_ROW,
   PUNCH_MAX_LOCATION,
   PUNCH_MAX_WALKDOWN_ROWS,
+  defaultPunchDueDate,
   detectPunchImage,
   validDueDate,
 } from "@/lib/punch-list/helpers";
@@ -143,14 +147,15 @@ async function notifyUsers(
   }
 }
 
+/** The party's login (first of its users). Kept for single-recipient callers; see partyUsers for everyone. */
 async function partyUserId(supabase: Supa, partyId: string | null): Promise<string | null> {
-  if (!partyId) return null;
-  const { data } = await supabase
-    .from("project_parties")
-    .select("user_id")
-    .eq("id", partyId)
-    .maybeSingle<{ user_id: string | null }>();
-  return data?.user_id ?? null;
+  return (await partyUsers(supabase, partyId))[0] ?? null;
+}
+
+/** The party's login plus its team members (they all act for the party). */
+async function partyUsers(supabase: Supa, partyId: string | null): Promise<string[]> {
+  if (!partyId) return [];
+  return directoryPartyUserIds(supabase, partyId);
 }
 
 /**
@@ -158,7 +163,9 @@ async function partyUserId(supabase: Supa, partyId: string | null): Promise<stri
  * scoped assignment) plus org-level JAGS admin staff. Best-effort and RLS-bound: a caller who cannot
  * read the role tables simply gets fewer recipients (callers also add created_by as a fallback).
  */
-async function verifierUserIds(supabase: Supa, projectId: string, organizationId: string | null): Promise<string[]> {
+async function verifierUserIds(callerClient: Supa, projectId: string, organizationId: string | null): Promise<string[]> {
+  // Read through the directory client: RLS would show a contractor resolving an item only themselves.
+  const supabase = directoryClient(callerClient) as unknown as Supa;
   const ids = new Set<string>();
   try {
     const { data: perms } = await supabase
@@ -206,6 +213,8 @@ async function verifierUserIds(supabase: Supa, projectId: string, organizationId
 
 export interface AddPunchItemState {
   error: string | null;
+  /** True after a successful add: the form resets and shows a confirmation. */
+  added?: boolean;
 }
 
 async function findOrgForProject(
@@ -230,6 +239,7 @@ export async function addPunchItemAction(
   const location = String(formData.get("location") ?? "").trim();
   const responsiblePartyId = String(formData.get("responsible_party_id") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "").trim();
+  const requestId = String(formData.get("request_id") ?? "").trim().replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
 
   if (!projectId || !description) {
     return { error: "Description is required." };
@@ -245,25 +255,44 @@ export async function addPunchItemAction(
   if (!(await partyBelongsToProject(supabase, projectId, responsiblePartyId))) {
     return { error: "The responsible party doesn't belong to this project." };
   }
+  // A retried submit (double tap, refresh) with the same request id is a no-op, not a second item.
+  if (requestId) {
+    const { data: already, error: alreadyErr } = await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("client_request_id", requestId)
+      .maybeSingle<{ id: string }>();
+    if (!alreadyErr && already) return { error: null, added: true };
+  }
   const prep = await preparePunchPhotos(formData.getAll("photos"));
   if (prep.error) return { error: prep.error };
   const photos = await uploadPreparedPhotos(supabase, projectId, prep.prepared);
   if (photos.error) return { error: photos.error };
-  const { data: item, error } = await supabase
+  const itemPayload: Record<string, unknown> = {
+    project_id: projectId,
+    description,
+    source: "manual",
+    location: location || null,
+    responsible_party_id: responsiblePartyId || null,
+    due_date: dueDate || null,
+    priority: parsePriority(formData.get("priority")),
+    photo_paths: photos.paths,
+    created_by: user?.id ?? null,
+  };
+  let { data: item, error } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
-    .insert({
-      project_id: projectId,
-      description,
-      source: "manual",
-      location: location || null,
-      responsible_party_id: responsiblePartyId || null,
-      due_date: dueDate || null,
-      priority: parsePriority(formData.get("priority")),
-      photo_paths: photos.paths,
-      created_by: user?.id ?? null,
-    })
+    .insert(requestId ? { ...itemPayload, client_request_id: requestId } : itemPayload)
     .select("id")
     .single<{ id: string }>();
+  if (error && requestId && error.code === "23505") {
+    // Lost the race to an identical request: the item exists.
+    await removePunchPhotos(supabase, photos.paths);
+    return { error: null, added: true };
+  }
+  if (error && requestId && isMissingSchemaError(error)) {
+    ({ data: item, error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(itemPayload).select("id").single<{ id: string }>());
+  }
 
   if (error || !item) {
     await removePunchPhotos(supabase, photos.paths);
@@ -302,7 +331,7 @@ export async function addPunchItemAction(
 
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
-  return { error: null };
+  return { error: null, added: true };
 }
 
 export interface ResolvePunchItemState {
@@ -348,6 +377,8 @@ export async function resolvePunchItemAction(
 
   const prep = await preparePunchPhotos(formData.getAll("closing_photos"));
   if (prep.error) return { error: prep.error };
+  // Same rule as NCR close-out: a fix needs photographic proof, not only a sentence.
+  if (prep.prepared.length === 0) return { error: "Attach at least one photo of the fix before marking this item resolved." };
   const photos = await uploadPreparedPhotos(supabase, projectId, prep.prepared);
   if (photos.error) return { error: photos.error };
 
@@ -570,6 +601,8 @@ export async function reopenPunchItemAction(
       resolved_at: null,
       closed_by: null,
       closed_at: null,
+      // The previous fix photos belong to the rejected attempt: clear them so they never sit next to the new resolution.
+      closing_photo_paths: [],
     })
     .eq("id", punchItemId)
     .eq("project_id", projectId)
@@ -614,7 +647,7 @@ export async function reopenPunchItemAction(
     supabase,
     projectId,
     session.userId,
-    [data[0].resolved_by, data[0].created_by, await partyUserId(supabase, data[0].responsible_party_id), ...ncrOwners],
+    [data[0].resolved_by, data[0].created_by, ...(await partyUsers(supabase, data[0].responsible_party_id)), ...ncrOwners],
     punchItemId,
     "Punch item reopened",
     `${data[0].description} - ${reason}`.slice(0, 300)
@@ -767,6 +800,13 @@ export async function recordWalkdownAction(
   const dueDates = formData.getAll("due_date").map((v) => String(v).trim());
   const priorities = formData.getAll("priority");
   const rowKeys = formData.getAll("row_key").map((v) => String(v));
+  const requestId = String(formData.get("request_id") ?? "").trim().replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
+  // Walkdown header (S5-23): when, where, who attended.
+  const walkedOnRaw = String(formData.get("walked_on") ?? "").trim();
+  const walkdownArea = String(formData.get("walkdown_area") ?? "").trim().slice(0, 200);
+  const walkdownAttendees = String(formData.get("walkdown_attendees") ?? "").trim().slice(0, 500);
+  const walkdownNotes = String(formData.get("walkdown_notes") ?? "").trim().slice(0, 2000);
+  if (!validDueDate(walkedOnRaw)) return { error: "Walkdown date is not valid." };
 
   if (descriptions.filter(Boolean).length > PUNCH_MAX_WALKDOWN_ROWS) {
     return { error: `A walk-down can record at most ${PUNCH_MAX_WALKDOWN_ROWS} items at a time.` };
@@ -802,6 +842,36 @@ export async function recordWalkdownAction(
     return { error: "Add at least one item found during the walk-down before recording it." };
   }
 
+  // A retried submit (double tap / refresh) with the same request id has already been recorded.
+  if (requestId) {
+    const { count: already, error: alreadyErr } = await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .like("client_request_id", `${requestId}-%`);
+    if (!alreadyErr && (already ?? 0) > 0) return { error: null, addedCount: already ?? 0 };
+  }
+
+  // Header record (best-effort: without the walkdowns table the items are still recorded, ungrouped).
+  let walkdownId: string | null = null;
+  {
+    const { data: wd, error: wdErr } = await supabase
+      .from("walkdowns" as never)
+      .insert({
+        project_id: projectId,
+        walked_on: walkedOnRaw || siteToday(),
+        area: walkdownArea || null,
+        attendees: walkdownAttendees || null,
+        notes: walkdownNotes || null,
+        item_count: indexes.length,
+        created_by: user?.id ?? null,
+      } as never)
+      .select("id")
+      .single<{ id: string }>();
+    if (!wdErr && wd) walkdownId = wd.id;
+    else if (wdErr && !isMissingSchemaError(wdErr)) console.error("[punch] walkdown header failed", wdErr.message);
+  }
+
   // Pass 2: upload, then insert; clean up uploads if anything fails.
   const uploaded: string[] = [];
   const rows: Record<string, unknown>[] = [];
@@ -822,17 +892,32 @@ export async function recordWalkdownAction(
       priority: parsePriority(priorities[i]),
       photo_paths: photos.paths,
       created_by: user?.id ?? null,
+      ...(walkdownId ? { walkdown_id: walkdownId } : {}),
+      ...(requestId ? { client_request_id: `${requestId}-${i}` } : {}),
     });
   }
 
-  const { data: inserted, error } = await supabase
+  type InsertedRow = { id: string; responsible_party_id: string | null; description: string };
+  let { data: inserted, error } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
     .insert(rows)
     .select("id, responsible_party_id, description")
-    .returns<{ id: string; responsible_party_id: string | null; description: string }[]>();
+    .returns<InsertedRow[]>();
+  if (error && isMissingSchemaError(error)) {
+    // walkdown_id / client_request_id columns not migrated yet: record the items without them.
+    const plain = rows.map((r) => {
+      const copy = { ...r };
+      delete copy.walkdown_id;
+      delete copy.client_request_id;
+      return copy;
+    });
+    ({ data: inserted, error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(plain).select("id, responsible_party_id, description").returns<InsertedRow[]>());
+  }
 
   if (error) {
     await removePunchPhotos(supabase, uploaded);
+    if (walkdownId) await supabase.from("walkdowns" as never).delete().eq("id", walkdownId);
+    if (error.code === "23505") return { error: null, addedCount: rows.length };
     if (error.code === "23503") {
       return { error: "A responsible party doesn't match a known project party." };
     }
@@ -849,7 +934,7 @@ export async function recordWalkdownAction(
         entityId: projectId,
         action: "walkdown_recorded",
         actorId: user?.id ?? null,
-        summary: `Walk-down recorded — ${rows.length} punch item(s) added`,
+        summary: `Walk-down recorded${walkdownArea ? ` (${walkdownArea})` : ""} — ${rows.length} punch item(s) added`,
       });
       for (const it of inserted ?? []) {
         await recordAuditEvent(supabase, {
@@ -921,7 +1006,9 @@ export async function createPunchItemFromSource(params: {
   dueDate?: string;
   priority?: PunchListPriority;
   createdBy?: string | null;
-}): Promise<{ error: string | null }> {
+  /** Reuse an existing non-closed item with the same source link instead of creating a second one. */
+  dedupe?: boolean;
+}): Promise<{ error: string | null; id?: string; existing?: boolean }> {
   if (!PUNCH_LIST_SOURCES.includes(params.source)) {
     return { error: "Invalid punch list source." };
   }
@@ -940,26 +1027,42 @@ export async function createPunchItemFromSource(params: {
     ? (params.priority as PunchListPriority)
     : "B";
   const createdBy = params.createdBy ?? user?.id ?? null;
-  const { data: item, error } = await supabase
-    .from(PUNCH_LIST_ITEMS_TABLE)
-    .insert({
-      project_id: params.projectId,
-      description: params.description,
-      source: params.source,
-      source_inspection_record_id: params.sourceInspectionRecordId ?? null,
-      source_standalone_assignment_id: params.sourceStandaloneAssignmentId ?? null,
-      source_ncr_id: params.sourceNcrId ?? null,
-      source_itp_item_id: params.sourceItpItemId ?? null,
-      location: params.location ?? null,
-      responsible_party_id: params.responsiblePartyId ?? null,
-      due_date: params.dueDate ?? null,
-      priority,
-      created_by: createdBy,
-    })
-    .select("id")
-    .single<{ id: string }>();
+
+  if (params.dedupe) {
+    // One defect = one open item: a re-completed failing inspection (or a retry) reuses the open one.
+    let existingQuery = supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id").eq("project_id", params.projectId).neq("status", "closed").limit(1);
+    if (params.sourceInspectionRecordId) existingQuery = existingQuery.eq("source_inspection_record_id", params.sourceInspectionRecordId);
+    else if (params.sourceStandaloneAssignmentId) existingQuery = existingQuery.eq("source_standalone_assignment_id", params.sourceStandaloneAssignmentId);
+    else if (params.sourceNcrId) existingQuery = existingQuery.eq("source_ncr_id", params.sourceNcrId);
+    else if (params.sourceItpItemId) existingQuery = existingQuery.eq("source_itp_item_id", params.sourceItpItemId);
+    const { data: found } = await existingQuery.maybeSingle<{ id: string }>();
+    if (found) return { error: null, id: found.id, existing: true };
+  }
+
+  // Auto-created items default to a due date by priority so they can go overdue and escalate.
+  const dueDate = params.dueDate ?? defaultPunchDueDate(priority, siteToday());
+  const itemPayload = {
+    project_id: params.projectId,
+    description: params.description,
+    source: params.source,
+    source_inspection_record_id: params.sourceInspectionRecordId ?? null,
+    source_standalone_assignment_id: params.sourceStandaloneAssignmentId ?? null,
+    source_ncr_id: params.sourceNcrId ?? null,
+    source_itp_item_id: params.sourceItpItemId ?? null,
+    location: params.location ?? null,
+    responsible_party_id: params.responsiblePartyId ?? null,
+    due_date: dueDate,
+    priority,
+    created_by: createdBy,
+  };
+  let { data: item, error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(itemPayload).select("id").single<{ id: string }>();
+  if (error && !item) {
+    // One retry: a transient failure here would otherwise leave a failed inspection / NCR with no punch item.
+    ({ data: item, error } = await supabase.from(PUNCH_LIST_ITEMS_TABLE).insert(itemPayload).select("id").single<{ id: string }>());
+  }
 
   if (error || !item) {
+    console.error("[punch] createPunchItemFromSource failed", params.source, error?.message);
     return { error: "Could not create the punch item." };
   }
 
@@ -994,5 +1097,154 @@ export async function createPunchItemFromSource(params: {
 
   revalidatePath(`/inspect/projects/${params.projectId}/punch-list`);
   revalidatePath(`/inspect/projects/${params.projectId}/data-book`);
-  return { error: null };
+  return { error: null, id: item.id };
+}
+
+export interface WithdrawPunchState {
+  error: string | null;
+  done?: boolean;
+}
+
+/**
+ * Withdraws a punch item raised in error or as a duplicate (S5-17): closed with a mandatory reason
+ * and flagged withdrawn, so it stops blocking the Data Book. An NCR-sourced item is withdrawn with
+ * its NCR instead (withdrawNcrAction) so the two never drift.
+ */
+export async function withdrawPunchItemAction(_prev: WithdrawPunchState, formData: FormData): Promise<WithdrawPunchState> {
+  const punchItemId = String(formData.get("punch_item_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!punchItemId || !projectId) return { error: "Missing punch item." };
+  if (reason.length < 5) return { error: "Give a reason for withdrawing this item (at least 5 characters)." };
+  if (reason.length > PUNCH_MAX_DESCRIPTION) return { error: `Reason is too long (max ${PUNCH_MAX_DESCRIPTION} characters).` };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const { data: cur } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .select("status, created_by, source_ncr_id, description")
+    .eq("id", punchItemId)
+    .eq("project_id", projectId)
+    .maybeSingle<{ status: string; created_by: string | null; source_ncr_id: string | null; description: string }>();
+  if (!cur) return { error: "This punch item could not be found." };
+  if (cur.status === "closed") return { error: "This item is already closed." };
+  if (cur.source_ncr_id) return { error: "This item belongs to an NCR - withdraw the NCR to withdraw its punch item." };
+  const allowed = session.isJagsStaff || isAdminStaff(session) || cur.created_by === session.userId || (await hasPermission(session.userId, "close_punch_item", projectId));
+  if (!allowed) return { error: "Only the creator, JAGS staff or a punch item verifier can withdraw an item." };
+
+  const now = new Date().toISOString();
+  const note = `Withdrawn: ${reason}`;
+  const { data, error } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .update({
+      status: "closed",
+      closing_evidence: note,
+      verification_notes: note,
+      withdrawn_at: now,
+      withdrawn_by: session.userId,
+      withdrawn_reason: reason,
+      closed_by: session.userId,
+      closed_at: now,
+    })
+    .eq("id", punchItemId)
+    .eq("project_id", projectId)
+    .neq("status", "closed")
+    .select("id")
+    .returns<{ id: string }[]>();
+  if (error) {
+    if (isMissingSchemaError(error)) return { error: "Withdrawing needs the latest database update, which has not been applied yet. Ask an administrator." };
+    return { error: error.code === "P0001" && error.message ? error.message : "Could not withdraw the punch item." };
+  }
+  if (!data || data.length === 0) return { error: "This item changed meanwhile - refresh and try again." };
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: punchItemId,
+        action: "withdrawn",
+        actorId: session.userId,
+        summary: `Punch item withdrawn: ${reason}`,
+        changes: { reason },
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+  revalidatePath(`/inspect/projects/${projectId}/punch-list`);
+  revalidatePath(`/inspect/projects/${projectId}/data-book`);
+  return { error: null, done: true };
+}
+
+export interface BulkPunchState {
+  error: string | null;
+  updated?: number;
+}
+
+/**
+ * Bulk reassign / re-date / re-prioritise selected punch items (S5-23). Same authority as editing one
+ * item (JAGS admin or close_punch_item holder); closed items are skipped; every change is audited.
+ */
+export async function bulkUpdatePunchItemsAction(_prev: BulkPunchState, formData: FormData): Promise<BulkPunchState> {
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const ids = [...new Set(formData.getAll("item_id").map((v) => String(v).trim()).filter(Boolean))];
+  const partyRaw = formData.get("responsible_party_id");
+  const dueRaw = String(formData.get("due_date") ?? "").trim();
+  const priorityRaw = String(formData.get("priority") ?? "").trim().toUpperCase();
+  if (!projectId || ids.length === 0) return { error: "Select at least one item." };
+  if (ids.length > 200) return { error: "Select at most 200 items at a time." };
+  if (!validDueDate(dueRaw)) return { error: "Due date is not valid." };
+  if (priorityRaw && !(PUNCH_LIST_PRIORITIES as readonly string[]).includes(priorityRaw)) return { error: "Priority is not valid." };
+
+  const patch: Record<string, unknown> = {};
+  if (partyRaw !== null && String(partyRaw) !== "__keep") patch.responsible_party_id = String(partyRaw).trim() || null;
+  if (dueRaw) patch.due_date = dueRaw;
+  if (priorityRaw) patch.priority = priorityRaw;
+  if (Object.keys(patch).length === 0) return { error: "Choose something to change." };
+
+  const session = await requireSession();
+  const allowed = isAdminStaff(session) || (await hasPermission(session.userId, "close_punch_item", projectId));
+  if (!allowed) return { error: "Only a JAGS Admin, or someone granted the verify permission, can change several items at once." };
+  const supabase = await createSupabaseServerClient();
+  if (typeof patch.responsible_party_id === "string" && !(await partyBelongsToProject(supabase, projectId, patch.responsible_party_id))) {
+    return { error: "The responsible party doesn't belong to this project." };
+  }
+
+  const { data, error } = await supabase
+    .from(PUNCH_LIST_ITEMS_TABLE)
+    .update(patch)
+    .eq("project_id", projectId)
+    .in("id", ids)
+    .neq("status", "closed")
+    .select("id")
+    .returns<{ id: string }[]>();
+  if (error) return { error: error.code === "P0001" && error.message ? error.message : "Could not update the selected items." };
+  const updated = (data ?? []).length;
+
+  try {
+    const organizationId = await findOrgForProject(supabase, projectId);
+    if (organizationId && updated > 0) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "punch_list_item",
+        entityId: projectId,
+        action: "bulk_updated",
+        actorId: session.userId,
+        summary: `${updated} punch item(s) updated together (${Object.keys(patch).join(", ")})`,
+        changes: { ...patch, item_ids: (data ?? []).map((d) => d.id) },
+      });
+    }
+    if (typeof patch.responsible_party_id === "string" && updated > 0) {
+      await notifyUsers(supabase, projectId, session.userId, await partyUsers(supabase, patch.responsible_party_id), (data ?? [])[0].id, "Punch items assigned to you", `${updated} punch item(s) were assigned to your organisation.`);
+    }
+  } catch {
+    // Best-effort.
+  }
+  revalidatePath(`/inspect/projects/${projectId}/punch-list`);
+  revalidatePath(`/inspect/projects/${projectId}/data-book`);
+  return { error: null, updated };
 }

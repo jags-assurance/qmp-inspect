@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { completeInspectionAction, type CompleteInspectionState } from "@/lib/checklists/actions";
 import { SignaturePad } from "@/components/domain/signature-pad";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,8 @@ export function CompleteInspectionForm({
   /** Set only when the inspector explicitly waived the evidence requirement with a written reason. */
   noEvidenceReason?: string;
 }) {
-  const [state, formAction, pending] = useActionState(completeInspectionAction, initialState);
+  const [state, setState] = useState<CompleteInspectionState>(initialState);
+  const [pending, setPending] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
   const [witnessSignature, setWitnessSignature] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
@@ -32,11 +33,7 @@ export function CompleteInspectionForm({
   // navigation — it can't be the fallback path. Instead, queue the same fields the action expects
   // and let the offline-sync route (which calls completeInspectionCore, the redirect-free half of
   // the same logic) replay it once back online.
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    if (typeof navigator === "undefined" || navigator.onLine) return;
-    e.preventDefault();
-    setQueueError(null);
-    const formData = new FormData(e.currentTarget);
+  async function queueCompletion(formData: FormData) {
     try {
       await enqueueOutboxItem({
         kind: "complete_inspection",
@@ -49,8 +46,32 @@ export function CompleteInspectionForm({
     }
   }
 
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setQueueError(null);
+    const formData = new FormData(e.currentTarget);
+    // One tap permanently locks the record (a Fail also raises punch items and notifications): confirm first.
+    if (!window.confirm("Complete and sign this inspection? It is locked once completed and can only be changed by re-opening it (audited).")) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await queueCompletion(formData);
+      return;
+    }
+    setPending(true);
+    try {
+      // A redirect on success is handled by Next; a dropped connection throws, and the signature the
+      // inspector just drew is queued instead of being lost to the error boundary.
+      const result = await completeInspectionAction(initialState, formData);
+      if (result?.error) setState(result);
+    } catch (err) {
+      if (err && typeof err === "object" && "digest" in err) throw err; // NEXT_REDIRECT
+      await queueCompletion(formData);
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <form action={formAction} onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface p-6">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface p-6">
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="signature" value={signature ?? ""} />
@@ -73,7 +94,9 @@ export function CompleteInspectionForm({
         maxLength={120}
         className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
-      <p className="mt-1 text-xs text-muted">The date and time are stamped automatically when you complete.</p>
+      <p className="mt-1 text-xs text-muted">
+        The date and time are stamped automatically when you complete. The record is also stamped with your signed-in account, whatever name you type.
+      </p>
       <div className="mt-3">
         <SignaturePad onChange={setSignature} />
       </div>

@@ -35,6 +35,9 @@ import { aggregateReportSummaryData } from "@/lib/reports/report-summary";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { canRunStandaloneAssignment } from "@/lib/standalone/actions";
 
+/** Signed URL lifetime for generated PDFs (seconds): short, regenerated on every status poll / page load (E-11). */
+const PDF_URL_TTL_SECONDS = 600;
+
 export interface GenerateMonthlyReportPackState {
   error: string | null;
   success?: boolean;
@@ -205,9 +208,9 @@ export async function listWeeklyReportPacks(organizationId: string): Promise<Wee
       const xlsxPath = xlsxPathFromPdfPath(job.result_storage_path);
       const [{ data: pdfSigned }, { data: pdfDownloadSigned }, { data: xlsxSigned }, { data: xlsxDownloadSigned }] = await Promise.all([
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600, { download: true }),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600, { download: true }),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, PDF_URL_TTL_SECONDS, { download: true }),
       ]);
       pdfUrl = pdfSigned?.signedUrl ?? null;
       pdfDownloadUrl = pdfDownloadSigned?.signedUrl ?? null;
@@ -336,8 +339,8 @@ export async function getLatestItpPdf(itpId: string): Promise<ItpPdfStatus | nul
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -445,8 +448,8 @@ export async function getLatestInspectionReportPdf(inspectionRecordId: string): 
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -548,8 +551,8 @@ export async function getLatestFatReportPdf(assignmentId: string): Promise<FatRe
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -639,8 +642,8 @@ export async function getLatestNcrPdf(ncrId: string): Promise<NcrPdfStatus | nul
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -732,8 +735,8 @@ export async function getLatestIrnPdf(irnId: string): Promise<IrnPdfStatus | nul
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -783,16 +786,23 @@ export async function requestDataBookPdfAction(_prev: RequestDataBookPdfState, f
       return { error: "Only a JAGS Admin can regenerate the PDF of an issued Data Book." };
     }
     if (!regenerate) {
-      const { data: stored } = await supabase
+      // Only a render completed AFTER the book was issued counts: a "DRAFT / for review" PDF rendered
+      // while the book was still compiled must not be passed off as the final one.
+      const { data: issuedCert } = await supabase
+        .from("handover_certificates")
+        .select("created_at")
+        .eq("data_book_id", dataBookId)
+        .maybeSingle<{ created_at: string }>();
+      let storedQuery = supabase
         .from(BACKGROUND_JOBS_TABLE)
         .select("id")
         .eq("job_type", "render_data_book_pdf")
         .eq("payload->>data_book_id", dataBookId)
         .is("payload->>variant", null)
         .eq("status", "completed")
-        .not("result_storage_path", "is", null)
-        .limit(1)
-        .maybeSingle<{ id: string }>();
+        .not("result_storage_path", "is", null);
+      if (issuedCert?.created_at) storedQuery = storedQuery.gt("completed_at", issuedCert.created_at);
+      const { data: stored } = await storedQuery.limit(1).maybeSingle<{ id: string }>();
       if (stored) {
         if (projectId) revalidatePath(`/inspect/projects/${projectId}/data-book`);
         return { error: null, success: true };
@@ -854,8 +864,8 @@ export async function getLatestDataBookPdf(dataBookId: string): Promise<DataBook
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -963,8 +973,8 @@ export async function getLatestNcrCloseoutCertificate(ncrId: string, closedAt?: 
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;
@@ -1368,9 +1378,9 @@ export async function listMonthlyReportPacks(organizationId: string): Promise<Re
       const xlsxPath = xlsxPathFromPdfPath(job.result_storage_path);
       const [{ data: pdfSigned }, { data: pdfDownloadSigned }, { data: xlsxSigned }, { data: xlsxDownloadSigned }] = await Promise.all([
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, 3600, { download: true }),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(job.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
         supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600),
-        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, 3600, { download: true }),
+        supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(xlsxPath, PDF_URL_TTL_SECONDS, { download: true }),
       ]);
       pdfUrl = pdfSigned?.signedUrl ?? null;
       pdfDownloadUrl = pdfDownloadSigned?.signedUrl ?? null;
@@ -1659,8 +1669,8 @@ export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPd
   let downloadUrl: string | null = null;
   if (latest.status === "completed" && latest.result_storage_path) {
     const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600),
-      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, 3600, { download: true }),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
     ]);
     pdfUrl = viewSigned?.signedUrl ?? null;
     downloadUrl = downloadSigned?.signedUrl ?? null;

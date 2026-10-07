@@ -1,3 +1,4 @@
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -128,19 +129,33 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // is_active gates this the same way it now gates the server-side action (canExecuteItpItem
   // in lib/checklists/actions.ts) — a deactivated party shouldn't see live Yes/No/N-A buttons that the
   // server would reject anyway.
+  // Team members of a party (project_party_members) act for it too - the server gate already counts them.
+  const stakeholderPartyIds = (stakeholderParties ?? []).map((r) => r.project_parties?.id).filter((v): v is string => !!v);
+  const memberPartyIds = new Set<string>();
+  if (stakeholderPartyIds.length > 0) {
+    const { data: memberRows } = await supabase
+      .from(PROJECT_PARTY_MEMBERS_TABLE)
+      .select("project_party_id")
+      .eq("user_id", session.userId)
+      .in("project_party_id", stakeholderPartyIds)
+      .returns<{ project_party_id: string }[]>();
+    for (const m of memberRows ?? []) memberPartyIds.add(m.project_party_id);
+  }
+  const isOwnParty = (row: { project_parties: { id: string; user_id: string | null } | null }) =>
+    row.project_parties?.user_id === session.userId || (!!row.project_parties && memberPartyIds.has(row.project_parties.id));
   const isAssignedParty = (stakeholderParties ?? []).some(
     (row) =>
-      row.project_parties?.user_id === session.userId &&
-      row.project_parties.is_active &&
-      EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
+      isOwnParty(row) &&
+      row.project_parties!.is_active &&
+      EXECUTING_PARTY_TYPES.has(row.project_parties!.party_type)
   );
   // Distinguishes "you hold a sign-off point here but don't do field entry" from "your party isn't
   // on this activity at all" — both land on !isAssignedParty, but the guidance differs.
   const isSignoffOnlyParty = (stakeholderParties ?? []).some(
     (row) =>
-      row.project_parties?.user_id === session.userId &&
-      row.project_parties.is_active &&
-      !EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
+      isOwnParty(row) &&
+      row.project_parties!.is_active &&
+      !EXECUTING_PARTY_TYPES.has(row.project_parties!.party_type)
   );
   // R92-R100 personnel-cert soft-stop: which project_party's certifications to check. Same
   // resolution as isAssignedParty above — the executing party is whichever subcontractor/main_
