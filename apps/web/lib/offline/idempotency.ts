@@ -24,6 +24,13 @@ export function serializeClaimMarker(now: number = Date.now()): string {
 
 export type ParsedMarker = { kind: "ncr"; ncrId: string } | { kind: "claim"; claimedAt: number } | { kind: "unknown" };
 
+/** The result marker lives in its OWN object (never an overwrite of the claim), so it needs only
+ *  insert permission on the bucket. */
+export function observationDonePath(projectId: string, clientKey: string): string | null {
+  const claim = observationMarkerPath(projectId, clientKey);
+  return claim ? claim.replace(/\.json$/, ".done.json") : null;
+}
+
 export function parseMarker(text: string): ParsedMarker {
   try {
     const parsed = JSON.parse(text) as { ncrId?: unknown; claimedAt?: unknown };

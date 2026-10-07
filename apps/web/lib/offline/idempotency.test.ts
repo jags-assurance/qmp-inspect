@@ -39,3 +39,12 @@ describe("offline observation claim marker", () => {
     expect(isStaleClaim(1000, 1000 + CLAIM_STALE_MS + 1)).toBe(true);
   });
 });
+
+import { observationDonePath } from "./idempotency";
+
+describe("observation done marker", () => {
+  it("is a separate object from the claim marker", () => {
+    expect(observationDonePath("p1", "k1")).toBe("p1/ncrs/idem-k1.done.json");
+    expect(observationDonePath("p1", "")).toBeNull();
+  });
+});

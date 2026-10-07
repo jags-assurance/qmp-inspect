@@ -35,7 +35,7 @@ import {
   validateReturnReason,
 } from "@/lib/ncrs/rules";
 import { BACKGROUND_JOBS_TABLE, type RenderNcrCloseoutCertificatePayload } from "@/lib/reports/types";
-import { isStaleClaim, observationMarkerPath, parseMarker, serializeClaimMarker, serializeObservationMarker } from "@/lib/offline/idempotency";
+import { isStaleClaim, observationDonePath, observationMarkerPath, parseMarker, serializeClaimMarker, serializeObservationMarker } from "@/lib/offline/idempotency";
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -209,41 +209,41 @@ export async function createNcrAction(
     return { error: "Project not found, or you don't have access to it." };
   }
 
-  // Idempotency: atomically CLAIM the client key (create-if-absent in storage) before doing any work,
-  // so two simultaneous requests with the same key cannot both create an NCR. A finished request
-  // leaves an NCR marker; an unfinished claim blocks for CLAIM_STALE_MS, then can be taken over.
+  // Idempotency: (1) a finished request leaves a "done" marker object naming its NCR; (2) before doing
+  // any work, atomically CLAIM the key (create-if-absent) so two simultaneous requests cannot both
+  // create an NCR. A claim older than CLAIM_STALE_MS is treated as abandoned. Only insert permission
+  // on the bucket is needed: markers are never overwritten, and cleanup is best-effort.
   const markerPath = requestId ? observationMarkerPath(projectId, requestId) : null;
+  const donePath = requestId ? observationDonePath(projectId, requestId) : null;
   let releaseClaim = async () => {};
-  if (markerPath) {
+  if (markerPath && donePath) {
     const bucket = supabase.storage.from("inspection-evidence");
-    const claim = () => bucket.upload(markerPath, new Blob([serializeClaimMarker()], { type: "application/json" }), { upsert: false });
-    let claimed = false;
     try {
-      const first = await claim();
-      claimed = !first.error;
-      if (!claimed) {
-        const { data: marker } = await bucket.download(markerPath);
-        const parsed = marker ? parseMarker(await marker.text()) : { kind: "unknown" as const };
-        if (parsed.kind === "ncr") {
-          const { data: existing } = await supabase.from(NCRS_TABLE).select("ncr_number").eq("id", parsed.ncrId).maybeSingle<{ ncr_number: string }>();
-          if (existing) {
-            const existingNcr = { id: parsed.ncrId, ncrNumber: existing.ncr_number };
-            if (formData.get("stay_on_page") === "true") return { error: null, created: existingNcr };
-            redirect(`/inspect/ncrs/${existingNcr.id}`);
-          }
-        } else if (parsed.kind === "claim" && !isStaleClaim(parsed.claimedAt)) {
+      const { data: done } = await bucket.download(donePath);
+      const doneMarker = done ? parseMarker(await done.text()) : { kind: "unknown" as const };
+      if (doneMarker.kind === "ncr") {
+        const { data: existing } = await supabase.from(NCRS_TABLE).select("ncr_number").eq("id", doneMarker.ncrId).maybeSingle<{ ncr_number: string }>();
+        if (existing) {
+          const existingNcr = { id: doneMarker.ncrId, ncrNumber: existing.ncr_number };
+          if (formData.get("stay_on_page") === "true") return { error: null, created: existingNcr };
+          redirect(`/inspect/ncrs/${existingNcr.id}`);
+        }
+      }
+      const first = await bucket.upload(markerPath, new Blob([serializeClaimMarker()], { type: "application/json" }), { upsert: false });
+      if (first.error) {
+        const { data: claim } = await bucket.download(markerPath);
+        const parsed = claim ? parseMarker(await claim.text()) : { kind: "unknown" as const };
+        if (parsed.kind === "claim" && !isStaleClaim(parsed.claimedAt)) {
           return { error: "This request is already being processed — it will finish shortly.", inFlight: true };
         }
-        // Stale claim, a marker whose NCR no longer exists, or unreadable: take it over.
-        await bucket.remove([markerPath]);
-        claimed = !(await claim()).error;
-        if (!claimed) return { error: "This request is already being processed — it will finish shortly.", inFlight: true };
+        // Stale or unreadable claim: assume the earlier request died and carry on.
+      } else {
+        releaseClaim = async () => { try { await bucket.remove([markerPath]); } catch { /* best-effort */ } };
       }
     } catch (e) {
       // redirect() throws NEXT_REDIRECT; anything else (storage unreachable) must not block raising the NCR.
       if (e && typeof e === "object" && "digest" in e) throw e;
     }
-    if (claimed) releaseClaim = async () => { try { await bucket.remove([markerPath]); } catch { /* best-effort */ } };
   }
 
   const assignmentError = await validateAssignment(supabase, projectId, project.organization_id, assignedTo || null, responsiblePartyId);
@@ -370,11 +370,11 @@ export async function createNcrAction(
     punchError = punch.error;
   }
 
-  if (markerPath) {
+  if (donePath) {
     try {
       await supabase.storage
         .from("inspection-evidence")
-        .upload(markerPath, new Blob([serializeObservationMarker(ncr.id)], { type: "application/json" }), { upsert: true });
+        .upload(donePath, new Blob([serializeObservationMarker(ncr.id)], { type: "application/json" }), { upsert: false });
     } catch {
       // Best-effort.
     }
