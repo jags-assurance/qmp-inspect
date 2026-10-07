@@ -2,6 +2,7 @@
 
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { uploadWithResume } from "@/lib/storage/upload-client";
 import { uploadVaultDocumentAction } from "@/lib/vault/actions";
 import { checkVaultDuplicatesAction, type VaultDuplicateMatch } from "@/lib/vault/document-control-actions";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,8 @@ interface FileRow {
   file: File;
   state: FileState;
   message?: string;
+  /** 0..1 while a large file is going up in resumable chunks. */
+  progress?: number;
 }
 
 export interface VaultUploadPrefill {
@@ -91,7 +94,8 @@ export function VaultUploadForm({
   async function uploadOne(
     file: File,
     title: string,
-    fields: { document_reference: string; revision: string; document_date: string; notes: string; revises: string }
+    fields: { document_reference: string; revision: string; document_date: string; notes: string; revises: string },
+    onProgress?: (fraction: number) => void
   ): Promise<{ ok: boolean; error?: string; documentNumber?: string; internalReference?: string | null }> {
     const supabase = createSupabaseBrowserClient();
     if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `Larger than ${MAX_UPLOAD_MB} MB.` };
@@ -99,7 +103,9 @@ export function VaultUploadForm({
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `vault/${projectId}/${folderKey}/${Date.now()}-${safeName}`;
 
-    const { error: uploadError } = await supabase.storage.from("inspection-evidence").upload(path, file);
+    // Large files go up in resumable chunks (S7-21) and survive a dropped connection; anything the
+    // resumable path cannot do falls back to the ordinary single-request upload.
+    const { error: uploadError } = await uploadWithResume(supabase, { bucket: "inspection-evidence", path, file, onProgress });
     if (uploadError) return { ok: false, error: "Upload failed. Check your connection and try again." };
 
     const formData = new FormData();
@@ -192,7 +198,7 @@ export function VaultUploadForm({
         document_date: f.document_date,
         notes: f.notes,
         revises: prefill && !isBatch ? prefill.revisesDocumentId : "",
-      });
+      }, (fraction) => patchRow(i, { progress: fraction }));
       if (result.ok) {
         patchRow(i, { state: "done" });
         if (result.documentNumber) lastOk = { documentNumber: result.documentNumber, internalReference: result.internalReference ?? null };
@@ -280,7 +286,7 @@ export function VaultUploadForm({
                 className={`text-xs ${r.state === "error" ? "text-danger" : r.state === "done" ? "text-success" : "text-muted"}`}
                 role="status"
               >
-                {r.state === "queued" ? "Ready" : r.state === "uploading" ? "Uploading…" : r.state === "done" ? "Done" : r.message}
+                {r.state === "queued" ? "Ready" : r.state === "uploading" ? (r.progress !== undefined ? `Uploading ${Math.round(r.progress * 100)}%` : "Uploading…") : r.state === "done" ? "Done" : r.message}
               </span>
               {!uploading && r.state !== "done" && (
                 <button
