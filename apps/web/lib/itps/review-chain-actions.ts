@@ -9,7 +9,7 @@
 // exports ONLY Server Actions, so those two functions need their own file; the plain data helpers
 // and type exports stay in review-chain.ts, safely importable from both Server and Client Components.
 
-import { checklistReviewError } from "@/lib/itps/checklist-review";
+import { checklistReviewError, recordChecklistReviewTick } from "@/lib/itps/checklist-review";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -25,6 +25,39 @@ import {
 
 export interface SetReviewChainState {
   error: string | null;
+}
+
+/**
+ * Reviewers must be distinct, active JAGS staff who can actually reach the project (a global grant, a
+ * grant on its organisation, or on the project itself). Returns an error message or null.
+ */
+async function validateReviewers(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, projectId: string, reviewerIds: string[]): Promise<string | null> {
+  if (new Set(reviewerIds).size !== reviewerIds.length) return "Each reviewer can only appear once in the chain.";
+  if (reviewerIds.length === 0) return null;
+  const { data: project } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+  if (!project) return "Project not found.";
+  const { data: users } = await supabase
+    .from("users")
+    .select("id, full_name, is_jags_staff, is_active")
+    .in("id", reviewerIds)
+    .returns<{ id: string; full_name: string; is_jags_staff: boolean; is_active: boolean | null }[]>();
+  const byId = new Map((users ?? []).map((u) => [u.id, u]));
+  for (const id of reviewerIds) {
+    const u = byId.get(id);
+    if (!u) return "One of the chosen reviewers could not be found.";
+    if (!u.is_jags_staff) return `${u.full_name} isn't JAGS staff, so can't be a reviewer.`;
+    if (u.is_active === false) return `${u.full_name} is deactivated.`;
+  }
+  const { data: grants } = await supabase
+    .from("access_grants")
+    .select("user_id")
+    .in("user_id", reviewerIds)
+    .or(`scope_type.eq.global,organization_id.eq.${project.organization_id},project_id.eq.${projectId}`)
+    .returns<{ user_id: string }[]>();
+  const reachable = new Set((grants ?? []).map((g) => g.user_id));
+  const unreachable = reviewerIds.find((id) => !reachable.has(id));
+  if (unreachable) return `${byId.get(unreachable)?.full_name ?? "A reviewer"} has no access to this project.`;
+  return null;
 }
 
 /** Admin-only: replaces the project's whole review chain with the ordered list of user ids in
@@ -43,6 +76,17 @@ export async function setProjectReviewChainAction(_prev: SetReviewChainState, fo
 
   const supabase = await createSupabaseServerClient();
 
+  const invalid = await validateReviewers(supabase, projectId, reviewerIds);
+  if (invalid) return { error: invalid };
+
+  // Keep the current chain so a failed insert restores it instead of silently dropping to "no chain"
+  // (which would let ITPs fall back to single-click approval).
+  const { data: previousChain } = await supabase
+    .from(ITP_REVIEW_CHAIN_MEMBERS_TABLE)
+    .select("project_id, reviewer_user_id, sort_order")
+    .eq("project_id", projectId)
+    .returns<{ project_id: string; reviewer_user_id: string; sort_order: number }[]>();
+
   const { error: deleteError } = await supabase.from(ITP_REVIEW_CHAIN_MEMBERS_TABLE).delete().eq("project_id", projectId);
   if (deleteError) return { error: "Could not update the review chain. Check you have permission and try again." };
 
@@ -54,7 +98,10 @@ export async function setProjectReviewChainAction(_prev: SetReviewChainState, fo
         sort_order: i,
       }))
     );
-    if (insertError) return { error: "Could not save the review chain. Check you have permission and try again." };
+    if (insertError) {
+      if (previousChain?.length) await supabase.from(ITP_REVIEW_CHAIN_MEMBERS_TABLE).insert(previousChain);
+      return { error: "Could not save the review chain — the previous chain was kept. Check you have permission and try again." };
+    }
   }
 
   try {
@@ -113,6 +160,15 @@ export async function setItpReviewChainAction(_prev: SetReviewChainState, formDa
     return { error: "This ITP's review chain can only be set while it's still in draft." };
   }
 
+  const invalid = await validateReviewers(supabase, itp.project_id, reviewerIds);
+  if (invalid) return { error: invalid };
+
+  const { data: previousOverride } = await supabase
+    .from(ITP_REVIEW_CHAIN_OVERRIDES_TABLE)
+    .select("itp_id, reviewer_user_id, sort_order")
+    .eq("itp_id", itpId)
+    .returns<{ itp_id: string; reviewer_user_id: string; sort_order: number }[]>();
+
   const { error: deleteError } = await supabase.from(ITP_REVIEW_CHAIN_OVERRIDES_TABLE).delete().eq("itp_id", itpId);
   if (deleteError) return { error: "Could not update this ITP's review chain. Check you have permission and try again." };
 
@@ -124,7 +180,10 @@ export async function setItpReviewChainAction(_prev: SetReviewChainState, formDa
         sort_order: i,
       }))
     );
-    if (insertError) return { error: "Could not save this ITP's review chain. Check you have permission and try again." };
+    if (insertError) {
+      if (previousOverride?.length) await supabase.from(ITP_REVIEW_CHAIN_OVERRIDES_TABLE).insert(previousOverride);
+      return { error: "Could not save this ITP's review chain — the previous one was kept. Check you have permission and try again." };
+    }
   }
 
   try {
@@ -296,12 +355,21 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
     }
   }
 
-  const { data: recordedRows, error: updateError } = await supabase
-    .from(ITP_REVIEW_PROGRESS_TABLE)
-    .update({ status: "approved", reviewed_at: new Date().toISOString() })
-    .eq("id", currentStep.id)
-    .eq("status", "pending")
-    .select("id");
+  // When an Admin signs a step that belongs to someone else, record who actually did (signed_by) so the
+  // document doesn't present it as the named reviewer's own sign-off. Falls back to the plain update
+  // when the column isn't deployed yet.
+  const onBehalf = currentStep.reviewer_user_id !== session.userId;
+  const stepUpdate = (extra: Record<string, unknown>) =>
+    supabase
+      .from(ITP_REVIEW_PROGRESS_TABLE)
+      .update({ status: "approved", reviewed_at: new Date().toISOString(), ...extra })
+      .eq("id", currentStep.id)
+      .eq("status", "pending")
+      .select("id");
+  let { data: recordedRows, error: updateError } = await stepUpdate({ signed_by: session.userId });
+  if (updateError && ["42703", "PGRST204"].includes(updateError.code ?? "")) {
+    ({ data: recordedRows, error: updateError } = await stepUpdate({}));
+  }
   if (updateError) {
     return { error: "Could not record your review. Check you have permission and try again." };
   }
@@ -324,8 +392,9 @@ export async function approveReviewStepAction(_prev: ApproveReviewStepState, for
         entityId: itpId,
         action: selfReview ? "review_step_self_approved" : "review_step_approved",
         actorId: session.userId,
-        summary: `Review step ${currentStep.sort_order + 1} approved on ${itpForAudit.itp_number}${selfReview ? " (by the person who prepared/submitted it)" : ""}`,
+        summary: `Review step ${currentStep.sort_order + 1} approved on ${itpForAudit.itp_number}${selfReview ? " (by the person who prepared/submitted it)" : ""}${onBehalf ? " (signed by an Admin on behalf of the named reviewer)" : ""}`,
       });
+      await recordChecklistReviewTick(supabase, { itpId, decision: "review_step", formData, actorId: session.userId });
     }
   } catch {
     // Best-effort.
@@ -392,6 +461,10 @@ export async function reassignReviewStepAction(_prev: ReassignReviewStepState, f
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: itpForReviewer } = await supabase.from("itps").select("project_id").eq("id", itpId).maybeSingle<{ project_id: string }>();
+  if (!itpForReviewer) return { error: "ITP not found." };
+  const invalid = await validateReviewers(supabase, itpForReviewer.project_id, [newReviewerUserId]);
+  if (invalid) return { error: invalid };
   const { error, data } = await supabase
     .from(ITP_REVIEW_PROGRESS_TABLE)
     .update({ reviewer_user_id: newReviewerUserId })
