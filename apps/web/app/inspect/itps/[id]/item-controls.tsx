@@ -145,6 +145,8 @@ export function ItemControls({
   }
 
   return (
+    // The ref is only written inside the submit handler, never read during render.
+    // eslint-disable-next-line react-hooks/refs
     <form action={formAction} onSubmit={gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })} className="flex flex-col gap-1.5">
       {dialog}
       <input type="hidden" name="itp_id" value={itpId} />

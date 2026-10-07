@@ -266,11 +266,12 @@ export async function listInspectionAmendments(recordId: string): Promise<Inspec
   const supabase = await createSupabaseServerClient();
   const base = "id, amended_at, reason, previous_overall_result, previous_signed_by_name, previous_signed_at, users(full_name)";
   const snapshotCols = "previous_responses, previous_inspector_signature, previous_witness_name, previous_witness_signature, previous_review_status";
-  let { data, error } = await untypedFrom(supabase, "inspection_record_amendments")
+  const first = await untypedFrom(supabase, "inspection_record_amendments")
     .select(`${base}, ${snapshotCols}`)
     .eq("record_id", recordId)
     .order("amended_at", { ascending: false });
-  if (error && isMissingSchemaError(error)) {
+  let data = first.data;
+  if (first.error && isMissingSchemaError(first.error)) {
     ({ data } = await untypedFrom(supabase, "inspection_record_amendments").select(base).eq("record_id", recordId).order("amended_at", { ascending: false }));
   }
   return (data ?? []) as InspectionAmendment[];
