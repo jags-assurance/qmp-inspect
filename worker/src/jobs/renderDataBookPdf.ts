@@ -421,10 +421,10 @@ async function gatherDataBookContent(projectId: string): Promise<{
         >(),
       supabase
         .from("ncrs" as never)
-        .select("ncr_number, description, severity, status, closed_at")
+        .select("id, ncr_number, description, severity, status, closed_at, closed_by, root_cause, corrective_action, preventive_action, verification_notes")
         .eq("project_id", projectId)
         .order("ncr_number", { ascending: true })
-        .returns<{ ncr_number: string; description: string; severity: string; status: string; closed_at: string | null }[]>(),
+        .returns<{ id: string; ncr_number: string; description: string; severity: string; status: string; closed_at: string | null; closed_by: string | null; root_cause: string | null; corrective_action: string | null; preventive_action: string | null; verification_notes: string | null }[]>(),
       supabase
         .from("punch_list_items" as never)
         .select("description, location, status, due_date, closed_at, priority, source, closing_evidence, verification_notes, closed_by, project_parties(name)")
@@ -499,6 +499,20 @@ async function gatherDataBookContent(projectId: string): Promise<{
   const matRows = matRes.data;
   const ncrRows = ncrRes.data;
   const punchRows = punchRes.data;
+
+  // NCR closer names and evidence counts (best-effort: a failure here leaves those cells blank).
+  const ncrCloserIds = [...new Set((ncrRows ?? []).map((n) => n.closed_by).filter((v): v is string => !!v))];
+  const ncrIdList = (ncrRows ?? []).map((n) => n.id);
+  const closerNames = new Map<string, string>();
+  if (ncrCloserIds.length) {
+    const { data } = await supabase.from("users").select("id, full_name").in("id", ncrCloserIds).returns<{ id: string; full_name: string }[]>();
+    for (const u of data ?? []) closerNames.set(u.id, u.full_name);
+  }
+  const evidenceCounts = new Map<string, number>();
+  if (ncrIdList.length) {
+    const { data } = await supabase.from("ncr_photos" as never).select("ncr_id").in("ncr_id", ncrIdList).returns<{ ncr_id: string }[]>();
+    for (const r of data ?? []) evidenceCounts.set(r.ncr_id, (evidenceCounts.get(r.ncr_id) ?? 0) + 1);
+  }
 
   const itpIds = (itpRows ?? []).map((i) => i.id);
   const sections: SectionRow[] = itpIds.length
@@ -683,6 +697,12 @@ async function gatherDataBookContent(projectId: string): Promise<{
       severity: n.severity,
       status: n.status,
       closedAt: n.closed_at,
+      closedByName: n.closed_by ? closerNames.get(n.closed_by) ?? null : null,
+      rootCause: n.root_cause,
+      correctiveAction: n.corrective_action,
+      preventiveAction: n.preventive_action,
+      verificationNotes: n.verification_notes,
+      evidenceCount: evidenceCounts.get(n.id) ?? 0,
     })),
     punchItems: (punchRows ?? []).map((p) => ({
       description: p.description,

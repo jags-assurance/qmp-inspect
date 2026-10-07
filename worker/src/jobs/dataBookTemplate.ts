@@ -120,6 +120,12 @@ export interface DataBookPdfNcr {
   severity: string;
   status: string;
   closedAt: string | null;
+  closedByName?: string | null;
+  rootCause?: string | null;
+  correctiveAction?: string | null;
+  preventiveAction?: string | null;
+  verificationNotes?: string | null;
+  evidenceCount?: number;
 }
 export interface DataBookPdfPunch {
   description: string;
@@ -588,14 +594,15 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     rows: string[][],
     emptyText: string,
     evidence: string,
-    check: string
+    check: string,
+    tableHtml?: string
   ) =>
     page(
       id,
       "PART C  RECORDS",
       title,
       intro,
-      `${rows.length > 0 ? table(headers, rows) : `<p>${escapeHtml(emptyText)}</p>`}
+      `${tableHtml ?? (rows.length > 0 ? table(headers, rows) : `<p>${escapeHtml(emptyText)}</p>`)}
       <h3>Evidence to attach</h3><p>${escapeHtml(evidence)}</p>
       <h3>Review and release check</h3><p>${escapeHtml(check)}</p>`
     );
@@ -663,16 +670,36 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "A conditional pass counts as complete only once clearance has been issued."
   );
 
+  const ncrDetailLine = (n: DataBookPdfNcr): string => {
+    const part = (label: string, v: string | null | undefined) => `<strong>${label}:</strong> ${v && v.trim() ? escapeHtml(v) : "&mdash;"}`;
+    return [
+      part("Root cause", n.rootCause),
+      part("Corrective", n.correctiveAction),
+      part("Preventive", n.preventiveAction),
+      part("Verification", n.verificationNotes),
+      part("Closed by", n.closedByName),
+      `<strong>Evidence:</strong> ${n.evidenceCount ?? 0} file${(n.evidenceCount ?? 0) === 1 ? "" : "s"}`,
+    ].join(" &middot; ");
+  };
+  const ncrHeaders = ["NCR", "Description", "Severity", "Status", "Closed"];
+  const ncrTableHtml = `<table class="grid"><thead><tr>${ncrHeaders.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${data.ncrs
+    .map(
+      (n) =>
+        `<tr style="page-break-inside:avoid"><td>${escapeHtml(n.number)}</td><td>${escapeHtml(n.description)}</td><td>${escapeHtml(severityLabel(n.severity))}</td><td>${escapeHtml(n.status.replace(/_/g, " "))}</td><td>${fmtDate(n.closedAt)}</td></tr><tr style="page-break-inside:avoid"><td colspan="5" style="font-size:0.9em">${ncrDetailLine(n)}</td></tr>`
+    )
+    .join("")}</tbody></table>`;
   const ncrs = registerPage(
     "ncrs",
     "Nonconformance deviation and exceptions",
     "Every nonconformance raised on the project with its disposition. A book cannot be final while an NCR remains open.",
-    ["NCR", "Description", "Severity", "Status", "Closed"],
-    data.ncrs.map((n) => [escapeHtml(n.number), escapeHtml(n.description), escapeHtml(severityLabel(n.severity)), escapeHtml(n.status.replace(/_/g, " ")), fmtDate(n.closedAt)]),
+    ncrHeaders,
+    [],
     "No nonconformances raised on this project.",
     "NCR forms with root cause, corrective action, verification notes and closure evidence.",
-    "A blocking NCR prevents release regardless of the completion percentage."
+    "A blocking NCR prevents release regardless of the completion percentage.",
+    data.ncrs.length > 0 ? ncrTableHtml : undefined
   );
+
 
   const punch = registerPage(
     "punch",

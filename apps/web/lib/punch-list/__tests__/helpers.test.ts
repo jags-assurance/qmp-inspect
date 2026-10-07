@@ -50,3 +50,19 @@ describe("csvCell", () => {
     expect(csvCell('a "b"')).toBe('"a ""b"""');
   });
 });
+
+import { csvLine, utcToday } from "../helpers";
+
+describe("punch helper gaps", () => {
+  it("treats a due date with a time part as date-only and never overdue when closed or undated", () => {
+    const now = new Date("2026-10-07T23:59:59Z");
+    expect(utcToday(now)).toBe("2026-10-07");
+    expect(isPunchOverdue({ due_date: "2026-10-07T00:00:00Z", status: "open" }, now)).toBe(false);
+    expect(isPunchOverdue({ due_date: "2026-10-06", status: "open" }, now)).toBe(true);
+    expect(isPunchOverdue({ due_date: "2026-10-06", status: "closed" }, now)).toBe(false);
+    expect(isPunchOverdue({ due_date: null, status: "open" }, now)).toBe(false);
+  });
+  it("csvLine neutralises every formula prefix and handles null/number cells", () => {
+    expect(csvLine(["=1+1", "+a", "-b", "@c", null, 5])).toBe(`"'=1+1","'+a","'-b","'@c","",\"5\"`);
+  });
+});

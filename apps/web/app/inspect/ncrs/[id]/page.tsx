@@ -22,8 +22,9 @@ import {
   StatusTimeline,
 } from "../ncr-shared";
 
-export default async function NcrDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function NcrDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ warning?: string }> }) {
   const { id } = await params;
+  const { warning } = await searchParams;
   await requireSession();
 
   const detail = await loadNcrDetail(id);
@@ -41,6 +42,11 @@ export default async function NcrDetailPage({ params }: { params: Promise<{ id: 
       >
         ← Back to {ncr.severity === "observation" ? "Observations" : "NCR Register"}
       </Link>
+      {warning === "punch" && (
+        <div role="alert" className="mt-2 rounded-md border border-warning bg-warning/10 px-3 py-2 text-sm text-ink">
+          This NCR was raised, but its punch-list item could not be created. Do not raise it again - tell an administrator.
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">

@@ -150,6 +150,27 @@ interface NcrRow {
   project_parties: { user_id: string | null } | null;
 }
 
+/** Users holding the custom-role close_ncr permission on a project (project-scoped or org/platform-wide). Best-effort. */
+async function getCloseNcrHolderIds(projectId: string): Promise<string[]> {
+  try {
+    const { data: perms } = await supabase
+      .from("custom_role_permissions" as never)
+      .select("role_id")
+      .eq("permission_key", "close_ncr")
+      .returns<{ role_id: string }[]>();
+    const roleIds = (perms ?? []).map((p) => p.role_id);
+    if (roleIds.length === 0) return [];
+    const { data: assigns } = await supabase
+      .from("custom_role_assignments" as never)
+      .select("user_id, project_id")
+      .in("role_id", roleIds)
+      .returns<{ user_id: string; project_id: string | null }[]>();
+    return (assigns ?? []).filter((a) => a.project_id === null || a.project_id === projectId).map((a) => a.user_id);
+  } catch {
+    return [];
+  }
+}
+
 async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
   const { data: projects } = await supabase
     .from("projects")
@@ -178,6 +199,9 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
     // Pending verification: the work is done, so nudge the verifiers (staff/admins) and the raiser,
     // not the assignee. Otherwise nudge the assignee, raiser and the responsible party's user too.
     if (ncr.raised_by) recipients.add(ncr.raised_by);
+    if (awaitingVerification) {
+      for (const holder of await getCloseNcrHolderIds(ncr.project_id)) recipients.add(holder);
+    }
     if (!awaitingVerification) {
       if (ncr.assigned_to) recipients.add(ncr.assigned_to);
       const partyUser = ncr.project_parties?.user_id;

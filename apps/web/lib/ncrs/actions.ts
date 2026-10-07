@@ -75,6 +75,31 @@ async function staffVerifierIds(supabase: Supabase): Promise<string[]> {
   return (data ?? []).filter((u) => u.staff_role !== "inspector").map((u) => u.id);
 }
 
+/**
+ * Users holding the custom-role close_ncr permission on a project (project-scoped or org-wide).
+ * Best-effort: RLS lets JAGS staff see every assignment but other callers only their own, so a
+ * non-staff caller may get an incomplete list (the worker overdue sweep uses the service client).
+ */
+async function customCloseNcrHolderIds(supabase: Supabase, projectId: string): Promise<string[]> {
+  try {
+    const { data: perms } = await supabase
+      .from("custom_role_permissions" as never)
+      .select("role_id")
+      .eq("permission_key", "close_ncr")
+      .returns<{ role_id: string }[]>();
+    const roleIds = (perms ?? []).map((p) => p.role_id);
+    if (roleIds.length === 0) return [];
+    const { data: assigns } = await supabase
+      .from("custom_role_assignments" as never)
+      .select("user_id, project_id")
+      .in("role_id", roleIds)
+      .returns<{ user_id: string; project_id: string | null }[]>();
+    return (assigns ?? []).filter((a) => a.project_id === null || a.project_id === projectId).map((a) => a.user_id);
+  } catch {
+    return [];
+  }
+}
+
 /** Close/reopen authority: admin staff or a close_ncr permission holder. */
 async function mayCloseNcr(session: Awaited<ReturnType<typeof requireSession>>, projectId: string): Promise<boolean> {
   return isAdminStaff(session) || (await hasPermission(session.userId, "close_ncr", projectId));
@@ -1023,7 +1048,7 @@ export async function setNcrStatusAction(_prev: NcrStatusState, formData: FormDa
 
     if (status === "pending_verification") {
       // Verifiers: JAGS staff who can close. The raiser gets an FYI.
-      const verifiers = await staffVerifierIds(supabase);
+      const verifiers = [...(await staffVerifierIds(supabase)), ...(await customCloseNcrHolderIds(supabase, updatedNcr.project_id))];
       for (const recipient of new Set(verifiers)) {
         await notifySafe(
           supabase,

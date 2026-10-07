@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   createNcrAction,
   findOpenNcrsForItemAction,
@@ -88,6 +89,15 @@ export function NewNcrForm({
     draftNcrDescriptionAction,
     initialDraftState
   );
+
+  // Full-page form: the NCR exists but its punch item failed (action returned created + error instead
+  // of redirecting). Go to the NCR with a visible warning banner rather than staying on the form.
+  const router = useRouter();
+  useEffect(() => {
+    if (!onCreated && state.created && state.error) {
+      router.replace(`/inspect/ncrs/${state.created.id}?warning=punch`);
+    }
+  }, [onCreated, state.created, state.error, router]);
 
   // Report each created record once, even if the parent hands us a new onCreated every render.
   const reportedId = useRef<string | null>(null);

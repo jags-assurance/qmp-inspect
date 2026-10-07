@@ -1343,6 +1343,7 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .from("ncrs")
     .select("id", { count: "exact", head: true })
     .eq("inspection_record_id", inspectionRecordId)
+    .neq("severity", "observation") // observations never block an IRN; only real NCRs do
     .neq("status", "closed");
   if (openNcrCount) return { error: "An NCR raised from this inspection is still open — close it before issuing the IRN." };
 
