@@ -14,6 +14,21 @@ export function todayUtc(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+/** Calendar date (UTC-midnight Date) of `now` in an IANA time zone; UTC when missing/unknown. Mirrors the web copy. */
+export function todayInTimeZone(timeZone: string | null | undefined, now: Date = new Date()): Date {
+  if (!timeZone) return todayUtc(now);
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const y = get("year");
+    const m = get("month");
+    const d = get("day");
+    return y && m && d ? new Date(Date.UTC(y, m - 1, d)) : todayUtc(now);
+  } catch {
+    return todayUtc(now);
+  }
+}
+
 export function daysUntil(dateStr: string, today: Date = todayUtc()): number {
   const target = new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);
   return Math.round((target.getTime() - today.getTime()) / MS_PER_DAY);
