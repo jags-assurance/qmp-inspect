@@ -41,7 +41,7 @@ and shows the login page, but sign-in has nothing to authenticate against.
 ```bash
 pnpm lint         # ESLint (web). Errors fail CI; warnings (e.g. i18n literal strings) are tracked, not blocking
 pnpm typecheck    # tsc --noEmit for web and worker
-pnpm test         # Vitest unit tests for web and worker (packages/rls-tests needs Supabase env, run separately)
+pnpm --filter @jags/web --filter @jags/worker test   # Vitest unit tests (root `pnpm test` also runs packages/rls-tests, which needs Supabase env)
 pnpm build        # production build of apps/web
 pnpm check:migrations   # new migration files must have a 14-digit numeric version
 ```
