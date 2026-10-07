@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 export interface PartySignoffCell {
   party: { id: string; name: string; user_id: string | null };
   intervention: InterventionLevel | null;
-  signoff: { id: string; status: SignoffStatus; notified_at: string | null } | null;
+  signoff: { id: string; status: SignoffStatus; notified_at: string | null; signoffComment?: string | null; rejectionReason?: string | null } | null;
   /** Whether the CURRENT user may sign off for this specific party — see canSignOffForParty in lib/signoff/actions.ts. */
   canSignOff: boolean;
 }
@@ -196,6 +196,8 @@ export function ActivitySignoffGrid({
                         noticeHours={row.noticeHoursOverride ?? noticeHours[intervention] ?? null}
                         canSignOff={canSignOff}
                         isJagsStaff={isJagsStaff}
+                        rejectionReason={signoff.rejectionReason ?? null}
+                        signoffComment={signoff.signoffComment ?? null}
                         noticeWarning={
                           signoff.status === "pending" && row.plannedDate && (intervention === "H" || intervention === "W" || blockingCodes.has(intervention))
                             ? (() => {

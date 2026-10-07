@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useOptimistic, useState, useTransition } from "react";
-import { notifyPartyAction, proceedWithoutResponseAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
+import { notifyPartyAction, proceedWithoutResponseAction, rejectSignoffAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -54,6 +54,8 @@ export function SignoffCell({
   canSignOff: canSignOffForThisParty,
   isJagsStaff,
   noticeWarning = null,
+  rejectionReason = null,
+  signoffComment = null,
 }: {
   progressId: string;
   /** Whether this activity's ORGANISATION has configured this level as blocking (Hold-equivalent).
@@ -71,12 +73,16 @@ export function SignoffCell({
   isJagsStaff: boolean;
   /** Short-notice / overdue planned-date warning (pending cells only); advisory, never blocks. */
   noticeWarning?: { status: "short_notice" | "overdue"; message: string | null } | null;
+  /** S4-18: why the party last rejected this release (shown until it is signed). */
+  rejectionReason?: string | null;
+  /** S4-18: comment the party recorded with the sign-off. */
+  signoffComment?: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const { ask, dialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
   // Which action is collecting a mandatory written reason (proceed / withdraw) before it runs.
-  const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | null>(null);
+  const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | "reject" | "comment" | null>(null);
   const [reason, setReason] = useState("");
 
   // Real bug found live: clicking Notify/Sign off/Proceed didn't visibly change anything until the
@@ -210,6 +216,28 @@ export function SignoffCell({
             Awaiting party
           </span>
         )}
+        {canSignOff && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setReasonFor("comment")}
+            className={btn}
+            title="Sign off and record a comment with it"
+          >
+            Sign with comment
+          </button>
+        )}
+        {canSignOff && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setReasonFor("reject")}
+            className={btn}
+            title="Return this release with a reason; the inspector is told what to fix"
+          >
+            Reject
+          </button>
+        )}
         {canProceed && (
           <button
             type="button"
@@ -226,24 +254,60 @@ export function SignoffCell({
           </button>
         )}
       </div>
+      {rejectionReason && optimisticStatus !== "signed_off" && (
+        <span className="max-w-44 rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger" title={rejectionReason}>
+          Rejected: {rejectionReason.length > 80 ? `${rejectionReason.slice(0, 80)}…` : rejectionReason}
+        </span>
+      )}
+      {signoffComment && optimisticStatus === "signed_off" && (
+        <span className="max-w-44 text-xs text-muted" title={signoffComment}>
+          Comment: {signoffComment.length > 80 ? `${signoffComment.slice(0, 80)}…` : signoffComment}
+        </span>
+      )}
       {reasonFor && (
         <div className="flex w-full min-w-40 flex-col gap-1">
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            placeholder={reasonFor === "proceed" ? "Reason for proceeding without response" : "Reason for withdrawing sign-off"}
+            maxLength={1000}
+            placeholder={
+              reasonFor === "proceed"
+                ? "Reason for proceeding without response"
+                : reasonFor === "reject"
+                  ? "Why is this rejected? (at least 10 characters)"
+                  : reasonFor === "comment"
+                    ? "Comment to record with the sign-off"
+                    : "Reason for withdrawing sign-off"
+            }
             className="w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
           />
           <div className="flex justify-center gap-1">
             <button
               type="button"
-              disabled={isPending || reason.trim().length < 5}
-              onClick={() =>
-                reasonFor === "proceed"
-                  ? run(() => proceedWithoutResponseAction(progressId, reason), "proceeded_no_response")
-                  : run(() => withdrawSignoffAction(progressId, reason), "pending")
-              }
+              disabled={isPending || reason.trim().length < (reasonFor === "comment" ? 1 : reasonFor === "reject" ? 10 : 5)}
+              onClick={() => {
+                if (reasonFor === "proceed") return run(() => proceedWithoutResponseAction(progressId, reason), "proceeded_no_response");
+                if (reasonFor === "reject") return run(() => rejectSignoffAction(progressId, reason), "pending");
+                if (reasonFor === "comment") {
+                  const text = reason;
+                  return run(async () => {
+                    const first = await signOffAction(progressId, undefined, text);
+                    if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
+                      const why = await ask({
+                        title: "Sign off on behalf of this party",
+                        message: "You are signing on behalf of this party. Your reason is recorded.",
+                        confirmLabel: "Sign off",
+                        reason: { label: "Reason (at least 10 characters)", minLength: 10 },
+                      });
+                      if (!why) return { error: null };
+                      return signOffAction(progressId, why, text);
+                    }
+                    return first;
+                  }, "signed_off");
+                }
+                return run(() => withdrawSignoffAction(progressId, reason), "pending");
+              }}
               className={btn}
             >
               Confirm

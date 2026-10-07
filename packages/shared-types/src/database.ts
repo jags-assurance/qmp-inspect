@@ -3411,6 +3411,9 @@ export type Database = {
           project_number: string
           responsible_person_id: string | null
           site_location: string | null
+          site_latitude?: number | null
+          site_longitude?: number | null
+          site_radius_m?: number | null
           start_date: string | null
           status: string
           updated_at: string
@@ -3432,6 +3435,9 @@ export type Database = {
           project_number: string
           responsible_person_id?: string | null
           site_location?: string | null
+          site_latitude?: number | null
+          site_longitude?: number | null
+          site_radius_m?: number | null
           start_date?: string | null
           status?: string
           updated_at?: string
@@ -3453,6 +3459,9 @@ export type Database = {
           project_number?: string
           responsible_person_id?: string | null
           site_location?: string | null
+          site_latitude?: number | null
+          site_longitude?: number | null
+          site_radius_m?: number | null
           start_date?: string | null
           status?: string
           updated_at?: string

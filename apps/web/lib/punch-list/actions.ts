@@ -582,12 +582,20 @@ export async function reopenPunchItemAction(
   const supabase = await createSupabaseServerClient();
   const { data: current } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
-    .select("status, reopen_count")
+    .select("status, reopen_count, source_ncr_id")
     .eq("id", punchItemId)
     .eq("project_id", projectId)
-    .maybeSingle<{ status: string; reopen_count: number | null }>();
+    .maybeSingle<{ status: string; reopen_count: number | null; source_ncr_id: string | null }>();
   if (!current) return { error: "This punch item could not be found." };
   if (current.status === "open") return { error: "This item is already open." };
+  // S5-05: an NCR-sourced item follows its NCR. While the NCR is closed, re-open the NCR first (the
+  // NCR re-open cascade then re-opens the item). Mirrored by punch_reopen_ncr_closed_guard in the DB.
+  if (current.source_ncr_id) {
+    const { data: srcNcr } = await supabase.from("ncrs").select("status").eq("id", current.source_ncr_id).maybeSingle<{ status: string }>();
+    if (srcNcr?.status === "closed") {
+      return { error: "This punch item came from an NCR that is closed. Re-open the NCR first; its punch item re-opens with it." };
+    }
+  }
 
   const { error, data } = await supabase
     .from(PUNCH_LIST_ITEMS_TABLE)

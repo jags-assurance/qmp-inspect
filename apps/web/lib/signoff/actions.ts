@@ -20,6 +20,8 @@ import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@
 import { resolveUnclearedLowerLevel } from "./sequencing";
 import { evaluateSignoffAuthority } from "./on-behalf";
 import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { canRejectFromStatus, normaliseSignoffComment, validateRejectionReason } from "./outcome";
 
 /** True when the ITP owning this activity is approved / client accepted (sign-off and notify only open then). */
 async function isItpApprovedForItem(
@@ -497,8 +499,10 @@ async function findUnclearedLowerBlockingLevel(
 }
 
 /** Records sign-off. Valid for any intervention level, regardless of whether it was ever notified. */
-export async function signOffAction(progressId: string, onBehalfReason?: string): Promise<SignoffActionResult> {
+export async function signOffAction(progressId: string, onBehalfReason?: string, comment?: string): Promise<SignoffActionResult> {
   if (!progressId) return { error: "Missing sign-off record." };
+  const commentResult = normaliseSignoffComment(comment);
+  if ("error" in commentResult) return { error: commentResult.error };
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -547,16 +551,27 @@ export async function signOffAction(progressId: string, onBehalfReason?: string)
     return { error: `${blockedByLevel} must be signed off (or proceeded without response) before this level can be.` };
   }
 
-  const { data: signedRows, error } = await supabase
+  const signBase = {
+    status: "signed_off",
+    signed_off_at: new Date().toISOString(),
+    signed_off_by: user?.id ?? null,
+  };
+  // S4-18: comment recorded, earlier rejection cleared (columns from 20261110000300; falls back
+  // to the plain sign-off when they are not there yet).
+  let { data: signedRows, error } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .update({
-      status: "signed_off",
-      signed_off_at: new Date().toISOString(),
-      signed_off_by: user?.id ?? null,
-    })
+    .update({ ...signBase, signoff_comment: commentResult.value, rejected_at: null, rejected_by: null, rejection_reason: null })
     .eq("id", progressId)
     .neq("status", "signed_off")
     .select("id");
+  if (error && isMissingSchemaError(error)) {
+    ({ data: signedRows, error } = await supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .update(signBase)
+      .eq("id", progressId)
+      .neq("status", "signed_off")
+      .select("id"));
+  }
 
   if (!error && (!signedRows || signedRows.length === 0)) {
     // Double click / second user: already signed, never overwrite the original signer + time.
@@ -629,6 +644,117 @@ export async function signOffAction(progressId: string, onBehalfReason?: string)
     // Best-effort — see doc comment above.
   }
 
+  return { error: null };
+}
+
+/**
+ * S4-18: a party rejects (returns) a release request instead of signing: the row goes back to
+ * Pending (still blocking, like any unsigned point), keeps who/when/why, and the inspector and the
+ * project's responsible person are notified. A later sign-off clears the rejection.
+ */
+export async function rejectSignoffAction(progressId: string, reason: string): Promise<SignoffActionResult> {
+  if (!progressId) return { error: "Missing sign-off record." };
+  const reasonResult = validateRejectionReason(reason);
+  if ("error" in reasonResult) return { error: reasonResult.error };
+
+  const supabase = await createSupabaseServerClient();
+  const session = await requireSession();
+  const { data: progress } = await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .select("id, itp_item_id, project_party_id, intervention, status")
+    .eq("id", progressId)
+    .maybeSingle<Pick<ActivitySignoffProgressRow, "id" | "itp_item_id" | "project_party_id" | "intervention" | "status">>();
+  if (!progress) return { error: "Sign-off record not found." };
+  if (!canRejectFromStatus(progress.status)) {
+    return { error: "This was already released. Ask an admin or team lead to withdraw the sign-off instead." };
+  }
+
+  const { data: party } = await supabase
+    .from("project_parties")
+    .select("user_id, is_active, name, project_id")
+    .eq("id", progress.project_party_id)
+    .maybeSingle<{ user_id: string | null; is_active: boolean; name: string; project_id: string }>();
+  const isLinked =
+    party?.is_active === true && (party.user_id === session.userId || (await isPartyMember(supabase, progress.project_party_id, session.userId)));
+  const isLead = isAdminStaff(session) || (!!party && (await isTeamLeadForProject(supabase, session.userId, party.project_id)));
+  if (!isLinked && !isLead) return { error: "Only this party's own login, an admin or a team lead can reject this release." };
+
+  const { data: rows, error } = await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .update({
+      status: "pending",
+      notified_at: null,
+      rejected_at: new Date().toISOString(),
+      rejected_by: session.userId,
+      rejection_reason: reasonResult.value,
+    })
+    .eq("id", progressId)
+    .eq("status", progress.status)
+    .select("id, reject_count");
+  if (error) {
+    if (isMissingSchemaError(error)) return { error: "Rejecting a release needs a database update that has not been applied yet." };
+    console.error(`[signoff] rejectSignoffAction failed for ${progressId}:`, error);
+    return { error: "Could not record the rejection. Check you have permission and try again." };
+  }
+  if (!rows || rows.length === 0) return { error: "This sign-off changed in the meantime. Refresh and try again." };
+  // Best-effort counter (read-modify-write is fine: cosmetic).
+  await supabase
+    .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+    .update({ reject_count: ((rows[0] as { reject_count?: number }).reject_count ?? 0) + 1 })
+    .eq("id", progressId);
+
+  try {
+    const { data: context } = await supabase
+      .from("itp_items")
+      .select("activity, itp_sections(itps(id, itp_number, project_id, projects(organization_id, responsible_person_id)))")
+      .eq("id", progress.itp_item_id)
+      .maybeSingle<{
+        activity: string;
+        itp_sections: {
+          itps: { id: string; itp_number: string; project_id: string; projects: { organization_id: string; responsible_person_id: string | null } | null } | null;
+        } | null;
+      }>();
+    const itp = context?.itp_sections?.itps;
+    const organizationId = itp?.projects?.organization_id;
+    if (itp && organizationId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        entityType: "signoff",
+        entityId: progressId,
+        action: "rejected",
+        actorId: session.userId,
+        summary: `${progress.intervention} release rejected by ${party?.name ?? "party"} on ${itp.itp_number} — ${context?.activity ?? "an activity"}. Reason: ${reasonResult.value}`,
+        changes: { reason: reasonResult.value, previous_status: progress.status },
+      });
+      const { data: inspectors } = await supabase
+        .from("inspection_records")
+        .select("inspector_id")
+        .eq("itp_item_id", progress.itp_item_id)
+        .not("inspector_id", "is", null)
+        .limit(20)
+        .returns<{ inspector_id: string }[]>();
+      const recipients = new Set<string>((inspectors ?? []).map((r) => r.inspector_id));
+      if (itp.projects?.responsible_person_id) recipients.add(itp.projects.responsible_person_id);
+      recipients.delete(session.userId);
+      for (const recipientUserId of recipients) {
+        await createNotification(supabase, {
+          organizationId,
+          projectId: itp.project_id,
+          recipientUserId,
+          title: `${party?.name ?? "A party"} rejected a release`,
+          body: `${itp.itp_number} — ${context?.activity ?? "an activity"}. Reason: ${reasonResult.value}`,
+          link: `/inspect/itps/${itp.id}`,
+        });
+      }
+    }
+  } catch {
+    // Best-effort audit + notifications.
+  }
+
+  const itpId = await findItpIdForProgress(supabase, progress.itp_item_id);
+  if (itpId) revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
   return { error: null };
 }
 

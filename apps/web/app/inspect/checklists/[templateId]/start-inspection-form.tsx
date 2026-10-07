@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { startInspectionAction, type StartInspectionState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
+import { evaluateGeofence, type SiteGeofence } from "@/lib/checklists/geofence";
+import { parseCoordinates } from "@/lib/checklists/location";
 
 const initialState: StartInspectionState = { error: null };
 
@@ -14,6 +16,7 @@ export function StartInspectionForm({
   itpNumber,
   activity,
   locationPresets = [],
+  siteGeofence = null,
 }: {
   templateId: string;
   itpItemId: string;
@@ -24,6 +27,8 @@ export function StartInspectionForm({
   /** This project's own location names (project settings → locations — see
    *  lib/checklists/location-presets.ts). They differ per project; empty when none are set up. */
   locationPresets?: string[];
+  /** Project site point + radius for the soft geofence warning (S4-17); null when not configured. */
+  siteGeofence?: SiteGeofence | null;
 }) {
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
   // One location at a time: either a live GPS reading (latitude/longitude only) or one of this
@@ -33,6 +38,7 @@ export function StartInspectionForm({
   const [presetChoice, setPresetChoice] = useState("");
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
 
   function useLiveLocation() {
     if (!navigator.geolocation) {
@@ -43,7 +49,8 @@ export function StartInspectionForm({
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy: acc } = position.coords;
+        setAccuracy(Number.isFinite(acc) ? Math.round(acc * 10) / 10 : null);
         setValue(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
         setSource("gps");
         setPresetChoice("");
@@ -59,6 +66,7 @@ export function StartInspectionForm({
 
   function choosePreset(name: string) {
     setPresetChoice(name);
+    setAccuracy(null);
     if (name) {
       setValue(name);
       setSource("preset");
@@ -73,7 +81,10 @@ export function StartInspectionForm({
     setSource("none");
     setPresetChoice("");
     setLocationError(null);
+    setAccuracy(null);
   }
+
+  const geofence = source === "gps" ? evaluateGeofence(siteGeofence, parseCoordinates(value), accuracy) : null;
 
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-6">
@@ -84,6 +95,7 @@ export function StartInspectionForm({
       <input type="hidden" name="itp_number" value={itpNumber} />
       <input type="hidden" name="activity" value={activity} />
       <input type="hidden" name="location" value={value} />
+      <input type="hidden" name="location_accuracy" value={source === "gps" && accuracy != null ? String(accuracy) : ""} />
 
       <p className="block text-sm font-medium text-ink">
         Location <span className="text-danger">*</span> <span className="font-normal text-muted">(required to start)</span>
@@ -137,6 +149,12 @@ export function StartInspectionForm({
         </p>
       ) : (
         <p className="mt-2 text-xs text-muted">No location selected.</p>
+      )}
+      {source === "gps" && accuracy != null && <p className="mt-1 text-xs text-muted">Accuracy about {Math.round(accuracy)} m.</p>}
+      {geofence?.warning && (
+        <p className="mt-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs text-ink" role="status">
+          {geofence.warning} You can still start; this is recorded with the inspection.
+        </p>
       )}
       {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
 

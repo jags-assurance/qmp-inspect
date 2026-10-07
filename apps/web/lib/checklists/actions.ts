@@ -37,7 +37,8 @@ import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type 
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
-import { normaliseLocation } from "./location";
+import { normaliseLocation, parseCoordinates } from "./location";
+import { evaluateGeofence, sanitiseAccuracy, siteGeofenceFromProject } from "./geofence";
 import { buildItemsSnapshot } from "./template-logic";
 import { bumpTemplateVersion } from "./template-context";
 import { getLocationPresetsForProject } from "./location-presets";
@@ -607,6 +608,30 @@ export interface StartInspectionState {
  * activity) is copied onto the row here, as plain text, rather than left to a live join — see the
  * migration file header for why.
  */
+async function buildGeofenceColumns(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  location: string,
+  formData: FormData
+): Promise<Record<string, unknown> | null> {
+  const coords = parseCoordinates(location);
+  const accuracy = coords ? sanitiseAccuracy(formData.get("location_accuracy")) : null;
+  const { data: site, error } = await supabase
+    .from("projects")
+    .select("site_latitude, site_longitude, site_radius_m")
+    .eq("id", projectId)
+    .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
+  if (error) return null; // columns not migrated yet
+  const check = evaluateGeofence(site ? siteGeofenceFromProject(site) : null, coords, accuracy);
+  return {
+    location_accuracy_m: accuracy,
+    // Server time, not the client's: the reading is taken at the moment of starting.
+    location_captured_at: coords ? new Date().toISOString() : null,
+    location_distance_m: check.distanceM,
+    location_geofence_status: check.status,
+  };
+}
+
 export async function startInspectionAction(
   _prev: StartInspectionState,
   formData: FormData
@@ -804,7 +829,14 @@ export async function startInspectionAction(
       : null,
     governing_drawing_revision: itpItemForHeader?.governing_drawing?.revision ?? null,
   };
-  let { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(versionColumns ? { ...recordInsert, ...versionColumns } : recordInsert);
+  // S4-17: accuracy / time / soft geofence result. Best-effort: columns exist only after
+  // 20261110000200; without them the record is created exactly as before.
+  const geoColumns = await buildGeofenceColumns(supabase, projectId, location ?? "", formData);
+  const extraColumns = { ...(versionColumns ?? {}), ...(geoColumns ?? {}) };
+  let { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(Object.keys(extraColumns).length ? { ...recordInsert, ...extraColumns } : recordInsert);
+  if (error && geoColumns && isMissingSchemaError(error)) {
+    ({ error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(versionColumns ? { ...recordInsert, ...versionColumns } : recordInsert));
+  }
   if (error && versionColumns && isMissingSchemaError(error)) {
     ({ error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(recordInsert));
   }
