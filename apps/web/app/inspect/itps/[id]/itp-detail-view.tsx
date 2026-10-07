@@ -6,7 +6,7 @@ import { ChecklistsView } from "./checklists/checklists-view";
 import { StatusView } from "./status/status-view";
 import { ApprovalRoadmapView } from "./approval-roadmap/approval-roadmap-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ActivitySignoffGrid } from "./activity-signoff-grid";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
@@ -60,6 +60,7 @@ import {
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
 import { ITP_REVISIONS_TABLE, type ItpRevisionRow } from "@/lib/itps/revision-types";
 import { RevisionHistoryPanel } from "./revision-history-panel";
+import { ReviewHistoryPanel } from "./review-history-panel";
 // R24: sections are fully editable (add/rename/delete/reorder), not fixed to the 4 defaults
 // createItpAction seeds — no other change to this file beyond the two components below and the
 // isIssued/section-count values passed into them.
@@ -76,6 +77,8 @@ import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/p
 import { isAiConfigured } from "@/lib/ai/gate";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { TranslateContentPanel } from "./translate-content-panel";
+import { ItpExitControls } from "./itp-exit-controls";
+import { approvePermissionStrict } from "@/lib/itps/lifecycle";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -84,6 +87,8 @@ const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = 
   under_review: "warning",
   approved: "gold",
   client_accepted: "success",
+  superseded: "neutral",
+  withdrawn: "neutral",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -91,6 +96,8 @@ const STATUS_LABEL: Record<string, string> = {
   under_review: "Under review",
   approved: "Approved",
   client_accepted: "Client accepted",
+  superseded: "Superseded",
+  withdrawn: "Withdrawn",
 };
 
 // Simple visual stepper for the ITP's approval lifecycle — purely presentational, mirrors the
@@ -129,7 +136,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       scope: string | null;
       applicable_standard: string | null;
       revision: number;
-      status: "draft" | "under_review" | "approved" | "client_accepted";
+      status: "draft" | "under_review" | "approved" | "client_accepted" | "superseded" | "withdrawn";
       phase: string;
       external_approval_reference: string | null;
       external_approval_recorded_by: string | null;
@@ -372,7 +379,12 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           .returns<EvidenceDocRow[]>(),
     getExecutingPartyTypes(supabase, itp.projects?.id ?? ""),
     itp.status === "under_review" ? getItpReviewProgress(supabase, itp.id) : Promise.resolve([]),
-    session.isJagsStaff ? Promise.resolve(true) : hasPermission(session.userId, "approve_itp", itp.projects?.id),
+    // S2-11: plain JAGS staff may approve unless ITP_REQUIRE_APPROVE_PERMISSION=1 (then approve_itp is needed too).
+    session.isJagsStaff && !approvePermissionStrict()
+      ? Promise.resolve(true)
+      : isAdminStaff(session)
+        ? Promise.resolve(true)
+        : hasPermission(session.userId, "approve_itp", itp.projects?.id),
     loadItpChecklistPreview(supabase, itp.id),
   ]);
 
@@ -542,7 +554,11 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       }
       return false;
     });
-  const canEditContent = session.isJagsStaff || isEligibleItpCreator;
+  const canEditContent = (session.isJagsStaff || isEligibleItpCreator) && itp.status !== "superseded" && itp.status !== "withdrawn";
+  // Other ITPs on the project, for "superseded by" (staff only).
+  const { data: siblingItps } = session.isJagsStaff
+    ? await supabase.from("itps").select("id, itp_number").eq("project_id", itp.projects?.id ?? "").neq("id", itp.id).order("itp_number").returns<{ id: string; itp_number: string }[]>()
+    : { data: [] as { id: string; itp_number: string }[] };
   // R24/R101: any section add/rename/delete/reorder past this point is an edit-after-issue once
   // the ITP has left draft/under_review — reused by AddSectionForm and SectionControls below,
   // same condition AddItemForm already keys its own "isIssued" prop off of.
@@ -621,7 +637,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             This ITP was changed after it was issued. The change is recorded in the revision history; someone other than the person who made
             it needs to approve the new revision.
           </p>
-          {(session.isJagsStaff || canApproveItp) && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
+          {canApproveItp && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
         </div>
       )}
       {itp.status === "draft" && canSubmitForReview && (() => {
@@ -694,6 +710,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
           </p>
           {isAiConfigured() && <TranslateContentPanel itpId={itp.id} />}
+          {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
           {signoffTotal > 0 && (
             <p className="mt-1 text-sm text-muted">
               {signoffComplete} of {signoffTotal} sign-off points complete
@@ -826,6 +843,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       )}
 
       <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
+      <ReviewHistoryPanel itpId={itp.id} />
 
       {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
           validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on

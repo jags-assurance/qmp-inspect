@@ -22,7 +22,7 @@ export default async function ItpsPage({
 }) {
   const session = await requireSession();
   const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = await searchParams;
-  const STATUSES = ["draft", "under_review", "approved", "client_accepted"] as const;
+  const STATUSES = ["draft", "under_review", "approved", "client_accepted", "superseded", "withdrawn"] as const;
   const statusFilter = STATUSES.find((x) => x === statusParam) ?? null;
   const sort = ["number", "title", "status"].includes(sortParam ?? "") ? (sortParam as string) : "";
   // R23: optional phase filter — only a recognised phase value is honoured, anything else is

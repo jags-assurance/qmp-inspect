@@ -13,6 +13,7 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createNotification } from "@/lib/notifications/helpers";
+import { nextReviewRound } from "@/lib/itps/lifecycle";
 
 // These two tables aren't in the generated Database type yet — same documented escape hatch as
 // ACTIVITY_SIGNOFF_PROGRESS_TABLE (lib/signoff/db-types.ts) and ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE.
@@ -110,6 +111,39 @@ export async function getItpReviewProgress(
 }
 
 /**
+ * S2-13: copies the current review steps into itp_review_progress_history as the next round, so who had
+ * approved what survives a return-to-draft or restart. Best-effort and a no-op when there is nothing to keep
+ * (or the history table has not been migrated yet): it must never block the caller.
+ */
+export async function archiveReviewChain(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpId: string,
+  reason: string
+): Promise<void> {
+  try {
+    const { data: steps } = await supabase
+      .from(ITP_REVIEW_PROGRESS_TABLE)
+      .select("reviewer_user_id, sort_order, status, reviewed_at")
+      .eq("itp_id", itpId)
+      .returns<{ reviewer_user_id: string; sort_order: number; status: string; reviewed_at: string | null }[]>();
+    if (!steps?.length) return;
+    const { data: maxRow } = await supabase
+      .from("itp_review_progress_history" as never)
+      .select("review_round")
+      .eq("itp_id" as never, itpId as never)
+      .order("review_round" as never, { ascending: false })
+      .limit(1)
+      .maybeSingle<{ review_round: number }>();
+    const round = nextReviewRound(maxRow?.review_round ?? null);
+    await supabase
+      .from("itp_review_progress_history" as never)
+      .insert(steps.map((s) => ({ ...s, itp_id: itpId, review_round: round, archived_reason: reason.slice(0, 500) })) as never);
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
  * Called from advanceItpStatusAction the moment an ITP moves draft -> under_review. Snapshots the
  * CURRENT chain onto this ITP — this specific ITP's own override if one was configured, else the
  * project's chain — a later edit to either one never retroactively changes an ITP already
@@ -126,7 +160,8 @@ export async function startReviewChainForItp(
   if (chain.length === 0) return false;
 
   // Start clean: a resubmission (or a double click) must never stack a second set of steps on top of
-  // an earlier one.
+  // an earlier one. A round that is still there (e.g. an Admin override approved the ITP part-way) is archived first.
+  await archiveReviewChain(supabase, itpId, "Review restarted");
   await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
 
   await supabase.from(ITP_REVIEW_PROGRESS_TABLE).insert(

@@ -12,10 +12,11 @@ import { checklistReviewError, recordChecklistReviewTick } from "@/lib/itps/chec
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { bumpRevisionIfIssued, snapshotInitialIssue, snapshotApprovedRevision, type BumpResult } from "@/lib/itps/revisions";
 import { itemDeleteBlocker } from "@/lib/itps/guards";
+import { approvePermissionStrict, mayApproveItp, revisionApprovalRecipients } from "@/lib/itps/lifecycle";
 import { parseBulkActivityRows } from "@/lib/itps/bulk-import";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
-import { startReviewChainForItp, getItpReviewProgress, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
+import { startReviewChainForItp, getItpReviewProgress, archiveReviewChain, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage } from "@/lib/ai/log";
@@ -155,22 +156,44 @@ async function resetReviewIfUnderReview(
       .eq("status", "approved");
     if (!signed?.length) return;
 
-    await supabase
+    const { error: resetError } = await supabase
       .from(ITP_REVIEW_PROGRESS_TABLE)
       .update({ status: "pending", reviewed_at: null })
       .eq("itp_id", itpId)
       .eq("status", "approved");
 
     if (itp.projects?.organization_id) {
+      // A failed reset leaves approvals standing over changed content: say so loudly in the audit trail.
       await recordAuditEvent(supabase, {
         organizationId: itp.projects.organization_id,
         projectId: itp.project_id,
         entityType: "itp",
         entityId: itpId,
-        action: "review_reset_after_edit",
+        action: resetError ? "review_reset_failed" : "review_reset_after_edit",
         actorId,
-        summary: `${itp.itp_number} edited during review (${summary}) — review sign-offs reset`,
+        summary: resetError
+          ? `${itp.itp_number} edited during review (${summary}) — review sign-offs COULD NOT be reset; re-review is needed`
+          : `${itp.itp_number} edited during review (${summary}) — review sign-offs reset`,
       });
+      // Tell the reviewer whose turn it now is.
+      const { data: first } = await supabase
+        .from(ITP_REVIEW_PROGRESS_TABLE)
+        .select("reviewer_user_id")
+        .eq("itp_id", itpId)
+        .eq("status", "pending")
+        .order("sort_order")
+        .limit(1)
+        .maybeSingle<{ reviewer_user_id: string }>();
+      if (first && first.reviewer_user_id !== actorId) {
+        await createNotification(supabase, {
+          organizationId: itp.projects.organization_id,
+          projectId: itp.project_id,
+          recipientUserId: first.reviewer_user_id,
+          title: `${itp.itp_number} changed during review`,
+          body: `${summary} — please review it again`,
+          link: `/inspect/itps/${itpId}`,
+        });
+      }
     }
   } catch {
     // Best-effort — never blocks the edit that already succeeded.
@@ -1105,6 +1128,21 @@ export async function advanceItpStatusAction(
   if (nextStatus === "approved") {
     const gate = await checklistReviewError(supabase, itpId, formData);
     if (gate) return { error: gate };
+
+    // Optional stricter default (ITP_REQUIRE_APPROVE_PERMISSION=1): only a JAGS Admin or someone holding the
+    // approve_itp permission may approve, instead of any JAGS staff member on the project.
+    if (approvePermissionStrict() && !isAdminStaff(session)) {
+      const { data: approvalItp } = await supabase.from("itps").select("project_id").eq("id", itpId).maybeSingle<{ project_id: string }>();
+      const allowed =
+        !!approvalItp &&
+        mayApproveItp({
+          isAdmin: false,
+          isJagsStaff: session.isJagsStaff,
+          hasApprovePermission: await hasPermission(session.userId, "approve_itp", approvalItp.project_id),
+          strict: true,
+        });
+      if (!allowed) return { error: "Approving an ITP needs the approve permission (or a JAGS Admin)." };
+    }
   }
 
   // Look up this org's approval-workflow config (if any) before writing the status change — a
@@ -1292,6 +1330,15 @@ export async function advanceItpStatusAction(
         // genuinely "issued" — this is that moment.
         await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
         await recordChecklistReviewTick(supabase, { itpId, decision: "approve", formData, actorId: user?.id ?? null });
+        // Checklists for activities that don't have one yet (e.g. an AI draft by a client/contractor creator,
+        // or activities pasted in): idempotent, best-effort.
+        if (itp && organizationId) {
+          try {
+            await generateChecklistsForItp(supabase, { itpId, itpNumber: itp.itp_number, projectId: itp.project_id, organizationId, userId: user?.id ?? null });
+          } catch {
+            // The manual "Generate checklists" button still works.
+          }
+        }
 
         // Once Approved, the client's own acceptance is the next real step in the workflow
         // (accept_itp()) — notify their linked user directly rather than relying on them noticing
@@ -1362,7 +1409,12 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
   if (!itp) return { error: "ITP not found." };
   if (!itp.revision_needs_approval) return { error: "This revision doesn't need approval." };
 
-  const mayApprove = isAdminStaff(session) || session.isJagsStaff || (await hasPermission(session.userId, "approve_itp", itp.project_id));
+  const mayApprove = mayApproveItp({
+    isAdmin: isAdminStaff(session),
+    isJagsStaff: session.isJagsStaff,
+    hasApprovePermission: await hasPermission(session.userId, "approve_itp", itp.project_id),
+    strict: approvePermissionStrict(),
+  });
   if (!mayApprove) return { error: "Only JAGS staff, or someone granted the approve permission, can approve a revision." };
   const isChanger = itp.revision_changed_by === session.userId;
   if (isChanger && !isAdminStaff(session)) {
@@ -1375,6 +1427,20 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
     .eq("id", itpId)
     .select("id");
   if (error || !clearedRows?.length) return { error: "Could not approve the revision. Check you have permission and try again." };
+
+  // Freeze the approved content (the controlled copy for this revision), and, if the client had accepted
+  // an earlier revision, send the ITP back to "approved" so the client has to accept THIS revision.
+  // Both are best-effort around the approval itself, which has already succeeded.
+  let reacceptanceRequired = false;
+  try {
+    await snapshotApprovedRevision(supabase, itpId, session.userId);
+    if (itp.status === "client_accepted") {
+      const { data: reset } = await supabase.from("itps").update({ status: "approved" } as never).eq("id", itpId).eq("status", "client_accepted").select("id");
+      reacceptanceRequired = !!reset?.length;
+    }
+  } catch {
+    // Best-effort.
+  }
 
   try {
     const organizationId = itp.projects?.organization_id;
@@ -1396,13 +1462,26 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
         .eq("is_active", true)
         .not("user_id", "is", null)
         .returns<{ user_id: string | null }[]>();
-      for (const party of clientParties ?? []) {
-        if (!party.user_id) continue;
+      const { data: acceptorRow } = await supabase
+        .from("itps")
+        .select("assigned_acceptor_user_id")
+        .eq("id", itpId)
+        .maybeSingle<{ assigned_acceptor_user_id: string | null }>();
+      const recipients = revisionApprovalRecipients({
+        approverId: session.userId,
+        changedBy: itp.revision_changed_by,
+        clientUserIds: (clientParties ?? []).map((p) => p.user_id),
+        assignedAcceptorId: reacceptanceRequired ? acceptorRow?.assigned_acceptor_user_id ?? null : null,
+      });
+      for (const recipient of recipients) {
+        const isClient = recipient.role !== "changer";
         await createNotification(supabase, {
           organizationId,
           projectId: itp.project_id,
-          recipientUserId: party.user_id,
-          title: `ITP revision ${itp.revision} approved`,
+          recipientUserId: recipient.userId,
+          title: isClient
+            ? `ITP revision ${itp.revision} approved${reacceptanceRequired ? " — your acceptance is needed again" : ""}`
+            : `Your change to ${itp.itp_number} (revision ${itp.revision}) was approved`,
           body: `${itp.itp_number} — ${itp.title}`,
           link: `/inspect/itps/${itpId}`,
         });
@@ -1471,6 +1550,8 @@ export async function returnItpToDraftAction(_prev: ReturnItpState, formData: Fo
     .select("id");
   if (error || !returnedRows?.length) return { error: "Could not return the ITP. It may have just changed status — refresh and try again." };
 
+  // Keep the round that was just returned (who had approved what, and when) before clearing the chain.
+  await archiveReviewChain(supabase, itpId, reason);
   await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
 
   try {
@@ -1557,6 +1638,19 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
         summary: `ITP ${itp.itp_number} accepted by client`,
       });
       await recordChecklistReviewTick(supabase, { itpId, decision: "accept", formData, actorId: user?.id ?? null });
+      // S2-04: checklists for any activity that still has none (idempotent). The accepted ITP is the
+      // point at which the client has signed off the content the checklists are built from.
+      try {
+        await generateChecklistsForItp(supabase, {
+          itpId,
+          itpNumber: itp.itp_number,
+          projectId: itp.project_id,
+          organizationId: itp.projects.organization_id,
+          userId: user?.id ?? null,
+        });
+      } catch {
+        // The manual "Generate checklists" button still works.
+      }
     }
   } catch {
     // Best-effort — see doc comment above.
@@ -1741,6 +1835,8 @@ const EMPTY_TRANSLATE_STATE: TranslateItpContentState = { error: null, translate
  * translating never touches title/scope/applicable_standard themselves — only
  * generateItpDraftAction/createItpFromDraftAction and the section/item editors do that.
  */
+export const TRANSLATION_LANGUAGES = ["French", "Arabic", "Spanish", "German", "Portuguese", "Chinese", "Hindi", "Urdu"] as const;
+
 export async function translateItpContentAction(
   _prev: TranslateItpContentState,
   formData: FormData
@@ -1750,6 +1846,10 @@ export async function translateItpContentAction(
 
   if (!itpId || !targetLanguage) {
     return { ...EMPTY_TRANSLATE_STATE, error: "Missing ITP or target language." };
+  }
+  // Only a fixed list of languages is accepted: the value goes into the prompt, so free text is an injection vector.
+  if (!TRANSLATION_LANGUAGES.includes(targetLanguage as (typeof TRANSLATION_LANGUAGES)[number])) {
+    return { ...EMPTY_TRANSLATE_STATE, error: "That language isn't offered." };
   }
 
   const supabase = await createSupabaseServerClient();

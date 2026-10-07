@@ -284,7 +284,7 @@ export async function generateChecklistTemplatesAction(
     }>();
 
   if (!itp) return { error: "ITP not found." };
-  if (itp.status !== "approved") return { error: "The ITP must be approved before checklists can be generated." };
+  if (itp.status !== "approved" && itp.status !== "client_accepted") return { error: "The ITP must be approved before checklists can be generated." };
 
   const result = await generateChecklistsForItp(supabase, {
     itpId,
