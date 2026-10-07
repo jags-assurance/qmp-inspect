@@ -48,3 +48,19 @@ describe("computeOverallResult", () => {
     expect(computeOverallResult(["yes", "yes", "yes"])).toBe("pass");
   });
 });
+
+import { validateCompletionFieldsClient } from "../completion-logic";
+
+describe("validateCompletionFieldsClient (S4-05)", () => {
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  it("requires a usable signature", () => {
+    expect(validateCompletionFieldsClient({ signature: "" })).toMatch(/signature is required/);
+    expect(validateCompletionFieldsClient({ signature: "not-a-data-url" })).toMatch(/PNG or JPEG/);
+    expect(validateCompletionFieldsClient({ signature: png })).toBeNull();
+  });
+  it("a witness signature needs a witness name", () => {
+    expect(validateCompletionFieldsClient({ signature: png, witnessSignature: png })).toMatch(/witness's name/);
+    expect(validateCompletionFieldsClient({ signature: png, witnessSignature: png, witnessName: "A. Witness" })).toBeNull();
+    expect(validateCompletionFieldsClient({ signature: png, witnessSignature: "bad", witnessName: "A" })).toMatch(/witness signature/);
+  });
+});

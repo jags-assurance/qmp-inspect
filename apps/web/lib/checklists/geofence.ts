@@ -81,7 +81,8 @@ export function formatDistance(m: number): string {
 
 /** Clamps a client-supplied accuracy reading to a sane stored value; null when unusable. */
 export function sanitiseAccuracy(raw: unknown): number | null {
-  const n = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());
+  if (raw == null || (typeof raw === "string" && !raw.trim())) return null;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim());
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.min(Math.round(n * 10) / 10, 99999);
 }

@@ -9,6 +9,7 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { directoryClient, partyUserIds as directoryPartyUserIds } from "@/lib/ncrs/recipients";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { siteToday } from "@/lib/ncrs/site-date";
+import { walkdownSignOffError } from "@/lib/punch-list/walkdown";
 import {
   PUNCH_LIST_ITEMS_TABLE,
   PUNCH_LIST_PRIORITIES,
@@ -1255,4 +1256,62 @@ export async function bulkUpdatePunchItemsAction(_prev: BulkPunchState, formData
   revalidatePath(`/inspect/projects/${projectId}/punch-list`);
   revalidatePath(`/inspect/projects/${projectId}/data-book`);
   return { error: null, updated };
+}
+
+export interface SignOffWalkdownState {
+  error: string | null;
+  done?: boolean;
+}
+
+/** S5-23: the walkdown's recorder (or an admin) signs the walkdown off as a complete, reviewed record. */
+export async function signOffWalkdownAction(_prev: SignOffWalkdownState, formData: FormData): Promise<SignOffWalkdownState> {
+  const walkdownId = String(formData.get("walkdown_id") ?? "").trim();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!walkdownId || !projectId) return { error: "Missing walkdown." };
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+  const { data: wd, error: readErr } = await supabase
+    .from("walkdowns" as never)
+    .select("id, created_by, signed_off_at, item_count, area, walked_on")
+    .eq("id", walkdownId)
+    .eq("project_id", projectId)
+    .maybeSingle<{ id: string; created_by: string | null; signed_off_at: string | null; item_count: number; area: string | null; walked_on: string }>();
+  if (readErr) return { error: isMissingSchemaError(readErr) ? "Walkdown records need a database update that has not been applied yet." : "Could not read the walkdown." };
+  if (!wd) return { error: "Walkdown not found." };
+  const problem = walkdownSignOffError({
+    isCreator: wd.created_by === session.userId,
+    isAdmin: isAdminStaff(session),
+    alreadySigned: !!wd.signed_off_at,
+    itemCount: wd.item_count,
+  });
+  if (problem) return { error: problem };
+
+  const { data: updated, error } = await supabase
+    .from("walkdowns" as never)
+    .update({ signed_off_by: session.userId, signed_off_at: new Date().toISOString() } as never)
+    .eq("id", walkdownId)
+    .is("signed_off_at", null)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+  if (error) return { error: "Could not sign off the walkdown. Check you have permission and try again." };
+  if (!updated) return { error: "This walkdown was already signed off." };
+
+  try {
+    const { data: project } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+    if (project) {
+      await recordAuditEvent(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        entityType: "walkdown",
+        entityId: walkdownId,
+        action: "signed_off",
+        actorId: session.userId,
+        summary: `Walkdown signed off${wd.area ? ` (${wd.area})` : ""} - ${wd.item_count} item(s), walked ${wd.walked_on}`,
+      });
+    }
+  } catch {
+    // Best-effort audit.
+  }
+  revalidatePath(`/inspect/projects/${projectId}/punch-list`);
+  return { error: null, done: true };
 }
