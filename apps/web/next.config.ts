@@ -1,8 +1,20 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { securityHeaders } from "./lib/security/headers";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders({
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+          isProduction: process.env.NODE_ENV === "production",
+        }),
+      },
+    ];
+  },
 };
 
 // Only wraps the build with Sentry's webpack/turbopack plugin (source-map upload, etc.) when a DSN

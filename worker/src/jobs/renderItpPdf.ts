@@ -345,7 +345,8 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   }
 
   // Timestamped so regenerating the same revision never overwrites an earlier file that a vault row points at.
-  const storagePath = `itps/${itp.id}/${itp.itp_number}-rev${itp.revision}-${Date.now()}.pdf`;
+  const safeNumber = String(itp.itp_number).replace(/[^A-Za-z0-9._-]+/g, "_");
+  const storagePath = `itps/${itp.id}/${safeNumber}-rev${itp.revision}-${Date.now()}.pdf`;
 
   await uploadGeneratedFile(supabase, storagePath, pdfBuffer);
 

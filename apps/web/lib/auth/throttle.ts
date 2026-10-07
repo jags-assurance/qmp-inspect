@@ -4,31 +4,11 @@
 // service role isn't configured or the table doesn't exist yet, so nothing breaks before the
 // migration is applied — the throttle simply isn't active until then.
 
-import { createHash } from "node:crypto";
 import { headers } from "next/headers";
+import { THROTTLE_LIMITS, attemptKey, isThrottled, type ThrottleKind } from "./throttle-pure";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 
-export type ThrottleKind = "signin" | "reset";
-
-export interface ThrottleLimits {
-  windowMinutes: number;
-  perEmail: number;
-  perIp: number;
-}
-
-export const THROTTLE_LIMITS: Record<ThrottleKind, ThrottleLimits> = {
-  signin: { windowMinutes: 15, perEmail: 5, perIp: 30 },
-  reset: { windowMinutes: 60, perEmail: 3, perIp: 15 },
-};
-
-/** Pure decision, unit-tested: blocked once either counter reaches its limit. */
-export function isThrottled(counts: { email: number; ip: number }, limits: ThrottleLimits): boolean {
-  return counts.email >= limits.perEmail || counts.ip >= limits.perIp;
-}
-
-export function attemptKey(prefix: "email" | "ip", value: string): string {
-  return `${prefix}:${createHash("sha256").update(value.trim().toLowerCase()).digest("hex").slice(0, 32)}`;
-}
+export type { ThrottleKind };
 
 async function clientIp(): Promise<string> {
   const h = await headers();

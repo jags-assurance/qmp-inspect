@@ -128,6 +128,10 @@ export interface AddProjectPartyState {
 const VALID_PARTY_TYPES = ["subcontractor", "main_contractor", "tpi_lab", "vendor", "client", "jags"] as const;
 type PartyType = (typeof VALID_PARTY_TYPES)[number];
 
+/** Party types a non-JAGS actor may create: "jags" and "tpi_lab" carry staff-like rights in several
+ *  policies (expected-record provider, register contributor), so only a JAGS Admin may mint them. */
+const CLIENT_ADDABLE_PARTY_TYPES: readonly PartyType[] = ["subcontractor", "main_contractor", "vendor", "client"];
+
 /**
  * Client onboarding gap this closes: previously project_parties could only be populated by hand-
  * written seed data — the project detail page displayed the party list but had no way to add to it,
@@ -302,6 +306,9 @@ export async function addSelfManagedPartyAction(
   }
 
   const session = await requireSession();
+  if (!isAdminStaff(session) && !CLIENT_ADDABLE_PARTY_TYPES.includes(partyType as PartyType)) {
+    return { error: "You can add contractors, subcontractors, vendors and client parties. JAGS and TPI/lab parties are set up by a JAGS Admin." };
+  }
   const supabase = await createSupabaseServerClient();
 
   const { data: project } = await supabase
@@ -807,7 +814,14 @@ export async function deactivateAllProjectPartiesAction(
 
   const userIds = [...new Set((parties ?? []).map((p) => p.user_id).filter((id): id is string => Boolean(id)))];
   if (userIds.length > 0) {
-    await supabase.from("access_grants").delete().eq("project_id", projectId).eq("scope_type", "project").in("user_id", userIds);
+    // JAGS staff who happen to be linked to a party keep their own project grants (they work on the
+    // project in their own right, not through the party).
+    const { data: staffRows } = await supabase.from("users").select("id").in("id", userIds).eq("is_jags_staff", true).returns<{ id: string }[]>();
+    const staffIds = new Set((staffRows ?? []).map((r) => r.id));
+    const revokeIds = userIds.filter((id) => !staffIds.has(id));
+    if (revokeIds.length > 0) {
+      await supabase.from("access_grants").delete().eq("project_id", projectId).eq("scope_type", "project").in("user_id", revokeIds);
+    }
   }
 
   await auditProjectSetting(supabase, projectId, session.userId, "all_parties_deactivated", true);

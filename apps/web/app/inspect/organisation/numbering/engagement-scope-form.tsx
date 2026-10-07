@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateEngagementScopeAction, type NumberingSettingsState } from "@/lib/numbering/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -60,7 +61,15 @@ export function EngagementScopeForm({
         ))}
       </div>
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      <label className="flex items-start gap-2 text-xs text-ink">
+        <input type="checkbox" name="confirm" value="yes" className="mt-0.5" />
+        <span>
+          I understand changing the tier changes what this organisation&apos;s people can do immediately, and that
+          leaving Full Client-Managed removes its custom roles&apos; approve-ITP, provision-login and standalone permissions.
+        </span>
+      </label>
+
+      <FormMessage error={state.error} />
 
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save engagement scope"}
