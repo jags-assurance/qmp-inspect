@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { ItemPhotoUpload } from "./item-photo-upload";
+import { evidenceRequirementHint } from "@/lib/checklists/evidence-rules";
 import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 
@@ -430,6 +431,17 @@ export function ResponseRow({
             </button>
           ))}
         </div>
+
+        {(() => {
+          const hint = evidenceRequirementHint(isMandatory, result, photos.length > 0 || (itemDocuments?.length ?? 0) > 0);
+          if (!hint) return null;
+          return (
+            <p className={`text-xs ${hint.met ? "text-muted" : "text-warning"}`} role="note">
+              {hint.met ? "✓ " : "⚠ "}
+              {hint.text}
+            </p>
+          );
+        })()}
 
         {result === "no" && !comment.trim() && (
           <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
