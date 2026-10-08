@@ -611,6 +611,20 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // The checklist is part of the ITP: it is loaded once and used both to show it and to gate
   // approval/acceptance on the reviewer confirming they have looked at it.
   const requiresChecklistReview = checklistPreview.some((i) => i.hasChecklist);
+  // Admin-only escape hatch: who a stuck (pending) review step can be handed to - active JAGS staff.
+  // Loaded only for an Admin looking at an ITP that is under review.
+  const reassignOptions: { id: string; name: string }[] =
+    isAdminStaff(session) && hasActiveReviewChain
+      ? ((
+          await supabase
+            .from("users")
+            .select("id, full_name")
+            .eq("is_jags_staff", true)
+            .eq("is_active", true)
+            .order("full_name")
+            .returns<{ id: string; full_name: string }[]>()
+        ).data ?? []).map((u) => ({ id: u.id, name: u.full_name }))
+      : [];
   // S3-06: each activity's explicit register requirement, read separately and best-effort so the page
   // still renders if that column isn't there.
   const requiredRegistersByItem = new Map<string, string[]>();
@@ -854,7 +868,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           so it shouldn't be competing for space inside a flex-wrap row of action buttons. */}
       {reviewSteps.length > 0 && (
         <div className="mt-4">
-          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} requiresChecklistReview={requiresChecklistReview} />
+          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} requiresChecklistReview={requiresChecklistReview} reassignOptions={reassignOptions} />
         </div>
       )}
 
