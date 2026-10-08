@@ -2,6 +2,8 @@
 
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
 import { unnotifiedNonBlockingLevels } from "./notice-waiver";
+import { describeSpec, evaluateNumeric, parseNumericInput, validateSpecInput } from "./numeric-response";
+import { loadNumericSpec } from "./numeric-spec-query";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
@@ -333,9 +335,25 @@ export async function addChecklistItemAction(
   const itemNumber = String(formData.get("item_number") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const isMandatory = formData.get("is_mandatory") === "on";
+  const isNumeric = formData.get("value_type") === "numeric";
 
   if (!templateId || !itemNumber || !description) {
     return { error: "Item number and description are required." };
+  }
+  let numericColumns: Record<string, unknown> = {};
+  if (isNumeric) {
+    const parsedSpec = validateSpecInput(
+      String(formData.get("numeric_min") ?? ""),
+      String(formData.get("numeric_max") ?? ""),
+      String(formData.get("numeric_unit") ?? "")
+    );
+    if ("error" in parsedSpec) return { error: parsedSpec.error };
+    numericColumns = {
+      value_type: "numeric",
+      numeric_min: parsedSpec.spec.min,
+      numeric_max: parsedSpec.spec.max,
+      numeric_unit: parsedSpec.spec.unit,
+    };
   }
   if (itemNumber.length > 20) return { error: "Item number is too long (maximum 20 characters)." };
   if (description.length > 500) return { error: "Description is too long (maximum 500 characters)." };
@@ -376,9 +394,13 @@ export async function addChecklistItemAction(
     description,
     is_mandatory: isMandatory,
     sort_order: (siblings?.[0]?.sort_order ?? -1) + 1,
+    ...numericColumns,
   });
 
   if (error) {
+    if (isNumeric && isMissingSchemaError(error)) {
+      return { error: "Measured items need a database update that has not been applied yet." };
+    }
     return { error: error.code === "23505" ? "That item number is already used on this checklist." : "Could not add the item." };
   }
   await bumpTemplateVersion(supabase, templateId);
@@ -435,8 +457,9 @@ export interface SaveChecklistResponseResult {
 export async function saveChecklistResponseAction(formData: FormData): Promise<SaveChecklistResponseResult> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim();
-  const result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
+  let result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
   const comment = String(formData.get("comment") ?? "").trim();
+  const numericRaw = String(formData.get("numeric_value") ?? "").trim();
   const calibrationAssetId = String(formData.get("calibration_asset_id") ?? "").trim();
   const materialId = String(formData.get("material_id") ?? "").trim();
   const welderId = String(formData.get("welder_id") ?? "").trim();
@@ -486,6 +509,19 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     if (!itemRow) return { error: "That item is not part of this inspection's checklist." };
   }
 
+  // S4-20: a measured (numeric) item. The server derives the result from the number and the item's own
+  // limits, so a client can't claim "yes" for an out-of-range reading. N/A stays N/A (no value).
+  const numericSpec = await loadNumericSpec(supabase, checklistItemId);
+  let numericValue: number | null = null;
+  if (numericSpec && result !== "na") {
+    numericValue = parseNumericInput(numericRaw);
+    if (numericValue === null) return { error: "Enter the measured value as a number." };
+    result = evaluateNumeric(numericValue, numericSpec);
+    if (result === "no" && !comment) {
+      return { error: `${numericValue} is outside the limit (${describeSpec(numericSpec)}). A comment is required when an item fails.` };
+    }
+  }
+
   // Traceability links must point at a row on THIS project; calibration/welder must also be in date,
   // and material must be released. (Empty = not recorded, always allowed.)
   // The same checks (now judged on the inspection date, with verified/active rows only) plus the
@@ -517,6 +553,7 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     material_id: materialId || null,
     welder_id: welderId || null,
     no_ncr_reason: result === "no" ? noNcrReason || null : null,
+    ...(numericSpec ? { numeric_value: numericValue } : {}),
   };
 
   // Concurrent-edit detection: the client passes the updated_at it last saw ("none" = it saw no

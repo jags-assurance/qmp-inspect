@@ -40,6 +40,7 @@ import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { WaiveNoticeForm } from "./waive-notice-form";
+import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
 import { unnotifiedNonBlockingLevels } from "@/lib/checklists/notice-waiver";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
@@ -220,6 +221,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   ]);
 
   const draft = draftRecords?.[0] ?? null;
+  const numericSpecs = await loadNumericSpecsForTemplate(supabase, templateId);
+  const numericValues = draft ? await loadNumericValues(supabase, draft.id) : new Map<string, number>();
   const unnotifiedWitness = draft && session.isJagsStaff ? await unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : [];
 
   // Version / archive state. Read separately from the main template query so the page still works
@@ -662,7 +665,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
               item_number: i.item_number,
               description: i.description,
               is_mandatory: i.is_mandatory,
+              numeric: numericSpecs.get(i.id) ?? null,
             }))}
+            numericValues={numericValues}
             initialResponses={responseByItem}
             readOnly={!canExecute}
             registerVerification={registerVerification}

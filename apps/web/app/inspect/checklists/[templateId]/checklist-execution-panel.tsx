@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { ResponseRow } from "./response-row";
+import type { NumericSpec } from "@/lib/checklists/numeric-response";
 import type { ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
@@ -12,6 +13,8 @@ interface ChecklistItem {
   item_number: string;
   description: string;
   is_mandatory: boolean;
+  /** S4-20: limits of a measured item; null/absent for pass/fail. */
+  numeric?: NumericSpec | null;
 }
 
 /**
@@ -44,10 +47,13 @@ export function ChecklistExecutionPanel({
   vaultOptions,
   vaultFolders = [],
   hasNcr = false,
+  numericValues,
 }: {
   templateId: string;
   inspectionRecordId: string;
   items: ChecklistItem[];
+  /** Recorded readings of measured items, by item id. */
+  numericValues?: Map<string, number>;
   initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null; materialId: string | null; welderId: string | null; updatedAt?: string | null; noNcrReason?: string | null }>;
   readOnly: boolean;
   registerVerification: RegisterVerificationResult | null;
@@ -171,6 +177,8 @@ export function ChecklistExecutionPanel({
             itemNumber={item.item_number}
             description={item.description}
             isMandatory={item.is_mandatory}
+            numeric={item.numeric ?? null}
+            initialNumericValue={numericValues?.get(item.id) ?? null}
             initialResult={initialResponses.get(item.id)?.result ?? null}
             initialComment={initialResponses.get(item.id)?.comment ?? ""}
             initialCalibrationAssetId={initialResponses.get(item.id)?.calibrationAssetId ?? null}

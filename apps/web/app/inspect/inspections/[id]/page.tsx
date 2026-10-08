@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
+import { describeSpec } from "@/lib/checklists/numeric-response";
 import { formatLocationForDisplay, mapsUrl } from "@/lib/checklists/location";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -171,6 +173,9 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       .returns<LinkedDocumentRow[]>(),
   ]);
   const linkedDocsByItem = groupLinkedDocumentsByItem(linkedDocRows ?? []);
+  // S4-20: measured readings (best-effort: empty until 20261113000500 is applied).
+  const numericValues = await loadNumericValues(supabase, id);
+  const numericSpecs = record.checklist_template_id ? await loadNumericSpecsForTemplate(supabase, record.checklist_template_id) : new Map();
 
   const irnList = allIrns ?? [];
   const liveIrn = irnList.find((i) => !i.voided_at) ?? null;
@@ -398,6 +403,13 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </p>
               <div className="mt-1 flex items-center gap-2">
                 <Badge tone={r.result === "yes" ? "success" : r.result === "no" ? "danger" : "neutral"}>{r.result.toUpperCase()}</Badge>
+                {numericValues.has(r.checklist_item_id) && (
+                  <span className="font-medium text-ink">
+                    {numericValues.get(r.checklist_item_id)}
+                    {numericSpecs.get(r.checklist_item_id)?.unit ? ` ${numericSpecs.get(r.checklist_item_id)?.unit}` : ""}
+                    {numericSpecs.get(r.checklist_item_id) && <span className="font-normal text-muted"> (limit: {describeSpec(numericSpecs.get(r.checklist_item_id)!)})</span>}
+                  </span>
+                )}
                 {r.comment && <span className="text-muted">{r.comment}</span>}
               </div>
               {(linkedDocsByItem.get(r.checklist_item_id) ?? []).length > 0 && (

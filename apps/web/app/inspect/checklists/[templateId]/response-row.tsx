@@ -11,6 +11,7 @@ import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { ItemPhotoUpload } from "./item-photo-upload";
 import { evidenceRequirementHint } from "@/lib/checklists/evidence-rules";
+import { describeSpec, evaluateNumeric, parseNumericInput, type NumericSpec } from "@/lib/checklists/numeric-response";
 import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 
@@ -74,6 +75,8 @@ export function ResponseRow({
   itemDocuments = [],
   vaultOptions = [],
   vaultFolders = [],
+  numeric = null,
+  initialNumericValue = null,
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -124,6 +127,9 @@ export function ResponseRow({
   itemDocuments?: ItemLinkedDocument[];
   vaultOptions?: VaultPickerDocument[];
   vaultFolders?: import("@/components/domain/vault-file-picker").VaultPickerFolder[];
+  /** S4-20: set for a measured item: the inspector types a number and the limits decide the result. */
+  numeric?: NumericSpec | null;
+  initialNumericValue?: number | null;
 }) {
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
@@ -146,6 +152,9 @@ export function ResponseRow({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [noNcrReason, setNoNcrReason] = useState(initialNoNcrReason ?? "");
+  const [numericText, setNumericText] = useState(initialNumericValue === null ? "" : String(initialNumericValue));
+  // The latest typed reading, read inside save() (state would be one render stale when save runs from the same event).
+  const numericRef = useRef(numericText);
   // Baseline for concurrent-edit detection: "none" = no row existed when we loaded.
   const expectedUpdatedAt = useRef<string>(initialUpdatedAt ?? "none");
   const showCalibrationPicker = registerVerification?.kind === "calibration" && calibrationOptions.length > 0;
@@ -201,6 +210,7 @@ export function ResponseRow({
     if (nextMaterialId) formData.set("material_id", nextMaterialId);
     if (nextWelderId) formData.set("welder_id", nextWelderId);
     if (nextResult === "no" && nextNoNcrReason.trim()) formData.set("no_ncr_reason", nextNoNcrReason.trim());
+    if (numeric && nextResult !== "na" && numericRef.current.trim()) formData.set("numeric_value", numericRef.current.trim());
 
     lastPayload.current = { nextResult, nextComment, nextOverrideReason, nextCalibrationAssetId, nextMaterialId, nextWelderId };
     setSaveError(null);
@@ -248,6 +258,18 @@ export function ResponseRow({
     };
     queueRef.current = queueRef.current.then(run, run);
     startTransition(() => {});
+  }
+
+  // A measured item: the typed number decides yes / no against the item's limits (the server repeats the
+  // same check). Typing over an N/A switches the item back to measured.
+  function commitNumeric(text: string) {
+    if (!numeric || readOnly) return;
+    numericRef.current = text;
+    const value = parseNumericInput(text);
+    if (value === null) return;
+    const next = evaluateNumeric(value, numeric);
+    setResult(next);
+    save(next, comment, overrideReason, calibrationAssetId);
   }
 
   function retry() {
@@ -405,8 +427,37 @@ export function ResponseRow({
           </div>
         )}
 
+        {numeric && (
+          <div className="mb-2">
+            <label htmlFor={`num-${checklistItemId}`} className="block text-xs font-medium text-muted">
+              Measured value <span className="font-normal">(limit: {describeSpec(numeric)})</span>
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                id={`num-${checklistItemId}`}
+                type="text"
+                inputMode="decimal"
+                value={numericText}
+                disabled={readOnly || !overrideSatisfied || result === "na"}
+                onChange={(e) => setNumericText(e.target.value)}
+                onBlur={(e) => commitNumeric(e.target.value)}
+                aria-describedby={`num-hint-${checklistItemId}`}
+                className="w-32 rounded-md border border-border bg-surface px-2.5 py-2 text-base outline-none focus:border-burgundy disabled:opacity-60"
+              />
+              {numeric.unit && <span className="text-sm text-muted">{numeric.unit}</span>}
+            </div>
+            <p id={`num-hint-${checklistItemId}`} className="mt-1 text-xs text-muted" aria-live="polite">
+              {(() => {
+                const v = parseNumericInput(numericText);
+                if (v === null) return numericText.trim() ? "Enter a number." : "Type the reading, then leave the field to save it.";
+                return evaluateNumeric(v, numeric) === "yes" ? "✓ Within the limit." : "⚠ Outside the limit: this item fails and needs a comment.";
+              })()}
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-2" role="radiogroup" aria-label={`Result for item ${itemNumber}`}>
-          {PILLS.map((pill) => (
+          {(numeric ? PILLS.filter((p) => p.value === "na") : PILLS).map((pill) => (
             <button
               key={pill.value}
               type="button"
