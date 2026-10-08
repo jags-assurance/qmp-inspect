@@ -1,4 +1,7 @@
 import { requireSession, canSeePlatformHome, isAdminStaff } from "@/lib/auth/session";
+import { cookies } from "next/headers";
+import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n/direction";
+import { localizeNavItems } from "@/lib/i18n/dictionary";
 import { AppShell, type NavItem } from "@/components/domain/app-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
@@ -211,7 +214,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
 
   return (
     <AppShell
-      navItems={navItems}
+      navItems={localizeNavItems(navItems, normalizeLocale((await cookies()).get(LOCALE_COOKIE)?.value))}
       userId={session.userId}
       userName={session.fullName}
       userRole={userRole}

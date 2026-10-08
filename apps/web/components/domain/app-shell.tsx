@@ -29,6 +29,9 @@ export interface NavItem {
   activePrefixes?: string[];
   /** Sidebar section heading (Plan, Execute, ...). A heading renders when it changes between rows. */
   group?: string;
+  /** Translated text shown instead of `label` / `group` (the English strings stay the keys for icons and storage). */
+  displayLabel?: string;
+  displayGroup?: string;
 }
 
 export interface OrgBrandingInfo {

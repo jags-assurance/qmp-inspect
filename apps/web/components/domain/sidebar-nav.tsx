@@ -57,8 +57,8 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
     <Link
       href={item.href}
       prefetch={false}
-      title={collapsed ? item.label : undefined}
-      aria-label={collapsed ? item.label : undefined}
+      title={collapsed ? item.displayLabel ?? item.label : undefined}
+      aria-label={collapsed ? item.displayLabel ?? item.label : undefined}
       aria-current={isActive ? "page" : undefined}
       onClick={() => setOpen(false)}
       className={
@@ -69,7 +69,7 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
       }
     >
       {!indent && <NavIcon label={item.label} />}
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && <span className="truncate">{item.displayLabel ?? item.label}</span>}
     </Link>
   );
 }
@@ -145,7 +145,7 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
         }
       >
         {depth === 0 && <NavIcon label={item.label} />}
-        <span className="flex-1 truncate text-start">{item.label}</span>
+        <span className="flex-1 truncate text-start">{item.displayLabel ?? item.label}</span>
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"
@@ -186,7 +186,7 @@ export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: 
                 <div role="separator" className="mx-3 my-2 border-t border-white/15" />
               ) : (
                 <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-white/60">
-                  {item.group}
+                  {item.displayGroup ?? item.group}
                 </p>
               ))}
             {item.children ? (
