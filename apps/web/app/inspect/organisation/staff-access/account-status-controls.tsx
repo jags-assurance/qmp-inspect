@@ -82,17 +82,10 @@ const bulkInitialState: BulkDeactivationState = { error: null, results: [] };
 /** S1-16: deactivate or restore several accounts at once from a pasted list of emails (JAGS Admin). */
 export function BulkOffboardForm() {
   const [state, formAction, pending] = useActionState(bulkAccountLifecycleAction, bulkInitialState);
+  const { askThenSubmit, dialog } = useConfirm();
   return (
-    <form
-      action={formAction}
-      onSubmit={(e) => {
-        const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        if (submitter?.value !== "reactivate" && !window.confirm("Deactivate every account in this list? They are signed out and lose all access immediately.")) {
-          e.preventDefault();
-        }
-      }}
-      className="rounded-lg border border-border bg-surface p-4"
-    >
+    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+      {dialog}
       <h2 className="text-sm font-semibold text-ink">Bulk offboard or restore accounts</h2>
       <p className="mt-1 text-xs text-muted">
         Paste up to 50 email addresses (one per line, or separated by commas). Each account is handled on its own with the same
@@ -109,7 +102,19 @@ export function BulkOffboardForm() {
         />
       </label>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button type="submit" name="intent" value="deactivate" disabled={pending} variant="outline">
+        <Button
+          type="submit"
+          name="intent"
+          value="deactivate"
+          disabled={pending}
+          variant="outline"
+          onClick={askThenSubmit({
+            title: "Deactivate every account in this list?",
+            message: "They are signed out and lose all access immediately.",
+            confirmLabel: "Deactivate all",
+            destructive: true,
+          })}
+        >
           {pending ? "Working…" : "Deactivate all"}
         </Button>
         <Button type="submit" name="intent" value="reactivate" disabled={pending} variant="outline">

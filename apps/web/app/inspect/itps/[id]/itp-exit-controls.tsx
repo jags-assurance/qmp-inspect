@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { deleteDraftItpAction, withdrawItpAction, type ItpExitState } from "@/lib/itps/lifecycle-actions";
 
 const initialState: ItpExitState = { error: null };
@@ -18,6 +19,7 @@ export function ItpExitControls({
 }) {
   const [exitState, exitAction, exiting] = useActionState(withdrawItpAction, initialState);
   const [deleteState, deleteAction, deleting] = useActionState(deleteDraftItpAction, initialState);
+  const { gateSubmit, dialog } = useConfirm();
   if (status === "superseded" || status === "withdrawn") return null;
 
   return (
@@ -25,10 +27,14 @@ export function ItpExitControls({
       {status === "draft" && (
         <form
           action={deleteAction}
-          onSubmit={(e) => {
-            if (!confirm("Delete this draft ITP? This can't be undone.")) e.preventDefault();
-          }}
+          onSubmit={gateSubmit({
+            title: "Delete this draft ITP?",
+            message: "This can't be undone.",
+            confirmLabel: "Delete draft",
+            destructive: true,
+          })}
         >
+          {dialog}
           <input type="hidden" name="itp_id" value={itpId} />
           <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline disabled:opacity-50">
             {deleting ? "Deleting…" : "Delete draft"}
