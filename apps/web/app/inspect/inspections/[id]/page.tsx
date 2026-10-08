@@ -24,6 +24,9 @@ import { groupLinkedDocumentsByItem, type LinkedDocumentRow } from "@/lib/checkl
 import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
 import { ReopenInspectionForm } from "./reopen-inspection-form";
 import { ReviewInspectionForm } from "./review-inspection-form";
+import { InspectionComments } from "./inspection-comments";
+import { INSPECTION_COMMENTS_TABLE } from "@/lib/inspection-comments/db-types";
+import { commentPostBlocker, groupThreads, type CommentThread, type InspectionCommentRow } from "@/lib/inspection-comments/logic";
 import { reviewBlocker, type ReviewStatus } from "@/lib/checklists/review-logic";
 import { parsePreviousResponses, reviewStatusLabel, staleSnapshotWarning } from "@/lib/checklists/template-ui-logic";
 import { CHECKLIST_TEMPLATES_TABLE } from "@/lib/checklists/db-types";
@@ -117,6 +120,26 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       signed_by_user_id: string | null;
     }>();
   const reviewSupported = !extraError && !!extra;
+
+  // Reviewer comment threads (20261120000100): completed inspections only, hidden on a database
+  // without the table. An unexpected read failure also hides the section rather than failing the page.
+  let commentThreads: CommentThread[] | null = null;
+  let commentsOpen = false;
+  if (record.overall_result) {
+    const { data: commentRows, error: commentsError } = await supabase
+      .from(INSPECTION_COMMENTS_TABLE)
+      .select(
+        "id, project_id, inspection_record_id, parent_id, author_id, body, created_at, edited_at, resolved_at, resolved_by, users!inspection_comments_author_id_fkey(full_name)"
+      )
+      .eq("inspection_record_id", record.id)
+      .order("created_at", { ascending: true })
+      .returns<InspectionCommentRow[]>();
+    if (!commentsError) {
+      commentThreads = groupThreads(commentRows ?? []);
+      const { data: commentProject } = await supabase.from("projects").select("status").eq("id", record.project_id).maybeSingle<{ status: string | null }>();
+      commentsOpen = commentPostBlocker({ overallResult: record.overall_result, projectStatus: commentProject?.status ?? null }) === null;
+    }
+  }
   const reviewStatus = extra?.review_status ?? null;
   const reviewerName = extra?.reviewed_by
     ? ((await supabase.from("users").select("full_name").eq("id", extra.reviewed_by).maybeSingle<{ full_name: string }>()).data?.full_name ?? null)
@@ -352,6 +375,16 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </div>
             ))}
         </div>
+      )}
+
+      {commentThreads && (
+        <InspectionComments
+          inspectionRecordId={record.id}
+          threads={commentThreads}
+          userId={session.userId}
+          isStaff={session.isJagsStaff}
+          canPost={commentsOpen}
+        />
       )}
 
       {(record.overall_result === "fail" || record.overall_result === "partial" || (linkedNcrs ?? []).length > 0) && (
