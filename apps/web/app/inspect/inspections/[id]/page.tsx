@@ -40,7 +40,7 @@ import {
 import { InspectionReportPdfButton } from "./inspection-report-pdf-button";
 import { IrnPdfButton } from "./irn-pdf-button";
 import { NarrativeEditor } from "@/components/domain/narrative-editor";
-import { isAiConfigured } from "@/lib/ai/gate";
+import { isAiEnabledForProject } from "@/lib/ai/gate";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -477,7 +477,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             recordIdFieldName="inspection_record_id"
             recordId={record.id}
             projectId={record.project_id}
-            aiConfigured={isAiConfigured()}
+            aiConfigured={await isAiEnabledForProject(supabase, record.project_id)}
             initialNarrative={record.narrative}
             draftAction={draftInspectionNarrativeAction}
             saveAction={saveInspectionNarrativeAction}

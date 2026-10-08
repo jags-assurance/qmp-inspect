@@ -48,6 +48,7 @@ export function AdvanceStatusForm({
       >
         {pending ? copy.pending : copy.idle}
       </button>
+      {state.notice && <p className="mt-1 max-w-xs text-xs text-amber-700">{state.notice}</p>}
       {state.error && <p className="mt-1 max-w-xs text-xs text-danger">{state.error}</p>}
     </form>
   );

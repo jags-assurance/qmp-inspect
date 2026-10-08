@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import { removeGeneratedFile, sourceHash } from "./generatedDocument";
 import { sealFooterSpan } from "./integritySeal";
 import { PermanentJobError } from "./jobAbort";
-import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
+import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, fetchCountedRegisterRows, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
@@ -107,16 +107,17 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
           .returns<{ id: string; status: string }[]>()
       ),
       supabase.from("punch_list_items" as never).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
-      fetchAllPages("calibration_register", (f, t) =>
-        supabase.from("calibration_register" as never).select("id, due_date").eq("project_id", projectId).order("id").range(f, t).returns<{ id: string; due_date: string }[]>()
+      // E2: unverified and superseded/retired/withdrawn register rows are ignored (same as apps/web readiness).
+      fetchCountedRegisterRows<{ id: string; due_date: string }>("calibration_register", "id, due_date", (sel, f, t) =>
+        supabase.from("calibration_register" as never).select(sel).eq("project_id", projectId).order("id").range(f, t).returns<{ id: string; due_date: string }[]>()
       ),
-      fetchAllPages("welder_qualification_register", (f, t) =>
-        supabase.from("welder_qualification_register" as never).select("id, expiry_date").eq("project_id", projectId).order("id").range(f, t).returns<{ id: string; expiry_date: string }[]>()
+      fetchCountedRegisterRows<{ id: string; expiry_date: string }>("welder_qualification_register", "id, expiry_date", (sel, f, t) =>
+        supabase.from("welder_qualification_register" as never).select(sel).eq("project_id", projectId).order("id").range(f, t).returns<{ id: string; expiry_date: string }[]>()
       ),
-      fetchAllPages("material_register", (f, t) =>
+      fetchCountedRegisterRows<{ id: string; approval_status: string; receipt_status: string }>("material_register", "id, approval_status, receipt_status", (sel, f, t) =>
         supabase
           .from("material_register" as never)
-          .select("id, approval_status, receipt_status")
+          .select(sel)
           .eq("project_id", projectId)
           .order("id")
           .range(f, t)
@@ -125,8 +126,8 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
       fetchAllPages("data_books", (f, t) =>
         supabase.from("data_books" as never).select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(f, t).returns<{ id: string }[]>()
       ),
-      fetchAllPages("personnel_certifications", (f, t) =>
-        supabase.from("personnel_certifications" as never).select("id, expiry_date").eq("project_id", projectId).order("id").range(f, t).returns<{ id: string; expiry_date: string }[]>()
+      fetchCountedRegisterRows<{ id: string; expiry_date: string }>("personnel_certifications", "id, expiry_date", (sel, f, t) =>
+        supabase.from("personnel_certifications" as never).select(sel).eq("project_id", projectId).order("id").range(f, t).returns<{ id: string; expiry_date: string }[]>()
       ),
       fetchAllPages("standalone_assignments", (f, t) =>
         supabase

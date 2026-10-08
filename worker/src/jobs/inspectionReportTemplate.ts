@@ -201,7 +201,7 @@ function renderTraceabilityTable(data: InspectionReportData): string {
     ["Location", formatLocation(data.location)],
     ["Applicable standard", data.applicableStandard ?? null],
     ["Drawing / specification", drawingSpec],
-    ["Inspection date", data.inspectionDate || null],
+    // The inspection date is printed once, as the Document Control ISSUE DATE (not repeated here).
     ["Inspector", data.inspectorName ?? null],
   ].filter(([, value]) => Boolean(value)) as [string, string | null][];
 

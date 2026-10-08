@@ -65,3 +65,12 @@ export function consentConfirmationError(enable: boolean, orgSlug: string, typed
   }
   return null;
 }
+
+/**
+ * Render-time visibility of an AI entry point (button / tab) for one organisation: a key is configured AND the
+ * organisation's consent is strictly on. Deliberately does not look at tier or rate limits (those are refused
+ * with a message at call time); an unreadable consent value hides the control (fail closed).
+ */
+export function aiEntryPointVisible(keyConfigured: boolean, aiConsent: boolean | null | undefined): boolean {
+  return keyConfigured && aiConsent === true;
+}

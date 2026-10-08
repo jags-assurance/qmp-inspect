@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listMonthlyReportPacks, listWeeklyReportPacks } from "@/lib/reports/actions";
-import { isAiConfigured } from "@/lib/ai/gate";
+import { isAiEnabledForOrg } from "@/lib/ai/gate";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { MonthlyReportPackForm } from "../numbering/monthly-report-pack-form";
 import { WeeklyReportPackForm } from "../numbering/weekly-report-pack-form";
@@ -92,7 +92,7 @@ export async function ReportingView({ searchParams, embedded }: {
               reload needed.
             </p>
             <div className="mt-4">
-              <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={isAiConfigured()} projects={orgProjects ?? []} />
+              <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={await isAiEnabledForOrg(supabase, selectedOrg.id)} projects={orgProjects ?? []} />
             </div>
           </div>
 

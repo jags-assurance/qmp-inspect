@@ -4,6 +4,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { NewOrganizationForm } from "./new-organization-form";
 import { AiConsentControl } from "./ai-consent-control";
+import { describeConsentChange, groupConsentHistory, type AiConsentHistoryRow } from "@/lib/ai/consent-history";
+import { untypedFrom } from "@/lib/supabase/untyped";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
@@ -51,6 +54,16 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
       .returns<OrganizationRow[]>(),
     supabase.from("projects").select("organization_id").returns<{ organization_id: string }[]>(),
   ]);
+
+  // Append-only record of who switched consent on/off and when (ai_consent_history, admin-readable).
+  // Falls back to no history if that migration has not been applied.
+  const { data: historyRows, error: historyError } = await untypedFrom(supabase, "ai_consent_history")
+    .select("id, organization_id, consent, changed_at, users:changed_by(full_name)")
+    .order("changed_at", { ascending: false })
+    .limit(500)
+    .returns<AiConsentHistoryRow[]>();
+  if (historyError && !isMissingSchemaError(historyError)) console.error("ai_consent_history read failed", historyError.message);
+  const consentHistoryByOrg = groupConsentHistory(historyRows ?? []);
 
   const projectCountByOrg = new Map<string, number>();
   for (const p of projects ?? []) {
@@ -108,6 +121,18 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
               </div>
             </div>
             <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
+            <div className="mt-3 text-xs text-muted">
+              <p className="font-medium text-ink">AI consent history</p>
+              {(consentHistoryByOrg.get(org.id) ?? []).length === 0 ? (
+                <p>No consent changes recorded.</p>
+              ) : (
+                <ul className="mt-1 space-y-0.5">
+                  {(consentHistoryByOrg.get(org.id) ?? []).map((h) => (
+                    <li key={h.id}>{describeConsentChange(h)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         ))}
       </div>

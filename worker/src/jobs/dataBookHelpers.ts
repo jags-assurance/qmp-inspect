@@ -140,3 +140,31 @@ export const GENERATED_PATH_PREFIX = "generated-documents:";
 export function stripGeneratedPrefix(storedPath: string): string {
   return storedPath.startsWith(GENERATED_PATH_PREFIX) ? storedPath.slice(GENERATED_PATH_PREFIX.length) : storedPath;
 }
+
+/**
+ * E2: register rows count toward readiness only when verified by JAGS staff and still active (not
+ * superseded / retired / withdrawn). KEEP IN SYNC with apps/web/lib/registers/lifecycle.ts
+ * (isRegisterRowCounted). Column-tolerant: a row with no verified_at / lifecycle_status key (columns not
+ * deployed yet) is trusted, as before migration 20261103000100.
+ */
+export function isRegisterRowCounted(row: { verified_at?: string | null; lifecycle_status?: string | null }): boolean {
+  const verified = row.verified_at === undefined || row.verified_at !== null;
+  const active = !row.lifecycle_status || row.lifecycle_status === "active";
+  return verified && active;
+}
+
+/** Reads a register with its verification / lifecycle columns, retrying without them if they do not exist yet. */
+export async function fetchCountedRegisterRows<T extends object>(
+  label: string,
+  columns: string,
+  build: (select: string, from: number, to: number) => PromiseLike<PageResult<T>>
+): Promise<T[]> {
+  let rows: (T & { verified_at?: string | null; lifecycle_status?: string | null })[];
+  try {
+    rows = await fetchAllPages(label, (f, t) => build(`${columns}, verified_at, lifecycle_status`, f, t));
+  } catch (err) {
+    if (!/does not exist|schema cache/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    rows = await fetchAllPages(label, (f, t) => build(columns, f, t));
+  }
+  return rows.filter(isRegisterRowCounted);
+}

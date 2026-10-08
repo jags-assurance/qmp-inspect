@@ -25,7 +25,7 @@ import { isClientTeamLeadForProject } from "@/lib/client-teams/helpers";
 import { ProjectPartyActiveToggle } from "./project-party-active-toggle";
 import { DeactivateAllPartiesControl } from "./deactivate-all-parties-control";
 import { ResponsiblePersonPicker } from "./responsible-person-picker";
-import { isAiConfigured } from "@/lib/ai/gate";
+import { isAiEnabledForOrg } from "@/lib/ai/gate";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
@@ -416,7 +416,7 @@ export async function ProjectOverviewView({
           send people off to a different page for every section of the project. */}
       {tabBar}
 
-      {isAiConfigured() && <AskProjectPanel projectId={project.id} />}
+      {(await isAiEnabledForOrg(supabase, project.organization_id)) && <AskProjectPanel projectId={project.id} />}
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">

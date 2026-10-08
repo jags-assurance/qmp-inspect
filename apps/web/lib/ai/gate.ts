@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
 import { AI_RATE_LIMIT_WINDOW_MS } from "@/lib/ai/config";
-import { decideAiAccess } from "@/lib/ai/gate-decision";
+import { aiEntryPointVisible, decideAiAccess } from "@/lib/ai/gate-decision";
 
 // Cheap abuse guard on top of the consent gate below: caps how many AI calls one organisation can
 // make in a rolling window, using the usage log that already exists for admin-visibility purposes
@@ -36,6 +36,23 @@ export interface AiGateResult {
  */
 export function isAiConfigured(): boolean {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
+}
+
+/**
+ * Render-time check for showing an AI entry point for ONE organisation: key configured AND the
+ * organisation's ai_consent is on (D3/B9) — so a button is not offered that assertAiAllowed would
+ * only refuse after submit. The server gate stays the real enforcement.
+ */
+export async function isAiEnabledForOrg(supabase: SupabaseClient, organizationId: string | null | undefined): Promise<boolean> {
+  if (!isAiConfigured() || !organizationId) return false;
+  const { data } = await supabase.from("organizations").select("ai_consent").eq("id", organizationId).maybeSingle<{ ai_consent: boolean | null }>();
+  return aiEntryPointVisible(true, data?.ai_consent);
+}
+
+export async function isAiEnabledForProject(supabase: SupabaseClient, projectId: string | null | undefined): Promise<boolean> {
+  if (!isAiConfigured() || !projectId) return false;
+  const { data } = await supabase.from("projects").select("organizations(ai_consent)").eq("id", projectId).maybeSingle<{ organizations: { ai_consent: boolean | null } | null }>();
+  return aiEntryPointVisible(true, data?.organizations?.ai_consent);
 }
 
 export async function assertAiAllowed(

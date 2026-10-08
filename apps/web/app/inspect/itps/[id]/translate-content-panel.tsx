@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { translateItpContentAction, type TranslateItpContentState } from "@/lib/itps/actions";
+import { isTranslationStale, type ItpTranslations } from "@/lib/itps/translations";
 
 const initialState: TranslateItpContentState = { error: null, translated: null, targetLanguage: null };
 
@@ -11,11 +12,11 @@ const TARGET_LANGUAGE = "French";
 
 /**
  * R111: translates this ITP's own title + scope into a language the user picks, purely for
- * display alongside the original — never an edit, never written back to the ITP. Gated by the
- * caller passing aiConfigured (see the ITP detail page's isAiConfigured() check) so the button
- * doesn't render at all on a deployment with no AI key, matching R43's pattern everywhere else.
+ * display alongside the original — never an edit of title/scope. The result is stored on the ITP
+ * (itps.translations, D12) and shown from there afterwards. The caller only renders this when AI is
+ * available for the ITP's organisation (key configured AND consent on).
  */
-export function TranslateContentPanel({ itpId }: { itpId: string }) {
+export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId: string; revision: number; stored?: ItpTranslations }) {
   const [state, formAction, pending] = useActionState(translateItpContentAction, initialState);
 
   return (
@@ -35,10 +36,20 @@ export function TranslateContentPanel({ itpId }: { itpId: string }) {
 
       {state.error && <p className="mt-2 text-xs text-danger">{state.error}</p>}
 
+      {Object.entries(stored).map(([language, t]) => (
+        <div key={language} className="mt-3 rounded-md border border-border bg-surface p-3" data-testid="stored-translation">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+            {language} translation (stored{t.translated_at ? ` ${new Date(t.translated_at).toLocaleDateString("en-GB")}` : ""}
+            {isTranslationStale(t, revision) ? " — from an earlier revision, translate again to refresh" : ""})
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{[t.title, t.scope].filter(Boolean).join("\n\n")}</p>
+        </div>
+      ))}
+
       {state.translated && (
         <div className="mt-3 rounded-md border border-border bg-surface p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            {state.targetLanguage} translation (display only — original unchanged)
+            {state.targetLanguage} translation ({state.stored ? "saved on the ITP" : "not saved"} — original unchanged)
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{state.translated}</p>
         </div>

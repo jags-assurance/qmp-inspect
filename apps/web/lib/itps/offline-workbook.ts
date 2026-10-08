@@ -66,10 +66,63 @@ export interface OfflineParsedRow {
   disciplineCode: string | null;
 }
 
+/**
+ * D11: written into a hidden "_meta" sheet at download time so the upload can tell whether the file
+ * was taken from an older state of the ITP than the one it is being applied to.
+ */
+export interface OfflineWorkbookStamp {
+  itpId: string;
+  revision: number;
+  /** itps.updated_at when the file was downloaded. */
+  itpUpdatedAt: string | null;
+  /** itp_content_token() when the file was downloaded; null when that migration is not applied. */
+  contentToken: string | null;
+  stampedAt: string;
+}
+
+const META_SHEET = "_meta";
+
+function writeStamp(workbook: ExcelJS.Workbook, stamp: OfflineWorkbookStamp): void {
+  const meta = workbook.addWorksheet(META_SHEET, { state: "veryHidden" });
+  meta.getRow(1).values = ["itp_id", "revision", "itp_updated_at", "content_token", "stamped_at"];
+  meta.getRow(2).values = [stamp.itpId, stamp.revision, stamp.itpUpdatedAt ?? "", stamp.contentToken ?? "", stamp.stampedAt];
+}
+
+function readStamp(workbook: ExcelJS.Workbook): OfflineWorkbookStamp | null {
+  const meta = workbook.getWorksheet(META_SHEET);
+  if (!meta) return null;
+  const row = meta.getRow(2);
+  const text = (c: number) => String(row.getCell(c).value ?? "").trim();
+  const revision = Number(text(2));
+  if (!text(1) || !Number.isFinite(revision)) return null;
+  return { itpId: text(1), revision, itpUpdatedAt: text(3) || null, contentToken: text(4) || null, stampedAt: text(5) };
+}
+
+/**
+ * Null when the file may be applied; otherwise the refusal message. A file with no stamp (downloaded
+ * before stamping existed) cannot be checked and is let through to the content-token check at apply.
+ */
+export function staleWorkbookError(
+  stamp: OfflineWorkbookStamp | null,
+  current: { itpId: string; revision: number; contentToken: string | null }
+): string | null {
+  if (!stamp) return null;
+  if (stamp.itpId !== current.itpId) return "This workbook was downloaded from a different ITP. Download the workbook for this ITP and edit that.";
+  if (stamp.revision < current.revision) {
+    return `This file is out of date: it was downloaded at revision ${stamp.revision} and the ITP is now at revision ${current.revision}. Download a fresh workbook and re-apply your edits.`;
+  }
+  if (stamp.contentToken && current.contentToken && stamp.contentToken !== current.contentToken) {
+    return "This file is out of date: the ITP was edited after you downloaded it. Download a fresh workbook and re-apply your edits.";
+  }
+  return null;
+}
+
 export function buildItpWorkbook(itp: {
   itpNumber: string;
   title: string;
   revision: number;
+  /** When given, the workbook carries a hidden revision stamp (D11). */
+  stamp?: OfflineWorkbookStamp;
 }, sections: OfflineWorkbookSourceSection[]): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "JAGS QMP";
@@ -119,12 +172,16 @@ export function buildItpWorkbook(itp: {
     }
   }
 
+  if (itp.stamp) writeStamp(workbook, itp.stamp);
+
   return workbook;
 }
 
 export interface ParseItpWorkbookResult {
   error: string | null;
   rows: OfflineParsedRow[];
+  /** The download-time stamp, when the file carries one. */
+  stamp?: OfflineWorkbookStamp | null;
 }
 
 /**
@@ -207,5 +264,5 @@ export async function parseItpWorkbook(buffer: ArrayBuffer): Promise<ParseItpWor
     return { error: "No activity rows were found in this file — make sure every row has at least an Item Number and Activity.", rows: [] };
   }
 
-  return { error: null, rows };
+  return { error: null, rows, stamp: readStamp(workbook) };
 }

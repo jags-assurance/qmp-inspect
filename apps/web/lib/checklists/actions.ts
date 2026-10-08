@@ -49,6 +49,7 @@ import { buildItemsSnapshot } from "./template-logic";
 import { bumpTemplateVersion } from "./template-context";
 import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
+import { buildStarterItems, starterChecklistName } from "./starter-items";
 import { boundedCapturedAt } from "@/lib/offline/policy";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -114,8 +115,10 @@ export async function generateChecklistsForItp(
     organizationId: string;
     userId: string | null;
     /** "ai" (default): AI-drafted templates saved for staff review; an activity AI cannot draft gets NO
-     *  checklist (never a silent placeholder). "blank": the explicit, staff-chosen single-item blank template. */
-    mode?: "ai" | "blank";
+     *  checklist (never a silent placeholder). "blank": the explicit, staff-chosen single-item blank template.
+     *  "starter": AI where available, otherwise a deterministic non-AI starter checklist (one item per
+     *  acceptance criterion, named "(auto-generated starter)") so approval never leaves an activity bare. */
+    mode?: "ai" | "blank" | "starter";
   }
 ): Promise<GenerateChecklistsResult> {
   const { itpId, itpNumber, projectId, organizationId, userId } = params;
@@ -232,6 +235,7 @@ export async function generateChecklistsForItp(
   for (const item of pending) {
     const draftedItems = itemsByPendingId.get(item.id)?.drafted;
     const hasDraft = !!draftedItems && draftedItems.length > 0;
+    const useStarter = mode === "starter" && !hasDraft;
     if (mode === "ai" && !hasDraft) {
       // Honest failure: no placeholder checklist is created behind the user's back.
       failed += 1;
@@ -244,8 +248,10 @@ export async function generateChecklistsForItp(
     });
     const drafted = itemsByPendingId.get(item.id)?.drafted;
     const items =
-      mode === "ai" && drafted && drafted.length > 0
+      mode !== "blank" && drafted && drafted.length > 0
         ? drafted.map((di, i) => ({ item_number: String(i + 1), description: di.text, is_mandatory: di.mandatory, sort_order: i }))
+        : useStarter
+        ? buildStarterItems(item)
         : [
             {
               item_number: "1",
@@ -254,7 +260,7 @@ export async function generateChecklistsForItp(
               sort_order: 0,
             },
           ];
-    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity, ai_generated: mode === "ai", items });
+    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: useStarter ? starterChecklistName(item.activity) : item.activity, ai_generated: mode !== "blank" && !useStarter, items });
   }
 
   if (payload.length === 0) return { error: null, created: 0, failed, reason: failureReason };

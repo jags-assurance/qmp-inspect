@@ -2,14 +2,10 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PrintButton } from "./print-button";
+import { PRINT_STATUS_LABEL, bannerLine, isPrintStatus } from "@/lib/itps/print-banner";
 import { ITP_PHASES, ITP_PHASE_LABEL, normalizeItpPhase } from "@/lib/itps/phase";
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Draft",
-  under_review: "Under review",
-  approved: "Approved",
-  client_accepted: "Client accepted",
-};
+const STATUS_LABEL = PRINT_STATUS_LABEL;
 
 /**
  * R91 — the PDF half of "exportable ITP Register... to PDF and Excel" (the CSV/"Excel" half is
@@ -40,14 +36,14 @@ export default async function ItpRegisterPrintPage({
 
   let query = supabase
     .from("itps")
-    .select("itp_number, title, status, revision, phase, applicable_standard, projects(name, organizations(name))");
+    .select("itp_number, title, status, revision, phase, approved_at, updated_at, applicable_standard, projects(name, organizations(name))");
 
   if (itpIdFilter) {
     query = itpIdFilter.length === 0 ? query.eq("id", "00000000-0000-0000-0000-000000000000") : query.in("id", itpIdFilter);
   }
   if (projectId) query = query.eq("project_id", projectId);
   if (phase) query = query.eq("phase", phase);
-  if (statusParam && ["draft", "under_review", "approved", "client_accepted"].includes(statusParam)) query = query.eq("status", statusParam);
+  if (isPrintStatus(statusParam)) query = query.eq("status", statusParam);
   if (q?.replace(/[,()%*]/g, " ").trim()) { const sq = q.replace(/[,()%*]/g, " ").trim(); query = query.or(`itp_number.ilike.%${sq}%,title.ilike.%${sq}%`); }
 
   const { data: itps } = await query
@@ -59,6 +55,8 @@ export default async function ItpRegisterPrintPage({
         status: string;
         revision: number;
         phase: string;
+        approved_at: string | null;
+        updated_at: string | null;
         applicable_standard: string | null;
         projects: { name: string; organizations: { name: string } | null } | null;
       }[]
@@ -74,17 +72,14 @@ export default async function ItpRegisterPrintPage({
       </div>
 
       <div className="print-area mt-6">
-        {(itps ?? []).length === 1 ? (
-          <p className="mb-3 rounded border border-border px-3 py-2 text-sm text-ink">
-            Rev {itps![0].revision} · {STATUS_LABEL[itps![0].status] ?? itps![0].status} · Issue date{" "}
-            {new Date().toLocaleDateString("en-GB")}
-          </p>
-        ) : (
-          <p className="mb-3 rounded border border-border px-3 py-2 text-sm text-ink">
-            Revision and status per ITP are shown in the Rev and Status columns · Issue date{" "}
-            {new Date().toLocaleDateString("en-GB")}
-          </p>
-        )}
+        <div className="mb-3 rounded border border-border px-3 py-2 text-sm text-ink" data-testid="print-banner">
+          <p className="text-xs text-muted">Revision · status · issue date (approval date, else last change) for every ITP below</p>
+          <ul className="mt-1 space-y-0.5">
+            {(itps ?? []).map((itp) => (
+              <li key={itp.itp_number} className="doc-id">{bannerLine(itp)}</li>
+            ))}
+          </ul>
+        </div>
         <h1 className="text-xl font-semibold text-ink">ITP Register</h1>
         <p className="mt-1 text-xs text-muted">Generated {new Date().toLocaleString("en-GB")} · {itps?.length ?? 0} ITPs</p>
         <div className="overflow-x-auto"><table className="mt-4 w-full border-collapse text-sm">
