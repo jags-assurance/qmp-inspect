@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/observability/report-client-error";
 
@@ -16,7 +17,7 @@ export default function InspectError({ error, reset }: { error: Error & { digest
       </p>
       {error.digest && (
         <p className="mt-3 text-xs text-muted">
-          Error ID: <span className="font-mono">{error.digest}</span> (quote this if you contact support)
+          Error ID: <span className="font-mono">{error.digest}</span> (quote this if you contact support; see <Link href="/inspect/support" className="font-medium text-burgundy underline">Help and support</Link>)
         </p>
       )}
       <div className="mt-5 flex flex-wrap justify-center gap-3">

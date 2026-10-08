@@ -8,6 +8,7 @@ import { PasswordField } from "@/components/domain/password-field";
 import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { SiteLinks } from "@/components/domain/site-links";
 
 const initialState: SignInState = { error: null };
 
@@ -68,6 +69,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
             {pending ? t("Signing in…") : t("Sign in")}
           </Button>
         </form>
+        <SiteLinks signedIn={false} className="mt-8" />
       </div>
     </div>
   );

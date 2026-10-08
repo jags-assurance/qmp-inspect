@@ -13,6 +13,8 @@ import { IdleTimeout } from "./idle-timeout";
 import { CommandPalette } from "./command-palette";
 import { UserMenu } from "./user-menu";
 import { BackNavigation } from "./back-navigation";
+import { SiteLinks } from "./site-links";
+import { TermsBanner } from "./terms-banner";
 
 export interface NavItem {
   label: string;
@@ -61,6 +63,7 @@ export async function AppShell({
   breadcrumb,
   orgBranding = null,
   userMenuLinks = [],
+  showTermsBanner = false,
   children,
 }: {
   navItems: NavItem[];
@@ -71,6 +74,8 @@ export async function AppShell({
   orgBranding?: OrgBrandingInfo | null;
   /** Extra entries for the top-right account menu (Sign out is always last). */
   userMenuLinks?: { label: string; href: string }[];
+  /** One-time, dismissible "please accept the terms" notice (U7). Never blocks anything. */
+  showTermsBanner?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -103,7 +108,11 @@ export async function AppShell({
           </div>
         </header>
         <OfflineBanner />
+        {showTermsBanner && <TermsBanner />}
         <main id="main-content" tabIndex={-1} className="min-w-0 outline-none flex-1 bg-background p-3 sm:p-4 lg:p-6">{children}</main>
+        <footer className="border-t border-border bg-surface px-3 py-3 sm:px-6">
+          <SiteLinks signedIn />
+        </footer>
         </div>
       </div>
     </SidebarMobileProvider>
