@@ -1,3 +1,4 @@
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import Link from "next/link";
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -37,12 +38,17 @@ export default async function ProjectsPage({
     );
   }
 
-  let projectsQuery = supabase
-    .from("projects")
-    .select("id, project_number, name, site_location, status, end_date, closed_at, organization_id, organizations(name)")
-    .order("created_at", { ascending: false });
-  if (selectedOrgId) projectsQuery = projectsQuery.eq("organization_id", selectedOrgId);
-  const { data: allVisible } = await projectsQuery.returns<ProjectRow[]>();
+  const buildProjectsQuery = (columns: string) => {
+    let q = supabase.from("projects").select(columns).order("created_at", { ascending: false });
+    if (selectedOrgId) q = q.eq("organization_id", selectedOrgId);
+    return q;
+  };
+  const withClosedAt = "id, project_number, name, site_location, status, end_date, closed_at, organization_id, organizations(name)";
+  let { data: allVisible, error: projectsError } = await buildProjectsQuery(withClosedAt).returns<ProjectRow[]>();
+  if (projectsError && isMissingSchemaError(projectsError)) {
+    // closed_at (20261104000600) not applied yet: list the projects without the closed date.
+    ({ data: allVisible } = await buildProjectsQuery(withClosedAt.replace(" closed_at,", "")).returns<ProjectRow[]>());
+  }
   // Completed / cancelled projects are hidden by default so the list shows live work first.
   const isClosed = isClosedStatus;
   const closedCount = (allVisible ?? []).filter((p) => isClosed(p.status)).length;
