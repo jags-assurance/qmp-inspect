@@ -59,20 +59,21 @@ export default async function StartWorkPage({
 
   const supabase = await createSupabaseServerClient();
   const archivedIds = await loadArchivedTemplateIds(supabase);
-  const [{ data: allTemplates }, { data: records }] = await Promise.all([
-    supabase
-      .from(CHECKLIST_TEMPLATES_TABLE)
-      .select(
-        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, assigned_to_user_id, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))"
-      )
-      .limit(1000)
-      .returns<TemplateRow[]>(),
+  const templateSelect = (withAssignee: boolean) =>
+    `id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, ${withAssignee ? "assigned_to_user_id, " : ""}itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))`;
+  const [firstTemplates, { data: records }] = await Promise.all([
+    supabase.from(CHECKLIST_TEMPLATES_TABLE).select(templateSelect(true)).limit(1000).returns<TemplateRow[]>(),
     supabase
       .from(INSPECTION_RECORDS_TABLE)
       .select("itp_item_id, checklist_template_id, overall_result")
       .limit(5000)
       .returns<{ itp_item_id: string; checklist_template_id: string; overall_result: string | null }[]>(),
   ]);
+  // Until 20261114000101 is applied the assignee column does not exist: retry without it so the page still loads.
+  let allTemplates = firstTemplates.data;
+  if (firstTemplates.error) {
+    allTemplates = (await supabase.from(CHECKLIST_TEMPLATES_TABLE).select(templateSelect(false)).limit(1000).returns<TemplateRow[]>()).data;
+  }
 
   // Archived checklists are hidden from start-work unless the Archived filter is on.
   const templates = filterByArchive(allTemplates ?? [], archivedIds, archiveFilter);
