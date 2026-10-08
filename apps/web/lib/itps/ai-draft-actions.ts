@@ -308,6 +308,31 @@ export async function createItpFromDraftAction(
   } = await supabase.auth.getUser();
 
   let numberToUse = itpNumber;
+  // Only JAGS staff may choose the ITP number; for anyone else the posted number is ignored and the
+  // numbering engine draws the next one (same rule as createItpAction), so a typed number can't break the convention.
+  const { data: callerProfile } = await supabase.from("users").select("is_jags_staff").eq("id", user?.id ?? "").maybeSingle<{ is_jags_staff: boolean }>();
+  const callerIsStaff = !!callerProfile?.is_jags_staff;
+  if (!callerIsStaff) {
+    const { data: numberingProject } = await supabase
+      .from("projects")
+      .select("organization_id, project_number")
+      .eq("id", projectId)
+      .maybeSingle<{ organization_id: string; project_number: string }>();
+    if (numberingProject) {
+      try {
+        numberToUse = (
+          await generateDocumentNumber(supabase, {
+            organizationId: numberingProject.organization_id,
+            projectId,
+            docType: "itp",
+            projectNumber: numberingProject.project_number,
+          })
+        ).documentNumber;
+      } catch {
+        return { error: "Could not generate the next ITP number. Try again." };
+      }
+    }
+  }
   let { data: itp, error } = await supabase
     .from("itps")
     .insert({
@@ -519,7 +544,10 @@ export async function createItpFromDraftAction(
     .select("organization_id")
     .eq("id", projectId)
     .maybeSingle<{ organization_id: string }>();
-  if (projectForChecklists) {
+  // Staff-created drafts get their checklists straight away (existing product decision). A draft created by a
+  // client/contractor creator is unreviewed AI content: its checklists are generated when it is approved
+  // (and on client acceptance), which the ITP lifecycle actions already do.
+  if (projectForChecklists && callerIsStaff) {
     await generateChecklistsForItp(supabase, {
       itpId: itp.id,
       itpNumber: numberToUse,
