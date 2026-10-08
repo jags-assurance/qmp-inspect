@@ -125,7 +125,7 @@ export default async function ProjectWorkspacePage({
         <ProjectOverviewView
           projectId={projectId}
           tabBar={tabBar}
-          knownCounts={{ openNcrsAndObservations: ncrCounts.total, openPunchOutstanding: punchCounts.outstanding, openPunchOpen: punchCounts.open }}
+          knownCounts={{ openNcrsAndObservations: ncrCounts.total, openObservations: ncrCounts.observations, openPunchOutstanding: punchCounts.outstanding, openPunchOpen: punchCounts.open }}
         />
       </div>
     );

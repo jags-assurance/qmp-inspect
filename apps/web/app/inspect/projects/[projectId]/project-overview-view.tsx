@@ -108,7 +108,7 @@ export async function ProjectOverviewView({
   projectId: string;
   tabBar: ReactNode;
   /** Counts the workspace page already computed for its tab badges; when given, they are not queried again. */
-  knownCounts?: { openNcrsAndObservations: number; openPunchOutstanding: number; openPunchOpen: number };
+  knownCounts?: { openNcrsAndObservations: number; openObservations?: number; openPunchOutstanding: number; openPunchOpen: number };
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
@@ -196,7 +196,10 @@ export async function ProjectOverviewView({
   const projectTz = await fetchProjectTimeZone(supabase, project.id);
 
   const itpCount = itpCountRaw;
-  const openNcrCount = knownCounts ? knownCounts.openNcrsAndObservations : openNcrCountRaw;
+  // The "Open NCRs" card counts NCRs only (the NCRs tab and register exclude observations); open
+  // observations are shown separately so every number matches the list it links to.
+  const openObservationCount = knownCounts?.openObservations ?? 0;
+  const openNcrCount = knownCounts ? knownCounts.openNcrsAndObservations - openObservationCount : openNcrCountRaw;
   const openPunchCount = knownCounts ? knownCounts.openPunchOpen : openPunchCountRaw;
   const openPunchAnyCount = knownCounts ? knownCounts.openPunchOutstanding : openPunchAnyCountRaw;
 
@@ -401,6 +404,14 @@ export async function ProjectOverviewView({
         <StatCard label="Open NCRs" value={openNcrCount ?? 0} href={`/inspect/projects/${project.id}?tab=ncrs`} />
         <StatCard label="Open punch items" value={openPunchCount ?? 0} href={`/inspect/projects/${project.id}?tab=punch-list`} />
       </div>
+      {openObservationCount > 0 && (
+        <p className="mt-2 text-sm text-muted">
+          <Link href="/inspect/observations" className="text-burgundy hover:underline">
+            {openObservationCount} open observation{openObservationCount === 1 ? "" : "s"}
+          </Link>{" "}
+          <T>(not counted as NCRs)</T>
+        </p>
+      )}
       {(project.status === "completed" || project.status === "cancelled") && (
         <p className="mt-3 rounded-md border border-border bg-off-white px-3 py-2 text-sm text-muted">
           <T>This project is</T> {project.status}. {(openNcrCount ?? 0) + (openPunchAnyCount ?? 0) > 0 && `${openNcrCount ?? 0} NCR(s) and ${openPunchAnyCount ?? 0} punch item(s) are still open. `}
