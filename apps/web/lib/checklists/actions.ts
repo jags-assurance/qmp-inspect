@@ -1,5 +1,6 @@
 "use server";
 
+import { normaliseBulkIds, toBulkItem, type BulkIrnItemResult, type BulkIrnResult } from "./bulk-irn";
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
 import { unnotifiedNonBlockingLevels } from "./notice-waiver";
 import { describeSpec, evaluateNumeric, parseNumericInput, validateSpecInput } from "./numeric-response";
@@ -1567,7 +1568,25 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
   if (!inspectionRecordId) return { error: "Missing inspection record." };
 
   const supabase = await createSupabaseServerClient();
+  const out = await issueIrnForRecord(supabase, inspectionRecordId);
+  return { error: out.error };
+}
 
+/** Outcome of one issue attempt. `already` = a live IRN existed, nothing was issued (not an error). */
+interface IssueIrnOutcome {
+  error: string | null;
+  irnNumber?: string;
+  already?: boolean;
+}
+
+/**
+ * The single issue path shared by issueIrnAction and bulkIssueIrnAction: every gate (party check, result,
+ * Hold, mandatory N/A, open NCRs, live-IRN idempotence, the issue_irn RPC's own DB gates) runs per record.
+ */
+async function issueIrnForRecord(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  inspectionRecordId: string
+): Promise<IssueIrnOutcome> {
   const { data: record } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select("id, project_id, itp_number, itp_item_id, overall_result")
@@ -1617,7 +1636,7 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     .is("voided_at", null)
     .limit(1)
     .maybeSingle<{ id: string }>();
-  if (existingIrn) return { error: null };
+  if (existingIrn) return { error: null, already: true };
 
   const { data: project } = await supabase
     .from("projects")
@@ -1641,7 +1660,7 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
     if (!row) return { error: "Could not issue the IRN." };
     if (row.out_already) {
       revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
-      return { error: null };
+      return { error: null, already: true };
     }
     irnNumber = String(row.out_number);
   } else if (!(rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(rpc.error.message ?? ""))) {
@@ -1680,7 +1699,7 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
           .maybeSingle<{ id: string }>();
         if (winner) {
           revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
-          return { error: null };
+          return { error: null, already: true };
         }
         return { error: "An IRN already exists for this inspection." };
       }
@@ -1704,8 +1723,31 @@ export async function issueIrnAction(_prev: IssueIrnState, formData: FormData): 
 
   await notifyAfterIrnIssued(supabase, inspectionRecordId, irnNumber);
   revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
-  return { error: null };
+  return { error: null, irnNumber };
 }
+
+/**
+ * Bulk issue: loops the exact single-issue path above (no gate is bypassed or re-implemented), one record
+ * at a time so the per-ITP numbering stays strictly sequential, and keeps going past per-item failures.
+ */
+export async function bulkIssueIrnAction(ids: string[]): Promise<BulkIrnResult> {
+  const { ids: clean, error } = normaliseBulkIds(ids);
+  if (error) return { error, items: [] };
+  const supabase = await createSupabaseServerClient();
+  const items: BulkIrnItemResult[] = [];
+  for (const id of clean) {
+    try {
+      const out = await issueIrnForRecord(supabase, id);
+      items.push(toBulkItem(id, out));
+    } catch (err) {
+      console.error("[irn] bulk issue threw", err);
+      items.push({ id, status: "skipped", reason: "Could not issue the IRN." });
+    }
+  }
+  revalidatePath("/inspect/inspections");
+  return { error: null, items };
+}
+
 
 /**
  * Voids (revokes) an issued IRN with a mandatory written reason. JAGS staff only — releasing work

@@ -7,6 +7,8 @@ import { loadAuditFacets } from "@/lib/audit/facets";
 import { PageGuide } from "@/components/domain/page-guide";
 import { DateRangeFilter } from "@/components/domain/date-range-filter";
 import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
+import { getLatestAuditTrailPdf } from "@/lib/reports/actions";
+import { AuditTrailPdfButton } from "./audit-trail-pdf-button";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 interface ProjectSummary {
@@ -109,6 +111,13 @@ export async function AuditLogView({
   if (filters.actor) moreParams.set("actor", filters.actor);
   moreParams.set("limit", String(limit + AUDIT_PAGE));
 
+  const latestPdf = await getLatestAuditTrailPdf(projectId);
+  const exportParams = new URLSearchParams();
+  if (range) exportParams.set("range", range);
+  if (filters.cat) exportParams.set("cat", filters.cat);
+  if (filters.actor) exportParams.set("actor", filters.actor);
+  const csvHref = `/inspect/projects/${projectId}/audit-log/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
+
   const Heading = embedded ? "h2" : "h1";
   const auditColumns: ResponsiveColumn<(typeof events)[number]>[] = [
     {
@@ -178,6 +187,17 @@ export async function AuditLogView({
             Showing {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
             {hasMore ? ` (first ${limit}; use Show more)` : ""}
           </p>
+        </div>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-2 rounded-md border border-border bg-surface p-3">
+          <p className="max-w-md text-xs text-muted">
+            Export this view{filters.cat || filters.actor ? " with the current filters" : ""}. The CSV contains every matching event, not just the rows shown; the PDF lists up to 5,000. Exports are recorded in this log.
+          </p>
+          <div className="flex flex-wrap items-start gap-2">
+            <a href={csvHref} className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white">
+              Export CSV ↓
+            </a>
+            <AuditTrailPdfButton projectId={projectId} range={range} cat={filters.cat} actor={filters.actor} latest={latestPdf} />
+          </div>
         </div>
         {embedded ? (
           <p className="mt-2 text-xs text-muted">

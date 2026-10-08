@@ -12,6 +12,7 @@ import { renderIrnPdf } from "./jobs/renderIrnPdf";
 import { renderHandoverCertificatePdf } from "./jobs/renderHandoverCertificatePdf";
 import { renderDataBookPdf } from "./jobs/renderDataBookPdf";
 import { renderNcrCloseoutPdf } from "./jobs/renderNcrCloseoutPdf";
+import { renderAuditTrailPdf } from "./jobs/renderAuditTrailPdf";
 import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
 import { shouldRetry, MAX_JOB_ATTEMPTS, jobTimeoutMs } from "./jobs/retryPolicy";
@@ -35,6 +36,7 @@ import type {
   RenderIrnPdfPayload,
   RenderDataBookPdfPayload,
   RenderNcrCloseoutCertificatePayload,
+  RenderAuditTrailPdfPayload,
 } from "./jobs/types";
 
 // Round-table SRE finding: a worker crash-loop or stall previously failed silently — logQueueHealth
@@ -158,6 +160,12 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
       }
       case "render_ncr_closeout_certificate": {
         const { resultStoragePath } = await renderNcrCloseoutPdf(job.payload as unknown as RenderNcrCloseoutCertificatePayload);
+        await markCompleted(job.id, resultStoragePath);
+        console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
+        break;
+      }
+      case "render_audit_trail_pdf": {
+        const { resultStoragePath } = await renderAuditTrailPdf(job.payload as unknown as RenderAuditTrailPdfPayload);
         await markCompleted(job.id, resultStoragePath);
         console.log(`[worker] Job ${job.id} completed -> ${resultStoragePath}`);
         break;
