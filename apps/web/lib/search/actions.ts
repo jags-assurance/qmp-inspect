@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildLikePattern } from "./pattern";
 
 export interface EntityHit {
-  kind: "project" | "ncr" | "itp" | "inspection";
+  kind: "project" | "ncr" | "observation" | "itp" | "inspection";
   id: string;
   label: string;
   sub: string;
@@ -35,11 +35,11 @@ export async function searchEntitiesAction(rawQuery: string): Promise<EntityHit[
       .returns<{ id: string; project_number: string; name: string }[]>(),
     supabase
       .from("ncrs" as never)
-      .select("id, ncr_number, description, status")
+      .select("id, ncr_number, description, status, severity")
       .or(`ncr_number.ilike.${pattern},description.ilike.${pattern}`)
       .order("created_at" as never, { ascending: false })
       .limit(PER_KIND)
-      .returns<{ id: string; ncr_number: string; description: string; status: string }[]>(),
+      .returns<{ id: string; ncr_number: string; description: string; status: string; severity: string | null }[]>(),
     supabase
       .from("itps")
       .select("id, itp_number, title, status")
@@ -60,7 +60,15 @@ export async function searchEntitiesAction(rawQuery: string): Promise<EntityHit[
     hits.push({ kind: "project", id: p.id, label: `${p.project_number} — ${p.name}`, sub: "Project", href: `/inspect/projects/${p.id}` });
   }
   for (const n of ncrs.data ?? []) {
-    hits.push({ kind: "ncr", id: n.id, label: n.ncr_number, sub: `NCR · ${n.status} · ${n.description.slice(0, 60)}`, href: `/inspect/ncrs/${n.id}` });
+    // Observations live in the same table as NCRs (severity "observation") but have their own register.
+    const isObservation = n.severity === "observation";
+    hits.push({
+      kind: isObservation ? "observation" : "ncr",
+      id: n.id,
+      label: n.ncr_number,
+      sub: `${isObservation ? "Observation" : "NCR"} · ${n.status} · ${n.description.slice(0, 60)}`,
+      href: `/inspect/ncrs/${n.id}`,
+    });
   }
   for (const i of itps.data ?? []) {
     hits.push({ kind: "itp", id: i.id, label: `${i.itp_number} ${i.title}`.trim(), sub: `ITP · ${i.status}`, href: `/inspect/itps/${i.id}` });
