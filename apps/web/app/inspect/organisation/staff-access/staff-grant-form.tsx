@@ -118,6 +118,19 @@ export function StaffGrantForm({
         />
       </div>
 
+      {scopeType !== "global" && (
+        <div className="w-full">
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" name="seat_override" /> Override seat limit if this organisation is full (audited)
+          </label>
+          <input
+            name="seat_override_reason"
+            placeholder="Reason for the override (required if ticked)"
+            className="mt-1 w-full max-w-md rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          />
+        </div>
+      )}
+
       <button
         type="submit"
         disabled={pending}

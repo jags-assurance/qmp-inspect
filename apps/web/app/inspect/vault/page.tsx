@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from "@/lib/vault/types";
@@ -107,7 +108,7 @@ export default async function VaultPage({
     <div>
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">Document Vault</h1>
+          <h1 className="text-2xl font-semibold text-ink"><T>Document Vault</T></h1>
           <PageGuide
             title="Document Vault — how this works"
             points={[

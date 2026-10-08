@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
@@ -100,7 +101,7 @@ export default async function ObservationsPage({
       <div className="flex items-center justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">Observation Register</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>Observation Register</T></h1>
             <PageGuide
               title="Observation Register — how this works"
               points={[

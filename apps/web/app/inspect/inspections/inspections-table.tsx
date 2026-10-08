@@ -4,6 +4,7 @@ import { formatLocationForDisplay } from "@/lib/checklists/location";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 
 export const INSPECTIONS_PAGE_SIZE = 50;
@@ -77,11 +78,12 @@ const columns: DataTableColumn<InspectionListRow>[] = [
   },
 ];
 
-export function InspectionsTable({ rows, totalCount }: { rows: InspectionListRow[]; totalCount: number }) {
+export function InspectionsTable({ rows, totalCount, locale }: { rows: InspectionListRow[]; totalCount: number; locale?: SupportedLocale }) {
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(true);
   return (
     <DataTable
       columns={columns}
+      locale={locale}
       rows={rows}
       searchPlaceholder="Search record no., activity or ITP…"
       searchKeys={(r) => `${r.record_number} ${r.activity} ${r.itp_number}`}

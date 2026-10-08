@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useUrlPanel } from "@/components/ui/side-panel";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import type { NcrSeverity, NcrStatus } from "@/lib/ncrs/types";
 import { isOverdue } from "./is-overdue";
@@ -122,7 +123,9 @@ export function NcrsTable({
   searchPlaceholder = "Search NCRs…",
   emptyMessage = "No NCRs or observations raised yet.",
   gradeAction = false,
+  locale,
 }: {
+  locale?: SupportedLocale;
   rows: NcrRegisterRow[];
   totalCount?: number;
   idColumnHeader?: string;
@@ -155,6 +158,7 @@ export function NcrsTable({
   return (
     <DataTable
       columns={columns}
+      locale={locale}
       rows={rows}
       caption="Non-conformance reports"
       mobileCards

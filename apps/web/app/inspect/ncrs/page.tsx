@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { siteToday } from "@/lib/ncrs/site-date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -157,7 +158,7 @@ export default async function NcrsPage({
       <div className="flex items-center justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">NCR Register</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>NCR Register</T></h1>
             <PageGuide
               title="NCR Register — how this works"
               points={[
