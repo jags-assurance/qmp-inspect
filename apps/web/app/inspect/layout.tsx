@@ -12,6 +12,7 @@ import { isLicensedIn } from "@/lib/module-licensing/license-map";
 import { loadOrgChrome } from "@/lib/organizations/chrome-cache";
 import type { ModuleKey } from "@/lib/module-licensing/types";
 import { brandComboColors } from "@/lib/branding/org-brand";
+import { loadNeedsTermsAcceptance } from "@/lib/terms/load";
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -30,13 +31,15 @@ export default async function InspectLayout({ children }: { children: React.Reac
   //    chrome (engagement mode/scope, branding colours, signed logo URL — D-07 cached, tagged and
   //    invalidated by the branding/numbering actions) and its module licences (D-07: ONE cached
   //    per-org map instead of one query per module).
-  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap] = await Promise.all([
+  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap, needsTerms] = await Promise.all([
     session.isJagsStaff && !isAdminStaff(session) ? isLeadOfAnyTeam(supabase, session.userId) : Promise.resolve(false),
     ownOrgId && !session.isJagsStaff
       ? supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId)
       : Promise.resolve(null),
     ownOrgId ? loadOrgChrome(supabase, ownOrgId) : Promise.resolve(null),
     ownOrgId ? getLicenseMap(supabase, ownOrgId) : Promise.resolve(null),
+    // U7: false (no banner) until migration 20261128000100 is applied or on any error.
+    loadNeedsTermsAcceptance(supabase, session.userId),
   ]);
   const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || teamLeadResult === true);
 
@@ -230,10 +233,13 @@ export default async function InspectLayout({ children }: { children: React.Reac
       userRole={userRole}
       breadcrumb="QMP Inspect"
       orgBranding={orgBranding}
+      showTermsBanner={needsTerms}
       userMenuLinks={[
         { label: "Dashboard", href: "/inspect" },
         ...(isAdminStaff(session) ? [{ label: "Settings", href: "/inspect/settings" }] : []),
         { label: "Guide", href: "/inspect/guide" },
+        { label: "Help and support", href: "/inspect/support" },
+        { label: "What's new", href: "/inspect/whats-new" },
         ...(mfaEnabled() ? [{ label: "Account security", href: "/inspect/account/security" }] : []),
       ]}
     >

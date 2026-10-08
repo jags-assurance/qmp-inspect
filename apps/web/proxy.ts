@@ -8,28 +8,9 @@ import {
   verifyStamp,
 } from "@/lib/auth/session-limits";
 import { decideProxyAccess } from "@/lib/auth/proxy-decision";
+import { isPublicPath } from "@/lib/auth/public-paths";
 import { isPrefetchRequest } from "@/lib/auth/prefetch";
 import { isMfaExemptPath, mfaChallengePath, mfaEnabled, needsMfaChallenge } from "@/lib/auth/mfa";
-
-const PUBLIC_PATHS = [
-  "/login",
-  "/auth/confirm",
-  "/forgot-password",
-  "/reset-password",
-  // Public QR verification of handover certificates / IRNs (unguessable token, minimal facts only).
-  "/verify/",
-  // Health check must be reachable by uptime monitors / load balancers with no session.
-  "/api/health",
-  // Inbound-email webhook: authenticated by its own shared secret, not a user session.
-  "/api/vault/email-inbound",
-  // PWA / offline-support assets: the browser fetches the service worker script (and installs the
-  // manifest + offline fallback) without being able to follow a login redirect — "The script
-  // resource is behind a redirect, which is disallowed" — so redirecting these to /login silently
-  // broke offline mode on every device. They hold no user data.
-  "/sw.js",
-  "/manifest.webmanifest",
-  "/offline.html",
-];
 
 // Signed "last seen" (inactivity limit) and "profile check passed" (skips a DB query per request)
 // cookies — see lib/auth/session-limits.ts.
@@ -104,9 +85,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const pathname = request.nextUrl.pathname;
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+  const isPublic = isPublicPath(pathname); // lib/auth/public-paths.ts
 
-  if (!signedIn && !isPublicPath) {
+  if (!signedIn && !isPublic) {
     const redirectUrl = new URL("/login", request.url);
     // Keep the query string so a deep link (?panel=…&status=…) survives sign-in; the login page and
     // signInAction re-validate it as a same-site path.
@@ -120,7 +101,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (user && !isPublicPath) {
+  if (user && !isPublic) {
     const now = Date.now();
     const secret = sessionCookieSecret();
 

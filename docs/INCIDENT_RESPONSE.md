@@ -1,6 +1,6 @@
-# Incident Response Runbook (Minimal)
+# Incident Response Runbook
 
-_Last reviewed: 2026-09-17. This is a working runbook for the QMP Inspect platform, not a legal
+_Last reviewed: 2026-10-08. This is a working runbook for the QMP Inspect platform, not a legal
 document. Anything below marked "needs legal review" is a placeholder for a commitment that must
 be signed off by legal/compliance before it is presented to customers or prospects._
 
@@ -10,6 +10,87 @@ A security incident, for this purpose, is any event where customer data may have
 modified, or exposed outside of its intended access boundaries — most concretely, in a multi-tenant
 system like this one, a **cross-tenant or cross-project data-isolation gap**: a user or process
 seeing or writing data belonging to an organisation or project they should not have access to.
+
+## Severity levels
+
+Pick the level from the impact, not from how the problem was found. If unsure, choose the higher one and lower it once the facts are known. The incident commander (see Contacts) sets and changes the level and writes it in the incident log.
+
+| Level | Definition | Examples | Acknowledge | Update the team / affected customers every | Target to contain |
+|---|---|---|---|---|---|
+| **S1 Critical** | Confirmed or likely exposure of one customer's data to another, loss or corruption of records, the whole service down, or a security compromise (leaked service key, account takeover) | Cross-tenant read or write; `SUPABASE_SERVICE_ROLE_KEY` exposed; database unreachable; wrong data wiped | 15 minutes, at any hour | 1 hour | 4 hours |
+| **S2 High** | A major function is unusable or unsafe for many users, with no workaround, or data is wrong but contained | Sign-in failing for a customer; PDFs not generating for everyone; sign-off or IRN issue blocked; worker stalled (`/api/health` degraded) | 1 hour in working hours | 4 hours | 1 working day |
+| **S3 Medium** | A function is degraded or has a workaround; a small group is affected | One report type failing; slow pages; emails delayed (check the `email_outbox`); one user cannot see a project | Same working day | 1 working day | 3 working days |
+| **S4 Low** | Cosmetic or minor, no data or workflow impact; questions | Typo, layout glitch, a request for help | 2 working days | On resolution | Next planned release |
+
+These are internal working targets, not a customer-facing SLA (see "Customer notification"). "At any hour" cover depends on an on-call arrangement: [OWNER TO FILL: whether out-of-hours cover exists, and who provides it]. Until it is filled, treat the S1 and S2 acknowledge targets as applying in working hours only.
+
+## Contacts
+
+Roles, not names, so this stays true when people change. Fill the table in and keep it current; review it at least every [OWNER TO FILL: review interval]. Store it where people can reach it when the system is down (printed or in a shared drive outside the production stack).
+
+| Role | Responsibility | Name | Phone / out-of-hours | Email | Backup |
+|---|---|---|---|---|---|
+| Incident commander (JAGS technical lead) | Owns the incident: sets severity, assigns work, approves rollback or restore, decides escalation | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Engineering on call | First responder: triage, contain, fix, roll back | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Supabase project owner | Query logs, emergency policy fixes, backups and restore | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Hosting owner (Vercel and Railway accounts) | Deployments, rollbacks, environment variables, secrets rotation | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Customer relationship owner | Decides and sends customer communication | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Data protection contact | Personal-data incidents, regulator and data-subject communication | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Legal / compliance | Notification duties and wording | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+| Executive sponsor | Informed on every S1; decides on public statements | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] | [OWNER TO FILL] |
+
+Vendor support routes (fill in the account and plan details; do not put secrets here): Supabase [OWNER TO FILL: support route and plan], Vercel [OWNER TO FILL], Railway [OWNER TO FILL], Resend [OWNER TO FILL], Google Cloud / Gemini [OWNER TO FILL], Sentry [OWNER TO FILL].
+
+## Escalation
+
+1. **Anyone** who sees or suspects an incident tells the engineering on-call contact straight away by phone or chat (not only by email) and writes down what they saw and when.
+2. **Engineering on call** triages, proposes a severity and tells the incident commander at once for S1 and S2, the same day for S3.
+3. **Incident commander** confirms the severity, opens an incident log (a dated document or ticket: timeline, decisions, actions, who), and pulls in the Supabase owner for anything touching authentication, Storage or row-level security, and the hosting owner for deployments and secrets.
+4. **S1 or any possible personal-data exposure:** within the acknowledge target also inform the data protection contact, legal / compliance, the customer relationship owner and the executive sponsor. They decide whether and when customers and any regulator are told (see "Customer notification").
+5. **No response:** if the first contact does not acknowledge within the target, the next person in the table is called; for S1 go straight to the incident commander's backup after 15 more minutes.
+6. **Stand down** only when the incident commander records that the service is verified (health check, role-by-role checks; see `docs/OPERATIONS_RUNBOOK.md` section 3a "Verify after any rollback") and the review is scheduled.
+
+Useful first moves: roll back the release (`docs/OPERATIONS_RUNBOOK.md` section 3a), disable the affected feature, deactivate an account (a JAGS Admin action: it bans the login, ends open sessions and removes access grants, which are recorded so they can be restored), rotate a leaked key in Supabase and update Vercel and Railway.
+
+## Communication templates
+
+Fill the square brackets. Keep to facts; no speculation, no blame, no promises about timing you cannot meet. Customer-facing text is sent only by the customer relationship owner after legal review where personal data is involved (needs legal review).
+
+**Internal alert (chat or SMS)**
+> [S1|S2|S3] incident, [short title]. Seen at [time, timezone] by [name]. Impact: [who or what is affected]. Status: [investigating|contained|fixing]. Incident commander: [name]. Next update at [time]. Do not discuss outside this channel.
+
+**Customer: initial notice (service impact, no data exposure known)**
+> Subject: Service issue with QMP Inspect, [date]
+> We are aware of an issue affecting [function]. It started at about [time, timezone]. [Who is affected.] Your data [is not believed to be affected / is being checked]. You can [workaround, if any]. We will update you by [time] and when it is resolved. Contact: [support contact].
+
+**Customer: resolved**
+> Subject: Resolved: service issue with QMP Inspect, [date]
+> The issue affecting [function] was resolved at [time]. Cause: [one plain sentence]. What we did: [action]. What we are doing to prevent a repeat: [action]. Any records you created during [window] [are safe / should be checked: details]. Contact: [support contact].
+
+**Customer: confirmed unauthorised access to their data** (needs legal review before sending; the notification timeframe is not decided in this document)
+> Subject: Notice about access to your data in QMP Inspect
+> On [date] we found that [what happened] between [start] and [end]. The data involved was [categories of data and approximate number of records]. [Whether anything was changed.] We [fixed it / contained it] at [time] by [action]. What you should do: [action, if any]. We have [informed / will inform] [regulator, if applicable]. You can reach [data protection contact] at [email, phone] with questions.
+
+**Regulator / data-protection authority** (drafted with legal; deadlines depend on the law that applies: [OWNER TO FILL: applicable law and notification deadline])
+
+**Internal stand-down**
+> Incident [id] is closed. Final severity [level]. Service verified at [time]. Review meeting [date, time]. Please send timeline corrections to [name] by [date].
+
+## Post-incident review template
+
+Hold it within [OWNER TO FILL: e.g. 5 working days] of an S1 or S2 (S3 only if it repeated or taught something). Blameless: ask what let it happen, not who did it. Keep the result with the incident log and track actions to completion.
+
+| Section | Content |
+|---|---|
+| Summary | What happened, in three sentences. Final severity, duration, who was affected |
+| Timeline | Time (with timezone), event, who acted. Include when it started, was detected, acknowledged, contained, resolved |
+| Impact | Users, organisations, records; was any data exposed, changed or lost (state the evidence); customer and regulator notifications made |
+| Root cause | The technical cause and the conditions that allowed it (missing test, policy scoping, review gap, monitoring gap) |
+| Detection | How it was found, how long it ran unnoticed, what would have found it sooner |
+| Response | What worked, what was slow or unclear (contacts, access, runbook steps, rollback) |
+| What we got lucky with | Things that limited the damage by chance |
+| Actions | Action, owner, due date, link. Types: prevent, detect, respond, document |
+| Follow-up check | Date the actions were verified done, and by whom |
 
 ## Error tracking
 
@@ -34,7 +115,7 @@ in `worker/src/observability/scrub.ts`). Check one real event in Sentry after th
 ## Who gets notified internally
 
 - The engineer or reviewer who discovers or suspects the issue notifies the JAGS technical lead
-  immediately, by the fastest available channel (do not wait for a scheduled meeting).
+  immediately, by the fastest available channel (see the Contacts table above) (do not wait for a scheduled meeting).
 - The technical lead triages within the same working day and decides whether to escalate to
   whoever owns customer relationships, so any affected customer can be informed once the facts are
   established (see "Customer notification" below).
@@ -43,6 +124,9 @@ in `worker/src/observability/scrub.ts`). Check one real event in Sentry after th
   logs and apply an emergency policy fix without waiting on a full deploy cycle.
 
 ## Response-time expectation (internal working target, not a customer-facing SLA)
+
+The severity table above sets the per-level targets; the general expectations below apply to anything not yet classified.
+
 
 - **Acknowledge and begin triage:** same working day the issue is reported or discovered.
 - **Contain** (e.g. disable the affected feature, tighten the responsible RLS policy, revoke a

@@ -44,6 +44,68 @@ Never commit secrets; the service role key must exist only in Vercel server env 
 3. **Redeploy the Railway worker after any change under `worker/` or any PDF template/layout change** (the worker holds the PDF code, fonts and the `qrcode` package; the web app does not).
 4. Smoke test: `GET /api/health` returns `status: ok`; log in, generate an ITP PDF, check the job reaches `completed`.
 
+## 3a. Rollback plan
+Use this when a deploy or a migration has made production worse and the fastest safe move is to go back, not forward. Decide who may order a rollback in the contacts table of `docs/INCIDENT_RESPONSE.md`; the person doing it writes down each step (time, what, result) in the incident log.
+
+**Order of operations.** Stop the damage first (roll back the application), then decide about the database. Application rollbacks are fast and reversible; database changes are not undone, they are compensated (see "Database"). Every migration in this repo is additive and the app falls back when one is not applied, so rolling the web app or the worker back to a version that predates a migration is normally safe while the migration stays in place.
+
+### What to roll back
+| Symptom after a release | Roll back |
+|---|---|
+| Pages broken, wrong behaviour in the web app, sign-in problems | Web app on Vercel |
+| PDFs fail or look wrong, jobs stuck, scheduled alerts misbehave | Worker on Railway |
+| Both, or a change that touched `worker/` and `apps/web` together | Worker and web (roll back both so shared job payloads still match) |
+| A policy, trigger or function change blocks legitimate work, or exposes data | Database: compensating migration (below). Roll the app back first if it depends on the change |
+| Data wrongly changed or lost | Backup / PITR decision tree (below) |
+
+### Web app (Vercel)
+1. Vercel dashboard, the web project, Deployments. Find the last deployment that was healthy (Production, status Ready, built from a known commit; the commit id is also in the `build` field of `GET /api/health`).
+2. Open its menu and choose **Instant Rollback** (promotes that existing build to production with no rebuild). From the CLI: `vercel rollback [deployment-url-or-id]`. Instant rollback may be limited to certain earlier deployments on some plans; if the option is not offered, use step 3.
+3. Alternative: redeploy the previous deployment (menu, Redeploy, untick "use existing build cache" if a stale cache is suspected), or revert the bad commit on the deploy branch (`git revert <sha>`, push) and let CI and Vercel build it. Never force-push over the deploy branch.
+4. After an instant rollback Vercel stops auto-assigning new deployments to the production domain until you promote again; check the project's production banner so the next fix actually goes live.
+5. Environment variables are read at build time for some values (`NEXT_PUBLIC_*`) and at run time for others. If the release also changed variables, restore the old values and redeploy (an instant rollback keeps the variables the old build was made with; confirm in the dashboard).
+
+### Worker (Railway)
+1. Railway dashboard, the worker service, Deployments. Pick the last good deployment and use **Rollback** (or **Redeploy** on it). If neither is offered, revert the commit and push so Railway rebuilds.
+2. A worker stopping mid-render is safe: on startup it reclaims jobs left in `processing` (`reclaimOrphanedJobs`) and retries them with backoff. With more than one replica, roll all replicas back together.
+3. Check the logs for `[worker]` start-up lines and confirm no `claim_next_background_job() is not installed` line appears unless that migration is genuinely not applied.
+4. If the bad worker produced wrong PDFs, regenerate them from the app once the good worker is running (a re-render overwrites the stored file; the integrity hash history is append-only).
+
+### Database (forward-only migrations)
+Migrations are never edited, renamed, reverted or deleted after they have been applied anywhere, and nothing in this process deletes data. So there is no "down" migration: **rollback = a new compensating migration.**
+1. Identify exactly what the bad migration changed (the file header says: tables, policies, triggers, functions).
+2. If it replaced an earlier definition, write a new file with the next free 14-digit version that restores the earlier definition (copy it from the latest earlier migration that defined it: the latest definition wins). If it added a policy, trigger, index or function that is the problem, write a new file that drops that object with `drop ... if exists`.
+3. Keep it idempotent and narrow. Do not drop a column or table that already holds data; stop using it in the app instead and decide on removal later with the owner.
+4. Run `node scripts/check-migration-names.mjs`, apply it to a non-production copy first when time allows, then to production one file at a time (Supabase SQL editor or `supabase db push` once history is reconciled per `docs/MIGRATION_REPAIR.md`).
+5. For an emergency before a proper migration can be written, the narrowest safe stop-gap is switching the affected feature off (app rollback, or an organisation setting) rather than editing data by hand.
+
+### Backup and restore decision tree
+Ask in this order and stop at the first "yes":
+1. **Is it only wrong code or configuration, and the data is intact?** Roll back the app (above). No restore.
+2. **Is it a bad migration or policy, with the data intact?** Compensating migration (above). No restore.
+3. **Was a small, identifiable set of rows changed or lost?** Do not restore the whole database. Read the rows from a restored copy (restore the backup into a new, separate Supabase project, or use a PITR restore to a new project) and copy just those rows back with a reviewed SQL script; record it in the audit trail. Voided IRNs, superseded vault documents and audit entries are history and must not be removed to "fix" it.
+4. **Is a large part of the data wrong or gone, or the project is unusable?** Full restore: PITR to just before the bad event if PITR is enabled (choose the timestamp from the audit log and the deploy time), otherwise the latest daily backup. Restore to a new project, re-point the variables in Vercel and Railway, redeploy both, then restore storage (section 8). Accept that work done after the restore point is lost and tell users what to re-enter.
+5. **Are storage files missing but the database intact?** Re-upload from the latest storage export at the same object paths (section 8, "Restoring storage").
+Before any restore: take a fresh backup of the current state so nothing is lost twice, freeze changes (tell users, or set the worker aside), and name one person who decides. [OWNER TO FILL: whether PITR is enabled on the production Supabase project, the backup retention window, and who may approve a restore]
+
+### Verify after any rollback
+1. `GET /api/health` returns `status: ok` with `database`, `schema` and `storage` ok, and `build` shows the commit you expect. `worker` is `ok`, not `degraded`.
+2. Sign in as an admin and as a project-scoped user (a client or subcontractor): the dashboard and one project open, and the project-scoped user still cannot see another project.
+3. Open an inspection, add and remove nothing; open an NCR; confirm the notification bell loads.
+4. Queue one PDF (an ITP or IRN) and watch its `background_jobs` row reach `completed`; open the PDF.
+5. Check the Vercel and Railway logs for new errors for ten minutes, and `background_jobs` for rows stuck in `pending` or `processing` beyond a few minutes.
+6. Record the outcome and time in the incident log and tell the people who were told about the problem (templates in `docs/INCIDENT_RESPONSE.md`).
+
+### Rehearsal log
+A rollback that has never been tried is a guess. Rehearse each row once against a preview or staging deployment (never first on production), and again after any change to hosting. No rehearsal has been recorded yet.
+
+| Date | Rehearsed by | What was rehearsed (web / worker / compensating migration / PITR restore to new project) | Time taken | Result and problems found | Fixes made to this section |
+|---|---|---|---|---|---|
+| [OWNER TO FILL] | [OWNER TO FILL] | Web: instant rollback and roll-forward | | | |
+| [OWNER TO FILL] | [OWNER TO FILL] | Worker: Railway rollback, job reclaimed and a PDF rendered | | | |
+| [OWNER TO FILL] | [OWNER TO FILL] | Compensating migration on a copy of the database | | | |
+| [OWNER TO FILL] | [OWNER TO FILL] | Restore (PITR or daily backup) into a new project, `GET /api/health` ok | | | |
+
 ## 4. Background jobs
 Table `background_jobs`; a job is queued by the web app (insert allowed by RLS only for a user with access to the target record), the worker claims it and writes `result_storage_path` or an error. Per-organisation rate limit trigger applies.
 **Running more than one worker replica (F-04).** Safe once migration `20261111000103_worker_multi_replica_safety.sql` is applied. The worker claims a job with the database function `claim_next_background_job()`: one atomic `UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`, so two replicas polling together each get a different job (or none), `attempts` is incremented in SQL, and retry backoff (`retry_not_before`) is enforced in the database. The once-per-15-minutes automation sweep takes a lease (`try_acquire_worker_lease`, table `worker_leases`) so only one replica runs it per interval. Before the migration is applied the worker falls back to its previous compare-and-swap claim (now also conditioned on `attempts`), which is correct but makes extra replicas mostly idle; the log line `claim_next_background_job() is not installed` shows which mode a replica is in. Orphan reclaim after a restart is idempotent and safe on every replica. Scale replicas in the Railway dashboard; each replica launches its own Chromium, so size memory per replica (PDF jobs are the heavy ones).
