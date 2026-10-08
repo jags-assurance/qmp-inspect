@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { listResponseHistory, groupHistoryByItem } from "@/lib/checklists/response-history";
 import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
 import { describeSpec } from "@/lib/checklists/numeric-response";
 import { formatLocationForDisplay, mapsUrl } from "@/lib/checklists/location";
@@ -186,6 +187,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
 
   const amendments = await listInspectionAmendments(id);
+  const responseHistory = await listResponseHistory(supabase, id);
+  const historyByItem = groupHistoryByItem(responseHistory);
 
   // Perf: one batched Storage call for every photo's signed URL instead of each <PhotoThumbnail>
   // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
@@ -541,6 +544,35 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <ReopenInspectionForm inspectionRecordId={record.id} />
         </div>
+      )}
+
+      {responseHistory.length > 0 && (
+        <details className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
+          <summary className="cursor-pointer font-medium text-burgundy">Answer changes ({responseHistory.length})</summary>
+          <p className="mt-2 text-xs text-muted">Earlier values of answers that were changed while this inspection was in progress, newest first.</p>
+          <ul className="mt-2 divide-y divide-border">
+            {[...historyByItem.entries()].map(([itemId, list]) => {
+              const label = sortedResponses.find((r) => r.checklist_item_id === itemId)?.checklist_items;
+              return (
+                <li key={itemId} className="py-2">
+                  <p className="text-ink">
+                    <span className="doc-id text-muted">{label?.item_number}.</span> {label?.description}
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                    {list.map((h) => (
+                      <li key={h.id}>
+                        was <span className="font-medium text-ink">{(h.old_result ?? "").toUpperCase() || "-"}</span>
+                        {h.old_numeric_value ? ` (${h.old_numeric_value})` : ""}
+                        {h.old_comment ? `, "${h.old_comment}"` : ""} - changed {new Date(h.changed_at).toLocaleString("en-GB")}
+                        {h.changed_by_name ? ` by ${h.changed_by_name}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
 
       {amendments.length > 0 && (
