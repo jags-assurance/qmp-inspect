@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -174,7 +175,7 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">Inspections</h1>
+          <h1 className="text-2xl font-semibold text-ink"><T>Inspections</T></h1>
           <PageGuide
             title="Inspections — how this works"
             points={[

@@ -1,4 +1,5 @@
 import { formatLocationForDisplay } from "@/lib/checklists/location";
+import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -160,7 +161,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
     <div className="max-w-3xl">
       <RealtimeRefresh table="handover_certificates" />
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Handover Portal</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Handover Portal</T></h1>
         <PageGuide
           title="Handover Portal — how this works"
           points={[

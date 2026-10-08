@@ -449,7 +449,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
                     // Stays mounted after the login is created so the one-time temporary password
                     // it returns can still be shown (the refresh flips user_id; the form hides
                     // itself when there is nothing to show).
-                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} hasLogin={!!party.user_id} />
+                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} hasLogin={!!party.user_id} isAdmin={isAdminStaff(session)} />
                   )}
                   {(canReassign || (isClientTeamLead && party.party_type === "client")) && party.is_active && (
                     <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />

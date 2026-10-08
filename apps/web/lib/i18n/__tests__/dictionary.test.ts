@@ -18,6 +18,23 @@ describe("translateText", () => {
   });
 });
 
+describe("list headings, KPI headings and column headings", () => {
+  const keys = [
+    // page headings
+    "Projects", "ITP Register", "Inspections", "NCR Register", "Observation Register", "Document Vault", "Handover Portal", "Reports & Documents",
+    // dashboard KPIs
+    "Open NCRs", "Active projects", "Active ITPs", "Inspections in progress", "Overdue hold points",
+    // column headings
+    "Project No.", "Status", "ITP No.", "Record No.", "Severity", "Discipline", "Due",
+  ];
+  it("has an Arabic translation for each key and English is never changed", () => {
+    for (const key of keys) {
+      expect(translateText("ar", key), key).not.toBe(key);
+      expect(translateText("en", key)).toBe(key);
+    }
+  });
+});
+
 describe("localizeNavItems", () => {
   const items: Nav[] = [
     { label: "Projects", href: "/p", group: "Plan" },

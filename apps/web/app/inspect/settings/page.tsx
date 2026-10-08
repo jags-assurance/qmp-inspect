@@ -120,6 +120,7 @@ const ALL_GROUPS: SettingsNavGroup[] = [
       { key: "plans", label: "Plans & Seats" },
       { key: "retention", label: "Document Retention" },
       { key: "root-causes", label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
+      { key: "orphan-photos", label: "Orphaned Photos", href: "/inspect/organisation/orphan-photos" },
     ],
   },
 ];

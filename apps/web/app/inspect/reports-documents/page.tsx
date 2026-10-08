@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProjectPickerForm, type ProjectOption } from "../vault/project-picker-form";
@@ -100,7 +101,7 @@ export default async function ReportsDocumentsPage({
       )}
       <div className={selectedProject ? "mt-2" : undefined}>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">Reports &amp; Documents</h1>
+          <h1 className="text-2xl font-semibold text-ink"><T>Reports &amp; Documents</T></h1>
           <PageGuide
             title="Reports & Documents — how this works"
             points={[

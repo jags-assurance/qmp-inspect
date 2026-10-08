@@ -16,7 +16,8 @@ import type { RenderDataBookPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, shouldFileDataBook } from "./vaultAutoFile";
 import { createHash } from "node:crypto";
-import { removeGeneratedFile } from "./generatedDocument";
+import { removeGeneratedFile, sourceHash } from "./generatedDocument";
+import { sealFooterSpan } from "./integritySeal";
 import { PermanentJobError } from "./jobAbort";
 import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
@@ -832,7 +833,7 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
  * data.
  */
 /** Prints the book. Shared by both passes so the page count of pass 1 matches the final PDF. */
-async function printBookPdf(html: string, footerLabel: string, bookNumber: string, revisionLabel: string): Promise<Buffer> {
+async function printBookPdf(html: string, footerLabel: string, bookNumber: string, revisionLabel: string, contentHash: string): Promise<Buffer> {
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   try {
@@ -852,6 +853,7 @@ async function printBookPdf(html: string, footerLabel: string, bookNumber: strin
         footerTemplate: `
           <div style="width:100%;font-size:7.5px;color:#444;padding:0 15mm;display:flex;justify-content:flex-end;gap:14px;font-family:Calibri,Arial,Helvetica,sans-serif;">
             <span>${escapeHtml(bookNumber)} | ${escapeHtml(revisionLabel)} | ${escapeHtml(footerLabel)}</span>
+            ${sealFooterSpan(contentHash)}
             <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
           </div>`,
       })
@@ -936,7 +938,9 @@ export async function renderDataBookPdf(
   const { dataBook, data } = await buildDataBookHtml(payload.data_book_id, { reprint });
   const footerLabel = dataBookIssueLabel(dataBook.status, !!data.isConditional, reprint);
   const revLabel = bookRevLabel(data);
-  const print = (map: Record<string, number>) => printBookPdf(buildDataBookPdfHtml(data, map), footerLabel, dataBook.book_number, revLabel);
+  // Content seal for the footer: hash of the source data (a PDF cannot print its own bytes hash; that one is stored on the certificate).
+  const contentHash = sourceHash({ ...data, generatedAt: null });
+  const print = (map: Record<string, number>) => printBookPdf(buildDataBookPdfHtml(data, map), footerLabel, dataBook.book_number, revLabel, contentHash);
 
   // Pass 1 prints without page numbers to learn where each section lands; pass 2 prints the contents
   // page and the register's "Form page" column with those real numbers. The placeholders occupy the

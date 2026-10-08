@@ -3,6 +3,7 @@ import { mfaEnabled } from "@/lib/auth/mfa";
 import { cookies } from "next/headers";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n/direction";
 import { localizeNavItems } from "@/lib/i18n/dictionary";
+import { LocaleProvider } from "@/lib/i18n/locale-context";
 import { AppShell, type NavItem } from "@/components/domain/app-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
@@ -178,6 +179,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
               { label: "Document Retention", href: "/inspect/settings?section=retention" },
               { label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
+              { label: "Orphaned Photos", href: "/inspect/organisation/orphan-photos" },
             ],
           },
         ]
@@ -219,9 +221,10 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : "JAGS Inspector"
     : (grant?.role ?? "Member");
 
+  const locale = normalizeLocale((await cookies()).get(LOCALE_COOKIE)?.value);
   return (
     <AppShell
-      navItems={localizeNavItems(navItems, normalizeLocale((await cookies()).get(LOCALE_COOKIE)?.value))}
+      navItems={localizeNavItems(navItems, locale)}
       userId={session.userId}
       userName={session.fullName}
       userRole={userRole}
@@ -234,7 +237,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
         ...(mfaEnabled() ? [{ label: "Account security", href: "/inspect/account/security" }] : []),
       ]}
     >
-      {children}
+      <LocaleProvider locale={locale}>{children}</LocaleProvider>
     </AppShell>
   );
 }

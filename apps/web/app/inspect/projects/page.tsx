@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
@@ -140,7 +141,7 @@ export default async function ProjectsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">Projects</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>Projects</T></h1>
             <PageGuide
               title="Projects — how this works"
               points={[

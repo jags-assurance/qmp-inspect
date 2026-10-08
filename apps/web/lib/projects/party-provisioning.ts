@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { discardSeatOverride, grantSeatOverride, isSeatLimitError, parseSeatOverride, seatLimitMessage } from "@/lib/plans/seat-limit";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { generateTempPassword, tempPasswordExpiry } from "./temp-password";
 
@@ -227,22 +228,56 @@ export async function provisionPartyLoginAction(
   // Written with the service role after the permission check above — see this function's header.
   // Duplicate-tolerant (the user may already hold this project grant), and the seat-limit trigger
   // still applies.
-  const { error: grantError } = await serviceClient.from("access_grants").insert({
-    user_id: linkedUserId,
-    scope_type: "project",
-    organization_id: organizationId,
-    project_id: party.project_id,
-    role: party.party_type,
-  });
+  const insertGrant = () =>
+    serviceClient.from("access_grants").insert({
+      user_id: linkedUserId,
+      scope_type: "project",
+      organization_id: organizationId,
+      project_id: party.project_id,
+      role: party.party_type,
+    });
+  let { error: grantError } = await insertGrant();
+
+  // Seat limit reached: only a JAGS Admin who ticked the override and gave a reason may exceed it.
+  let overrideReason: string | null = null;
+  if (grantError && isSeatLimitError(grantError.message) && admin) {
+    const override = parseSeatOverride(formData);
+    if (override.requested && !override.error) {
+      const overrideId = await grantSeatOverride(serviceClient, {
+        organizationId,
+        userId: linkedUserId,
+        reason: override.reason,
+        actorId: session.userId,
+      });
+      if (overrideId) {
+        ({ error: grantError } = await insertGrant());
+        if (grantError && grantError.code !== "23505") await discardSeatOverride(serviceClient, overrideId);
+        else overrideReason = override.reason;
+      }
+    }
+  }
   if (grantError && grantError.code !== "23505") {
     await rollback();
     await auditProvisioning(supabase, party, organizationId, session.userId, "login_provision_failed", email, "grant failed");
     return {
       ...INITIAL_STATE,
-      error: grantError.message.includes("seat limit")
-        ? `${grantError.message} Nothing was created.`
+      error: isSeatLimitError(grantError.message)
+        ? `${seatLimitMessage(grantError.message, admin)} Nothing was created.`
         : "Granting platform access failed, so the account was not created. Try again, or check with a JAGS Admin.",
     };
+  }
+
+  if (overrideReason) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      projectId: party.project_id,
+      entityType: "organization_plan",
+      entityId: organizationId,
+      action: "seat_limit_overridden",
+      actorId: session.userId,
+      summary: `Seat limit overridden to give party "${party.name}" (${email}) access: ${overrideReason}`,
+      changes: { user_id: linkedUserId, reason: overrideReason, via: "party_login" },
+    });
   }
 
   await auditProvisioning(

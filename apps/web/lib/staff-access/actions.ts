@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { discardSeatOverride, grantSeatOverride, isSeatLimitError, parseSeatOverride, seatLimitMessage } from "@/lib/plans/seat-limit";
 
 export interface StaffAccessState {
   error: string | null;
@@ -73,29 +74,63 @@ export async function addStaffGrantAction(
 
   // Matches the DB's access_grants_scope_shape check constraint exactly, so a mismatched shape
   // fails with this clear message rather than a raw constraint-violation error.
-  const { data: grant, error } = await supabase
-    .from("access_grants")
-    .insert({
-      user_id: staffUserId,
-      scope_type: scopeType as "global" | "organization" | "project",
-      organization_id: scopeType === "global" ? null : organizationId,
-      project_id: scopeType === "project" ? projectId : null,
-      role,
-    })
-    .select("id")
-    .single();
+  const override = parseSeatOverride(formData);
+  if (override.error) return { error: override.error };
+
+  const insertGrant = () =>
+    supabase
+      .from("access_grants")
+      .insert({
+        user_id: staffUserId,
+        scope_type: scopeType as "global" | "organization" | "project",
+        organization_id: scopeType === "global" ? null : organizationId,
+        project_id: scopeType === "project" ? projectId : null,
+        role,
+      })
+      .select("id")
+      .single();
+
+  let { data: grant, error } = await insertGrant();
+
+  // Seat limit reached (access_grants_org_seat_limit trigger): an Admin who ticked the override and
+  // gave a reason gets a single-use override and one retry; the override is audited below.
+  let overrideReason: string | null = null;
+  if ((error || !grant) && isSeatLimitError(error?.message) && override.requested && organizationId) {
+    const overrideId = await grantSeatOverride(supabase, {
+      organizationId,
+      userId: staffUserId,
+      reason: override.reason,
+      actorId: session.userId,
+    });
+    if (overrideId) {
+      ({ data: grant, error } = await insertGrant());
+      if (error || !grant) await discardSeatOverride(supabase, overrideId);
+      else overrideReason = override.reason;
+    }
+  }
 
   if (error || !grant) {
     if (error?.code === "23505") {
       return { error: "This staff member already has a grant at that same scope." };
     }
     // Surfaces the access_grants_org_seat_limit trigger's own message (see
-    // 20260917070000_org_plans_and_seat_limit.sql) rather than a generic failure, same pattern as
-    // the background_jobs org rate-limit trigger in lib/reports/actions.ts.
-    if (error?.message.includes("seat limit")) {
-      return { error: error.message };
+    // 20260917070000_org_plans_and_seat_limit.sql) rather than a generic failure.
+    if (error && isSeatLimitError(error.message)) {
+      return { error: seatLimitMessage(error.message, true) };
     }
     return { error: "Could not add the grant. Check you have permission and try again." };
+  }
+
+  if (overrideReason) {
+    await recordAuditEvent(supabase, {
+      organizationId,
+      entityType: "organization_plan",
+      entityId: organizationId,
+      action: "seat_limit_overridden",
+      actorId: session.userId,
+      summary: `Seat limit overridden to add staff access for ${staffUserId}: ${overrideReason}`,
+      changes: { user_id: staffUserId, reason: overrideReason, via: "staff_access" },
+    });
   }
 
   // Found missing in a self-review audit: a 'global' grant has no organizationId to attach the

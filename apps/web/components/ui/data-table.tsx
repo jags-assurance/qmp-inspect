@@ -2,6 +2,9 @@
 
 import { BarcodeScanButton } from "@/components/ui/barcode-scan-button";
 import { useMemo, useState, type ReactNode } from "react";
+import { translateText } from "@/lib/i18n/dictionary";
+import { useLocale } from "@/lib/i18n/locale-context";
+import type { SupportedLocale } from "@/lib/i18n/direction";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -57,7 +60,11 @@ export function DataTable<T>({
   caption,
   mobileCards = true,
   scannable = false,
+  locale: localeProp,
 }: {
+  /** Translates the column headings (English headings are the dictionary keys). Defaults to the
+   *  locale supplied by the inspect layout (English when none). */
+  locale?: SupportedLocale;
   columns: DataTableColumn<T>[];
   rows: T[];
   searchPlaceholder?: string;
@@ -79,6 +86,8 @@ export function DataTable<T>({
   /** Adds a camera barcode / QR scan button next to the search box (register lookups). */
   scannable?: boolean;
 }) {
+  const contextLocale = useLocale();
+  const locale = localeProp ?? contextLocale;
   const [localQuery, setLocalQuery] = useState("");
   const isServerDriven = !!serverSearch;
   const query = isServerDriven ? serverSearch.value : localQuery;
@@ -125,11 +134,11 @@ export function DataTable<T>({
                   >
                     {col.sortable && sort ? (
                       <button type="button" onClick={() => sort.onSort(col.key)} className="inline-flex min-h-8 items-center gap-1 font-medium hover:text-ink">
-                        {col.header}
+                        {translateText(locale, col.header)}
                         <span aria-hidden="true">{sorted ? (sort.direction === "asc" ? "▲" : "▼") : "↕"}</span>
                       </button>
                     ) : (
-                      col.header
+                      translateText(locale, col.header)
                     )}
                   </th>
                 );
@@ -162,7 +171,7 @@ export function DataTable<T>({
             <li key={i} className="space-y-1 px-4 py-3 text-sm">
               {columns.map((col) => (
                 <div key={col.key} className="flex justify-between gap-3">
-                  <span className="text-xs text-muted">{col.header}</span>
+                  <span className="text-xs text-muted">{translateText(locale, col.header)}</span>
                   <span className="text-right">{col.render(row)}</span>
                 </div>
               ))}
