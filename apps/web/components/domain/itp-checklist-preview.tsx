@@ -1,3 +1,5 @@
+"use client";
+
 import type { ItpChecklistPreviewItem } from "@/lib/checklists/preview";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";

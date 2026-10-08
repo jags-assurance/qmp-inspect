@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
