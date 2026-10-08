@@ -292,9 +292,9 @@ export default async function UsageAndCostPage({
       key: "project",
       header: "Project",
       cardLabel: null,
-      className: "pr-3",
+      className: "pe-3",
       render: (row) => (
-        <div className="text-left">
+        <div className="text-start">
           <span className="flex items-center gap-2">
             <span className="text-ink">
               <span className="doc-id">{row.project?.project_number ?? "—"}</span> — {row.project?.name ?? "Unknown project"}
@@ -305,18 +305,18 @@ export default async function UsageAndCostPage({
         </div>
       ),
     },
-    { key: "ai-calls", header: "AI calls", className: "pr-3 text-right tabular-nums text-ink", render: (row) => row.aiCalls },
+    { key: "ai-calls", header: "AI calls", className: "pe-3 text-end tabular-nums text-ink", render: (row) => row.aiCalls },
     {
       key: "ai-cost",
       header: "Est. AI cost",
-      className: "pr-3 text-right tabular-nums text-ink",
+      className: "pe-3 text-end tabular-nums text-ink",
       render: (row) => (row.aiCalls > 0 ? (row.aiCostKnown ? formatUsd(row.aiCostUsd) : "—") : "—"),
     },
-    { key: "jobs", header: "Render jobs", className: "pr-3 text-right tabular-nums text-ink", render: (row) => row.jobCount },
+    { key: "jobs", header: "Render jobs", className: "pe-3 text-end tabular-nums text-ink", render: (row) => row.jobCount },
     {
       key: "avg-render",
       header: "Avg render time",
-      className: "text-right tabular-nums text-muted",
+      className: "text-end tabular-nums text-muted",
       render: (row) => formatDuration(averageSeconds(row.jobDurations)),
     },
   ];
@@ -382,11 +382,11 @@ export default async function UsageAndCostPage({
             <div className="overflow-x-auto">
             <table className="mt-3 w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                  <th className="py-2 pr-2">Model</th>
-                  <th className="py-2 pr-2 text-right">Calls</th>
-                  <th className="py-2 pr-2 text-right">Tokens in / out</th>
-                  <th className="py-2 text-right">Est. cost</th>
+                <tr className="border-b border-border text-start text-xs uppercase text-muted">
+                  <th className="py-2 pe-2">Model</th>
+                  <th className="py-2 pe-2 text-end">Calls</th>
+                  <th className="py-2 pe-2 text-end">Tokens in / out</th>
+                  <th className="py-2 text-end">Est. cost</th>
                 </tr>
               </thead>
               <tbody>
@@ -394,12 +394,12 @@ export default async function UsageAndCostPage({
                   .sort((a, b) => b[1].costUsd - a[1].costUsd)
                   .map(([model, entry]) => (
                     <tr key={model} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-2 font-mono text-xs text-ink">{model}</td>
-                      <td className="py-2 pr-2 text-right tabular-nums text-ink">{entry.calls}</td>
-                      <td className="py-2 pr-2 text-right tabular-nums text-muted">
+                      <td className="py-2 pe-2 font-mono text-xs text-ink">{model}</td>
+                      <td className="py-2 pe-2 text-end tabular-nums text-ink">{entry.calls}</td>
+                      <td className="py-2 pe-2 text-end tabular-nums text-muted">
                         {formatTokens(entry.inputTokens)} / {formatTokens(entry.outputTokens)}
                       </td>
-                      <td className="py-2 text-right tabular-nums text-ink">
+                      <td className="py-2 text-end tabular-nums text-ink">
                         {entry.costKnown ? formatUsd(entry.costUsd) : "—"}
                       </td>
                     </tr>
@@ -419,10 +419,10 @@ export default async function UsageAndCostPage({
             <div className="overflow-x-auto">
             <table className="mt-3 w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                  <th className="py-2 pr-2">Category</th>
-                  <th className="py-2 pr-2 text-right">Calls</th>
-                  <th className="py-2 text-right">Est. cost</th>
+                <tr className="border-b border-border text-start text-xs uppercase text-muted">
+                  <th className="py-2 pe-2">Category</th>
+                  <th className="py-2 pe-2 text-end">Calls</th>
+                  <th className="py-2 text-end">Est. cost</th>
                 </tr>
               </thead>
               <tbody>
@@ -430,9 +430,9 @@ export default async function UsageAndCostPage({
                   const entry = costByCategory.get(category)!;
                   return (
                     <tr key={category} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-2 text-ink">{category}</td>
-                      <td className="py-2 pr-2 text-right tabular-nums text-ink">{entry.calls}</td>
-                      <td className="py-2 text-right tabular-nums text-ink">
+                      <td className="py-2 pe-2 text-ink">{category}</td>
+                      <td className="py-2 pe-2 text-end tabular-nums text-ink">{entry.calls}</td>
+                      <td className="py-2 text-end tabular-nums text-ink">
                         {entry.costKnown ? formatUsd(entry.costUsd) : "—"}
                       </td>
                     </tr>
@@ -466,7 +466,7 @@ export default async function UsageAndCostPage({
               rowKey={(row) => row.projectId}
               caption="AI and render cost by project"
               wrapperClassName="overflow-x-auto"
-              headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+              headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
               thClassName="py-2"
               tdClassName="py-2"
             />

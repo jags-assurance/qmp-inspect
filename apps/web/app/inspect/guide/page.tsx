@@ -214,10 +214,10 @@ function CoreWorkflowDiagram() {
       <Arrow x1={140} y1={100} x2={168} y2={100} markerId={m} />
       <Arrow x1={300} y1={100} x2={328} y2={100} markerId={m} />
       <Arrow x1={460} y1={90} x2={520} y2={40} markerId={m} />
-      <text x={470} y={30} fontSize="11">Pass</text>
+      <text x={470} y={30} fontSize="12">Pass</text>
       <Box x={520} y={10} w={130} h={50} label="IRN issued" />
       <Arrow x1={460} y1={110} x2={520} y2={160} markerId={m} />
-      <text x={465} y={150} fontSize="11">Fail</text>
+      <text x={465} y={150} fontSize="12">Fail</text>
       <Box x={520} y={140} w={130} h={50} label="NCR + Punch item" />
       <Arrow x1={650} y1={35} x2={730} y2={35} markerId={m} />
       <Arrow x1={650} y1={165} x2={730} y2={100} markerId={m} />
@@ -239,13 +239,13 @@ function NcrLifecycleDiagram() {
       <Arrow x1={140} y1={110} x2={198} y2={110} markerId={m} />
       <Box x={200} y={80} label={"Punch item\ncreated"} />
       <Arrow x1={140} y1={100} x2={198} y2={40} markerId={m} />
-      <text x={145} y={65} fontSize="11">also</text>
+      <text x={145} y={65} fontSize="12">also</text>
       <Arrow x1={330} y1={110} x2={388} y2={110} markerId={m} />
       <Box x={390} y={80} w={190} label={"Root cause + corrective\naction + verification notes"} />
       <Arrow x1={580} y1={110} x2={638} y2={110} markerId={m} />
       <Box x={640} y={80} label={"NCR\nclosed"} />
       <Arrow x1={705} y1={140} x2={265} y2={140} markerId={m} />
-      <text x={420} y={160} fontSize="11">closes the matching punch item too</text>
+      <text x={420} y={160} fontSize="12">closes the matching punch item too</text>
     </DiagramShell>
   );
 }

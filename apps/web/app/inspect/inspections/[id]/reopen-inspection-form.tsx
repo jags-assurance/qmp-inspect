@@ -28,7 +28,7 @@ export function ReopenInspectionForm({ inspectionRecordId }: { inspectionRecordI
         <Button type="submit" disabled={pending}>
           {pending ? "Re-opening…" : "Re-open inspection"}
         </Button>
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       </form>
     </details>
   );

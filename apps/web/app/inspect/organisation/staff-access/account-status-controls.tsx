@@ -40,7 +40,7 @@ export function AccountStatusButton({ userId, active, name }: { userId: string; 
       >
         {pending ? "Working…" : active ? "Deactivate account" : "Reactivate account"}
       </button>
-      <FormMessage error={state.error} success={state.message} className="max-w-xs text-right" />
+      <FormMessage error={state.error} success={state.message} className="max-w-xs text-end" />
     </form>
   );
 }

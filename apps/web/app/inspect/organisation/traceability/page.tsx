@@ -326,7 +326,7 @@ function IdentityRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex justify-between gap-4 border-b border-border py-1.5 text-sm last:border-0">
       <span className="text-muted">{label}</span>
-      <span className="text-right text-ink">{value ?? "—"}</span>
+      <span className="text-end text-ink">{value ?? "—"}</span>
     </div>
   );
 }
@@ -346,7 +346,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
     <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-border text-left text-xs uppercase text-muted">
+        <tr className="border-b border-border text-start text-xs uppercase text-muted">
           <th className="py-2">Timestamp</th>
           <th className="py-2">Actor</th>
           <th className="py-2">Action</th>
@@ -361,7 +361,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
               {event.actor ? (
                 <span>
                   {event.actor.full_name}
-                  <span className="ml-1 text-xs text-muted">({event.actor.email})</span>
+                  <span className="ms-1 text-xs text-muted">({event.actor.email})</span>
                 </span>
               ) : (
                 <span className="text-xs text-muted">System</span>
@@ -937,7 +937,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
             Export impacted inspections (CSV)
           </a>
           {impactedRecords.length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5">
+            <ul className="mt-2 list-disc space-y-0.5 ps-5">
               {impactedRecords.map((r) => (
                 <li key={r.id}>
                   <Link href={`/inspect/inspections/${r.id}`} className="text-burgundy hover:underline">
@@ -960,7 +960,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
         <div className="overflow-x-auto">
         <table className="mt-2 w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase text-muted">
+            <tr className="border-b border-border text-start text-xs uppercase text-muted">
               <th className="py-2">Record</th>
               <th className="py-2">ITP activity</th>
               <th className="py-2">Checklist item</th>

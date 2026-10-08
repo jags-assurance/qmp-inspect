@@ -122,7 +122,7 @@ export function ExtractRegisterPanel({
                 missing field stays blank — the AI never guesses a date, number, or range it can&apos;t
                 actually find; you confirm every row below before anything is added.
               </p>
-              {extractState.error && <p className="text-xs text-danger">{extractState.error}</p>}
+              {extractState.error && <p role="alert" className="text-xs text-danger">{extractState.error}</p>}
               <Button type="submit" size="sm" disabled={extractPending || !sourceText.trim()}>
                 {extractPending ? "Extracting…" : "Extract rows"}
               </Button>
@@ -170,7 +170,7 @@ export function ExtractRegisterPanel({
                 {rows.length === 0 && <p className="text-xs text-muted">Every extracted row has been removed.</p>}
               </div>
 
-              {addState.error && <p className="text-xs text-danger">{addState.error}</p>}
+              {addState.error && <p role="alert" className="text-xs text-danger">{addState.error}</p>}
               <div className="flex items-center gap-2">
                 <Button type="submit" size="sm" disabled={addPending || rows.length === 0}>
                   {addPending ? "Adding…" : `Add ${rows.length} row${rows.length === 1 ? "" : "s"}`}

@@ -51,7 +51,7 @@ export function CertificateUpload({ projectId, kind, label = "Certificate (optio
         type="file"
         accept={ACCEPT}
         onChange={(e) => void onFile(e.target.files?.[0])}
-        className="mt-1 block w-full text-xs text-ink file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs"
+        className="mt-1 block w-full text-xs text-ink file:me-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs"
       />
       <div role="status" aria-live="polite" aria-atomic="true">
         {uploading ? <p className="mt-0.5 text-xs text-muted">Uploading…</p> : null}

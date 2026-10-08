@@ -33,7 +33,7 @@ export function TranslateContentPanel({ itpId }: { itpId: string }) {
         </button>
       </form>
 
-      {state.error && <p className="mt-2 text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}
 
       {state.translated && (
         <div className="mt-3 rounded-md border border-border bg-surface p-3">

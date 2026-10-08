@@ -301,7 +301,7 @@ export function ResponseRow({
           <p className="text-sm font-medium text-ink">
             <span className="doc-id text-muted">{itemNumber}.</span> {description}
             {isMandatory && (
-              <span className="ml-1 text-danger" title="Mandatory item">
+              <span className="ms-1 text-danger" title="Mandatory item">
                 * <span className="sr-only">mandatory</span>
               </span>
             )}

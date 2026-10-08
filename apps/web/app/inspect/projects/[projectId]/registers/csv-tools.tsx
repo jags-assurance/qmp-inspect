@@ -42,7 +42,7 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
             }
           />
           {state.lineErrors.length > 0 && (
-            <ul className="list-disc pl-5 text-xs text-danger">
+            <ul className="list-disc ps-5 text-xs text-danger">
               {state.lineErrors.map((e) => (
                 <li key={e}>{e}</li>
               ))}

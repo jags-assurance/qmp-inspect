@@ -39,13 +39,13 @@ export function ItpItemMeasurementsSection({
         <div className="overflow-x-auto">
         <table className="mt-2 w-full text-xs">
           <thead>
-            <tr className="text-left text-muted">
-              <th className="pb-1 pr-2 font-medium">Description</th>
-              <th className="pb-1 pr-2 font-medium">Nominal</th>
-              <th className="pb-1 pr-2 font-medium">Tolerance</th>
-              <th className="pb-1 pr-2 font-medium">Actual</th>
-              <th className="pb-1 pr-2 font-medium">Unit</th>
-              <th className="pb-1 pr-2 font-medium">Result</th>
+            <tr className="text-start text-muted">
+              <th className="pb-1 pe-2 font-medium">Description</th>
+              <th className="pb-1 pe-2 font-medium">Nominal</th>
+              <th className="pb-1 pe-2 font-medium">Tolerance</th>
+              <th className="pb-1 pe-2 font-medium">Actual</th>
+              <th className="pb-1 pe-2 font-medium">Unit</th>
+              <th className="pb-1 pe-2 font-medium">Result</th>
               {canRecord && <th className="pb-1" />}
             </tr>
           </thead>
@@ -114,7 +114,7 @@ function MeasurementRow({
               <option value="pass">Pass</option>
               <option value="fail">Fail</option>
             </select>
-            {state.error && <p className="w-full text-danger">{state.error}</p>}
+            {state.error && <p role="alert" className="w-full text-danger">{state.error}</p>}
             <Button type="submit" size="sm" disabled={pending}>
               {pending ? "Saving…" : "Save"}
             </Button>
@@ -129,12 +129,12 @@ function MeasurementRow({
 
   return (
     <tr className="border-t border-border/60">
-      <td className="py-1 pr-2 text-ink">{measurement.description}</td>
-      <td className="py-1 pr-2 text-muted">{measurement.nominal_value ?? "—"}</td>
-      <td className="py-1 pr-2 text-muted">{measurement.tolerance ?? "—"}</td>
-      <td className="py-1 pr-2 text-muted">{measurement.actual_value ?? "—"}</td>
-      <td className="py-1 pr-2 text-muted">{measurement.unit ?? "—"}</td>
-      <td className="py-1 pr-2">
+      <td className="py-1 pe-2 text-ink">{measurement.description}</td>
+      <td className="py-1 pe-2 text-muted">{measurement.nominal_value ?? "—"}</td>
+      <td className="py-1 pe-2 text-muted">{measurement.tolerance ?? "—"}</td>
+      <td className="py-1 pe-2 text-muted">{measurement.actual_value ?? "—"}</td>
+      <td className="py-1 pe-2 text-muted">{measurement.unit ?? "—"}</td>
+      <td className="py-1 pe-2">
         {measurement.result ? (
           <span
             className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${
@@ -148,14 +148,14 @@ function MeasurementRow({
         )}
       </td>
       {canDelete && (
-        <td className="py-1 text-right whitespace-nowrap">
+        <td className="py-1 text-end whitespace-nowrap">
           <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
             Edit
           </button>
           <form action={deleteItpItemMeasurementAction} className="inline">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
-            <button type="submit" className="ml-2 text-xs text-danger hover:underline">
+            <button type="submit" className="ms-2 text-xs text-danger hover:underline">
               Remove
             </button>
           </form>
@@ -197,7 +197,7 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
         <option value="pass">Pass</option>
         <option value="fail">Fail</option>
       </select>
-      {state.error && <p className="text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Adding…" : "Add"}
@@ -258,7 +258,7 @@ export function ItpItemEvidenceDocumentsSection({
               <span className="text-ink">
                 {doc.title}
                 {doc.documentReference && <span className="text-muted"> ({doc.documentReference})</span>}
-                {badge && <span className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span>}
+                {badge && <span className={`ms-2 rounded px-1.5 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span>}
               </span>
               {canLink && (
                 <form action={unlinkItpItemEvidenceDocumentAction}>
@@ -325,7 +325,7 @@ function LinkDocumentForm({
     <form action={formAction} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload={!!projectId} />
-      {state.error && <p className="text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Linking…" : "Link selected files"}

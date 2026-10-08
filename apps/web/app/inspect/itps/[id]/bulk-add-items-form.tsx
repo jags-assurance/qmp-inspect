@@ -33,7 +33,7 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full border-t border-border bg-off-white px-4 py-2 text-left text-xs font-medium text-muted hover:text-burgundy"
+        className="w-full border-t border-border bg-off-white px-4 py-2 text-start text-xs font-medium text-muted hover:text-burgundy"
       >
         + Paste many activities from a spreadsheet
       </button>

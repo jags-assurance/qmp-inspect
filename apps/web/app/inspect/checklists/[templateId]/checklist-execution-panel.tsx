@@ -152,7 +152,7 @@ export function ChecklistExecutionPanel({
             <span className="font-medium text-ink">
               {answeredCount} of {totalCount} answered
               {mandatoryTotal > 0 && (
-                <span className={mandatoryRemaining > 0 ? "ml-2 text-danger" : "ml-2 text-success"}>
+                <span className={mandatoryRemaining > 0 ? "ms-2 text-danger" : "ms-2 text-success"}>
                   {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory remaining` : "all mandatory done"}
                 </span>
               )}

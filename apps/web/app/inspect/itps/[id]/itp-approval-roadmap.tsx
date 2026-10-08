@@ -87,7 +87,7 @@ export function ItpApprovalRoadmap({
             <div className="min-w-0">
               <p className={`text-sm ${stage.done || stage.current ? "font-medium text-ink" : "text-muted"}`}>
                 {stage.label}
-                {stage.current && <span className="ml-1.5 text-xs font-normal text-warning">— current stage</span>}
+                {stage.current && <span className="ms-1.5 text-xs font-normal text-warning">— current stage</span>}
               </p>
               {stage.detail && <p className="text-xs text-muted">{stage.detail}</p>}
               {/* Full per-reviewer detail (with the "Approve step" action) lives in ReviewChainStatus

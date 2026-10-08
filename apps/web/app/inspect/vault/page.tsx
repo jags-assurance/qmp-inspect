@@ -163,12 +163,12 @@ export default async function VaultPage({
               >
                 <p className="font-medium text-ink">
                   {folder.name}
-                  {folder.is_custom && <span className="ml-1.5 text-xs font-normal text-muted">(custom)</span>}
+                  {folder.is_custom && <span className="ms-1.5 text-xs font-normal text-muted">(custom)</span>}
                 </p>
                 <p className="mt-1 text-sm text-muted">
                   {folder.documentCount} document{folder.documentCount === 1 ? "" : "s"}
                   {(pendingByFolder.get(folder.id) ?? 0) > 0 && (
-                    <span className="ml-2 text-warning">{pendingByFolder.get(folder.id)} for review</span>
+                    <span className="ms-2 text-warning">{pendingByFolder.get(folder.id)} for review</span>
                   )}
                 </p>
               </Link>

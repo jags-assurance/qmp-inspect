@@ -36,7 +36,7 @@ export function ReopenForm({ assignmentId }: { assignmentId: string }) {
         placeholder="Why is this being reopened (e.g. re-test after repair)?"
         className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       <Button type="submit" disabled={pending}>
         {pending ? "Reopening…" : "Reopen with reason"}
       </Button>

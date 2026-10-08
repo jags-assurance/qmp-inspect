@@ -39,7 +39,7 @@ export function ItpExitControls({
           <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline disabled:opacity-50">
             {deleting ? "Deleting…" : "Delete draft"}
           </button>
-          {deleteState.error && <p className="mt-1 max-w-xs text-xs text-danger">{deleteState.error}</p>}
+          {deleteState.error && <p role="alert" className="mt-1 max-w-xs text-xs text-danger">{deleteState.error}</p>}
         </form>
       )}
       <details>
@@ -69,7 +69,7 @@ export function ItpExitControls({
             <textarea name="reason" required minLength={5} rows={2} className={INPUT} />
           </label>
           <p className="text-xs text-muted">A withdrawn or superseded ITP becomes read-only, is kept for the record and no longer counts toward Data Book readiness.</p>
-          {exitState.error && <p className="text-xs text-danger">{exitState.error}</p>}
+          {exitState.error && <p role="alert" className="text-xs text-danger">{exitState.error}</p>}
           <button type="submit" disabled={exiting} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink disabled:opacity-50">
             {exiting ? "Saving…" : "Confirm"}
           </button>

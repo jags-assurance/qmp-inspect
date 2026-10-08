@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { setInterventionAction } from "@/lib/itps/actions";
 import type { InterventionLevel } from "@jags/shared-types";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toneClassForLevelIndex } from "@/lib/intervention-levels/types";
 
 export interface InterventionLevelOption {
@@ -46,12 +47,16 @@ export function InterventionSelect({
   const reasonRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const { ask, dialog } = useConfirm();
 
-  function handleChange() {
+  async function handleChange() {
     if (isIssued) {
-      const reason = window
-        .prompt("This ITP has already been issued. Changing a sign-off level creates a new revision — enter the reason for this change:")
-        ?.trim();
+      const reason = await ask({
+        title: "Change sign-off level",
+        message: "This ITP has already been issued. Changing a sign-off level creates a new revision.",
+        confirmLabel: "Change level",
+        reason: { label: "Reason for this change", required: true },
+      });
       if (!reason) {
         if (selectRef.current) selectRef.current.value = value ?? "";
         return;
@@ -97,6 +102,7 @@ export function InterventionSelect({
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="project_party_id" value={projectPartyId} />
       <input type="hidden" name="revision_reason" ref={reasonRef} />
+      {dialog}
       {value && (
         <span
           title={labelOf(value)}

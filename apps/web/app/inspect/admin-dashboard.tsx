@@ -251,7 +251,7 @@ export function AdminDashboard({
           seeAllHref="/inspect/ncrs"
           emptyText="No open NCRs."
           renderItem={(item) => (
-            <Link href={`/inspect/ncrs/${item.id}`} className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-off-white">
+            <Link href={`/inspect/ncrs/${item.id}`} className="block w-full rounded-md px-1.5 py-1 text-start hover:bg-off-white">
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <Badge tone={item.severity === "major_ncr" ? "danger" : "gold"}>
                   {item.severity === "major_ncr" ? "Major" : "Minor"}

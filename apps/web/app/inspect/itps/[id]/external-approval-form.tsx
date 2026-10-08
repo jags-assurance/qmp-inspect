@@ -62,7 +62,7 @@ export function ExternalApprovalForm({
           {pending ? "Saving…" : reference ? "Update reference" : "Record reference"}
         </button>
       </form>
-      {state.error && <p className="mt-1 text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-1 text-xs text-danger">{state.error}</p>}
     </div>
   );
 }

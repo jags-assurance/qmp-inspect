@@ -169,7 +169,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
               <li key={cert.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2">
                 <span>
                   <span className="doc-id text-burgundy">{cert.certificate_number}</span>
-                  <span className="ml-2 text-muted">
+                  <span className="ms-2 text-muted">
                     {cert.data_books?.book_number} — {cert.data_books?.title}
                   </span>
                 </span>
@@ -206,7 +206,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
               rows={reportPacks}
               rowKey={(pack) => pack.id}
               caption="Monthly report packs"
-              headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+              headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
               thClassName="py-2"
               tdClassName="py-2"
             />
@@ -233,7 +233,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
                   <Link href={`/inspect/itps/${itp.id}`} className="doc-id text-burgundy hover:underline">
                     {itp.itp_number}
                   </Link>
-                  <span className="ml-2 text-ink">{itp.title}</span>
+                  <span className="ms-2 text-ink">{itp.title}</span>
                 </span>
                 <span className="flex items-center gap-3">
                   <Badge tone={ITP_STATUS_TONE[itp.status] ?? "neutral"}>

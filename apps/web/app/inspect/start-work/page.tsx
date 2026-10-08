@@ -268,7 +268,7 @@ export default async function StartWorkPage({
               <li key={a.templateId}>
                 <Link href={`/inspect/checklists/${a.templateId}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-off-white">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ml-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy">Assigned to you</span>}</span>
+                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ms-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy">Assigned to you</span>}</span>
                     <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">

@@ -94,7 +94,7 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
         {pending ? "Adding…" : "+ Add measurement"}
       </button>
       {queued && <p className="w-full text-sm text-muted">Saved on this device — it will be sent when you&apos;re back online.</p>}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

@@ -46,7 +46,7 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
           Cancel
         </button>
       </div>
-      {state.error && <p className="w-full max-w-md text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full max-w-md text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

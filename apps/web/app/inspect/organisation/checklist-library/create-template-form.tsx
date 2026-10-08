@@ -74,7 +74,7 @@ export function CreateTemplateForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Build new template"}
       </Button>
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

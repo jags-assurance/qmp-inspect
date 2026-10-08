@@ -103,7 +103,7 @@ export function DataTable<T>({
 
   return (
     <div className="rounded-lg border border-border bg-surface">
-      <div className="flex flex-wrap items-start gap-2 border-b border-border p-3">
+      <div className="no-print flex flex-wrap items-start gap-2 border-b border-border p-3">
         <input
           value={query}
           onChange={(e) => (isServerDriven ? serverSearch.onChange(e.target.value) : setLocalQuery(e.target.value))}
@@ -122,7 +122,7 @@ export function DataTable<T>({
         <table className="w-full text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_var(--color-border)]">
-            <tr className="text-left text-xs text-muted">
+            <tr className="text-start text-xs text-muted">
               {columns.map((col) => {
                 const sorted = !!sort && sort.key === col.key;
                 return (
@@ -172,7 +172,7 @@ export function DataTable<T>({
               {columns.map((col) => (
                 <div key={col.key} className="flex justify-between gap-3">
                   <span className="text-xs text-muted">{translateText(locale, col.header)}</span>
-                  <span className="text-right">{col.render(row)}</span>
+                  <span className="text-end">{col.render(row)}</span>
                 </div>
               ))}
             </li>

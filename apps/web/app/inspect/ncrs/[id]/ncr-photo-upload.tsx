@@ -90,10 +90,10 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
         multiple
         disabled={uploading}
         onChange={handleFileChange}
-        className="mt-1 block text-sm text-ink file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
+        className="mt-1 block text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
       />
       {uploading && <p className="mt-1 text-xs text-muted">Uploading…</p>}
-      {error && <p className="mt-1 text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="mt-1 text-sm text-danger">{error}</p>}
     </div>
   );
 }

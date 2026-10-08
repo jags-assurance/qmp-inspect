@@ -158,7 +158,7 @@ export function TemplateItemsEditor({
         {items.length === 0 && <li className="px-4 py-4 text-sm text-muted">No items yet.</li>}
       </ul>
       <div role="alert" className="px-4">
-        {error && <p className="py-2 text-sm text-danger">{error}</p>}
+        {error && <p role="alert" className="py-2 text-sm text-danger">{error}</p>}
       </div>
     </div>
   );

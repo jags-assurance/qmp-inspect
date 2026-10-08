@@ -33,7 +33,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
         <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
           <input type="hidden" name="next" value={next} />
           <div>
-            <FormField label={t("Email")} id="email">
+            <FormField label={t("Email")} id="email" error={state.fieldErrors?.email ? t(state.fieldErrors.email) : undefined}>
               <input
               name="email"
               type="email"
@@ -55,7 +55,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
               </Link>
             </div>
             <div className="mt-1">
-              <PasswordField id="password" name="password" label="" autoComplete="current-password" />
+              <PasswordField id="password" name="password" label="" autoComplete="current-password" error={state.fieldErrors?.password ? t(state.fieldErrors.password) : null} />
             </div>
           </div>
 

@@ -85,7 +85,7 @@ export function NewItpFromTemplateForm({
         </FormField>
       </div>
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create ITP from template"}

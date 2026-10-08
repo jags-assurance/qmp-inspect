@@ -39,7 +39,7 @@ export function ModuleLicenseToggle({
           {pending ? "Saving…" : isLicensed ? "Licensed" : "Not licensed"}
         </label>
       </form>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </div>
   );
 }

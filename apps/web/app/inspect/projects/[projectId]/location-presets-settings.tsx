@@ -63,7 +63,7 @@ export function LocationPresetsSettings({
           {addPending ? "Adding…" : "+ Add location"}
         </button>
       </form>
-      {addState.error && <p className="mt-2 text-sm text-danger">{addState.error}</p>}
+      {addState.error && <p role="alert" className="mt-2 text-sm text-danger">{addState.error}</p>}
     </div>
   );
 }
@@ -91,7 +91,7 @@ function PresetPill({
           ×
         </button>
       </form>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </li>
   );
 }

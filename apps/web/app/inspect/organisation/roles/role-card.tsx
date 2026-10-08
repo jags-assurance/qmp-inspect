@@ -85,7 +85,7 @@ export function RoleCard({
           </button>
         </form>
       </div>
-      {deleteState.error && <p className="mt-1 text-xs text-danger">{deleteState.error}</p>}
+      {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
 
       <div className="mt-3">
         <p className="text-xs font-medium text-muted">Permissions</p>
@@ -118,7 +118,7 @@ export function RoleCard({
             );
           })}
         </div>
-        {toggleState.error && <p className="mt-1 text-xs text-danger">{toggleState.error}</p>}
+        {toggleState.error && <p role="alert" className="mt-1 text-xs text-danger">{toggleState.error}</p>}
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
@@ -152,7 +152,7 @@ export function RoleCard({
             {assignPending ? "Assigning…" : "Assign"}
           </Button>
         </form>
-        {assignState.error && <p className="mt-1 text-xs text-danger">{assignState.error}</p>}
+        {assignState.error && <p role="alert" className="mt-1 text-xs text-danger">{assignState.error}</p>}
       </div>
     </div>
   );
@@ -182,7 +182,7 @@ function AssignmentRow({
           {pending ? "Removing…" : "Remove"}
         </button>
       </form>
-      {state.error && <span className="ml-2 text-danger">{state.error}</span>}
+      {state.error && <span className="ms-2 text-danger">{state.error}</span>}
     </div>
   );
 }

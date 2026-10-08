@@ -156,7 +156,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
       header: "Document",
       cardLabel: null,
       render: (row) => (
-        <div className="flex items-start gap-2 text-left">
+        <div className="flex items-start gap-2 text-start">
           <span
             aria-hidden="true"
             className="mt-0.5 inline-flex h-8 w-9 shrink-0 items-center justify-center rounded border border-border bg-off-white text-xs font-semibold text-muted"
@@ -238,7 +238,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
       cardLabel: null,
       render: (row) =>
         canActOn(row, canApprove) ? (
-          <span className="flex flex-wrap items-center gap-2 text-left">
+          <span className="flex flex-wrap items-center gap-2 text-start">
             <ApproveDocumentButton
               documentId={row.id}
               projectId={row.project_id}
@@ -316,7 +316,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
               Clear filters
             </button>
           )}
-          <span className="ml-auto" aria-live="polite">
+          <span className="ms-auto" aria-live="polite">
             {visible.length} of {rows.length} document{rows.length === 1 ? "" : "s"}
           </span>
         </div>

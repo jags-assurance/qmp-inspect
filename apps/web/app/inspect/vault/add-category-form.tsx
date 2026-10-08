@@ -27,7 +27,7 @@ export function AddCategoryForm({ projectId }: { projectId: string }) {
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Adding…" : "+ Add category"}
       </Button>
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

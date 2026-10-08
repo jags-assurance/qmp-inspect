@@ -224,7 +224,7 @@ export function AssignmentWorkspace({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted">
+                  <tr className="border-b border-border text-start text-xs text-muted">
                     <th className="px-3 py-2 font-medium">Description</th>
                     <th className="px-3 py-2 font-medium">Nominal</th>
                     <th className="px-3 py-2 font-medium">Tolerance</th>
@@ -250,7 +250,7 @@ export function AssignmentWorkspace({
                         )}
                       </td>
                       {canEdit && (
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-end">
                           <form
                             action={deleteMeasurementAction}
                             onSubmit={gateSubmit({ title: "Delete this measurement?", confirmLabel: "Delete", destructive: true })}
@@ -314,7 +314,7 @@ export function AssignmentWorkspace({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted">
+                  <tr className="border-b border-border text-start text-xs text-muted">
                     <th className="px-3 py-2 font-medium">Description</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     {canEditPunch && <th className="px-3 py-2 font-medium">&nbsp;</th>}
@@ -328,7 +328,7 @@ export function AssignmentWorkspace({
                         <Badge showIcon tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>
                       </td>
                       {canEditPunch && (
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-end">
                           <PunchToggleButton
                             assignmentId={assignment.id}
                             punchItemId={item.id}

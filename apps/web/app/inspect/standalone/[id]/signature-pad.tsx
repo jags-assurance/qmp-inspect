@@ -140,7 +140,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
       </div>
 
       {queued && <p className="text-sm text-muted">Saved on this device — it will be sent when you&apos;re back online.</p>}
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <button
         type="submit"

@@ -96,8 +96,8 @@ function NoticePeriodRow({
         </form>
       )}
       {currentHours == null && <span className="text-xs text-muted">Using organisation default</span>}
-      {setState.error && <p className="w-full text-xs text-danger">{setState.error}</p>}
-      {clearState.error && <p className="w-full text-xs text-danger">{clearState.error}</p>}
+      {setState.error && <p role="alert" className="w-full text-xs text-danger">{setState.error}</p>}
+      {clearState.error && <p role="alert" className="w-full text-xs text-danger">{clearState.error}</p>}
     </div>
   );
 }

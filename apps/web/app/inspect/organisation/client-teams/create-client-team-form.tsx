@@ -26,7 +26,7 @@ export function CreateClientTeamForm({ organizationId }: { organizationId: strin
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "+ Create team"}
       </Button>
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

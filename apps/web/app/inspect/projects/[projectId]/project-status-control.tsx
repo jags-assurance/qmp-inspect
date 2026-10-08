@@ -123,7 +123,7 @@ export function ProjectStatusControl({
               {blockers.length > 0 ? (
                 <>
                   <p className="text-danger">This project still has outstanding work:</p>
-                  <ul className="mt-1 list-disc pl-5">
+                  <ul className="mt-1 list-disc ps-5">
                     {summary && summary.openNcrs > 0 && <li>{summary.openNcrs} open NCR{summary.openNcrs === 1 ? "" : "s"}</li>}
                     {summary && summary.openPunch > 0 && <li>{summary.openPunch} open punch item{summary.openPunch === 1 ? "" : "s"}</li>}
                     {summary && summary.overdueHolds > 0 && <li>{summary.overdueHolds} overdue hold point{summary.overdueHolds === 1 ? "" : "s"}</li>}

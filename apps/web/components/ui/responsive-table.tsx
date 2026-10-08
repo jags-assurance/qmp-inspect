@@ -34,7 +34,7 @@ export function ResponsiveTable<T>({
   tableClassName = "w-full text-sm",
   wrapperClassName = "overflow-x-auto",
   theadClassName,
-  headRowClassName = "border-b border-border text-left text-xs text-muted",
+  headRowClassName = "border-b border-border text-start text-xs text-muted",
   thClassName = "px-3 py-2 font-medium",
   tdClassName = "px-3 py-2",
   rowClassName = "border-b border-border last:border-0",
@@ -112,7 +112,7 @@ export function ResponsiveTable<T>({
               ) : (
                 <div key={col.key} className="flex justify-between gap-3">
                   <span className="text-xs text-muted">{label}</span>
-                  <span className="min-w-0 text-right [overflow-wrap:anywhere]">{col.render(row)}</span>
+                  <span className="min-w-0 text-end [overflow-wrap:anywhere]">{col.render(row)}</span>
                 </div>
               ),
             )}

@@ -145,7 +145,7 @@ export function StaffGrantForm({
         {pending ? "Adding…" : "+ Add grant"}
       </button>
 
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

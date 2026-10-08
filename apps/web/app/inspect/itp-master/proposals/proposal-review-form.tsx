@@ -33,7 +33,7 @@ export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <div className="flex gap-2">
         <Button type="submit" name="decision" value="approve" size="sm" disabled={pending}>

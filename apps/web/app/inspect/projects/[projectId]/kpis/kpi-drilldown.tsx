@@ -49,7 +49,7 @@ export function KpiDrilldown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full rounded-lg text-left ring-offset-2 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-burgundy"
+        className="w-full rounded-lg text-start ring-offset-2 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-burgundy"
       >
         {trigger}
       </button>

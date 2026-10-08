@@ -55,7 +55,7 @@ export function ItpReviewPanel({ itpId, onClose }: { itpId: string | null; onClo
                   {section.items.map((item) => (
                     <li key={item.id} className="px-3 py-2 text-sm">
                       <p className="text-ink">
-                        <span className="doc-id mr-1.5 text-muted">{item.number}</span>
+                        <span className="doc-id me-1.5 text-muted">{item.number}</span>
                         {item.activity}
                       </p>
                       {item.acceptanceCriteria && (

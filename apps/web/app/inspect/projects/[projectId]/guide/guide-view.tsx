@@ -270,19 +270,19 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
           <dl className="mt-2 space-y-2 text-sm">
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Client organisation</dt>
-              <dd className="text-right text-ink">{project.organizations?.name ?? "—"}</dd>
+              <dd className="text-end text-ink">{project.organizations?.name ?? "—"}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Status</dt>
-              <dd className="text-right text-ink">{project.status}</dd>
+              <dd className="text-end text-ink">{project.status}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Site location</dt>
-              <dd className="text-right text-ink">{project.site_location ?? "—"}</dd>
+              <dd className="text-end text-ink">{project.site_location ?? "—"}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Contract number</dt>
-              <dd className="text-right text-ink">{project.contract_number ?? "—"}</dd>
+              <dd className="text-end text-ink">{project.contract_number ?? "—"}</dd>
             </div>
           </dl>
         </div>

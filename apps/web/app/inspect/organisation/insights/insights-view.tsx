@@ -332,7 +332,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
     {
       key: "project",
       header: "Project",
-      className: "pr-3",
+      className: "pe-3",
       cardLabel: null,
       render: (r) => (
         <Link href={`/inspect/projects/${r.projectId}`} className="text-burgundy hover:underline">
@@ -343,19 +343,19 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
     {
       key: "itp",
       header: "ITP completion",
-      className: "pr-3 tabular-nums text-ink",
+      className: "pe-3 tabular-nums text-ink",
       render: (r) =>
         r.pct !== null ? (
           <>
             {r.pct.toFixed(1)}%
-            {r.total < SMALL_SAMPLE_THRESHOLD && <span className="ml-1 font-normal text-muted">(n={r.total})</span>}
+            {r.total < SMALL_SAMPLE_THRESHOLD && <span className="ms-1 font-normal text-muted">(n={r.total})</span>}
           </>
         ) : (
           "—"
         ),
     },
-    { key: "ncr", header: "Open NCRs", className: "pr-3 tabular-nums text-ink", render: (r) => r.openNcrCount },
-    { key: "punch", header: "Overdue punch", className: "pr-3 tabular-nums text-ink", render: (r) => r.overdueCount },
+    { key: "ncr", header: "Open NCRs", className: "pe-3 tabular-nums text-ink", render: (r) => r.openNcrCount },
+    { key: "punch", header: "Overdue punch", className: "pe-3 tabular-nums text-ink", render: (r) => r.overdueCount },
     { key: "health", header: "Health", render: (r) => <Badge tone={r.health}>{HEALTH_LABEL[r.health]}</Badge> },
   ];
 
@@ -493,7 +493,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
               rows={itpByProjectSorted.slice(0, 12)}
               rowKey={(r) => r.projectId}
               caption="Project health"
-              headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+              headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
               thClassName="py-2"
               tdClassName="py-2"
             />

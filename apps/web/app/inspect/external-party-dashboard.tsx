@@ -323,7 +323,7 @@ export function ExternalPartyDashboard({
                   </div>
                   <div className="mt-0.5 truncate text-xs text-muted">
                     {ncr.projectName} — {ncr.description}
-                    {ncr.dueDate && <span className="ml-2">Due {ncr.dueDate}</span>}
+                    {ncr.dueDate && <span className="ms-2">Due {ncr.dueDate}</span>}
                   </div>
                 </div>
                 <Link
@@ -353,7 +353,7 @@ export function ExternalPartyDashboard({
                   <div className="truncate text-ink">{p.description}</div>
                   <div className="mt-0.5 truncate text-xs text-muted">
                     {p.projectName}
-                    {p.dueDate && <span className="ml-2">Due {p.dueDate}</span>}
+                    {p.dueDate && <span className="ms-2">Due {p.dueDate}</span>}
                   </div>
                 </div>
                 <Link
@@ -582,7 +582,7 @@ function SignoffQueuePanel({
                   </div>
                   <div className="mt-0.5 truncate text-xs text-muted">
                     {row.itpNumber} — {row.itpTitle}
-                    {row.when && <span className="ml-2">{row.when}</span>}
+                    {row.when && <span className="ms-2">{row.when}</span>}
                   </div>
                 </div>
               </div>

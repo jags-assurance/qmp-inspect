@@ -122,19 +122,19 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
       <p className="mt-0.5 text-xs text-muted">Live status of every section of the book. Click a row to jump to it or open its source.</p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-muted">
+          <thead className="text-start text-xs uppercase tracking-wide text-muted">
             <tr>
-              <th scope="col" className="w-12 py-1.5 pr-2 font-medium">No.</th>
-              <th scope="col" className="py-1.5 pr-2 font-medium">Section</th>
-              <th scope="col" className="py-1.5 pr-2 font-medium">Status</th>
-              <th scope="col" className="w-14 py-1.5 pr-2 text-right font-medium">%</th>
-              <th scope="col" className="w-16 py-1.5 text-right font-medium">Open</th>
+              <th scope="col" className="w-12 py-1.5 pe-2 font-medium">No.</th>
+              <th scope="col" className="py-1.5 pe-2 font-medium">Section</th>
+              <th scope="col" className="py-1.5 pe-2 font-medium">Status</th>
+              <th scope="col" className="w-14 py-1.5 pe-2 text-end font-medium">%</th>
+              <th scope="col" className="w-16 py-1.5 text-end font-medium">Open</th>
             </tr>
           </thead>
           {parts.map((part) => (
             <tbody key={part.id} id={part.id} className="scroll-mt-24 border-t border-border">
               <tr>
-                <th colSpan={5} scope="colgroup" className="bg-off-white px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                <th colSpan={5} scope="colgroup" className="bg-off-white px-2 py-1.5 text-start text-xs font-semibold uppercase tracking-wide text-muted">
                   {part.title}
                 </th>
               </tr>
@@ -142,13 +142,13 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
                 const chip = chipOf(row);
                 return (
                   <tr key={row.no} className="border-t border-border">
-                    <td className="py-2 pr-2 font-mono text-xs text-muted">{row.no}</td>
-                    <td className="py-2 pr-2 text-ink">{row.title}</td>
-                    <td className="py-2 pr-2">
+                    <td className="py-2 pe-2 font-mono text-xs text-muted">{row.no}</td>
+                    <td className="py-2 pe-2 text-ink">{row.title}</td>
+                    <td className="py-2 pe-2">
                       <Badge tone={CHIP_TONE[chip]}>{chipLabel(row, chip)}</Badge>
                     </td>
-                    <td className="py-2 pr-2 text-right tabular-nums text-muted">{pct(row)}</td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 pe-2 text-end tabular-nums text-muted">{pct(row)}</td>
+                    <td className="py-2 text-end">
                       {row.href.startsWith("#") ? (
                         <a href={row.href} className="text-burgundy hover:underline" aria-label={`Jump to ${row.title}`}>
                           Jump ↓

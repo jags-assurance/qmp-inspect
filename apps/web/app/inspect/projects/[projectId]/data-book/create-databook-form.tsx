@@ -57,7 +57,7 @@ export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId
         {pending ? "Creating…" : "+ New Data Book"}
       </Button>
 
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

@@ -70,7 +70,7 @@ export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: str
           Capture at least one signature under Witness Signatures before this can be finalized.
         </p>
       )}
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       <Button type="submit" disabled={pending || !hasSignature} title={!hasSignature ? "Add a signature first" : undefined}>
         {pending ? "Finalizing…" : "Finalize assignment"}
       </Button>

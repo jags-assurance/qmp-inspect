@@ -44,7 +44,7 @@ export function InspectionComments({
                 {isStaff && <ResolveToggle commentId={t.root.id} resolved={!!t.root.resolved_at} />}
               </div>
               {t.replies.length > 0 && (
-                <ul className="mt-3 space-y-3 border-l-2 border-border ps-3">
+                <ul className="mt-3 space-y-3 border-s-2 border-border ps-3">
                   {t.replies.map((r) => (
                     <li key={r.id}>
                       <CommentBody comment={r} userId={userId} />

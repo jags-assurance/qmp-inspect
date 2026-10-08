@@ -50,7 +50,7 @@ export function AddSectionForm({ itpId, isIssued }: { itpId: string; isIssued: b
           This ITP has already been issued — adding a section will record a new revision and freeze the current content into history.
         </p>
       )}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

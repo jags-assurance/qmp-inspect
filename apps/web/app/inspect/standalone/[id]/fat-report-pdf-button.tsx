@@ -62,7 +62,7 @@ export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: str
           </button>
         </form>
       </div>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
       {timedOut && (
         <p className="text-xs text-danger">

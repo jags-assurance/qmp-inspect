@@ -216,15 +216,15 @@ export function HwrsSection({
               )}
             </div>
             <div className="mt-1.5 overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[480px] text-left text-xs">
+              <table className="w-full min-w-[480px] text-start text-xs">
                 <thead className="bg-off-white text-muted">
                   <tr>
                     <th className="px-2 py-1.5 font-medium">Level</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Points</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Signed off</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Notified</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Pending</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Overdue</th>
+                    <th className="px-2 py-1.5 text-end font-medium">Points</th>
+                    <th className="px-2 py-1.5 text-end font-medium">Signed off</th>
+                    <th className="px-2 py-1.5 text-end font-medium">Notified</th>
+                    <th className="px-2 py-1.5 text-end font-medium">Pending</th>
+                    <th className="px-2 py-1.5 text-end font-medium">Overdue</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,13 +233,13 @@ export function HwrsSection({
                       <td className="px-2 py-1.5">
                         <span className="font-semibold text-ink">{s.code}</span>{" "}
                         <span className="text-muted">{s.level?.label ?? "(removed level)"}</span>
-                        {s.level?.isBlocking && <span className="ml-1 text-burgundy">●</span>}
+                        {s.level?.isBlocking && <span className="ms-1 text-burgundy">●</span>}
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{s.total}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-success">{s.signed}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-warning">{s.notified}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted">{s.pending}</td>
-                      <td className={`px-2 py-1.5 text-right tabular-nums ${s.overdue > 0 ? "font-semibold text-danger" : "text-muted"}`}>
+                      <td className="px-2 py-1.5 text-end tabular-nums">{s.total}</td>
+                      <td className="px-2 py-1.5 text-end tabular-nums text-success">{s.signed}</td>
+                      <td className="px-2 py-1.5 text-end tabular-nums text-warning">{s.notified}</td>
+                      <td className="px-2 py-1.5 text-end tabular-nums text-muted">{s.pending}</td>
+                      <td className={`px-2 py-1.5 text-end tabular-nums ${s.overdue > 0 ? "font-semibold text-danger" : "text-muted"}`}>
                         {s.overdue}
                       </td>
                     </tr>
@@ -256,7 +256,7 @@ export function HwrsSection({
               <p className="mt-1 text-sm text-muted">No blocking points are outstanding.</p>
             ) : (
               <div className="mt-1.5 overflow-x-auto rounded-md border border-border">
-                <table className="w-full min-w-[560px] text-left text-xs">
+                <table className="w-full min-w-[560px] text-start text-xs">
                   <thead className="bg-off-white text-muted">
                     <tr>
                       <th className="px-2 py-1.5 font-medium">Activity</th>
@@ -299,13 +299,13 @@ export function HwrsSection({
                     <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2 text-sm">
                       <span className="min-w-0 break-words font-medium text-ink">{party?.name ?? "Unknown party"}</span>
                       {party && <span className="text-xs text-muted">{titleCase(party.partyType)}{party.isActive ? "" : " · inactive"}</span>}
-                      <span className="ml-auto flex items-center gap-1.5 text-xs text-muted">
+                      <span className="ms-auto flex items-center gap-1.5 text-xs text-muted">
                         {ps.length} points · {open} open
                         {od > 0 && <Badge tone="danger">{od} overdue</Badge>}
                       </span>
                     </summary>
                     <div className="overflow-x-auto border-t border-border">
-                      <table className="w-full min-w-[480px] text-left text-xs">
+                      <table className="w-full min-w-[480px] text-start text-xs">
                         <tbody>
                           {[...ps]
                             .sort((a, b) => a.itemNumber.localeCompare(b.itemNumber, undefined, { numeric: true }))
@@ -333,7 +333,7 @@ export function HwrsSection({
           <div className="mt-4">
             <p className="text-xs font-medium text-muted">By activity ({activities.length})</p>
             <div className="mt-1.5 max-h-[32rem] overflow-auto rounded-md border border-border">
-              <table className="w-full min-w-[640px] text-left text-xs">
+              <table className="w-full min-w-[640px] text-start text-xs">
                 <thead className="sticky top-0 bg-off-white text-muted">
                   <tr>
                     <th className="px-2 py-1.5 font-medium">Activity</th>
@@ -347,7 +347,7 @@ export function HwrsSection({
                     a.points.map((p, i) => (
                       <tr key={p.id} className={`border-t ${i === 0 ? "border-border" : "border-border/50"}`}>
                         {i === 0 && (
-                          <td rowSpan={a.points.length} className="max-w-[16rem] border-r border-border/50 px-2 py-1.5 align-top">
+                          <td rowSpan={a.points.length} className="max-w-[16rem] border-e border-border/50 px-2 py-1.5 align-top">
                             <span className="doc-id text-muted">{a.itemNumber}</span> <span className="break-words text-ink">{a.activity}</span>
                           </td>
                         )}

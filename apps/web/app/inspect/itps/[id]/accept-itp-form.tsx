@@ -27,7 +27,7 @@ export function AcceptItpForm({ itpId, requiresChecklistReview = false }: { itpI
       >
         {pending ? "Accepting…" : "Accept ITP"}
       </button>
-      {state.error && <p className="mt-1 max-w-xs text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-1 max-w-xs text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

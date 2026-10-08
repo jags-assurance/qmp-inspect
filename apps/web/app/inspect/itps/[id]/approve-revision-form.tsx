@@ -18,7 +18,7 @@ export function ApproveRevisionForm({ itpId, revision }: { itpId: string; revisi
       >
         {pending ? "Approving…" : `Approve revision ${revision}`}
       </button>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

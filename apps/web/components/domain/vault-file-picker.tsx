@@ -254,13 +254,13 @@ export function VaultFilePicker({
           const panelId = `vault-folder-${folderName.replace(/[^a-zA-Z0-9]/g, "_")}`;
           return (
             <section key={folderName} aria-label={folderName} className="border-b border-border last:border-0">
-              <div className="flex items-center justify-between gap-2 bg-off-white pr-2">
+              <div className="flex items-center justify-between gap-2 bg-off-white pe-2">
                 <button
                   type="button"
                   aria-expanded={expanded}
                   aria-controls={panelId}
                   onClick={() => setOverride((p) => ({ ...p, [folderName]: !expanded }))}
-                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-3 text-left"
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-3 text-start"
                 >
                   <span aria-hidden="true" className={`text-xs text-muted transition-transform ${expanded ? "rotate-90" : ""}`}>
                     ▶
@@ -351,7 +351,7 @@ export function VaultFilePicker({
             {selectedDocs.map((d) => (
               <li
                 key={d.id}
-                className="flex max-w-full items-center gap-1 rounded-full border border-border bg-off-white py-0.5 pl-2.5 pr-0.5 text-xs text-ink"
+                className="flex max-w-full items-center gap-1 rounded-full border border-border bg-off-white py-0.5 ps-2.5 pe-0.5 text-xs text-ink"
               >
                 <span className="truncate">{d.title}</span>
                 <button
@@ -464,7 +464,7 @@ function InlineUpload({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
-        className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm font-medium text-burgundy"
+        className="flex min-h-11 w-full items-center gap-2 px-3 text-start text-sm font-medium text-burgundy"
       >
         <span aria-hidden="true">{open ? "−" : "+"}</span> Upload new file(s)
       </button>
@@ -499,7 +499,7 @@ function InlineUpload({
               multiple
               accept={ACCEPT}
               disabled={busy}
-              className="mt-1 block w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:text-sm"
+              className="mt-1 block w-full text-sm file:me-3 file:min-h-11 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:text-sm"
             />
           </div>
           <p className="text-xs text-muted">{pendingNote}</p>

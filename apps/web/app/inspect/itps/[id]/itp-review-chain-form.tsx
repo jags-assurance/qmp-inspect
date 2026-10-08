@@ -62,7 +62,7 @@ export function ItpReviewChainForm({
       >
         {pending ? "Saving…" : "Save this ITP's review chain"}
       </button>
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

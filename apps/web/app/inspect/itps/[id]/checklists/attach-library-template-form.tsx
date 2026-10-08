@@ -46,7 +46,7 @@ export function AttachLibraryTemplateForm({
       >
         {pending ? "Attaching…" : "Attach"}
       </button>
-      {state.error && <p className="w-full text-right text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-end text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

@@ -13,7 +13,7 @@ export interface TodayItem {
   kind: TodayKind;
   title: string;
   meta?: string;
-  /** Short right-hand label, e.g. "3d overdue" or "Due 12/10/2026". */
+  /** Short end-hand label, e.g. "3d overdue" or "Due 12/10/2026". */
   badge?: string;
   /** 2 = overdue / blocking, 1 = due today / needs a response, 0 = routine. Drives grouping. */
   urgency: 0 | 1 | 2;
@@ -83,7 +83,7 @@ export function TodayQueue({
         <div>
           <h2 id="today-queue-title" className="font-medium text-ink">
             {title}
-            {items.length > 0 && <span className="ml-2 text-sm font-normal text-muted">{items.length} to do</span>}
+            {items.length > 0 && <span className="ms-2 text-sm font-normal text-muted">{items.length} to do</span>}
           </h2>
           {description && <p className="mt-1 text-sm text-muted">{description}</p>}
         </div>
@@ -149,7 +149,7 @@ export function TodayQueue({
                         <span className="shrink-0 text-sm font-medium text-burgundy">{item.actionLabel ?? "Open"} →</span>
                       </>
                     );
-                    const cls = "flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-off-white";
+                    const cls = "flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-start hover:bg-off-white";
                     return (
                       <li key={`${item.kind}-${item.id}`}>
                         {item.panel ? (

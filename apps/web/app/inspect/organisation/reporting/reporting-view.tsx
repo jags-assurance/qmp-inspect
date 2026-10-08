@@ -132,7 +132,7 @@ export async function ReportingView({ searchParams, embedded }: {
             {VIEWS.map((v) => (
               <li key={v.name} className="rounded-md border border-border bg-off-white p-2.5 text-sm">
                 <span className="doc-id text-ink [overflow-wrap:anywhere]">{v.name}</span>
-                <span className="ml-2 text-muted">— {v.covers}</span>
+                <span className="ms-2 text-muted">— {v.covers}</span>
               </li>
             ))}
           </ul>
@@ -140,7 +140,7 @@ export async function ReportingView({ searchParams, embedded }: {
 
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
           <h3 className="font-medium text-ink">Connecting Power BI Desktop</h3>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink">
+          <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-ink">
             <li>Power BI Desktop → <strong>Get Data</strong> → <strong>Database</strong> → <strong>PostgreSQL database</strong>.</li>
             <li>
               Server and database come from Supabase Dashboard → <strong>Project Settings</strong> →{" "}
@@ -167,7 +167,7 @@ export async function ReportingView({ searchParams, embedded }: {
             Desktop above does not by itself put anything on the web. To share a report with colleagues
             who don&apos;t have Desktop:
           </p>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink">
+          <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-ink">
             <li>Build the report in Desktop (above), then <strong>Publish</strong> it to your workspace in the Power BI Service.</li>
             <li>
               Supabase&apos;s Postgres isn&apos;t one of Power BI&apos;s pre-approved cloud data sources, so the Service

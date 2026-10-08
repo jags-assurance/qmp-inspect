@@ -24,7 +24,7 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
       <input type="hidden" name="project_id" value={projectId} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <FormField label="Party type">
+          <FormField label="Party type" error={state.fieldErrors?.party_type}>
             <select
             name="party_type"
             required
@@ -39,7 +39,7 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
           </FormField>
         </div>
         <div>
-          <FormField label="Organisation / company name">
+          <FormField label="Organisation / company name" error={state.fieldErrors?.name}>
             <input
             name="name"
             required
@@ -82,7 +82,7 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add party"}

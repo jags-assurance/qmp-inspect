@@ -108,13 +108,13 @@ export function LogoUploadForm({
             name="logo_file"
             type="file"
             accept="image/png,image/jpeg,image/svg+xml,image/webp"
-            className="mt-1 block w-full max-w-xs text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-burgundy file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-burgundy/90"
+            className="mt-1 block w-full max-w-xs text-sm text-ink file:me-3 file:rounded-md file:border-0 file:bg-burgundy file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-burgundy/90"
           />
           </FormField>
         </div>
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
 
       <Button type="submit" disabled={uploading}>
         {uploading ? "Uploading…" : "Upload logo"}

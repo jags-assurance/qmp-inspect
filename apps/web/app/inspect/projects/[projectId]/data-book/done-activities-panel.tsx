@@ -77,7 +77,7 @@ function Th({ children }: { children: React.ReactNode }) {
 function Table({ head, children }: { head: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mt-3 overflow-x-auto rounded-md border border-border">
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-start text-sm">
         <thead className="border-b border-border bg-background text-xs uppercase text-muted">
           <tr>{head}</tr>
         </thead>

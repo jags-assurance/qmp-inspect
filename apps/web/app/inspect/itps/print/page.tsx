@@ -89,28 +89,28 @@ export default async function ItpRegisterPrintPage({
         <p className="mt-1 text-xs text-muted">Generated {new Date().toLocaleString("en-GB")} · {itps?.length ?? 0} ITPs</p>
         <div className="overflow-x-auto"><table className="mt-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase text-muted">
-              <th className="py-2 pr-3">ITP Number</th>
-              <th className="py-2 pr-3">Title</th>
-              <th className="py-2 pr-3">Client</th>
-              <th className="py-2 pr-3">Project</th>
-              <th className="py-2 pr-3">Status</th>
-              <th className="py-2 pr-3">Phase</th>
-              <th className="py-2 pr-3">Rev</th>
-              <th className="py-2 pr-3">Applicable Standard</th>
+            <tr className="border-b border-border text-start text-xs uppercase text-muted">
+              <th className="py-2 pe-3">ITP Number</th>
+              <th className="py-2 pe-3">Title</th>
+              <th className="py-2 pe-3">Client</th>
+              <th className="py-2 pe-3">Project</th>
+              <th className="py-2 pe-3">Status</th>
+              <th className="py-2 pe-3">Phase</th>
+              <th className="py-2 pe-3">Rev</th>
+              <th className="py-2 pe-3">Applicable Standard</th>
             </tr>
           </thead>
           <tbody>
             {(itps ?? []).map((itp) => (
               <tr key={itp.itp_number} className="border-b border-border/50">
-                <td className="doc-id py-2 pr-3">{itp.itp_number}</td>
-                <td className="py-2 pr-3">{itp.title}</td>
-                <td className="py-2 pr-3">{itp.projects?.organizations?.name ?? ""}</td>
-                <td className="py-2 pr-3">{itp.projects?.name ?? ""}</td>
-                <td className="py-2 pr-3">{STATUS_LABEL[itp.status] ?? itp.status}</td>
-                <td className="py-2 pr-3">{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</td>
-                <td className="py-2 pr-3">{itp.revision}</td>
-                <td className="py-2 pr-3">{itp.applicable_standard ?? ""}</td>
+                <td className="doc-id py-2 pe-3">{itp.itp_number}</td>
+                <td className="py-2 pe-3">{itp.title}</td>
+                <td className="py-2 pe-3">{itp.projects?.organizations?.name ?? ""}</td>
+                <td className="py-2 pe-3">{itp.projects?.name ?? ""}</td>
+                <td className="py-2 pe-3">{STATUS_LABEL[itp.status] ?? itp.status}</td>
+                <td className="py-2 pe-3">{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</td>
+                <td className="py-2 pe-3">{itp.revision}</td>
+                <td className="py-2 pe-3">{itp.applicable_standard ?? ""}</td>
               </tr>
             ))}
             {(itps ?? []).length === 0 && (

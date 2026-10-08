@@ -45,7 +45,7 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
   }
 
   const scores = buildVendorScorecard(rows, siteToday());
-  const num = "px-3 py-2 text-right tabular-nums";
+  const num = "px-3 py-2 text-end tabular-nums";
 
   const scoreColumns: ResponsiveColumn<(typeof scores)[number]>[] = [
     {
@@ -54,23 +54,23 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
       tdClassName: "text-ink",
       render: (s) => (s.partyId ? partyNames.get(s.partyId) ?? "Unknown party" : "No responsible party set"),
     },
-    { key: "total", header: "Total", className: "text-right tabular-nums", render: (s) => s.total },
-    { key: "open", header: "Open", className: "text-right tabular-nums", render: (s) => s.open },
+    { key: "total", header: "Total", className: "text-end tabular-nums", render: (s) => s.total },
+    { key: "open", header: "Open", className: "text-end tabular-nums", render: (s) => s.open },
     {
       key: "overdue",
       header: "Overdue",
-      className: "text-right tabular-nums",
+      className: "text-end tabular-nums",
       tdClassName: undefined,
       render: (s) => <span className={s.overdue > 0 ? "font-medium text-danger" : ""}>{s.overdue}</span>,
     },
-    { key: "major", header: "Major", className: "text-right tabular-nums", render: (s) => s.major },
-    { key: "minor", header: "Minor", className: "text-right tabular-nums", render: (s) => s.minor },
-    { key: "reopened", header: "Re-opened", className: "text-right tabular-nums", render: (s) => s.reopened },
-    { key: "avg", header: "Avg days to close", className: "text-right tabular-nums", render: (s) => s.avgDaysToClose ?? "—" },
+    { key: "major", header: "Major", className: "text-end tabular-nums", render: (s) => s.major },
+    { key: "minor", header: "Minor", className: "text-end tabular-nums", render: (s) => s.minor },
+    { key: "reopened", header: "Re-opened", className: "text-end tabular-nums", render: (s) => s.reopened },
+    { key: "avg", header: "Avg days to close", className: "text-end tabular-nums", render: (s) => s.avgDaysToClose ?? "—" },
     {
       key: "ontime",
       header: "Closed on time",
-      className: "text-right tabular-nums",
+      className: "text-end tabular-nums",
       render: (s) => (s.onTimeRate == null ? "—" : `${s.onTimeRate}%`),
     },
   ];
@@ -96,7 +96,7 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
             caption="Vendor NCR scorecard"
             scrollRegionLabel="Vendor NCR scorecard"
             wrapperClassName="table-scroll"
-            theadClassName="text-left text-xs text-muted"
+            theadClassName="text-start text-xs text-muted"
             headRowClassName=""
             thClassName="px-3 py-2 font-medium"
             tdClassName="px-3 py-2"

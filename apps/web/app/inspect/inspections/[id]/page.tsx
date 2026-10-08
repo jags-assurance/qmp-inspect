@@ -399,7 +399,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                   </Link>{" "}
                   <Badge tone={ncr.status === "closed" ? "success" : "warning"}>{ncr.status.replace("_", " ")}</Badge>
                   {ncr.status === "closed" && (
-                    <span className="ml-2 text-xs text-muted">
+                    <span className="ms-2 text-xs text-muted">
                       Closed — re-inspect this activity to confirm the fix, then issue the IRN from
                       a passing record.
                     </span>
@@ -511,7 +511,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             </div>
           </div>
           {record.witness_signature && (
-            <div className="mt-3 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3 sm:ml-4">
+            <div className="mt-3 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3 sm:ms-4">
               <img src={record.witness_signature} alt="Witness signature" className="h-28 w-auto" />
               <div className="mt-1 w-64 border-t border-ink/30 pt-1 text-xs text-muted">
                 Witness: {record.witness_name ?? "—"}

@@ -247,7 +247,7 @@ export default async function NcrsPage({
             Clear all
           </Link>
         )}
-        <a href={`/inspect/ncrs/export${exportQs.toString() ? `?${exportQs}` : ""}`} className="ml-auto min-h-9 py-2 text-sm text-burgundy hover:underline">
+        <a href={`/inspect/ncrs/export${exportQs.toString() ? `?${exportQs}` : ""}`} className="ms-auto min-h-9 py-2 text-sm text-burgundy hover:underline">
           Export CSV
         </a>
       </form>

@@ -81,9 +81,9 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
             name="file"
             accept=".xlsx"
             required
-            className="block w-full text-sm text-ink file:mr-3 file:rounded-md file:border file:border-border file:bg-off-white file:px-3 file:py-1.5 file:text-xs file:font-medium"
+            className="block w-full text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-off-white file:px-3 file:py-1.5 file:text-xs file:font-medium"
           />
-          {parseState.error && <p className="text-sm text-danger">{parseState.error}</p>}
+          {parseState.error && <p role="alert" className="text-sm text-danger">{parseState.error}</p>}
           <Button type="submit" disabled={parsePending}>
             {parsePending ? "Reading file…" : "Preview changes"}
           </Button>
@@ -161,7 +161,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
             />
           </div>
 
-          {applyState.error && <p className="text-sm text-danger">{applyState.error}</p>}
+          {applyState.error && <p role="alert" className="text-sm text-danger">{applyState.error}</p>}
           {applyState.success && (
             <p className="text-sm text-success">Applied — a new revision has been created from the uploaded file.</p>
           )}
@@ -185,7 +185,7 @@ function DiffGroup({ label, tone, children }: { label: string; tone: "success" |
   return (
     <div>
       <p className={`font-medium ${toneClass}`}>{label}</p>
-      <ul className="mt-1 space-y-0.5 pl-3 text-ink">{children}</ul>
+      <ul className="mt-1 space-y-0.5 ps-3 text-ink">{children}</ul>
     </div>
   );
 }

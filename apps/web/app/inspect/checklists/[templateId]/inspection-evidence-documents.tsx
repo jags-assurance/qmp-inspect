@@ -122,7 +122,7 @@ function LinkDocumentForm({
     <form action={formAction} className="mt-2 space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload />
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Linking…" : "Link selected files"}

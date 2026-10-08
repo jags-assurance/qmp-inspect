@@ -32,14 +32,14 @@ export function ConsistencyCheck({ templateId, inspectionRecordId }: { templateI
         completing the inspection.
       </p>
 
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
 
       {state.flags !== null && (
         <div className="mt-3">
           {state.flags.length === 0 ? (
             <p className="text-sm text-success">No inconsistencies flagged.</p>
           ) : (
-            <ul className="list-disc space-y-1 pl-5 text-sm text-warning">
+            <ul className="list-disc space-y-1 ps-5 text-sm text-warning">
               {state.flags.map((flag, i) => (
                 <li key={i}>{flag}</li>
               ))}

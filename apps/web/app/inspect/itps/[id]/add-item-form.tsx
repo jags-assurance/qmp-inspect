@@ -43,7 +43,7 @@ export function AddItemForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full border-t border-border bg-off-white px-4 py-2.5 text-left text-sm font-medium text-burgundy hover:bg-burgundy/5"
+        className="w-full border-t border-border bg-off-white px-4 py-2.5 text-start text-sm font-medium text-burgundy hover:bg-burgundy/5"
       >
         + Add activity
       </button>
@@ -231,7 +231,7 @@ export function AddItemForm({
           This ITP has already been issued — adding an activity will record a new revision and freeze the current content into history.
         </p>
       )}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

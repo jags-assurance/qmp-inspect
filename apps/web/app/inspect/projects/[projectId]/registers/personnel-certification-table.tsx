@@ -101,9 +101,9 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
                 {p.partyName && p.partyName !== p.name && <span className="block text-muted">{p.partyName}</span>}
                 <span className="mt-1 block text-muted">
                   {p.total} certificate{p.total === 1 ? "" : "s"}
-                  {p.expired > 0 && <span className="ml-1 font-medium text-danger">· {p.expired} expired</span>}
-                  {p.expiringSoon > 0 && <span className="ml-1 font-medium text-warning">· {p.expiringSoon} expiring</span>}
-                  {p.expired === 0 && p.expiringSoon === 0 && <span className="ml-1 text-success">· all valid</span>}
+                  {p.expired > 0 && <span className="ms-1 font-medium text-danger">· {p.expired} expired</span>}
+                  {p.expiringSoon > 0 && <span className="ms-1 font-medium text-warning">· {p.expiringSoon} expiring</span>}
+                  {p.expired === 0 && p.expiringSoon === 0 && <span className="ms-1 text-success">· all valid</span>}
                 </span>
               </li>
             ))}

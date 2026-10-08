@@ -52,8 +52,8 @@ export function NcrStatusButton({
       >
         {pending ? "Working…" : NEXT_STATUS_LABEL[status]}
       </button>
-      {blocked && <p className="max-w-xs text-right text-xs text-muted">Save root cause, corrective and preventive action first.</p>}
-      {state.error && <p className="max-w-xs text-right text-xs text-danger">{state.error}</p>}
+      {blocked && <p className="max-w-xs text-end text-xs text-muted">Save root cause, corrective and preventive action first.</p>}
+      {state.error && <p role="alert" className="max-w-xs text-end text-xs text-danger">{state.error}</p>}
     </form>
   );
 }
@@ -84,7 +84,7 @@ export function ReturnForReworkForm({ ncrId, onDone }: { ncrId: string; onDone?:
         placeholder={`What must be fixed before verification (at least ${RETURN_REASON_MIN} characters)`}
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       <button
         type="submit"
         disabled={pending}

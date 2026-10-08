@@ -42,7 +42,7 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
       <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
         Cancel
       </button>
-      {state.error && <p className="w-full text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

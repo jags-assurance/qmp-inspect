@@ -194,7 +194,7 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
         {kind === "material" && (
           <p className="text-xs text-muted">Setting the receiving status to “Released” releases the material for use; who released it and when is recorded.</p>
         )}
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
         <div className="flex items-center gap-3">
           <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50">
             {pending ? "Saving…" : "Save changes"}
@@ -228,7 +228,7 @@ function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKi
         <form
           action={formAction}
           onSubmit={() => (submitted.current = true)}
-          className="absolute right-0 z-20 mt-1 w-72 space-y-2 whitespace-normal rounded-md border border-border bg-surface p-3 shadow-lg"
+          className="absolute end-0 z-20 mt-1 w-72 space-y-2 whitespace-normal rounded-md border border-border bg-surface p-3 shadow-lg"
         >
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="id" value={id} />
@@ -241,7 +241,7 @@ function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKi
             </label>
           )}
           {hasFile && <p className="text-xs text-muted">The previous file is kept on record.</p>}
-          {state.error && <p className="text-xs text-danger">{state.error}</p>}
+          {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
           <div className="flex items-center gap-3">
             <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
               {pending ? "Saving…" : "Save"}

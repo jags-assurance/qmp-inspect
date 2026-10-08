@@ -58,7 +58,7 @@ export function EditNcrDetailsForm({
             <input name="spec_reference" defaultValue={specReference ?? ""} maxLength={200} placeholder="Spec clause" className={field} aria-label="Spec clause" />
           </div>
         )}
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
         <Button type="submit" variant="outline" disabled={pending}>
           {pending ? "Saving…" : "Save corrections"}
         </Button>
@@ -95,7 +95,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
             ))}
           </select>
         )}
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
         <Button type="submit" variant="outline" disabled={pending} onClick={askThenSubmit({ title: "Withdraw this NCR?", message: "It will be closed and its punch item withdrawn with it.", confirmLabel: "Withdraw NCR", destructive: true })}>
           {pending ? "Withdrawing…" : "Withdraw NCR"}
         </Button>
@@ -121,7 +121,7 @@ export function EnsurePunchButton({ ncrId, onDone }: { ncrId: string; onDone?: (
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Creating…" : "Create missing punch item"}
       </Button>
-      {state.error && <p className="mt-1 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-1 text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

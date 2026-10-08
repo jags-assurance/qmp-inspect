@@ -114,7 +114,7 @@ export function CompileDataBookForm({
         </>
       )}
 
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
 
       <Button
         type="submit"
@@ -143,7 +143,7 @@ export function CompileDataBookForm({
         {useOverride && outstanding.length > 0 && (
           <div className="rounded-md border border-warning/40 bg-warning/5 p-2">
             <p className="text-xs font-medium">This Conditional Handover carries these outstanding items:</p>
-            <ul className="mt-1 list-disc pl-4 text-xs">
+            <ul className="mt-1 list-disc ps-4 text-xs">
               {outstanding.slice(0, 12).map((o) => (
                 <li key={o}>{o}</li>
               ))}

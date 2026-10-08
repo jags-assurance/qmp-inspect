@@ -158,7 +158,7 @@ export function IssueHandoverForm({
             type="file"
             required
             disabled={pending}
-            className="mt-1 block text-sm text-ink file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
+            className="mt-1 block text-sm text-ink file:me-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
           />
         </div>
 

@@ -56,7 +56,7 @@ export function ItpAcceptorPicker({
           No active client-party login is linked to this project yet — provision one before assigning an acceptor.
         </p>
       )}
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

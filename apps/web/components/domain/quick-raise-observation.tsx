@@ -176,13 +176,13 @@ export function QuickRaiseObservation() {
               type="file"
               accept="image/*"
               capture="environment"
-              className="mt-1 block min-h-11 w-full text-sm text-muted file:mr-3 file:min-h-11 file:rounded-md file:border file:border-border file:bg-surface file:px-4 file:text-sm file:font-medium file:text-ink"
+              className="mt-1 block min-h-11 w-full text-sm text-muted file:me-3 file:min-h-11 file:rounded-md file:border file:border-border file:bg-surface file:px-4 file:text-sm file:font-medium file:text-ink"
             />
           </div>
           <p className="text-xs text-muted">
             Severity is set to Observation. Add the assignee and responsible party afterwards from the NCR itself.
           </p>
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={saving} className="min-h-11 w-full">
             {saving ? "Saving…" : "Save observation"}
           </Button>

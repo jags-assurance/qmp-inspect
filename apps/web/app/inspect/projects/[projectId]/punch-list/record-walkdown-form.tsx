@@ -229,8 +229,8 @@ export function RecordWalkdownForm({
         </Button>
       </div>
 
-      {photoError && <p className="mt-2 text-sm text-danger">{photoError}</p>}
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {photoError && <p role="alert" className="mt-2 text-sm text-danger">{photoError}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
       {!pending && !state.error && state.addedCount ? (
         <p className="mt-2 text-sm text-success">
           Recorded {state.addedCount} item{state.addedCount === 1 ? "" : "s"} from the walk-down.

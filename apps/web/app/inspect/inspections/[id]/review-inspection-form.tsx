@@ -84,7 +84,7 @@ export function ReviewInspectionForm({ inspectionRecordId, hasPreviousReview }: 
         {pending ? "Saving…" : rejecting ? "Reject inspection" : "Approve inspection"}
       </Button>
       <div id={errorId} role="alert">
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       </div>
     </form>
   );

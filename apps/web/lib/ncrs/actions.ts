@@ -1,5 +1,6 @@
 "use server";
 
+import type { FieldErrors } from "@/lib/forms/field-errors";
 import { supersedeVaultDocumentsByReference } from "@/lib/vault/supersede-refs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -131,6 +132,8 @@ async function validateAssignment(
 
 export interface CreateNcrState {
   error: string | null;
+  /** Per-input problems (keys are form field names) shown next to the field; `error` stays the fallback. */
+  fieldErrors?: FieldErrors;
   /** Set only when the caller asked to stay on its page (`stay_on_page`) — see createNcrAction. */
   created?: { id: string; ncrNumber: string };
   /** A request with the same client key is still being processed — retry shortly (not a failure). */
@@ -167,7 +170,14 @@ export async function createNcrAction(
   if (extended.error) return { error: extended.error };
 
   if (!projectId || !severity || !description) {
-    return { error: "Project, severity and description are required." };
+    return {
+      error: "Project, severity and description are required.",
+      fieldErrors: {
+        ...(projectId ? {} : { project_id: "Select a project." }),
+        ...(severity ? {} : { severity: "Select a severity." }),
+        ...(description ? {} : { description: "Describe the nonconformance." }),
+      },
+    };
   }
   if (!NCR_SEVERITIES.includes(severity)) {
     return { error: "Invalid severity." };
@@ -179,7 +189,7 @@ export async function createNcrAction(
   const defaultDays = severity === "major_ncr" ? 7 : severity === "minor_ncr" ? 14 : 30;
   const effectiveDueDate = dueDate || new Date(Date.now() + defaultDays * 86400000).toISOString().slice(0, 10);
   if (description.length < 10) {
-    return { error: "Describe the nonconformance (at least 10 characters)." };
+    return { error: "Describe the nonconformance (at least 10 characters).", fieldErrors: { description: "Enter at least 10 characters." } };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -194,7 +204,7 @@ export async function createNcrAction(
     .maybeSingle<{ project_number: string; organization_id: string }>();
 
   if (!project) {
-    return { error: "Project not found, or you don't have access to it." };
+    return { error: "Project not found, or you don't have access to it.", fieldErrors: { project_id: "Project not found, or you don't have access to it." } };
   }
 
   // Idempotency: ncrs has a unique (project_id, request_id) index, so a retried submit or an offline

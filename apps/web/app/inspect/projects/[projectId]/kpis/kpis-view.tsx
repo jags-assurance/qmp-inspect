@@ -116,22 +116,22 @@ function ProgressRing({ percent, size = 72 }: { percent: number | null; size?: n
 /** Horizontal bar chart of real per-ITP inspection-completion percentages (no fabricated trend data). */
 function ItpCompletionChart({ rows }: { rows: { label: string; percent: number; completed: number; planned: number }[] }) {
   const rowHeight = 26;
-  const chartWidth = 500;
+  const chartWidth = 520;
   const height = rows.length * rowHeight + 10;
   return (
     <svg viewBox={`0 0 ${chartWidth} ${height}`} width="100%" style={{ maxWidth: "100%" }} role="img" aria-label="ITP inspection completion by ITP">
       {rows.map((row, i) => {
         const y = i * rowHeight;
-        const barMaxWidth = chartWidth - 220;
+        const barMaxWidth = chartWidth - 260;
         const barWidth = Math.max(2, (row.percent / 100) * barMaxWidth);
         return (
           <g key={row.label} transform={`translate(0, ${y})`}>
-            <text x="0" y={16} fontSize="11" fill="currentColor" className="text-ink">
-              {row.label.length > 22 ? `${row.label.slice(0, 21)}…` : row.label}
+            <text x="0" y={16} fontSize="12" fill="currentColor" className="text-ink">
+              {row.label.length > 20 ? `${row.label.slice(0, 19)}…` : row.label}
             </text>
             <rect x="150" y="4" width={barMaxWidth} height="14" rx="3" fill="currentColor" className="text-border" />
             <rect x="150" y="4" width={barWidth} height="14" rx="3" fill="currentColor" className="text-burgundy" />
-            <text x={150 + barMaxWidth + 8} y={16} fontSize="11" fill="currentColor" className="text-ink">
+            <text x={150 + barMaxWidth + 8} y={16} fontSize="12" fill="currentColor" className="text-ink">
               {Math.round(row.percent)}% ({row.completed}/{row.planned})
             </text>
           </g>
@@ -162,7 +162,7 @@ function NcrSeverityChart({ counts }: { counts: Record<NcrSeverity, number> }) {
             <text x={x + barWidth / 2} y={chartHeight - barHeight - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="currentColor" className="text-ink">
               {count}
             </text>
-            <text x={x + barWidth / 2} y={chartHeight + 18} textAnchor="middle" fontSize="11" fill="currentColor" className="text-muted">
+            <text x={x + barWidth / 2} y={chartHeight + 18} textAnchor="middle" fontSize="12" fill="currentColor" className="text-muted">
               {NCR_SEVERITY_LABEL[sev]}
             </text>
           </g>
@@ -202,14 +202,14 @@ function MonthlyTrendChart({ points }: { points: MonthlyTrendPoint[] }) {
         return (
           <g key={point.monthStart}>
             <rect x={ncrX} y={chartHeight - ncrHeight} width={barWidth} height={ncrHeight} rx="2" fill="currentColor" className="text-danger" />
-            <text x={ncrX + barWidth / 2} y={chartHeight - ncrHeight - 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="currentColor" className="text-ink">
+            <text x={ncrX + barWidth / 2} y={chartHeight - ncrHeight - 4} textAnchor="middle" fontSize="12" fontWeight="600" fill="currentColor" className="text-ink">
               {point.ncrCount}
             </text>
             <rect x={inspX} y={chartHeight - inspHeight} width={barWidth} height={inspHeight} rx="2" fill="currentColor" className="text-burgundy" />
-            <text x={inspX + barWidth / 2} y={chartHeight - inspHeight - 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="currentColor" className="text-ink">
+            <text x={inspX + barWidth / 2} y={chartHeight - inspHeight - 4} textAnchor="middle" fontSize="12" fontWeight="600" fill="currentColor" className="text-ink">
               {point.inspectionsCompletedCount}
             </text>
-            <text x={groupX + groupWidth / 2} y={chartHeight + 18} textAnchor="middle" fontSize="11" fill="currentColor" className="text-muted">
+            <text x={groupX + groupWidth / 2} y={chartHeight + 18} textAnchor="middle" fontSize="12" fill="currentColor" className="text-muted">
               {point.label}
             </text>
           </g>

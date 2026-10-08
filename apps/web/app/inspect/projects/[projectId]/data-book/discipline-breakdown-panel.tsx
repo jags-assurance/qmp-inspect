@@ -9,7 +9,7 @@ const columns: ResponsiveColumn<DataBookDisciplineRow>[] = [
     render: (row) => (
       <>
         <span className="font-medium text-ink">{row.disciplineName}</span>
-        <span className="ml-2 text-xs text-muted">{row.disciplineCode}</span>
+        <span className="ms-2 text-xs text-muted">{row.disciplineCode}</span>
       </>
     ),
   },
@@ -31,7 +31,7 @@ const columns: ResponsiveColumn<DataBookDisciplineRow>[] = [
           <Badge tone={row.firstTimePassRate === 100 ? "success" : row.firstTimePassRate >= 80 ? "warning" : "danger"}>
             {row.firstTimePassRate}%
           </Badge>
-          <span className="ml-2 text-xs text-muted">
+          <span className="ms-2 text-xs text-muted">
             {row.firstTimePasses}/{row.firstAttempts}
           </span>
         </>
@@ -72,10 +72,10 @@ export function DisciplineBreakdownPanel({ rows }: { rows: DataBookDisciplineRow
           rows={rows}
           rowKey={(row) => row.disciplineCode}
           caption="Breakdown by discipline"
-          tableClassName="w-full text-left text-sm"
+          tableClassName="w-full text-start text-sm"
           headRowClassName="border-b border-border text-xs uppercase tracking-wide text-muted"
-          thClassName="py-2 pr-3 font-medium"
-          tdClassName="py-2 pr-3"
+          thClassName="py-2 pe-3 font-medium"
+          tdClassName="py-2 pe-3"
         />
       </div>
     </div>

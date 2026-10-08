@@ -164,8 +164,8 @@ export function CompleteInspectionForm({
           You&apos;re offline. This inspection will be completed automatically once your connection is back.
         </p>
       )}
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
-      {queueError && <p className="mt-2 text-sm text-danger">{queueError}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
+      {queueError && <p role="alert" className="mt-2 text-sm text-danger">{queueError}</p>}
     </form>
   );
 }
