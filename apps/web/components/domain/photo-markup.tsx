@@ -263,3 +263,74 @@ export function usePhotoMarkup() {
 
   return { markup, dialog };
 }
+
+export const MARKUP_PREF_KEY = "photo-markup-before-upload";
+
+/** The per-device "mark up each photo before upload" preference, remembered in localStorage (a convenience only). */
+export function useMarkupPreference() {
+  const [markupFirst, setMarkupFirstState] = useState(false);
+  useEffect(() => {
+    try {
+      // Hydration-safe: localStorage is only readable after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMarkupFirstState(window.localStorage.getItem(MARKUP_PREF_KEY) === "1");
+    } catch {
+      // storage unavailable: leave it off
+    }
+  }, []);
+  const setMarkupFirst = useCallback((on: boolean) => {
+    setMarkupFirstState(on);
+    try {
+      window.localStorage.setItem(MARKUP_PREF_KEY, on ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, []);
+  return { markupFirst, setMarkupFirst };
+}
+
+/**
+ * A file input for forms that submit their files with the form (server actions): when the preference is on,
+ * each picked image goes through the markup editor first and the input's files are replaced with the marked
+ * copies (a discarded photo is dropped). Pass the usual input attributes; `name` etc. are kept.
+ */
+export function MarkupFileInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const { markup, dialog } = usePhotoMarkup();
+  const { markupFirst, setMarkupFirst } = useMarkupPreference();
+  const { onChange, ...rest } = props;
+
+  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.currentTarget;
+    if (markupFirst && input.files && input.files.length > 0) {
+      const picked = Array.from(input.files);
+      const out: File[] = [];
+      for (const f of picked) {
+        if (!f.type.startsWith("image/") || f.type === "image/heic") {
+          out.push(f); // not editable in the browser canvas: keep as is
+          continue;
+        }
+        const marked = await markup(f);
+        if (marked) out.push(marked);
+      }
+      try {
+        const dt = new DataTransfer();
+        out.forEach((f) => dt.items.add(f));
+        input.files = dt.files;
+      } catch {
+        // DataTransfer unsupported: keep the originals
+      }
+    }
+    onChange?.(e);
+  }
+
+  return (
+    <>
+      <label className="mb-1 flex items-center gap-2 text-xs text-muted">
+        <input type="checkbox" checked={markupFirst} onChange={(e) => setMarkupFirst(e.target.checked)} />
+        Mark up each photo before adding
+      </label>
+      <input {...rest} type="file" onChange={handleChange} />
+      {dialog}
+    </>
+  );
+}

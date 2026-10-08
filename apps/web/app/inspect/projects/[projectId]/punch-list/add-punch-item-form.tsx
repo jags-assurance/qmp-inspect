@@ -1,5 +1,6 @@
 "use client";
 
+import { MarkupFileInput } from "@/components/domain/photo-markup";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/punch-list/actions";
@@ -123,10 +124,10 @@ export function AddPunchItemForm({
         <label htmlFor="photos" className="block text-xs font-medium text-ink">
           Photo (optional)
         </label>
-        <input
+        <MarkupFileInput
           id="photos"
           name="photos"
-          type="file"
+          
           accept="image/jpeg,image/png,image/webp,image/heic"
           capture="environment"
           multiple

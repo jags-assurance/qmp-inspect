@@ -4,6 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { compressImageFile } from "@/lib/media/compress-image";
+import { usePhotoMarkup, useMarkupPreference } from "@/components/domain/photo-markup";
 
 /**
  * The file itself goes straight from the browser to the "inspection-evidence" Storage bucket;
@@ -14,6 +15,8 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { markup, dialog: markupDialog } = usePhotoMarkup();
+  const { markupFirst, setMarkupFirst } = useMarkupPreference();
 
   async function uploadOne(rawFile: File): Promise<string | null> {
     const file = await compressImageFile(rawFile);
@@ -48,7 +51,13 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
     setError(null);
 
     let lastError: string | null = null;
-    for (const file of files) {
+    for (const original of files) {
+      let file = original;
+      if (markupFirst && original.type.startsWith("image/") && original.type !== "image/heic") {
+        const marked = await markup(original);
+        if (!marked) continue; // discarded in the editor
+        file = marked;
+      }
       const err = await uploadOne(file);
       if (err) lastError = err;
     }
@@ -62,6 +71,11 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
   return (
     <div className="mt-4 border-t border-border pt-4">
       <label className="block text-xs text-muted">Upload photo evidence</label>
+      <label className="mt-1 flex items-center gap-2 text-xs text-muted">
+        <input type="checkbox" checked={markupFirst} onChange={(e) => setMarkupFirst(e.target.checked)} />
+        Mark up each photo before upload
+      </label>
+      {markupDialog}
       <input
         ref={inputRef}
         type="file"

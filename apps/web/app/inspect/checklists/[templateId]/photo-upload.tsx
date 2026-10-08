@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
-import { usePhotoMarkup } from "@/components/domain/photo-markup";
+import { usePhotoMarkup, MARKUP_PREF_KEY } from "@/components/domain/photo-markup";
 
-const MARKUP_PREF_KEY = "photo-markup-before-upload";
 
 interface Photo {
   id: string;
