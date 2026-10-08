@@ -18,6 +18,7 @@ import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions"
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 import { InspectorDashboard, type OverdueHoldRow } from "./inspector-dashboard";
+import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
 import { Suspense } from "react";
 import { ExpiringClearancesCard } from "@/components/domain/expiring-clearances-card";
 import { AdminDashboard } from "./admin-dashboard";
@@ -915,6 +916,7 @@ export default async function InspectDashboardPage() {
   if (isInspector) {
     return (
       <InspectorDashboard
+        assignedToMe={await loadAssignedToMe(supabase, session.userId)}
         clearancesWidget={
           <Suspense fallback={null}>
             <ExpiringClearancesCard />

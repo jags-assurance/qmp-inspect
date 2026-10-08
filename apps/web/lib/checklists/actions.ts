@@ -31,10 +31,12 @@ import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getExecutingPartyTypes, findProjectIdForItpItem, canExecuteItpItem } from "./execution-parties";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
+import { notifyInspectionStarted, notifyInspectionPassed } from "./inspection-notifications";
+import { canStartFromTemplate, AI_DRAFT_START_BLOCK_MESSAGE, describeGeneration } from "./ai-review-logic";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { aiErrorMessage } from "@/lib/ai/config";
-import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
@@ -62,6 +64,10 @@ import {
 
 export interface GenerateChecklistsState {
   error: string | null;
+  /** Honest outcome message (AI drafts saved / AI failed for N activities). */
+  notice?: { tone: "ok" | "warning"; message: string } | null;
+  /** True when AI left activities without a checklist, so the UI can offer the blank template explicitly. */
+  offerBlank?: boolean;
 }
 
 // canExecuteChecklistForItem moved to lib/checklists/execution-parties.ts as the generalized
@@ -71,7 +77,12 @@ export interface GenerateChecklistsState {
 
 export interface GenerateChecklistsResult {
   error: string | null;
+  /** Templates created (AI drafts awaiting confirmation, or blank templates in blank mode). */
   created: number;
+  /** AI mode: activities left WITHOUT a checklist because AI was unavailable or returned nothing. */
+  failed?: number;
+  /** AI mode: why AI was not used, when it was not. */
+  reason?: string | null;
 }
 
 /**
@@ -95,9 +106,19 @@ export interface GenerateChecklistsResult {
  */
 export async function generateChecklistsForItp(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  params: { itpId: string; itpNumber: string; projectId: string; organizationId: string; userId: string | null }
+  params: {
+    itpId: string;
+    itpNumber: string;
+    projectId: string;
+    organizationId: string;
+    userId: string | null;
+    /** "ai" (default): AI-drafted templates saved for staff review; an activity AI cannot draft gets NO
+     *  checklist (never a silent placeholder). "blank": the explicit, staff-chosen single-item blank template. */
+    mode?: "ai" | "blank";
+  }
 ): Promise<GenerateChecklistsResult> {
   const { itpId, itpNumber, projectId, organizationId, userId } = params;
+  const mode = params.mode ?? "ai";
 
   const { data: sections } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId);
   const sectionIds = (sections ?? []).map((s) => s.id);
@@ -130,7 +151,8 @@ export async function generateChecklistsForItp(
   // an item the AI can't draft for (unavailable, malformed response) falls back to the single
   // "acceptance criteria as one item" placeholder rather than failing checklist generation
   // outright, so this action never regresses below what it did before AI was wired in.
-  const gate = await assertAiAllowed(supabase, organizationId);
+  const gate = mode === "blank" ? { allowed: false, reason: null as string | null } : await assertAiAllowed(supabase, organizationId);
+  let failureReason: string | null = gate.allowed ? null : gate.reason;
   // One ai_usage_log row PER ITEM (not one combined row for the whole batch, as this used to log)
   // — this is what lets caching work at the granularity that actually repeats: the same activity
   // text (a common master-template activity reused across many projects/ITPs) hashes identically
@@ -184,7 +206,8 @@ export async function generateChecklistsForItp(
             outputTokens: usage?.outputTokens ?? null,
           });
           return [item.id, { drafted, logId }] as const;
-        } catch {
+        } catch (err) {
+          failureReason = aiErrorMessage(err, "the AI service did not return a usable checklist");
           return [item.id, { drafted: null, logId: null }] as const;
         }
       })
@@ -200,10 +223,19 @@ export async function generateChecklistsForItp(
     itp_item_id: string;
     checklist_number: string;
     name: string;
+    ai_generated: boolean;
     items: { item_number: string; description: string; is_mandatory: boolean; sort_order: number }[];
   }[] = [];
+  let failed = 0;
 
   for (const item of pending) {
+    const draftedItems = itemsByPendingId.get(item.id)?.drafted;
+    const hasDraft = !!draftedItems && draftedItems.length > 0;
+    if (mode === "ai" && !hasDraft) {
+      // Honest failure: no placeholder checklist is created behind the user's back.
+      failed += 1;
+      continue;
+    }
     const seq = await nextSequenceNumber(supabase, {
       organizationId,
       projectId,
@@ -211,7 +243,7 @@ export async function generateChecklistsForItp(
     });
     const drafted = itemsByPendingId.get(item.id)?.drafted;
     const items =
-      drafted && drafted.length > 0
+      mode === "ai" && drafted && drafted.length > 0
         ? drafted.map((di, i) => ({ item_number: String(i + 1), description: di.text, is_mandatory: di.mandatory, sort_order: i }))
         : [
             {
@@ -221,8 +253,10 @@ export async function generateChecklistsForItp(
               sort_order: 0,
             },
           ];
-    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity, items });
+    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity, ai_generated: mode === "ai", items });
   }
+
+  if (payload.length === 0) return { error: null, created: 0, failed, reason: failureReason };
 
   // Single RPC call, one Postgres transaction (insert_checklists_atomic — see its migration for
   // why): every checklist_templates row and every checklist_items row for this run either all land
@@ -233,29 +267,10 @@ export async function generateChecklistsForItp(
     return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
   }
 
-  if (aiUsed && userId) {
-    // One review-decision closure per item's own ai_usage_log row (see the generation loop above),
-    // matched back to the template row insert_checklists_atomic actually created for that item —
-    // finer-grained than the old single "checklist_batch" closure, and correct now that each item
-    // has its own row rather than a shared one.
-    const templateIdByItpItemId = new Map(inserted.map((t) => [t.itp_item_id, t.id]));
-    await Promise.all(
-      Array.from(itemsByPendingId.entries()).map(async ([itpItemId, { logId }]) => {
-        const templateId = templateIdByItpItemId.get(itpItemId);
-        if (!logId || !templateId) return;
-        await recordAiReviewDecision(supabase, {
-          logId,
-          reviewedBy: userId,
-          targetType: "checklist_template",
-          targetId: templateId,
-          reviewedResponse: { checklistTemplateId: templateId },
-          decision: "accepted_as_is", // generated and persisted in one atomic step, no separate human-edit screen exists for this feature today
-        });
-      })
-    );
-  }
+  // The AI review decision is recorded when staff confirm the draft (confirmAiChecklistAction), not here.
+  void aiUsed;
 
-  return { error: null, created: inserted.length };
+  return { error: null, created: inserted.length, failed, reason: failureReason };
 }
 
 /**
@@ -270,6 +285,7 @@ export async function generateChecklistTemplatesAction(
   formData: FormData
 ): Promise<GenerateChecklistsState> {
   const itpId = String(formData.get("itp_id") ?? "").trim();
+  const mode = formData.get("mode") === "blank" ? "blank" : "ai";
   if (!itpId) return { error: "Missing ITP." };
 
   const supabase = await createSupabaseServerClient();
@@ -298,10 +314,15 @@ export async function generateChecklistTemplatesAction(
     projectId: itp.project_id,
     organizationId: itp.projects?.organization_id ?? "",
     userId: user?.id ?? null,
+    mode,
   });
 
   if (result.error) return { error: result.error };
-  if (result.created === 0) return { error: "Checklists already exist for every checklist-type activity, or this ITP has none." };
+  if (result.created === 0 && !result.failed) return { error: "Checklists already exist for every checklist-type activity, or this ITP has none." };
+  const notice =
+    mode === "blank"
+      ? { tone: "ok" as const, message: `${result.created} blank checklist(s) created with a single placeholder item. Edit the items before starting inspections.` }
+      : describeGeneration({ drafted: result.created, failed: result.failed ?? 0, reason: result.reason ?? null });
 
   if (itp.projects?.organization_id) {
     try {
@@ -320,7 +341,7 @@ export async function generateChecklistTemplatesAction(
   }
 
   revalidatePath(`/inspect/itps/${itpId}/checklists`);
-  return { error: null };
+  return { error: null, notice, offerBlank: mode === "ai" && (result.failed ?? 0) > 0 };
 }
 
 export interface AddChecklistItemState {
@@ -720,6 +741,15 @@ export async function startInspectionAction(
   if (!gate || gate.itp_item_id !== itpItemId || gate.itp_items?.itp_sections?.itps?.projects?.id !== projectId) {
     return { error: "This checklist does not belong to that activity or project." };
   }
+  {
+    // AI-generated checklists are drafts until staff confirm them (20261114000102).
+    const { data: review, error: reviewError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("ai_generated, ai_confirmed_at")
+      .eq("id", templateId)
+      .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>();
+    if (!reviewError && review && !canStartFromTemplate(review)) return { error: AI_DRAFT_START_BLOCK_MESSAGE };
+  }
   const itpNumber = gate.itp_items?.itp_sections?.itps?.itp_number ?? "";
   const activity = gate.itp_items?.activity ?? "";
   const projectName = gate.itp_items?.itp_sections?.itps?.projects?.name ?? "";
@@ -911,6 +941,28 @@ export async function startInspectionAction(
       });
     } catch {
       // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
+  // Tell the project's responsible person / JAGS staff the work has started (deduped, best-effort).
+  {
+    const { data: started } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, record_number")
+      .eq("itp_item_id", itpItemId)
+      .eq("checklist_template_id", templateId)
+      .is("overall_result", null)
+      .limit(1)
+      .maybeSingle<{ id: string; record_number: string }>();
+    if (started) {
+      await notifyInspectionStarted(supabase, {
+        organizationId: project?.organization_id,
+        projectId,
+        recordId: started.id,
+        recordNumber: started.record_number,
+        activity,
+        actorId: user?.id ?? null,
+      });
     }
   }
 
@@ -1287,6 +1339,17 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     } catch {
       // Notification delivery is best-effort — see doc comment above.
     }
+  }
+
+  if (overallResult === "pass" && recordForHoldCheck) {
+    await notifyInspectionPassed(supabase, {
+      projectId: recordForHoldCheck.project_id,
+      recordId: inspectionRecordId,
+      recordNumber: recordForHoldCheck.record_number,
+      activity: recordForHoldCheck.activity,
+      itpItemId: recordForHoldCheck.itp_item_id,
+      actorId: signer?.id ?? null,
+    });
   }
 
   // A re-opened inspection that now passes supersedes its earlier failure item: withdraw it so a

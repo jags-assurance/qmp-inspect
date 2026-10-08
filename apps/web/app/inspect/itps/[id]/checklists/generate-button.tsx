@@ -12,9 +12,25 @@ export function GenerateChecklistsButton({ itpId }: { itpId: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="itp_id" value={itpId} />
-      <Button type="submit" disabled={pending}>
-        {pending ? "Generating…" : "Generate checklists"}
+      <Button type="submit" name="mode" value="ai" disabled={pending}>
+        {pending ? "Generating…" : "Generate checklists with AI"}
       </Button>
+      <p className="mt-2 text-xs text-muted">
+        AI-generated checklists are saved as drafts. Staff must review and confirm each one before inspections can start.
+      </p>
+      {state.notice && (
+        <p
+          className={state.notice.tone === "warning" ? "mt-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-ink" : "mt-2 text-sm text-ink"}
+          role="status"
+        >
+          {state.notice.message}
+        </p>
+      )}
+      {state.offerBlank && (
+        <Button type="submit" name="mode" value="blank" variant="outline" className="mt-2" disabled={pending}>
+          Create blank checklists instead
+        </Button>
+      )}
       {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
   );

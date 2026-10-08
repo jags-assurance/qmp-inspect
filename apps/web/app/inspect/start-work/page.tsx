@@ -11,6 +11,9 @@ import { ScanSearchInput } from "./scan-search-input";
 import { SaveOfflineButton } from "./save-offline-button";
 import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
 import { filterByArchive, parseArchiveFilter } from "@/lib/checklists/template-ui-logic";
+import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
+import { AssignedToMe } from "@/components/domain/assigned-to-me";
+import { filterAssignedToMe, parseAssignedFilter } from "@/lib/checklists/assignment-logic";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -33,6 +36,7 @@ interface TemplateRow {
     item_number: string;
     activity: string;
     planned_date: string | null;
+    assigned_to_user_id?: string | null;
     itp_sections: { itps: { id: string; itp_number: string; status: string; projects: { id: string; name: string; organization_id: string; enforce_hold_blocks_start: boolean } | null } | null } | null;
   } | null;
 }
@@ -40,7 +44,7 @@ interface TemplateRow {
 export default async function StartWorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string; archived?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string; archived?: string; assigned?: string }>;
 }) {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
@@ -51,6 +55,7 @@ export default async function StartWorkPage({
   const dueFilter = (["overdue", "soon", "held"] as const).find((k) => k === sp.due) ?? "";
 
   const archiveFilter = parseArchiveFilter(sp.archived);
+  const assignedFilter = parseAssignedFilter(sp.assigned);
 
   const supabase = await createSupabaseServerClient();
   const archivedIds = await loadArchivedTemplateIds(supabase);
@@ -58,7 +63,7 @@ export default async function StartWorkPage({
     supabase
       .from(CHECKLIST_TEMPLATES_TABLE)
       .select(
-        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))"
+        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, assigned_to_user_id, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))"
       )
       .limit(1000)
       .returns<TemplateRow[]>(),
@@ -121,6 +126,7 @@ export default async function StartWorkPage({
       projectId: t.itp_items!.itp_sections!.itps!.projects?.id ?? "",
       projectName: t.itp_items!.itp_sections!.itps!.projects?.name ?? "—",
       plannedDate: t.itp_items!.planned_date,
+      assignedToUserId: t.itp_items!.assigned_to_user_id ?? null,
       awaitingHold: (openByItem.get(t.itp_item_id) ?? []).some((code) =>
         blockingKeys.has(`${t.itp_items!.itp_sections!.itps!.projects?.organization_id ?? ""}:${code}`)
       ),
@@ -136,7 +142,9 @@ export default async function StartWorkPage({
   const overdueCount = withFlags.filter((a) => a.overdue).length;
   const dueSoonCount = withFlags.filter((a) => a.dueSoon).length;
   const heldCount = withFlags.filter((a) => a.awaitingHold && a.status !== "completed").length;
-  const visible = withFlags
+  const assignedMine = filterAssignedToMe(withFlags, session.userId).filter((a) => a.status !== "completed");
+  const assignedQueue = await loadAssignedToMe(supabase, session.userId);
+  const visible = (assignedFilter === "me" ? assignedMine : withFlags)
     .filter((a) => !dueFilter || (dueFilter === "overdue" ? a.overdue : dueFilter === "soon" ? a.dueSoon : a.awaitingHold && a.status !== "completed"))
     .filter((a) => !statusFilter || a.status === statusFilter)
     .filter((a) => !projectFilter || a.projectId === projectFilter)
@@ -193,6 +201,8 @@ export default async function StartWorkPage({
         />
       </div>
 
+      <AssignedToMe items={assignedQueue} />
+
       <section className="mt-10" aria-labelledby="activities-heading">
         <h2 id="activities-heading" className="text-lg font-semibold text-ink">Activities ready for site work</h2>
         <p className="mt-1 text-sm text-muted">
@@ -221,6 +231,10 @@ export default async function StartWorkPage({
           <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} aria-label="Archived" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
             <option value="">Active checklists</option>
             <option value="archived">Archived ({archivedIds.size})</option>
+          </select>
+          <select name="assigned" defaultValue={assignedFilter} aria-label="Assignment" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">Everyone&apos;s activities</option>
+            <option value="me">Assigned to me ({assignedMine.length})</option>
           </select>
           <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">Filter</button>
         </form>
@@ -251,7 +265,7 @@ export default async function StartWorkPage({
               <li key={a.templateId}>
                 <Link href={`/inspect/checklists/${a.templateId}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-off-white">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}</span>
+                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ml-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy">Assigned to you</span>}</span>
                     <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
