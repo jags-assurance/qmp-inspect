@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /** A password input with a show/hide toggle — shared by the sign-in and reset-password forms. */
 export function PasswordField({
@@ -21,6 +22,7 @@ export function PasswordField({
   onChange?: (value: string) => void;
 }) {
   const [visible, setVisible] = useState(false);
+  const t = useTranslate();
 
   return (
     <div>
@@ -43,7 +45,7 @@ export function PasswordField({
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          aria-label={visible ? "Hide password" : "Show password"}
+          aria-label={visible ? t("Hide password") : t("Show password")}
           aria-pressed={visible}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
         >

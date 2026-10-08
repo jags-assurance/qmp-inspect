@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/domain/password-field";
 import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: SignInState = { error: null };
 
 export function LoginForm({ next, notice }: { next: string; notice?: string | null }) {
   const [state, formAction, pending] = useActionState(signInAction, initialState);
+  const t = useTranslate();
 
   return (
     <div className="flex min-h-screen">
@@ -21,17 +23,17 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
         </div>
         <h1 className="mt-8 text-3xl font-semibold">JAGS Assurance</h1>
         <p className="mt-3 max-w-sm text-white/80">
-          Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.
+          {t("Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.")}
         </p>
       </div>
       <div className="flex w-full flex-col justify-center px-8 md:w-1/2 md:px-20">
-        <h2 className="text-2xl font-semibold text-ink">Sign in</h2>
-        <p className="mt-1 text-sm text-muted">Use your JAGS Assurance account credentials.</p>
+        <h2 className="text-2xl font-semibold text-ink">{t("Sign in")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("Use your JAGS Assurance account credentials.")}</p>
 
         <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
           <input type="hidden" name="next" value={next} />
           <div>
-            <FormField label="Email" id="email">
+            <FormField label={t("Email")} id="email">
               <input
               name="email"
               type="email"
@@ -46,10 +48,10 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
           <div>
             <div className="flex items-center justify-between">
               <label htmlFor="password" className="block text-sm font-medium text-ink">
-                Password
+                {t("Password")}
               </label>
               <Link href="/forgot-password" className="text-xs font-medium text-burgundy hover:underline">
-                Forgot password?
+                {t("Forgot password?")}
               </Link>
             </div>
             <div className="mt-1">
@@ -58,12 +60,12 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
           </div>
 
           <FormMessage
-            error={state.error ?? notice}
-            suffix={state.error ? "If you keep having trouble, use Forgot password or contact your administrator." : undefined}
+            error={t(state.error ?? notice ?? "") || null}
+            suffix={state.error ? t("If you keep having trouble, use Forgot password or contact your administrator.") : undefined}
           />
 
           <Button type="submit" disabled={pending} className="w-full">
-            {pending ? "Signing in…" : "Sign in"}
+            {pending ? t("Signing in…") : t("Sign in")}
           </Button>
         </form>
       </div>

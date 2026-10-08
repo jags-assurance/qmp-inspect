@@ -68,6 +68,91 @@ const AR: Record<string, string> = {
   No: "لا",
   "N/A": "لا ينطبق",
   Loading: "جارٍ التحميل",
+  // Sign-in page
+  "Sign in": "تسجيل الدخول",
+  "Signing in…": "جارٍ تسجيل الدخول…",
+  "Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.":
+    "جودة مضبوطة ونتائج مؤكدة. سجّل الدخول إلى منصة إدارة الجودة.",
+  "Use your JAGS Assurance account credentials.": "استخدم بيانات حسابك في جاغز للتأكيد.",
+  Email: "البريد الإلكتروني",
+  Password: "كلمة المرور",
+  "Forgot password?": "هل نسيت كلمة المرور؟",
+  "Show password": "إظهار كلمة المرور",
+  "Hide password": "إخفاء كلمة المرور",
+  "If you keep having trouble, use Forgot password or contact your administrator.":
+    "إذا استمرت المشكلة، استخدم خيار نسيت كلمة المرور أو تواصل مع مسؤول النظام.",
+  "That password reset link is invalid or has expired. Request a new one from Forgot password.":
+    "رابط إعادة تعيين كلمة المرور غير صالح أو منتهي الصلاحية. اطلب رابطاً جديداً من خيار نسيت كلمة المرور.",
+  "This account has been deactivated. Contact your administrator if you think that is a mistake.":
+    "تم إيقاف هذا الحساب. تواصل مع مسؤول النظام إذا كنت تعتقد أن ذلك خطأ.",
+  "You were signed out after a period of inactivity. Sign in again to continue.":
+    "تم تسجيل خروجك بعد فترة من عدم النشاط. سجّل الدخول مرة أخرى للمتابعة.",
+  "Your session reached its maximum length. Sign in again to continue.":
+    "بلغت جلستك الحد الأقصى لمدتها. سجّل الدخول مرة أخرى للمتابعة.",
+  "Your temporary password has expired. Ask your administrator to issue a new one.":
+    "انتهت صلاحية كلمة المرور المؤقتة. اطلب من مسؤول النظام إصدار كلمة جديدة.",
+  "Your session has ended. Sign in again to continue.": "انتهت جلستك. سجّل الدخول مرة أخرى للمتابعة.",
+  // Common status labels and actions
+  Approve: "اعتماد",
+  Reject: "رفض",
+  Approved: "معتمد",
+  Rejected: "مرفوض",
+  Pending: "قيد الانتظار",
+  Draft: "مسودة",
+  Active: "نشط",
+  Completed: "مكتمل",
+  Cancelled: "ملغى",
+  "On hold": "معلّق",
+  "In progress": "قيد التنفيذ",
+  Passed: "مجتاز",
+  Failed: "غير مجتاز",
+  Create: "إنشاء",
+  Next: "التالي",
+  Prev: "السابق",
+  Page: "صفحة",
+  of: "من",
+  "See all": "عرض الكل",
+  "Open only": "المفتوحة فقط",
+  All: "الكل",
+  // Projects list
+  "+ New project": "+ مشروع جديد",
+  "Create project": "إنشاء مشروع",
+  "No projects yet.": "لا توجد مشاريع بعد.",
+  "No projects to show.": "لا توجد مشاريع للعرض.",
+  "Search projects…": "بحث في المشاريع…",
+  "Every project across every client you have access to.": "جميع المشاريع لدى جميع العملاء التي لديك صلاحية الوصول إليها.",
+  "Projects your organisation is engaged on.": "المشاريع التي تعمل عليها مؤسستك.",
+  // Dashboard headings and empty states
+  "Inspector Dashboard": "لوحة المفتش",
+  "JAGS Admin Overview": "نظرة عامة للمسؤول",
+  "NCRs assigned to me": "تقارير عدم المطابقة المسندة إليّ",
+  "My pending actions": "إجراءاتي المعلّقة",
+  "Your organisation at a glance": "نظرة سريعة على مؤسستك",
+  "ITPs awaiting your acceptance": "خطط فحص بانتظار قبولك",
+  "NCRs assigned to you": "تقارير عدم المطابقة المسندة إليك",
+  "Punch items assigned to you": "بنود قائمة الملاحظات المسندة إليك",
+  "Work awaiting your review": "أعمال بانتظار مراجعتك",
+  "Awaiting your sign-off": "بانتظار توقيعك",
+  "Your organisations": "مؤسساتك",
+  "Master Library proposals awaiting review": "مقترحات المكتبة الرئيسية بانتظار المراجعة",
+  "No open NCRs.": "لا توجد تقارير عدم مطابقة مفتوحة.",
+  "No overdue hold points.": "لا توجد نقاط توقف متأخرة.",
+  "No recent activity.": "لا يوجد نشاط حديث.",
+  "Nothing to show yet.": "لا يوجد ما يُعرض بعد.",
+  "No pending proposals.": "لا توجد مقترحات معلّقة.",
+  "Nothing awaiting your acceptance.": "لا شيء بانتظار قبولك.",
+  "No observations raised yet.": "لم تُرفع أي ملاحظات بعد.",
+  "No inspections match these filters.": "لا توجد عمليات فحص تطابق عوامل التصفية هذه.",
+  "No NCRs match these filters. Clear the filters to see the full register.":
+    "لا توجد تقارير عدم مطابقة تطابق عوامل التصفية. امسح التصفية لعرض السجل كاملاً.",
+  "No NCRs raised yet. Use + Raise NCR to record the first one.":
+    "لم تُرفع أي تقارير عدم مطابقة بعد. استخدم «+ رفع تقرير» لتسجيل أول تقرير.",
+  "No ITPs yet.": "لا توجد خطط فحص بعد.",
+  "No ITPs match your search.": "لا توجد خطط فحص تطابق بحثك.",
+  "Nothing waiting. Start a new inspection from Start work, or review Inspections.":
+    "لا شيء بانتظار الإجراء. ابدأ فحصاً جديداً من «بدء العمل» أو راجع عمليات الفحص.",
+  "You are all caught up. Check Reports & documents below, or open Inspections to follow progress.":
+    "لا توجد مهام متبقية. راجع التقارير والمستندات أدناه أو افتح عمليات الفحص لمتابعة التقدم.",
   // Navigation added later
   "Orphaned Photos": "الصور اليتيمة",
   // Page headings of the main lists

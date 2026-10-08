@@ -1,5 +1,6 @@
 "use client";
 
+import { Tx } from "@/components/domain/tx";
 import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -203,7 +204,7 @@ export function ExternalPartyDashboard({
       <>
       {orgHealth && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Your organisation at a glance</h2>
+          <h2 className="font-medium text-ink"><Tx>Your organisation at a glance</Tx></h2>
           <p className="mt-1 text-sm text-muted">
             You manage this organisation&apos;s own settings, so its health sits first.
           </p>
@@ -237,7 +238,7 @@ export function ExternalPartyDashboard({
       <>
       {itpsAwaitingAcceptance.length > 0 && (
         <div className="mt-8">
-          <h2 className="font-medium text-ink">ITPs awaiting your acceptance</h2>
+          <h2 className="font-medium text-ink"><Tx>ITPs awaiting your acceptance</Tx></h2>
           <p className="mt-1 text-sm text-muted">
             JAGS has approved these — your acceptance is the last step before field work begins.
           </p>
@@ -305,7 +306,7 @@ export function ExternalPartyDashboard({
       <>
       {ncrsAssignedToMe.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">NCRs assigned to you</h2>
+          <h2 className="font-medium text-ink"><Tx>NCRs assigned to you</Tx></h2>
           <p className="mt-1 text-sm text-muted">
             Non-conformances raised against your organisation that still need corrective action.
           </p>
@@ -340,7 +341,7 @@ export function ExternalPartyDashboard({
 
       {punchAssignedToMe.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Punch items assigned to you</h2>
+          <h2 className="font-medium text-ink"><Tx>Punch items assigned to you</Tx></h2>
           <p className="mt-1 text-sm text-muted">Open punch-list items where your party is responsible for the fix.</p>
           <ul className="mt-4 space-y-2">
             {punchAssignedToMe.map((p) => (
@@ -450,7 +451,7 @@ export function ExternalPartyDashboard({
       <>
       {myProjects.length > 0 && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Your projects — reports &amp; documents</h2>
+          <h2 className="font-medium text-ink"><Tx>Your projects — reports &amp; documents</Tx></h2>
           <p className="mt-1 text-sm text-muted">
             Data books, PDF/Excel report packs and the live activity timeline for each project you have access to.
           </p>
@@ -559,8 +560,8 @@ function SignoffQueuePanel({
   const levelByCode = new Map(levels.map((l) => [l.code, l]));
   return (
     <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-      <h2 className="font-medium text-ink">{title}</h2>
-      <p className="mt-1 text-sm text-muted">{description}</p>
+      <h2 className="font-medium text-ink"><Tx>{title}</Tx></h2>
+      <p className="mt-1 text-sm text-muted"><Tx>{description}</Tx></p>
       <ul className="mt-4 space-y-2">
         {rows.map((row) => {
           const initial = row.activity.trim().charAt(0).toUpperCase() || "?";

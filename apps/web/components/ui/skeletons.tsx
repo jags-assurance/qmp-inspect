@@ -106,3 +106,21 @@ export function TextSkeleton({ lines = 10 }: { lines?: number }) {
     </Frame>
   );
 }
+
+/** Heading, a header card with key facts, then a main panel and a side panel (record detail pages). */
+export function DetailSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <Frame>
+      <Heading withSubtitle />
+      <div className="mt-6 h-20 animate-pulse rounded-lg border border-border bg-off-white" />
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="space-y-3 lg:col-span-2">
+          {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} className="h-14 animate-pulse rounded-lg border border-border bg-off-white" />
+          ))}
+        </div>
+        <div className="h-64 animate-pulse rounded-lg border border-border bg-off-white" />
+      </div>
+    </Frame>
+  );
+}

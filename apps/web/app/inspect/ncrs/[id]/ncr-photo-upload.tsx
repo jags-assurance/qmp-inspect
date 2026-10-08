@@ -4,6 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { compressImageFile } from "@/lib/media/compress-image";
+import { HeicConversionError } from "@/lib/media/heic";
 import { usePhotoMarkup, useMarkupPreference } from "@/components/domain/photo-markup";
 
 /**
@@ -19,7 +20,13 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
   const { markupFirst, setMarkupFirst } = useMarkupPreference();
 
   async function uploadOne(rawFile: File): Promise<string | null> {
-    const file = await compressImageFile(rawFile);
+    let file: File;
+    try {
+      file = await compressImageFile(rawFile);
+    } catch (err) {
+      if (err instanceof HeicConversionError) return err.message;
+      throw err;
+    }
 
     const supabase = createSupabaseBrowserClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");

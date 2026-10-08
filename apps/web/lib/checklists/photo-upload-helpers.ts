@@ -10,6 +10,7 @@ import { saveInspectionPhotoAction } from "@/lib/checklists/actions";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { compressImageFile } from "@/lib/media/compress-image";
+import { HeicConversionError } from "@/lib/media/heic";
 import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 
 export interface UploadPhotoParams {
@@ -62,7 +63,14 @@ async function queueForOffline({ projectId, inspectionRecordId, checklistItemId,
  * yet), or null when it uploaded live (the caller should router.refresh() to pick up the new row).
  */
 export async function uploadOrQueuePhoto(params: UploadPhotoParams): Promise<{ queuedPreviewUrl: string | null }> {
-  const file = await compressImageFile(params.file);
+  let file: File;
+  try {
+    file = await compressImageFile(params.file);
+  } catch (err) {
+    // An undecodable HEIC can neither be uploaded nor queued usefully: report it like any rejected photo.
+    if (err instanceof HeicConversionError) throw new PhotoRejectedError(err.message);
+    throw err;
+  }
   const next = { ...params, file };
 
   if (typeof navigator !== "undefined" && !navigator.onLine) {
