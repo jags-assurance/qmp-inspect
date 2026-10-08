@@ -202,7 +202,7 @@ function EditItemForm({
           className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
       </div>
-      <div className="min-w-64 flex-1">
+      <div className="w-full sm:min-w-64 flex-1">
         <label htmlFor={`${id}-d`} className="block text-xs font-medium text-muted">
           Description
         </label>

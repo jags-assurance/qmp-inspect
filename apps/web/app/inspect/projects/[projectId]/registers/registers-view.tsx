@@ -22,6 +22,7 @@ import type { MaterialRegisterDisplayRow } from "./material-table";
 import type { PersonnelCertificationDisplayRow } from "./personnel-certification-table";
 import type { ExtractState, AddState } from "./extract-register-panel";
 import { RegistersTabs } from "./registers-tabs";
+import { StatusLegend } from "@/components/ui/status-legend";
 import {
   extractCalibrationRowsAction,
   addExtractedCalibrationRowsAction,
@@ -252,6 +253,7 @@ export async function RegistersView({
         </p>
       )}
 
+      <StatusLegend className="mt-4" />
       <RegistersTabs
         projectId={projectId}
         canAdd={access.canAdd}

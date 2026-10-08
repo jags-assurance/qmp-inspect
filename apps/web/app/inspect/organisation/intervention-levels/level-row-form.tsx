@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateInterventionLevelAction, deleteInterventionLevelAction, type InterventionLevelState } from "@/lib/intervention-levels/actions";
 import type { InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: InterventionLevelState = { error: null };
 
@@ -27,30 +28,32 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
           <span className="doc-id mt-1 block text-sm font-semibold text-ink">{level.code}</span>
         </div>
         <div>
-          <label className="block text-xs text-muted">Label</label>
-          <input
+          <FormField label="Label">
+            <input
             name="label"
             required
             defaultValue={level.label}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <div>
-          <label className="block text-xs text-muted">Order</label>
-          <input
+          <FormField label="Order">
+            <input
             name="sort_order"
             type="number"
             defaultValue={level.sort_order}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
           <input type="checkbox" name="is_blocking" defaultChecked={level.is_blocking} />
           Blocking
         </label>
         <div>
-          <label className="block text-xs text-muted">Notice hrs</label>
-          <input
+          <FormField label="Notice hrs">
+            <input
             name="default_notice_hours"
             type="number"
             min={0}
@@ -58,6 +61,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
             placeholder="none"
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save"}

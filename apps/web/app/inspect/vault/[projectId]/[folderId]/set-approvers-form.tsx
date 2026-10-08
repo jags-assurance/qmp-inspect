@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { setDocumentApproversAction, type SetDocumentApproversState } from "@/lib/vault/multi-approval-actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: SetDocumentApproversState = { error: null };
 
@@ -40,11 +41,8 @@ export function SetApproversForm({
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div>
-          <label htmlFor="approvers-doc" className="block text-xs text-muted">
-            Document
-          </label>
-          <select
-            id="approvers-doc"
+          <FormField label="Document">
+            <select
             name="document_id"
             value={selectedDocId}
             onChange={(e) => setSelectedDocId(e.target.value)}
@@ -56,6 +54,7 @@ export function SetApproversForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
         <Button type="submit" variant="outline" disabled={pending}>
           {pending ? "Saving…" : "Save required approvers"}

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { addItpItemAction, type AddItemState } from "@/lib/itps/actions";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddItemState = { error: null };
 
@@ -55,59 +56,63 @@ export function AddItemForm({
       <input type="hidden" name="section_id" value={sectionId} />
 
       <div>
-        <label className="block text-xs font-medium text-muted">Item no.</label>
-        <input
+        <FormField label="Item no.">
+          <input
           name="item_number"
           required
           defaultValue={suggestedItemNumber}
           placeholder="1.1"
           className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div className="min-w-48 flex-1">
-        <label className="block text-xs font-medium text-muted">Activity</label>
-        <input
+        <FormField label="Activity">
+          <input
           name="activity"
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div className="min-w-48 flex-1">
-        <label className="block text-xs font-medium text-muted">Acceptance criteria</label>
-        <input
+        <FormField label="Acceptance criteria">
+          <input
           name="acceptance_criteria"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div className="min-w-48 flex-1">
-        <label className="block text-xs font-medium text-muted">Reference document / clause</label>
-        <input
+        <FormField label="Reference document / clause">
+          <input
           name="reference_spec"
           placeholder="e.g. Spec 03300 cl. 5.2 / API 1104"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div className="min-w-32">
-        <label className="block text-xs font-medium text-muted">Method</label>
-        <input
+        <FormField label="Method">
+          <input
           name="method"
           placeholder="e.g. Visual, UT, Hydrotest"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div className="min-w-32">
-        <label className="block text-xs font-medium text-muted">Frequency / sample</label>
-        <input
+        <FormField label="Frequency / sample">
+          <input
           name="frequency"
           placeholder="e.g. 100%, each pour, 1 in 10"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted" title="Checklist: the inspector answers a checklist on site. Document upload: a record or certificate is attached. Measurement: values are recorded against nominal and tolerance.">
-          Evidence
-        </label>
-        <select
+        <FormField label="Evidence">
+          <select
           name="evidence_type"
           defaultValue="1"
           className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
@@ -116,10 +121,11 @@ export function AddItemForm({
           <option value="2">Document upload</option>
           <option value="3">Measurement</option>
         </select>
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted">Discipline</label>
-        <select
+        <FormField label="Discipline">
+          <select
           name="discipline_id"
           defaultValue=""
           className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
@@ -131,10 +137,11 @@ export function AddItemForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted">Notice hours (override)</label>
-        <input
+        <FormField label="Notice hours (override)">
+          <input
           name="notice_hours_override"
           type="number"
           min={0}
@@ -142,19 +149,21 @@ export function AddItemForm({
           title="R25: optional per-activity notice period, in hours. Leave blank to use the project/organisation default for the level assigned on each cell."
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted">Planned date</label>
-        <input
+        <FormField label="Planned date">
+          <input
           name="planned_date"
           type="date"
           className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       {drawingDocuments.length > 0 && (
         <div>
-          <label className="block text-xs font-medium text-muted">Governing drawing</label>
-          <select
+          <FormField label="Governing drawing">
+            <select
             name="governing_drawing_document_id"
             defaultValue=""
             className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
@@ -166,6 +175,7 @@ export function AddItemForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
       {parties.length > 0 && levels.length > 0 && (
@@ -196,7 +206,7 @@ export function AddItemForm({
         </fieldset>
       )}
       {isIssued && (
-        <div className="min-w-64 flex-1">
+        <div className="w-full sm:min-w-64 flex-1">
           <label className="block text-xs font-medium text-danger">Reason for revision (required — this ITP is already issued)</label>
           <input
             name="revision_reason"

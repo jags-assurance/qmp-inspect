@@ -64,7 +64,7 @@ function extOf(d: VaultPickerDocument): string {
 
 function typeBadge(ext: string): { label: string; className: string } {
   if (ext === "pdf") return { label: "PDF", className: "bg-danger/10 text-danger" };
-  if (ext === "doc" || ext === "docx") return { label: "DOC", className: "bg-blue-100 text-blue-700" };
+  if (ext === "doc" || ext === "docx") return { label: "DOC", className: "bg-info/10 text-info" };
   if (ext === "xls" || ext === "xlsx" || ext === "csv") return { label: ext === "csv" ? "CSV" : "XLS", className: "bg-success/10 text-success" };
   if (/^(png|jpe?g|gif|webp|heic|bmp|tiff?)$/.test(ext)) return { label: "IMG", className: "bg-purple-100 text-purple-700" };
   if (ext === "txt" || ext === "md") return { label: "TXT", className: "bg-off-white text-muted" };

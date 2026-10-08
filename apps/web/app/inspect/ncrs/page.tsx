@@ -3,6 +3,7 @@ import { siteToday } from "@/lib/ncrs/site-date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
+import { StatusLegend } from "@/components/ui/status-legend";
 import { StatCard } from "@/components/ui/stat-card";
 import { AgingChart } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
@@ -275,7 +276,8 @@ export default async function NcrsPage({
         <AgingChart counts={agingCounts} />
       </div>
 
-      <div className="mt-6">
+      <StatusLegend className="mt-6" />
+      <div className="mt-2">
         <NcrsTable
           rows={rows}
           totalCount={totalCount ?? 0}

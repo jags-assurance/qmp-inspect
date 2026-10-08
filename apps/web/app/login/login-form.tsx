@@ -6,6 +6,7 @@ import { signInAction, type SignInState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/domain/password-field";
 import { FormMessage } from "@/components/ui/form-message";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: SignInState = { error: null };
 
@@ -30,11 +31,8 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
         <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
           <input type="hidden" name="next" value={next} />
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-ink">
-              Email
-            </label>
-            <input
-              id="email"
+            <FormField label="Email">
+              <input
               name="email"
               type="email"
               required
@@ -43,6 +41,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
               aria-invalid={state.error ? true : undefined}
               className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
+            </FormField>
           </div>
           <div>
             <div className="flex items-center justify-between">

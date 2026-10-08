@@ -9,6 +9,7 @@ import {
 } from "@/lib/checklist-library/actions";
 import type { ParsedLibraryItemRow } from "@/lib/checklist-library/types";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const parseInitialState: ParseImportState = { error: null, rows: null };
 const commitInitialState: CommitImportState = { error: null, addedCount: 0 };
@@ -108,36 +109,40 @@ export function ImportPanel({ templateId }: { templateId: string }) {
               >
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <div>
-                    <label className="block text-xs font-medium uppercase text-muted">Item #</label>
-                    <input
+                    <FormField label="Item #">
+                      <input
                       value={row.item_number}
                       onChange={(e) => updateRow(index, { item_number: e.target.value })}
                       className="mt-0.5 w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
                     />
+                    </FormField>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium uppercase text-muted">Evidence type</label>
-                    <input
+                    <FormField label="Evidence type">
+                      <input
                       value={row.evidence_type}
                       onChange={(e) => updateRow(index, { evidence_type: e.target.value })}
                       className="mt-0.5 w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
                     />
+                    </FormField>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium uppercase text-muted">Description</label>
-                    <input
+                    <FormField label="Description">
+                      <input
                       value={row.description}
                       onChange={(e) => updateRow(index, { description: e.target.value })}
                       className="mt-0.5 w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
                     />
+                    </FormField>
                   </div>
                   <div className="col-span-2 sm:col-span-3">
-                    <label className="block text-xs font-medium uppercase text-muted">Acceptance criteria</label>
-                    <input
+                    <FormField label="Acceptance criteria">
+                      <input
                       value={row.acceptance_criteria}
                       onChange={(e) => updateRow(index, { acceptance_criteria: e.target.value })}
                       className="mt-0.5 w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
                     />
+                    </FormField>
                   </div>
                   <div className="flex items-end justify-between gap-2">
                     <label className="flex items-center gap-1 text-xs text-ink">

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateItpApprovalWorkflowAction, type ItpApprovalWorkflowState } from "@/lib/itp-approval-workflow/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: ItpApprovalWorkflowState = { error: null };
 
@@ -30,8 +31,8 @@ export function ItpApprovalWorkflowForm({
       <input type="hidden" name="organization_id" value={organizationId} />
 
       <div>
-        <label className="block text-xs font-medium text-muted">Required reviewer (draft → under review)</label>
-        <select
+        <FormField label="Required reviewer (draft → under review)">
+          <select
           name="required_reviewer_user_id"
           defaultValue={requiredReviewerUserId ?? ""}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -43,11 +44,12 @@ export function ItpApprovalWorkflowForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted">Required approver (under review → approved)</label>
-        <select
+        <FormField label="Required approver (under review → approved)">
+          <select
           name="required_approver_user_id"
           defaultValue={requiredApproverUserId ?? ""}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -59,6 +61,7 @@ export function ItpApprovalWorkflowForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}

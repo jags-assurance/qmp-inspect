@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<StatusKey, string> = {
 const STATUS_CLASS: Record<StatusKey, string> = {
   not_started: "bg-off-white text-muted",
   in_progress: "bg-gold/30 text-[color:var(--color-burgundy-dark)]",
-  completed: "bg-green-100 text-green-800",
+  completed: "bg-success/10 text-success",
 };
 
 interface TemplateRow {
@@ -226,7 +226,7 @@ export default async function StartWorkPage({
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          {([["overdue", "Overdue", overdueCount, "bg-red-100 text-red-800"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]"], ["held", "Awaiting hold release", heldCount, "bg-off-white text-ink"]] as const).map(([k, label, n, cls]) => (
+          {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]"], ["held", "Awaiting hold release", heldCount, "bg-off-white text-ink"]] as const).map(([k, label, n, cls]) => (
             <Link
               key={k}
               href={`/inspect/start-work?due=${dueFilter === k ? "" : k}`}
@@ -256,7 +256,7 @@ export default async function StartWorkPage({
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                     {a.plannedDate && <span className="text-xs text-muted">{a.plannedDate}</span>}
-                    {a.overdue && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Overdue</span>}
+                    {a.overdue && <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger">Overdue</span>}
                     {a.dueSoon && <span className="rounded-full bg-gold/30 px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-burgundy-dark)]">Due soon</span>}
                     {a.awaitingHold && a.status !== "completed" && <span className="rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-ink">Awaiting hold release</span>}
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>

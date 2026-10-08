@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateOrgPlanAction, type PlanSettingsState } from "@/lib/plans/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: PlanSettingsState = { error: null };
 
@@ -28,11 +29,8 @@ export function OrgPlanForm({
       <input type="hidden" name="organization_id" value={organizationId} />
 
       <div>
-        <label htmlFor="plan_tier" className="block text-xs text-muted">
-          Plan tier
-        </label>
-        <select
-          id="plan_tier"
+        <FormField label="Plan tier">
+          <select
           name="plan_tier"
           defaultValue={planTier}
           className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -43,14 +41,12 @@ export function OrgPlanForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="seat_limit" className="block text-xs text-muted">
-          Seat limit
-        </label>
-        <input
-          id="seat_limit"
+        <FormField label="Seat limit">
+          <input
           name="seat_limit"
           type="number"
           min={0}
@@ -59,6 +55,7 @@ export function OrgPlanForm({
           placeholder="Unlimited"
           className="mt-1 w-32 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <Button type="submit" disabled={pending}>

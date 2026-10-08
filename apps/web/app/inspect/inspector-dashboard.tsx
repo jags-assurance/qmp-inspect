@@ -51,7 +51,7 @@ const ASSIGNMENT_TYPE_TONE: Record<AssignmentType, "gold" | "info" | "neutral" |
 // Plain-language "what to do here" guide — folded into the page's own Guide popover rather than an
 // always-open box on the dashboard body (see admin-dashboard.tsx's matching comment for why).
 const INSPECTOR_GUIDE: string[] = [
-  "Run field inspections: open \"New inspection\" or pick a checklist from \"My pending actions\" below to fill in results for an activity.",
+  "Run field inspections: open \"Start work\" or pick a checklist from \"My pending actions\" below to fill in results for an activity.",
   "Chase the ones not yet started or still in progress — that's exactly what \"My pending actions\" lists, split into Today and Overdue.",
   "Where an activity has a Hold point, sign-off can't happen until you've completed the checklist and it's been notified to the relevant party — \"Overdue hold points\" above flags any stuck past their notice period.",
   "If an inspection fails, raise an NCR against it so it's tracked through to closure.",
@@ -130,7 +130,7 @@ export function InspectorDashboard({
             href="/inspect/start-work"
             className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
           >
-            New inspection
+            Start work
           </Link>
         </div>
       </div>

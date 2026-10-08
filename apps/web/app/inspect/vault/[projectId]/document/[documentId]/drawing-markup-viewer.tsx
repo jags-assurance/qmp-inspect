@@ -6,6 +6,7 @@ import { createDrawingMarkupAction } from "@/lib/drawing-markups/actions";
 import { DRAWING_MARKUP_TYPE_LABELS, type DrawingMarkupRow, type DrawingMarkupType } from "@/lib/drawing-markups/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FormField } from "@/components/ui/form-field";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 
@@ -259,23 +260,18 @@ export function DrawingMarkupViewer({
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink">+ Add pin</h2>
             <div className="mt-3">
-              <label htmlFor="pin-label" className="block text-xs text-muted">
-                Label
-              </label>
-              <input
-                id="pin-label"
+              <FormField label="Label">
+                <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="e.g. Hold point at this valve"
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
               />
+              </FormField>
             </div>
             <div className="mt-3">
-              <label htmlFor="pin-ncr" className="block text-xs text-muted">
-                Link to an NCR (optional)
-              </label>
-              <select
-                id="pin-ncr"
+              <FormField label="Link to an NCR (optional)">
+                <select
                 value={linkedNcrId}
                 onChange={(e) => setLinkedNcrId(e.target.value)}
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -287,14 +283,12 @@ export function DrawingMarkupViewer({
                   </option>
                 ))}
               </select>
+              </FormField>
             </div>
             {!linkedNcrId && (
               <div className="mt-3">
-                <label htmlFor="pin-type" className="block text-xs text-muted">
-                  Type
-                </label>
-                <select
-                  id="pin-type"
+                <FormField label="Type">
+                  <select
                   value={markupType}
                   onChange={(e) => setMarkupType(e.target.value as DrawingMarkupType)}
                   className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -302,6 +296,7 @@ export function DrawingMarkupViewer({
                   <option value="note">Note</option>
                   <option value="photo">Photo</option>
                 </select>
+                </FormField>
               </div>
             )}
             <div role="alert">{error && <p className="mt-2 text-sm text-danger">{error}</p>}</div>

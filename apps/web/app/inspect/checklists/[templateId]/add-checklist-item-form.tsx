@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { addChecklistItemAction, type AddChecklistItemState } from "@/lib/checklists/actions";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddChecklistItemState = { error: null };
 
@@ -15,24 +16,24 @@ export function AddChecklistItemForm({ templateId, disabledReason }: { templateI
       <input type="hidden" name="template_id" value={templateId} />
 
       <div>
-        <label htmlFor="add-item-number" className="block text-xs font-medium text-muted">Item no.</label>
-        <input
-          id="add-item-number"
+        <FormField label="Item no.">
+          <input
           name="item_number"
           required
           placeholder="2"
           className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
-      <div className="min-w-64 flex-1">
-        <label htmlFor="add-item-description" className="block text-xs font-medium text-muted">Description</label>
-        <input
-          id="add-item-description"
+      <div className="w-full sm:min-w-64 flex-1">
+        <FormField label="Description">
+          <input
           name="description"
           required
           placeholder="e.g. Cable route matches latest approved drawing"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       {/* Mandatory/optional shown as a pill toggle (visual only — same is_mandatory checkbox underneath). */}
@@ -60,16 +61,19 @@ export function AddChecklistItemForm({ templateId, disabledReason }: { templateI
       {numeric && (
         <div className="flex w-full flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="add-item-min" className="block text-xs font-medium text-muted">Minimum</label>
-            <input id="add-item-min" name="numeric_min" inputMode="decimal" className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+            <FormField label="Minimum">
+              <input name="numeric_min" inputMode="decimal" className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+            </FormField>
           </div>
           <div>
-            <label htmlFor="add-item-max" className="block text-xs font-medium text-muted">Maximum</label>
-            <input id="add-item-max" name="numeric_max" inputMode="decimal" className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+            <FormField label="Maximum">
+              <input name="numeric_max" inputMode="decimal" className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+            </FormField>
           </div>
           <div>
-            <label htmlFor="add-item-unit" className="block text-xs font-medium text-muted">Unit</label>
-            <input id="add-item-unit" name="numeric_unit" maxLength={20} placeholder="mm" className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+            <FormField label="Unit">
+              <input name="numeric_unit" maxLength={20} placeholder="mm" className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+            </FormField>
           </div>
           <p className="pb-2 text-xs text-muted">Give a minimum, a maximum, or both. A reading outside the limits fails the item.</p>
         </div>

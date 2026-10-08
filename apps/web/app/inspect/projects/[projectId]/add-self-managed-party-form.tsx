@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { addSelfManagedPartyAction, type AddSelfManagedPartyState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddSelfManagedPartyState = { error: null };
 
@@ -33,11 +34,8 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="sm_party_type" className="block text-xs font-medium text-ink">
-            Party type
-          </label>
-          <select
-            id="sm_party_type"
+          <FormField label="Party type">
+            <select
             name="party_type"
             required
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -48,31 +46,28 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
               </option>
             ))}
           </select>
+          </FormField>
         </div>
         <div>
-          <label htmlFor="sm_party_name" className="block text-xs font-medium text-ink">
-            Organisation / company name
-          </label>
-          <input
-            id="sm_party_name"
+          <FormField label="Organisation / company name">
+            <input
             name="name"
             required
             placeholder="e.g. Voltway Electrical Ltd"
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <div className="sm:col-span-2">
-          <label htmlFor="sm_party_email" className="block text-xs font-medium text-ink">
-            Their JAGS Assurance account email
-          </label>
-          <input
-            id="sm_party_email"
+          <FormField label="Their JAGS Assurance account email">
+            <input
             name="email"
             type="email"
             required
             placeholder="name@company.com"
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
       </div>
 

@@ -34,7 +34,7 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
         required
         maxLength={200}
         aria-label="Document title"
-        className="min-w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+        className="w-full sm:min-w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm"
       />
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}

@@ -9,6 +9,7 @@ import {
   type ReassignReviewStepState,
 } from "@/lib/itps/review-chain-actions";
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: ApproveReviewStepState = { error: null };
 const initialReassignState: ReassignReviewStepState = { error: null };
@@ -83,11 +84,8 @@ export function ReviewChainStatus({
           <input type="hidden" name="itp_id" value={itpId} />
           <input type="hidden" name="step_id" value={firstPending.id} />
           <div>
-            <label htmlFor="reassign-reviewer" className="block text-xs text-muted">
-              Reviewer is unavailable? Hand step {steps.findIndex((s) => s.id === firstPending.id) + 1} to
-            </label>
-            <select
-              id="reassign-reviewer"
+            <FormField label={<>Reviewer is unavailable? Hand step {steps.findIndex((s) => s.id === firstPending.id) + 1} to</>}>
+              <select
               name="new_reviewer_user_id"
               required
               defaultValue=""
@@ -104,6 +102,7 @@ export function ReviewChainStatus({
                   </option>
                 ))}
             </select>
+            </FormField>
           </div>
           <button
             type="submit"

@@ -120,7 +120,7 @@ export function RecordWalkdownForm({
       <div className="mt-4 space-y-3">
         {rowIds.map((rowId, index) => (
           <div key={rowId} className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface p-3">
-            <div className="w-full min-w-56 flex-1">
+            <div className="w-full sm:min-w-56 flex-1">
               <label htmlFor={`walkdown-description-${rowId}`} className="block text-xs font-medium text-ink">
                 Item found
               </label>

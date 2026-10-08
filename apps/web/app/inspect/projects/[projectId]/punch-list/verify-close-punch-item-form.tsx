@@ -30,7 +30,7 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId }: { projectId
   }
 
   return (
-    <form action={formAction} className="flex min-w-56 flex-col gap-2">
+    <form action={formAction} className="flex w-full sm:min-w-56 flex-col gap-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <textarea

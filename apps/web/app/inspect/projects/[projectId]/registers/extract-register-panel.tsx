@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 export interface ExtractFieldConfig {
   key: string;
@@ -145,13 +146,14 @@ export function ExtractRegisterPanel({
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
                         {fields.map((field) => (
                           <div key={field.key}>
-                            <label className="block text-xs font-medium uppercase text-muted">{field.label}</label>
-                            <input
+                            <FormField label={<>{field.label}</>}>
+                              <input
                               value={row[field.key] ?? ""}
                               onChange={(e) => updateField(rowIdx, field.key, e.target.value)}
                               placeholder="—"
                               className="mt-0.5 w-full rounded border border-border bg-off-white px-1.5 py-1 text-xs"
                             />
+                            </FormField>
                           </div>
                         ))}
                       </div>

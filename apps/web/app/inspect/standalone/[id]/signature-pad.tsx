@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, type PointerEvent } from "
 import { addSignatureAction, type AddSignatureState } from "@/lib/standalone/actions";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddSignatureState = { error: null };
 
@@ -101,21 +102,23 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-muted">Role</label>
-          <input
+          <FormField label="Role">
+            <input
             name="role"
             required
             placeholder="e.g. Client witness"
             className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <div>
-          <label className="block text-xs text-muted">Signatory name</label>
-          <input
+          <FormField label="Signatory name">
+            <input
             name="signatory_name"
             required
             className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
       </div>
 

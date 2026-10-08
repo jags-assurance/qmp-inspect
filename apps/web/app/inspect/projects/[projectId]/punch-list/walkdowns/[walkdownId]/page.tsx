@@ -77,7 +77,7 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
         {Object.keys(summary.byPriority).length > 0 && ` Priority ${Object.entries(summary.byPriority).sort().map(([p, n]) => `${p}: ${n}`).join(", ")}.`}
       </p>
 
-      <table className="mt-3 w-full text-sm">
+      <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
         <thead className="text-left text-xs text-muted">
           <tr>
             <th className="py-1 pr-2">#</th>
@@ -102,7 +102,7 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
 
       <div className="mt-8 border-t border-border pt-3 text-sm">
         {wd.signed_off_at ? (

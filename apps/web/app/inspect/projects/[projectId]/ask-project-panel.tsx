@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { askProjectQuestionAction, type AskProjectQuestionState } from "@/lib/projects/actions";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AskProjectQuestionState = { error: null, answer: null, question: null };
 
@@ -51,18 +52,16 @@ export function AskProjectPanel({ projectId }: { projectId: string }) {
 
       <form key={inputKey} action={formAction} className="mt-3 flex flex-wrap items-end gap-2">
         <input type="hidden" name="project_id" value={projectId} />
-        <div className="min-w-[240px] flex-1">
-          <label htmlFor="question" className="block text-xs text-muted">
-            Your question
-          </label>
-          <input
-            id="question"
+        <div className="w-full sm:min-w-[240px] flex-1">
+          <FormField label="Your question">
+            <input
             name="question"
             type="text"
             required
             placeholder="e.g. What open NCRs are still blocking handover?"
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <button
           type="submit"

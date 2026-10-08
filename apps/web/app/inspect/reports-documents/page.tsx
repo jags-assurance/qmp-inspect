@@ -126,7 +126,7 @@ export default async function ReportsDocumentsPage({
       </div>
 
       {attention.length > 0 && (
-        <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <div className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-4">
           <p className="font-medium text-ink">Needs attention ({attention.length})</p>
           <ul className="mt-2 space-y-1 text-sm">
             {attention.map((a) => (

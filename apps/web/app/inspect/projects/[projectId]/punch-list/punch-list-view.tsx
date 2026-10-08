@@ -13,6 +13,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { userNames } from "@/lib/ncrs/recipients";
 import { LoadMore } from "@/components/domain/load-more";
 import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
+import { StatusLegend } from "@/components/ui/status-legend";
 
 // Outstanding (open / resolved) items are always loaded — they block the Data Book and are the
 // working set. Only the CLOSED history is windowed ("Load more"), newest first.
@@ -180,7 +181,8 @@ export async function PunchListView({
 
       <WalkdownsPanel projectId={projectId} />
 
-      <div className="mt-6">
+      <StatusLegend className="mt-6" />
+      <div className="mt-2">
         <PunchListTable
           projectId={projectId}
           rows={rows}

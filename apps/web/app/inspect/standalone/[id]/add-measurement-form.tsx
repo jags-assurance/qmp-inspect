@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { addMeasurementAction, type AddMeasurementState } from "@/lib/standalone/actions";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddMeasurementState = { error: null };
 
@@ -32,44 +33,49 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
       <input type="hidden" name="assignment_id" value={assignmentId} />
 
       <div className="min-w-48 flex-1">
-        <label className="block text-xs text-muted">Description</label>
-        <input
+        <FormField label="Description">
+          <input
           name="description"
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs text-muted">Nominal</label>
-        <input
+        <FormField label="Nominal">
+          <input
           name="nominal_value"
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs text-muted">Tolerance</label>
-        <input
+        <FormField label="Tolerance">
+          <input
           name="tolerance"
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs text-muted">Actual</label>
-        <input
+        <FormField label="Actual">
+          <input
           name="actual_value"
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs text-muted">Unit</label>
-        <input
+        <FormField label="Unit">
+          <input
           name="unit"
           className="mt-1 w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       <div>
-        <label className="block text-xs text-muted">Result</label>
-        <select
+        <FormField label="Result">
+          <select
           name="result"
           defaultValue=""
           className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -78,6 +84,7 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
           <option value="pass">Pass</option>
           <option value="fail">Fail</option>
         </select>
+        </FormField>
       </div>
       <button
         type="submit"

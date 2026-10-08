@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PageGuide } from "@/components/domain/page-guide";
 import { Button } from "@/components/ui/button";
+import { StatusLegend } from "@/components/ui/status-legend";
 import { IRNS_TABLE } from "@/lib/checklists/db-types";
 import { InspectionsTable, INSPECTIONS_PAGE_SIZE, type InspectionListRow } from "./inspections-table";
 
@@ -235,7 +236,10 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
             to begin one.
           </div>
         ) : (
-          <InspectionsTable rows={rows} totalCount={count ?? 0} />
+          <>
+            <StatusLegend className="mb-2" />
+            <InspectionsTable rows={rows} totalCount={count ?? 0} />
+          </>
         )}
       </div>
     </div>

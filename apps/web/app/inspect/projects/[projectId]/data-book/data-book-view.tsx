@@ -372,7 +372,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       {/* Status banner */}
       <section id="status" aria-label="Data Book status" className="mt-4 scroll-mt-24 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-[14rem] flex-1">
+          <div className="w-full sm:min-w-[14rem] flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium uppercase tracking-wide text-muted">Book state</span>
               <Badge tone={bannerTone}>{latest ? STATUS_LABEL[latest.status] : "No book"}</Badge>

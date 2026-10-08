@@ -107,7 +107,7 @@ export function TemplateLifecycleControls({
           );
         }}
       >
-        <div className="min-w-64 flex-1">
+        <div className="w-full sm:min-w-64 flex-1">
           <label htmlFor={targetId} className="block text-xs font-medium text-muted">
             Duplicate to activity
           </label>

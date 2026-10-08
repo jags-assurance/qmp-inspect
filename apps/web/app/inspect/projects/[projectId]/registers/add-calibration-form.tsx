@@ -5,6 +5,7 @@ import { addCalibrationEntryAction, type AddCalibrationEntryState } from "@/lib/
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddCalibrationEntryState = { error: null };
 const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -42,59 +43,51 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="min-w-48 flex-1">
-        <label htmlFor="instrument_name" className="block text-xs font-medium text-ink">
-          Instrument
-        </label>
-        <input id="instrument_name" name="instrument_name" required className={inputClass} />
+        <FormField label="Instrument">
+          <input name="instrument_name" required className={inputClass} />
+        </FormField>
       </div>
 
       <div className="w-36">
-        <label htmlFor="instrument_tag" className="block text-xs font-medium text-ink">
-          Instrument ID / tag
-        </label>
-        <input id="instrument_tag" name="instrument_tag" className={inputClass} />
+        <FormField label="Instrument ID / tag">
+          <input name="instrument_tag" className={inputClass} />
+        </FormField>
       </div>
 
       <div className="w-40">
-        <label htmlFor="cert_number" className="block text-xs font-medium text-ink">
-          Cert number
-        </label>
-        <input id="cert_number" name="cert_number" required className={inputClass} />
+        <FormField label="Cert number">
+          <input name="cert_number" required className={inputClass} />
+        </FormField>
       </div>
 
       <div className="min-w-36 flex-1">
-        <label htmlFor="calibration_lab" className="block text-xs font-medium text-ink">
-          Calibration lab
-        </label>
-        <input id="calibration_lab" name="calibration_lab" className={inputClass} />
+        <FormField label="Calibration lab">
+          <input name="calibration_lab" className={inputClass} />
+        </FormField>
       </div>
 
       <div className="w-36">
-        <label htmlFor="cal_date" className="block text-xs font-medium text-ink">
-          Cal. date
-        </label>
-        <input
-          id="cal_date"
+        <FormField label="Cal. date">
+          <input
           name="cal_date"
           type="date"
           value={calDate}
           onChange={(e) => setCalDate(e.target.value)}
           className={inputClass}
         />
+        </FormField>
       </div>
 
       <div className="w-36">
-        <label htmlFor="due_date" className="block text-xs font-medium text-ink">
-          Due date
-        </label>
-        <input id="due_date" name="due_date" type="date" required min={calDate || undefined} className={inputClass} />
+        <FormField label="Due date">
+          <input name="due_date" type="date" required min={calDate || undefined} className={inputClass} />
+        </FormField>
       </div>
 
       <div className="min-w-40 flex-1">
-        <label htmlFor="cal_notes" className="block text-xs font-medium text-ink">
-          Notes
-        </label>
-        <input id="cal_notes" name="notes" className={inputClass} />
+        <FormField label="Notes">
+          <input name="notes" className={inputClass} />
+        </FormField>
       </div>
 
       <CertificateUpload key={formKey} projectId={projectId} kind="calibration" />

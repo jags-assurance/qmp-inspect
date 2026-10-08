@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createDataBookAction, type CreateDataBookState } from "@/lib/databook/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CreateDataBookState = { error: null };
 
@@ -15,38 +16,31 @@ export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="w-48">
-        <label htmlFor="book_number" className="block text-xs font-medium text-ink">
-          Book number
-        </label>
-        <input
-          id="book_number"
+        <FormField label="Book number">
+          <input
           name="book_number"
           required
           placeholder="e.g. DB-001"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
-      <div className="min-w-56 flex-1">
-        <label htmlFor="title" className="block text-xs font-medium text-ink">
-          Title
-        </label>
-        <input
-          id="title"
+      <div className="w-full sm:min-w-56 flex-1">
+        <FormField label="Title">
+          <input
           name="title"
           required
           placeholder="e.g. Final Quality Data Book"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       {revisionOf && (
         <div className="w-full">
-          <label htmlFor="revision_reason" className="block text-xs font-medium text-ink">
-            Why is this a revision of {revisionOf}?
-          </label>
-          <textarea
-            id="revision_reason"
+          <FormField label={<>Why is this a revision of {revisionOf}?</>}>
+            <textarea
             name="revision_reason"
             required
             minLength={10}
@@ -55,6 +49,7 @@ export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId
             placeholder="What changed since the issued book (it will be recorded and the earlier certificate superseded when this is issued)"
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
       )}
 

@@ -857,9 +857,9 @@ const KIND_LABEL: Record<RegisterKind, string> = {
 };
 
 const TONE_CLASS: Record<RegisterHit["statusTone"], string> = {
-  ok: "bg-green-100 text-green-800",
-  warn: "bg-amber-100 text-amber-800",
-  bad: "bg-red-100 text-red-800",
+  ok: "bg-success/10 text-success",
+  warn: "bg-warning/10 text-warning",
+  bad: "bg-danger/10 text-danger",
 };
 
 function fetchUsage(supabase: SupabaseClient, hit: RegisterHit) {
@@ -915,7 +915,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
       </div>
 
       {hit.kind === "calibration" && (
-        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+        <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
           <div className="font-semibold text-ink">Impact report</div>
           <p className="mt-1 text-ink">
             If this instrument is found out of tolerance, these <span className="font-semibold">{impactedRecords.length}</span>{" "}

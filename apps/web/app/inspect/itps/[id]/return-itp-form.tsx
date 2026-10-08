@@ -32,7 +32,7 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
         rows={2}
         placeholder="What needs to change? (sent to the preparer)"
         aria-label="Reason for returning the ITP"
-        className="min-w-64 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        className="w-full sm:min-w-64 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       <div className="flex flex-col gap-1">
         <button

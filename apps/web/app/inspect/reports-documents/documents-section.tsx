@@ -146,10 +146,10 @@ function pageHref(sp: DocSearchParams, page: number): string {
 }
 
 const STATUS_TONE: Record<string, string> = {
-  approved: "bg-green-100 text-green-800",
-  for_review: "bg-amber-100 text-amber-800",
+  approved: "bg-success/10 text-success",
+  for_review: "bg-warning/10 text-warning",
   superseded: "bg-gray-200 text-gray-700",
-  rejected: "bg-red-100 text-red-800",
+  rejected: "bg-danger/10 text-danger",
 };
 
 export function DocumentsSection({

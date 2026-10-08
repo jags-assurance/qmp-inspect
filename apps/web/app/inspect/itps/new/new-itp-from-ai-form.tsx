@@ -10,6 +10,7 @@ import {
 import type { ItpDraftResult } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FormField } from "@/components/ui/form-field";
 
 const EXTRACTION_LABEL: Record<string, string> = {
   done: "Ready",
@@ -147,11 +148,8 @@ export function NewItpFromAiForm({
     return (
       <form action={genFormAction} className="mt-6 space-y-6">
         <div>
-          <label htmlFor="ai_project_id" className="block text-sm font-semibold text-ink">
-            Project
-          </label>
-          <select
-            id="ai_project_id"
+          <FormField label="Project">
+            <select
             name="project_id"
             required
             value={projectId}
@@ -168,6 +166,7 @@ export function NewItpFromAiForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
 
         {projectId && (
@@ -424,11 +423,8 @@ export function NewItpFromAiForm({
           </p>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-4">
             <div>
-              <label htmlFor="ai_itp_number" className="block text-sm font-semibold text-ink">
-                ITP number
-              </label>
-              <input
-                id="ai_itp_number"
+              <FormField label="ITP number">
+                <input
                 name="itp_number"
                 required
                 value={itpNumber}
@@ -436,20 +432,19 @@ export function NewItpFromAiForm({
                 placeholder="e.g. MER-JAGS-ITP-002"
                 className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy doc-id"
               />
+              </FormField>
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="ai_title" className="block text-sm font-semibold text-ink">
-                Title
-              </label>
-              <input
-                id="ai_title"
+              <FormField label="Title">
+                <input
                 name="title"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
               />
+              </FormField>
             </div>
 
             <div>
@@ -506,45 +501,49 @@ export function NewItpFromAiForm({
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[80px_1fr]">
                       <div>
-                        <label className="block text-xs font-medium text-muted">Item no.</label>
-                        <input
+                        <FormField label="Item no.">
+                          <input
                           value={item.itemNumber}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { itemNumber: e.target.value })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm doc-id"
                         />
+                        </FormField>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted">Activity</label>
-                        <input
+                        <FormField label="Activity">
+                          <input
                           value={item.activity}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { activity: e.target.value })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm"
                         />
+                        </FormField>
                       </div>
                     </div>
 
                     <div className="mt-3">
-                      <label className="block text-xs font-medium text-muted">Acceptance criteria</label>
-                      <textarea
+                      <FormField label="Acceptance criteria">
+                        <textarea
                         value={item.acceptanceCriteria}
                         onChange={(e) => updateItem(sectionIdx, itemIdx, { acceptanceCriteria: e.target.value })}
                         rows={2}
                         className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm"
                       />
+                      </FormField>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="lg:col-span-2">
-                        <label className="block text-xs font-medium text-muted">Reference (spec clause / standard)</label>
-                        <input
+                        <FormField label="Reference (spec clause / standard)">
+                          <input
                           value={item.referenceSpec}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { referenceSpec: e.target.value })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         />
+                        </FormField>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted">Discipline</label>
-                        <select
+                        <FormField label="Discipline">
+                          <select
                           value={item.disciplineCode ?? ""}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { disciplineCode: e.target.value || null })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
@@ -556,10 +555,11 @@ export function NewItpFromAiForm({
                             </option>
                           ))}
                         </select>
+                        </FormField>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted">Evidence type</label>
-                        <select
+                        <FormField label="Evidence type">
+                          <select
                           value={item.evidenceType}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
@@ -568,25 +568,28 @@ export function NewItpFromAiForm({
                           <option value={2}>Document upload</option>
                           <option value={3}>Measurement record</option>
                         </select>
+                        </FormField>
                       </div>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="block text-xs font-medium text-muted">Method (e.g. Megger test)</label>
-                        <input
+                        <FormField label="Method (e.g. Megger test)">
+                          <input
                           value={item.method}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { method: e.target.value })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         />
+                        </FormField>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted">Frequency (e.g. Each circuit)</label>
-                        <input
+                        <FormField label="Frequency (e.g. Each circuit)">
+                          <input
                           value={item.frequency}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { frequency: e.target.value })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         />
+                        </FormField>
                       </div>
                     </div>
 

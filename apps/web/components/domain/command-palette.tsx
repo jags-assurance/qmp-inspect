@@ -5,26 +5,7 @@ import { useRouter } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { searchEntitiesAction, type EntityHit } from "@/lib/search/actions";
 
-interface Entry {
-  label: string;
-  href: string;
-  path: string;
-}
-
-/** Every real destination in the sidebar (leaves only), with its group path for context —
- *  "Settings › Access & Roles › Staff Access" — so the ~17 nested admin pages are one search away. */
-function flatten(items: NavItem[], trail: string[] = []): Entry[] {
-  const out: Entry[] = [];
-  for (const item of items) {
-    if (item.children && item.children.length > 0) {
-      out.push(...flatten(item.children, [...trail, item.label]));
-    } else {
-      if (item.palette) out.push(...flatten(item.palette, [...trail, item.label]));
-      out.push({ label: item.label, href: item.href, path: [...trail, item.label].join(" › ") });
-    }
-  }
-  return out;
-}
+import { filterEntries, flattenNavItems as flatten, type PaletteEntry as Entry } from "@/lib/search/palette-entries";
 
 /**
  * Header search: Ctrl/Cmd+K (or the header box / the mobile search button) opens a jump-to list over
@@ -44,11 +25,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
   const [searching, setSearching] = useState(false);
   const searchSeq = useRef(0);
 
-  const pageResults = useMemo(() => {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return entries;
-    return entries.filter((e) => terms.every((t) => e.path.toLowerCase().includes(t)));
-  }, [entries, query]);
+  const pageResults = useMemo(() => filterEntries(entries, query), [entries, query]);
 
   // Record hits (debounced); a stale response from an earlier keystroke is dropped.
   useEffect(() => {

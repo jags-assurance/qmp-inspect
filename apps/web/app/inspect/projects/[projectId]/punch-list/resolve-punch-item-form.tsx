@@ -42,7 +42,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
   }
 
   return (
-    <form action={submit} encType="multipart/form-data" className="flex min-w-56 flex-col gap-2">
+    <form action={submit} encType="multipart/form-data" className="flex w-full sm:min-w-56 flex-col gap-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <textarea

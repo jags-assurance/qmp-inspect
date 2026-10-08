@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { requestPasswordResetAction, type RequestPasswordResetState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: RequestPasswordResetState = { error: null, sent: false };
 
@@ -43,17 +44,15 @@ export default function ForgotPasswordPage() {
 
             <form action={formAction} className="mt-8 space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-ink">
-                  Email
-                </label>
-                <input
-                  id="email"
+                <FormField label="Email">
+                  <input
                   name="email"
                   type="email"
                   required
                   autoComplete="email"
                   className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
                 />
+                </FormField>
               </div>
 
               <FormMessage error={state.error} />

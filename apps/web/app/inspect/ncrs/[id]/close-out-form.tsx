@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ReturnForReworkForm } from "./ncr-status-controls";
 import { NCR_DISPOSITIONS, NCR_DISPOSITION_LABELS } from "@/lib/ncrs/extended";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: UpdateNcrState = { error: null };
 const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
@@ -117,11 +118,8 @@ export function CloseOutForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="assigned_to" className="block text-sm font-medium text-ink">
-            Assigned to
-          </label>
-          <select
-            id="assigned_to"
+          <FormField label="Assigned to">
+            <select
             name="assigned_to"
             defaultValue={assignedTo ?? ""}
             disabled={isClosed || !canAssign}
@@ -134,13 +132,11 @@ export function CloseOutForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
         <div>
-          <label htmlFor="due_date" className="block text-sm font-medium text-ink">
-            Due date
-          </label>
-          <input
-            id="due_date"
+          <FormField label="Due date">
+            <input
             name="due_date"
             type="date"
             required
@@ -148,6 +144,7 @@ export function CloseOutForm({
             disabled={isClosed || !canAssign}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           />
+          </FormField>
         </div>
       </div>
 
@@ -209,11 +206,8 @@ export function CloseOutForm({
       </div>
 
       <div>
-        <label htmlFor="corrective_action" className="block text-sm font-medium text-ink">
-          Corrective action
-        </label>
-        <textarea
-          id="corrective_action"
+        <FormField label="Corrective action">
+          <textarea
           name="corrective_action"
           rows={3}
           defaultValue={correctiveAction ?? ""}
@@ -221,14 +215,12 @@ export function CloseOutForm({
           onChange={(e) => setFields((f) => ({ ...f, correctiveAction: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="preventive_action" className="block text-sm font-medium text-ink">
-          Preventive action
-        </label>
-        <textarea
-          id="preventive_action"
+        <FormField label="Preventive action">
+          <textarea
           name="preventive_action"
           rows={3}
           defaultValue={preventiveAction ?? ""}
@@ -236,14 +228,12 @@ export function CloseOutForm({
           disabled={isClosed || capaLocked}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="verification_notes" className="block text-sm font-medium text-ink">
-          Verification of effectiveness
-        </label>
-        <textarea
-          id="verification_notes"
+        <FormField label="Verification of effectiveness">
+          <textarea
           name="verification_notes"
           rows={3}
           defaultValue={verificationNotes ?? ""}
@@ -251,6 +241,7 @@ export function CloseOutForm({
           onChange={(e) => setFields((f) => ({ ...f, verificationNotes: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
+        </FormField>
       </div>
 
       {categories && (
@@ -258,22 +249,24 @@ export function CloseOutForm({
           <legend className="px-1 text-xs font-medium text-muted">Classification</legend>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="root_cause_category" className="block text-sm font-medium text-ink">Root-cause category</label>
-              <select id="root_cause_category" name="root_cause_category" defaultValue={rootCauseCategory ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
+              <FormField label="Root-cause category">
+                <select name="root_cause_category" defaultValue={rootCauseCategory ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
                 <option value="">Not classified</option>
                 {categories.map((c) => (
                   <option key={c.code} value={c.code}>{c.label}</option>
                 ))}
               </select>
+              </FormField>
             </div>
             <div>
-              <label htmlFor="disposition" className="block text-sm font-medium text-ink">Disposition</label>
-              <select id="disposition" name="disposition" defaultValue={disposition ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
+              <FormField label="Disposition">
+                <select name="disposition" defaultValue={disposition ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
                 <option value="">Not decided</option>
                 {NCR_DISPOSITIONS.map((d) => (
                   <option key={d} value={d}>{NCR_DISPOSITION_LABELS[d]}</option>
                 ))}
               </select>
+              </FormField>
             </div>
             <div>
               <label htmlFor="cost_impact" className="block text-sm font-medium text-ink">Cost impact <span className="font-normal text-muted">(optional)</span></label>

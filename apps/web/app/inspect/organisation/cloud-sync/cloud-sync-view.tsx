@@ -68,7 +68,7 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
       </p>
 
       {!syncConfigured && (
-        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
           <p className="font-semibold">Not yet connected — requires Microsoft OAuth app credentials.</p>
           <p className="mt-1">
             Live syncing isn&rsquo;t possible in this environment yet: no{" "}

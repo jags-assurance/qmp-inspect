@@ -7,6 +7,7 @@ import {
   type TaxonomyState,
 } from "@/lib/ncrs/taxonomy-actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initial: TaxonomyState = { error: null };
 const INPUT = "rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -34,12 +35,14 @@ export function AddCategoryForm({ organizationId }: { organizationId: string }) 
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
-        <label htmlFor="rc-label" className="block text-xs font-medium text-muted">New category</label>
-        <input id="rc-label" name="label" required minLength={2} maxLength={80} placeholder="e.g. Permit-to-work gap" className={`mt-1 w-72 ${INPUT}`} />
+        <FormField label="New category">
+          <input name="label" required minLength={2} maxLength={80} placeholder="e.g. Permit-to-work gap" className={`mt-1 w-72 ${INPUT}`} />
+        </FormField>
       </div>
       <div>
-        <label htmlFor="rc-sort" className="block text-xs font-medium text-muted">Order</label>
-        <input id="rc-sort" name="sort_order" inputMode="numeric" defaultValue="200" className={`mt-1 w-20 ${INPUT}`} />
+        <FormField label="Order">
+          <input name="sort_order" inputMode="numeric" defaultValue="200" className={`mt-1 w-20 ${INPUT}`} />
+        </FormField>
       </div>
       <Button type="submit" disabled={pending}>{pending ? "Adding…" : "Add category"}</Button>
       <div className="w-full"><Message state={state} /></div>

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { verifyMfaLoginAction, type MfaState } from "@/lib/auth/mfa-actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initial: MfaState = { error: null };
 
@@ -15,9 +16,8 @@ export function MfaForm({ next }: { next: string }) {
       <form action={formAction} className="mt-4 space-y-3">
         <input type="hidden" name="next" value={next} />
         <div>
-          <label htmlFor="mfa-code" className="block text-xs font-medium text-muted">Code</label>
-          <input
-            id="mfa-code"
+          <FormField label="Code">
+            <input
             name="code"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -27,6 +27,7 @@ export function MfaForm({ next }: { next: string }) {
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-lg tracking-widest outline-none focus:border-burgundy"
             aria-describedby={state.error ? "mfa-error" : undefined}
           />
+          </FormField>
         </div>
         {state.error && (
           <p id="mfa-error" role="alert" className="text-sm text-danger">

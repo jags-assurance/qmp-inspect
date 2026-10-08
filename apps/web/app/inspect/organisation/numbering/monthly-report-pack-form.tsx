@@ -14,6 +14,7 @@ import { useReportPackListPolling } from "@/lib/reports/use-report-pack-polling"
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: GenerateMonthlyReportPackState = { error: null };
 const summaryInitialState: GenerateReportSummaryState = { error: null, summary: null };
@@ -67,8 +68,8 @@ export function MonthlyReportPackForm({
         <ProjectScopeSelect projects={projects} />
 
         <div>
-          <label className="block text-xs text-muted">Month</label>
-          <select
+          <FormField label="Month">
+            <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
             className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -79,11 +80,12 @@ export function MonthlyReportPackForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
 
         <div>
-          <label className="block text-xs text-muted">Year</label>
-          <input
+          <FormField label="Year">
+            <input
             type="number"
             min={2020}
             max={2100}
@@ -91,6 +93,7 @@ export function MonthlyReportPackForm({
             onChange={(e) => setYear(Number(e.target.value))}
             className="mt-1 w-28 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
 
         <Button type="submit" disabled={pending || polling}>

@@ -12,6 +12,7 @@ import { useReportPackListPolling } from "@/lib/reports/use-report-pack-polling"
 import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: RequestWeeklyReportPackState = { error: null };
 
@@ -43,13 +44,14 @@ export function WeeklyReportPackForm({ organizationId, initialPacks, projects = 
         <ProjectScopeSelect projects={projects} />
 
         <div>
-          <label className="block text-xs text-muted">Week starting</label>
-          <input
+          <FormField label="Week starting">
+            <input
             name="week_start"
             type="date"
             defaultValue={defaultWeekStart()}
             className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
 
         <Button type="submit" disabled={pending || polling}>
