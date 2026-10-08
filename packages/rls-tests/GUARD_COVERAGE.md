@@ -93,7 +93,7 @@ The live suites WRITE to a real Supabase project and are never part of the defau
 | `activity_expected_records` | **GAP** | - | who may write expected-record rules on ITP activities. _Not exercised by any live test._ | 20261103000200 |
 | `activity_party_intervention` | **GAP** | - | who may assign parties to activities. _Used as a fixture (service role); the policy itself is not probed._ | 20261103000200 |
 | `audit_log` | **GAP** | - | who may append audit events. _Not exercised by any live test._ | 20261104000300 |
-| `background_jobs` | **GAP** | - | who may queue background jobs. _tenant-isolation.test.ts reads them cross-tenant; the insert policies are not probed._ | 20261017S60004, 20261101000200 |
+| `background_jobs` | **GAP** | - | who may queue background jobs. _tenant-isolation.test.ts reads them cross-tenant; the insert policies are not probed._ | 20261017S60004, 20261101000200, 20261121000100 |
 | `data_books` | covered | write-guards.test.ts W11 | who may create / change / delete Data Books | 20261019S70001 |
 | `document_transmittals` | **GAP** | - | who may record a transmittal. _Not exercised by any live test._ | 20261112000102 |
 | `inspection_comments` | covered | write-guards.test.ts W4 | who may comment / edit / resolve; no delete | 20261120000100 |
