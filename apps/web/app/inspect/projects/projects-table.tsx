@@ -1,5 +1,6 @@
 "use client";
 
+import { isClosedStatus } from "@/lib/projects/close-helpers";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
@@ -29,10 +30,6 @@ export interface ProjectRow {
   closed_at?: string | null;
 }
 
-/** Completed and cancelled projects are "closed" (hidden from the default list). */
-export function isClosedStatus(status: string): boolean {
-  return status === "completed" || status === "cancelled";
-}
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
