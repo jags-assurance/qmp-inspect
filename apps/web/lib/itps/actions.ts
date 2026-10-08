@@ -1,5 +1,6 @@
 "use server";
 
+import { parseRequiredRegisters } from "./required-registers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -681,6 +682,9 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
   }
 
   // Editing an activity's drawing: the field is only changed when the form sends it (older forms don't).
+  // S3-06: the explicit register requirement; only changed when the form sends it (older forms don't).
+  const registersSent = formData.has("registers_sent");
+  const requiredRegisters = parseRequiredRegisters(formData.getAll("required_registers"));
   const drawingFieldSent = formData.has("governing_drawing_document_id");
   const drawingId = String(formData.get("governing_drawing_document_id") ?? "").trim();
   const { data: previousItem } = await supabase.from("itp_items").select("evidence_type").eq("id", itemId).maybeSingle<{ evidence_type: number }>();
@@ -689,6 +693,8 @@ export async function editItpItemAction(_prev: EditItemState, formData: FormData
     .from("itp_items")
     .update({
       ...(drawingFieldSent ? { governing_drawing_document_id: drawingId || null } : {}),
+      // required_registers isn't in the generated Database type yet (same cast as lib/registers/verify.ts).
+      ...(registersSent ? ({ required_registers: requiredRegisters } as unknown as object) : {}),
       item_number: itemNumber,
       activity,
       acceptance_criteria: acceptanceCriteria || null,

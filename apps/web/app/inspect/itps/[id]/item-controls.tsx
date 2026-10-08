@@ -1,5 +1,6 @@
 "use client";
 
+import { REGISTER_KINDS, REGISTER_KIND_LABEL } from "@/lib/itps/required-registers";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import {
@@ -33,6 +34,7 @@ export function ItemControls({
   disciplineId,
   noticeHoursOverride,
   plannedDate = null,
+  requiredRegisters = [],
   disciplines,
   isIssued,
 }: {
@@ -48,6 +50,8 @@ export function ItemControls({
   disciplineId: string | null;
   noticeHoursOverride: number | null;
   plannedDate?: string | null;
+  /** S3-06: registers this activity explicitly requires (empty = none set; the keyword heuristic still applies). */
+  requiredRegisters?: string[];
   disciplines: { id: string; code: string; name: string }[];
   isIssued: boolean;
 }) {
@@ -231,6 +235,16 @@ export function ItemControls({
           className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
       </div>
+      <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <legend className="mb-0.5 text-xs text-muted">Registers this activity needs (leave all unticked to let the system infer it)</legend>
+        <input type="hidden" name="registers_sent" value="1" />
+        {REGISTER_KINDS.map((kind) => (
+          <label key={kind} className="flex items-center gap-1 text-xs text-ink">
+            <input type="checkbox" name="required_registers" value={kind} defaultChecked={requiredRegisters.includes(kind)} />
+            {REGISTER_KIND_LABEL[kind]}
+          </label>
+        ))}
+      </fieldset>
       <div className="flex items-center gap-1.5">
         <button
           type="submit"

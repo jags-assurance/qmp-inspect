@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { normaliseRequiredRegisters } from "@/lib/itps/required-registers";
 import Link from "next/link";
 import { Suspense } from "react";
 import { cn } from "@/lib/cn";
@@ -610,6 +611,20 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // The checklist is part of the ITP: it is loaded once and used both to show it and to gate
   // approval/acceptance on the reviewer confirming they have looked at it.
   const requiresChecklistReview = checklistPreview.some((i) => i.hasChecklist);
+  // S3-06: each activity's explicit register requirement, read separately and best-effort so the page
+  // still renders if that column isn't there.
+  const requiredRegistersByItem = new Map<string, string[]>();
+  {
+    const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
+    if (itemIds.length > 0) {
+      const { data: reqRows, error: reqError } = await supabase
+        .from("itp_items")
+        .select("id, required_registers" as never)
+        .in("id", itemIds)
+        .returns<{ id: string; required_registers: string[] | null }[]>();
+      if (!reqError) for (const r of reqRows ?? []) requiredRegistersByItem.set(r.id, normaliseRequiredRegisters(r.required_registers));
+    }
+  }
   // Per-activity checklist for the clickable "Checklist" pill in the grid below.
   const checklistByItem = new Map(
     checklistPreview
@@ -945,6 +960,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 // R25: per-activity override, checked before the level-keyed noticeHours map below.
                 noticeHoursOverride: item.notice_hours_override,
                 plannedDate: item.planned_date,
+                requiredRegisters: requiredRegistersByItem.get(item.id) ?? [],
                 partyCells: (parties ?? []).map((party) => {
                   const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
                   const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;

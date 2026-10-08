@@ -38,6 +38,8 @@ export interface GridRow {
   noticeHoursOverride: number | null;
   /** Planned date (yyyy-mm-dd) for this activity, if set. */
   plannedDate?: string | null;
+  /** S3-06: registers this activity explicitly requires. */
+  requiredRegisters?: string[];
   /** One cell per project_party involved in this ITP, in the same order as `parties` below —
    *  same per-activity computation the previous card layout used (partyCells), just consumed as a
    *  table row instead of a chip chain. */
@@ -139,6 +141,7 @@ export function ActivitySignoffGrid({
                     disciplineId={row.disciplineId}
                     noticeHoursOverride={row.noticeHoursOverride}
                     plannedDate={row.plannedDate ?? null}
+                    requiredRegisters={row.requiredRegisters ?? []}
                     disciplines={disciplines}
                     isIssued={isIssued}
                   />
