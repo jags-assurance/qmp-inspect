@@ -7,6 +7,7 @@ import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
 import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
+import { HeicConversionError } from "@/lib/media/heic";
 
 const PROJECTS_CACHE_KEY = "jags.quickRaise.projects";
 
@@ -99,7 +100,11 @@ export function QuickRaiseObservation() {
       notifyOutboxChanged();
       setOpen(false);
       show(navigator.onLine ? "Observation sent — it will show in the register in a moment." : "Saved on this device — it will be sent when you're back online.");
-    } catch {
+    } catch (err) {
+      if (err instanceof HeicConversionError) {
+        setError(err.message);
+        return;
+      }
       setError("Couldn't save on this device. Check browser storage isn't blocked and try again.");
     } finally {
       setSaving(false);

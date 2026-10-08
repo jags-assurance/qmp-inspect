@@ -4,6 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { addPhotoAction } from "@/lib/standalone/actions";
 import { compressImageFile } from "@/lib/media/compress-image";
+import { HeicConversionError } from "@/lib/media/heic";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
@@ -21,7 +22,13 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function uploadOne(rawFile: File): Promise<string | null> {
-    const file = await compressImageFile(rawFile);
+    let file: File;
+    try {
+      file = await compressImageFile(rawFile);
+    } catch (err) {
+      if (err instanceof HeicConversionError) return err.message;
+      throw err;
+    }
 
     if (!file.type.startsWith("image/")) return `${file.name} is not an image.`;
     if (file.size > 15 * 1024 * 1024) return `${file.name} is larger than 15 MB. Use a smaller photo.`;

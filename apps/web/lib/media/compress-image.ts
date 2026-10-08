@@ -7,6 +7,9 @@
 // client, before the bytes ever leave the device, using the Canvas API (no new dependency — the
 // surface area needed doesn't justify one).
 
+import { convertHeicToJpeg } from "./convert-heic";
+import { isHeicFile, isHeicLike } from "./heic";
+
 const MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.75;
 
@@ -15,9 +18,17 @@ const JPEG_QUALITY = 0.75;
  * Returns the original file unchanged if it isn't an image, is already small, or compression fails
  * for any reason (corrupt image, browser API unavailable) — this must never block a real upload
  * over an optimization.
+ *
+ * HEIC/HEIF is the exception: where the browser cannot decode it (everything except Safari) it is
+ * converted to JPEG first (lazy-loaded), and if that fails HeicConversionError is thrown, because the
+ * original could not be shown or shrunk anywhere downstream. Callers show `error.message`.
  */
-export async function compressImageFile(file: File): Promise<File> {
-  if (!file.type.startsWith("image/")) return file;
+export async function compressImageFile(original: File): Promise<File> {
+  const heic = await isHeicFile(original);
+  if (!heic && !original.type.startsWith("image/")) return original;
+
+  let file = original;
+  if (heic && !(await browserCanDecode(original))) file = await convertHeicToJpeg(original);
 
   try {
     const bitmap = await createImageBitmap(file);
@@ -48,12 +59,22 @@ export async function compressImageFile(file: File): Promise<File> {
     if (!blob) return file;
 
     // Only use the compressed result if it's actually smaller — a tiny or already-compressed
-    // source image re-encoded as JPEG can sometimes come out larger.
-    if (blob.size >= file.size) return file;
+    // source image re-encoded as JPEG can sometimes come out larger. (A HEIC that Safari decoded
+    // is the exception: JPEG is always preferable to HEIC for the rest of the app.)
+    if (blob.size >= file.size && !isHeicLike(file)) return file;
 
     const newName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
     return new File([blob], newName, { type: "image/jpeg", lastModified: Date.now() });
   } catch {
     return file;
+  }
+}
+
+async function browserCanDecode(file: File): Promise<boolean> {
+  try {
+    (await createImageBitmap(file)).close();
+    return true;
+  } catch {
+    return false;
   }
 }

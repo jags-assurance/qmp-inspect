@@ -1,7 +1,7 @@
 "use client";
 
 import { compressImageFile } from "./compress-image";
-import { HEIC_TIP, isHeicLike, stillUndecodableHeic } from "./heic";
+import { HEIC_TIP, HeicConversionError, isHeicFile, stillUndecodableHeic } from "./heic";
 
 /** Server Actions are capped (next.config.ts serverActions.bodySizeLimit = 4 MB; hosts cap near 4.5 MB). */
 export const FORM_PHOTO_BUDGET_BYTES = 3_800_000;
@@ -24,7 +24,15 @@ export async function compressFormPhotos(formData: FormData, fieldNames: string[
         continue;
       }
       if (!entry.size) continue; // an empty file input still posts a zero-byte file
-      const file = entry.type.startsWith("image/") || isHeicLike(entry) ? await compressImageFile(entry) : entry;
+      let file = entry;
+      if (entry.type.startsWith("image/") || (await isHeicFile(entry))) {
+        try {
+          file = await compressImageFile(entry);
+        } catch (err) {
+          if (err instanceof HeicConversionError) return `${entry.name}: ${err.message}`;
+          throw err;
+        }
+      }
       if (stillUndecodableHeic(entry, file)) undecodableHeic = true;
       total += file.size;
       formData.append(name, file);
