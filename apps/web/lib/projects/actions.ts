@@ -1,5 +1,6 @@
 "use server";
 
+import { seatLimitMessage } from "@/lib/plans/seat-limit";
 import { parseSiteGeofenceForm } from "@/lib/checklists/geofence";
 import { clientRecipientIds } from "@/lib/handover/helpers";
 import { describeCloseBlockers, isClosedStatus, statusReasonError, type ProjectCloseCounts } from "@/lib/projects/close-helpers";
@@ -406,7 +407,7 @@ export async function addSelfManagedPartyAction(
       return { error: "That person already has access to this project (the party was still added)." };
     }
     if (grantError.message.includes("seat limit")) {
-      return { error: `${grantError.message} (the party was still added, without platform access.)` };
+      return { error: `${seatLimitMessage(grantError.message, false)} (The party was still added, without platform access.)` };
     }
     return { error: "The party was added, but granting platform access failed. Check with a JAGS Admin." };
   }
