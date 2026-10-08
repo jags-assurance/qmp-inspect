@@ -21,6 +21,8 @@ import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { fetchProjectTimeZone, parseProjectTimeZone } from "@/lib/projects/timezone";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 
 export interface CreateProjectState {
   error: string | null;
@@ -40,6 +42,8 @@ export async function createProjectAction(
   const contractNumber = String(formData.get("contract_number") ?? "").trim();
   const startDate = String(formData.get("start_date") ?? "").trim();
   const endDate = String(formData.get("end_date") ?? "").trim();
+  const tz = parseProjectTimeZone(formData.get("timezone"));
+  if (!tz.ok) return { error: tz.error };
   const locationNames = [
     ...new Set(
       String(formData.get("locations") ?? "")
@@ -83,23 +87,25 @@ export async function createProjectAction(
     }
   }
 
-  const { data: project, error } = await supabase
-    .from("projects")
-    .insert({
-      organization_id: organizationId,
-      project_number: projectNumber,
-      name,
-      site_location: siteLocation || null,
-      country: country || null,
-      contract_number: contractNumber || null,
-      start_date: startDate || null,
-      end_date: endDate || null,
-      status,
-      responsible_person_id: isAdminStaff(session) && responsiblePersonId ? responsiblePersonId : null,
-      created_by: user?.id ?? null,
-    })
-    .select("id")
-    .single<{ id: string }>();
+  const insertRow = {
+    organization_id: organizationId,
+    project_number: projectNumber,
+    name,
+    site_location: siteLocation || null,
+    country: country || null,
+    contract_number: contractNumber || null,
+    start_date: startDate || null,
+    end_date: endDate || null,
+    status,
+    responsible_person_id: isAdminStaff(session) && responsiblePersonId ? responsiblePersonId : null,
+    created_by: user?.id ?? null,
+  };
+  const insertProject = (row: Record<string, unknown>) =>
+    supabase.from("projects").insert(row as never).select("id").single<{ id: string }>();
+  // A typed timezone is saved; blank keeps the column default (UTC). Before migration 20261104000500
+  // the column is missing: retry without it rather than failing the whole create.
+  let { data: project, error } = await insertProject(tz.value ? { ...insertRow, timezone: tz.value } : insertRow);
+  if (tz.value && error && isMissingSchemaError(error)) ({ data: project, error } = await insertProject(insertRow));
 
   if (error || !project) {
     // A unique-constraint violation on (organization_id, project_number) is the one case worth a
@@ -1371,6 +1377,8 @@ export async function updateProjectDetailsAction(
   const contractNumber = String(formData.get("contract_number") ?? "").trim();
   const startDate = String(formData.get("start_date") ?? "").trim();
   const endDate = String(formData.get("end_date") ?? "").trim();
+  const tz = parseProjectTimeZone(formData.get("timezone"));
+  if (!tz.ok) return { error: tz.error };
 
   if (!projectId) return { error: "Missing project." };
   if (!projectNumber || !name) return { error: "Project number and name are required." };
@@ -1409,7 +1417,14 @@ export async function updateProjectDetailsAction(
     start_date: startDate || null,
     end_date: endDate || null,
   };
-  const { data: updated, error } = await supabase.from("projects").update(next).eq("id", projectId).select("id");
+  // timezone is saved only when one was typed (a blank field leaves the current zone alone), and the
+  // write is retried without it while migration 20261104000500 is not applied.
+  const previousTz = tz.value ? await fetchProjectTimeZone(supabase, projectId) : null;
+  const withTz = tz.value ? { ...next, timezone: tz.value } : next;
+  let { data: updated, error } = await supabase.from("projects").update(withTz as never).eq("id", projectId).select("id");
+  if (tz.value && error && isMissingSchemaError(error)) {
+    ({ data: updated, error } = await supabase.from("projects").update(next).eq("id", projectId).select("id"));
+  }
   if (error?.code === "23505") return { error: "A project with that number already exists for this organisation." };
   if (error || !updated || updated.length === 0) {
     return { error: "Could not save the changes. Check you have permission and try again." };
@@ -1419,6 +1434,7 @@ export async function updateProjectDetailsAction(
   for (const key of Object.keys(next) as (keyof typeof next)[]) {
     if (existing[key] !== next[key]) changes[key] = { from: existing[key], to: next[key] };
   }
+  if (tz.value && previousTz !== tz.value) changes.timezone = { from: previousTz, to: tz.value };
   if (Object.keys(changes).length > 0) {
     try {
       await recordAuditEvent(supabase, {

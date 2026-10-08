@@ -20,6 +20,8 @@ export interface NcrRegisterRow {
   status: NcrStatus;
   due_date: string | null;
   created_at: string;
+  /** Used with `timeZones` to judge overdue on the project's site day. */
+  project_id?: string;
   projects: { name: string; project_number: string } | null;
   itp_items: { master_disciplines: { code: string; name: string } | null } | null;
 }
@@ -53,7 +55,8 @@ const STATUS_LABEL: Record<NcrStatus, string> = {
 // Round-table finding: this column header was hardcoded "NCR No." even when reused on the
 // Observation Register (observations/page.tsx renders the same NcrsTable), which is confusing on a
 // register whose rows are actually all Observations. Parameterized by the caller instead.
-function buildColumns(idColumnHeader: string, openPanel: (id: string) => void) {
+function buildColumns(idColumnHeader: string, openPanel: (id: string) => void, timeZones?: Record<string, string>) {
+  const tzOf = (row: NcrRegisterRow) => (row.project_id ? timeZones?.[row.project_id] : undefined);
   const columns: DataTableColumn<NcrRegisterRow>[] = [
   {
     key: "ncr_number",
@@ -97,8 +100,8 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void) {
     render: (row) => (
       <div className="flex items-center gap-2">
         <Badge tone={STATUS_TONE[row.status]} showIcon>{STATUS_LABEL[row.status]}</Badge>
-        {isOverdue(row) && <Badge tone="danger">Overdue</Badge>}
-        {!isOverdue(row) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning">Due soon</Badge>}
+        {isOverdue(row, tzOf(row)) && <Badge tone="danger">Overdue</Badge>}
+        {!isOverdue(row, tzOf(row)) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning">Due soon</Badge>}
       </div>
     ),
   },
@@ -124,6 +127,7 @@ export function NcrsTable({
   emptyMessage = "No NCRs or observations raised yet.",
   gradeAction = false,
   locale,
+  timeZones,
 }: {
   locale?: SupportedLocale;
   rows: NcrRegisterRow[];
@@ -133,13 +137,15 @@ export function NcrsTable({
   emptyMessage?: string;
   /** Adds a "Grade to NCR" row link (observations register, staff). */
   gradeAction?: boolean;
+  /** project_id -> IANA zone, so Overdue is judged on each project's site day. */
+  timeZones?: Record<string, string>;
 }) {
   const serverDriven = totalCount !== undefined;
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(serverDriven);
   const panel = useUrlPanel("ncr");
   const openPanel = panel.open;
   const columns = useMemo(() => {
-    const base = buildColumns(idColumnHeader, openPanel);
+    const base = buildColumns(idColumnHeader, openPanel, timeZones);
     if (gradeAction) {
       base.push({
         key: "grade",
@@ -153,7 +159,7 @@ export function NcrsTable({
       });
     }
     return base;
-  }, [idColumnHeader, openPanel, gradeAction]);
+  }, [idColumnHeader, openPanel, gradeAction, timeZones]);
 
   return (
     <DataTable

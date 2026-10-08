@@ -1,5 +1,5 @@
 // Shared URL-param filters for the NCR register page and its CSV export.
-import { siteToday } from "@/lib/ncrs/site-date";
+import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
 
 export interface NcrListParams {
   status?: string;
@@ -17,16 +17,16 @@ export const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "severity", label: "Severity (major first)" },
 ];
 
-/** Applies the non-search filters to a Supabase ncrs query. `userId` resolves assignee=me. */
+/** Applies the non-search filters to a Supabase ncrs query. `userId` resolves assignee=me; `timeZone` (the project's zone, when one project is shown) sets the overdue day. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function applyNcrFilters(query: any, p: NcrListParams, userId: string): any {
+export function applyNcrFilters(query: any, p: NcrListParams, userId: string, timeZone?: string | null): any {
   if (p.status === "active") query = query.neq("status", "closed");
   else if (p.status && ["open", "in_progress", "pending_verification", "closed"].includes(p.status)) query = query.eq("status", p.status);
   if (p.severity === "minor_ncr" || p.severity === "major_ncr") query = query.eq("severity", p.severity);
   if (p.project) query = query.eq("project_id", p.project);
   if (p.assignee === "me") query = query.eq("assigned_to", userId);
   else if (p.assignee === "unassigned") query = query.is("assigned_to", null);
-  if (p.overdue === "1") query = query.neq("status", "closed").lt("due_date", siteToday());
+  if (p.overdue === "1") query = query.neq("status", "closed").lt("due_date", siteToday(new Date(), resolveSiteTimeZone(timeZone)));
   return query;
 }
 

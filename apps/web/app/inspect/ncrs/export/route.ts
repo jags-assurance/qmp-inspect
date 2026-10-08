@@ -4,6 +4,7 @@ import { getSessionContext } from "@/lib/auth/session";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { applyNcrFilters, applyNcrSort } from "@/lib/ncrs/list-filters";
 import { userNames } from "@/lib/ncrs/recipients";
+import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 
 const EXPORT_LIMIT = 5000;
@@ -47,9 +48,10 @@ export async function GET(req: NextRequest) {
     schedule_impact_days?: number | null;
     withdrawn_at?: string | null;
   };
+  const filterTz = sp.project ? await fetchProjectTimeZone(supabase, sp.project) : null;
   const build = (cols: string) => {
     let query = supabase.from(NCRS_TABLE).select(cols).neq("severity", "observation");
-    query = applyNcrFilters(query, sp, session.userId);
+    query = applyNcrFilters(query, sp, session.userId, filterTz);
     if (sp.q) {
       const q = sp.q.replace(/[%,()]/g, " ");
       query = query.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);

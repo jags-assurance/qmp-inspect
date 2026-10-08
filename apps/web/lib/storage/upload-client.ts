@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resumableEndpoint, shouldUseResumable, uploadResumable } from "./resumable-upload";
+import { safeStorageUploadMessage } from "@/lib/errors/safe-message";
 
 export interface UploadWithResumeOptions {
   bucket: string;
@@ -55,5 +56,5 @@ export async function uploadWithResume(supabase: SupabaseClient, opts: UploadWit
   const { error } = await supabase.storage
     .from(opts.bucket)
     .upload(opts.path, opts.file, { contentType: opts.contentType ?? (opts.file.type || undefined) });
-  return { error: error ? error.message || "Upload failed." : null, mode: "standard", fellBackBecause };
+  return { error: error ? safeStorageUploadMessage(error) : null, mode: "standard", fellBackBecause };
 }

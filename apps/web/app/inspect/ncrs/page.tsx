@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
-import { siteToday } from "@/lib/ncrs/site-date";
+import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
+import { fetchProjectTimeZone, fetchProjectTimeZones } from "@/lib/projects/timezone";
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -71,7 +72,7 @@ export default async function NcrsPage({
   let tableQuery = supabase
     .from(NCRS_TABLE)
     .select(
-      "id, ncr_number, severity, description, status, due_date, created_at, projects(name, project_number), itp_items(master_disciplines(code, name))"
+      "id, ncr_number, severity, description, status, due_date, created_at, project_id, projects(name, project_number), itp_items(master_disciplines(code, name))"
     )
     .neq("severity", "observation");
 
@@ -88,10 +89,12 @@ export default async function NcrsPage({
   if (itpItemIdFilter) {
     statsQuery = itpItemIdFilter.length === 0 ? statsQuery.eq("id", "00000000-0000-0000-0000-000000000000") : statsQuery.in("itp_item_id", itpItemIdFilter);
   }
-  statsQuery = applyNcrFilters(statsQuery, { ...sp, status: undefined, overdue: undefined }, session.userId);
+  // A single-project view judges overdue on that project's site day; the cross-project register uses the env site zone.
+  const filterTz = projectId ? await fetchProjectTimeZone(supabase, projectId) : null;
+  statsQuery = applyNcrFilters(statsQuery, { ...sp, status: undefined, overdue: undefined }, session.userId, filterTz);
   const STATUSES = ["open", "in_progress", "pending_verification", "closed"] as const;
-  countQuery = applyNcrFilters(countQuery, sp, session.userId);
-  tableQuery = applyNcrFilters(tableQuery, sp, session.userId);
+  countQuery = applyNcrFilters(countQuery, sp, session.userId, filterTz);
+  tableQuery = applyNcrFilters(tableQuery, sp, session.userId, filterTz);
   if (q) {
     countQuery = countQuery.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);
     tableQuery = tableQuery.or(`ncr_number.ilike.%${q}%,description.ilike.%${q}%`);
@@ -113,7 +116,7 @@ export default async function NcrsPage({
         assignee: sp.assignee,
         userId: session.userId,
         itpItemIds: itpItemIdFilter,
-        todayIso: siteToday(),
+        todayIso: siteToday(new Date(), resolveSiteTimeZone(filterTz)),
         nowMs,
       },
       () =>
@@ -128,6 +131,7 @@ export default async function NcrsPage({
   ]);
 
   const rows = ncrs ?? [];
+  const rowTimeZones = Object.fromEntries(await fetchProjectTimeZones(supabase, rows.map((r) => r.project_id ?? "")));
   const { total, open, closed, overdue, statusCounts } = stats;
   const agingCounts = stats.aging;
   const hrefWith = (patch: Record<string, string | undefined>) => {
@@ -271,6 +275,7 @@ export default async function NcrsPage({
       <div className="mt-2">
         <NcrsTable
           rows={rows}
+          timeZones={rowTimeZones}
           totalCount={totalCount ?? 0}
           emptyMessage={filtersActive ? "No NCRs match these filters. Clear the filters to see the full register." : "No NCRs raised yet. Use + Raise NCR to record the first one."}
         />

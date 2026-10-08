@@ -3,6 +3,7 @@
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { uploadWithResume } from "@/lib/storage/upload-client";
+import { VAULT_MAX_UPLOAD_BYTES, VAULT_MAX_UPLOAD_MB, vaultFileTooLargeMessage } from "@/lib/vault/limits";
 import { uploadVaultDocumentAction } from "@/lib/vault/actions";
 import { checkVaultDuplicatesAction, type VaultDuplicateMatch } from "@/lib/vault/document-control-actions";
 import { Button } from "@/components/ui/button";
@@ -19,8 +20,8 @@ function titleFromFilename(filename: string): string {
   return withoutExt.replace(/[_-]+/g, " ").trim() || filename;
 }
 
-const MAX_UPLOAD_MB = 100;
-const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const MAX_UPLOAD_MB = VAULT_MAX_UPLOAD_MB;
+const MAX_UPLOAD_BYTES = VAULT_MAX_UPLOAD_BYTES;
 const BLOCKED_EXTENSIONS = /\.(exe|bat|cmd|com|msi|scr|ps1|sh|js|vbs|jar|dll)$/i;
 
 type FileState = "queued" | "uploading" | "done" | "error";
@@ -99,7 +100,7 @@ export function VaultUploadForm({
     onProgress?: (fraction: number) => void
   ): Promise<{ ok: boolean; error?: string; documentNumber?: string; internalReference?: string | null }> {
     const supabase = createSupabaseBrowserClient();
-    if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `Larger than ${MAX_UPLOAD_MB} MB.` };
+    if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: vaultFileTooLargeMessage(file.size) };
     if (BLOCKED_EXTENSIONS.test(file.name)) return { ok: false, error: "Executable/script files can't be stored in the vault." };
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `vault/${projectId}/${folderKey}/${Date.now()}-${safeName}`;
@@ -271,7 +272,7 @@ export function VaultUploadForm({
           className="sr-only"
         />
         <p className="mt-2 text-xs text-muted">
-          Up to {MAX_UPLOAD_MB} MB each. PDF, Word, Excel, images and plain text are all accepted; PDF, Word (.docx) and text also support AI drafting later.
+          Up to {MAX_UPLOAD_MB} MB each (large files upload in resumable chunks and carry on after a dropped connection). PDF, Word, Excel, images and plain text are all accepted; PDF, Word (.docx) and text also support AI drafting later.
         </p>
       </div>
 

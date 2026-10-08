@@ -124,6 +124,13 @@ Configured per organisation under Settings > Automation Rules. Sweep roughly eve
 - `org-branding`: logo per organisation.
 Vault documents are controlled: once approved they are immutable; a new revision supersedes the old one.
 
+### Large vault uploads (up to 500 MB)
+The vault upload form and `uploadVaultDocumentCore` accept files up to **500 MB** (`lib/vault/limits.ts`). Files over 6 MB go up through the resumable (TUS) endpoint `<supabase>/storage/v1/upload/resumable` in 6 MB chunks and carry on from the server's offset after a dropped connection; if that endpoint is unreachable the form falls back to a plain upload (which is far less reliable for very large files). Files over 50 MB are stored but not downloaded for text extraction (they cannot be used as AI source text). For this to work in production the owner must check:
+1. **Global upload limit** (Supabase Dashboard > Storage > Settings > "Upload file size limit") is at least 500 MB. This is plan-dependent (the Free plan caps at 50 MB) and cannot be changed from SQL or from the app. Without it, large uploads are refused by Storage whatever the app allows.
+2. **Bucket limit**: migration `20261127000400_inspection_evidence_file_size_limit.sql` raises a lower `inspection-evidence` bucket limit to 500 MB; a bucket with no limit follows the global one.
+3. Optional `NEXT_PUBLIC_SUPABASE_RESUMABLE_URL` overrides the resumable endpoint (e.g. a direct storage hostname) if the default is blocked by a proxy/CORS.
+Test: upload a ~150 MB file, switch the network off for 10-20 seconds mid-upload and back on; the progress bar should carry on rather than restart.
+
 ## 7. Roles and permissions
 | Role | Scope | Can do | Cannot do |
 |---|---|---|---|

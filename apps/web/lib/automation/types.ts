@@ -27,6 +27,19 @@ export const AUTOMATION_RULE_DESCRIPTION: Record<AutomationRuleType, string> = {
     "A calibration (30 days), welder qualification (90) or personnel certification (90) is nearing expiry — alerts the project's responsible person (and the owning party's login for personnel certificates) once at the warning window, at 14 days, at 7 days and on expiry. Thresholds are fixed; the hours fields do not apply.",
 };
 
+/** Defaults every organisation starts with (mirrors migration 20261127000300 and the rules page). */
+export const DEFAULT_AUTOMATION_RULE = { enabled: true, threshold_hours: 24, repeat_hours: 24 } as const;
+
+/** Rows to insert so `organizationId` has every rule type; existing rows (any state) are never included. */
+export function missingDefaultRules(organizationId: string, existingTypes: Iterable<string>) {
+  const have = new Set(existingTypes);
+  return AUTOMATION_RULE_TYPES.filter((t) => !have.has(t)).map((rule_type) => ({
+    organization_id: organizationId,
+    rule_type,
+    ...DEFAULT_AUTOMATION_RULE,
+  }));
+}
+
 export interface AutomationRuleRow {
   id: string;
   organization_id: string;

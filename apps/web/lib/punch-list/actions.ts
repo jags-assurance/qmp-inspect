@@ -9,7 +9,8 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { directoryClient, partyUserIds as directoryPartyUserIds } from "@/lib/ncrs/recipients";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
-import { siteToday } from "@/lib/ncrs/site-date";
+import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
+import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { walkdownSignOffError } from "@/lib/punch-list/walkdown";
 import {
   PUNCH_LIST_ITEMS_TABLE,
@@ -25,6 +26,7 @@ import {
   PUNCH_MAX_LOCATION,
   PUNCH_MAX_WALKDOWN_ROWS,
   defaultPunchDueDate,
+  resolvePunchDueDate,
   detectPunchImage,
   validDueDate,
 } from "@/lib/punch-list/helpers";
@@ -279,14 +281,17 @@ export async function addPunchItemAction(
   if (prep.error) return { error: prep.error };
   const photos = await uploadPreparedPhotos(supabase, projectId, prep.prepared);
   if (photos.error) return { error: photos.error };
+  const priority = parsePriority(formData.get("priority"));
+  // No typed due date: default it from the priority, counted from the project's site day.
+  const siteDay = siteToday(new Date(), resolveSiteTimeZone(await fetchProjectTimeZone(supabase, projectId)));
   const itemPayload: Record<string, unknown> = {
     project_id: projectId,
     description,
     source: "manual",
     location: location || null,
     responsible_party_id: responsiblePartyId || null,
-    due_date: dueDate || null,
-    priority: parsePriority(formData.get("priority")),
+    due_date: resolvePunchDueDate(dueDate, priority, siteDay),
+    priority,
     photo_paths: photos.paths,
     created_by: user?.id ?? null,
   };
@@ -870,6 +875,8 @@ export async function recordWalkdownAction(
     if (!alreadyErr && (already ?? 0) > 0) return { error: null, addedCount: already ?? 0 };
   }
 
+  const siteDay = siteToday(new Date(), resolveSiteTimeZone(await fetchProjectTimeZone(supabase, projectId)));
+
   // Header record (best-effort: without the walkdowns table the items are still recorded, ungrouped).
   let walkdownId: string | null = null;
   {
@@ -877,7 +884,7 @@ export async function recordWalkdownAction(
       .from("walkdowns" as never)
       .insert({
         project_id: projectId,
-        walked_on: walkedOnRaw || siteToday(),
+        walked_on: walkedOnRaw || siteDay,
         area: walkdownArea || null,
         attendees: walkdownAttendees || null,
         notes: walkdownNotes || null,
@@ -900,14 +907,15 @@ export async function recordWalkdownAction(
       return { error: `Item ${i + 1}: ${photos.error}` };
     }
     uploaded.push(...photos.paths);
+    const rowPriority = parsePriority(priorities[i]);
     rows.push({
       project_id: projectId,
       description: descriptions[i],
       source: "walkdown",
       location: locations[i] || null,
       responsible_party_id: responsibleParties[i] || null,
-      due_date: dueDates[i] || null,
-      priority: parsePriority(priorities[i]),
+      due_date: resolvePunchDueDate(dueDates[i], rowPriority, siteDay),
+      priority: rowPriority,
       photo_paths: photos.paths,
       created_by: user?.id ?? null,
       ...(walkdownId ? { walkdown_id: walkdownId } : {}),
@@ -1058,7 +1066,8 @@ export async function createPunchItemFromSource(params: {
   }
 
   // Auto-created items default to a due date by priority so they can go overdue and escalate.
-  const dueDate = params.dueDate ?? defaultPunchDueDate(priority, siteToday());
+  const dueDate =
+    params.dueDate ?? defaultPunchDueDate(priority, siteToday(new Date(), resolveSiteTimeZone(await fetchProjectTimeZone(supabase, params.projectId))));
   const itemPayload = {
     project_id: params.projectId,
     description: params.description,

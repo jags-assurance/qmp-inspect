@@ -1,4 +1,5 @@
 // Pure helpers for the punch list (no server/client directives so both sides and tests can use them).
+import { isValidTimeZone, siteToday } from "@/lib/ncrs/site-date";
 
 export const PUNCH_MAX_WALKDOWN_ROWS = 50;
 export const PUNCH_MAX_DESCRIPTION = 2000;
@@ -25,10 +26,12 @@ export function utcToday(now: Date = new Date()): string {
 /** The one overdue rule: due date (date-only, UTC) strictly before today (UTC) and not closed. */
 export function isPunchOverdue(
   r: { due_date: string | null; status: string },
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** The project's IANA zone: "today" is then the site day. Omitted = UTC day. */
+  timeZone?: string | null
 ): boolean {
   if (!r.due_date || r.status === "closed") return false;
-  return r.due_date.slice(0, 10) < utcToday(now);
+  return r.due_date.slice(0, 10) < (isValidTimeZone(timeZone) ? siteToday(now, timeZone) : utcToday(now));
 }
 
 /**
@@ -41,6 +44,12 @@ export function defaultPunchDueDate(priority: string, today: string): string {
   const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
+}
+
+/** The due date to save: what was typed, else the priority default counted from the site's today. */
+export function resolvePunchDueDate(typed: string | null | undefined, priority: string, today: string): string {
+  const t = (typed ?? "").trim();
+  return t || defaultPunchDueDate(priority, today);
 }
 
 export const PUNCH_IMAGE_TYPES: Record<string, string> = {

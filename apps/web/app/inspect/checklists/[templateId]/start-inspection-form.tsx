@@ -59,7 +59,8 @@ export function StartInspectionForm({
       notifyOutboxChanged();
       setQueued(true);
     } catch (err) {
-      setQueueError(err instanceof Error ? err.message : "Could not save the start request offline.");
+      console.error("[start-inspection] offline queue failed", err);
+      setQueueError("Could not save the start request offline.");
     }
   }
   const [accuracy, setAccuracy] = useState<number | null>(null);

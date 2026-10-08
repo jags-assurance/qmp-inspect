@@ -10,6 +10,7 @@ import {
   AUTOMATION_RULE_TYPES,
   AUTOMATION_RULE_LABEL,
   AUTOMATION_RULE_DESCRIPTION,
+  missingDefaultRules,
   type AutomationRuleRow,
 } from "@/lib/automation/types";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
@@ -53,6 +54,18 @@ export async function AutomationRulesView({ searchParams, embedded }: {
       .eq("organization_id", selectedOrg.id)
       .returns<AutomationRuleRow[]>();
     rulesByType = new Map((rules ?? []).map((r) => [r.rule_type, r]));
+    // Self-heal for organisations created before the seeding migration (20261127000300): the worker only
+    // sweeps organisations that have a rule row, so create the missing ones enabled at the defaults.
+    // ignoreDuplicates leaves any row an admin already saved untouched. Best-effort.
+    const missing = missingDefaultRules(selectedOrg.id, rulesByType.keys());
+    if (missing.length > 0) {
+      const { data: created, error: seedError } = await supabase
+        .from(AUTOMATION_RULES_TABLE)
+        .upsert(missing, { onConflict: "organization_id,rule_type", ignoreDuplicates: true })
+        .select("*")
+        .returns<AutomationRuleRow[]>();
+      if (!seedError) for (const r of created ?? []) rulesByType.set(r.rule_type, r);
+    }
   }
 
   const enabledCount = AUTOMATION_RULE_TYPES.filter((t) => rulesByType.get(t)?.enabled ?? true).length;

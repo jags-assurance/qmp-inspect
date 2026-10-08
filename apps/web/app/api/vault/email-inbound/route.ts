@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { safeStorageUploadMessage } from "@/lib/errors/safe-message";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { uploadVaultDocumentCore } from "@/lib/vault/actions";
 import { VAULT_FOLDERS_TABLE } from "@/lib/vault/types";
@@ -209,7 +210,7 @@ export async function POST(request: Request) {
         .upload(storagePath, bytes, { contentType: attachment.contentType ?? undefined, upsert: false });
 
       if (uploadError) {
-        results.push({ filename: attachment.filename, ok: false, error: uploadError.message });
+        results.push({ filename: attachment.filename, ok: false, error: safeStorageUploadMessage(uploadError) });
         continue;
       }
 
@@ -234,10 +235,11 @@ export async function POST(request: Request) {
         results.push({ filename: attachment.filename, ok: true, documentNumber: result.documentNumber });
       }
     } catch (err) {
+      console.error("[email-inbound] attachment failed", err);
       results.push({
         filename: attachment.filename,
         ok: false,
-        error: err instanceof Error ? err.message : "Unknown error processing attachment.",
+        error: "Could not process this attachment.",
       });
     }
   }

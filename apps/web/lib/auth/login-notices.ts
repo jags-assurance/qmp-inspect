@@ -8,6 +8,9 @@ export const LOGIN_NOTICES: Record<string, string> = {
   session_ended: "Your session has ended. Sign in again to continue.",
 };
 
+/** Where the client idle timer sends a signed-out user: the same notice proxy.ts shows for an idle session. */
+export const IDLE_LOGIN_PATH = "/login?error=session_idle";
+
 export function loginNotice(code: string | undefined): string | null {
   return code && Object.prototype.hasOwnProperty.call(LOGIN_NOTICES, code) ? LOGIN_NOTICES[code] : null;
 }

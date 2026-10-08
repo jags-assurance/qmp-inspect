@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { createProjectAction, type CreateProjectState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { TimeZoneOptions } from "@/components/domain/timezone-options";
 
 const initialState: CreateProjectState = { error: null };
 
@@ -108,6 +109,12 @@ export function NewProjectForm({
           <FormField label="End date (optional)" error={state.fieldErrors?.end_date}>
             <input name="end_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
           </FormField>
+        </div>
+        <div>
+          <FormField label="Site time zone (optional)">
+            <input name="timezone" list="project-timezones" maxLength={64} placeholder="e.g. Asia/Dubai (default UTC)" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          </FormField>
+          <TimeZoneOptions />
         </div>
         <div>
           <FormField label="Status">
