@@ -8,6 +8,7 @@ import {
   verifyStamp,
 } from "@/lib/auth/session-limits";
 import { decideProxyAccess } from "@/lib/auth/proxy-decision";
+import { isMfaExemptPath, mfaChallengePath, mfaEnabled, needsMfaChallenge } from "@/lib/auth/mfa";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -119,6 +120,13 @@ export async function proxy(request: NextRequest) {
       for (const c of response.cookies.getAll()) redirect.cookies.set(c);
       return redirect;
     };
+
+    // ---- Two-step sign-in (off unless NEXT_PUBLIC_ENABLE_MFA=1): a session that has a verified
+    // authenticator factor but has not passed the code step cannot reach anything but the challenge. ----
+    if (mfaEnabled() && !isMfaExemptPath(pathname)) {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (needsMfaChallenge(aal)) return redirectWithCookies(mfaChallengePath(pathname + request.nextUrl.search));
+    }
 
     // ---- Server-side session limits + deactivation ----
     const lastSignInAt = user.last_sign_in_at ? Date.parse(user.last_sign_in_at) : null;

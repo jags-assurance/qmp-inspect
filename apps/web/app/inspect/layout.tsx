@@ -1,4 +1,5 @@
 import { requireSession, canSeePlatformHome, isAdminStaff } from "@/lib/auth/session";
+import { mfaEnabled } from "@/lib/auth/mfa";
 import { cookies } from "next/headers";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n/direction";
 import { localizeNavItems } from "@/lib/i18n/dictionary";
@@ -224,6 +225,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
         { label: "Dashboard", href: "/inspect" },
         ...(isAdminStaff(session) ? [{ label: "Settings", href: "/inspect/settings" }] : []),
         { label: "Guide", href: "/inspect/guide" },
+        ...(mfaEnabled() ? [{ label: "Account security", href: "/inspect/account/security" }] : []),
       ]}
     >
       {children}
