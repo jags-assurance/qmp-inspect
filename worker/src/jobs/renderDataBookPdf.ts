@@ -21,6 +21,7 @@ import { sealFooterSpan } from "./integritySeal";
 import { PermanentJobError } from "./jobAbort";
 import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, fetchCountedRegisterRows, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -838,7 +839,7 @@ async function printBookPdf(html: string, footerLabel: string, bookNumber: strin
   const browser = await getSharedBrowser();
   const page = await browser.newPage();
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     return Buffer.from(
       await page.pdf({
         format: "A4",

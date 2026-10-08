@@ -8,6 +8,7 @@ import { findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generated
 import { buildVerifyUrl, qrDataUri } from "./verification";
 import { getOrgBranding } from "./orgBranding";
 import { recordRenderedPdfHash, sealFooterSpan } from "./integritySeal";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 interface CertificateRow {
   id: string;
@@ -103,7 +104,7 @@ export async function renderHandoverCertificatePdf(payload: RenderDataBookPdfPay
   const page = await browser.newPage();
   let pdf: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdf = Buffer.from(
       await page.pdf({
         format: "A4",

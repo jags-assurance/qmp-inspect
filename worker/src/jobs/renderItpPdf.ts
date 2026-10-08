@@ -14,6 +14,7 @@ import {
 import type { RenderItpPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { autoFileVaultDocument, uploadGeneratedFile } from "./vaultAutoFile";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -315,7 +316,7 @@ export async function renderItpPdf(payload: RenderItpPdfPayload): Promise<{ resu
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdfBuffer = Buffer.from(
       // Explicit margin so it definitely matches this template's `@page { margin: 15mm }` — Chrome's
       // print-to-PDF doesn't reliably fall back to the CSS value on its own (preferCSSPageSize

@@ -9,6 +9,7 @@ import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } 
 import { buildVerifyUrl, qrDataUri } from "./verification";
 import { getOrgBranding } from "./orgBranding";
 import { recordRenderedPdfHash, sealFooterSpan } from "./integritySeal";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -187,7 +188,7 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

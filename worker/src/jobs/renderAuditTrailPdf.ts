@@ -6,6 +6,7 @@ import type { RenderAuditTrailPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { buildGeneratedPath, uploadGeneratedFile } from "./vaultAutoFile";
 import { PermanentJobError } from "./jobAbort";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 /** Rows a single PDF will list. Beyond this the PDF says so on its first page; the CSV export has no cap. */
 export const AUDIT_PDF_ROW_CAP = 5000;
@@ -101,7 +102,7 @@ export async function renderAuditTrailPdf(payload: RenderAuditTrailPdfPayload): 
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

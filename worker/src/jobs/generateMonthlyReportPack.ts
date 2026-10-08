@@ -10,6 +10,7 @@ import { buildMonthlyReportHtml, type MonthlyReportTemplateData } from "./monthl
 import { aggregateReportPackData } from "./reportPackAggregation";
 import { stampUncontrolledCopyBanner } from "./xlsxUncontrolledCopy";
 import type { GenerateMonthlyReportPackPayload } from "./types";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -149,7 +150,7 @@ async function buildAndFileMonthlyPack(
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
     pdfBuffer = Buffer.from(

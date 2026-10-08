@@ -8,6 +8,7 @@ import { getOrgBranding } from "./orgBranding";
 import { buildGeneratedPath, resolveNextRevision, assertNcrCloseoutFileable } from "./vaultAutoFile";
 import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
 import { PermanentJobError } from "./jobAbort";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -152,7 +153,7 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

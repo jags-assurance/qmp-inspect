@@ -6,6 +6,7 @@ import { supabase } from "../supabase";
 import { autoFileVaultDocument, uploadGeneratedFile, buildGeneratedPath, resolveNextRevision, shouldFileFatAsFinal } from "./vaultAutoFile";
 import { buildFatReportHtml, type FatReportData, type FatReportPhoto } from "./fatReportTemplate";
 import type { RenderFatReportPdfPayload } from "./types";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
@@ -202,7 +203,7 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     // Chrome doesn't reliably honor this template's `@page { margin: 15mm }` on its own — must pass
     // it explicitly so it matches the letterhead's -15mm full-bleed trick. See renderItpPdf.ts.
     pdfBuffer = Buffer.from(

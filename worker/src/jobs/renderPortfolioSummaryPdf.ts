@@ -8,6 +8,7 @@ import {
   type PortfolioSummaryTemplateData,
 } from "./portfolioSummaryTemplate";
 import type { RenderPortfolioSummaryPdfPayload } from "./types";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -201,7 +202,7 @@ export async function renderPortfolioSummaryPdf(
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

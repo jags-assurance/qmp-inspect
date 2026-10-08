@@ -37,7 +37,7 @@ Parked on purpose (not in this file): connectors, email-to-vault, billing and pl
 5. **Redeploy the Railway worker** (failed-job alerts, per-project packs, audit-trail PDF). The web app enforces the CSP now; set `CSP_REPORT_ONLY=1` to revert it without a code change.
 6. **Test with real sessions** (admin, inspector, client, subcontractor): sign in, raise and close an NCR, complete an inspection, bulk issue IRNs, export the audit log, approve a vault document revision, open the project list, switch the language to Arabic, upload one iPhone HEIC photo in Chrome.
 7. **Decisions only you can make:**
-   - **`extract-zip` (2 high findings, `pnpm audit --prod`)**: no patched release; it is used only when puppeteer downloads Chrome. Removing it needs puppeteer 25, which drops `networkidle0` (used by all 11 PDF jobs). Decide whether to take that change and test the PDFs.
+   - **`extract-zip` (2 high findings): RESOLVED.** The worker is on puppeteer ^25.12.0 (its `@puppeteer/browsers` 3.x does not use extract-zip) and `pnpm audit --prod` reports no vulnerabilities. All PDF jobs now use `worker/src/jobs/renderHtml.ts` instead of `networkidle0`; verified with a real-Chrome render of the NCR and handover certificate templates. Still to confirm on Railway after redeploy: the build downloads Chrome 154 and a PDF job runs; puppeteer 25 needs Node 22.12 or newer (`nixpacks.toml` sets `NIXPACKS_NODE_VERSION = "22"`).
    - **`heic-to` is LGPL-3.0.** Confirm that is acceptable.
    - **Arabic wording** needs a native-speaker review.
    - **Project packs now file into each project's vault by default** (`FILE_PROJECT_PACKS_IN_PROJECT_VAULTS=false` turns it off). The org-wide pack is still filed only with `FILE_ORG_PACKS_IN_PROJECT_VAULTS=true`.
@@ -61,7 +61,7 @@ Parked on purpose (not in this file): connectors, email-to-vault, billing and pl
 | Provisioning linking any account | Already fixed in the tree before this round |
 | 46 callable functions | Reviewed against `.rpc()` calls and RLS policy use; 15 internal-only helpers revoked. Run the query in the migration header on the live database to catch anything created from the dashboard |
 | CSP | Enforced; a stricter no-`unsafe-eval` variant is sent Report-Only in production |
-| Dependencies | 22 findings to 2 (see A7) |
+| Dependencies | 22 findings to 0 (see A7) |
 | Atomic duplicate guard for offline NCR/observation | `request_id` unique index replaces storage markers |
 | One approved vault copy per reference | Atomic approve-and-retire RPC and reordered filer |
 | Stat-card aggregates | SQL aggregate for NCR and Observation registers; audit facets by `DISTINCT`. Not cached: the aggregate is cheap and RLS-scoped |

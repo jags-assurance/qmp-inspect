@@ -7,6 +7,7 @@ import { buildNcrApprovalBoxes, loadNcrParties } from "./ncrApprovals";
 import { getOrgBranding } from "./orgBranding";
 import { buildGeneratedPath, ncrDossierFilingStatus } from "./vaultAutoFile";
 import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
+import { setHtmlContentAndSettle } from "./renderHtml";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -126,7 +127,7 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
   const page = await browser.newPage();
   let pdfBuffer: Buffer;
   try {
-    await page.setContent(withBidi(html), { waitUntil: "networkidle0" });
+    await setHtmlContentAndSettle(page, withBidi(html));
     pdfBuffer = Buffer.from(
       await page.pdf({
         format: "A4",

@@ -1,3 +1,7 @@
+# Puppeteer 25 needs Node >= 22.12; pin the Nixpacks Node major so the build does not pick an older 22.x or 20.
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
 # Railway's worker service builds from the repo root (see README's Railway setup: build command
 # `pnpm --filter @jags/worker build`). Nixpacks' default Node builder has no browser dependencies at
 # all, so headless Chrome (used by every PDF-rendering job in worker/src/jobs/) fails to even launch

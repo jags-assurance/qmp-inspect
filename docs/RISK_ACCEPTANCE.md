@@ -1,6 +1,8 @@
 # Risk acceptance register
 
-**Status: TEMPLATE, NOT SIGNED.** The entries below were prepared by the engineering side for the owner to review. No risk in this
+**Status: no open entries (RA-001 and RA-002 were resolved by the puppeteer 25 upgrade); the template below applies to any future entry.**
+
+Original note:  The entries below were prepared by the engineering side for the owner to review. No risk in this
 register is accepted until the approver completes the decision, signs and dates the entry. Until then each entry is an open,
 undecided finding.
 
@@ -11,10 +13,12 @@ check on the review date; if the finding is fixed, move the entry to "Closed" wi
 
 | ID | Finding | Severity | Scope | Status | Review date | Approver | Decision date |
 |---|---|---|---|---|---|---|---|
-| RA-001 | `extract-zip` unvalidated symlink path traversal (GHSA-jmr9-qjv8-65gv) | High | Install time only (puppeteer's Chrome download) | **Open, awaiting approval** | Proposed 2027-01-08 [OWNER TO CONFIRM] | [OWNER TO FILL: name and role] | [OWNER TO FILL] |
-| RA-002 | `extract-zip` arbitrary file writes through symlink archive entries (GHSA-7pqw-9j4j-h8q3) | High | Install time only (same path) | **Open, awaiting approval** | Proposed 2027-01-08 [OWNER TO CONFIRM] | [OWNER TO FILL: name and role] | [OWNER TO FILL] |
+| RA-001 | `extract-zip` unvalidated symlink path traversal (GHSA-jmr9-qjv8-65gv) | High | Install time only (puppeteer's Chrome download) | **Resolved by upgrade (no acceptance needed)** | n/a | n/a | n/a |
+| RA-002 | `extract-zip` arbitrary file writes through symlink archive entries (GHSA-7pqw-9j4j-h8q3) | High | Install time only (same path) | **Resolved by upgrade (no acceptance needed)** | n/a | n/a | n/a |
 
-## RA-001 and RA-002: `extract-zip` via puppeteer
+## RA-001 and RA-002: `extract-zip` via puppeteer (RESOLVED)
+
+**Resolution:** the worker was upgraded from puppeteer `^23.9.0` to `^25.12.0`. Its `@puppeteer/browsers` 3.x no longer depends on `extract-zip`, and `pnpm audit --prod` now reports "No known vulnerabilities found". The `networkidle0` wait that puppeteer 25 removed was replaced in all 12 PDF render call sites by one shared helper (`worker/src/jobs/renderHtml.ts`: `load`, then `waitForNetworkIdle({ idleTime: 500 })`, then `document.fonts.ready`, each with the previous 30s budget), and verified with a real-Chrome render test (`worker/__tests__/renderHtmlPdf.test.ts`). No risk acceptance or owner signature is required; the sections below are kept as the historical analysis. Puppeteer 25 requires Node 22.12 or newer.
 
 ### Details
 - **Source:** `pnpm audit --prod`, run 2026-10-08 on branch `dev`: 2 vulnerabilities found, both high. Every other finding that audit
@@ -63,4 +67,4 @@ immediately if any code ever extracts an archive at run time or if a patched `ex
 | Date signed | [OWNER TO FILL] |
 
 ## Closed
-None.
+- RA-001 and RA-002: closed by the puppeteer 25 upgrade (see above); `pnpm audit --prod` clean.
