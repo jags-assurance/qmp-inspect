@@ -16,7 +16,7 @@ export function MfaForm({ next }: { next: string }) {
       <form action={formAction} className="mt-4 space-y-3">
         <input type="hidden" name="next" value={next} />
         <div>
-          <FormField label="Code">
+          <FormField label="Code" id="mfa-code">
             <input
             name="code"
             inputMode="numeric"

@@ -31,7 +31,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
         <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
           <input type="hidden" name="next" value={next} />
           <div>
-            <FormField label="Email">
+            <FormField label="Email" id="email">
               <input
               name="email"
               type="email"
