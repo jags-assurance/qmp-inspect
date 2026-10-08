@@ -1,21 +1,20 @@
 import Link from "next/link";
+import { siteToday } from "@/lib/ncrs/site-date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
-import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
+import { AgingChart } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { NcrPanel } from "./ncr-panel";
 import { NCR_TABLE_PAGE_SIZE } from "./constants";
-import { isOverdue } from "./is-overdue";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { DisciplineFilterForm } from "./discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { applyNcrFilters, applyNcrSort, SORT_OPTIONS, type NcrListParams } from "@/lib/ncrs/list-filters";
 import { STATUS_LABEL } from "./ncr-shared";
-import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export default async function NcrsPage({
   searchParams,
@@ -56,10 +55,6 @@ export default async function NcrsPage({
   // every row to be correct without a real SQL GROUP BY, and this is far cheaper than the full
   // joined row — and a second, real server-side-paginated + searched query that only ever returns
   // one page's worth of the full joined rows for the table itself.
-  let statsQuery = supabase
-    .from(NCRS_TABLE)
-    .select("status, due_date, created_at")
-    .neq("severity", "observation");
   // A dedicated head:true count query — kept entirely separate from the data query below (no
   // embeds, no range) rather than using `.select(cols, {count:'exact'})` combined with `.range()`,
   // which was observed to return an accurate count but a silently empty data array specifically
@@ -78,12 +73,22 @@ export default async function NcrsPage({
 
   if (itpItemIdFilter) {
     const noMatch = itpItemIdFilter.length === 0;
-    statsQuery = noMatch ? statsQuery.eq("id", "00000000-0000-0000-0000-000000000000") : statsQuery.in("itp_item_id", itpItemIdFilter);
     countQuery = noMatch ? countQuery.eq("id", "00000000-0000-0000-0000-000000000000") : countQuery.in("itp_item_id", itpItemIdFilter);
     tableQuery = noMatch ? tableQuery.eq("id", "00000000-0000-0000-0000-000000000000") : tableQuery.in("itp_item_id", itpItemIdFilter);
   }
   // Status chips/counts ignore the status and overdue filters so every chip keeps showing its total.
-  statsQuery = applyNcrFilters(statsQuery, { ...sp, status: undefined, overdue: undefined }, session.userId);
+  // Each stat is its own head:true count (no rows transferred, no 1000-row cap): total, one per status, the
+  // overdue count and the four aging buckets. A fresh builder per count, because builders are single-use.
+  const makeStatsQuery = () => {
+    let q = supabase.from(NCRS_TABLE).select("id", { count: "exact", head: true }).neq("severity", "observation");
+    if (itpItemIdFilter) {
+      q = itpItemIdFilter.length === 0 ? q.eq("id", "00000000-0000-0000-0000-000000000000") : q.in("itp_item_id", itpItemIdFilter);
+    }
+    return applyNcrFilters(q, { ...sp, status: undefined, overdue: undefined }, session.userId);
+  };
+  const nowMs = Date.now();
+  const daysAgoIso = (d: number) => new Date(nowMs - d * 86_400_000).toISOString();
+  const STATUSES = ["open", "in_progress", "pending_verification", "closed"] as const;
   countQuery = applyNcrFilters(countQuery, sp, session.userId);
   tableQuery = applyNcrFilters(tableQuery, sp, session.userId);
   if (q) {
@@ -92,12 +97,29 @@ export default async function NcrsPage({
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
-  // Stats read EVERY matching row (PostgREST caps one response at 1000): page through them and fail
-  // loudly rather than showing wrong totals on a big project.
-  const [statsRows, { count: totalCount }, { data: ncrs }] = await Promise.all([
-    fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
-      statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
-    ),
+  const [
+    totalRes,
+    openRes,
+    closedRes,
+    overdueRes,
+    statusRes,
+    age0,
+    age1,
+    age2,
+    age3,
+    { count: totalCount },
+    { data: ncrs },
+  ] = await Promise.all([
+    makeStatsQuery(),
+    makeStatsQuery().neq("status", "closed"),
+    makeStatsQuery().eq("status", "closed"),
+    makeStatsQuery().neq("status", "closed").lt("due_date", siteToday()),
+    Promise.all(STATUSES.map((st) => makeStatsQuery().eq("status", st))),
+    // Open NCRs by whole days since created: 0-7, 8-14, 15-30, 31+ (the same buckets as the aging chart).
+    makeStatsQuery().neq("status", "closed").gt("created_at", daysAgoIso(8)),
+    makeStatsQuery().neq("status", "closed").lte("created_at", daysAgoIso(8)).gt("created_at", daysAgoIso(15)),
+    makeStatsQuery().neq("status", "closed").lte("created_at", daysAgoIso(15)).gt("created_at", daysAgoIso(31)),
+    makeStatsQuery().neq("status", "closed").lte("created_at", daysAgoIso(31)),
     countQuery,
     (applyNcrSort(tableQuery, sp.sort) as typeof tableQuery)
       .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
@@ -105,18 +127,15 @@ export default async function NcrsPage({
   ]);
 
   const rows = ncrs ?? [];
-  const statRows = statsRows;
-  const total = statRows.length;
-  const open = statRows.filter((r) => r.status !== "closed").length;
-  const closed = statRows.filter((r) => r.status === "closed").length;
-  const overdue = statRows.filter(isOverdue).length;
-  const today = new Date().getTime();
-  const openAgeDays = statRows
-    .filter((r) => r.status !== "closed")
-    .map((r) => Math.floor((today - new Date(r.created_at).getTime()) / 86_400_000));
-  const agingCounts = bucketAge(openAgeDays);
+  const total = totalRes.count ?? 0;
+  const open = openRes.count ?? 0;
+  const closed = closedRes.count ?? 0;
+  const overdue = overdueRes.count ?? 0;
+  const agingCounts = [age0.count ?? 0, age1.count ?? 0, age2.count ?? 0, age3.count ?? 0];
   const statusCounts: Record<string, number> = {};
-  for (const r of statRows) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+  STATUSES.forEach((st, i) => {
+    statusCounts[st] = statusRes[i].count ?? 0;
+  });
   const hrefWith = (patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
     for (const [k, v] of Object.entries({ ...sp, ...patch, page: undefined })) if (v) next.set(k, String(v));
