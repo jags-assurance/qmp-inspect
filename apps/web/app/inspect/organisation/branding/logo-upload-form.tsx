@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateOrgLogoAction } from "@/lib/branding/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const ORG_BRANDING_BUCKET = "org-branding";
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB — a logo has no business being larger than this.
@@ -102,16 +103,14 @@ export function LogoUploadForm({
         </div>
 
         <div>
-          <label htmlFor="logo_file" className="block text-xs text-muted">
-            Upload a new logo (PNG, JPEG, SVG, or WebP — max 2MB)
-          </label>
-          <input
-            id="logo_file"
+          <FormField label="Upload a new logo (PNG, JPEG, SVG, or WebP — max 2MB)">
+            <input
             name="logo_file"
             type="file"
             accept="image/png,image/jpeg,image/svg+xml,image/webp"
             className="mt-1 block w-full max-w-xs text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-burgundy file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-burgundy/90"
           />
+          </FormField>
         </div>
       </div>
 

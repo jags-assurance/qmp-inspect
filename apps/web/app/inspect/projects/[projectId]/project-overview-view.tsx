@@ -1,3 +1,4 @@
+import { SiteGeofenceSettings } from "./site-geofence-settings";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -96,29 +97,46 @@ const STATUSES_ELIGIBLE_FOR_BULK_DEACTIVATE = new Set(["completed", "cancelled"]
  * the URL directly (see docs/MANUAL_TESTING_GUIDE.md, which does exactly that). This page is that
  * entry point, plus real per-project numbers computed here rather than guessed at.
  */
-export async function ProjectOverviewView({ projectId, tabBar }: { projectId: string; tabBar: ReactNode }) {
+export async function ProjectOverviewView({
+  projectId,
+  tabBar,
+  knownCounts,
+}: {
+  projectId: string;
+  tabBar: ReactNode;
+  /** Counts the workspace page already computed for its tab badges; when given, they are not queried again. */
+  knownCounts?: { openNcrsAndObservations: number; openPunchOutstanding: number; openPunchOpen: number };
+}) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, allow_contractor_standalone_assignment, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
-    )
-    .eq("id", projectId)
-    .maybeSingle<ProjectDetail>();
-
-  if (!project) notFound();
-
+  // The project row, its geofence columns and every count below depend only on projectId, so they all
+  // start together (the geofence read stays its own query: its columns exist only after migration
+  // 20261110000200 and an error there just means "not set up yet").
   const [
+    { data: project },
+    { data: siteRow },
     { data: parties },
-    { count: itpCount },
-    { count: openNcrCount },
+    { count: itpCountRaw },
+    { count: openNcrCountRaw },
     { count: pendingInspectionCount },
-    { count: openPunchCount },
-    { count: openPunchAnyCount },
+    { count: openPunchCountRaw },
+    { count: openPunchAnyCountRaw },
     { data: assignedClientTeams },
   ] = await Promise.all([
+    supabase
+      .from("projects")
+      .select(
+        "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, allow_contractor_standalone_assignment, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
+      )
+      .eq("id", projectId)
+      .maybeSingle<ProjectDetail>(),
+    // S4-17 site geofence.
+    supabase
+      .from("projects")
+      .select("site_latitude, site_longitude, site_radius_m")
+      .eq("id", projectId)
+      .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>(),
     supabase
       .from("project_parties")
       .select("id, name, party_type, is_active, onboarded_by, user_id, contact_email, access_mode, users(full_name, email)")
@@ -139,18 +157,25 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
         }[]
       >(),
     supabase.from("itps").select("id", { count: "exact", head: true }).eq("project_id", projectId),
-    supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+    // Open NCRs + observations and the punch counts come from the workspace page when it supplies them.
+    knownCounts
+      ? Promise.resolve({ count: null })
+      : supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase
       .from("inspection_records")
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .is("overall_result", null),
-    supabase
-      .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id", { count: "exact", head: true })
-      .eq("project_id", projectId)
-      .eq("status", "open"),
-    supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+    knownCounts
+      ? Promise.resolve({ count: null })
+      : supabase
+          .from(PUNCH_LIST_ITEMS_TABLE)
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", projectId)
+          .eq("status", "open"),
+    knownCounts
+      ? Promise.resolve({ count: null })
+      : supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     // Read-only visibility for client_team_project_assignments (organisation/client-teams' "Assign
     // to project" control) — previously that assignment had no consequence anywhere outside the
     // admin page that wrote it; showing it here at least makes the assignment itself legible from
@@ -162,6 +187,13 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
       .eq("project_id", projectId)
       .returns<{ client_teams: { name: string } | null }[]>(),
   ]);
+
+  if (!project) notFound();
+
+  const itpCount = itpCountRaw;
+  const openNcrCount = knownCounts ? knownCounts.openNcrsAndObservations : openNcrCountRaw;
+  const openPunchCount = knownCounts ? knownCounts.openPunchOpen : openPunchCountRaw;
+  const openPunchAnyCount = knownCounts ? knownCounts.openPunchOutstanding : openPunchAnyCountRaw;
 
   // Reassignment is a sensitive affordance — gated the same way reassignSignoffPartyAction gates
   // itself server-side: a JAGS Admin, or a lead of a JAGS team actually assigned to this project.
@@ -198,7 +230,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
   // 20260930180000_project_party_members.sql) — gated identically to canProvisionPartyLogin since
   // it's the same sensitivity level (granting/revoking real project access), and only fetched at all
   // when at least one party exists to attach the panel to.
-  let partyMembersByPartyId = new Map<string, PartyMemberRow[]>();
+  const partyMembersByPartyId = new Map<string, PartyMemberRow[]>();
   let orgCustomRoles: CustomRoleOption[] = [];
   if (canProvisionPartyLogin && (parties ?? []).length > 0) {
     const [{ data: memberRows }, { data: roleRows }] = await Promise.all([
@@ -441,7 +473,7 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
                     // Stays mounted after the login is created so the one-time temporary password
                     // it returns can still be shown (the refresh flips user_id; the form hides
                     // itself when there is nothing to show).
-                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} hasLogin={!!party.user_id} />
+                    <ProvisionPartyLoginForm projectPartyId={party.id} contactEmail={party.contact_email} hasLogin={!!party.user_id} isAdmin={isAdminStaff(session)} />
                   )}
                   {(canReassign || (isClientTeamLead && party.party_type === "client")) && party.is_active && (
                     <ReassignPartyForm projectPartyId={party.id} eligibleUsers={eligibleUsers} />
@@ -524,10 +556,10 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
             By default only JAGS staff can run a Standalone Assignment (FAT/witness inspection/
             specific test/pre-shipment) on this project, on any engagement tier. Turning this on
             lets an active subcontractor or main-contractor party on THIS project run one
-            themselves too — the equipment they supplied is routinely something they're best
-            placed to test. This works independently of the Full Client-Managed tier's own
+            themselves too — the equipment they supplied is routinely something they&apos;re best
+            placed to test. This works independently of the Full Client-Managed tier&apos;s own
             run_standalone_assignment permission (Organisation → Custom roles), which is separate
-            and grants the same right to the client's own people instead.
+            and grants the same right to the client&apos;s own people instead.
           </p>
           <AllowContractorStandaloneAssignmentToggle
             projectId={project.id}
@@ -548,11 +580,27 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
 
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-medium text-ink">Site location (geofence)</h2>
+          <p className="mt-1 text-sm text-muted">
+            Optional. When set, starting an inspection with live GPS shows a warning if the inspector is farther than the radius from
+            this point. It never blocks work, and the distance is recorded with the inspection. Leave blank to switch it off.
+          </p>
+          <SiteGeofenceSettings
+            projectId={project.id}
+            latitude={siteRow?.site_latitude ?? null}
+            longitude={siteRow?.site_longitude ?? null}
+            radiusM={siteRow?.site_radius_m ?? null}
+          />
+        </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink">Hold-point enforcement</h2>
           <p className="mt-1 text-sm text-muted">
             On by default: an open Hold on an activity stops field work from starting at all, not
-            just from being marked complete (R71 — "a hold point must wait"). Turn this off for
-            THIS project only if its process doesn't need the software to enforce the hold at
+            just from being marked complete (R71 — &quot;a hold point must wait&quot;). Turn this off for
+            THIS project only if its process doesn&apos;t need the software to enforce the hold at
             start time — the assigned party still has to sign off before the inspection can be
             completed either way.
           </p>

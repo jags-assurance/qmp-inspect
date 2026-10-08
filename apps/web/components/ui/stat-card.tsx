@@ -1,5 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export function StatCard({
   label,
@@ -20,10 +23,11 @@ export function StatCard({
 }) {
   // Label + icon on top, value pinned to the bottom: tiles in one row stay the same height with
   // their numbers on one baseline even when one label wraps to two lines.
+  const t = useTranslate();
   const content = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <span className="text-sm leading-snug text-muted">{label}</span>
+        <span className="text-sm leading-snug text-muted">{t(label)}</span>
         {icon && <span className="shrink-0">{icon}</span>}
       </div>
       <div className="mt-auto pt-2">

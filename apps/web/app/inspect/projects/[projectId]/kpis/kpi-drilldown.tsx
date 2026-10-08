@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { FirstAttemptRecordRow } from "@/lib/kpis/compute";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 const RESULT_LABEL: Record<NonNullable<FirstAttemptRecordRow["result"]>, string> = {
   pass: "Passed",
@@ -22,6 +23,17 @@ const RESULT_TONE: Record<NonNullable<FirstAttemptRecordRow["result"]>, "success
  * strip. No separate page or duplicated computation: same firstAttemptRecords list
  * computeProjectKpis already derives the rate from.
  */
+const recordColumns: ResponsiveColumn<FirstAttemptRecordRow>[] = [
+  { key: "activity", header: "Activity", className: "text-ink", render: (r) => r.activity },
+  { key: "itp", header: "ITP", className: "text-xs text-muted", render: (r) => r.itpNumber ?? "—" },
+  { key: "date", header: "Date", className: "text-xs text-muted", render: (r) => new Date(r.recordedAt).toLocaleDateString("en-GB") },
+  {
+    key: "result",
+    header: "Result",
+    render: (r) => (r.result ? <Badge tone={RESULT_TONE[r.result]}>{RESULT_LABEL[r.result]}</Badge> : "—"),
+  },
+];
+
 export function KpiDrilldown({
   trigger,
   records,
@@ -52,36 +64,18 @@ export function KpiDrilldown({
           <p className="mt-1 text-xs text-muted">
             Every activity&rsquo;s earliest recorded inspection, pass or fail — this is what the rate above is computed from.
           </p>
-          <div className="mt-3 max-h-80 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted">
-                  <th className="px-2 py-1.5 font-medium">Activity</th>
-                  <th className="px-2 py-1.5 font-medium">ITP</th>
-                  <th className="px-2 py-1.5 font-medium">Date</th>
-                  <th className="px-2 py-1.5 font-medium">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => (
-                  <tr key={r.id} className="border-b border-border last:border-0">
-                    <td className="px-2 py-1.5 text-ink">{r.activity}</td>
-                    <td className="px-2 py-1.5 text-xs text-muted">{r.itpNumber ?? "—"}</td>
-                    <td className="px-2 py-1.5 text-xs text-muted">{new Date(r.recordedAt).toLocaleDateString("en-GB")}</td>
-                    <td className="px-2 py-1.5">
-                      {r.result ? <Badge tone={RESULT_TONE[r.result]}>{RESULT_LABEL[r.result]}</Badge> : "—"}
-                    </td>
-                  </tr>
-                ))}
-                {records.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-2 py-4 text-center text-muted">
-                      No first-attempt inspections recorded yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="mt-3 max-h-80 overflow-auto">
+            <ResponsiveTable
+              columns={recordColumns}
+              rows={records}
+              rowKey={(r) => r.id}
+              caption="First-attempt inspections"
+              wrapperClassName=""
+              thClassName="px-2 py-1.5 font-medium"
+              tdClassName="px-2 py-1.5"
+              emptyCellClassName="px-2 py-4 text-center text-muted"
+              empty="No first-attempt inspections recorded yet."
+            />
           </div>
         </div>
       )}

@@ -1,11 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
-import {
-  AI_DAILY_MAX_CALLS,
-  AI_KEY_MISSING_MESSAGE,
-  AI_RATE_LIMIT_MAX_CALLS,
-  AI_RATE_LIMIT_WINDOW_MS,
-} from "@/lib/ai/config";
+import { AI_RATE_LIMIT_WINDOW_MS } from "@/lib/ai/config";
+import { decideAiAccess } from "@/lib/ai/gate-decision";
 
 // Cheap abuse guard on top of the consent gate below: caps how many AI calls one organisation can
 // make in a rolling window, using the usage log that already exists for admin-visibility purposes
@@ -46,59 +42,34 @@ export async function assertAiAllowed(
   supabase: SupabaseClient,
   organizationId: string
 ): Promise<AiGateResult> {
-  if (!isAiConfigured()) {
-    return { allowed: false, reason: AI_KEY_MISSING_MESSAGE };
+  // The cheap refusals (no key, free tier) need no database read at all.
+  const keyConfigured = isAiConfigured();
+  const tier = process.env.AI_TIER;
+  if (!keyConfigured || tier !== "paid") {
+    return decideAiAccess({ keyConfigured, tier, organization: null, recentCalls: null, dailyCalls: null });
   }
 
-  if (process.env.AI_TIER !== "paid") {
-    return {
-      allowed: false,
-      reason:
-        "AI assistance is not available in this environment yet (dev/free tier — real project data is never sent to the AI provider on this tier).",
-    };
-  }
+  const [{ data: organization, error: orgError }, recent, daily] = await Promise.all([
+    supabase.from("organizations").select("ai_consent, is_active").eq("id", organizationId).maybeSingle<{ ai_consent: boolean | null; is_active: boolean | null }>(),
+    supabase
+      .from(AI_USAGE_LOG_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .gte("created_at", new Date(Date.now() - AI_RATE_LIMIT_WINDOW_MS).toISOString()),
+    // Daily cost ceiling per organisation (cache hits are logged too, so they count - deliberately conservative).
+    supabase
+      .from(AI_USAGE_LOG_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+  ]);
 
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("ai_consent")
-    .eq("id", organizationId)
-    .maybeSingle<{ ai_consent: boolean }>();
-
-  if (!organization?.ai_consent) {
-    return {
-      allowed: false,
-      reason:
-        "AI assistance is not available for this organisation yet. A JAGS admin can enable it once the account is on the paid tier.",
-    };
-  }
-
-  const { count: recentCalls } = await supabase
-    .from(AI_USAGE_LOG_TABLE)
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", organizationId)
-    .gte("created_at", new Date(Date.now() - AI_RATE_LIMIT_WINDOW_MS).toISOString());
-
-  if ((recentCalls ?? 0) >= AI_RATE_LIMIT_MAX_CALLS) {
-    return {
-      allowed: false,
-      reason: "AI assistance is being used heavily right now — please wait a moment and try again.",
-    };
-  }
-
-  // Daily cost ceiling per organisation (cache hits are logged too, so they count - deliberately
-  // conservative).
-  const { count: dailyCalls } = await supabase
-    .from(AI_USAGE_LOG_TABLE)
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", organizationId)
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-  if ((dailyCalls ?? 0) >= AI_DAILY_MAX_CALLS) {
-    return {
-      allowed: false,
-      reason: "This organisation has reached its daily AI usage limit. It resets on a rolling 24-hour basis.",
-    };
-  }
-
-  return { allowed: true, reason: null };
+  // Anything that could not be read fails closed (see decideAiAccess).
+  return decideAiAccess({
+    keyConfigured,
+    tier,
+    organization: orgError ? null : (organization ?? null),
+    recentCalls: recent.error ? null : (recent.count ?? 0),
+    dailyCalls: daily.error ? null : (daily.count ?? 0),
+  });
 }

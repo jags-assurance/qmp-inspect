@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createItpAction, type CreateItpState } from "@/lib/itps/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CreateItpState = { error: null };
 
@@ -16,11 +17,8 @@ export function NewItpForm({
   return (
     <form action={formAction} className="mt-6 space-y-4">
       <div>
-        <label htmlFor="project_id" className="block text-sm font-medium text-ink">
-          Project
-        </label>
-        <select
-          id="project_id"
+        <FormField label="Project">
+          <select
           name="project_id"
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -32,6 +30,7 @@ export function NewItpForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
 
       <div>
@@ -47,40 +46,34 @@ export function NewItpForm({
       </div>
 
       <div>
-        <label htmlFor="title" className="block text-sm font-medium text-ink">
-          Title
-        </label>
-        <input
-          id="title"
+        <FormField label="Title">
+          <input
           name="title"
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="applicable_standard" className="block text-sm font-medium text-ink">
-          Applicable standard
-        </label>
-        <input
-          id="applicable_standard"
+        <FormField label="Applicable standard">
+          <input
           name="applicable_standard"
           placeholder="e.g. IEC 61439"
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="scope" className="block text-sm font-medium text-ink">
-          Scope (optional)
-        </label>
-        <textarea
-          id="scope"
+        <FormField label="Scope (optional)">
+          <textarea
           name="scope"
           rows={3}
           placeholder="What work this plan covers, e.g. Structural concrete — foundations, Block A"
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       {state.error && <p className="text-sm text-danger">{state.error}</p>}

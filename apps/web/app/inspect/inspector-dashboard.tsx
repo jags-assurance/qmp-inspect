@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { QuickRaiseObservation } from "@/components/domain/quick-raise-observation";
 import { TodayQueue } from "@/components/domain/today-queue";
 import { buildInspectorToday } from "@/lib/dashboard/today";
+import { AssignedToMe } from "@/components/domain/assigned-to-me";
+import type { AssignedActivity } from "@/lib/checklists/assigned-queries";
 
 export interface OverdueHoldRow {
   id: string;
@@ -50,7 +53,7 @@ const ASSIGNMENT_TYPE_TONE: Record<AssignmentType, "gold" | "info" | "neutral" |
 // Plain-language "what to do here" guide — folded into the page's own Guide popover rather than an
 // always-open box on the dashboard body (see admin-dashboard.tsx's matching comment for why).
 const INSPECTOR_GUIDE: string[] = [
-  "Run field inspections: open \"New inspection\" or pick a checklist from \"My pending actions\" below to fill in results for an activity.",
+  "Run field inspections: open \"Start work\" or pick a checklist from \"My pending actions\" below to fill in results for an activity.",
   "Chase the ones not yet started or still in progress — that's exactly what \"My pending actions\" lists, split into Today and Overdue.",
   "Where an activity has a Hold point, sign-off can't happen until you've completed the checklist and it's been notified to the relevant party — \"Overdue hold points\" above flags any stuck past their notice period.",
   "If an inspection fails, raise an NCR against it so it's tracked through to closure.",
@@ -79,7 +82,13 @@ export function InspectorDashboard({
   pendingOverdue,
   pendingStandaloneAssignments,
   ncrsAssignedToMe = [],
+  assignedToMe = [],
+  clearancesWidget = null,
 }: {
+  /** Activities assigned to this inspector personally (itp_items.assigned_to_user_id). */
+  assignedToMe?: AssignedActivity[];
+  /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
+  clearancesWidget?: ReactNode;
   /** The worst overdue holds (capped), each deep-linking to its ITP. */
   overdueHoldItems?: OverdueHoldRow[];
   firstName: string;
@@ -126,7 +135,7 @@ export function InspectorDashboard({
             href="/inspect/start-work"
             className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
           >
-            New inspection
+            Start work
           </Link>
         </div>
       </div>
@@ -143,6 +152,8 @@ export function InspectorDashboard({
         })}
         emptyText="Nothing waiting. Start a new inspection from Start work, or review Inspections."
       />
+      <AssignedToMe items={assignedToMe} />
+      {clearancesWidget}
 
       {overdueHoldItems.length > 0 && (
         <div id="overdue-holds" className="mt-6 scroll-mt-20 rounded-lg border border-border bg-surface p-4">

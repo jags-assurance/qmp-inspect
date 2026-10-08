@@ -24,7 +24,7 @@ export function InterventionLegend({ levels }: { levels: InterventionLegendLevel
       {levels.map((level, i) => (
         <span key={level.code} className="inline-flex items-center gap-1.5">
           <span
-            className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${toneClassForLevelIndex(i)}`}
+            className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${toneClassForLevelIndex(i)}`}
           >
             {level.code}
           </span>

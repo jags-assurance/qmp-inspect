@@ -1,6 +1,9 @@
 "use server";
 
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
+import { unnotifiedNonBlockingLevels } from "./notice-waiver";
+import { describeSpec, evaluateNumeric, parseNumericInput, validateSpecInput } from "./numeric-response";
+import { loadNumericSpec } from "./numeric-spec-query";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { BACKGROUND_JOBS_TABLE } from "@/lib/reports/types";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
@@ -28,16 +31,21 @@ import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getExecutingPartyTypes, findProjectIdForItpItem, canExecuteItpItem } from "./execution-parties";
 import { createPunchItemFromSource } from "@/lib/punch-list/actions";
 import { createNotification } from "@/lib/notifications/helpers";
+import { notifyInspectionStarted, notifyInspectionPassed } from "./inspection-notifications";
+import { canStartFromTemplate, AI_DRAFT_START_BLOCK_MESSAGE, describeGeneration } from "./ai-review-logic";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { aiErrorMessage } from "@/lib/ai/config";
-import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
+import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
 import { nextSequenceNumber } from "@/lib/numbering/generate";
 import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
-import { normaliseLocation } from "./location";
+import { normaliseLocation, parseCoordinates } from "./location";
+import { evaluateGeofence, sanitiseAccuracy, siteGeofenceFromProject } from "./geofence";
+import { buildItemsSnapshot } from "./template-logic";
+import { bumpTemplateVersion } from "./template-context";
 import { getLocationPresetsForProject } from "./location-presets";
 import { validateChecklistItemsAnswered, computeOverallResult } from "./completion-logic";
 import { boundedCapturedAt } from "@/lib/offline/policy";
@@ -56,6 +64,10 @@ import {
 
 export interface GenerateChecklistsState {
   error: string | null;
+  /** Honest outcome message (AI drafts saved / AI failed for N activities). */
+  notice?: { tone: "ok" | "warning"; message: string } | null;
+  /** True when AI left activities without a checklist, so the UI can offer the blank template explicitly. */
+  offerBlank?: boolean;
 }
 
 // canExecuteChecklistForItem moved to lib/checklists/execution-parties.ts as the generalized
@@ -65,7 +77,12 @@ export interface GenerateChecklistsState {
 
 export interface GenerateChecklistsResult {
   error: string | null;
+  /** Templates created (AI drafts awaiting confirmation, or blank templates in blank mode). */
   created: number;
+  /** AI mode: activities left WITHOUT a checklist because AI was unavailable or returned nothing. */
+  failed?: number;
+  /** AI mode: why AI was not used, when it was not. */
+  reason?: string | null;
 }
 
 /**
@@ -89,9 +106,19 @@ export interface GenerateChecklistsResult {
  */
 export async function generateChecklistsForItp(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  params: { itpId: string; itpNumber: string; projectId: string; organizationId: string; userId: string | null }
+  params: {
+    itpId: string;
+    itpNumber: string;
+    projectId: string;
+    organizationId: string;
+    userId: string | null;
+    /** "ai" (default): AI-drafted templates saved for staff review; an activity AI cannot draft gets NO
+     *  checklist (never a silent placeholder). "blank": the explicit, staff-chosen single-item blank template. */
+    mode?: "ai" | "blank";
+  }
 ): Promise<GenerateChecklistsResult> {
   const { itpId, itpNumber, projectId, organizationId, userId } = params;
+  const mode = params.mode ?? "ai";
 
   const { data: sections } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId);
   const sectionIds = (sections ?? []).map((s) => s.id);
@@ -124,7 +151,8 @@ export async function generateChecklistsForItp(
   // an item the AI can't draft for (unavailable, malformed response) falls back to the single
   // "acceptance criteria as one item" placeholder rather than failing checklist generation
   // outright, so this action never regresses below what it did before AI was wired in.
-  const gate = await assertAiAllowed(supabase, organizationId);
+  const gate = mode === "blank" ? { allowed: false, reason: null as string | null } : await assertAiAllowed(supabase, organizationId);
+  let failureReason: string | null = gate.allowed ? null : gate.reason;
   // One ai_usage_log row PER ITEM (not one combined row for the whole batch, as this used to log)
   // — this is what lets caching work at the granularity that actually repeats: the same activity
   // text (a common master-template activity reused across many projects/ITPs) hashes identically
@@ -178,7 +206,8 @@ export async function generateChecklistsForItp(
             outputTokens: usage?.outputTokens ?? null,
           });
           return [item.id, { drafted, logId }] as const;
-        } catch {
+        } catch (err) {
+          failureReason = aiErrorMessage(err, "the AI service did not return a usable checklist");
           return [item.id, { drafted: null, logId: null }] as const;
         }
       })
@@ -194,10 +223,19 @@ export async function generateChecklistsForItp(
     itp_item_id: string;
     checklist_number: string;
     name: string;
+    ai_generated: boolean;
     items: { item_number: string; description: string; is_mandatory: boolean; sort_order: number }[];
   }[] = [];
+  let failed = 0;
 
   for (const item of pending) {
+    const draftedItems = itemsByPendingId.get(item.id)?.drafted;
+    const hasDraft = !!draftedItems && draftedItems.length > 0;
+    if (mode === "ai" && !hasDraft) {
+      // Honest failure: no placeholder checklist is created behind the user's back.
+      failed += 1;
+      continue;
+    }
     const seq = await nextSequenceNumber(supabase, {
       organizationId,
       projectId,
@@ -205,7 +243,7 @@ export async function generateChecklistsForItp(
     });
     const drafted = itemsByPendingId.get(item.id)?.drafted;
     const items =
-      drafted && drafted.length > 0
+      mode === "ai" && drafted && drafted.length > 0
         ? drafted.map((di, i) => ({ item_number: String(i + 1), description: di.text, is_mandatory: di.mandatory, sort_order: i }))
         : [
             {
@@ -215,8 +253,10 @@ export async function generateChecklistsForItp(
               sort_order: 0,
             },
           ];
-    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity, items });
+    payload.push({ itp_item_id: item.id, checklist_number: `${itpNumber}-CHK-${seq}`, name: item.activity, ai_generated: mode === "ai", items });
   }
+
+  if (payload.length === 0) return { error: null, created: 0, failed, reason: failureReason };
 
   // Single RPC call, one Postgres transaction (insert_checklists_atomic — see its migration for
   // why): every checklist_templates row and every checklist_items row for this run either all land
@@ -227,29 +267,10 @@ export async function generateChecklistsForItp(
     return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
   }
 
-  if (aiUsed && userId) {
-    // One review-decision closure per item's own ai_usage_log row (see the generation loop above),
-    // matched back to the template row insert_checklists_atomic actually created for that item —
-    // finer-grained than the old single "checklist_batch" closure, and correct now that each item
-    // has its own row rather than a shared one.
-    const templateIdByItpItemId = new Map(inserted.map((t) => [t.itp_item_id, t.id]));
-    await Promise.all(
-      Array.from(itemsByPendingId.entries()).map(async ([itpItemId, { logId }]) => {
-        const templateId = templateIdByItpItemId.get(itpItemId);
-        if (!logId || !templateId) return;
-        await recordAiReviewDecision(supabase, {
-          logId,
-          reviewedBy: userId,
-          targetType: "checklist_template",
-          targetId: templateId,
-          reviewedResponse: { checklistTemplateId: templateId },
-          decision: "accepted_as_is", // generated and persisted in one atomic step, no separate human-edit screen exists for this feature today
-        });
-      })
-    );
-  }
+  // The AI review decision is recorded when staff confirm the draft (confirmAiChecklistAction), not here.
+  void aiUsed;
 
-  return { error: null, created: inserted.length };
+  return { error: null, created: inserted.length, failed, reason: failureReason };
 }
 
 /**
@@ -264,6 +285,7 @@ export async function generateChecklistTemplatesAction(
   formData: FormData
 ): Promise<GenerateChecklistsState> {
   const itpId = String(formData.get("itp_id") ?? "").trim();
+  const mode = formData.get("mode") === "blank" ? "blank" : "ai";
   if (!itpId) return { error: "Missing ITP." };
 
   const supabase = await createSupabaseServerClient();
@@ -284,7 +306,7 @@ export async function generateChecklistTemplatesAction(
     }>();
 
   if (!itp) return { error: "ITP not found." };
-  if (itp.status !== "approved") return { error: "The ITP must be approved before checklists can be generated." };
+  if (itp.status !== "approved" && itp.status !== "client_accepted") return { error: "The ITP must be approved before checklists can be generated." };
 
   const result = await generateChecklistsForItp(supabase, {
     itpId,
@@ -292,10 +314,15 @@ export async function generateChecklistTemplatesAction(
     projectId: itp.project_id,
     organizationId: itp.projects?.organization_id ?? "",
     userId: user?.id ?? null,
+    mode,
   });
 
   if (result.error) return { error: result.error };
-  if (result.created === 0) return { error: "Checklists already exist for every checklist-type activity, or this ITP has none." };
+  if (result.created === 0 && !result.failed) return { error: "Checklists already exist for every checklist-type activity, or this ITP has none." };
+  const notice =
+    mode === "blank"
+      ? { tone: "ok" as const, message: `${result.created} blank checklist(s) created with a single placeholder item. Edit the items before starting inspections.` }
+      : describeGeneration({ drafted: result.created, failed: result.failed ?? 0, reason: result.reason ?? null });
 
   if (itp.projects?.organization_id) {
     try {
@@ -314,7 +341,7 @@ export async function generateChecklistTemplatesAction(
   }
 
   revalidatePath(`/inspect/itps/${itpId}/checklists`);
-  return { error: null };
+  return { error: null, notice, offerBlank: mode === "ai" && (result.failed ?? 0) > 0 };
 }
 
 export interface AddChecklistItemState {
@@ -329,9 +356,25 @@ export async function addChecklistItemAction(
   const itemNumber = String(formData.get("item_number") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const isMandatory = formData.get("is_mandatory") === "on";
+  const isNumeric = formData.get("value_type") === "numeric";
 
   if (!templateId || !itemNumber || !description) {
     return { error: "Item number and description are required." };
+  }
+  let numericColumns: Record<string, unknown> = {};
+  if (isNumeric) {
+    const parsedSpec = validateSpecInput(
+      String(formData.get("numeric_min") ?? ""),
+      String(formData.get("numeric_max") ?? ""),
+      String(formData.get("numeric_unit") ?? "")
+    );
+    if ("error" in parsedSpec) return { error: parsedSpec.error };
+    numericColumns = {
+      value_type: "numeric",
+      numeric_min: parsedSpec.spec.min,
+      numeric_max: parsedSpec.spec.max,
+      numeric_unit: parsedSpec.spec.unit,
+    };
   }
   if (itemNumber.length > 20) return { error: "Item number is too long (maximum 20 characters)." };
   if (description.length > 500) return { error: "Description is too long (maximum 500 characters)." };
@@ -372,11 +415,16 @@ export async function addChecklistItemAction(
     description,
     is_mandatory: isMandatory,
     sort_order: (siblings?.[0]?.sort_order ?? -1) + 1,
+    ...numericColumns,
   });
 
   if (error) {
+    if (isNumeric && isMissingSchemaError(error)) {
+      return { error: "Measured items need a database update that has not been applied yet." };
+    }
     return { error: error.code === "23505" ? "That item number is already used on this checklist." : "Could not add the item." };
   }
+  await bumpTemplateVersion(supabase, templateId);
 
   try {
     const { data: context } = await supabase
@@ -430,8 +478,9 @@ export interface SaveChecklistResponseResult {
 export async function saveChecklistResponseAction(formData: FormData): Promise<SaveChecklistResponseResult> {
   const inspectionRecordId = String(formData.get("inspection_record_id") ?? "").trim();
   const checklistItemId = String(formData.get("checklist_item_id") ?? "").trim();
-  const result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
+  let result = String(formData.get("result") ?? "").trim() as ChecklistResponseResult;
   const comment = String(formData.get("comment") ?? "").trim();
+  const numericRaw = String(formData.get("numeric_value") ?? "").trim();
   const calibrationAssetId = String(formData.get("calibration_asset_id") ?? "").trim();
   const materialId = String(formData.get("material_id") ?? "").trim();
   const welderId = String(formData.get("welder_id") ?? "").trim();
@@ -481,6 +530,19 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     if (!itemRow) return { error: "That item is not part of this inspection's checklist." };
   }
 
+  // S4-20: a measured (numeric) item. The server derives the result from the number and the item's own
+  // limits, so a client can't claim "yes" for an out-of-range reading. N/A stays N/A (no value).
+  const numericSpec = await loadNumericSpec(supabase, checklistItemId);
+  let numericValue: number | null = null;
+  if (numericSpec && result !== "na") {
+    numericValue = parseNumericInput(numericRaw);
+    if (numericValue === null) return { error: "Enter the measured value as a number." };
+    result = evaluateNumeric(numericValue, numericSpec);
+    if (result === "no" && !comment) {
+      return { error: `${numericValue} is outside the limit (${describeSpec(numericSpec)}). A comment is required when an item fails.` };
+    }
+  }
+
   // Traceability links must point at a row on THIS project; calibration/welder must also be in date,
   // and material must be released. (Empty = not recorded, always allowed.)
   // The same checks (now judged on the inspection date, with verified/active rows only) plus the
@@ -512,6 +574,7 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
     material_id: materialId || null,
     welder_id: welderId || null,
     no_ncr_reason: result === "no" ? noNcrReason || null : null,
+    ...(numericSpec ? { numeric_value: numericValue } : {}),
   };
 
   // Concurrent-edit detection: the client passes the updated_at it last saw ("none" = it saw no
@@ -604,6 +667,30 @@ export interface StartInspectionState {
  * activity) is copied onto the row here, as plain text, rather than left to a live join — see the
  * migration file header for why.
  */
+async function buildGeofenceColumns(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  location: string,
+  formData: FormData
+): Promise<Record<string, unknown> | null> {
+  const coords = parseCoordinates(location);
+  const accuracy = coords ? sanitiseAccuracy(formData.get("location_accuracy")) : null;
+  const { data: site, error } = await supabase
+    .from("projects")
+    .select("site_latitude, site_longitude, site_radius_m")
+    .eq("id", projectId)
+    .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
+  if (error) return null; // columns not migrated yet
+  const check = evaluateGeofence(site ? siteGeofenceFromProject(site) : null, coords, accuracy);
+  return {
+    location_accuracy_m: accuracy,
+    // Server time, not the client's: the reading is taken at the moment of starting.
+    location_captured_at: coords ? new Date().toISOString() : null,
+    location_distance_m: check.distanceM,
+    location_geofence_status: check.status,
+  };
+}
+
 export async function startInspectionAction(
   _prev: StartInspectionState,
   formData: FormData
@@ -653,6 +740,15 @@ export async function startInspectionAction(
     }>();
   if (!gate || gate.itp_item_id !== itpItemId || gate.itp_items?.itp_sections?.itps?.projects?.id !== projectId) {
     return { error: "This checklist does not belong to that activity or project." };
+  }
+  {
+    // AI-generated checklists are drafts until staff confirm them (20261114000102).
+    const { data: review, error: reviewError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("ai_generated, ai_confirmed_at")
+      .eq("id", templateId)
+      .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>();
+    if (!reviewError && review && !canStartFromTemplate(review)) return { error: AI_DRAFT_START_BLOCK_MESSAGE };
   }
   const itpNumber = gate.itp_items?.itp_sections?.itps?.itp_number ?? "";
   const activity = gate.itp_items?.activity ?? "";
@@ -763,7 +859,27 @@ export async function startInspectionAction(
     .select("id", { count: "exact", head: true })
     .eq("itp_item_id", itpItemId);
 
-  const { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert({
+  // Phase 3 versioning: freeze the template version and its item set onto the record at start.
+  // Best-effort: if the template/item read fails or the columns do not exist yet (migration
+  // 20261106000100 not applied) the record is created without them, exactly as before.
+  let versionColumns: { checklist_template_version: number; checklist_items_snapshot: ReturnType<typeof buildItemsSnapshot> } | null = null;
+  {
+    const { data: tplVersion, error: tplVersionError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("version")
+      .eq("id", templateId)
+      .maybeSingle<{ version: number }>();
+    if (!tplVersionError && tplVersion) {
+      const { data: snapItems } = await supabase
+        .from(CHECKLIST_ITEMS_TABLE)
+        .select("id, item_number, description, is_mandatory, sort_order, acceptance_criteria, evidence_type")
+        .eq("template_id", templateId)
+        .returns<ChecklistItemRow[]>();
+      if (snapItems) versionColumns = { checklist_template_version: tplVersion.version, checklist_items_snapshot: buildItemsSnapshot(snapItems) };
+    }
+  }
+
+  const recordInsert = {
     project_id: projectId,
     itp_item_id: itpItemId,
     checklist_template_id: templateId,
@@ -780,7 +896,18 @@ export async function startInspectionAction(
       ? itpItemForHeader.governing_drawing.document_reference ?? itpItemForHeader.governing_drawing.title
       : null,
     governing_drawing_revision: itpItemForHeader?.governing_drawing?.revision ?? null,
-  });
+  };
+  // S4-17: accuracy / time / soft geofence result. Best-effort: columns exist only after
+  // 20261110000200; without them the record is created exactly as before.
+  const geoColumns = await buildGeofenceColumns(supabase, projectId, location ?? "", formData);
+  const extraColumns = { ...(versionColumns ?? {}), ...(geoColumns ?? {}) };
+  let { error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(Object.keys(extraColumns).length ? { ...recordInsert, ...extraColumns } : recordInsert);
+  if (error && geoColumns && isMissingSchemaError(error)) {
+    ({ error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(versionColumns ? { ...recordInsert, ...versionColumns } : recordInsert));
+  }
+  if (error && versionColumns && isMissingSchemaError(error)) {
+    ({ error } = await supabase.from(INSPECTION_RECORDS_TABLE).insert(recordInsert));
+  }
 
   if (error) {
     if (error.code === "23505") {
@@ -814,6 +941,28 @@ export async function startInspectionAction(
       });
     } catch {
       // Best-effort — see lib/audit/log.ts's doc comment.
+    }
+  }
+
+  // Tell the project's responsible person / JAGS staff the work has started (deduped, best-effort).
+  {
+    const { data: started } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, record_number")
+      .eq("itp_item_id", itpItemId)
+      .eq("checklist_template_id", templateId)
+      .is("overall_result", null)
+      .limit(1)
+      .maybeSingle<{ id: string; record_number: string }>();
+    if (started) {
+      await notifyInspectionStarted(supabase, {
+        organizationId: project?.organization_id,
+        projectId,
+        recordId: started.id,
+        recordNumber: started.record_number,
+        activity,
+        actorId: user?.id ?? null,
+      });
     }
   }
 
@@ -1037,7 +1186,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // Witness / review points that were never notified cannot be skipped silently: the party must have
   // been notified (or have responded / been proceeded without response) before the work is signed off.
   {
-    const unnotified = await unnotifiedNonBlockingLevels(supabase, recordForAuth.itp_item_id);
+    const unnotified = await unnotifiedNonBlockingLevels(supabase, recordForAuth.itp_item_id, inspectionRecordId);
     if (unnotified.length > 0) {
       return { error: `Notify the ${unnotified.join(", ")} party before completing this inspection (Sign-off tab on the ITP).` };
     }
@@ -1192,6 +1341,17 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     }
   }
 
+  if (overallResult === "pass" && recordForHoldCheck) {
+    await notifyInspectionPassed(supabase, {
+      projectId: recordForHoldCheck.project_id,
+      recordId: inspectionRecordId,
+      recordNumber: recordForHoldCheck.record_number,
+      activity: recordForHoldCheck.activity,
+      itpItemId: recordForHoldCheck.itp_item_id,
+      actorId: signer?.id ?? null,
+    });
+  }
+
   // A re-opened inspection that now passes supersedes its earlier failure item: withdraw it so a
   // stale defect never blocks the Data Book. Best-effort (needs verifier/staff rights or the migration).
   if ((overallResult === "pass" || overallResult === "partial") && recordForHoldCheck) {
@@ -1208,6 +1368,26 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
     } catch {
       // Best-effort.
     }
+  }
+
+  // Auto-generate (and let the worker file) the inspection report so it isn't dependent on someone
+  // pressing the button. Best-effort: completion never fails because of it.
+  try {
+    const { data: inFlight } = await supabase
+      .from(BACKGROUND_JOBS_TABLE)
+      .select("id")
+      .eq("job_type", "render_inspection_report_pdf")
+      .eq("payload->>inspection_record_id", inspectionRecordId)
+      .in("status", ["pending", "processing"])
+      .limit(1);
+    if (!inFlight || inFlight.length === 0) {
+      await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+        job_type: "render_inspection_report_pdf",
+        payload: { inspection_record_id: inspectionRecordId, requested_by: signer?.id ?? null },
+      });
+    }
+  } catch {
+    // Best-effort.
   }
 
   return { error: null, inspectionRecordId };
@@ -1236,29 +1416,6 @@ async function notifyPunchFailure(
     }
   } catch {
     // Best-effort.
-  }
-}
-
-/** Labels of non-blocking intervention levels (Witness, Review ...) whose sign-off row is still 'pending' (never notified). */
-async function unnotifiedNonBlockingLevels(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, itpItemId: string): Promise<string[]> {
-  try {
-    const { data: ctx } = await supabase
-      .from("itp_items")
-      .select("itp_sections(itps(projects(organization_id)))")
-      .eq("id", itpItemId)
-      .maybeSingle<{ itp_sections: { itps: { projects: { organization_id: string } | null } | null } | null }>();
-    const orgId = ctx?.itp_sections?.itps?.projects?.organization_id;
-    if (!orgId) return [];
-    const [{ data: levels }, { data: progress }] = await Promise.all([
-      supabase.from("intervention_level_types").select("code, label, is_blocking").eq("organization_id", orgId).eq("is_blocking", false).returns<{ code: string; label: string; is_blocking: boolean }[]>(),
-      supabase.from("activity_signoff_progress").select("intervention, status").eq("itp_item_id", itpItemId).eq("status", "pending").returns<{ intervention: string; status: string }[]>(),
-    ]);
-    // Only the Witness level is a notify-before-work requirement; Review / Surveillance are records only.
-    const witnessCodes = new Set((levels ?? []).filter((l) => l.code === "W").map((l) => l.code));
-    const labels = new Map((levels ?? []).map((l) => [l.code, l.label]));
-    return [...new Set((progress ?? []).filter((p) => witnessCodes.has(p.intervention)).map((p) => labels.get(p.intervention) ?? p.intervention))];
-  } catch {
-    return [];
   }
 }
 

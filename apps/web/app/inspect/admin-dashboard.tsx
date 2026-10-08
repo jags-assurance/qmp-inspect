@@ -101,7 +101,10 @@ export function AdminDashboard({
   openNcrItems,
   overdueHoldsTile,
   overdueHoldsCard,
+  clearancesWidget = null,
 }: {
+  /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
+  clearancesWidget?: ReactNode;
   firstName: string;
   today: string;
   activeProjects: number;
@@ -234,6 +237,7 @@ export function AdminDashboard({
           Hold Points / Open NCRs / Recent Activity), each independently scrollable so one long list
           never pushes the others down the page, with the two wide DataTables (Proposals,
           Organisations) as their own full-width windows below. */}
+      {clearancesWidget}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {overdueHoldsCard}
 

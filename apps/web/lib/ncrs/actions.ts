@@ -4,6 +4,7 @@ import { supersedeVaultDocumentsByReference } from "@/lib/vault/supersede-refs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedFrom } from "@/lib/supabase/untyped";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import {
   NCRS_TABLE,
@@ -41,6 +42,7 @@ import {
   validateReturnReason,
 } from "@/lib/ncrs/rules";
 import { parseNcrExtended, stripExtendedColumns } from "@/lib/ncrs/extended";
+import { acceptanceBlocksClose } from "@/lib/ncrs/acceptance";
 import {
   partyUserIds,
   permissionHolderIds,
@@ -559,7 +561,7 @@ export async function updateNcrAction(
     // Evidence = photos AND linked vault documents.
     const [{ count: photoCount }, { count: docCount }] = await Promise.all([
       supabase.from(NCR_PHOTOS_TABLE).select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
-      supabase.from("ncr_documents" as any).select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
+      untypedFrom(supabase, "ncr_documents").select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
     ]);
     if (evidenceCount(photoCount ?? 0, docCount ?? 0) === 0) {
       return { error: "Attach at least one photo or linked document as evidence of the corrected condition before closing." };
@@ -576,6 +578,19 @@ export async function updateNcrAction(
   // certifying that it's genuinely fixed. Admins are exempt, same as every other self-certification gate.
   if (closeNow && !isAdminStaff(session) && current.raised_by && current.raised_by === session.userId) {
     return { error: "You raised this NCR — a different person must close it out." };
+  }
+  // S5-22: when the client must accept the disposition, closing waits for that acceptance. Best-effort
+  // read: before migration 20261110000400 the columns do not exist and nothing is enforced.
+  if (closeNow) {
+    const { data: acc, error: accErr } = await supabase
+      .from(NCRS_TABLE)
+      .select("client_acceptance_required, client_acceptance_decision")
+      .eq("id", ncrId)
+      .maybeSingle<{ client_acceptance_required: boolean | null; client_acceptance_decision: string | null }>();
+    if (!accErr && acc) {
+      const blocked = acceptanceBlocksClose(acc.client_acceptance_required, acc.client_acceptance_decision);
+      if (blocked) return { error: blocked };
+    }
   }
   // The assignee / the author of the corrective action must not verify their own work (admins only with a written override).
   let sodOverride: string | null = null;
@@ -1123,7 +1138,7 @@ export async function setNcrStatusAction(_prev: NcrStatusState, formData: FormDa
     // Evidence is required at submission, not first discovered by the verifier at close (S5-09).
     const [{ count: photoCount }, { count: docCount }] = await Promise.all([
       supabase.from(NCR_PHOTOS_TABLE).select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
-      supabase.from("ncr_documents" as any).select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
+      untypedFrom(supabase, "ncr_documents").select("id", { count: "exact", head: true }).eq("ncr_id", ncrId),
     ]);
     if (evidenceCount(photoCount ?? 0, docCount ?? 0) === 0) {
       return { error: "Attach at least one photo or linked document as evidence before sending for verification." };
@@ -1502,7 +1517,7 @@ export async function linkNcrDocumentAction(_prev: NcrDocumentState, formData: F
   const valid = (docs ?? []).map((d) => d.id);
   if (valid.length === 0) return { error: "Only approved files from this project's Document Vault can be linked." };
 
-  const { error } = await supabase.from("ncr_documents" as any).upsert(
+  const { error } = await untypedFrom(supabase, "ncr_documents").upsert(
     valid.map((id) => ({ ncr_id: ncrId, vault_document_id: id, linked_by: user?.id ?? null })),
     { onConflict: "ncr_id,vault_document_id", ignoreDuplicates: true }
   );
@@ -1524,7 +1539,7 @@ export async function unlinkNcrDocumentAction(input: { ncrId: string; linkId: st
   if (ncr.status === "closed") return { error: "This NCR is closed. Re-open it to change evidence." };
   const evidenceError = await evidenceChangeError(supabase, session, ncr);
   if (evidenceError) return { error: evidenceError };
-  const { error } = await supabase.from("ncr_documents" as any).delete().eq("id", input.linkId).eq("ncr_id", input.ncrId);
+  const { error } = await untypedFrom(supabase, "ncr_documents").delete().eq("id", input.linkId).eq("ncr_id", input.ncrId);
   if (error) return { error: "Could not remove the document." };
   revalidatePath(`/inspect/ncrs/${input.ncrId}`);
   return { error: null, done: true };

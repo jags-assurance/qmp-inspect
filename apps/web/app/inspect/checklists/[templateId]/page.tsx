@@ -8,6 +8,7 @@ import {
   CHECKLIST_ITEMS_TABLE,
   CHECKLIST_RESPONSES_TABLE,
   CHECKLIST_TEMPLATES_TABLE,
+  ITP_ITEMS_UNTYPED_TABLE,
   INSPECTION_EVIDENCE_DOCUMENTS_TABLE,
   INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
@@ -29,13 +30,27 @@ import {
 } from "@/lib/registers/verify";
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
 import { AddChecklistItemForm } from "./add-checklist-item-form";
+import { TemplateItemsEditor } from "./template-items-editor";
+import { TemplateLifecycleControls } from "./template-lifecycle-controls";
+import { countTemplateRecords, countTemplateResponses } from "@/lib/checklists/template-context";
+import { loadDuplicateTargets } from "@/lib/checklists/duplicate-targets";
+import { itemEditBlockReason, templateDeleteBlockReason } from "@/lib/checklists/template-ui-logic";
 import { StartInspectionForm } from "./start-inspection-form";
+import { ConfirmAiChecklist } from "./confirm-ai-checklist";
+import { AssignActivityForm } from "./assign-activity-form";
+import { templateReviewState } from "@/lib/checklists/ai-review-logic";
+import { loadAssigneeOptions, viewerCanAssign } from "@/lib/checklists/assignment-queries";
 import { getNoticeCheck } from "@/lib/signoff/notice-check";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
+import { WaiveNoticeForm } from "./waive-notice-form";
+import { CloneAnswersForm } from "./clone-answers-form";
+import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
+import { unnotifiedNonBlockingLevels } from "@/lib/checklists/notice-waiver";
 import { ConsistencyCheck } from "./consistency-check";
 import { getExecutingPartyTypes } from "@/lib/checklists/execution-parties";
+import { formatDistance, siteGeofenceFromProject, type SiteGeofence } from "@/lib/checklists/geofence";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { canCompleteInspection } from "@/lib/signoff/actions";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
@@ -64,7 +79,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: template } = await supabase
+  const { data: template, error: templateError } = await supabase
     .from(CHECKLIST_TEMPLATES_TABLE)
     .select(
       "id, checklist_number, name, itp_items(id, item_number, activity, reference_spec, acceptance_criteria, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start, organizations(name)))))"
@@ -97,6 +112,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       } | null;
     }>();
 
+  // A failed query (timeout, transient database error) must not look like a missing page.
+  if (templateError) throw new Error(`Could not load this checklist: ${templateError.message}`);
   if (!template) notFound();
 
   const itpItem = template.itp_items;
@@ -210,6 +227,49 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   ]);
 
   const draft = draftRecords?.[0] ?? null;
+  const numericSpecs = await loadNumericSpecsForTemplate(supabase, templateId);
+  const numericValues = draft ? await loadNumericValues(supabase, draft.id) : new Map<string, number>();
+  const unnotifiedWitness = draft && session.isJagsStaff ? await unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : [];
+
+  // Version / archive state. Read separately from the main template query so the page still works
+  // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
+  const { data: lifecycleRow, error: lifecycleError } = await supabase
+    .from(CHECKLIST_TEMPLATES_TABLE)
+    .select("version, archived_at")
+    .eq("id", templateId)
+    .maybeSingle<{ version: number | null; archived_at: string | null }>();
+  const templateVersion = lifecycleError ? null : (lifecycleRow?.version ?? null);
+  const archived = lifecycleError ? false : !!lifecycleRow?.archived_at;
+  // AI review stage (20261114000102): absent columns (migration not applied) read as "not AI".
+  const { data: aiRow, error: aiError } = await supabase
+    .from(CHECKLIST_TEMPLATES_TABLE)
+    .select("ai_generated, ai_confirmed_at")
+    .eq("id", templateId)
+    .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>();
+  const aiState = aiError || !aiRow ? "not_ai" : templateReviewState(aiRow);
+  const aiDraft = aiState === "draft";
+  // Per-person assignment (20261114000101).
+  const { data: assignRow, error: assignError } = await supabase
+    .from(ITP_ITEMS_UNTYPED_TABLE)
+    .select("assigned_to_user_id")
+    .eq("id", itpItem.id)
+    .maybeSingle<{ assigned_to_user_id: string | null }>();
+  const assignedToUserId = assignError ? null : (assignRow?.assigned_to_user_id ?? null);
+  const showAssign =
+    !assignError && (await viewerCanAssign(supabase, { userId: session.userId, isStaff: session.isJagsStaff, itpItemId: itpItem.id, projectId: project.id }));
+  const assigneeOptions = showAssign
+    ? await loadAssigneeOptions(supabase, { itpItemId: itpItem.id, projectId: project.id, organizationId: project.organization_id })
+    : [];
+  const assignedName = assigneeOptions.find((o) => o.id === assignedToUserId)?.name ?? null;
+  const showEditor = session.isJagsStaff;
+  const [responseCount, recordCount, duplicateTargets] = showEditor
+    ? await Promise.all([
+        countTemplateResponses(supabase, templateId),
+        countTemplateRecords(supabase, templateId),
+        archived ? Promise.resolve([]) : loadDuplicateTargets(supabase, project.id, itpItem.id),
+      ])
+    : [0, 0, []];
+  const editBlockReason = itemEditBlockReason({ archived, responseCount });
 
   let responseByItem = new Map<
     string,
@@ -451,6 +511,29 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     }
   }
 
+  // S4-17: site geofence (start form) and the soft warning stored on the draft. Best-effort: the
+  // columns exist only after migration 20261110000200, so errors just mean "not configured".
+  let siteGeofence: SiteGeofence | null = null;
+  let draftGeofenceWarning: string | null = null;
+  if ((!draft && canExecute && itpApproved) || draft) {
+    const { data: siteRow } = await supabase
+      .from("projects")
+      .select("site_latitude, site_longitude, site_radius_m")
+      .eq("id", project.id)
+      .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
+    siteGeofence = siteRow ? siteGeofenceFromProject(siteRow) : null;
+    if (draft) {
+      const { data: geo } = await supabase
+        .from(INSPECTION_RECORDS_TABLE)
+        .select("location_geofence_status, location_distance_m, location_accuracy_m")
+        .eq("id", draft.id)
+        .maybeSingle<{ location_geofence_status: string | null; location_distance_m: number | null; location_accuracy_m: number | null }>();
+      if (geo?.location_geofence_status === "outside" && siteGeofence) {
+        draftGeofenceWarning = `Started about ${formatDistance(Number(geo.location_distance_m ?? 0))} from the project site (limit ${formatDistance(siteGeofence.radiusM)}).`;
+      }
+    }
+  }
+
   const locationPresetNames =
     !draft && canExecute && itpApproved && !holdOpen
       ? (await getLocationPresetsForProject(supabase, project.organization_id, project.id)).map((p) => p.name)
@@ -490,6 +573,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         <h1 className="text-2xl font-semibold text-ink">
           Checklist <span className="doc-id text-lg text-muted">{template.checklist_number}</span>
         </h1>
+        {templateVersion !== null && <Badge tone="info">Version {templateVersion}</Badge>}
+        {archived && <Badge tone="warning">Archived</Badge>}
         <PageGuide
           title="Checklist — how this works"
           points={[
@@ -505,7 +590,31 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         {itpItem.item_number}. {itpItem.activity}
       </p>
 
-      {!draft && canExecute && holdOpen && (
+      {archived && (
+        <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          This checklist is archived: new inspections cannot be started from it and it is hidden from the start-work and checklist lists.
+          {session.isJagsStaff ? " Restore it under \"Edit checklist template\" to use it again." : ""}
+        </p>
+      )}
+
+      {aiDraft && <ConfirmAiChecklist templateId={template.id} canConfirm={session.isJagsStaff} />}
+      {aiState === "confirmed" && (
+        <p className="mt-2 text-xs text-muted">AI-generated checklist, reviewed and confirmed by JAGS staff.</p>
+      )}
+
+      {assignedToUserId && (
+        <p className="mt-2 text-sm text-ink">
+          Assigned to {assignedToUserId === session.userId ? "you" : (assignedName ?? "a team member")}
+        </p>
+      )}
+      {showAssign && !archived && (
+        <details className="mt-3 rounded-md border border-border bg-surface px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-ink">Assign to a person</summary>
+          <AssignActivityForm itpItemId={itpItem.id} templateId={template.id} currentAssigneeId={assignedToUserId} options={assigneeOptions} />
+        </details>
+      )}
+
+      {!draft && canExecute && !archived && holdOpen && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           This activity has an open <Badge tone="danger">Hold</Badge> — held by{" "}
           {openHoldHolders.length > 0 ? (
@@ -524,14 +633,14 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
-      {!draft && canExecute && !itpApproved && (
+      {!draft && canExecute && !archived && !itpApproved && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           This ITP hasn&apos;t been approved yet, so site inspections can&apos;t start. Work opens once it is approved on the{" "}
           <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>.
         </p>
       )}
 
-      {!draft && canExecute && itpApproved && !holdOpen && (
+      {!draft && canExecute && !archived && itpApproved && !holdOpen && !aiDraft && (
         <div className="mt-6">
           {noticeWarning && (
             <p className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
@@ -546,11 +655,12 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             itpNumber={itp.itp_number}
             activity={itpItem.activity}
             locationPresets={locationPresetNames}
+            siteGeofence={siteGeofence}
           />
         </div>
       )}
 
-      {!draft && !canExecute && (
+      {!draft && !canExecute && !archived && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           {isSignoffOnlyParty ? (
             "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
@@ -583,8 +693,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
+      {draft && draftGeofenceWarning && (
+        <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          {draftGeofenceWarning} This is a warning only; it is recorded with the inspection.
+        </p>
+      )}
+
       {draft && (
         <div className="mt-6 space-y-6">
+          {canExecute && <CloneAnswersForm inspectionRecordId={draft.id} />}
           <ChecklistExecutionPanel
             templateId={template.id}
             inspectionRecordId={draft.id}
@@ -593,7 +710,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
               item_number: i.item_number,
               description: i.description,
               is_mandatory: i.is_mandatory,
+              numeric: numericSpecs.get(i.id) ?? null,
             }))}
+            numericValues={numericValues}
             initialResponses={responseByItem}
             readOnly={!canExecute}
             registerVerification={registerVerification}
@@ -638,6 +757,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             hasEvidencePhoto={hasEvidencePhoto}
             completeSlot={
               <>
+                {unnotifiedWitness.length > 0 && <WaiveNoticeForm inspectionRecordId={draft.id} labels={unnotifiedWitness} />}
                 <ConsistencyCheck templateId={template.id} inspectionRecordId={draft.id} />
                 <CompleteInspectionForm templateId={template.id} inspectionRecordId={draft.id} />
               </>
@@ -665,26 +785,25 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         // default, so answering and editing read as two distinct modes rather than one crowded page.
         <details className="mt-8 rounded-lg border border-border bg-surface">
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-ink">
-            Edit checklist template
+            Edit checklist template{templateVersion !== null ? ` (version ${templateVersion})` : ""}
           </summary>
-          <ul className="divide-y divide-border">
-            {(items ?? []).map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-2.5 text-sm text-ink">
-                {/* Icon-only drag handle — no real drag-and-drop reordering yet. */}
-                <span aria-hidden className="select-none text-muted">⠿</span>
-                <span className="doc-id text-muted">{item.item_number}.</span>
-                <span className="flex-1">{item.description}</span>
-                <span title="Only changes the red asterisk shown to the inspector — every item, mandatory or not, must still be answered, and a &quot;No&quot; on either kind still fails the whole inspection.">
-                  <Badge tone={item.is_mandatory ? "danger" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="border-t border-border px-4 py-2 text-[11px] text-muted">
+          <TemplateItemsEditor
+            templateId={template.id}
+            items={(items ?? []).map((i) => ({ id: i.id, item_number: i.item_number, description: i.description, is_mandatory: i.is_mandatory }))}
+            blockedReason={editBlockReason}
+          />
+          <p className="border-t border-border px-4 py-2 text-xs text-muted">
             &quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be
             answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.
           </p>
-          <AddChecklistItemForm templateId={template.id} />
+          <AddChecklistItemForm templateId={template.id} disabledReason={editBlockReason} />
+          <TemplateLifecycleControls
+            templateId={template.id}
+            archived={archived}
+            deleteBlockedReason={templateDeleteBlockReason(recordCount)}
+            duplicateTargets={duplicateTargets}
+            backHref={`/inspect/itps/${itp.id}/checklists`}
+          />
         </details>
       )}
 

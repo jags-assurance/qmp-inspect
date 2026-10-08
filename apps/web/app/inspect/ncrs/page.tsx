@@ -1,21 +1,23 @@
 import Link from "next/link";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { isOverdue } from "./is-overdue";
+import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
+import { StatusLegend } from "@/components/ui/status-legend";
 import { StatCard } from "@/components/ui/stat-card";
 import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { NcrPanel } from "./ncr-panel";
 import { NCR_TABLE_PAGE_SIZE } from "./constants";
-import { isOverdue } from "./is-overdue";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { DisciplineFilterForm } from "./discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { applyNcrFilters, applyNcrSort, SORT_OPTIONS, type NcrListParams } from "@/lib/ncrs/list-filters";
 import { STATUS_LABEL } from "./ncr-shared";
-import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export default async function NcrsPage({
   searchParams,
@@ -56,10 +58,6 @@ export default async function NcrsPage({
   // every row to be correct without a real SQL GROUP BY, and this is far cheaper than the full
   // joined row — and a second, real server-side-paginated + searched query that only ever returns
   // one page's worth of the full joined rows for the table itself.
-  let statsQuery = supabase
-    .from(NCRS_TABLE)
-    .select("status, due_date, created_at")
-    .neq("severity", "observation");
   // A dedicated head:true count query — kept entirely separate from the data query below (no
   // embeds, no range) rather than using `.select(cols, {count:'exact'})` combined with `.range()`,
   // which was observed to return an accurate count but a silently empty data array specifically
@@ -78,12 +76,19 @@ export default async function NcrsPage({
 
   if (itpItemIdFilter) {
     const noMatch = itpItemIdFilter.length === 0;
-    statsQuery = noMatch ? statsQuery.eq("id", "00000000-0000-0000-0000-000000000000") : statsQuery.in("itp_item_id", itpItemIdFilter);
     countQuery = noMatch ? countQuery.eq("id", "00000000-0000-0000-0000-000000000000") : countQuery.in("itp_item_id", itpItemIdFilter);
     tableQuery = noMatch ? tableQuery.eq("id", "00000000-0000-0000-0000-000000000000") : tableQuery.in("itp_item_id", itpItemIdFilter);
   }
   // Status chips/counts ignore the status and overdue filters so every chip keeps showing its total.
+  // ONE light query (status, due date, created date only) feeds every stat card, chip count and the aging
+  // chart, computed here. That is one database round trip, not a dozen counts that would each re-run the
+  // row-level security checks over the whole table on every page view.
+  let statsQuery = supabase.from(NCRS_TABLE).select("status, due_date, created_at").neq("severity", "observation");
+  if (itpItemIdFilter) {
+    statsQuery = itpItemIdFilter.length === 0 ? statsQuery.eq("id", "00000000-0000-0000-0000-000000000000") : statsQuery.in("itp_item_id", itpItemIdFilter);
+  }
   statsQuery = applyNcrFilters(statsQuery, { ...sp, status: undefined, overdue: undefined }, session.userId);
+  const STATUSES = ["open", "in_progress", "pending_verification", "closed"] as const;
   countQuery = applyNcrFilters(countQuery, sp, session.userId);
   tableQuery = applyNcrFilters(tableQuery, sp, session.userId);
   if (q) {
@@ -92,9 +97,8 @@ export default async function NcrsPage({
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
-  // Stats read EVERY matching row (PostgREST caps one response at 1000): page through them and fail
-  // loudly rather than showing wrong totals on a big project.
-  const [statsRows, { count: totalCount }, { data: ncrs }] = await Promise.all([
+  // Stats read EVERY matching light row (one response is capped at 1000 rows): page through them.
+  const [statRows, { count: totalCount }, { data: ncrs }] = await Promise.all([
     fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
       statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
     ),
@@ -105,16 +109,16 @@ export default async function NcrsPage({
   ]);
 
   const rows = ncrs ?? [];
-  const statRows = statsRows;
   const total = statRows.length;
   const open = statRows.filter((r) => r.status !== "closed").length;
   const closed = statRows.filter((r) => r.status === "closed").length;
   const overdue = statRows.filter(isOverdue).length;
-  const today = new Date().getTime();
-  const openAgeDays = statRows
-    .filter((r) => r.status !== "closed")
-    .map((r) => Math.floor((today - new Date(r.created_at).getTime()) / 86_400_000));
-  const agingCounts = bucketAge(openAgeDays);
+  // Server component: evaluated once per request, which is the intended "now".
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
+  const agingCounts = bucketAge(
+    statRows.filter((r) => r.status !== "closed").map((r) => Math.floor((nowMs - new Date(r.created_at).getTime()) / 86_400_000))
+  );
   const statusCounts: Record<string, number> = {};
   for (const r of statRows) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
   const hrefWith = (patch: Record<string, string | undefined>) => {
@@ -136,7 +140,7 @@ export default async function NcrsPage({
       <div className="flex items-center justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">NCR Register</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>NCR Register</T></h1>
             <PageGuide
               title="NCR Register — how this works"
               points={[
@@ -155,6 +159,14 @@ export default async function NcrsPage({
             <Link href="/inspect/observations" className="text-burgundy hover:underline">
               See observations →
             </Link>
+            {session.isJagsStaff && (
+              <>
+                {" "}
+                <Link href="/inspect/ncrs/scorecard" className="text-burgundy hover:underline">
+                  Vendor scorecard →
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <Link href="/inspect/ncrs/new">
@@ -246,7 +258,8 @@ export default async function NcrsPage({
         <AgingChart counts={agingCounts} />
       </div>
 
-      <div className="mt-6">
+      <StatusLegend className="mt-6" />
+      <div className="mt-2">
         <NcrsTable
           rows={rows}
           totalCount={totalCount ?? 0}

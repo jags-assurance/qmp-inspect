@@ -22,6 +22,8 @@ export interface BackgroundJobRow {
   error_message: string | null;
   /** Set when the worker claims the job (nullable; added by a later migration). */
   started_at?: string | null;
+  /** Earliest time a requeued (retry) job may be claimed again; persisted backoff (S6-12). Nullable; added by 20261108000103. */
+  retry_not_before?: string | null;
   attempts: number;
   created_at: string;
   updated_at: string;
@@ -37,6 +39,8 @@ export interface RenderItpPdfPayload {
  *  aggregated across ALL of that org's projects. `month` is 1-12. */
 export interface GenerateMonthlyReportPackPayload {
   organization_id: string;
+  /** Optional: a pack for one project of the organisation instead of the whole organisation. */
+  project_id?: string | null;
   year: number;
   month: number;
   requested_by: string;
@@ -50,6 +54,8 @@ export interface GenerateMonthlyReportPackPayload {
  *  arithmetic instead of also having to derive a calendar date from an (year, week-number) pair. */
 export interface GenerateWeeklyReportPackPayload {
   organization_id: string;
+  /** Optional: a pack for one project of the organisation instead of the whole organisation. */
+  project_id?: string | null;
   week_start: string;
   requested_by: string;
 }

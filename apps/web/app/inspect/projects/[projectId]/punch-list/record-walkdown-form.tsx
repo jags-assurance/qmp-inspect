@@ -36,6 +36,7 @@ export function RecordWalkdownForm({
   const [requestId, setRequestId] = useState("");
   const [photoError, setPhotoError] = useState<string | null>(null);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setRequestId(crypto.randomUUID());
   }, [resetKey]);
   async function submit(formData: FormData) {
@@ -119,7 +120,7 @@ export function RecordWalkdownForm({
       <div className="mt-4 space-y-3">
         {rowIds.map((rowId, index) => (
           <div key={rowId} className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface p-3">
-            <div className="w-full min-w-56 flex-1">
+            <div className="w-full sm:min-w-56 flex-1">
               <label htmlFor={`walkdown-description-${rowId}`} className="block text-xs font-medium text-ink">
                 Item found
               </label>

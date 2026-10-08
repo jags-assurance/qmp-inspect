@@ -15,6 +15,8 @@ export const CHECKLIST_RESPONSES_TABLE = "checklist_responses" as any;
 export const INSPECTION_PHOTOS_TABLE = "inspection_photos" as any;
 export const INSPECTION_EVIDENCE_DOCUMENTS_TABLE = "inspection_evidence_documents" as any;
 export const IRNS_TABLE = "irns" as any;
+/** itp_items with columns newer than the generated types (assigned_to_user_id, 20261114000101). */
+export const ITP_ITEMS_UNTYPED_TABLE = "itp_items" as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export interface ChecklistTemplateRow {
@@ -23,6 +25,12 @@ export interface ChecklistTemplateRow {
   checklist_number: string;
   name: string;
   created_at: string;
+  /** 20261106000100: bumped on every item change; archived_at set when archived. Absent until applied. */
+  version?: number;
+  archived_at?: string | null;
+  /** 20261114000102: AI-generated drafts must be confirmed by staff before inspections can start. */
+  ai_generated?: boolean;
+  ai_confirmed_at?: string | null;
 }
 
 export interface ChecklistItemRow {
@@ -65,6 +73,14 @@ export interface InspectionRecordRow {
   notes: string | null;
   narrative: string | null;
   created_at: string;
+  /** 20261106000100: template version + frozen item set captured at start. */
+  checklist_template_version?: number | null;
+  checklist_items_snapshot?: unknown[] | null;
+  /** 20261106000200: reviewer decision; null = not reviewed. */
+  review_status?: "approved" | "rejected" | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_comment?: string | null;
 }
 
 export type ChecklistResponseResult = "yes" | "no" | "na";

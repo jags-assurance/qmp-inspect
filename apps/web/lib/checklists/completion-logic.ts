@@ -8,6 +8,7 @@
 // downstream from a real, evidenced pass. See validateChecklistItemsAnswered's itemIds.size === 0
 // check below.
 import type { ChecklistResponseResult, OverallResult } from "./db-types";
+import { validateSignatureDataUrl } from "./evidence-rules";
 
 /**
  * Returns an error message if the checklist isn't ready to be completed (no items at all, or at
@@ -30,4 +31,30 @@ export function validateChecklistItemsAnswered(
 /** Any 'no' fails the inspection outright; otherwise any 'na' makes it partial; else it's a clean pass. */
 export function computeOverallResult(results: ChecklistResponseResult[]): OverallResult {
   return results.includes("no") ? "fail" : results.includes("na") ? "partial" : "pass";
+}
+
+/**
+ * S4-05: the field-level checks the server applies to a completion, runnable on the device BEFORE a
+ * completion is queued offline. A queued item the server would permanently refuse (no usable
+ * signature, a witness signature without a name) would otherwise only fail hours later, after the
+ * inspector has left the site. Returns the first problem, or null.
+ */
+export function validateCompletionFieldsClient(fields: {
+  signature: string;
+  signedByName?: string;
+  witnessName?: string;
+  witnessSignature?: string;
+}): string | null {
+  const signature = (fields.signature ?? "").trim();
+  if (!signature) return "A signature is required to complete the inspection.";
+  const sigError = validateSignatureDataUrl(signature, "signature");
+  if (sigError) return sigError;
+  const witnessSignature = (fields.witnessSignature ?? "").trim();
+  const witnessName = (fields.witnessName ?? "").trim();
+  if (witnessSignature) {
+    if (!witnessName) return "Enter the witness's name alongside their signature.";
+    const wErr = validateSignatureDataUrl(witnessSignature, "witness signature");
+    if (wErr) return wErr;
+  }
+  return null;
 }

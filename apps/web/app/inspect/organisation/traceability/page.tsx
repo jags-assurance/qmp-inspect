@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PrintButton } from "@/app/inspect/itps/print/print-button";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
@@ -132,14 +133,18 @@ interface LinkedInspectionRow {
 export default async function DocumentTraceabilityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; project?: string }>;
 }) {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect"); // JAGS staff; row-level security limits what each person can see to their own projects
 
-  const { q } = await searchParams;
+  const { q, project: projectParam } = await searchParams;
   const query = q?.trim() ?? "";
   const supabase = await createSupabaseServerClient();
+  // Optional scope: the same document number can exist on several projects, so a lookup can be limited to one.
+  const { data: scopeProjects } = await supabase.from("projects").select("id, project_number, name").order("name").returns<{ id: string; project_number: string; name: string }[]>();
+  const scopeProject = (scopeProjects ?? []).find((p) => p.id === projectParam) ?? null;
+  const projectId = scopeProject?.id ?? null;
 
   let itp: ItpMatch | null = null;
   let ncr: NcrMatch | null = null;
@@ -149,11 +154,12 @@ export default async function DocumentTraceabilityPage({
 
   if (query) {
     registerHits = await findRegisterEntries(supabase, query);
-    itp = await findItp(supabase, query);
-    if (!itp) ncr = await findNcr(supabase, query);
-    if (!itp && !ncr) record = await findInspectionRecord(supabase, query);
+    if (projectId) registerHits = registerHits.filter((h) => h.project?.id === projectId);
+    itp = await findItp(supabase, query, projectId);
+    if (!itp) ncr = await findNcr(supabase, query, projectId);
+    if (!itp && !ncr) record = await findInspectionRecord(supabase, query, projectId);
     if (!itp && !ncr && !record && registerHits.length === 0) {
-      notFoundMessage = `No ITP, NCR, inspection record or register entry (heat/batch/PO/certificate/instrument/welder) found for "${query}".`;
+      notFoundMessage = `No ITP, NCR, inspection record or register entry (heat/batch/PO/certificate/instrument/welder) found for "${query}"${scopeProject ? ` on ${scopeProject.name}` : ""}.`;
     }
   }
 
@@ -177,7 +183,7 @@ export default async function DocumentTraceabilityPage({
         lineage: identity, revision history, related records and audit trail.
       </p>
 
-      <form className="mt-6 flex max-w-xl gap-2">
+      <form className="mt-6 flex max-w-3xl flex-wrap gap-2 print:hidden">
         <input
           type="text"
           name="q"
@@ -191,7 +197,26 @@ export default async function DocumentTraceabilityPage({
         >
           Look up
         </button>
+        <select
+          name="project"
+          defaultValue={projectId ?? ""}
+          aria-label="Limit the lookup to one project"
+          className="rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        >
+          <option value="">All my projects</option>
+          {(scopeProjects ?? []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.project_number} - {p.name}
+            </option>
+          ))}
+        </select>
+        {(itp || ncr || record || registerHits.length > 0) && <PrintButton />}
       </form>
+      {scopeProject && (
+        <p className="mt-2 text-xs text-muted">
+          Showing results for {scopeProject.project_number} - {scopeProject.name} only.
+        </p>
+      )}
 
       {notFoundMessage && (
         <p className="mt-6 rounded-md border border-border bg-surface p-4 text-sm text-muted">{notFoundMessage}</p>
@@ -205,8 +230,8 @@ export default async function DocumentTraceabilityPage({
   );
 }
 
-async function findItp(supabase: SupabaseClient, itpNumber: string): Promise<ItpMatch | null> {
-  const { data } = await supabase
+async function findItp(supabase: SupabaseClient, itpNumber: string, projectId: string | null): Promise<ItpMatch | null> {
+  let query = supabase
     .from("itps")
     .select(
       `id, itp_number, title, status, revision, phase, scope, applicable_standard, external_approval_reference,
@@ -216,15 +241,14 @@ async function findItp(supabase: SupabaseClient, itpNumber: string): Promise<Itp
        approved_by_user:users!itps_approved_by_fkey(full_name, email),
        reviewed_by_user:users!itps_reviewed_by_fkey(full_name, email)`
     )
-    .eq("itp_number", itpNumber)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<ItpMatch>();
+    .eq("itp_number", itpNumber);
+  if (projectId) query = query.eq("project_id", projectId);
+  const { data } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle<ItpMatch>();
   return data ?? null;
 }
 
-async function findNcr(supabase: SupabaseClient, ncrNumber: string): Promise<NcrMatch | null> {
-  const { data } = await supabase
+async function findNcr(supabase: SupabaseClient, ncrNumber: string, projectId: string | null): Promise<NcrMatch | null> {
+  let query = supabase
     .from("ncrs")
     .select(
       `id, ncr_number, description, severity, status, due_date, closed_at, created_at,
@@ -234,15 +258,14 @@ async function findNcr(supabase: SupabaseClient, ncrNumber: string): Promise<Ncr
        assigned_to_user:users!ncrs_assigned_to_fkey(full_name, email),
        closed_by_user:users!ncrs_closed_by_fkey(full_name, email)`
     )
-    .eq("ncr_number", ncrNumber)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<NcrMatch>();
+    .eq("ncr_number", ncrNumber);
+  if (projectId) query = query.eq("project_id", projectId);
+  const { data } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle<NcrMatch>();
   return data ?? null;
 }
 
-async function findInspectionRecord(supabase: SupabaseClient, recordNumber: string): Promise<InspectionRecordMatch | null> {
-  const { data } = await supabase
+async function findInspectionRecord(supabase: SupabaseClient, recordNumber: string, projectId: string | null): Promise<InspectionRecordMatch | null> {
+  let query = supabase
     .from("inspection_records")
     .select(
       `id, record_number, itp_number, itp_item_id, activity, overall_result, inspection_date, location,
@@ -250,10 +273,9 @@ async function findInspectionRecord(supabase: SupabaseClient, recordNumber: stri
        project:projects(id, project_number, name, organizations(name)),
        inspector:users!inspection_records_inspector_id_fkey(full_name, email)`
     )
-    .eq("record_number", recordNumber)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<InspectionRecordMatch>();
+    .eq("record_number", recordNumber);
+  if (projectId) query = query.eq("project_id", projectId);
+  const { data } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle<InspectionRecordMatch>();
   return data ?? null;
 }
 
@@ -321,6 +343,7 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
   if (events.length === 0) return <p className="text-sm text-muted">No audit events recorded for this document.</p>;
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -350,6 +373,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -833,9 +857,9 @@ const KIND_LABEL: Record<RegisterKind, string> = {
 };
 
 const TONE_CLASS: Record<RegisterHit["statusTone"], string> = {
-  ok: "bg-green-100 text-green-800",
-  warn: "bg-amber-100 text-amber-800",
-  bad: "bg-red-100 text-red-800",
+  ok: "bg-success/10 text-success",
+  warn: "bg-warning/10 text-warning",
+  bad: "bg-danger/10 text-danger",
 };
 
 function fetchUsage(supabase: SupabaseClient, hit: RegisterHit) {
@@ -891,7 +915,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
       </div>
 
       {hit.kind === "calibration" && (
-        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+        <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
           <div className="font-semibold text-ink">Impact report</div>
           <p className="mt-1 text-ink">
             If this instrument is found out of tolerance, these <span className="font-semibold">{impactedRecords.length}</span>{" "}
@@ -933,6 +957,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
       {usage.length === 0 ? (
         <p className="mt-1 text-sm text-muted">No inspection checklist answer has been verified against this entry yet.</p>
       ) : (
+        <div className="overflow-x-auto">
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
@@ -969,6 +994,7 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </SectionCard>
   );

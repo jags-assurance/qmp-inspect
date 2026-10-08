@@ -5,6 +5,7 @@ import { upsertNumberingConfigAction, type NumberingSettingsState } from "@/lib/
 import type { NumberingDocType } from "@/lib/numbering/types";
 import { formatDocumentNumber } from "@/lib/numbering/format";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -69,8 +70,8 @@ export function NumberingConfigRow({
       <span className="pb-2 text-sm font-medium text-ink">{DOC_TYPE_LABELS[docType]}</span>
 
       <div>
-        <label className="block text-xs text-muted">Client code</label>
-        <input
+        <FormField label="Client code">
+          <input
           name="client_code"
           required
           value={clientCode}
@@ -78,31 +79,34 @@ export function NumberingConfigRow({
           placeholder="e.g. project number"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label className="block text-xs text-muted">Originator</label>
-        <input
+        <FormField label="Originator">
+          <input
           name="originator_code"
           value={originatorCode}
           onChange={(e) => setOriginatorCode(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label className="block text-xs text-muted">Separator</label>
-        <input
+        <FormField label="Separator">
+          <input
           name="separator"
           value={separator}
           onChange={(e) => setSeparator(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label className="block text-xs text-muted">Padding</label>
-        <input
+        <FormField label="Padding">
+          <input
           name="sequence_padding"
           type="number"
           min={1}
@@ -111,6 +115,7 @@ export function NumberingConfigRow({
           onChange={(e) => setSequencePadding(Number(e.target.value))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">

@@ -9,7 +9,7 @@ import {
   removeOutboxItem,
   type OutboxItem,
 } from "./db";
-import { MAX_SERVER_FAILURES, backoffMs, classifyHttpFailure, laterAnswersToRebase, mayReplayItem, responseKey } from "./policy";
+import { MAX_SERVER_FAILURES, ORIGIN_REJECTED_MESSAGE, backoffMs, classifyHttpFailure, isOriginRejection, itemGroupKey, laterAnswersToRebase, mayReplayItem, responseKey } from "./policy";
 import { getLocalUserId } from "./user";
 
 const QUEUE_CHANGED_EVENT = "qmp-offline-queue-changed";
@@ -81,7 +81,7 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
   const blockedInspections = new Set<string>();
 
   for (const item of items) {
-    const group = item.fields.inspection_record_id ?? "";
+    const group = itemGroupKey(item);
     if (group && blockedInspections.has(group)) continue;
     if (item.status && item.status !== "pending") {
       if (group) blockedInspections.add(group);
@@ -122,7 +122,7 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
       });
       clearTimeout(timer);
       // Expired session: middleware redirects (opaque redirect) or API answers 401/403.
-      if (response.type === "opaqueredirect" || response.status === 401 || response.status === 403) {
+      if (response.type === "opaqueredirect") {
         await recordOutboxFailure(item.id, "Your session expired. Sign in again to finish syncing — nothing has been lost.", "auth");
         failed++;
         break;
@@ -132,8 +132,21 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
         error?: string;
         conflict?: boolean;
         wrongUser?: boolean;
+        originRejected?: boolean;
         updatedAt?: string;
       } | null;
+      // E-10: the origin check also answers 403, but the session is fine — say so, and stop (every
+      // later item would be refused the same way). The item stays queued for the user to Retry.
+      if (isOriginRejection(response.status, body)) {
+        await recordOutboxFailure(item.id, ORIGIN_REJECTED_MESSAGE, "rejected");
+        failed++;
+        break;
+      }
+      if (response.status === 401 || response.status === 403) {
+        await recordOutboxFailure(item.id, "Your session expired. Sign in again to finish syncing — nothing has been lost.", "auth");
+        failed++;
+        break;
+      }
       if (response.ok && body?.ok) {
         // Chain the server baseline FIRST, then drop the synced item. Later queued answers to the same
         // item were based on the value this one just replaced, so they must expect the NEW updated_at

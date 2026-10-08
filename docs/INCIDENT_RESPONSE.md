@@ -23,6 +23,14 @@ in Railway's log viewer, `console.error` in Next.js's server logs) — nothing p
 anywhere. Setting up the real Sentry project and both DSNs closes that gap; until then, do not
 assume errors are being tracked anywhere they aren't explicitly logged.
 
+PII scrubbing is already wired in, so setting the DSNs needs no further code change: every web
+(server, edge, browser) and worker event passes through `scrubEvent` (`beforeSend` and
+`beforeSendTransaction`), breadcrumbs are dropped, and `sendDefaultPii` is off. User, cookies,
+headers, request bodies and stack-frame variables are removed, and emails, bearer tokens, JWTs,
+`token=`/`password=`-style parameters and `/verify/<kind>/<token>` links are masked in text, URLs,
+transaction names and spans (`apps/web/lib/observability/scrub.ts`; the worker keeps a tested copy
+in `worker/src/observability/scrub.ts`). Check one real event in Sentry after the first deploy.
+
 ## Who gets notified internally
 
 - The engineer or reviewer who discovers or suspects the issue notifies the JAGS technical lead

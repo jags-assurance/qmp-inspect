@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
+import { usePhotoMarkup, MARKUP_PREF_KEY } from "@/components/domain/photo-markup";
+
 
 interface Photo {
   id: string;
@@ -37,6 +39,26 @@ export function PhotoUpload({
   const [queuedPreviews, setQueuedPreviews] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  // Optional markup (annotate) step before upload. The preference is a per-device convenience only.
+  const { markup, dialog: markupDialog } = usePhotoMarkup();
+  const [markupFirst, setMarkupFirst] = useState(false);
+  useEffect(() => {
+    try {
+      // Hydration-safe: localStorage is only readable after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMarkupFirst(window.localStorage.getItem(MARKUP_PREF_KEY) === "1");
+    } catch {
+      // storage unavailable: leave it off
+    }
+  }, []);
+  function toggleMarkup(on: boolean) {
+    setMarkupFirst(on);
+    try {
+      window.localStorage.setItem(MARKUP_PREF_KEY, on ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -64,8 +86,14 @@ export function PhotoUpload({
 
     let failedCount = 0;
     let rejectedMsg: string | null = null;
-    for (const file of files) {
+    for (const original of files) {
       try {
+        let file: File = original;
+        if (markupFirst) {
+          const marked = await markup(original);
+          if (!marked) continue; // discarded in the editor
+          file = marked;
+        }
         await uploadOne(file);
       } catch (err) {
         failedCount += 1;
@@ -94,7 +122,7 @@ export function PhotoUpload({
           <div key={url} className="relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={url} alt={`Queued photo ${i + 1}`} className="aspect-square w-full rounded-md object-cover opacity-70" />
-            <span className="absolute bottom-1 left-1 rounded bg-warning/90 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="absolute bottom-1 left-1 rounded bg-warning/90 px-1.5 py-0.5 text-xs font-medium text-white">
               Queued
             </span>
           </div>
@@ -115,6 +143,11 @@ export function PhotoUpload({
           <Button type="button" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()}>
             {uploading ? "Uploading…" : "+ Add photo"}
           </Button>
+          <label className="mt-2 flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" checked={markupFirst} onChange={(e) => toggleMarkup(e.target.checked)} />
+            Mark up each photo (draw, arrow, circle) before it is uploaded
+          </label>
+          {markupDialog}
           {error && <p className="mt-2 text-sm text-danger">{error}</p>}
         </div>
       )}

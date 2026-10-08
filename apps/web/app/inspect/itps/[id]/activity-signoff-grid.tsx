@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 export interface PartySignoffCell {
   party: { id: string; name: string; user_id: string | null };
   intervention: InterventionLevel | null;
-  signoff: { id: string; status: SignoffStatus; notified_at: string | null } | null;
+  signoff: { id: string; status: SignoffStatus; notified_at: string | null; signoffComment?: string | null; rejectionReason?: string | null } | null;
   /** Whether the CURRENT user may sign off for this specific party — see canSignOffForParty in lib/signoff/actions.ts. */
   canSignOff: boolean;
 }
@@ -38,6 +38,8 @@ export interface GridRow {
   noticeHoursOverride: number | null;
   /** Planned date (yyyy-mm-dd) for this activity, if set. */
   plannedDate?: string | null;
+  /** S3-06: registers this activity explicitly requires. */
+  requiredRegisters?: string[];
   /** One cell per project_party involved in this ITP, in the same order as `parties` below —
    *  same per-activity computation the previous card layout used (partyCells), just consumed as a
    *  table row instead of a chip chain. */
@@ -139,6 +141,7 @@ export function ActivitySignoffGrid({
                     disciplineId={row.disciplineId}
                     noticeHoursOverride={row.noticeHoursOverride}
                     plannedDate={row.plannedDate ?? null}
+                    requiredRegisters={row.requiredRegisters ?? []}
                     disciplines={disciplines}
                     isIssued={isIssued}
                   />
@@ -196,6 +199,8 @@ export function ActivitySignoffGrid({
                         noticeHours={row.noticeHoursOverride ?? noticeHours[intervention] ?? null}
                         canSignOff={canSignOff}
                         isJagsStaff={isJagsStaff}
+                        rejectionReason={signoff.rejectionReason ?? null}
+                        signoffComment={signoff.signoffComment ?? null}
                         noticeWarning={
                           signoff.status === "pending" && row.plannedDate && (intervention === "H" || intervention === "W" || blockingCodes.has(intervention))
                             ? (() => {

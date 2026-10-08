@@ -45,7 +45,9 @@ export function NotificationsBell({
     initialUnreadCount ?? initialNotifications.filter((n) => !n.is_read).length
   );
   const notificationsRef = useRef(notifications);
-  notificationsRef.current = notifications;
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -124,14 +126,14 @@ export function NotificationsBell({
           <path d="M8.2 15.5a1.8 1.8 0 0 0 3.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-burgundy text-[9px] font-semibold text-white">
+          <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-burgundy px-1 text-xs font-semibold text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="fixed inset-x-2 top-14 z-20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96 rounded-lg border border-border bg-surface shadow-lg">
+        <div className="fixed inset-x-2 top-14 z-20 sm:absolute sm:inset-x-auto sm:end-0 sm:top-11 sm:w-96 rounded-lg border border-border bg-surface shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-sm font-semibold text-ink">Notifications</span>
             {unreadCount > 0 && (
@@ -150,7 +152,7 @@ export function NotificationsBell({
                 type="button"
                 onClick={() => handleClick(n)}
                 className={
-                  "block w-full border-b border-border px-3 py-2.5 text-left text-sm last:border-0 hover:bg-off-white " +
+                  "block w-full border-b border-border px-3 py-2.5 text-start text-sm last:border-0 hover:bg-off-white " +
                   (n.is_read ? "" : "bg-burgundy/5")
                 }
               >

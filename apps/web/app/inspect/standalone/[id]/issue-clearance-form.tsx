@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState, type FormEvent } from "react";
+import { useActionState } from "react";
 import { issueClearanceAction, type IssueClearanceState } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: IssueClearanceState = { error: null };
 
@@ -12,21 +14,20 @@ const initialState: IssueClearanceState = { error: null };
 export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: string; canClear: boolean }) {
   const [state, formAction, pending] = useActionState(issueClearanceAction, initialState);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    if (!confirm("Issue clearance and mark this assignment as completed? This cannot be undone.")) {
-      e.preventDefault();
-    }
-  }
+  const { gateSubmit, dialog } = useConfirm();
+  const handleSubmit = gateSubmit({
+    title: "Issue clearance?",
+    message: "This marks the assignment as completed. This cannot be undone.",
+    confirmLabel: "Issue clearance",
+  });
 
   return (
     <form action={formAction} onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+      {dialog}
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <div>
-        <label htmlFor="clearance_notes" className="block text-sm font-medium text-ink">
-          Clearance note
-        </label>
-        <textarea
-          id="clearance_notes"
+        <FormField label="Clearance note">
+          <textarea
           name="clearance_notes"
           required
           minLength={5}
@@ -35,6 +36,7 @@ export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: s
           placeholder="What was verified and how the punch items were closed out"
           className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
       <Button type="submit" disabled={pending || !canClear} title={!canClear ? "Close the linked punch item(s) first" : undefined}>

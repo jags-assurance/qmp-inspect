@@ -1,0 +1,737 @@
+diff --git a/apps/web/app/inspect/itps/[id]/checklists/checklists-view.tsx b/apps/web/app/inspect/itps/[id]/checklists/checklists-view.tsx
+index 0e40c15..ae34848 100644
+--- a/apps/web/app/inspect/itps/[id]/checklists/checklists-view.tsx
++++ b/apps/web/app/inspect/itps/[id]/checklists/checklists-view.tsx
+@@ -135,7 +135,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
+   // RLS layer by is_client_checklist_generator (20260921000000_self_managed_submit_and_checklist_
+   // gen.sql). Approve itself stays JAGS-only and is untouched by this.
+   let isEligibleChecklistGenerator = false;
+-  if (!session.isJagsStaff && itp.status === "approved") {
++  if (!session.isJagsStaff && (itp.status === "approved" || itp.status === "client_accepted")) {
+     const { data: myParty } = await supabase
+       .from("project_parties")
+       .select("party_type, is_active")
+@@ -155,7 +155,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
+     }
+   }
+ 
+-  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && itp.status === "approved";
++  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && (itp.status === "approved" || itp.status === "client_accepted");
+ 
+   const Heading = embedded ? "h2" : "h1";
+   return (
+@@ -186,7 +186,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
+         <p className="mt-1 text-sm text-muted">{itp.title}</p>
+       </div>
+ 
+-      {itp.status !== "approved" && (
++      {itp.status !== "approved" && itp.status !== "client_accepted" && (
+         <>
+           <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
+             Checklists are generated once this ITP is approved. Current status:{" "}
+diff --git a/apps/web/app/inspect/itps/[id]/itp-detail-view.tsx b/apps/web/app/inspect/itps/[id]/itp-detail-view.tsx
+index 50195ba..593e441 100644
+--- a/apps/web/app/inspect/itps/[id]/itp-detail-view.tsx
++++ b/apps/web/app/inspect/itps/[id]/itp-detail-view.tsx
+@@ -76,6 +76,7 @@ import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/p
+ import { isAiConfigured } from "@/lib/ai/gate";
+ import { hasPermission } from "@/lib/rbac/permissions";
+ import { TranslateContentPanel } from "./translate-content-panel";
++import { ItpExitControls } from "./itp-exit-controls";
+ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+ import { PageGuide } from "@/components/domain/page-guide";
+ 
+@@ -84,6 +85,8 @@ const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> =
+   under_review: "warning",
+   approved: "gold",
+   client_accepted: "success",
++  superseded: "neutral",
++  withdrawn: "neutral",
+ };
+ 
+ const STATUS_LABEL: Record<string, string> = {
+@@ -91,6 +94,8 @@ const STATUS_LABEL: Record<string, string> = {
+   under_review: "Under review",
+   approved: "Approved",
+   client_accepted: "Client accepted",
++  superseded: "Superseded",
++  withdrawn: "Withdrawn",
+ };
+ 
+ // Simple visual stepper for the ITP's approval lifecycle — purely presentational, mirrors the
+@@ -129,7 +134,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?:
+       scope: string | null;
+       applicable_standard: string | null;
+       revision: number;
+-      status: "draft" | "under_review" | "approved" | "client_accepted";
++      status: "draft" | "under_review" | "approved" | "client_accepted" | "superseded" | "withdrawn";
+       phase: string;
+       external_approval_reference: string | null;
+       external_approval_recorded_by: string | null;
+@@ -542,7 +547,11 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?:
+       }
+       return false;
+     });
+-  const canEditContent = session.isJagsStaff || isEligibleItpCreator;
++  const canEditContent = (session.isJagsStaff || isEligibleItpCreator) && itp.status !== "superseded" && itp.status !== "withdrawn";
++  // Other ITPs on the project, for "superseded by" (staff only).
++  const { data: siblingItps } = session.isJagsStaff
++    ? await supabase.from("itps").select("id, itp_number").eq("project_id", itp.projects?.id ?? "").neq("id", itp.id).order("itp_number").returns<{ id: string; itp_number: string }[]>()
++    : { data: [] as { id: string; itp_number: string }[] };
+   // R24/R101: any section add/rename/delete/reorder past this point is an edit-after-issue once
+   // the ITP has left draft/under_review — reused by AddSectionForm and SectionControls below,
+   // same condition AddItemForm already keys its own "isIssued" prop off of.
+@@ -694,6 +703,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?:
+             {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
+           </p>
+           {isAiConfigured() && <TranslateContentPanel itpId={itp.id} />}
++          {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
+           {signoffTotal > 0 && (
+             <p className="mt-1 text-sm text-muted">
+               {signoffComplete} of {signoffTotal} sign-off points complete
+diff --git a/apps/web/app/inspect/itps/[id]/itp-exit-controls.tsx b/apps/web/app/inspect/itps/[id]/itp-exit-controls.tsx
+new file mode 100644
+index 0000000..e2d73bb
+--- /dev/null
++++ b/apps/web/app/inspect/itps/[id]/itp-exit-controls.tsx
+@@ -0,0 +1,74 @@
++"use client";
++
++import { useActionState } from "react";
++import { deleteDraftItpAction, withdrawItpAction, type ItpExitState } from "@/lib/itps/lifecycle-actions";
++
++const initialState: ItpExitState = { error: null };
++const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-burgundy";
++
++/** Withdraw / supersede an issued ITP, or delete a never-submitted draft. JAGS staff. */
++export function ItpExitControls({
++  itpId,
++  status,
++  siblingItps,
++}: {
++  itpId: string;
++  status: string;
++  siblingItps: { id: string; itp_number: string }[];
++}) {
++  const [exitState, exitAction, exiting] = useActionState(withdrawItpAction, initialState);
++  const [deleteState, deleteAction, deleting] = useActionState(deleteDraftItpAction, initialState);
++  if (status === "superseded" || status === "withdrawn") return null;
++
++  return (
++    <div className="mt-4 flex flex-wrap items-start gap-4 text-sm">
++      {status === "draft" && (
++        <form
++          action={deleteAction}
++          onSubmit={(e) => {
++            if (!confirm("Delete this draft ITP? This can't be undone.")) e.preventDefault();
++          }}
++        >
++          <input type="hidden" name="itp_id" value={itpId} />
++          <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline disabled:opacity-50">
++            {deleting ? "Deleting…" : "Delete draft"}
++          </button>
++          {deleteState.error && <p className="mt-1 max-w-xs text-xs text-danger">{deleteState.error}</p>}
++        </form>
++      )}
++      <details>
++        <summary className="cursor-pointer text-xs text-muted hover:underline">Withdraw or supersede this ITP…</summary>
++        <form action={exitAction} className="mt-2 w-80 space-y-2 rounded-md border border-border bg-surface p-3">
++          <input type="hidden" name="itp_id" value={itpId} />
++          <label className="block text-xs font-medium text-ink">
++            Action
++            <select name="mode" defaultValue="withdrawn" className={INPUT}>
++              <option value="withdrawn">Withdraw (no longer applies)</option>
++              <option value="superseded">Supersede (replaced by another ITP)</option>
++            </select>
++          </label>
++          <label className="block text-xs font-medium text-ink">
++            Replaced by (when superseding)
++            <select name="superseded_by_itp_id" defaultValue="" className={INPUT}>
++              <option value="">—</option>
++              {siblingItps.map((s) => (
++                <option key={s.id} value={s.id}>
++                  {s.itp_number}
++                </option>
++              ))}
++            </select>
++          </label>
++          <label className="block text-xs font-medium text-ink">
++            Reason
++            <textarea name="reason" required minLength={5} rows={2} className={INPUT} />
++          </label>
++          <p className="text-xs text-muted">A withdrawn or superseded ITP becomes read-only, is kept for the record and no longer counts toward Data Book readiness.</p>
++          {exitState.error && <p className="text-xs text-danger">{exitState.error}</p>}
++          <button type="submit" disabled={exiting} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink disabled:opacity-50">
++            {exiting ? "Saving…" : "Confirm"}
++          </button>
++        </form>
++      </details>
++    </div>
++  );
++}
+diff --git a/apps/web/app/inspect/itps/[id]/offline-revision-form.tsx b/apps/web/app/inspect/itps/[id]/offline-revision-form.tsx
+index ea58d8e..b5035fb 100644
+--- a/apps/web/app/inspect/itps/[id]/offline-revision-form.tsx
++++ b/apps/web/app/inspect/itps/[id]/offline-revision-form.tsx
+@@ -94,6 +94,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
+         <form action={applyFormAction} className="mt-3 space-y-4">
+           <input type="hidden" name="itp_id" value={parseState.itpId} />
+           <input type="hidden" name="rows_json" value={parseState.rowsJson} />
++          <input type="hidden" name="base_token" value={parseState.baseToken ?? ""} />
+ 
+           <div className="space-y-3 rounded-md border border-border bg-off-white p-3 text-xs">
+             {parseState.diff.sectionsAdded.length > 0 && (
+diff --git a/apps/web/app/inspect/itps/itps-table.tsx b/apps/web/app/inspect/itps/itps-table.tsx
+index 4df25c0..ab4750f 100644
+--- a/apps/web/app/inspect/itps/itps-table.tsx
++++ b/apps/web/app/inspect/itps/itps-table.tsx
+@@ -32,6 +32,8 @@ export const ITP_STATUS_TONE: Record<string, "success" | "warning" | "neutral" |
+   under_review: "warning",
+   approved: "gold",
+   client_accepted: "success",
++  superseded: "neutral",
++  withdrawn: "neutral",
+ };
+ 
+ export const ITP_STATUS_LABEL: Record<string, string> = {
+@@ -39,6 +41,8 @@ export const ITP_STATUS_LABEL: Record<string, string> = {
+   under_review: "Under review",
+   approved: "Approved",
+   client_accepted: "Client accepted",
++  superseded: "Superseded",
++  withdrawn: "Withdrawn",
+ };
+ 
+ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null): DataTableColumn<ItpRow>[] {
+diff --git a/apps/web/app/inspect/itps/page.tsx b/apps/web/app/inspect/itps/page.tsx
+index 0545027..b58f2a4 100644
+--- a/apps/web/app/inspect/itps/page.tsx
++++ b/apps/web/app/inspect/itps/page.tsx
+@@ -1,3 +1,4 @@
++import { fetchAll } from "@/lib/supabase/fetch-all";
+ import Link from "next/link";
+ import { Suspense } from "react";
+ import { SplitLayout } from "@/components/ui/split-layout";
+@@ -22,7 +23,7 @@ export default async function ItpsPage({
+ }) {
+   const session = await requireSession();
+   const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = await searchParams;
+-  const STATUSES = ["draft", "under_review", "approved", "client_accepted"] as const;
++  const STATUSES = ["draft", "under_review", "approved", "client_accepted", "superseded", "withdrawn"] as const;
+   const statusFilter = STATUSES.find((x) => x === statusParam) ?? null;
+   const sort = ["number", "title", "status"].includes(sortParam ?? "") ? (sortParam as string) : "";
+   // R23: optional phase filter — only a recognised phase value is honoured, anything else is
+@@ -146,13 +147,18 @@ export default async function ItpsPage({
+   const pageIds = (itpRows ?? []).map((r) => r.id);
+   const progress = new Map<string, { signed: number; total: number }>();
+   if (pageIds.length > 0) {
+-    const { data: so } = await supabase
+-      .from("activity_signoff_progress")
+-      .select("status, itp_items!inner(itp_sections!inner(itp_id))")
+-      .in("itp_items.itp_sections.itp_id", pageIds)
+-      .limit(10000)
+-      .returns<{ status: string; itp_items: { itp_sections: { itp_id: string } } | null }[]>();
+-    for (const row of so ?? []) {
++    // Paged (PostgREST caps a response at 1000 rows, so a plain .limit() silently under-counts big ITPs).
++    type SignoffRow = { id: string; status: string; itp_items: { itp_sections: { itp_id: string } } | null };
++    const so = await fetchAll<SignoffRow>((from, to) =>
++      supabase
++        .from("activity_signoff_progress")
++        .select("id, status, itp_items!inner(itp_sections!inner(itp_id))")
++        .in("itp_items.itp_sections.itp_id", pageIds)
++        .order("id")
++        .range(from, to)
++        .returns<SignoffRow[]>()
++    ).catch(() => [] as SignoffRow[]);
++    for (const row of so) {
+       const id = row.itp_items?.itp_sections?.itp_id;
+       if (!id) continue;
+       const cur = progress.get(id) ?? { signed: 0, total: 0 };
+diff --git a/apps/web/lib/checklists/actions.ts b/apps/web/lib/checklists/actions.ts
+index d30c58e..2fc8a8d 100644
+--- a/apps/web/lib/checklists/actions.ts
++++ b/apps/web/lib/checklists/actions.ts
+@@ -284,7 +284,7 @@ export async function generateChecklistTemplatesAction(
+     }>();
+ 
+   if (!itp) return { error: "ITP not found." };
+-  if (itp.status !== "approved") return { error: "The ITP must be approved before checklists can be generated." };
++  if (itp.status !== "approved" && itp.status !== "client_accepted") return { error: "The ITP must be approved before checklists can be generated." };
+ 
+   const result = await generateChecklistsForItp(supabase, {
+     itpId,
+diff --git a/apps/web/lib/itps/actions.ts b/apps/web/lib/itps/actions.ts
+index 70cb0f3..20dd5e5 100644
+--- a/apps/web/lib/itps/actions.ts
++++ b/apps/web/lib/itps/actions.ts
+@@ -155,22 +155,44 @@ async function resetReviewIfUnderReview(
+       .eq("status", "approved");
+     if (!signed?.length) return;
+ 
+-    await supabase
++    const { error: resetError } = await supabase
+       .from(ITP_REVIEW_PROGRESS_TABLE)
+       .update({ status: "pending", reviewed_at: null })
+       .eq("itp_id", itpId)
+       .eq("status", "approved");
+ 
+     if (itp.projects?.organization_id) {
++      // A failed reset leaves approvals standing over changed content: say so loudly in the audit trail.
+       await recordAuditEvent(supabase, {
+         organizationId: itp.projects.organization_id,
+         projectId: itp.project_id,
+         entityType: "itp",
+         entityId: itpId,
+-        action: "review_reset_after_edit",
++        action: resetError ? "review_reset_failed" : "review_reset_after_edit",
+         actorId,
+-        summary: `${itp.itp_number} edited during review (${summary}) — review sign-offs reset`,
++        summary: resetError
++          ? `${itp.itp_number} edited during review (${summary}) — review sign-offs COULD NOT be reset; re-review is needed`
++          : `${itp.itp_number} edited during review (${summary}) — review sign-offs reset`,
+       });
++      // Tell the reviewer whose turn it now is.
++      const { data: first } = await supabase
++        .from(ITP_REVIEW_PROGRESS_TABLE)
++        .select("reviewer_user_id")
++        .eq("itp_id", itpId)
++        .eq("status", "pending")
++        .order("sort_order")
++        .limit(1)
++        .maybeSingle<{ reviewer_user_id: string }>();
++      if (first && first.reviewer_user_id !== actorId) {
++        await createNotification(supabase, {
++          organizationId: itp.projects.organization_id,
++          projectId: itp.project_id,
++          recipientUserId: first.reviewer_user_id,
++          title: `${itp.itp_number} changed during review`,
++          body: `${summary} — please review it again`,
++          link: `/inspect/itps/${itpId}`,
++        });
++      }
+     }
+   } catch {
+     // Best-effort — never blocks the edit that already succeeded.
+@@ -1105,6 +1127,15 @@ export async function advanceItpStatusAction(
+   if (nextStatus === "approved") {
+     const gate = await checklistReviewError(supabase, itpId, formData);
+     if (gate) return { error: gate };
++
++    // Optional stricter default (ITP_REQUIRE_APPROVE_PERMISSION=1): only a JAGS Admin or someone holding the
++    // approve_itp permission may approve, instead of any JAGS staff member on the project.
++    if (process.env.ITP_REQUIRE_APPROVE_PERMISSION === "1" && !isAdminStaff(session)) {
++      const { data: approvalItp } = await supabase.from("itps").select("project_id").eq("id", itpId).maybeSingle<{ project_id: string }>();
++      if (!approvalItp || !(await hasPermission(session.userId, "approve_itp", approvalItp.project_id))) {
++        return { error: "Approving an ITP needs the approve permission (or a JAGS Admin)." };
++      }
++    }
+   }
+ 
+   // Look up this org's approval-workflow config (if any) before writing the status change — a
+@@ -1292,6 +1323,15 @@ export async function advanceItpStatusAction(
+         // genuinely "issued" — this is that moment.
+         await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
+         await recordChecklistReviewTick(supabase, { itpId, decision: "approve", formData, actorId: user?.id ?? null });
++        // Checklists for activities that don't have one yet (e.g. an AI draft by a client/contractor creator,
++        // or activities pasted in): idempotent, best-effort.
++        if (itp && organizationId) {
++          try {
++            await generateChecklistsForItp(supabase, { itpId, itpNumber: itp.itp_number, projectId: itp.project_id, organizationId, userId: user?.id ?? null });
++          } catch {
++            // The manual "Generate checklists" button still works.
++          }
++        }
+ 
+         // Once Approved, the client's own acceptance is the next real step in the workflow
+         // (accept_itp()) — notify their linked user directly rather than relying on them noticing
+@@ -1376,6 +1416,20 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
+     .select("id");
+   if (error || !clearedRows?.length) return { error: "Could not approve the revision. Check you have permission and try again." };
+ 
++  // Freeze the approved content (the controlled copy for this revision), and, if the client had accepted
++  // an earlier revision, send the ITP back to "approved" so the client has to accept THIS revision.
++  // Both are best-effort around the approval itself, which has already succeeded.
++  let reacceptanceRequired = false;
++  try {
++    await snapshotApprovedRevision(supabase, itpId, session.userId);
++    if (itp.status === "client_accepted") {
++      const { data: reset } = await supabase.from("itps").update({ status: "approved" } as never).eq("id", itpId).eq("status", "client_accepted").select("id");
++      reacceptanceRequired = !!reset?.length;
++    }
++  } catch {
++    // Best-effort.
++  }
++
+   try {
+     const organizationId = itp.projects?.organization_id;
+     if (organizationId) {
+@@ -1402,7 +1456,7 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
+           organizationId,
+           projectId: itp.project_id,
+           recipientUserId: party.user_id,
+-          title: `ITP revision ${itp.revision} approved`,
++          title: `ITP revision ${itp.revision} approved${reacceptanceRequired ? " — your acceptance is needed again" : ""}`,
+           body: `${itp.itp_number} — ${itp.title}`,
+           link: `/inspect/itps/${itpId}`,
+         });
+@@ -1471,6 +1525,33 @@ export async function returnItpToDraftAction(_prev: ReturnItpState, formData: Fo
+     .select("id");
+   if (error || !returnedRows?.length) return { error: "Could not return the ITP. It may have just changed status — refresh and try again." };
+ 
++  // Keep the round that was just returned (who had approved what, and when) before clearing the chain.
++  try {
++    const { data: oldSteps } = await supabase
++      .from(ITP_REVIEW_PROGRESS_TABLE)
++      .select("reviewer_user_id, sort_order, status, reviewed_at")
++      .eq("itp_id", itpId)
++      .returns<{ reviewer_user_id: string; sort_order: number; status: string; reviewed_at: string | null }[]>();
++    if (oldSteps?.length) {
++      const { count: priorRounds } = await supabase
++        .from("itp_review_progress_history" as never)
++        .select("review_round", { count: "exact", head: true })
++        .eq("itp_id" as never, itpId as never);
++      const round = (priorRounds ? 1 : 0) + 1; // refined below from max
++      const { data: maxRow } = await supabase
++        .from("itp_review_progress_history" as never)
++        .select("review_round")
++        .eq("itp_id" as never, itpId as never)
++        .order("review_round" as never, { ascending: false })
++        .limit(1)
++        .maybeSingle<{ review_round: number }>();
++      await supabase.from("itp_review_progress_history" as never).insert(
++        oldSteps.map((s) => ({ ...s, itp_id: itpId, review_round: (maxRow?.review_round ?? round - 1) + 1, archived_reason: reason.slice(0, 500) })) as never
++      );
++    }
++  } catch {
++    // Best-effort (the history table may not exist yet).
++  }
+   await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
+ 
+   try {
+@@ -1741,6 +1822,8 @@ const EMPTY_TRANSLATE_STATE: TranslateItpContentState = { error: null, translate
+  * translating never touches title/scope/applicable_standard themselves — only
+  * generateItpDraftAction/createItpFromDraftAction and the section/item editors do that.
+  */
++export const TRANSLATION_LANGUAGES = ["French", "Arabic", "Spanish", "German", "Portuguese", "Chinese", "Hindi", "Urdu"] as const;
++
+ export async function translateItpContentAction(
+   _prev: TranslateItpContentState,
+   formData: FormData
+@@ -1751,6 +1834,10 @@ export async function translateItpContentAction(
+   if (!itpId || !targetLanguage) {
+     return { ...EMPTY_TRANSLATE_STATE, error: "Missing ITP or target language." };
+   }
++  // Only a fixed list of languages is accepted: the value goes into the prompt, so free text is an injection vector.
++  if (!TRANSLATION_LANGUAGES.includes(targetLanguage as (typeof TRANSLATION_LANGUAGES)[number])) {
++    return { ...EMPTY_TRANSLATE_STATE, error: "That language isn't offered." };
++  }
+ 
+   const supabase = await createSupabaseServerClient();
+   const {
+diff --git a/apps/web/lib/itps/ai-draft-actions.ts b/apps/web/lib/itps/ai-draft-actions.ts
+index 0d20e6f..b71e69a 100644
+--- a/apps/web/lib/itps/ai-draft-actions.ts
++++ b/apps/web/lib/itps/ai-draft-actions.ts
+@@ -308,6 +308,27 @@ export async function createItpFromDraftAction(
+   } = await supabase.auth.getUser();
+ 
+   let numberToUse = itpNumber;
++  // Only JAGS staff may choose the ITP number; for anyone else the posted number is ignored and the
++  // numbering engine draws the next one (same rule as createItpAction), so a typed number can't break the convention.
++  const { data: callerProfile } = await supabase.from("users").select("is_jags_staff").eq("id", user?.id ?? "").maybeSingle<{ is_jags_staff: boolean }>();
++  const callerIsStaff = !!callerProfile?.is_jags_staff;
++  if (!callerIsStaff) {
++    const { data: numberingProject } = await supabase.from("projects").select("organization_id, project_number").eq("id", projectId).maybeSingle<{ organization_id: string; project_number: string }>();
++    if (numberingProject) {
++      try {
++        numberToUse = (
++          await generateDocumentNumber(supabase, {
++            organizationId: numberingProject.organization_id,
++            projectId,
++            docType: "itp",
++            projectNumber: numberingProject.project_number,
++          })
++        ).documentNumber;
++      } catch {
++        return { error: "Could not generate the next ITP number. Try again." };
++      }
++    }
++  }
+   let { data: itp, error } = await supabase
+     .from("itps")
+     .insert({
+@@ -519,7 +540,9 @@ export async function createItpFromDraftAction(
+     .select("organization_id")
+     .eq("id", projectId)
+     .maybeSingle<{ organization_id: string }>();
+-  if (projectForChecklists) {
++  // Staff-created drafts get their checklists straight away (existing product decision). A draft created by a
++  // client/contractor creator is unreviewed AI content: its checklists are generated when it is approved.
++  if (projectForChecklists && callerIsStaff) {
+     await generateChecklistsForItp(supabase, {
+       itpId: itp.id,
+       itpNumber: numberToUse,
+diff --git a/apps/web/lib/itps/lifecycle-actions.ts b/apps/web/lib/itps/lifecycle-actions.ts
+new file mode 100644
+index 0000000..479d761
+--- /dev/null
++++ b/apps/web/lib/itps/lifecycle-actions.ts
+@@ -0,0 +1,150 @@
++"use server";
++
++import { redirect } from "next/navigation";
++import { revalidatePath } from "next/cache";
++import { createSupabaseServerClient } from "@/lib/supabase/server";
++import { requireSession } from "@/lib/auth/session";
++import { recordAuditEvent } from "@/lib/audit/log";
++import { createNotification } from "@/lib/notifications/helpers";
++import { sectionDeleteBlocker } from "@/lib/itps/guards";
++
++// S2-08: controlled exits for an ITP. A wrongly created draft can be deleted (only while nothing has been
++// done with it); an issued ITP can be marked superseded (replaced by another) or withdrawn, with a reason
++// and who/when. Superseded / withdrawn ITPs are read-only and are meant to be excluded from readiness.
++
++export interface ItpExitState {
++  error: string | null;
++}
++
++const MISSING = new Set(["42703", "PGRST204", "23514"]);
++
++export async function withdrawItpAction(_prev: ItpExitState, formData: FormData): Promise<ItpExitState> {
++  const itpId = String(formData.get("itp_id") ?? "").trim();
++  const mode = String(formData.get("mode") ?? "withdrawn").trim() === "superseded" ? "superseded" : "withdrawn";
++  const reason = String(formData.get("reason") ?? "").trim().slice(0, 1000);
++  const replacementId = String(formData.get("superseded_by_itp_id") ?? "").trim();
++  if (!itpId) return { error: "Missing ITP." };
++  if (reason.length < 5) return { error: "Give a reason (at least 5 characters)." };
++
++  const session = await requireSession();
++  if (!session.isJagsStaff) return { error: "Only JAGS staff can withdraw or supersede an ITP." };
++
++  const supabase = await createSupabaseServerClient();
++  const { data: itp } = await supabase
++    .from("itps")
++    .select("status, itp_number, title, project_id, projects(organization_id)")
++    .eq("id", itpId)
++    .maybeSingle<{ status: string; itp_number: string; title: string; project_id: string; projects: { organization_id: string } | null }>();
++  if (!itp) return { error: "ITP not found." };
++  if (itp.status === "superseded" || itp.status === "withdrawn") return { error: `This ITP is already ${itp.status}.` };
++
++  let replacement: { id: string; itp_number: string } | null = null;
++  if (mode === "superseded") {
++    if (!replacementId || replacementId === itpId) return { error: "Choose the ITP that replaces this one." };
++    const { data: r } = await supabase.from("itps").select("id, itp_number").eq("id", replacementId).eq("project_id", itp.project_id).maybeSingle<{ id: string; itp_number: string }>();
++    if (!r) return { error: "The replacement ITP must be on the same project." };
++    replacement = r;
++  }
++
++  const { data: updated, error } = await supabase
++    .from("itps")
++    .update({
++      status: mode,
++      withdrawn_reason: reason,
++      withdrawn_by: session.userId,
++      withdrawn_at: new Date().toISOString(),
++      superseded_by_itp_id: replacement?.id ?? null,
++    } as never)
++    .eq("id", itpId)
++    .eq("status", itp.status)
++    .select("id");
++  if (error && (MISSING.has(error.code ?? "") || error.code === "42703")) {
++    return { error: "This needs a pending database update (ITP statuses superseded/withdrawn). Ask an administrator to apply the latest migrations." };
++  }
++  if (error || !updated?.length) return { error: "Could not update the ITP. It may have changed — refresh and try again." };
++
++  try {
++    if (itp.projects?.organization_id) {
++      await recordAuditEvent(supabase, {
++        organizationId: itp.projects.organization_id,
++        projectId: itp.project_id,
++        entityType: "itp",
++        entityId: itpId,
++        action: mode,
++        actorId: session.userId,
++        summary: `ITP ${itp.itp_number} ${mode}${replacement ? ` — replaced by ${replacement.itp_number}` : ""}: ${reason}`,
++      });
++      const { data: clients } = await supabase
++        .from("project_parties")
++        .select("user_id")
++        .eq("project_id", itp.project_id)
++        .in("party_type", ["client", "main_contractor", "subcontractor"])
++        .eq("is_active", true)
++        .not("user_id", "is", null)
++        .returns<{ user_id: string }[]>();
++      for (const p of clients ?? []) {
++        await createNotification(supabase, {
++          organizationId: itp.projects.organization_id,
++          projectId: itp.project_id,
++          recipientUserId: p.user_id,
++          title: `ITP ${itp.itp_number} ${mode}`,
++          body: replacement ? `Replaced by ${replacement.itp_number}. ${reason}` : reason,
++          link: `/inspect/itps/${itpId}`,
++        });
++      }
++    }
++  } catch {
++    // Best-effort.
++  }
++
++  revalidatePath(`/inspect/itps/${itpId}`);
++  revalidatePath("/inspect/itps");
++  return { error: null };
++}
++
++/** Deletes a draft ITP that was never submitted, never revised and has no activity history. */
++export async function deleteDraftItpAction(_prev: ItpExitState, formData: FormData): Promise<ItpExitState> {
++  const itpId = String(formData.get("itp_id") ?? "").trim();
++  if (!itpId) return { error: "Missing ITP." };
++  const session = await requireSession();
++  const supabase = await createSupabaseServerClient();
++
++  const { data: itp } = await supabase
++    .from("itps")
++    .select("status, revision, reviewed_by, itp_number, project_id, projects(organization_id)")
++    .eq("id", itpId)
++    .maybeSingle<{ status: string; revision: number; reviewed_by: string | null; itp_number: string; project_id: string; projects: { organization_id: string } | null }>();
++  if (!itp) return { error: "ITP not found." };
++  if (itp.status !== "draft" || itp.reviewed_by || itp.revision !== 0) {
++    return { error: "Only a draft that was never submitted for review can be deleted. Withdraw it instead." };
++  }
++
++  const { data: sections } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId).returns<{ id: string }[]>();
++  for (const s of sections ?? []) {
++    const blocker = await sectionDeleteBlocker(supabase, s.id);
++    if (blocker) return { error: `This draft already has history. ${blocker}` };
++  }
++  const { count: revisions } = await supabase.from("itp_revisions" as never).select("id", { count: "exact", head: true }).eq("itp_id" as never, itpId as never);
++  if (revisions) return { error: "This ITP has revision history, so it can't be deleted. Withdraw it instead." };
++
++  const { data: deleted, error } = await supabase.from("itps").delete().eq("id", itpId).select("id");
++  if (error || !deleted?.length) return { error: "Could not delete the ITP. You may not have permission." };
++
++  try {
++    if (itp.projects?.organization_id) {
++      await recordAuditEvent(supabase, {
++        organizationId: itp.projects.organization_id,
++        projectId: itp.project_id,
++        entityType: "itp",
++        entityId: itpId,
++        action: "draft_deleted",
++        actorId: session.userId,
++        summary: `Draft ITP ${itp.itp_number} deleted`,
++      });
++    }
++  } catch {
++    // Best-effort.
++  }
++  revalidatePath("/inspect/itps");
++  redirect("/inspect/itps");
++}
+diff --git a/apps/web/lib/itps/offline-revision-actions.ts b/apps/web/lib/itps/offline-revision-actions.ts
+index 4ada09b..154e523 100644
+--- a/apps/web/lib/itps/offline-revision-actions.ts
++++ b/apps/web/lib/itps/offline-revision-actions.ts
+@@ -2,7 +2,9 @@
+ 
+ import { revalidatePath } from "next/cache";
+ import { createSupabaseServerClient } from "@/lib/supabase/server";
++import { createHash } from "node:crypto";
+ import { requireSession } from "@/lib/auth/session";
++import { itemDeleteBlocker, sectionDeleteBlocker } from "@/lib/itps/guards";
+ import { bumpRevisionIfIssued } from "@/lib/itps/revisions";
+ import { parseItpWorkbook, EVIDENCE_LABEL, type OfflineParsedRow } from "@/lib/itps/offline-workbook";
+ import { recordAuditEvent } from "@/lib/audit/log";
+@@ -185,9 +187,11 @@ export interface ParseOfflineUploadState {
+   itpId: string | null;
+   rowsJson: string | null;
+   diff: OfflineDiffSummary | null;
++  /** Content fingerprint to post back with the apply step (detects edits made between preview and apply). */
++  baseToken?: string | null;
+ }
+ 
+-const EMPTY_PARSE_STATE: ParseOfflineUploadState = { error: null, itpId: null, rowsJson: null, diff: null };
++const EMPTY_PARSE_STATE: ParseOfflineUploadState = { error: null, itpId: null, rowsJson: null, diff: null, baseToken: null };
+ 
+ export async function parseOfflineItpUploadAction(
+   _prev: ParseOfflineUploadState,
+@@ -210,11 +214,17 @@ export async function parseOfflineItpUploadAction(
+     return { ...EMPTY_PARSE_STATE, error: "ITP not found, or you don't have access to it." };
+   }
+ 
++  if (file.size > MAX_WORKBOOK_BYTES) {
++    return { ...EMPTY_PARSE_STATE, error: `That file is larger than ${MAX_WORKBOOK_BYTES / 1024 / 1024} MB.` };
++  }
+   const buffer = await file.arrayBuffer();
+   const { error: parseError, rows } = await parseItpWorkbook(buffer);
+   if (parseError) {
+     return { ...EMPTY_PARSE_STATE, error: parseError };
+   }
++  if (rows.length > MAX_WORKBOOK_ROWS) {
++    return { ...EMPTY_PARSE_STATE, error: `That workbook has more than ${MAX_WORKBOOK_ROWS} activity rows.` };
++  }
+ 
+   const [current, { data: disciplines }] = await Promise.all([
+     fetchCurrentSections(supabase, itpId),
+@@ -227,7 +237,15 @@ export async function parseOfflineItpUploadAction(
+     return { ...EMPTY_PARSE_STATE, error: "No differences found between this file and the ITP's current content — nothing to apply." };
+   }
+ 
+-  return { error: null, itpId, rowsJson: JSON.stringify(rows), diff };
++  return { error: null, itpId, rowsJson: JSON.stringify(rows), diff, baseToken: contentToken(current) };
++}
++
++const MAX_WORKBOOK_BYTES = 5 * 1024 * 1024;
++const MAX_WORKBOOK_ROWS = 2000;
++
++/** Fingerprint of the ITP content the preview was computed against; apply refuses if it changed since. */
++function contentToken(current: CurrentSection[]): string {
++  return createHash("sha256").update(JSON.stringify(current)).digest("hex").slice(0, 32);
+ }
+ 
+ export interface ApplyOfflineRevisionState {
+@@ -272,16 +290,42 @@ export async function applyOfflineItpRevisionAction(
+     data: { user },
+   } = await supabase.auth.getUser();
+ 
++  // Nothing may have changed since the preview was built, and nothing with inspection / sign-off / NCR /
++  // evidence history may be removed — both checked BEFORE the revision is bumped or any write is made,
++  // so a refusal leaves the ITP untouched (this apply is a series of writes, not one transaction).
++  const baseToken = String(formData.get("base_token") ?? "").trim();
++  const before = await fetchCurrentSections(supabase, itpId);
++  if (baseToken && baseToken !== contentToken(before)) {
++    return { ...EMPTY_APPLY_STATE, error: "This ITP was changed after you previewed the file. Re-upload the file to preview it against the current content." };
++  }
++  {
++    const targetNumbers = groupRowsBySection(rows);
++    for (const section of before) {
++      const groupForSection = targetNumbers.get(section.section_number);
++      if (!groupForSection) {
++        const blocker = await sectionDeleteBlocker(supabase, section.id);
++        if (blocker) return { ...EMPTY_APPLY_STATE, error: `Section ${section.section_number} is missing from the file but can't be removed. ${blocker}` };
++        continue;
++      }
++      const keep = new Set(groupForSection.rows.map((r) => r.itemNumber));
++      for (const item of section.itp_items) {
++        if (keep.has(item.item_number)) continue;
++        const blocker = await itemDeleteBlocker(supabase, item.id);
++        if (blocker) return { ...EMPTY_APPLY_STATE, error: `Activity ${item.item_number} is missing from the file but can't be removed. ${blocker}` };
++      }
++    }
++  }
++
+   // R101: freeze the pre-edit content and bump itps.revision BEFORE applying anything, exactly like
+   // addItpItemAction/sections.ts do — a no-op while the ITP is still draft/under_review.
+-  const { error: bumpError } = await bumpRevisionIfIssued(
++  const bump = await bumpRevisionIfIssued(
+     supabase,
+     itpId,
+     `Re-uploaded from offline edit — ${reason}`,
+     user?.id ?? null
+   );
+-  if (bumpError) {
+-    return { ...EMPTY_APPLY_STATE, error: bumpError };
++  if (bump.error) {
++    return { ...EMPTY_APPLY_STATE, error: bump.error };
+   }
+ 
+   // Re-read current content fresh (not whatever was used to build the preview diff) right before

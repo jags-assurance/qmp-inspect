@@ -32,6 +32,8 @@ export function classifyHttpFailure(status: number, parsedBody: boolean): Failur
   if (status === 401 || status === 403) return "auth";
   if (status === 409) return "conflict";
   if (status === 413) return "too_large";
+  // Rate limited (app/api rate-limit): not the item's fault, so it must not spend the retry budget.
+  if (status === 429) return "network";
   if (status === 400 || status === 422) return "rejected";
   // A 5xx with an unparseable body usually comes from a gateway or captive portal, not our handler.
   if (status >= 500 && !parsedBody) return "network";
@@ -94,4 +96,36 @@ export function laterAnswersToRebase<T extends { id: string; kind: string; statu
       responseKey(it) === key &&
       !!it.fields.expected_updated_at
   );
+}
+
+/** Shown when the offline-sync endpoint refuses the request's origin (E-10). Not a sign-in problem. */
+export const ORIGIN_REJECTED_MESSAGE =
+  "The server refused this sync because the request did not come from this app's own address (blocked origin). Your session is fine and nothing was lost — open the app from its normal web address, or ask support to check the app URL setting, then Retry.";
+
+/** True when a 403 carries the route's {originRejected:true} flag (as opposed to an expired session). */
+export function isOriginRejection(status: number, body: { originRejected?: unknown } | null | undefined): boolean {
+  return status === 403 && body?.originRejected === true;
+}
+
+/**
+ * What an item is ordered/blocked with: the inspection it belongs to, or the standalone assignment.
+ * If one item in a group needs the user, later items in the same group wait (a completion never
+ * overtakes the answers queued before it). Items with neither (e.g. start_inspection) are ungrouped.
+ */
+export function itemGroupKey(item: { fields: Record<string, string> }): string {
+  const rec = item.fields.inspection_record_id?.trim();
+  if (rec) return rec;
+  const assignment = item.fields.assignment_id?.trim();
+  return assignment ? `assignment:${assignment}` : "";
+}
+
+/** Short human age for a queued item: "just now", "12 min", "3 h", "2 days". */
+export function formatQueueAge(createdAt: number, now: number = Date.now()): string {
+  const ms = Math.max(0, now - createdAt);
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.floor(hours / 24)} days`;
 }

@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { orgChromeTag } from "@/lib/organizations/chrome-logic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -9,6 +10,8 @@ import { NUMBERING_CONFIGS_TABLE } from "./types";
 import type { NumberingDocType } from "./types";
 import { normaliseCode, validateCode, validateSeparator } from "./validate";
 import { CLIENT_MANAGED_ONLY_PERMISSION_KEYS } from "@/lib/rbac/types";
+import { describeScopeChange, isEngagementScope, summarizeScopeChange } from "./scope-impact";
+import { countTierOnlyPermissions } from "./tier-permissions";
 
 export interface NumberingSettingsState {
   error: string | null;
@@ -66,6 +69,7 @@ export async function updateEngagementModeAction(
     changes: { from: before?.engagement_mode ?? null, to: engagementMode },
   });
 
+  revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
 }
@@ -109,15 +113,12 @@ export async function updateEngagementScopeAction(
   if (!before) return { error: "Organisation not found." };
   if (before.engagement_scope === engagementScope) return { error: null };
 
-  // A tier change reshapes who can do what for the whole organisation, so it needs an explicit
-  // confirmation (the form's checkbox) and says what it will touch.
+  // S1-12: a tier change reshapes who can do what for the whole organisation, so it needs an explicit
+  // confirmation (the form's checkbox) and says exactly what it will change (same text the form previews).
+  const fromScope = isEngagementScope(before.engagement_scope) ? before.engagement_scope : "full_service";
+  const impact = summarizeScopeChange(fromScope, engagementScope, await countTierOnlyPermissions(supabase, organizationId, fromScope));
   if (String(formData.get("confirm") ?? "") !== "yes") {
-    const downgrade = before.engagement_scope === "client_managed";
-    return {
-      error: `Tick the confirmation to change this organisation from ${before.engagement_scope} to ${engagementScope}.${
-        downgrade ? " Moving away from Full Client-Managed also removes the approve-ITP, provision-login and standalone permissions from this organisation's custom roles." : ""
-      }`,
-    };
+    return { error: `Tick the confirmation to apply this change. ${describeScopeChange(fromScope, engagementScope, impact)}` };
   }
 
   const { error } = await supabase
@@ -152,9 +153,17 @@ export async function updateEngagementScopeAction(
     action: "engagement_scope_updated",
     actorId: session.userId,
     summary: `Engagement scope changed from ${before.engagement_scope} to ${engagementScope}${revokedPermissions ? ` (${revokedPermissions} tier-only role permission(s) removed)` : ""}`,
-    changes: { from: before.engagement_scope, to: engagementScope, revoked_permissions: revokedPermissions },
+    changes: {
+      from: before.engagement_scope,
+      to: engagementScope,
+      revoked_permissions: revokedPermissions,
+      direction: impact.direction,
+      gains: impact.gains,
+      losses: impact.losses,
+    },
   });
 
+  revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath("/inspect/organisation/numbering");
   return { error: null };
 }

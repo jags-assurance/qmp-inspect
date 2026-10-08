@@ -6,6 +6,7 @@ import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { DateRangeFilter } from "@/components/domain/date-range-filter";
 import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 interface ProjectSummary {
   id: string;
@@ -111,6 +112,45 @@ export async function AuditLogView({
   moreParams.set("limit", String(limit + AUDIT_PAGE));
 
   const Heading = embedded ? "h2" : "h1";
+  const auditColumns: ResponsiveColumn<(typeof events)[number]>[] = [
+    {
+      key: "timestamp",
+      header: "Timestamp",
+      className: "whitespace-nowrap text-xs text-muted",
+      render: (event) => new Date(event.created_at).toLocaleString("en-GB"),
+    },
+    {
+      key: "actor",
+      header: "Actor",
+      render: (event) =>
+        event.actor ? (
+          <span>
+            {event.actor.full_name}
+            <span className="ml-1 text-xs text-muted">({event.actor.email})</span>
+          </span>
+        ) : (
+          <span className="text-xs text-muted">System</span>
+        ),
+    },
+    {
+      key: "record",
+      header: "Record",
+      className: "text-xs text-muted",
+      render: (event) => {
+        const href = RECORD_LINK[event.entity_type]?.(event.entity_id, projectId);
+        return href ? (
+          <Link href={href} className="text-burgundy hover:underline">
+            {humanize(event.entity_type)}
+          </Link>
+        ) : (
+          humanize(event.entity_type)
+        );
+      },
+    },
+    { key: "action", header: "Action", className: "text-xs text-muted", render: (event) => humanize(event.action) },
+    { key: "summary", header: "Summary", className: "text-ink", render: (event) => event.summary },
+  ];
+
   return (
     <div>
       {!embedded && (
@@ -178,52 +218,16 @@ export async function AuditLogView({
         {events.length === 0 ? (
           <p className="text-sm text-muted">No audit events match. Try clearing the filters.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                  <th className="py-2">Timestamp</th>
-                  <th className="py-2">Actor</th>
-                  <th className="py-2">Record</th>
-                  <th className="py-2">Action</th>
-                  <th className="py-2">Summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((event) => {
-                  const href = RECORD_LINK[event.entity_type]?.(event.entity_id, projectId);
-                  return (
-                    <tr key={event.id} className="border-b border-border last:border-0 align-top">
-                      <td className="whitespace-nowrap py-2 pr-3 text-xs text-muted">
-                        {new Date(event.created_at).toLocaleString("en-GB")}
-                      </td>
-                      <td className="py-2 pr-3">
-                        {event.actor ? (
-                          <span>
-                            {event.actor.full_name}
-                            <span className="ml-1 text-xs text-muted">({event.actor.email})</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted">System</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-3 text-xs text-muted">
-                        {href ? (
-                          <Link href={href} className="text-burgundy hover:underline">
-                            {humanize(event.entity_type)}
-                          </Link>
-                        ) : (
-                          humanize(event.entity_type)
-                        )}
-                      </td>
-                      <td className="py-2 pr-3 text-xs text-muted">{humanize(event.action)}</td>
-                      <td className="py-2 text-ink">{event.summary}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            columns={auditColumns}
+            rows={events}
+            rowKey={(event) => event.id}
+            caption="Audit log events"
+            headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+            thClassName="py-2"
+            tdClassName="py-2 pr-3"
+            rowClassName="border-b border-border last:border-0 align-top"
+          />
         )}
         {hasMore && (
           <div className="mt-4 text-center">

@@ -1,0 +1,183 @@
+diff --git a/apps/web/app/inspect/layout.tsx b/apps/web/app/inspect/layout.tsx
+index f4eedbd..5f354c1 100644
+--- a/apps/web/app/inspect/layout.tsx
++++ b/apps/web/app/inspect/layout.tsx
+@@ -10,17 +10,53 @@ export default async function InspectLayout({ children }: { children: React.Reac
+   const session = await requireSession();
+   const supabase = await createSupabaseServerClient();
+ 
+-  // Teams is visible to a JAGS Admin (manages every team) or any staff account that leads at least
+-  // one team (manages only their own) — an Inspector with no lead role has no reason to see it.
+-  // Admin already implies this, so the extra DB round-trip only happens for non-admin staff.
+-  const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || (await isLeadOfAnyTeam(supabase, session.userId)));
+-
+-  // R112 module licensing: "own org" for a non-staff login, same lookup used everywhere else in
+-  // this file/app (client-teams/page.tsx, manage/page.tsx) — a non-staff user's access_grants are
+-  // in practice all scoped to the one org they belong to, so the first organization_id-bearing grant
+-  // is that org. Computed once here, hoisted above the Client Teams block below since both need it.
++  // "own org" for a non-staff login, same lookup used everywhere else in this file/app
++  // (client-teams/page.tsx, manage/page.tsx) — a non-staff user's access_grants are in practice all
++  // scoped to the one org they belong to, so the first organization_id-bearing grant is that org.
+   const ownOrgId = session.isJagsStaff ? null : session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+ 
++  // Perf: these lookups are independent of each other (none consumes another's result), so they all
++  // start now instead of as four serial round trips on the critical path of every navigation.
++  //  - Teams is visible to a JAGS Admin (manages every team) or any staff account that leads at
++  //    least one team; the extra query only happens for non-admin staff.
++  //  - Client-team count + org scope, branding row and the module licences are only needed for a
++  //    client login with a definite own org.
++  const licenceKeys: ModuleKey[] = [
++    "itps",
++    "ncrs",
++    "observations",
++    "vault",
++    "standalone_assignments",
++    "handover",
++    "client_teams",
++    "custom_roles",
++  ];
++  const [teamLeadResult, clientTeamResult, brandResult, licenceResults] = await Promise.all([
++    session.isJagsStaff && !isAdminStaff(session) ? isLeadOfAnyTeam(supabase, session.userId) : Promise.resolve(false),
++    ownOrgId
++      ? Promise.all([
++          supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
++          supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
++        ])
++      : Promise.resolve(null),
++    ownOrgId
++      ? supabase
++          .from("organizations")
++          .select("engagement_mode, branding_logo_path, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode")
++          .eq("id", ownOrgId)
++          .maybeSingle<{
++            engagement_mode: string;
++            branding_logo_path: string | null;
++            brand_primary_color: string | null;
++            brand_accent_color: string | null;
++            brand_extra_colors: string[];
++            brand_multi_color_mode: boolean;
++          }>()
++      : Promise.resolve(null),
++    ownOrgId ? Promise.all(licenceKeys.map((key) => isModuleLicensed(supabase, ownOrgId, key))) : Promise.resolve(null),
++  ]);
++  const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || teamLeadResult === true);
++
+   // Client Teams (a client org's OWN people grouping — see app/inspect/organisation/client-teams,
+   // supabase/migrations/20260919020000_client_teams.sql) is always visible to staff (an Admin can
+   // browse any org's client teams; an Inspector can at least view them, matching how Teams itself is
+@@ -35,11 +71,8 @@ export default async function InspectLayout({ children }: { children: React.Reac
+   // organization." Computed once here alongside the Client Teams check since they share the same
+   // "is my own org self_managed" lookup.
+   let isSelfManagedOrg = false;
+-  if (!showClientTeamsNav && ownOrgId) {
+-    const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
+-      supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
+-      supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
+-    ]);
++  if (!showClientTeamsNav && ownOrgId && clientTeamResult) {
++    const [{ count: clientTeamCount }, { data: org }] = clientTeamResult;
+     isSelfManagedOrg = org?.engagement_scope === "self_managed" || org?.engagement_scope === "client_managed";
+     showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
+   }
+@@ -50,20 +83,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
+   // every organisation's data, so their chrome always stays JAGS-only, same as today.
+   let orgBranding: { engagementMode: string; logoUrl: string | null; brandCombo: string[] | null } | null = null;
+   if (ownOrgId) {
+-    const { data: brandOrg } = await supabase
+-      .from("organizations")
+-      .select(
+-        "engagement_mode, branding_logo_path, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode"
+-      )
+-      .eq("id", ownOrgId)
+-      .maybeSingle<{
+-        engagement_mode: string;
+-        branding_logo_path: string | null;
+-        brand_primary_color: string | null;
+-        brand_accent_color: string | null;
+-        brand_extra_colors: string[];
+-        brand_multi_color_mode: boolean;
+-      }>();
++    const brandOrg = brandResult?.data ?? null;
+ 
+     if (brandOrg) {
+       let logoUrl: string | null = null;
+@@ -87,19 +107,8 @@ export default async function InspectLayout({ children }: { children: React.Reac
+   // module to support any client. Fails open (see lib/module-licensing/access.ts) so a query error
+   // never hides a nav item nobody explicitly unlicensed.
+   const licensedModules = new Map<ModuleKey, boolean>();
+-  if (ownOrgId) {
+-    const keysToCheck: ModuleKey[] = [
+-      "itps",
+-      "ncrs",
+-      "observations",
+-      "vault",
+-      "standalone_assignments",
+-      "handover",
+-      "client_teams",
+-      "custom_roles",
+-    ];
+-    const results = await Promise.all(keysToCheck.map((key) => isModuleLicensed(supabase, ownOrgId, key)));
+-    keysToCheck.forEach((key, i) => licensedModules.set(key, results[i]));
++  if (ownOrgId && licenceResults) {
++    licenceKeys.forEach((key, i) => licensedModules.set(key, licenceResults[i]));
+   }
+   const isLicensed = (key: ModuleKey) => licensedModules.get(key) ?? true;
+ 
+diff --git a/apps/web/components/domain/realtime-refresh.tsx b/apps/web/components/domain/realtime-refresh.tsx
+index 84de6b9..7b3f17e 100644
+--- a/apps/web/components/domain/realtime-refresh.tsx
++++ b/apps/web/components/domain/realtime-refresh.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useEffect } from "react";
++import { useEffect, useRef } from "react";
+ import { useRouter } from "next/navigation";
+ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+ 
+@@ -12,8 +12,28 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+  * real queries already, so re-running that query on change is simpler and less bug-prone than
+  * duplicating each page's data-shaping logic client-side just to patch one row in place.
+  */
+-export function RealtimeRefresh({ table, filter }: { table: string; filter?: string }) {
++export function RealtimeRefresh({ table, filter, debounceMs = 1500 }: { table: string; filter?: string; debounceMs?: number }) {
+   const router = useRouter();
++  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const pendingWhileHidden = useRef(false);
++
++  // Burst changes (a bulk import, 50 checklist answers, a sign-off cascade) used to trigger one full
++  // server re-render per event. They are coalesced into one trailing refresh, and nothing is
++  // refreshed while the tab is hidden — the pending refresh runs when it becomes visible again.
++  useEffect(() => {
++    const onVisible = () => {
++      if (document.visibilityState === "visible" && pendingWhileHidden.current) {
++        pendingWhileHidden.current = false;
++        router.refresh();
++      }
++    };
++    document.addEventListener("visibilitychange", onVisible);
++    return () => {
++      document.removeEventListener("visibilitychange", onVisible);
++      if (timer.current) clearTimeout(timer.current);
++    };
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, []);
+ 
+   useEffect(() => {
+     const supabase = createSupabaseBrowserClient();
+@@ -22,7 +42,14 @@ export function RealtimeRefresh({ table, filter }: { table: string; filter?: str
+       .on(
+         "postgres_changes",
+         { event: "*", schema: "public", table, ...(filter ? { filter } : {}) },
+-        () => router.refresh()
++        () => {
++          if (document.visibilityState === "hidden") {
++            pendingWhileHidden.current = true;
++            return;
++          }
++          if (timer.current) clearTimeout(timer.current);
++          timer.current = setTimeout(() => router.refresh(), debounceMs);
++        }
+       )
+       .subscribe();
+ 

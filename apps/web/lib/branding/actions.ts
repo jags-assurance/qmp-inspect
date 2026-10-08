@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { orgChromeTag } from "@/lib/organizations/chrome-logic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -97,6 +98,7 @@ export async function updateOrgBrandColorsAction(
     },
   });
 
+  revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath(BRANDING_PATH);
   return { error: null };
 }
@@ -200,6 +202,7 @@ export async function updateOrgLogoAction(
     await supabase.storage.from(ORG_BRANDING_BUCKET).remove([org.branding_logo_path]);
   }
 
+  revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath(BRANDING_PATH);
   return { error: null };
 }

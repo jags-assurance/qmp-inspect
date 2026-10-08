@@ -27,7 +27,7 @@ export function ConnectorsPanel() {
             <span
               className={
                 connector.isConfigured()
-                  ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+                  ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
                   : "rounded-full bg-off-white px-2 py-0.5 text-xs font-medium text-muted"
               }
             >

@@ -147,7 +147,10 @@ export function ExternalPartyDashboard({
   orgHealth,
   punchAssignedToMe = [],
   totals,
+  clearancesWidget = null,
 }: {
+  /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
+  clearancesWidget?: ReactNode;
   punchAssignedToMe?: AssignedPunchRow[];
   /** True counts behind each capped list (the lists show at most 5 rows). */
   totals?: { acceptance: number; review: number; signoffs: number; ncrs: number; punch: number };
@@ -527,6 +530,7 @@ export function ExternalPartyDashboard({
           ncrs: ncrsAssignedToMe,
         })}
       />
+      {clearancesWidget}
 
       {(widgetOrder).map((key) => (
         <Fragment key={key}>{widgets[key]}</Fragment>

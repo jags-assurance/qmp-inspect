@@ -6,7 +6,7 @@ import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { computeDataBookReadiness } from "@/lib/databook/readiness";
+import { getDataBookReadiness } from "@/lib/databook/readiness-cached";
 import { computeDataBookDisciplineBreakdown } from "@/lib/databook/discipline-breakdown";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE, type DataBookRow, type DataBookStatus } from "@/lib/databook/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -28,6 +28,7 @@ import { DataBookIndex, DataBookMiniNav, buildDataBookParts } from "./structure-
 import { DoneActivitiesPanel } from "./done-activities-panel";
 import { DataBookUpdatesPanel } from "./updates-panel";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
+import { TransmittalSection } from "@/components/domain/transmittal-section";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   draft: "neutral",
@@ -122,7 +123,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { count: punchAllCount },
     { count: punchClosedCount },
   ] = await Promise.all([
-    computeDataBookReadiness(projectId).catch((err: unknown) => {
+    getDataBookReadiness(session.userId, projectId).catch((err: unknown) => {
       // Fail closed: show the problem instead of a fabricated "100% ready".
       console.error("[data-book] readiness failed", err);
       return null;
@@ -371,7 +372,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       {/* Status banner */}
       <section id="status" aria-label="Data Book status" className="mt-4 scroll-mt-24 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-[14rem] flex-1">
+          <div className="w-full sm:min-w-[14rem] flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium uppercase tracking-wide text-muted">Book state</span>
               <Badge tone={bannerTone}>{latest ? STATUS_LABEL[latest.status] : "No book"}</Badge>
@@ -534,6 +535,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               <div>
                 <p className="mb-3 text-sm text-muted">The latest book is issued. Start a new book to produce a further revision.</p>
                 <CreateDataBookForm projectId={projectId} revisionOf={latest.book_number} />
+                <TransmittalSection entityType="data_book" entityId={latest.id} projectId={projectId} status={latest.status} />
               </div>
             )}
             {latest && (

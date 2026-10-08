@@ -185,6 +185,8 @@ export interface ParseOfflineUploadState {
   itpId: string | null;
   rowsJson: string | null;
   diff: OfflineDiffSummary | null;
+  /** Fingerprint of the ITP when the file was checked; the apply step refuses if the ITP changed since. */
+  baseToken?: string | null;
 }
 
 const EMPTY_PARSE_STATE: ParseOfflineUploadState = { error: null, itpId: null, rowsJson: null, diff: null };
@@ -227,7 +229,36 @@ export async function parseOfflineItpUploadAction(
     return { ...EMPTY_PARSE_STATE, error: "No differences found between this file and the ITP's current content — nothing to apply." };
   }
 
-  return { error: null, itpId, rowsJson: JSON.stringify(rows), diff };
+  // Record the ITP's fingerprint so applying the file can refuse if someone edits the ITP in between
+  // (best-effort: null until migration 20261113000600 is applied, which keeps the old behaviour).
+  const tokenRes = await (supabase as unknown as { rpc: (fn: string, args: object) => Promise<{ data: unknown; error: unknown }> }).rpc("itp_content_token", { p_itp_id: itpId });
+  const baseToken = !tokenRes.error && typeof tokenRes.data === "string" ? tokenRes.data : null;
+
+  return { error: null, itpId, rowsJson: JSON.stringify(rows), diff, baseToken };
+}
+
+/** Audit entry for a bulk re-upload (a higher-stakes write than a single add-item call). Best-effort. */
+async function recordOfflineRevisionAudit(supabase: SupabaseServerClient, itpId: string, actorId: string | null, reason: string): Promise<void> {
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+    if (itp?.projects?.organization_id) {
+      await recordAuditEvent(supabase, {
+        organizationId: itp.projects.organization_id,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "offline_revision_applied",
+        actorId,
+        summary: `ITP re-uploaded from offline edit — ${reason}`,
+      });
+    }
+  } catch {
+    // Best-effort — see lib/audit/log.ts's doc comment.
+  }
 }
 
 export interface ApplyOfflineRevisionState {
@@ -274,14 +305,35 @@ export async function applyOfflineItpRevisionAction(
 
   // R101: freeze the pre-edit content and bump itps.revision BEFORE applying anything, exactly like
   // addItpItemAction/sections.ts do — a no-op while the ITP is still draft/under_review.
-  const { error: bumpError } = await bumpRevisionIfIssued(
+  const bump = await bumpRevisionIfIssued(
     supabase,
     itpId,
     `Re-uploaded from offline edit — ${reason}`,
     user?.id ?? null
   );
-  if (bumpError) {
-    return { ...EMPTY_APPLY_STATE, error: bumpError };
+  if (bump.error) {
+    return { ...EMPTY_APPLY_STATE, error: bump.error };
+  }
+
+  // Preferred path (migration 20261113000600): ONE database transaction that re-checks the ITP's
+  // fingerprint and applies every change, or none. A stale file or any failure rolls back, and the
+  // revision bump above is undone so a refused upload leaves nothing behind.
+  const baseToken = String(formData.get("base_token") ?? "").trim() || null;
+  const atomic = await (supabase as unknown as {
+    rpc: (fn: string, args: object) => Promise<{ error: { code?: string; message: string } | null }>;
+  }).rpc("apply_itp_offline_revision", { p_itp_id: itpId, p_rows: rows, p_base_token: baseToken });
+  const atomicMissing = !!atomic.error && (atomic.error.code === "PGRST202" || atomic.error.code === "42883");
+  if (!atomicMissing) {
+    if (atomic.error) {
+      await bump.undo?.();
+      return {
+        ...EMPTY_APPLY_STATE,
+        error: atomic.error.code === "P0001" ? atomic.error.message : "Could not apply the file. Nothing was changed. Check you have permission and try again.",
+      };
+    }
+    await recordOfflineRevisionAudit(supabase, itpId, user?.id ?? null, reason);
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: null, success: true };
   }
 
   // Re-read current content fresh (not whatever was used to build the preview diff) right before
@@ -380,30 +432,7 @@ export async function applyOfflineItpRevisionAction(
     }
   }
 
-  // Found missing in a self-review audit: this bulk re-upload can silently add/remove/rewrite many
-  // activities in one shot — a higher-stakes write than a single addItpItemAction call, which IS
-  // audited — but had no audit_log entry at all (bumpRevisionIfIssued above only freezes a
-  // content-history snapshot into itp_revisions, a different table with a different purpose).
-  try {
-    const { data: itp } = await supabase
-      .from("itps")
-      .select("project_id, projects(organization_id)")
-      .eq("id", itpId)
-      .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
-    if (itp?.projects?.organization_id) {
-      await recordAuditEvent(supabase, {
-        organizationId: itp.projects.organization_id,
-        projectId: itp.project_id,
-        entityType: "itp",
-        entityId: itpId,
-        action: "offline_revision_applied",
-        actorId: user?.id ?? null,
-        summary: `ITP re-uploaded from offline edit — ${reason}`,
-      });
-    }
-  } catch {
-    // Best-effort — see lib/audit/log.ts's doc comment.
-  }
+  await recordOfflineRevisionAudit(supabase, itpId, user?.id ?? null, reason);
 
   revalidatePath(`/inspect/itps/${itpId}`);
   return { error: null, success: true };

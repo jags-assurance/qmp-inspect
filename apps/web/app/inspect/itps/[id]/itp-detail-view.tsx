@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { normaliseRequiredRegisters } from "@/lib/itps/required-registers";
 import Link from "next/link";
 import { Suspense } from "react";
 import { cn } from "@/lib/cn";
@@ -6,7 +7,7 @@ import { ChecklistsView } from "./checklists/checklists-view";
 import { StatusView } from "./status/status-view";
 import { ApprovalRoadmapView } from "./approval-roadmap/approval-roadmap-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ActivitySignoffGrid } from "./activity-signoff-grid";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
@@ -60,6 +61,7 @@ import {
 import { AI_USAGE_LOG_TABLE } from "@/lib/ai/log";
 import { ITP_REVISIONS_TABLE, type ItpRevisionRow } from "@/lib/itps/revision-types";
 import { RevisionHistoryPanel } from "./revision-history-panel";
+import { ReviewHistoryPanel } from "./review-history-panel";
 // R24: sections are fully editable (add/rename/delete/reorder), not fixed to the 4 defaults
 // createItpAction seeds — no other change to this file beyond the two components below and the
 // isIssued/section-count values passed into them.
@@ -76,6 +78,8 @@ import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/p
 import { isAiConfigured } from "@/lib/ai/gate";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { TranslateContentPanel } from "./translate-content-panel";
+import { ItpExitControls } from "./itp-exit-controls";
+import { approvePermissionStrict } from "@/lib/itps/lifecycle";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -84,6 +88,8 @@ const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = 
   under_review: "warning",
   approved: "gold",
   client_accepted: "success",
+  superseded: "neutral",
+  withdrawn: "neutral",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -91,6 +97,8 @@ const STATUS_LABEL: Record<string, string> = {
   under_review: "Under review",
   approved: "Approved",
   client_accepted: "Client accepted",
+  superseded: "Superseded",
+  withdrawn: "Withdrawn",
 };
 
 // Simple visual stepper for the ITP's approval lifecycle — purely presentational, mirrors the
@@ -129,7 +137,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       scope: string | null;
       applicable_standard: string | null;
       revision: number;
-      status: "draft" | "under_review" | "approved" | "client_accepted";
+      status: "draft" | "under_review" | "approved" | "client_accepted" | "superseded" | "withdrawn";
       phase: string;
       external_approval_reference: string | null;
       external_approval_recorded_by: string | null;
@@ -372,7 +380,12 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           .returns<EvidenceDocRow[]>(),
     getExecutingPartyTypes(supabase, itp.projects?.id ?? ""),
     itp.status === "under_review" ? getItpReviewProgress(supabase, itp.id) : Promise.resolve([]),
-    session.isJagsStaff ? Promise.resolve(true) : hasPermission(session.userId, "approve_itp", itp.projects?.id),
+    // S2-11: plain JAGS staff may approve unless ITP_REQUIRE_APPROVE_PERMISSION=1 (then approve_itp is needed too).
+    session.isJagsStaff && !approvePermissionStrict()
+      ? Promise.resolve(true)
+      : isAdminStaff(session)
+        ? Promise.resolve(true)
+        : hasPermission(session.userId, "approve_itp", itp.projects?.id),
     loadItpChecklistPreview(supabase, itp.id),
   ]);
 
@@ -471,6 +484,21 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     interventionMap.set(`${row.itp_item_id}:${row.project_party_id}`, row.intervention as InterventionLevel);
   }
 
+  // S4-18: comment / rejection text per sign-off row. Separate best-effort read: the columns come
+  // from migration 20261110000300, and a missing column must not break this page.
+  const signoffNotes = new Map<string, { signoffComment: string | null; rejectionReason: string | null }>();
+  if (!noItems) {
+    const { data: noteRows, error: noteError } = await supabase
+      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+      .select("id, signoff_comment, rejection_reason")
+      .in("itp_item_id", allItemIds)
+      .returns<{ id: string; signoff_comment: string | null; rejection_reason: string | null }[]>();
+    if (!noteError) {
+      for (const r of noteRows ?? []) {
+        if (r.signoff_comment || r.rejection_reason) signoffNotes.set(r.id, { signoffComment: r.signoff_comment, rejectionReason: r.rejection_reason });
+      }
+    }
+  }
   const signoffMap = new Map<string, NonNullable<typeof signoffs>[number]>();
   const ownSignoffs = (signoffs ?? []).filter((row) => ownItemIds.has(row.itp_item_id));
   for (const row of ownSignoffs) {
@@ -542,7 +570,11 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       }
       return false;
     });
-  const canEditContent = session.isJagsStaff || isEligibleItpCreator;
+  const canEditContent = (session.isJagsStaff || isEligibleItpCreator) && itp.status !== "superseded" && itp.status !== "withdrawn";
+  // Other ITPs on the project, for "superseded by" (staff only).
+  const { data: siblingItps } = session.isJagsStaff
+    ? await supabase.from("itps").select("id, itp_number").eq("project_id", itp.projects?.id ?? "").neq("id", itp.id).order("itp_number").returns<{ id: string; itp_number: string }[]>()
+    : { data: [] as { id: string; itp_number: string }[] };
   // R24/R101: any section add/rename/delete/reorder past this point is an edit-after-issue once
   // the ITP has left draft/under_review — reused by AddSectionForm and SectionControls below,
   // same condition AddItemForm already keys its own "isIssued" prop off of.
@@ -579,6 +611,34 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // The checklist is part of the ITP: it is loaded once and used both to show it and to gate
   // approval/acceptance on the reviewer confirming they have looked at it.
   const requiresChecklistReview = checklistPreview.some((i) => i.hasChecklist);
+  // Admin-only escape hatch: who a stuck (pending) review step can be handed to - active JAGS staff.
+  // Loaded only for an Admin looking at an ITP that is under review.
+  const reassignOptions: { id: string; name: string }[] =
+    isAdminStaff(session) && hasActiveReviewChain
+      ? ((
+          await supabase
+            .from("users")
+            .select("id, full_name")
+            .eq("is_jags_staff", true)
+            .eq("is_active", true)
+            .order("full_name")
+            .returns<{ id: string; full_name: string }[]>()
+        ).data ?? []).map((u) => ({ id: u.id, name: u.full_name }))
+      : [];
+  // S3-06: each activity's explicit register requirement, read separately and best-effort so the page
+  // still renders if that column isn't there.
+  const requiredRegistersByItem = new Map<string, string[]>();
+  {
+    const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
+    if (itemIds.length > 0) {
+      const { data: reqRows, error: reqError } = await supabase
+        .from("itp_items")
+        .select("id, required_registers" as never)
+        .in("id", itemIds)
+        .returns<{ id: string; required_registers: string[] | null }[]>();
+      if (!reqError) for (const r of reqRows ?? []) requiredRegistersByItem.set(r.id, normaliseRequiredRegisters(r.required_registers));
+    }
+  }
   // Per-activity checklist for the clickable "Checklist" pill in the grid below.
   const checklistByItem = new Map(
     checklistPreview
@@ -599,8 +659,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           grid being multi-party in the first place. Unfiltered on this table (small per-ITP volume;
           Supabase Realtime filters only support simple equality, and this page's relevant rows span
           several itp_item_ids with no single column to filter on cheaply). */}
-      <RealtimeRefresh table="activity_signoff_progress" />
-      <RealtimeRefresh table="itps" filter={`id=eq.${id}`} />
+      <RealtimeRefresh table="activity_signoff_progress" also={[{ table: "itps", filter: `id=eq.${id}` }]} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {embedded ? <span /> : (
           <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
@@ -621,7 +680,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             This ITP was changed after it was issued. The change is recorded in the revision history; someone other than the person who made
             it needs to approve the new revision.
           </p>
-          {(session.isJagsStaff || canApproveItp) && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
+          {canApproveItp && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
         </div>
       )}
       {itp.status === "draft" && canSubmitForReview && (() => {
@@ -694,6 +753,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
           </p>
           {isAiConfigured() && <TranslateContentPanel itpId={itp.id} />}
+          {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
           {signoffTotal > 0 && (
             <p className="mt-1 text-sm text-muted">
               {signoffComplete} of {signoffTotal} sign-off points complete
@@ -807,7 +867,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           so it shouldn't be competing for space inside a flex-wrap row of action buttons. */}
       {reviewSteps.length > 0 && (
         <div className="mt-4">
-          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} requiresChecklistReview={requiresChecklistReview} />
+          <ReviewChainStatus itpId={itp.id} steps={reviewSteps} currentUserId={session.userId} isAdminStaff={session.isJagsStaff} requiresChecklistReview={requiresChecklistReview} reassignOptions={reassignOptions} />
         </div>
       )}
 
@@ -826,6 +886,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       )}
 
       <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
+      <ReviewHistoryPanel itpId={itp.id} />
 
       {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
           validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on
@@ -912,10 +973,16 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 // R25: per-activity override, checked before the level-keyed noticeHours map below.
                 noticeHoursOverride: item.notice_hours_override,
                 plannedDate: item.planned_date,
+                requiredRegisters: requiredRegistersByItem.get(item.id) ?? [],
                 partyCells: (parties ?? []).map((party) => {
                   const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
                   const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
-                  return { party, intervention, signoff, canSignOff: canSignOffFor(party.user_id, party.is_active) };
+                  return {
+                    party,
+                    intervention,
+                    signoff: signoff ? { ...signoff, ...(signoffNotes.get(signoff.id) ?? {}) } : null,
+                    canSignOff: canSignOffFor(party.user_id, party.is_active),
+                  };
                 }),
               }));
               return (

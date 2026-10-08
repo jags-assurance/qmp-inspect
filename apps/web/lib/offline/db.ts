@@ -20,7 +20,9 @@ export type OutboxKind =
   | "raise_observation"
   | "standalone_measurement"
   | "standalone_photo"
-  | "standalone_signature";
+  | "standalone_signature"
+  | "start_inspection"
+  | "link_item_document";
 
 export interface OutboxItem {
   id: string;

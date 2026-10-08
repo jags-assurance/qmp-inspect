@@ -5,26 +5,7 @@ import { useRouter } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { searchEntitiesAction, type EntityHit } from "@/lib/search/actions";
 
-interface Entry {
-  label: string;
-  href: string;
-  path: string;
-}
-
-/** Every real destination in the sidebar (leaves only), with its group path for context —
- *  "Settings › Access & Roles › Staff Access" — so the ~17 nested admin pages are one search away. */
-function flatten(items: NavItem[], trail: string[] = []): Entry[] {
-  const out: Entry[] = [];
-  for (const item of items) {
-    if (item.children && item.children.length > 0) {
-      out.push(...flatten(item.children, [...trail, item.label]));
-    } else {
-      if (item.palette) out.push(...flatten(item.palette, [...trail, item.label]));
-      out.push({ label: item.label, href: item.href, path: [...trail, item.label].join(" › ") });
-    }
-  }
-  return out;
-}
+import { filterEntries, flattenNavItems as flatten, type PaletteEntry as Entry } from "@/lib/search/palette-entries";
 
 /**
  * Header search: Ctrl/Cmd+K (or the header box / the mobile search button) opens a jump-to list over
@@ -44,15 +25,12 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
   const [searching, setSearching] = useState(false);
   const searchSeq = useRef(0);
 
-  const pageResults = useMemo(() => {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return entries;
-    return entries.filter((e) => terms.every((t) => e.path.toLowerCase().includes(t)));
-  }, [entries, query]);
+  const pageResults = useMemo(() => filterEntries(entries, query), [entries, query]);
 
   // Record hits (debounced); a stale response from an earlier keystroke is dropped.
   useEffect(() => {
     if (!open || query.trim().length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setHits([]);
       setSearching(false);
       return;
@@ -139,15 +117,15 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
       <button
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
-        className="relative hidden min-h-11 w-full max-w-xs items-center rounded-md border border-border bg-off-white py-1.5 pl-9 pr-3 text-left text-sm text-muted hover:border-burgundy sm:flex"
+        className="relative hidden min-h-11 w-full max-w-xs items-center rounded-md border border-border bg-off-white py-1.5 ps-9 pe-3 text-start text-sm text-muted hover:border-burgundy sm:flex"
         aria-label="Search pages and records (Ctrl+K)"
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2">
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         <span className="flex-1">Search pages and records…</span>
-        <kbd className="rounded border border-border px-1 text-[10px]">Ctrl K</kbd>
+        <kbd className="rounded border border-border px-1 text-xs">Ctrl K</kbd>
       </button>
 
       {/* Phone / small tablet: the box above is hidden, so there is a dedicated search button. */}

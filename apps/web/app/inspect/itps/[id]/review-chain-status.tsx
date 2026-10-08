@@ -2,10 +2,17 @@
 
 import { useActionState, useState } from "react";
 import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
-import { approveReviewStepAction, type ApproveReviewStepState } from "@/lib/itps/review-chain-actions";
+import {
+  approveReviewStepAction,
+  reassignReviewStepAction,
+  type ApproveReviewStepState,
+  type ReassignReviewStepState,
+} from "@/lib/itps/review-chain-actions";
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: ApproveReviewStepState = { error: null };
+const initialReassignState: ReassignReviewStepState = { error: null };
 
 export function ReviewChainStatus({
   itpId,
@@ -13,14 +20,18 @@ export function ReviewChainStatus({
   currentUserId,
   isAdminStaff,
   requiresChecklistReview = false,
+  reassignOptions = [],
 }: {
   requiresChecklistReview?: boolean;
+  /** Admin only: active JAGS staff a pending step can be reassigned to. Empty hides the control. */
+  reassignOptions?: { id: string; name: string }[];
   itpId: string;
   steps: ReviewProgressStep[];
   currentUserId: string;
   isAdminStaff: boolean;
 }) {
   const [state, formAction, pending] = useActionState(approveReviewStepAction, initialState);
+  const [reassignState, reassignAction, reassigning] = useActionState(reassignReviewStepAction, initialReassignState);
   const [reviewed, setReviewed] = useState(false);
   const firstPending = steps.find((s) => s.status === "pending");
   const canActNow = !!firstPending && (isAdminStaff || firstPending.reviewerUserId === currentUserId);
@@ -68,6 +79,45 @@ export function ReviewChainStatus({
         })}
       </ol>
       {state.error && <p className="mt-1.5 text-xs text-danger">{state.error}</p>}
+      {isAdminStaff && firstPending && reassignOptions.length > 0 && (
+        <form action={reassignAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-info/20 pt-3">
+          <input type="hidden" name="itp_id" value={itpId} />
+          <input type="hidden" name="step_id" value={firstPending.id} />
+          <div>
+            <FormField label={<>Reviewer is unavailable? Hand step {steps.findIndex((s) => s.id === firstPending.id) + 1} to</>}>
+              <select
+              name="new_reviewer_user_id"
+              required
+              defaultValue=""
+              className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
+            >
+              <option value="" disabled>
+                Choose a reviewer
+              </option>
+              {reassignOptions
+                .filter((o) => o.id !== firstPending.reviewerUserId)
+                .map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+            </select>
+            </FormField>
+          </div>
+          <button
+            type="submit"
+            disabled={reassigning}
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+          >
+            {reassigning ? "Reassigning…" : "Reassign"}
+          </button>
+          {reassignState.error && (
+            <p role="alert" className="w-full text-xs text-danger">
+              {reassignState.error}
+            </p>
+          )}
+        </form>
+      )}
     </div>
   );
 }

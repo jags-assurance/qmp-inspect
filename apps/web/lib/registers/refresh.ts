@@ -11,6 +11,7 @@ import {
   type PersonnelCertificationStatus,
 } from "./types";
 
+import { groupStatusUpdates } from "./status-updates";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus, todayUtc } from "./status";
 
 /**
@@ -56,15 +57,16 @@ export async function refreshRegisterStatuses(supabase: SupabaseClient, projectI
     .map((row) => ({ id: row.id, next: computePersonnelCertificationStatus(row.expiry_date, today), prev: row.status }))
     .filter((row) => row.next !== row.prev);
 
+  // One UPDATE per distinct new status (ids chunked) rather than one per stale row.
   await Promise.all([
-    ...calibrationUpdates.map((row) =>
-      supabase.from(CALIBRATION_REGISTER_TABLE).update({ status: row.next }).eq("id", row.id)
+    ...groupStatusUpdates(calibrationUpdates).map((g) =>
+      supabase.from(CALIBRATION_REGISTER_TABLE).update({ status: g.status as CalibrationStatus }).in("id", g.ids)
     ),
-    ...welderUpdates.map((row) =>
-      supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).update({ status: row.next }).eq("id", row.id)
+    ...groupStatusUpdates(welderUpdates).map((g) =>
+      supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).update({ status: g.status as WelderQualificationStatus }).in("id", g.ids)
     ),
-    ...personnelCertUpdates.map((row) =>
-      supabase.from(PERSONNEL_CERTIFICATIONS_TABLE).update({ status: row.next }).eq("id", row.id)
+    ...groupStatusUpdates(personnelCertUpdates).map((g) =>
+      supabase.from(PERSONNEL_CERTIFICATIONS_TABLE).update({ status: g.status as PersonnelCertificationStatus }).in("id", g.ids)
     ),
   ]);
 }

@@ -1,4 +1,7 @@
 import { notFound } from "next/navigation";
+import { listResponseHistory, groupHistoryByItem } from "@/lib/checklists/response-history";
+import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
+import { describeSpec } from "@/lib/checklists/numeric-response";
 import { formatLocationForDisplay, mapsUrl } from "@/lib/checklists/location";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -7,6 +10,7 @@ import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
 import { Badge } from "@/components/ui/badge";
 import {
   CHECKLIST_RESPONSES_TABLE,
+  INSPECTION_EVIDENCE_DOCUMENTS_TABLE,
   INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
   IRNS_TABLE,
@@ -16,8 +20,13 @@ import {
   type IrnRow,
 } from "@/lib/checklists/db-types";
 import { PhotoGallery } from "./photo-gallery";
+import { groupLinkedDocumentsByItem, type LinkedDocumentRow } from "@/lib/checklists/linked-documents";
 import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
 import { ReopenInspectionForm } from "./reopen-inspection-form";
+import { ReviewInspectionForm } from "./review-inspection-form";
+import { reviewBlocker, type ReviewStatus } from "@/lib/checklists/review-logic";
+import { parsePreviousResponses, reviewStatusLabel, staleSnapshotWarning } from "@/lib/checklists/template-ui-logic";
+import { CHECKLIST_TEMPLATES_TABLE } from "@/lib/checklists/db-types";
 import { listInspectionAmendments } from "@/lib/checklists/lifecycle-actions";
 import {
   getLatestInspectionReportPdf,
@@ -93,9 +102,50 @@ export default async function InspectionRecordPage({ params }: { params: Promise
     .eq("inspection_record_id", record.id)
     .returns<{ id: string; ncr_number: string; severity: string; status: string }[]>();
 
+  // Versioning + review columns come from later migrations (20261106000100/200), so they are read
+  // separately and best-effort: on a database without them everything below simply stays hidden.
+  const { data: extra, error: extraError } = await supabase
+    .from(INSPECTION_RECORDS_TABLE)
+    .select("checklist_template_version, review_status, reviewed_by, reviewed_at, review_comment, signed_by_user_id")
+    .eq("id", id)
+    .maybeSingle<{
+      checklist_template_version: number | null;
+      review_status: ReviewStatus | null;
+      reviewed_by: string | null;
+      reviewed_at: string | null;
+      review_comment: string | null;
+      signed_by_user_id: string | null;
+    }>();
+  const reviewSupported = !extraError && !!extra;
+  const reviewStatus = extra?.review_status ?? null;
+  const reviewerName = extra?.reviewed_by
+    ? ((await supabase.from("users").select("full_name").eq("id", extra.reviewed_by).maybeSingle<{ full_name: string }>()).data?.full_name ?? null)
+    : null;
+  let currentTemplateVersion: number | null = null;
+  if (record.checklist_template_id && extra?.checklist_template_version != null) {
+    const { data: tpl, error: tplError } = await supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("version")
+      .eq("id", record.checklist_template_id)
+      .maybeSingle<{ version: number | null }>();
+    currentTemplateVersion = tplError ? null : (tpl?.version ?? null);
+  }
+  const staleWarning = staleSnapshotWarning(extra?.checklist_template_version, currentTemplateVersion);
+  const blocker = reviewSupported
+    ? reviewBlocker({
+        overallResult: record.overall_result,
+        reviewStatus,
+        reviewerId: session.userId,
+        inspectorId: record.inspector_id,
+        signedByUserId: extra?.signed_by_user_id ?? null,
+        reviewerIsJagsStaff: session.isJagsStaff,
+      })
+    : null;
+  const reviewBadge = reviewStatusLabel(reviewStatus);
+
   const latestReportPdf = await getLatestInspectionReportPdf(id);
 
-  const [{ data: responses }, { data: photos }, { data: allIrns }] = await Promise.all([
+  const [{ data: responses }, { data: photos }, { data: allIrns }, { data: linkedDocRows }] = await Promise.all([
     supabase
       .from(CHECKLIST_RESPONSES_TABLE)
       .select("checklist_item_id, result, comment, checklist_items(item_number, description, is_mandatory)")
@@ -117,7 +167,16 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       .order("voided_at", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: false })
       .returns<Pick<IrnRow, "id" | "irn_number" | "release_date" | "voided_at" | "void_reason">[]>(),
+    supabase
+      .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
+      .select("id, vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
+      .eq("inspection_record_id", id)
+      .returns<LinkedDocumentRow[]>(),
   ]);
+  const linkedDocsByItem = groupLinkedDocumentsByItem(linkedDocRows ?? []);
+  // S4-20: measured readings (best-effort: empty until 20261113000500 is applied).
+  const numericValues = await loadNumericValues(supabase, id);
+  const numericSpecs = record.checklist_template_id ? await loadNumericSpecsForTemplate(supabase, record.checklist_template_id) : new Map();
 
   const irnList = allIrns ?? [];
   const liveIrn = irnList.find((i) => !i.voided_at) ?? null;
@@ -128,6 +187,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   const latestIrnPdf = irn ? await getLatestIrnPdf(irn.id) : null;
 
   const amendments = await listInspectionAmendments(id);
+  const responseHistory = await listResponseHistory(supabase, id);
+  const historyByItem = groupHistoryByItem(responseHistory);
 
   // Perf: one batched Storage call for every photo's signed URL instead of each <PhotoThumbnail>
   // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
@@ -260,6 +321,39 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         )}
       </div>
 
+      {staleWarning && (
+        <p className="mt-6 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
+          <span className="font-medium">Checklist changed since this inspection started.</span> {staleWarning}
+        </p>
+      )}
+
+      {reviewSupported && record.overall_result && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-medium text-ink">Review</h2>
+            <Badge tone={reviewBadge.tone}>{reviewBadge.label}</Badge>
+          </div>
+          {reviewStatus ? (
+            <p className="mt-2 text-sm text-ink">
+              {reviewStatus === "approved" ? "Approved" : "Rejected"}
+              {reviewerName ? ` by ${reviewerName}` : ""}
+              {extra?.reviewed_at ? ` on ${new Date(extra.reviewed_at).toLocaleString()}` : ""}
+              {extra?.review_comment ? <span className="block text-muted">Comment: {extra.review_comment}</span> : null}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-muted">No review has been recorded for this inspection.</p>
+          )}
+          {session.isJagsStaff &&
+            (blocker ? (
+              <p className="mt-3 text-sm text-muted">{blocker}</p>
+            ) : (
+              <div className="mt-3 border-t border-border pt-3">
+                <ReviewInspectionForm inspectionRecordId={record.id} hasPreviousReview={reviewStatus !== null} />
+              </div>
+            ))}
+        </div>
+      )}
+
       {(record.overall_result === "fail" || record.overall_result === "partial" || (linkedNcrs ?? []).length > 0) && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <h2 className="text-sm font-medium text-ink">Non-conformance</h2>
@@ -312,8 +406,32 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </p>
               <div className="mt-1 flex items-center gap-2">
                 <Badge tone={r.result === "yes" ? "success" : r.result === "no" ? "danger" : "neutral"}>{r.result.toUpperCase()}</Badge>
+                {numericValues.has(r.checklist_item_id) && (
+                  <span className="font-medium text-ink">
+                    {numericValues.get(r.checklist_item_id)}
+                    {numericSpecs.get(r.checklist_item_id)?.unit ? ` ${numericSpecs.get(r.checklist_item_id)?.unit}` : ""}
+                    {numericSpecs.get(r.checklist_item_id) && <span className="font-normal text-muted"> (limit: {describeSpec(numericSpecs.get(r.checklist_item_id)!)})</span>}
+                  </span>
+                )}
                 {r.comment && <span className="text-muted">{r.comment}</span>}
               </div>
+              {(linkedDocsByItem.get(r.checklist_item_id) ?? []).length > 0 && (
+                <ul className="mt-2 space-y-1" aria-label={`Documents linked to item ${r.checklist_items?.item_number ?? ""}`}>
+                  {(linkedDocsByItem.get(r.checklist_item_id) ?? []).map((d) => (
+                    <li key={d.linkId} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span aria-hidden="true">📎</span>
+                      <Link
+                        href={`/inspect/vault/${record.project_id}/document/${d.vaultDocumentId}`}
+                        className="text-burgundy hover:underline [overflow-wrap:anywhere]"
+                      >
+                        {d.title}
+                      </Link>
+                      {d.reference && <span className="doc-id text-muted">{d.reference}</span>}
+                      <Badge tone={d.status === "approved" ? "success" : d.status === "rejected" ? "danger" : "neutral"}>{d.statusLabel}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
           {sortedResponses.length === 0 && <li className="px-4 py-6 text-center text-muted">No responses recorded.</li>}
@@ -385,7 +503,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             ) : (
               <>
                 <div className="mt-2">
-                  <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} />
+                  <IrnPdfButton irnId={irn.id} latest={latestIrnPdf} changedAt={record.signed_at} />
                 </div>
                 {session.isJagsStaff && <VoidIrnForm irnId={irn.id} />}
               </>
@@ -428,6 +546,35 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         </div>
       )}
 
+      {responseHistory.length > 0 && (
+        <details className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
+          <summary className="cursor-pointer font-medium text-burgundy">Answer changes ({responseHistory.length})</summary>
+          <p className="mt-2 text-xs text-muted">Earlier values of answers that were changed while this inspection was in progress, newest first.</p>
+          <ul className="mt-2 divide-y divide-border">
+            {[...historyByItem.entries()].map(([itemId, list]) => {
+              const label = sortedResponses.find((r) => r.checklist_item_id === itemId)?.checklist_items;
+              return (
+                <li key={itemId} className="py-2">
+                  <p className="text-ink">
+                    <span className="doc-id text-muted">{label?.item_number}.</span> {label?.description}
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                    {list.map((h) => (
+                      <li key={h.id}>
+                        was <span className="font-medium text-ink">{(h.old_result ?? "").toUpperCase() || "-"}</span>
+                        {h.old_numeric_value ? ` (${h.old_numeric_value})` : ""}
+                        {h.old_comment ? `, "${h.old_comment}"` : ""} - changed {new Date(h.changed_at).toLocaleString("en-GB")}
+                        {h.changed_by_name ? ` by ${h.changed_by_name}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+
       {amendments.length > 0 && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <h2 className="text-sm font-medium text-ink">Amendment history</h2>
@@ -442,12 +589,40 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                   Previous result: {(a.previous_overall_result ?? "—").toUpperCase()}
                   {a.previous_signed_by_name ? ` · signed by ${a.previous_signed_by_name}` : ""}
                   {a.previous_signed_at ? ` on ${new Date(a.previous_signed_at).toLocaleString()}` : ""}
+                  {a.previous_review_status ? ` · previous review: ${a.previous_review_status}` : ""}
                 </p>
+                <PreviousAnswers amendmentId={a.id} responses={parsePreviousResponses(a.previous_responses)} />
               </li>
             ))}
           </ul>
         </div>
       )}
     </div>
+  );
+}
+
+const PREV_TONE: Record<string, "success" | "danger" | "neutral"> = { yes: "success", no: "danger", na: "neutral" };
+
+/** Collapsible snapshot of the answers that were cleared when the inspection was re-opened. */
+function PreviousAnswers({ amendmentId, responses }: { amendmentId: string; responses: ReturnType<typeof parsePreviousResponses> }) {
+  if (responses.length === 0) return null;
+  return (
+    <details className="mt-2 text-xs">
+      <summary className="cursor-pointer font-medium text-burgundy">Previous answers ({responses.length})</summary>
+      <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-off-white" aria-label={`Answers before re-open ${amendmentId}`}>
+        {responses.map((r) => (
+          <li key={r.checklist_item_id} className="px-3 py-2">
+            <p className="text-ink">
+              {r.item_number && <span className="doc-id text-muted">{r.item_number}. </span>}
+              {r.description ?? "Item"}
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-2">
+              <Badge tone={PREV_TONE[r.result] ?? "neutral"}>{r.result.toUpperCase()}</Badge>
+              {r.comment && <span className="text-muted">{r.comment}</span>}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

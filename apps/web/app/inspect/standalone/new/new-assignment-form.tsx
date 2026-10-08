@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { createAssignmentAction, type CreateAssignmentState, type AssignmentType } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CreateAssignmentState = { error: null };
 
@@ -52,6 +53,11 @@ export function NewAssignmentForm({
   disciplines: { id: string; code: string; name: string }[];
   presetsByProject: Record<string, string[]>;
 }) {
+  // Date bounds are captured once at mount (impure Date.now() must not run on every render).
+  const [dateBounds] = useState(() => ({
+    min: new Date(Date.now() - 5 * 365 * 86400000).toISOString().slice(0, 10),
+    max: new Date(Date.now() + 2 * 365 * 86400000).toISOString().slice(0, 10),
+  }));
   const [projectId, setProjectId] = useState("");
   const [location, setLocation] = useState("");
   const [locError, setLocError] = useState<string | null>(null);
@@ -83,11 +89,8 @@ export function NewAssignmentForm({
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
         <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted">Project &amp; type</legend>
         <div>
-          <label htmlFor="project_id" className="block text-sm font-medium text-ink">
-            Project
-          </label>
-          <select
-            id="project_id"
+          <FormField label="Project">
+            <select
             name="project_id"
             required
             value={projectId}
@@ -104,6 +107,7 @@ export function NewAssignmentForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
 
         <div>
@@ -139,57 +143,49 @@ export function NewAssignmentForm({
         <p className="text-xs text-muted">{selected.equipmentNote}</p>
 
         <div>
-          <label htmlFor="equipment_description" className="block text-sm font-medium text-ink">
-            Equipment description
-          </label>
-          <input
-            id="equipment_description"
+          <FormField label="Equipment description">
+            <input
             name="equipment_description"
             required
             maxLength={300}
             placeholder="e.g. Jaw crusher C120"
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="manufacturer" className="block text-sm font-medium text-ink">
-              Manufacturer
-            </label>
-            <input
-              id="manufacturer"
+            <FormField label="Manufacturer">
+              <input
               name="manufacturer"
               placeholder="e.g. Metso"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
           <div>
-            <label htmlFor="model" className="block text-sm font-medium text-ink">
-              Model
-            </label>
-            <input
-              id="model"
+            <FormField label="Model">
+              <input
               name="model"
               placeholder="e.g. C120"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="serial_tag" className="block text-sm font-medium text-ink">
-              Serial / tag no.{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}
-            </label>
-            <input
-              id="serial_tag"
+            <FormField label={<>Serial / tag no.{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}</>}>
+              <input
               name="serial_tag"
               maxLength={120}
               required={selectedType === "fat" || selectedType === "pre_shipment"}
               placeholder="e.g. SN-48213 / TAG-102"
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-ink">
@@ -225,37 +221,30 @@ export function NewAssignmentForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="standard_reference" className="block text-sm font-medium text-ink">
-              Standard reference
-            </label>
-            <input
-              id="standard_reference"
+            <FormField label="Standard reference">
+              <input
               name="standard_reference"
               placeholder="e.g. ISO 9001 / client spec no."
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
           <div>
-            <label htmlFor="assignment_date" className="block text-sm font-medium text-ink">
-              Assignment date
-            </label>
-            <input
-              id="assignment_date"
+            <FormField label="Assignment date">
+              <input
               name="assignment_date"
               type="date"
-              min={new Date(Date.now() - 5 * 365 * 86400000).toISOString().slice(0, 10)}
-              max={new Date(Date.now() + 2 * 365 * 86400000).toISOString().slice(0, 10)}
+              min={dateBounds.min}
+              max={dateBounds.max}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
         </div>
 
         <div>
-          <label htmlFor="discipline_id" className="block text-sm font-medium text-ink">
-            Discipline
-          </label>
-          <select
-            id="discipline_id"
+          <FormField label="Discipline">
+            <select
             name="discipline_id"
             defaultValue=""
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -267,6 +256,7 @@ export function NewAssignmentForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       </fieldset>
 

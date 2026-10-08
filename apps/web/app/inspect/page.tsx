@@ -9,6 +9,8 @@ import { ITP_MASTER_PROPOSALS_TABLE } from "@/lib/itp-master/types";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { INTERVENTION_LEVEL_TYPES_TABLE, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
+import { filterByArchive } from "@/lib/checklists/template-ui-logic";
 import { sortByDynamicPriority } from "@/lib/checklists/priority-routing";
 import { STANDALONE_ASSIGNMENTS } from "@/lib/standalone/types";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
@@ -16,12 +18,15 @@ import type { AssignmentType, AssignmentStatus } from "@/lib/standalone/actions"
 import type { PendingActionItem } from "@/components/domain/pending-actions-table";
 import { ExternalPartyDashboard, type SignoffQueueRow } from "./external-party-dashboard";
 import { InspectorDashboard, type OverdueHoldRow } from "./inspector-dashboard";
+import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
 import { Suspense } from "react";
+import { ExpiringClearancesCard } from "@/components/domain/expiring-clearances-card";
 import { AdminDashboard } from "./admin-dashboard";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
 import { StatCard } from "@/components/ui/stat-card";
 import type { OrgHealth } from "@/lib/dashboard/widgets";
+import { planDashboardQueries } from "@/lib/dashboard/query-plan";
 
 interface PendingSignoffRow {
   id: string;
@@ -107,6 +112,11 @@ function activityHref(entityType: string, entityId: string | null, projectId: st
 export default async function InspectDashboardPage() {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
+  // Only the queries this login's own dashboard renders (see lib/dashboard/query-plan.ts).
+  const plan = planDashboardQueries({ isJagsStaff: session.isJagsStaff, isAdmin: isAdminStaff(session) });
+  const isInspector = session.isJagsStaff && !isAdminStaff(session);
+  // An Inspector's "assigned to me" queue is independent of everything else: start it now, await at render.
+  const assignedToMePromise = isInspector ? loadAssignedToMe(supabase, session.userId) : null;
 
   // Perf: the Admin queries below depend only on the session, not on anything the first batch
   // returns, so they start now — in the same round trip as that batch — instead of waiting for it
@@ -190,8 +200,9 @@ export default async function InspectDashboardPage() {
     ])
     : null;
 
-  // These six queries are mutually independent (none consumes another's result), so they're fired
-  // together as a single Promise.all instead of four separate sequential round-trips.
+  // These queries are mutually independent (none consumes another's result), so they're fired together
+  // as a single Promise.all. Queries a role's dashboard never renders are skipped (plan above).
+  const none = Promise.resolve({ data: null, count: null });
   const [
     { data: organizations },
     { count: activeProjects },
@@ -200,24 +211,31 @@ export default async function InspectDashboardPage() {
     { count: openNcrs },
     { data: ownParties },
   ] = await Promise.all([
-    supabase.from("organizations").select("id, name, engagement_mode").order("name"),
+    plan.organizations ? supabase.from("organizations").select("id, name, engagement_mode").order("name") : none,
     supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("itps").select("id", { count: "exact", head: true }).in("status", ["approved", "client_accepted"]),
     supabase.from("inspection_records").select("id", { count: "exact", head: true }).is("overall_result", null),
     // Round-table finding: this used to count open Observations (severity='observation') into the
     // "Open NCRs" stat card too — honest now that the NCR and Observation registers are shown as
     // two distinct registers elsewhere in this app (see observations/page.tsx's own header comment).
-    supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation"),
+    // Staff do not run this: the Admin total is the length of the portfolio rows fetched above, and the
+    // Inspector dashboard has no such tile.
+    plan.openNcrCount
+      ? supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation")
+      : none,
     // A user's own project_parties link (see lib/signoff/actions.ts's canSignOffForParty) is what
-    // "awaiting your sign-off" actually means for an external party; for JAGS staff (who can
-    // countersign any party) it's less meaningful, so the panel only renders for a linked party.
-    supabase
-      .from("project_parties")
-      .select("id, name, party_type, project_id, projects(organization_id, name)")
-      .eq("user_id", session.userId)
-      .returns<
-        { id: string; name: string; party_type: string; project_id: string; projects: { organization_id: string; name: string } | null }[]
-      >(),
+    // "awaiting your sign-off" actually means for an external party; JAGS staff never render it.
+    plan.ownParties
+      ? supabase
+          .from("project_parties")
+          .select("id, name, party_type, project_id, projects(organization_id, name)")
+          .eq("user_id", session.userId)
+          .returns<
+            { id: string; name: string; party_type: string; project_id: string; projects: { organization_id: string; name: string } | null }[]
+          >()
+      : (none as unknown as Promise<{
+          data: { id: string; name: string; party_type: string; project_id: string; projects: { organization_id: string; name: string } | null }[] | null;
+        }>),
   ]);
 
   // Round-table finding: an external party's dashboard had no direct path to a project's PDF/Excel
@@ -367,6 +385,7 @@ export default async function InspectDashboardPage() {
     projects: { name: string } | null;
   }
   const loadNcrsAssignedToMe = async (): Promise<{ rows: AssignedNcrRow[]; total: number }> => {
+    if (!plan.ncrsAssignedToMe) return { rows: [], total: 0 };
     // Mirrors the sign-off queue's own reasoning: a notification is how a party first hears about
     // an assigned NCR, but if it's missed or dismissed there was previously no dashboard path back
     // to it — only the aggregate "Open NCRs" count, which isn't actionable.
@@ -420,18 +439,27 @@ export default async function InspectDashboardPage() {
     const managesOwnOrg = ownOrg?.engagement_scope === "self_managed" || ownOrg?.engagement_scope === "client_managed";
     if (!managesOwnOrg) return { managesOwnOrg, orgHealth: null };
     const todayIso = new Date().toISOString().slice(0, 10);
-    const [{ count: activeParties }, { count: partiesWithLogin }, { count: openPunchItems }, { count: overdueNcrs }] =
-      await Promise.all([
-        supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true),
-        supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true).not("user_id", "is", null),
-        supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
-        supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation").lt("due_date", todayIso),
-      ]);
+    // ONE light parties query (active parties, with or without a login) instead of two head counts on the same table.
+    const [partyRows, { count: openPunchItems }, { count: overdueNcrs }] = await Promise.all([
+      fetchAll<{ id: string; user_id: string | null }>((from, to) =>
+        supabase
+          .from("project_parties")
+          .select("id, user_id")
+          .eq("is_active", true)
+          .order("id")
+          .range(from, to)
+          .returns<{ id: string; user_id: string | null }[]>()
+      ),
+      supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
+      supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation").lt("due_date", todayIso),
+    ]);
+    const activeParties = partyRows.length;
+    const partiesWithLogin = partyRows.filter((r) => r.user_id !== null).length;
     return {
       managesOwnOrg,
       orgHealth: {
-        activeParties: activeParties ?? 0,
-        partiesWithLogin: partiesWithLogin ?? 0,
+        activeParties,
+        partiesWithLogin,
         openPunchItems: openPunchItems ?? 0,
         overdueNcrs: overdueNcrs ?? 0,
       },
@@ -620,7 +648,6 @@ export default async function InspectDashboardPage() {
     projectName: string;
   }
   let pendingStandaloneAssignments: PendingStandaloneAssignmentRow[] = [];
-  const isInspector = session.isJagsStaff && !isAdminStaff(session);
   if (isInspector) {
     interface TemplateRow {
       id: string;
@@ -648,7 +675,7 @@ export default async function InspectDashboardPage() {
       updated_at: string;
       projects: { name: string } | null;
     }
-    const [{ data: templates }, { data: standaloneAssignments }] = await Promise.all([
+    const [{ data: allTemplates }, { data: standaloneAssignments }, archivedTemplateIds] = await Promise.all([
       supabase
         .from(CHECKLIST_TEMPLATES_TABLE)
         .select(
@@ -664,7 +691,10 @@ export default async function InspectDashboardPage() {
         .order("updated_at", { ascending: false })
         .limit(8)
         .returns<StandaloneAssignmentRow[]>(),
+      loadArchivedTemplateIds(supabase),
     ]);
+    // Archived checklists are not offered for new work.
+    const templates = filterByArchive(allTemplates ?? [], archivedTemplateIds, "active");
 
     // Perf: these two chains share no data dependency (pending actions starts from `templates`, overdue
     // holds is a single database function call) — run them concurrently as two async closures
@@ -839,6 +869,11 @@ export default async function InspectDashboardPage() {
 
     return (
       <ExternalPartyDashboard
+        clearancesWidget={
+          <Suspense fallback={null}>
+            <ExpiringClearancesCard />
+          </Suspense>
+        }
         // The grant role is the login's real role; the first linked party row is only a fallback
         // (a login linked to several parties used to show whichever happened to sort first — a
         // client login rendered as "Subcontractor" with another company's name).
@@ -904,6 +939,12 @@ export default async function InspectDashboardPage() {
   if (isInspector) {
     return (
       <InspectorDashboard
+        assignedToMe={await assignedToMePromise!}
+        clearancesWidget={
+          <Suspense fallback={null}>
+            <ExpiringClearancesCard />
+          </Suspense>
+        }
         firstName={session.fullName.split(" ")[0] ?? session.fullName}
         today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         activeProjects={activeProjects ?? 0}
@@ -932,6 +973,11 @@ export default async function InspectDashboardPage() {
   // dedicated dashboard component above.
   return (
     <AdminDashboard
+        clearancesWidget={
+          <Suspense fallback={null}>
+            <ExpiringClearancesCard />
+          </Suspense>
+        }
       firstName={session.fullName.split(" ")[0] ?? session.fullName}
       today={today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       activeProjects={activeProjects ?? 0}

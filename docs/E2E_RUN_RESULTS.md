@@ -1,0 +1,317 @@
+# E2E run results (read-only Playwright suite)
+
+Suite: `apps/web/e2e` (see `apps/web/e2e/README.md`). Target: `https://jags-qmp-client-dev.vercel.app`.
+Browser: Chromium via `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` (`executablePath`), one worker.
+Run date: 2026-10-07. Branch point: dev `bb8953b`.
+
+This file records one real run, failures and skipped tests included. Nothing was loosened to make it
+green.
+
+## Headline
+
+**230 tests: 164 passed, 15 failed, 51 skipped.** (Wall time about 66 minutes.)
+
+| Spec | Pass | Fail | Skipped | Verdict |
+|---|---|---|---|---|
+| 01 login (all 7 roles + signed-out checks) | 13 | 0 | 0 | Solid |
+| 02 role-based access | 47 | 0 | 0 | Solid |
+| 03 key list pages per role | 83 | 1 | 16 | Admin, Scoped Inspector, Client, Subcontractor, Contractor, TPI all clean. Inspector blocked by one timeout (below) |
+| 04 read-only walk | 21 | 14 | 35 | Admin fully green. Inspector and Scoped Inspector partly red. Client, Subcontractor, Contractor, TPI **not evaluated** (sign-in hung) |
+
+## What the run established
+
+- **Login and landing pages**: all 7 demo accounts sign in; the JAGS Admin lands on `/platform`, every other role on `/inspect`.
+- **Access control**: the Inspector, Scoped Inspector, Client, Subcontractor, Contractor and TPI are all redirected to `/inspect` from `/inspect/organisation/usage`, `/inspect/organisation/staff-access` and `/platform`; only the Admin opens them. Non-staff roles are redirected from `start-work` and `settings`; Subcontractor/Contractor/TPI from the handover portal. For each restricted role a project it has no grant on (probe: `b5c0acb4-...`, role sees 3 or 6 of 39 projects) is not reachable by URL. Note: there is no `/staff-access` route; it is a 404 for everyone. The real page is `/inspect/organisation/staff-access`.
+- **No writes**: every spec asserts that no server action or non-GET `/api` request was made; all of those assertions passed.
+- **Admin walk** (project -> ITP -> checklist -> inspection -> NCR -> vault -> handover): all stages opened without error text. The vault *document* page was not exercised (no document in the folders checked), recorded as a skipped step.
+
+## Failures and what they mean (not hidden)
+
+1. **Inspector, `/inspect` dashboard: `page.goto` timed out after 45 s** (03). Every other Inspector list page in that block was then skipped (the block is serial). Cause not established: later Inspector walk steps loaded normally, so it looks like slowness rather than a broken page, but it was not reproduced.
+2. **Inspector and Scoped Inspector, walk steps 1b/1c (project tabs, sub-pages): 90 s test timeout.** The test budget (11 tabs) was too small for this slow site; the budget has since been raised to 240 s in `04-walk.spec.ts` and **has not been re-run**.
+3. **Inspector, steps 2/3 ("target discovery crashed")**: a navigation timed out (45 s) during link discovery; consequence of the same slowness.
+4. **Inspector step 4 (inspection page): 45 s navigation timeout.**
+5. **Inspector step 5 (NCR) and Scoped Inspector step 3 (checklist): the page rendered "Page not found"** for an id that was discovered from a link the same role could see. **This could be a real defect** (a visible link whose target the role cannot open) or a transient database timeout surfaced as a not-found page. It was not reproduced because of item 6.
+6. **Client, Subcontractor, Main contractor, TPI walks: not evaluated.** Sign-in sat on "Signing in..." for 60 s (screenshot captured) and then timed out. By then `/api/health` reported `{"status":"error","checks":{"database":"ok","storage":"error","worker":"ok"}}` on the dev site, and it stayed that way for the rest of the session. Two later retries (fresh sessions, 100 s pause) failed the same way. These roles passed login, access and list-page tests earlier in the same run, so this is a site-side problem that appeared mid-run (storage health degraded; the roughly 120 sign-ins made by this session may also have contributed to auth-side rate limiting, which was not confirmed), not evidence about those roles' pages.
+
+## Environment findings
+
+- The deployment firewall (Vercel) answers **403 to Playwright's node-side `request` client** while real browser navigation is allowed; the health check is therefore performed through the browser.
+- The browser console shows `[Report Only] Refused to frame 'https://vercel.live/'` (Content-Security-Policy `frame-src`) on every page load. It is report-only and harmless, recorded for awareness.
+- `/api/health` storage check was in `error` at the end of the session.
+
+## Not run / not covered
+
+- Re-run of the walk for Inspector, Scoped Inspector, Client, Subcontractor, Contractor, TPI after the site recovers (command: `pnpm --filter @jags/web e2e -- tests/04-walk.spec.ts`).
+- Vault document page (no document found in the folders the walk checked).
+- Anything that mutates data (by design).
+
+## Full per-test results
+
+Generated by `node e2e/scripts/summarize-results.mjs` from the run's `results.json`.
+
+**230 tests: 164 passed, 15 failed, 51 skipped.**
+
+Run started 2026-10-07T15:50:57.789Z; wall time 3984 s.
+
+### 01-login.spec.ts  (13 pass, 0 fail, 0 skipped)
+
+| Group | Test | Result | Detail |
+|---|---|---|---|
+|  | login as JAGS Admin (admin@jagsassurance.local) lands on /platform | pass |  |
+|  | login as JAGS Inspector (inspector@jagsassurance.local) lands on /inspect | pass |  |
+|  | login as JAGS Inspector (project-scoped) (inspector.scoped@jagsassurance.local) lands on /inspect | pass |  |
+|  | login as Client (client@meridian.demo) lands on /inspect | pass |  |
+|  | login as Subcontractor (subcontractor@voltway.demo) lands on /inspect | pass |  |
+|  | login as Main contractor (contractor@gfl.demo) lands on /inspect | pass |  |
+|  | login as TPI / lab (tpi@bureauveritas.demo) lands on /inspect | pass |  |
+| signed out | login page renders the sign-in form | pass |  |
+| signed out | /inspect redirects to /login and keeps the deep link | pass |  |
+| signed out | /inspect/projects redirects to /login and keeps the deep link | pass |  |
+| signed out | /inspect/ncrs redirects to /login and keeps the deep link | pass |  |
+| signed out | /platform redirects to /login and keeps the deep link | pass |  |
+| signed out | health endpoint is reachable without a session | pass |  |
+
+### 02-access.spec.ts  (47 pass, 0 fail, 0 skipped)
+
+| Group | Test | Result | Detail |
+|---|---|---|---|
+| JAGS Admin | can open /inspect/organisation/usage | pass |  |
+| JAGS Admin | can open /inspect/organisation/staff-access | pass |  |
+| JAGS Admin | can open /platform | pass |  |
+| JAGS Admin | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| JAGS Admin | no write requests were made | pass |  |
+| JAGS Inspector | is redirected away from /inspect/organisation/usage | pass |  |
+| JAGS Inspector | is redirected away from /inspect/organisation/staff-access | pass |  |
+| JAGS Inspector | is redirected away from /platform | pass |  |
+| JAGS Inspector | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| JAGS Inspector | no write requests were made | pass |  |
+| JAGS Inspector (project-scoped) | is redirected away from /inspect/organisation/usage | pass |  |
+| JAGS Inspector (project-scoped) | is redirected away from /inspect/organisation/staff-access | pass |  |
+| JAGS Inspector (project-scoped) | is redirected away from /platform | pass |  |
+| JAGS Inspector (project-scoped) | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| JAGS Inspector (project-scoped) | no write requests were made | pass |  |
+| Client | is redirected away from /inspect/organisation/usage | pass |  |
+| Client | is redirected away from /inspect/organisation/staff-access | pass |  |
+| Client | is redirected away from /platform | pass |  |
+| Client | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| Client | is redirected away from staff-only /inspect/start-work | pass |  |
+| Client | is redirected away from staff-only /inspect/settings | pass |  |
+| Client | no write requests were made | pass |  |
+| Subcontractor | is redirected away from /inspect/organisation/usage | pass |  |
+| Subcontractor | is redirected away from /inspect/organisation/staff-access | pass |  |
+| Subcontractor | is redirected away from /platform | pass |  |
+| Subcontractor | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| Subcontractor | is redirected away from staff-only /inspect/start-work | pass |  |
+| Subcontractor | is redirected away from staff-only /inspect/settings | pass |  |
+| Subcontractor | is redirected away from /inspect/handover (client/staff only) | pass |  |
+| Subcontractor | no write requests were made | pass |  |
+| Main contractor | is redirected away from /inspect/organisation/usage | pass |  |
+| Main contractor | is redirected away from /inspect/organisation/staff-access | pass |  |
+| Main contractor | is redirected away from /platform | pass |  |
+| Main contractor | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| Main contractor | is redirected away from staff-only /inspect/start-work | pass |  |
+| Main contractor | is redirected away from staff-only /inspect/settings | pass |  |
+| Main contractor | is redirected away from /inspect/handover (client/staff only) | pass |  |
+| Main contractor | no write requests were made | pass |  |
+| TPI / lab | is redirected away from /inspect/organisation/usage | pass |  |
+| TPI / lab | is redirected away from /inspect/organisation/staff-access | pass |  |
+| TPI / lab | is redirected away from /platform | pass |  |
+| TPI / lab | /staff-access is not a page for anyone (real route is /inspect/organisation/staff-access) | pass |  |
+| TPI / lab | is redirected away from staff-only /inspect/start-work | pass |  |
+| TPI / lab | is redirected away from staff-only /inspect/settings | pass |  |
+| TPI / lab | is redirected away from /inspect/handover (client/staff only) | pass |  |
+| TPI / lab | no write requests were made | pass |  |
+| cross-project isolation | a project the role is not granted is not reachable by URL | pass |  |
+
+### 03-list-pages.spec.ts  (83 pass, 1 fail, 16 skipped)
+
+| Group | Test | Result | Detail |
+|---|---|---|---|
+| JAGS Admin | Dashboard loads (/inspect) | pass |  |
+| JAGS Admin | Projects loads (/inspect/projects) | pass |  |
+| JAGS Admin | ITP register loads (/inspect/itps) | pass |  |
+| JAGS Admin | Inspections loads (/inspect/inspections) | pass |  |
+| JAGS Admin | NCR register loads (/inspect/ncrs) | pass |  |
+| JAGS Admin | Observations loads (/inspect/observations) | pass |  |
+| JAGS Admin | Document vault loads (/inspect/vault) | pass |  |
+| JAGS Admin | Reports & documents loads (/inspect/reports-documents) | pass |  |
+| JAGS Admin | Standalone assignments loads (/inspect/standalone) | pass |  |
+| JAGS Admin | Notifications loads (/inspect/notifications) | pass |  |
+| JAGS Admin | Guide loads (/inspect/guide) | pass |  |
+| JAGS Admin | Handover portal loads (/inspect/handover) | pass |  |
+| JAGS Admin | Start work loads (/inspect/start-work) | pass |  |
+| JAGS Admin | Settings loads (/inspect/settings) | pass |  |
+| JAGS Admin | Teams loads (/inspect/organisation/teams) | pass |  |
+| JAGS Admin | Client teams loads (/inspect/organisation/client-teams) | pass |  |
+| JAGS Admin | no write requests were made | pass |  |
+| JAGS Inspector | Dashboard loads (/inspect) | FAIL | TimeoutError: page.goto: Timeout 45000ms exceeded. Call log:   - navigating to "https://jags-qmp-client-dev.vercel.app/inspect", waiting until "domcontentloaded"  |
+| JAGS Inspector | Projects loads (/inspect/projects) | skipped |  |
+| JAGS Inspector | ITP register loads (/inspect/itps) | skipped |  |
+| JAGS Inspector | Inspections loads (/inspect/inspections) | skipped |  |
+| JAGS Inspector | NCR register loads (/inspect/ncrs) | skipped |  |
+| JAGS Inspector | Observations loads (/inspect/observations) | skipped |  |
+| JAGS Inspector | Document vault loads (/inspect/vault) | skipped |  |
+| JAGS Inspector | Reports & documents loads (/inspect/reports-documents) | skipped |  |
+| JAGS Inspector | Standalone assignments loads (/inspect/standalone) | skipped |  |
+| JAGS Inspector | Notifications loads (/inspect/notifications) | skipped |  |
+| JAGS Inspector | Guide loads (/inspect/guide) | skipped |  |
+| JAGS Inspector | Handover portal loads (/inspect/handover) | skipped |  |
+| JAGS Inspector | Start work loads (/inspect/start-work) | skipped |  |
+| JAGS Inspector | Settings loads (/inspect/settings) | skipped |  |
+| JAGS Inspector | Teams loads (/inspect/organisation/teams) | skipped |  |
+| JAGS Inspector | Client teams loads (/inspect/organisation/client-teams) | skipped |  |
+| JAGS Inspector | no write requests were made | skipped |  |
+| JAGS Inspector (project-scoped) | Dashboard loads (/inspect) | pass |  |
+| JAGS Inspector (project-scoped) | Projects loads (/inspect/projects) | pass |  |
+| JAGS Inspector (project-scoped) | ITP register loads (/inspect/itps) | pass |  |
+| JAGS Inspector (project-scoped) | Inspections loads (/inspect/inspections) | pass |  |
+| JAGS Inspector (project-scoped) | NCR register loads (/inspect/ncrs) | pass |  |
+| JAGS Inspector (project-scoped) | Observations loads (/inspect/observations) | pass |  |
+| JAGS Inspector (project-scoped) | Document vault loads (/inspect/vault) | pass |  |
+| JAGS Inspector (project-scoped) | Reports & documents loads (/inspect/reports-documents) | pass |  |
+| JAGS Inspector (project-scoped) | Standalone assignments loads (/inspect/standalone) | pass |  |
+| JAGS Inspector (project-scoped) | Notifications loads (/inspect/notifications) | pass |  |
+| JAGS Inspector (project-scoped) | Guide loads (/inspect/guide) | pass |  |
+| JAGS Inspector (project-scoped) | Handover portal loads (/inspect/handover) | pass |  |
+| JAGS Inspector (project-scoped) | Start work loads (/inspect/start-work) | pass |  |
+| JAGS Inspector (project-scoped) | Settings loads (/inspect/settings) | pass |  |
+| JAGS Inspector (project-scoped) | Teams loads (/inspect/organisation/teams) | pass |  |
+| JAGS Inspector (project-scoped) | Client teams loads (/inspect/organisation/client-teams) | pass |  |
+| JAGS Inspector (project-scoped) | no write requests were made | pass |  |
+| Client | Dashboard loads (/inspect) | pass |  |
+| Client | Projects loads (/inspect/projects) | pass |  |
+| Client | ITP register loads (/inspect/itps) | pass |  |
+| Client | Inspections loads (/inspect/inspections) | pass |  |
+| Client | NCR register loads (/inspect/ncrs) | pass |  |
+| Client | Observations loads (/inspect/observations) | pass |  |
+| Client | Document vault loads (/inspect/vault) | pass |  |
+| Client | Reports & documents loads (/inspect/reports-documents) | pass |  |
+| Client | Standalone assignments loads (/inspect/standalone) | pass |  |
+| Client | Notifications loads (/inspect/notifications) | pass |  |
+| Client | Guide loads (/inspect/guide) | pass |  |
+| Client | Handover portal loads (/inspect/handover) | pass |  |
+| Client | no write requests were made | pass |  |
+| Subcontractor | Dashboard loads (/inspect) | pass |  |
+| Subcontractor | Projects loads (/inspect/projects) | pass |  |
+| Subcontractor | ITP register loads (/inspect/itps) | pass |  |
+| Subcontractor | Inspections loads (/inspect/inspections) | pass |  |
+| Subcontractor | NCR register loads (/inspect/ncrs) | pass |  |
+| Subcontractor | Observations loads (/inspect/observations) | pass |  |
+| Subcontractor | Document vault loads (/inspect/vault) | pass |  |
+| Subcontractor | Reports & documents loads (/inspect/reports-documents) | pass |  |
+| Subcontractor | Standalone assignments loads (/inspect/standalone) | pass |  |
+| Subcontractor | Notifications loads (/inspect/notifications) | pass |  |
+| Subcontractor | Guide loads (/inspect/guide) | pass |  |
+| Subcontractor | no write requests were made | pass |  |
+| Main contractor | Dashboard loads (/inspect) | pass |  |
+| Main contractor | Projects loads (/inspect/projects) | pass |  |
+| Main contractor | ITP register loads (/inspect/itps) | pass |  |
+| Main contractor | Inspections loads (/inspect/inspections) | pass |  |
+| Main contractor | NCR register loads (/inspect/ncrs) | pass |  |
+| Main contractor | Observations loads (/inspect/observations) | pass |  |
+| Main contractor | Document vault loads (/inspect/vault) | pass |  |
+| Main contractor | Reports & documents loads (/inspect/reports-documents) | pass |  |
+| Main contractor | Standalone assignments loads (/inspect/standalone) | pass |  |
+| Main contractor | Notifications loads (/inspect/notifications) | pass |  |
+| Main contractor | Guide loads (/inspect/guide) | pass |  |
+| Main contractor | no write requests were made | pass |  |
+| TPI / lab | Dashboard loads (/inspect) | pass |  |
+| TPI / lab | Projects loads (/inspect/projects) | pass |  |
+| TPI / lab | ITP register loads (/inspect/itps) | pass |  |
+| TPI / lab | Inspections loads (/inspect/inspections) | pass |  |
+| TPI / lab | NCR register loads (/inspect/ncrs) | pass |  |
+| TPI / lab | Observations loads (/inspect/observations) | pass |  |
+| TPI / lab | Document vault loads (/inspect/vault) | pass |  |
+| TPI / lab | Reports & documents loads (/inspect/reports-documents) | pass |  |
+| TPI / lab | Standalone assignments loads (/inspect/standalone) | pass |  |
+| TPI / lab | Notifications loads (/inspect/notifications) | pass |  |
+| TPI / lab | Guide loads (/inspect/guide) | pass |  |
+| TPI / lab | no write requests were made | pass |  |
+
+### 04-walk.spec.ts  (21 pass, 14 fail, 35 skipped)
+
+| Group | Test | Result | Detail |
+|---|---|---|---|
+| JAGS Admin | 1. project hub opens | pass |  |
+| JAGS Admin | 1b. project tabs open | pass |  |
+| JAGS Admin | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | pass |  |
+| JAGS Admin | 2. ITP page, checklists list, completion and approval roadmaps open | pass |  |
+| JAGS Admin | 3. checklist page opens | pass |  |
+| JAGS Admin | 4. inspection page opens | pass |  |
+| JAGS Admin | 5. NCR page opens | pass |  |
+| JAGS Admin | 6. vault folder and document page open | pass |  |
+| JAGS Admin | 7. handover: portal (staff/client) and data book open | pass |  |
+| JAGS Admin | no write requests were made during the walk | pass |  |
+| JAGS Inspector | 1. project hub opens | pass |  |
+| JAGS Inspector | 1b. project tabs open | FAIL | Test timeout of 90000ms exceeded. |
+| JAGS Inspector | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | FAIL | Test timeout of 90000ms exceeded. |
+| JAGS Inspector | 2. ITP page, checklists list, completion and approval roadmaps open | FAIL | Error: target discovery crashed  expect(received).toBeNull()  |
+| JAGS Inspector | 3. checklist page opens | FAIL | Error: target discovery crashed  expect(received).toBeNull()  |
+| JAGS Inspector | 4. inspection page opens | FAIL | TimeoutError: page.goto: Timeout 45000ms exceeded. Call log:   - navigating to "https://jags-qmp-client-dev.vercel.app/inspect/inspections/88a3a5c7-0d01-4580-84ee-7b4d8d445670", waiting until "domcontentloaded"  |
+| JAGS Inspector | 5. NCR page opens | FAIL | Error: error text rendered on NCR (h1 "Page not found")  expect(received).toBeNull()  |
+| JAGS Inspector | 6. vault folder and document page open | pass |  |
+| JAGS Inspector | 7. handover: portal (staff/client) and data book open | pass |  |
+| JAGS Inspector | no write requests were made during the walk | pass |  |
+| JAGS Inspector (project-scoped) | 1. project hub opens | pass |  |
+| JAGS Inspector (project-scoped) | 1b. project tabs open | FAIL | Test timeout of 90000ms exceeded. |
+| JAGS Inspector (project-scoped) | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | FAIL | Test timeout of 90000ms exceeded. |
+| JAGS Inspector (project-scoped) | 2. ITP page, checklists list, completion and approval roadmaps open | pass |  |
+| JAGS Inspector (project-scoped) | 3. checklist page opens | FAIL | Error: error text rendered on checklist (h1 "Page not found")  expect(received).toBeNull()  |
+| JAGS Inspector (project-scoped) | 4. inspection page opens | pass |  |
+| JAGS Inspector (project-scoped) | 5. NCR page opens | pass |  |
+| JAGS Inspector (project-scoped) | 6. vault folder and document page open | pass |  |
+| JAGS Inspector (project-scoped) | 7. handover: portal (staff/client) and data book open | pass |  |
+| JAGS Inspector (project-scoped) | no write requests were made during the walk | pass |  |
+| Client | 1. project hub opens | FAIL | Error: target discovery crashed  expect(received).toBeNull()  |
+| Client | 1b. project tabs open | FAIL | TimeoutError: page.goto: Timeout 45000ms exceeded. Call log:   - navigating to "https://jags-qmp-client-dev.vercel.app/inspect", waiting until "domcontentloaded"  |
+| Client | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | skipped |  |
+| Client | 2. ITP page, checklists list, completion and approval roadmaps open | skipped |  |
+| Client | 3. checklist page opens | skipped |  |
+| Client | 4. inspection page opens | skipped |  |
+| Client | 5. NCR page opens | skipped |  |
+| Client | 6. vault folder and document page open | skipped |  |
+| Client | 7. handover: portal (staff/client) and data book open | skipped |  |
+| Client | no write requests were made during the walk | skipped |  |
+| Subcontractor | 1. project hub opens | FAIL | TimeoutError: page.waitForURL: Timeout 60000ms exceeded. =========================== logs =========================== waiting for navigation until "load" ============================================================ |
+| Subcontractor | 1b. project tabs open | skipped |  |
+| Subcontractor | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | skipped |  |
+| Subcontractor | 2. ITP page, checklists list, completion and approval roadmaps open | skipped |  |
+| Subcontractor | 3. checklist page opens | skipped |  |
+| Subcontractor | 4. inspection page opens | skipped |  |
+| Subcontractor | 5. NCR page opens | skipped |  |
+| Subcontractor | 6. vault folder and document page open | skipped |  |
+| Subcontractor | 7. handover: portal (staff/client) and data book open | skipped |  |
+| Subcontractor | no write requests were made during the walk | skipped |  |
+| Main contractor | 1. project hub opens | FAIL | TimeoutError: page.waitForURL: Timeout 60000ms exceeded. =========================== logs =========================== waiting for navigation until "load" ============================================================ |
+| Main contractor | 1b. project tabs open | skipped |  |
+| Main contractor | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | skipped |  |
+| Main contractor | 2. ITP page, checklists list, completion and approval roadmaps open | skipped |  |
+| Main contractor | 3. checklist page opens | skipped |  |
+| Main contractor | 4. inspection page opens | skipped |  |
+| Main contractor | 5. NCR page opens | skipped |  |
+| Main contractor | 6. vault folder and document page open | skipped |  |
+| Main contractor | 7. handover: portal (staff/client) and data book open | skipped |  |
+| Main contractor | no write requests were made during the walk | skipped |  |
+| TPI / lab | 1. project hub opens | FAIL | TimeoutError: page.waitForURL: Timeout 60000ms exceeded. =========================== logs =========================== waiting for navigation until "load" ============================================================ |
+| TPI / lab | 1b. project tabs open | skipped |  |
+| TPI / lab | 1c. project sub-pages open (reports, data book, registers, activity, KPIs, punch list) | skipped |  |
+| TPI / lab | 2. ITP page, checklists list, completion and approval roadmaps open | skipped |  |
+| TPI / lab | 3. checklist page opens | skipped |  |
+| TPI / lab | 4. inspection page opens | skipped |  |
+| TPI / lab | 5. NCR page opens | skipped |  |
+| TPI / lab | 6. vault folder and document page open | skipped |  |
+| TPI / lab | 7. handover: portal (staff/client) and data book open | skipped |  |
+| TPI / lab | no write requests were made during the walk | skipped |  |
+
+### Annotations recorded during the run
+
+- cross-project isolation > a project the role is not granted is not reachable by URL: isolation: JAGS Inspector (project-scoped): sees 6/39 projects; probing b5c0acb4-c895-40b8-b85c-a719c54602a7
+- cross-project isolation > a project the role is not granted is not reachable by URL: isolation: Client: sees 6/39 projects; probing b5c0acb4-c895-40b8-b85c-a719c54602a7
+- cross-project isolation > a project the role is not granted is not reachable by URL: isolation: Subcontractor: sees 3/39 projects; probing b5c0acb4-c895-40b8-b85c-a719c54602a7
+- cross-project isolation > a project the role is not granted is not reachable by URL: isolation: Main contractor: sees 3/39 projects; probing b5c0acb4-c895-40b8-b85c-a719c54602a7
+- cross-project isolation > a project the role is not granted is not reachable by URL: isolation: TPI / lab: sees 6/39 projects; probing b5c0acb4-c895-40b8-b85c-a719c54602a7
+- JAGS Admin > 6. vault folder and document page open: skipped-step: vault document page: no document in the folders checked
+- JAGS Inspector > 6. vault folder and document page open: skipped-step: vault document page: no document in the folders checked
+- JAGS Inspector (project-scoped) > 6. vault folder and document page open: skipped-step: vault document page: no document in the folders checked
+- Browser console error seen on 96 page load(s): [Report Only] Refused to frame 'https://vercel.live/' because it violates the following Content Security Policy directive: "frame-src 'self' https://qbappyddqdnbwbhbzwei.supabase.co".

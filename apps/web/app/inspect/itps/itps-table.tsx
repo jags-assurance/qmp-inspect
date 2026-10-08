@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import { ITP_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
 import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
@@ -32,6 +33,8 @@ export const ITP_STATUS_TONE: Record<string, "success" | "warning" | "neutral" |
   under_review: "warning",
   approved: "gold",
   client_accepted: "success",
+  superseded: "neutral",
+  withdrawn: "neutral",
 };
 
 export const ITP_STATUS_LABEL: Record<string, string> = {
@@ -39,6 +42,8 @@ export const ITP_STATUS_LABEL: Record<string, string> = {
   under_review: "Under review",
   approved: "Approved",
   client_accepted: "Client accepted",
+  superseded: "Superseded",
+  withdrawn: "Withdrawn",
 };
 
 function buildColumns(hrefFor: (id: string) => string, selectedId: string | null): DataTableColumn<ItpRow>[] {
@@ -124,7 +129,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
  * just the current page, search text and page number both live in the URL (`q`, `page`). Falls
  * back to the original all-client-side behavior when `totalCount` is omitted.
  */
-export function ItpsTable({ rows, totalCount }: { rows: ItpRow[]; totalCount?: number }) {
+export function ItpsTable({ rows, totalCount, locale }: { rows: ItpRow[]; totalCount?: number; locale?: SupportedLocale }) {
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("itp");
   const columns = useMemo(
@@ -143,6 +148,7 @@ export function ItpsTable({ rows, totalCount }: { rows: ItpRow[]; totalCount?: n
   return (
     <DataTable
       columns={columns}
+      locale={locale}
       rows={rows}
       caption="Inspection and test plans"
       mobileCards

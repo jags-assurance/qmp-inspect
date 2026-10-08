@@ -1,10 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { ORGANIZATION_MODULE_LICENSES_TABLE, MODULE_KEYS, type ModuleKey } from "./types";
+import { licenseCacheTag } from "./license-map";
 
 export interface ModuleLicenseState {
   error: string | null;
@@ -64,6 +65,8 @@ export async function setModuleLicenseAction(
     });
   }
 
+  // Drop the cached licence map for this org (lib/module-licensing/cache.ts) so the change applies at once.
+  revalidateTag(licenseCacheTag(organizationId), { expire: 0 });
   revalidatePath(SETTINGS_PATH);
   return { error: null };
 }

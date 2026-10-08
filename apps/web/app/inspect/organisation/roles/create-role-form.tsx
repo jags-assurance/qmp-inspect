@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createCustomRoleAction, type RbacActionState } from "@/lib/rbac/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: RbacActionState = { error: null };
 
@@ -24,26 +25,21 @@ export function CreateRoleForm({
   return (
     <form action={formAction} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
       <div>
-        <label htmlFor="role_name" className="block text-sm font-medium text-ink">
-          Role name
-        </label>
-        <input
-          id="role_name"
+        <FormField label="Role name">
+          <input
           name="name"
           required
           placeholder="e.g. Project Coordinator"
           className="mt-1 w-56 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
       {lockedOrganizationId ? (
         <input type="hidden" name="organization_id" value={lockedOrganizationId} />
       ) : (
         <div>
-          <label htmlFor="role_org" className="block text-sm font-medium text-ink">
-            Scope
-          </label>
-          <select
-            id="role_org"
+          <FormField label="Scope">
+            <select
             name="organization_id"
             className="mt-1 w-56 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
@@ -54,6 +50,7 @@ export function CreateRoleForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
       <Button type="submit" disabled={pending}>

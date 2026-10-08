@@ -1,5 +1,5 @@
 "use client";
-import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
+import { renderingLabel, jobStatusText, isPdfStale } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect } from "react";
 import {
@@ -20,7 +20,16 @@ const STATUS_LABEL: Record<NcrPdfStatus["status"], string> = {
 };
 
 /** Same trigger/poll/View+Download pattern as FatReportPdfButton — see lib/reports/use-pdf-polling.ts. */
-export function NcrPdfButton({ ncrId, latest }: { ncrId: string; latest: NcrPdfStatus | null }) {
+export function NcrPdfButton({
+  ncrId,
+  latest,
+  changedAt = null,
+}: {
+  ncrId: string;
+  latest: NcrPdfStatus | null;
+  /** The NCR's last modification: a report rendered before this describes an older state. */
+  changedAt?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(requestNcrPdfAction, initialState);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrPdf, ncrId);
 
@@ -62,6 +71,11 @@ export function NcrPdfButton({ ncrId, latest }: { ncrId: string; latest: NcrPdfS
           </button>
         </form>
       </div>
+      {liveStatus?.status === "completed" && !polling && isPdfStale(liveStatus.createdAt, changedAt) && (
+        <p className="text-xs font-medium text-warning" role="status">
+          This PDF was generated before the latest change to this NCR - regenerate it.
+        </p>
+      )}
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
       {timedOut && (
@@ -71,7 +85,8 @@ export function NcrPdfButton({ ncrId, latest }: { ncrId: string; latest: NcrPdfS
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {jobStatusText(liveStatus)}
+          {jobStatusText(liveStatus)}
+
         </p>
       )}
     </div>

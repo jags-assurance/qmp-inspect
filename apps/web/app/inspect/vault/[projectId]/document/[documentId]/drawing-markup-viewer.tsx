@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { createDrawingMarkupAction } from "@/lib/drawing-markups/actions";
 import { DRAWING_MARKUP_TYPE_LABELS, type DrawingMarkupRow, type DrawingMarkupType } from "@/lib/drawing-markups/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FormField } from "@/components/ui/form-field";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 
@@ -99,6 +100,45 @@ export function DrawingMarkupViewer({
     setError(null);
   }
 
+  function startPin(x: number, y: number) {
+    setSelectedMarkup(null);
+    setPendingPin({ x, y });
+    setLabel("");
+    setMarkupType("note");
+    setLinkedNcrId("");
+    setError(null);
+  }
+
+  // Keyboard path (no pointer): Enter/Space drops a pin at the centre, arrow keys nudge the pending
+  // pin (Shift = bigger steps), Escape cancels it. The label form is then reached with Tab.
+  function handleDrawingKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return;
+    const step = e.shiftKey ? 0.1 : 0.02;
+    const move: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    if (e.key in move) {
+      e.preventDefault();
+      const [dx, dy] = move[e.key];
+      const base = pendingPin ?? { x: 0.5, y: 0.5 };
+      startPinAt(Math.min(1, Math.max(0, base.x + dx)), Math.min(1, Math.max(0, base.y + dy)), !pendingPin);
+    } else if ((e.key === "Enter" || e.key === " ") && !pendingPin) {
+      e.preventDefault();
+      startPin(0.5, 0.5);
+    } else if (e.key === "Escape" && pendingPin) {
+      e.preventDefault();
+      setPendingPin(null);
+    }
+  }
+
+  function startPinAt(x: number, y: number, fresh: boolean) {
+    if (fresh) startPin(x, y);
+    else setPendingPin({ x, y });
+  }
+
   async function handleSavePin() {
     if (!pendingPin) return;
     if (!label.trim()) {
@@ -167,7 +207,13 @@ export function DrawingMarkupViewer({
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="relative inline-block max-w-full rounded-lg border border-border bg-off-white">
+      <div
+        tabIndex={0}
+        role="group"
+        aria-label="Drawing. Press Enter to place a pin at the centre, then use the arrow keys to move it (Shift for larger steps), then Tab to the label form. Escape cancels."
+        onKeyDown={handleDrawingKeyDown}
+        className="relative inline-block max-w-full rounded-lg border border-border bg-off-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-burgundy"
+      >
         {signedUrl ? (
           <img
             src={signedUrl}
@@ -189,6 +235,7 @@ export function DrawingMarkupViewer({
               setSelectedMarkup(m);
             }}
             title={m.label}
+            aria-label={`${DRAWING_MARKUP_TYPE_LABELS[m.markup_type]} pin: ${m.label}`}
             style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
             className="absolute -translate-x-1/2 -translate-y-full text-xl leading-none drop-shadow"
           >
@@ -199,6 +246,8 @@ export function DrawingMarkupViewer({
         {pendingPin && (
           <div
             style={{ left: `${pendingPin.x * 100}%`, top: `${pendingPin.y * 100}%` }}
+            role="img"
+            aria-label={`Pending pin at ${Math.round(pendingPin.x * 100)}% across, ${Math.round(pendingPin.y * 100)}% down`}
             className="absolute -translate-x-1/2 -translate-y-full text-xl leading-none text-burgundy drop-shadow"
           >
             📍
@@ -211,23 +260,18 @@ export function DrawingMarkupViewer({
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink">+ Add pin</h2>
             <div className="mt-3">
-              <label htmlFor="pin-label" className="block text-xs text-muted">
-                Label
-              </label>
-              <input
-                id="pin-label"
+              <FormField label="Label">
+                <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="e.g. Hold point at this valve"
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
               />
+              </FormField>
             </div>
             <div className="mt-3">
-              <label htmlFor="pin-ncr" className="block text-xs text-muted">
-                Link to an NCR (optional)
-              </label>
-              <select
-                id="pin-ncr"
+              <FormField label="Link to an NCR (optional)">
+                <select
                 value={linkedNcrId}
                 onChange={(e) => setLinkedNcrId(e.target.value)}
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -239,14 +283,12 @@ export function DrawingMarkupViewer({
                   </option>
                 ))}
               </select>
+              </FormField>
             </div>
             {!linkedNcrId && (
               <div className="mt-3">
-                <label htmlFor="pin-type" className="block text-xs text-muted">
-                  Type
-                </label>
-                <select
-                  id="pin-type"
+                <FormField label="Type">
+                  <select
                   value={markupType}
                   onChange={(e) => setMarkupType(e.target.value as DrawingMarkupType)}
                   className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -254,9 +296,10 @@ export function DrawingMarkupViewer({
                   <option value="note">Note</option>
                   <option value="photo">Photo</option>
                 </select>
+                </FormField>
               </div>
             )}
-            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+            <div role="alert">{error && <p className="mt-2 text-sm text-danger">{error}</p>}</div>
             <div className="mt-3 flex gap-2">
               <Button size="sm" onClick={handleSavePin} disabled={saving}>
                 {saving ? "Saving…" : "Drop pin"}
@@ -288,7 +331,9 @@ export function DrawingMarkupViewer({
         )}
 
         {!pendingPin && !selectedMarkup && (
-          <p className="text-sm text-muted">Click a point on the drawing to drop a labeled pin.</p>
+          <p className="text-sm text-muted">
+            Click a point on the drawing to drop a labeled pin. Keyboard: focus the drawing, press Enter, then use the arrow keys to position the pin.
+          </p>
         )}
 
         {markups.length > 0 && (

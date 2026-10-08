@@ -69,3 +69,28 @@ export function hasMandatoryNa(items: EvidenceItem[], responses: EvidenceRespons
   const byId = new Map(items.map((i) => [i.id, i]));
   return responses.some((r) => r.result === "na" && byId.get(r.checklist_item_id)?.is_mandatory);
 }
+
+/**
+ * What evidence this item needs given its current answer, for showing it BEFORE completion (the
+ * completion check uses the same rules via itemsMissingEvidence / mandatoryNaWithoutComment).
+ * Returns null when nothing is required.
+ */
+export function evidenceRequirementHint(
+  isMandatory: boolean,
+  result: ChecklistResponseResult | null,
+  hasPhotoOrDoc: boolean
+): { text: string; met: boolean } | null {
+  if (!result) return null;
+  if (result === "na") {
+    return isMandatory
+      ? { text: `Mandatory item: N/A needs a comment of at least ${MIN_NA_COMMENT_LENGTH} characters, and the inspection cannot pass with it.`, met: false }
+      : null;
+  }
+  if (result === "no" || isMandatory) {
+    return {
+      text: hasPhotoOrDoc ? "Evidence attached." : "Evidence required: attach a photo or a document to this item before completing.",
+      met: hasPhotoOrDoc,
+    };
+  }
+  return null;
+}

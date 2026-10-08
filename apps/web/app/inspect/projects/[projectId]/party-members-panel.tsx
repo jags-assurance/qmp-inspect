@@ -88,7 +88,7 @@ export function PartyMembersPanel({
           Close
         </button>
       </div>
-      <p className="mt-1 text-[11px] text-muted">
+      <p className="mt-1 text-xs text-muted">
         {accessMode === "whole_org"
           ? "Anyone added below gets this party's standard access automatically."
           : "Only the people listed below get access — nobody else is implied."}

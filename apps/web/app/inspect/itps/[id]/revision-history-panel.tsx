@@ -1,3 +1,4 @@
+import { diffRevisions, type RevisionDiff } from "@/lib/itps/revision-diff";
 import type { ItpRevisionRow, ItpRevisionSnapshotItem, ItpRevisionSnapshotSection } from "@/lib/itps/revision-types";
 
 const EVIDENCE_LABEL: Record<number, string> = {
@@ -43,6 +44,59 @@ function changeSummary(item: ItpRevisionSnapshotItem, previous: ItpRevisionSnaps
     changed.push("sign-off levels");
   }
   return changed.length > 0 ? `changed: ${changed.join(", ")}` : null;
+}
+
+/** S2-18: what changed between this revision and the one before it, old -> new. */
+function RevisionDiffBlock({ diff, olderRevision }: { diff: RevisionDiff; olderRevision: number }) {
+  return (
+    <div className="mt-3 rounded-md border border-border bg-off-white p-3 text-xs" data-testid="revision-diff">
+      <p className="font-medium uppercase tracking-wide text-muted">Changes since Rev {olderRevision}</p>
+      {diff.isEmpty ? (
+        <p className="mt-1 text-muted">No content differences were recorded.</p>
+      ) : (
+        <ul className="mt-1 space-y-1 text-ink">
+          {diff.headerChanges.map((c) => (
+            <li key={c.field}>
+              {c.label}: <del className="text-muted">{c.before}</del> <ins className="no-underline font-medium">{c.after}</ins>
+            </li>
+          ))}
+          {diff.addedSections.map((s) => (
+            <li key={`as-${s.number}-${s.title}`}>+ Section {s.number}. {s.title}</li>
+          ))}
+          {diff.removedSections.map((s) => (
+            <li key={`rs-${s.number}-${s.title}`}>- Section {s.number}. {s.title}</li>
+          ))}
+          {diff.renamedSections.map((s) => (
+            <li key={`ns-${s.number}`}>
+              Section {s.number}: <del className="text-muted">{s.before}</del> <ins className="no-underline font-medium">{s.after}</ins>
+            </li>
+          ))}
+          {diff.addedItems.map((i) => (
+            <li key={`ai-${i.id}`}>
+              + <span className="doc-id">{i.itemNumber}</span> {i.activity} <span className="text-muted">({i.section})</span>
+            </li>
+          ))}
+          {diff.removedItems.map((i) => (
+            <li key={`ri-${i.id}`}>
+              - <span className="doc-id">{i.itemNumber}</span> {i.activity} <span className="text-muted">({i.section})</span>
+            </li>
+          ))}
+          {diff.changedItems.map((i) => (
+            <li key={`ci-${i.id}`}>
+              <span className="doc-id">{i.itemNumber}</span> {i.activity}
+              <ul className="ml-3 list-disc text-muted">
+                {i.changes.map((c) => (
+                  <li key={c.field}>
+                    {c.label}: <del>{c.before}</del> <ins className="no-underline font-medium text-ink">{c.after}</ins>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -98,7 +152,8 @@ export function RevisionHistoryPanel({
                   </span>
                 </summary>
                 <div className="border-t border-border px-3 py-3 text-sm">
-                  <p className="text-ink">{rev.title}</p>
+                  {older && <RevisionDiffBlock diff={diffRevisions(older, rev)} olderRevision={older.revision} />}
+                  <p className="mt-3 text-ink">{rev.title}</p>
                   {rev.scope && <p className="mt-0.5 text-xs text-muted">Scope: {rev.scope}</p>}
                   {rev.applicable_standard && <p className="mt-0.5 text-xs text-muted">{rev.applicable_standard}</p>}
                   <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
@@ -127,7 +182,7 @@ export function RevisionHistoryPanel({
                                 {item.acceptance_criteria ? ` — ${item.acceptance_criteria}` : ""}
                                 {" · "}
                                 {EVIDENCE_LABEL[item.evidence_type] ?? "Checklist"}
-                                {change && <span className="ml-1.5 rounded bg-warning/15 px-1 py-0.5 text-[10px] font-medium text-ink">{change}</span>}
+                                {change && <span className="ml-1.5 rounded bg-warning/15 px-1 py-0.5 text-xs font-medium text-ink">{change}</span>}
                                 {detail.length > 0 && <span className="block">{detail.join(" · ")}</span>}
                                 {(item.interventions ?? []).length > 0 && (
                                   <span className="block">

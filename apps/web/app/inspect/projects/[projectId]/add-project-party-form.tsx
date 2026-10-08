@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { addProjectPartyAction, type AddProjectPartyState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddProjectPartyState = { error: null };
 
@@ -23,11 +24,8 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
       <input type="hidden" name="project_id" value={projectId} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="party_type" className="block text-xs font-medium text-ink">
-            Party type
-          </label>
-          <select
-            id="party_type"
+          <FormField label="Party type">
+            <select
             name="party_type"
             required
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -38,18 +36,17 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
               </option>
             ))}
           </select>
+          </FormField>
         </div>
         <div>
-          <label htmlFor="party_name" className="block text-xs font-medium text-ink">
-            Organisation / company name
-          </label>
-          <input
-            id="party_name"
+          <FormField label="Organisation / company name">
+            <input
             name="name"
             required
             placeholder="e.g. Voltway Electrical Ltd"
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
         <div>
           <label htmlFor="contact_name" className="block text-xs font-medium text-ink">

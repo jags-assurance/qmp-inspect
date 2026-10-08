@@ -6,7 +6,9 @@ import {
   type AddPersonnelCertificationEntryState,
 } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: AddPersonnelCertificationEntryState = { error: null };
 const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -31,6 +33,7 @@ export function AddPersonnelCertificationForm({
   useEffect(() => {
     if (pending) {
       wasPending.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
       setAdded(false);
       return;
     }
@@ -52,10 +55,8 @@ export function AddPersonnelCertificationForm({
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="min-w-40 flex-1">
-        <label htmlFor="project_party_id" className="block text-xs font-medium text-ink">
-          Person
-        </label>
-        <select id="project_party_id" name="project_party_id" required defaultValue="" className={inputClass}>
+        <FormField label="Person">
+          <select name="project_party_id" required defaultValue="" className={inputClass}>
           <option value="" disabled>
             Select…
           </option>
@@ -65,14 +66,13 @@ export function AddPersonnelCertificationForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
 
       {partyMembers.length > 0 && (
         <div className="min-w-40 flex-1">
-          <label htmlFor="holder_user_id" className="block text-xs font-medium text-ink">
-            Named holder (optional)
-          </label>
-          <select id="holder_user_id" name="holder_user_id" defaultValue="" className={inputClass}>
+          <FormField label="Named holder (optional)">
+            <select name="holder_user_id" defaultValue="" className={inputClass}>
             <option value="">Whole party</option>
             {partyMembers.map((m) => (
               <option key={`${m.party_id}-${m.user_id}`} value={m.user_id}>
@@ -80,55 +80,49 @@ export function AddPersonnelCertificationForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
 
       <div className="min-w-40 flex-1">
-        <label htmlFor="certification_type" className="block text-xs font-medium text-ink">
-          Certification
-        </label>
-        <input
-          id="certification_type"
+        <FormField label="Certification">
+          <input
           name="certification_type"
           required
           placeholder="e.g. AWS CWI, ASNT NDT Level II"
           className={inputClass}
         />
+        </FormField>
       </div>
 
       <div className="w-32">
-        <label htmlFor="cert_number" className="block text-xs font-medium text-ink">
-          Cert No.
-        </label>
-        <input id="cert_number" name="cert_number" className={inputClass} />
+        <FormField label="Cert No.">
+          <input name="cert_number" className={inputClass} />
+        </FormField>
       </div>
 
       <div className="w-36">
-        <label htmlFor="issued_date" className="block text-xs font-medium text-ink">
-          Issued date
-        </label>
-        <input
-          id="issued_date"
+        <FormField label="Issued date">
+          <input
           name="issued_date"
           type="date"
           value={issuedDate}
           onChange={(e) => setIssuedDate(e.target.value)}
           className={inputClass}
         />
+        </FormField>
       </div>
 
       <div className="w-36">
-        <label htmlFor="expiry_date" className="block text-xs font-medium text-ink">
-          Expiry date
-        </label>
-        <input id="expiry_date" name="expiry_date" type="date" required min={issuedDate || undefined} className={inputClass} />
+        <FormField label="Expiry date">
+          <input name="expiry_date" type="date" required min={issuedDate || undefined} className={inputClass} />
+        </FormField>
       </div>
 
       <div className="min-w-40 flex-1">
-        <label htmlFor="cert_notes" className="block text-xs font-medium text-ink">
-          Notes
-        </label>
-        <input id="cert_notes" name="notes" className={inputClass} />
+        <FormField label="Notes">
+          <input name="notes" className={inputClass} />
+        </FormField>
       </div>
 
       <CertificateUpload key={formKey} projectId={projectId} kind="personnel" />
@@ -137,8 +131,8 @@ export function AddPersonnelCertificationForm({
         {pending ? "Adding…" : "+ Add certification"}
       </Button>
 
-      {added && <p className="text-sm text-green-700">Added</p>}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
+      <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />
     </form>
   );
 }

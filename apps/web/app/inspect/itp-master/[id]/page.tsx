@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import {
   ITP_MASTER_TEMPLATES_TABLE,
   ITP_MASTER_SECTIONS_TABLE,
@@ -97,6 +98,26 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
     .limit(20)
     .returns<{ id: string; action: string; summary: string; created_at: string; users: { full_name: string } | null }[]>();
 
+  type MasterItem = NonNullable<NonNullable<typeof sections>[number]["itp_master_items"]>[number];
+  const itemColumns: ResponsiveColumn<MasterItem>[] = [
+    { key: "item", header: "Item", tdClassName: "doc-id text-ink", render: (item) => item.item_number },
+    { key: "activity", header: "Activity", tdClassName: "text-ink", render: (item) => item.activity },
+    { key: "criteria", header: "Acceptance criteria", tdClassName: "text-muted", render: (item) => item.acceptance_criteria ?? "—" },
+    { key: "evidence", header: "Evidence", tdClassName: "text-muted", render: (item) => EVIDENCE_LABEL[item.evidence_type] },
+    {
+      key: "levels",
+      header: "Default sign-off levels",
+      render: (item) => (
+        <DefaultLevels
+          templateId={template.id}
+          masterItemId={item.id}
+          defaults={defaultsByItem.get(item.id) ?? {}}
+          editable={canEditDefaults}
+        />
+      ),
+    },
+  ];
+
   return (
     <div>
       <SettingsBackLink href="/inspect/itp-master" label="Master ITP Library" />
@@ -147,46 +168,15 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
                 {section.section_number}. {section.title}
               </h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted">
-                    <th className="px-3 py-2 font-medium">Item</th>
-                    <th className="px-3 py-2 font-medium">Activity</th>
-                    <th className="px-3 py-2 font-medium">Acceptance criteria</th>
-                    <th className="px-3 py-2 font-medium">Evidence</th>
-                    <th className="px-3 py-2 font-medium">Default sign-off levels</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...(section.itp_master_items ?? [])]
-                    .sort((a, b) => a.sort_order - b.sort_order)
-                    .map((item) => (
-                      <tr key={item.id} className="border-b border-border last:border-0">
-                        <td className="doc-id px-3 py-2 text-ink">{item.item_number}</td>
-                        <td className="px-3 py-2 text-ink">{item.activity}</td>
-                        <td className="px-3 py-2 text-muted">{item.acceptance_criteria ?? "—"}</td>
-                        <td className="px-3 py-2 text-muted">{EVIDENCE_LABEL[item.evidence_type]}</td>
-                        <td className="px-3 py-2">
-                          <DefaultLevels
-                            templateId={template.id}
-                            masterItemId={item.id}
-                            defaults={defaultsByItem.get(item.id) ?? {}}
-                            editable={canEditDefaults}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  {(section.itp_master_items ?? []).length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted">
-                        No activities in this section.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              columns={itemColumns}
+              rows={[...(section.itp_master_items ?? [])].sort((a, b) => a.sort_order - b.sort_order)}
+              rowKey={(item) => item.id}
+              caption={`Activities in ${section.title}`}
+              empty="No activities in this section."
+              emptyCellClassName="px-3 py-6 text-center text-muted"
+              cardClassName="px-3"
+            />
           </div>
         ))}
         {(sections ?? []).length === 0 && <p className="text-sm text-muted">No sections in this template.</p>}

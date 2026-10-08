@@ -53,6 +53,9 @@ export async function ReportingView({ searchParams, embedded }: {
   const { org: orgIdParam } = searchParams;
   const selectedOrg = (organizations ?? []).find((o) => o.id === orgIdParam) ?? organizations?.[0] ?? null;
 
+  const { data: orgProjects } = selectedOrg
+    ? await supabase.from("projects").select("id, name").eq("organization_id", selectedOrg.id).order("name").returns<{ id: string; name: string }[]>()
+    : { data: [] as { id: string; name: string }[] };
   const [reportPacks, weeklyReportPacks] = selectedOrg
     ? await Promise.all([listMonthlyReportPacks(selectedOrg.id), listWeeklyReportPacks(selectedOrg.id)])
     : [[], []];
@@ -84,12 +87,12 @@ export async function ReportingView({ searchParams, embedded }: {
             <p className="mt-1 text-xs text-muted">
               Generates a PDF + CSV report pack (R109) covering {selectedOrg.name}&rsquo;s
               first-time pass rate, inspections completed, NCR summary and ITP completion,
-              aggregated across all of their projects for the chosen month. Rendering happens
+              aggregated across all of their projects (or the one project you choose) for the chosen month. Rendering happens
               in the background — the table below updates automatically once it completes, no
               reload needed.
             </p>
             <div className="mt-4">
-              <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={isAiConfigured()} />
+              <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={isAiConfigured()} projects={orgProjects ?? []} />
             </div>
           </div>
 
@@ -103,7 +106,7 @@ export async function ReportingView({ searchParams, embedded }: {
               automatically once it completes, no reload needed.
             </p>
             <div className="mt-4">
-              <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} />
+              <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} projects={orgProjects ?? []} />
             </div>
           </div>
         </>

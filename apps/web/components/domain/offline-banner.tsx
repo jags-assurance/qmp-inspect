@@ -15,7 +15,8 @@ import {
 } from "@/lib/offline/db";
 import { notifyOutboxChanged, onOutboxChanged, syncOutbox } from "@/lib/offline/sync-client";
 import { getLocalUserId } from "@/lib/offline/user";
-import { STALE_QUEUE_DAYS, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { STALE_QUEUE_DAYS, formatQueueAge, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -31,6 +32,8 @@ const KIND_LABEL: Record<OutboxItem["kind"], string> = {
   standalone_measurement: "Measurement",
   standalone_photo: "Assignment photo",
   standalone_signature: "Assignment signature",
+  start_inspection: "Start inspection",
+  link_item_document: "Linked document",
 };
 
 function describeItem(item: OutboxItem): string {
@@ -57,6 +60,7 @@ interface BeforeInstallPromptEvent extends Event {
  * app shell. Also hosts the PWA install prompt when idle.
  */
 export function OfflineBanner() {
+  const { ask, dialog } = useConfirm();
   // Matches the server render on first paint (no `navigator` there); real value is read in effects.
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
@@ -64,6 +68,7 @@ export function OfflineBanner() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [reviewItems, setReviewItems] = useState<OutboxItem[]>([]);
+  const [allItems, setAllItems] = useState<OutboxItem[]>([]);
   const [authBlocked, setAuthBlocked] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   // The outbox lives in best-effort IndexedDB storage unless persistence is granted (iOS Safari can
@@ -131,10 +136,11 @@ export function OfflineBanner() {
       queued > 0
         ? `${queued} change${queued === 1 ? " is" : "s are"} still queued. They are kept on this device, but any form you have not saved will be lost. Reload now?`
         : "Reloading updates the app. Any form you have not saved will be lost. Reload now?";
-    if (!window.confirm(message)) return;
+    const ok = await ask({ title: "Reload to update?", message, confirmLabel: "Reload now" });
+    if (ok === null) return;
     navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload(), { once: true });
     waitingSw.postMessage({ type: "SKIP_WAITING" });
-  }, [waitingSw]);
+  }, [waitingSw, ask]);
 
   const updateBar = waitingSw ? (
     <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info" role="status">
@@ -149,6 +155,7 @@ export function OfflineBanner() {
     try {
       const items = await getOutboxItems();
       setPendingCount(items.length);
+      setAllItems(items);
       const failing = items.filter((i) => i.status === "rejected" || i.status === "conflict" || i.status === "auth" || i.status === "foreign");
       setReviewItems(failing);
       setAuthBlocked(failing.some((i) => i.status === "auth"));
@@ -257,9 +264,10 @@ export function OfflineBanner() {
   const showStorageWarning = pendingCount > 0 && !storagePersisted;
 
   if (isOnline && pendingCount === 0) {
-    if (!installEvent) return updateBar;
+    if (!installEvent) return <>{dialog}{updateBar}</>;
     return (
       <>
+      {dialog}
       {updateBar}
       <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info">
         <span>Install QMP Inspect on this device for faster access in the field.</span>
@@ -297,6 +305,7 @@ export function OfflineBanner() {
 
   return (
     <div>
+      {dialog}
       {updateBar}
       <div
         role="status"
@@ -336,6 +345,38 @@ export function OfflineBanner() {
           )}
         </span>
       </div>
+      {pendingCount > 0 && (
+        <details className="border-b border-border bg-surface text-sm">
+          <summary className="cursor-pointer px-4 py-2 text-muted">View everything in the queue ({pendingCount})</summary>
+          <ul className="divide-y divide-border">
+            {allItems.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5">
+                <span>
+                  {describeItem(item)} <span className="text-muted">· queued {formatQueueAge(item.createdAt)} ago{item.status ? ` · ${item.status}` : ""}</span>
+                </span>
+                {!reviewItems.some((r) => r.id === item.id) && (
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      void ask({
+                        title: "Discard this queued change?",
+                        message: "It will not be saved.",
+                        confirmLabel: "Discard",
+                        destructive: true,
+                      }).then((ok) => {
+                        if (ok !== null) void act(removeOutboxItem, item.id);
+                      });
+                    }}
+                  >
+                    Discard
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {reviewItems.length > 0 && (
         <ul className="divide-y divide-border border-b border-border bg-surface text-sm" aria-label="Changes that need review">
           {reviewItems.map((item) => (
@@ -363,7 +404,14 @@ export function OfflineBanner() {
                   type="button"
                   className="underline"
                   onClick={() => {
-                    if (window.confirm("Discard this queued change? It will not be saved.")) void act(removeOutboxItem, item.id);
+                    void ask({
+                      title: "Discard this queued change?",
+                      message: "It will not be saved.",
+                      confirmLabel: "Discard",
+                      destructive: true,
+                    }).then((ok) => {
+                      if (ok !== null) void act(removeOutboxItem, item.id);
+                    });
                   }}
                 >
                   {item.status === "conflict" ? "Use server version" : "Discard"}

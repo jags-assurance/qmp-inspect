@@ -8,6 +8,8 @@ import {
   verifyStamp,
 } from "@/lib/auth/session-limits";
 import { decideProxyAccess } from "@/lib/auth/proxy-decision";
+import { isPrefetchRequest } from "@/lib/auth/prefetch";
+import { isMfaExemptPath, mfaChallengePath, mfaEnabled, needsMfaChallenge } from "@/lib/auth/mfa";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -38,11 +40,7 @@ const CHECK_TTL_MS = 5 * 60_000;
 const COOKIE_OPTS = { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/" };
 
 function isPrefetch(request: NextRequest): boolean {
-  return (
-    request.headers.get("next-router-prefetch") === "1" ||
-    request.headers.get("purpose") === "prefetch" ||
-    request.headers.get("sec-purpose")?.includes("prefetch") === true
-  );
+  return isPrefetchRequest(request.headers);
 }
 
 /**
@@ -87,14 +85,28 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Every Link in the viewport fires a prefetch request through this proxy, and an Auth-server round trip
+  // (getUser) per prefetch hammers a small shared Supabase project. A prefetch is never the enforcement
+  // point (the real navigation is, and RLS is the boundary), so it only verifies the JWT locally with
+  // getClaims() (JWKS-cached; refreshes an expiring session through the same cookie handler; falls back to a
+  // server check only for a project on symmetric signing keys). Real requests still call getUser().
+  const prefetch = isPrefetch(request);
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  let signedIn = false;
+  if (prefetch) {
+    const { data: claimsData } = await supabase.auth.getClaims();
+    signedIn = Boolean(claimsData?.claims?.sub);
+  } else {
+    ({
+      data: { user },
+    } = await supabase.auth.getUser());
+    signedIn = user !== null;
+  }
 
   const pathname = request.nextUrl.pathname;
   const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
-  if (!user && !isPublicPath) {
+  if (!signedIn && !isPublicPath) {
     const redirectUrl = new URL("/login", request.url);
     // Keep the query string so a deep link (?panel=…&status=…) survives sign-in; the login page and
     // signInAction re-validate it as a same-site path.
@@ -104,14 +116,13 @@ export async function proxy(request: NextRequest) {
 
   // (A signed-in user sent back with ?error=... is shown the message instead of being bounced home,
   // which would loop for an account whose session context can no longer be built.)
-  if (user && pathname === "/login" && !request.nextUrl.searchParams.has("error")) {
+  if (signedIn && pathname === "/login" && !request.nextUrl.searchParams.has("error")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (user && !isPublicPath) {
     const now = Date.now();
     const secret = sessionCookieSecret();
-    const prefetch = isPrefetch(request);
 
     // Redirect that also carries any cookie writes made above (token refresh, sign-out).
     const redirectWithCookies = (to: string) => {
@@ -119,6 +130,13 @@ export async function proxy(request: NextRequest) {
       for (const c of response.cookies.getAll()) redirect.cookies.set(c);
       return redirect;
     };
+
+    // ---- Two-step sign-in (off unless NEXT_PUBLIC_ENABLE_MFA=1): a session that has a verified
+    // authenticator factor but has not passed the code step cannot reach anything but the challenge. ----
+    if (mfaEnabled() && !isMfaExemptPath(pathname)) {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (needsMfaChallenge(aal)) return redirectWithCookies(mfaChallengePath(pathname + request.nextUrl.search));
+    }
 
     // ---- Server-side session limits + deactivation ----
     const lastSignInAt = user.last_sign_in_at ? Date.parse(user.last_sign_in_at) : null;
@@ -147,8 +165,10 @@ export async function proxy(request: NextRequest) {
 
     // ---- Forced first-login password change ----
     // The flag lives in the auth user's app_metadata (set at provisioning, cleared on change), which
-    // getUser() just returned — no database round trip. Accounts that predate the claim fall back to
-    // the original users query, cached for a few minutes in a signed cookie.
+    // getUser() just returned — no database round trip. Migration 20261111000101 backfills the claim
+    // for every existing account and defaults it for new ones (D-03), so the users query below is only
+    // a safety net for an account that somehow lacks the claim; it is cached for a few minutes in a
+    // signed cookie and skipped entirely on prefetches.
     let mustChange = decision.mustChangePassword;
     let setCheckCookie = false;
     if (mustChange === null) {

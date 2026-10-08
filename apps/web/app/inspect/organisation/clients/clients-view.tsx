@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { NewOrganizationForm } from "./new-organization-form";
+import { AiConsentControl } from "./ai-consent-control";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
@@ -106,6 +107,7 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                 </Badge>
               </div>
             </div>
+            <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
           </div>
         ))}
       </div>

@@ -1,6 +1,10 @@
 "use client";
 
+import { BarcodeScanButton } from "@/components/ui/barcode-scan-button";
 import { useMemo, useState, type ReactNode } from "react";
+import { translateText } from "@/lib/i18n/dictionary";
+import { useLocale } from "@/lib/i18n/locale-context";
+import type { SupportedLocale } from "@/lib/i18n/direction";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -55,7 +59,12 @@ export function DataTable<T>({
   sort,
   caption,
   mobileCards = true,
+  scannable = false,
+  locale: localeProp,
 }: {
+  /** Translates the column headings (English headings are the dictionary keys). Defaults to the
+   *  locale supplied by the inspect layout (English when none). */
+  locale?: SupportedLocale;
   columns: DataTableColumn<T>[];
   rows: T[];
   searchPlaceholder?: string;
@@ -74,7 +83,11 @@ export function DataTable<T>({
   /** Below the sm breakpoint show each row as a stacked label/value card instead of the table
    *  (default on; pass false for a table that must stay a scrolling grid on phones). */
   mobileCards?: boolean;
+  /** Adds a camera barcode / QR scan button next to the search box (register lookups). */
+  scannable?: boolean;
 }) {
+  const contextLocale = useLocale();
+  const locale = localeProp ?? contextLocale;
   const [localQuery, setLocalQuery] = useState("");
   const isServerDriven = !!serverSearch;
   const query = isServerDriven ? serverSearch.value : localQuery;
@@ -90,7 +103,7 @@ export function DataTable<T>({
 
   return (
     <div className="rounded-lg border border-border bg-surface">
-      <div className="border-b border-border p-3">
+      <div className="flex flex-wrap items-start gap-2 border-b border-border p-3">
         <input
           value={query}
           onChange={(e) => (isServerDriven ? serverSearch.onChange(e.target.value) : setLocalQuery(e.target.value))}
@@ -98,6 +111,12 @@ export function DataTable<T>({
           aria-label={searchPlaceholder}
           className="min-h-10 w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-base focus:border-burgundy sm:text-sm"
         />
+        {scannable && (
+          <BarcodeScanButton
+            label="Scan code"
+            onCode={(code) => (isServerDriven ? serverSearch.onChange(code) : setLocalQuery(code))}
+          />
+        )}
       </div>
       <div className={mobileCards ? "table-scroll hidden sm:block" : "table-scroll"} tabIndex={0} role="region" aria-label={caption ?? "Data table"}>
         <table className="w-full text-sm">
@@ -115,11 +134,11 @@ export function DataTable<T>({
                   >
                     {col.sortable && sort ? (
                       <button type="button" onClick={() => sort.onSort(col.key)} className="inline-flex min-h-8 items-center gap-1 font-medium hover:text-ink">
-                        {col.header}
+                        {translateText(locale, col.header)}
                         <span aria-hidden="true">{sorted ? (sort.direction === "asc" ? "▲" : "▼") : "↕"}</span>
                       </button>
                     ) : (
-                      col.header
+                      translateText(locale, col.header)
                     )}
                   </th>
                 );
@@ -152,7 +171,7 @@ export function DataTable<T>({
             <li key={i} className="space-y-1 px-4 py-3 text-sm">
               {columns.map((col) => (
                 <div key={col.key} className="flex justify-between gap-3">
-                  <span className="text-xs text-muted">{col.header}</span>
+                  <span className="text-xs text-muted">{translateText(locale, col.header)}</span>
                   <span className="text-right">{col.render(row)}</span>
                 </div>
               ))}

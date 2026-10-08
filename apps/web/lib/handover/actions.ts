@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { hasPermission } from "@/lib/rbac/permissions";
 import { sendNotificationEmail } from "@/lib/notifications/email";
 import { NOTIFICATIONS_TABLE } from "@/lib/notifications/types";
 import { DATA_BOOKS_TABLE, HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
@@ -20,7 +21,19 @@ import {
 import { isMissingDbObject } from "@/lib/databook/db-errors";
 import { buildOverrideItems } from "@/lib/databook/override-items";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
-import { acknowledgeErrorMessage, clientRecipientIds, issueErrorMessage } from "./helpers";
+import {
+  ACK_EVIDENCE_MAX_BYTES,
+  MIN_REJECT_REASON_LENGTH,
+  acknowledgeErrorMessage,
+  clientRecipientIds,
+  isAckSignatureRequired,
+  isValidAckEvidencePath,
+  issueErrorMessage,
+  rejectErrorMessage,
+} from "./helpers";
+import { validateSignatureDataUrl } from "@/lib/checklists/evidence-rules";
+import { untypedRpc } from "@/lib/supabase/untyped";
+import { verifyStoredPackageHash } from "./package-hash";
 import { queueHandoverCertificatePdf, queueIssuedDataBookPdf } from "./certificate-pdf";
 
 export interface IssueHandoverState {
@@ -188,9 +201,14 @@ export async function issueHandoverAction(
     );
   }
 
-  // Segregation of duties (S7-11): a conditional handover (documented override) needs a JAGS Admin to issue it.
-  if (dataBook.override_open_punch_items && !isAdminStaff(session)) {
-    return fail("Only a JAGS Admin can issue a conditional handover (a book compiled with an override).");
+  // Segregation of duties (S7-11): a conditional handover (documented override) needs a JAGS Admin, or a
+  // JAGS staff member holding the issue_handover permission for this project (the RPC enforces the same rule).
+  if (
+    dataBook.override_open_punch_items &&
+    !isAdminStaff(session) &&
+    !(await hasPermission(session.userId, "issue_handover", projectId))
+  ) {
+    return fail("Only a JAGS Admin or a holder of the issue_handover permission can issue a conditional handover (a book compiled with an override).");
   }
 
   // Overridden book: re-snapshot what is outstanding NOW, so the certificate records the current state
@@ -207,12 +225,21 @@ export async function issueHandoverAction(
     }
   }
 
+  // S7-10: do not certify a client-supplied fingerprint. Re-hash the object Storage actually holds and
+  // require it to match; the server-computed value is what gets recorded. Fails closed.
+  const verification = await verifyStoredPackageHash(supabase, GENERATED_DOCUMENTS_BUCKET, packageStoragePath, packageSha256);
+  if (!verification.ok) {
+    // A transient read failure keeps the upload so the user can simply retry; a real mismatch, an empty or an
+    // oversized file removes it like any other rejected issue.
+    return verification.reason === "unreadable" ? { error: verification.message } : fail(verification.message);
+  }
+
   // Atomic claim + certificate insert (see supabase migration: issue_data_book_handover).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
   const { data: certificateId, error: rpcError } = await (supabase.rpc as any)("issue_data_book_handover", {
     p_data_book_id: dataBookId,
     p_package_storage_path: packageStoragePath,
-    p_package_sha256: packageSha256,
+    p_package_sha256: verification.sha256,
     p_notes: handoverNotes || null,
     p_certificate_number: certificateNumber || null,
   });
@@ -259,7 +286,7 @@ export async function issueHandoverAction(
         entityId: String(certificateId),
         action: "issued",
         actorId: session.userId,
-        summary: `Handover certificate ${issuedNumber} issued${dataBook.override_open_punch_items ? " (conditional)" : ""}`,
+        summary: `Handover certificate ${issuedNumber} issued${dataBook.override_open_punch_items ? " (conditional)" : ""}; package SHA-256 re-verified server-side (${verification.bytes} bytes)`,
       });
     } catch {
       // Best-effort — see lib/audit/log.ts's doc comment.
@@ -305,6 +332,13 @@ export async function acknowledgeHandoverAction(
   const ackComment = String(formData.get("ack_comment") ?? "").trim();
   const onBehalfBasis = String(formData.get("on_behalf_basis") ?? "").trim();
   const confirmed = formData.get("confirm") === "on" || formData.get("confirm") === "true";
+  // S7-18: drawn signature (data URL) and an optional supporting file already uploaded from the browser.
+  const signature = String(formData.get("signature") ?? "").trim();
+  const signatureEnabled = formData.get("signature_enabled") === "1";
+  const evidencePath = String(formData.get("evidence_path") ?? "").trim();
+  const evidenceName = String(formData.get("evidence_name") ?? "").trim().slice(0, 255);
+  const evidenceSizeRaw = Number(formData.get("evidence_size") ?? 0);
+  const evidenceSize = Number.isFinite(evidenceSizeRaw) && evidenceSizeRaw > 0 && evidenceSizeRaw <= ACK_EVIDENCE_MAX_BYTES ? Math.floor(evidenceSizeRaw) : null;
 
   if (!certificateId || !receivedByName) {
     return { error: "Your name is required to acknowledge receipt." };
@@ -330,6 +364,13 @@ export async function acknowledgeHandoverAction(
     return { error: "Say how the client confirmed (for example the email or signed document reference) before recording this on their behalf." };
   }
 
+  if (signature) {
+    const sigError = validateSignatureDataUrl(signature, "signature");
+    if (sigError) return { error: sigError };
+  } else if (isAckSignatureRequired({ signatureEnabled, onBehalf: !isClient })) {
+    return { error: "Sign in the signature box to record this formal acceptance." };
+  }
+
   // Evidence metadata (S7-18): who from where. Best-effort - never blocks the acknowledgement.
   let userAgent: string | null = null;
   let ip: string | null = null;
@@ -342,23 +383,54 @@ export async function acknowledgeHandoverAction(
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // The evidence file must sit under THIS Data Book's handover-ack folder (the RPC re-checks that the
+  // object exists). Look the book up from the certificate, under the caller's own RLS.
+  if (evidencePath) {
+    const { data: bookRef } = await supabase
+      .from(HANDOVER_CERTIFICATES_TABLE)
+      .select("data_book_id")
+      .eq("id", certificateId)
+      .maybeSingle<{ data_book_id: string }>();
+    if (!bookRef || !isValidAckEvidencePath(evidencePath, bookRef.data_book_id)) {
+      return { error: "The supporting file reference was rejected. Attach it again and retry." };
+    }
+  }
+
   const baseArgs = {
     target_certificate_id: certificateId,
     received_name: receivedByName,
     received_company: receivedByCompany || null,
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
-  let { error } = await (supabase.rpc as any)("acknowledge_handover", {
+  const ackArgs = {
     ...baseArgs,
     p_comment: ackComment || null,
     p_user_agent: userAgent,
     p_ip: ip,
     p_on_behalf_basis: !isClient ? onBehalfBasis : null,
+  };
+  // All arguments are always sent, so the call resolves to exactly one function overload.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  let { error } = await (supabase.rpc as any)("acknowledge_handover", {
+    ...ackArgs,
+    p_signature: signature || null,
+    p_evidence_path: evidencePath || null,
+    p_evidence_name: evidencePath ? evidenceName || null : null,
+    p_evidence_size: evidencePath ? evidenceSize : null,
   });
   if (error && isMissingDbObject(error)) {
-    // The extended RPC arrives with a migration; the 3-argument version keeps working until then.
+    if (signature || evidencePath) {
+      // Never silently drop a signature or evidence file: the database update that stores them is
+      // not applied yet, so say so instead of recording a weaker acceptance than the client signed.
+      return { error: "Signature and evidence capture needs the latest database update (migration 20261112000101). Ask a JAGS Admin to apply it, then try again." };
+    }
+    // The extended RPC arrives with a migration; the earlier version keeps working until then.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
-    ({ error } = await (supabase.rpc as any)("acknowledge_handover", baseArgs));
+    ({ error } = await (supabase.rpc as any)("acknowledge_handover", ackArgs));
+    if (error && isMissingDbObject(error)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+      ({ error } = await (supabase.rpc as any)("acknowledge_handover", baseArgs));
+    }
   }
 
   if (error) {
@@ -394,7 +466,7 @@ export async function acknowledgeHandoverAction(
         entityId: certificateId,
         action: onBehalf ? "acknowledged_on_behalf" : "acknowledged",
         actorId: session.userId,
-        summary: `Handover certificate ${cert.certificate_number} acknowledged by ${who}`,
+        summary: `Handover certificate ${cert.certificate_number} acknowledged by ${who}${signature ? " (signed)" : ""}${evidencePath ? " with a supporting file" : ""}`,
       });
       const recipients = [...new Set([cert.issued_by, cert.data_books?.projects?.responsible_person_id].filter((v): v is string => Boolean(v)))].filter(
         (id) => id !== session.userId
@@ -435,4 +507,134 @@ export async function requestHandoverCertificatePdfAction(
   if (!ok) return { error: "Could not queue the certificate PDF. Try again." };
   revalidatePath("/inspect/handover");
   return { error: null, success: true };
+}
+
+export interface RejectHandoverState {
+  error: string | null;
+}
+
+/**
+ * S7-18: the client refuses a handover package, with a reason. Goes through the reject_handover()
+ * SECURITY DEFINER function (client role only; final for that certificate; blocks later acknowledgement).
+ * Tells the issuer and the project's responsible person so the package can be corrected and re-issued as a
+ * new revision (which supersedes the rejected certificate).
+ */
+export async function rejectHandoverAction(_prev: RejectHandoverState, formData: FormData): Promise<RejectHandoverState> {
+  const certificateId = String(formData.get("certificate_id") ?? "").trim();
+  const reason = String(formData.get("reject_reason") ?? "").trim();
+  const confirmed = formData.get("confirm") === "on" || formData.get("confirm") === "true";
+  if (!certificateId) return { error: "Missing certificate." };
+  if (reason.length < MIN_REJECT_REASON_LENGTH) return { error: `Say why you are rejecting the package (at least ${MIN_REJECT_REASON_LENGTH} characters).` };
+  if (reason.length > 2000) return { error: "The reason must be 2000 characters or fewer." };
+  if (!confirmed) return { error: "Tick the confirmation box to record this rejection." };
+
+  const session = await requireSession();
+  const isClient = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
+  if (!isClient) return { error: "Only the client organisation can reject a handover package." };
+
+  let userAgent: string | null = null;
+  let ip: string | null = null;
+  try {
+    const h = await headers();
+    userAgent = h.get("user-agent");
+    ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip");
+  } catch {
+    // No request context.
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await untypedRpc(supabase, "reject_handover", {
+    target_certificate_id: certificateId,
+    p_reason: reason,
+    p_user_agent: userAgent,
+    p_ip: ip,
+  });
+  if (error) {
+    return { error: isMissingDbObject(error) ? "Rejecting a handover is not available yet. Please contact JAGS Assurance." : rejectErrorMessage(error.message) };
+  }
+
+  try {
+    const { data: cert } = await supabase
+      .from(HANDOVER_CERTIFICATES_TABLE)
+      .select("id, certificate_number, issued_by, data_books(project_id, book_number, projects(id, organization_id, responsible_person_id))")
+      .eq("id", certificateId)
+      .maybeSingle<{
+        id: string;
+        certificate_number: string;
+        issued_by: string | null;
+        data_books: {
+          project_id: string;
+          book_number: string;
+          projects: { id: string; organization_id: string; responsible_person_id: string | null } | null;
+        } | null;
+      }>();
+    const organizationId = cert?.data_books?.projects?.organization_id;
+    const projectId = cert?.data_books?.project_id;
+    if (cert && organizationId && projectId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "handover_certificate",
+        entityId: certificateId,
+        action: "rejected",
+        actorId: session.userId,
+        summary: `Handover certificate ${cert.certificate_number} rejected by the client: ${reason.slice(0, 300)}`,
+      });
+      const recipients = [...new Set([cert.issued_by, cert.data_books?.projects?.responsible_person_id].filter((v): v is string => Boolean(v)))].filter(
+        (id) => id !== session.userId
+      );
+      await notifyMany(supabase, {
+        organizationId,
+        projectId,
+        recipientIds: recipients,
+        title: `Handover certificate ${cert.certificate_number} rejected`,
+        body: `The client rejected Data Book ${cert.data_books?.book_number ?? ""}: ${reason.slice(0, 500)}`,
+        link: `/inspect/projects/${projectId}/data-book`,
+      });
+    }
+  } catch {
+    // Best-effort - the rejection itself is already recorded.
+  }
+
+  revalidatePath("/inspect/handover");
+  return { error: null };
+}
+
+/** Admin staff only: clears a rejection that was made in error (reopen_handover_rejection), with a reason. */
+export async function reopenHandoverRejectionAction(_prev: RejectHandoverState, formData: FormData): Promise<RejectHandoverState> {
+  const certificateId = String(formData.get("certificate_id") ?? "").trim();
+  const reason = String(formData.get("reopen_reason") ?? "").trim();
+  if (!certificateId) return { error: "Missing certificate." };
+  if (reason.length < MIN_REJECT_REASON_LENGTH) return { error: `Give a reason of at least ${MIN_REJECT_REASON_LENGTH} characters.` };
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can reopen a rejected handover certificate." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await untypedRpc(supabase, "reopen_handover_rejection", { target_certificate_id: certificateId, p_reason: reason });
+  if (error) return { error: rejectErrorMessage(error.message) };
+
+  try {
+    const { data: cert } = await supabase
+      .from(HANDOVER_CERTIFICATES_TABLE)
+      .select("certificate_number, data_books(project_id, projects(organization_id))")
+      .eq("id", certificateId)
+      .maybeSingle<{ certificate_number: string; data_books: { project_id: string; projects: { organization_id: string } | null } | null }>();
+    const organizationId = cert?.data_books?.projects?.organization_id;
+    const projectId = cert?.data_books?.project_id;
+    if (cert && organizationId && projectId) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        projectId,
+        entityType: "handover_certificate",
+        entityId: certificateId,
+        action: "rejection_reopened",
+        actorId: session.userId,
+        summary: `Rejection of handover certificate ${cert.certificate_number} reopened by an Admin: ${reason.slice(0, 300)}`,
+      });
+    }
+  } catch {
+    // Best-effort.
+  }
+  revalidatePath("/inspect/handover");
+  return { error: null };
 }

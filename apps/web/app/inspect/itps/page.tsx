@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { Suspense } from "react";
 import { SplitLayout } from "@/components/ui/split-layout";
 import { ItpDetailView } from "./[id]/itp-detail-view";
@@ -22,7 +23,7 @@ export default async function ItpsPage({
 }) {
   const session = await requireSession();
   const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = await searchParams;
-  const STATUSES = ["draft", "under_review", "approved", "client_accepted"] as const;
+  const STATUSES = ["draft", "under_review", "approved", "client_accepted", "superseded", "withdrawn"] as const;
   const statusFilter = STATUSES.find((x) => x === statusParam) ?? null;
   const sort = ["number", "title", "status"].includes(sortParam ?? "") ? (sortParam as string) : "";
   // R23: optional phase filter — only a recognised phase value is honoured, anything else is
@@ -195,7 +196,7 @@ export default async function ItpsPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">ITP Register</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>ITP Register</T></h1>
             <PageGuide
               title="ITP Register — how this works"
               points={[

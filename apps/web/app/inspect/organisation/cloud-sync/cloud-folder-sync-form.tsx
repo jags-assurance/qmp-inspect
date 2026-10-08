@@ -8,6 +8,7 @@ import {
 } from "@/lib/cloud-sync/actions";
 import type { CloudSyncProvider } from "@/lib/cloud-sync/types";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CloudFolderSyncConfigState = { error: null };
 
@@ -30,11 +31,8 @@ export function CloudFolderSyncForm({
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
-            <label htmlFor="provider" className="block text-xs text-muted">
-              Provider
-            </label>
-            <select
-              id="provider"
+            <FormField label="Provider">
+              <select
               name="provider"
               defaultValue={provider ?? "sharepoint"}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -42,19 +40,18 @@ export function CloudFolderSyncForm({
               <option value="sharepoint">SharePoint</option>
               <option value="onedrive">OneDrive</option>
             </select>
+            </FormField>
           </div>
 
           <div className="sm:col-span-2">
-            <label htmlFor="folder_reference" className="block text-xs text-muted">
-              Folder URL or ID
-            </label>
-            <input
-              id="folder_reference"
+            <FormField label="Folder URL or ID">
+              <input
               name="folder_reference"
               defaultValue={folderReference ?? ""}
               placeholder="https://yourtenant.sharepoint.com/sites/.../Shared Documents/Project Files"
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
         </div>
 

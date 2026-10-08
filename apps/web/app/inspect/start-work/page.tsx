@@ -7,7 +7,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { CHECKLIST_TEMPLATES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { ScanSearchInput } from "./scan-search-input";
 import { SaveOfflineButton } from "./save-offline-button";
+import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
+import { filterByArchive, parseArchiveFilter } from "@/lib/checklists/template-ui-logic";
+import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
+import { AssignedToMe } from "@/components/domain/assigned-to-me";
+import { filterAssignedToMe, parseAssignedFilter } from "@/lib/checklists/assignment-logic";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -18,7 +24,7 @@ const STATUS_LABEL: Record<StatusKey, string> = {
 const STATUS_CLASS: Record<StatusKey, string> = {
   not_started: "bg-off-white text-muted",
   in_progress: "bg-gold/30 text-[color:var(--color-burgundy-dark)]",
-  completed: "bg-green-100 text-green-800",
+  completed: "bg-success/10 text-success",
 };
 
 interface TemplateRow {
@@ -30,6 +36,7 @@ interface TemplateRow {
     item_number: string;
     activity: string;
     planned_date: string | null;
+    assigned_to_user_id?: string | null;
     itp_sections: { itps: { id: string; itp_number: string; status: string; projects: { id: string; name: string; organization_id: string; enforce_hold_blocks_start: boolean } | null } | null } | null;
   } | null;
 }
@@ -37,7 +44,7 @@ interface TemplateRow {
 export default async function StartWorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string; archived?: string; assigned?: string }>;
 }) {
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
@@ -47,21 +54,31 @@ export default async function StartWorkPage({
   const projectFilter = sp.project ?? "";
   const dueFilter = (["overdue", "soon", "held"] as const).find((k) => k === sp.due) ?? "";
 
+  const archiveFilter = parseArchiveFilter(sp.archived);
+  const assignedFilter = parseAssignedFilter(sp.assigned);
+
   const supabase = await createSupabaseServerClient();
-  const [{ data: templates }, { data: records }] = await Promise.all([
-    supabase
-      .from(CHECKLIST_TEMPLATES_TABLE)
-      .select(
-        "id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))"
-      )
-      .limit(1000)
-      .returns<TemplateRow[]>(),
+  // Independent of everything below, so it starts now (it reuses the cached archived-id read).
+  const assignedQueuePromise = loadAssignedToMe(supabase, session.userId);
+  const archivedIds = await loadArchivedTemplateIds(supabase);
+  const templateSelect = (withAssignee: boolean) =>
+    `id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, ${withAssignee ? "assigned_to_user_id, " : ""}itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))`;
+  const [firstTemplates, { data: records }] = await Promise.all([
+    supabase.from(CHECKLIST_TEMPLATES_TABLE).select(templateSelect(true)).limit(1000).returns<TemplateRow[]>(),
     supabase
       .from(INSPECTION_RECORDS_TABLE)
       .select("itp_item_id, checklist_template_id, overall_result")
       .limit(5000)
       .returns<{ itp_item_id: string; checklist_template_id: string; overall_result: string | null }[]>(),
   ]);
+  // Until 20261114000101 is applied the assignee column does not exist: retry without it so the page still loads.
+  let allTemplates = firstTemplates.data;
+  if (firstTemplates.error) {
+    allTemplates = (await supabase.from(CHECKLIST_TEMPLATES_TABLE).select(templateSelect(false)).limit(1000).returns<TemplateRow[]>()).data;
+  }
+
+  // Archived checklists are hidden from start-work unless the Archived filter is on.
+  const templates = filterByArchive(allTemplates ?? [], archivedIds, archiveFilter);
 
   const stateByTemplate = new Map<string, StatusKey>();
   for (const r of records ?? []) {
@@ -112,6 +129,7 @@ export default async function StartWorkPage({
       projectId: t.itp_items!.itp_sections!.itps!.projects?.id ?? "",
       projectName: t.itp_items!.itp_sections!.itps!.projects?.name ?? "—",
       plannedDate: t.itp_items!.planned_date,
+      assignedToUserId: t.itp_items!.assigned_to_user_id ?? null,
       awaitingHold: (openByItem.get(t.itp_item_id) ?? []).some((code) =>
         blockingKeys.has(`${t.itp_items!.itp_sections!.itps!.projects?.organization_id ?? ""}:${code}`)
       ),
@@ -127,7 +145,9 @@ export default async function StartWorkPage({
   const overdueCount = withFlags.filter((a) => a.overdue).length;
   const dueSoonCount = withFlags.filter((a) => a.dueSoon).length;
   const heldCount = withFlags.filter((a) => a.awaitingHold && a.status !== "completed").length;
-  const visible = withFlags
+  const assignedMine = filterAssignedToMe(withFlags, session.userId).filter((a) => a.status !== "completed");
+  const assignedQueue = await assignedQueuePromise;
+  const visible = (assignedFilter === "me" ? assignedMine : withFlags)
     .filter((a) => !dueFilter || (dueFilter === "overdue" ? a.overdue : dueFilter === "soon" ? a.dueSoon : a.awaitingHold && a.status !== "completed"))
     .filter((a) => !statusFilter || a.status === statusFilter)
     .filter((a) => !projectFilter || a.projectId === projectFilter)
@@ -184,19 +204,15 @@ export default async function StartWorkPage({
         />
       </div>
 
+      <AssignedToMe items={assignedQueue} />
+
       <section className="mt-10" aria-labelledby="activities-heading">
         <h2 id="activities-heading" className="text-lg font-semibold text-ink">Activities ready for site work</h2>
         <p className="mt-1 text-sm text-muted">
           Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.
         </p>
         <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <input
-            type="search"
-            name="q"
-            defaultValue={sp.q ?? ""}
-            placeholder="Search activity, ITP or checklist"
-            className="min-h-11 flex-1 rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy sm:min-w-56"
-          />
+<ScanSearchInput defaultValue={sp.q ?? ""} />
           <select name="project" defaultValue={projectFilter} aria-label="Project" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
             <option value="">All projects</option>
             {projectOptions.map(([id, name]) => (
@@ -215,11 +231,19 @@ export default async function StartWorkPage({
             <option value="soon">Due soon - 7 days ({dueSoonCount})</option>
             <option value="held">Awaiting hold release ({heldCount})</option>
           </select>
+          <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} aria-label="Archived" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">Active checklists</option>
+            <option value="archived">Archived ({archivedIds.size})</option>
+          </select>
+          <select name="assigned" defaultValue={assignedFilter} aria-label="Assignment" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value="">Everyone&apos;s activities</option>
+            <option value="me">Assigned to me ({assignedMine.length})</option>
+          </select>
           <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">Filter</button>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          {([["overdue", "Overdue", overdueCount, "bg-red-100 text-red-800"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]"], ["held", "Awaiting hold release", heldCount, "bg-off-white text-ink"]] as const).map(([k, label, n, cls]) => (
+          {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]"], ["held", "Awaiting hold release", heldCount, "bg-off-white text-ink"]] as const).map(([k, label, n, cls]) => (
             <Link
               key={k}
               href={`/inspect/start-work?due=${dueFilter === k ? "" : k}`}
@@ -244,12 +268,12 @@ export default async function StartWorkPage({
               <li key={a.templateId}>
                 <Link href={`/inspect/checklists/${a.templateId}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-off-white">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}</span>
+                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ml-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy">Assigned to you</span>}</span>
                     <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                     {a.plannedDate && <span className="text-xs text-muted">{a.plannedDate}</span>}
-                    {a.overdue && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Overdue</span>}
+                    {a.overdue && <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger">Overdue</span>}
                     {a.dueSoon && <span className="rounded-full bg-gold/30 px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-burgundy-dark)]">Due soon</span>}
                     {a.awaitingHold && a.status !== "completed" && <span className="rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-ink">Awaiting hold release</span>}
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>

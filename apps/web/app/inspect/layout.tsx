@@ -1,8 +1,15 @@
 import { requireSession, canSeePlatformHome, isAdminStaff } from "@/lib/auth/session";
+import { mfaEnabled } from "@/lib/auth/mfa";
+import { cookies } from "next/headers";
+import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n/direction";
+import { localizeNavItems } from "@/lib/i18n/dictionary";
+import { LocaleProvider } from "@/lib/i18n/locale-context";
 import { AppShell, type NavItem } from "@/components/domain/app-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
-import { isModuleLicensed } from "@/lib/module-licensing/access";
+import { getLicenseMap } from "@/lib/module-licensing/access";
+import { isLicensedIn } from "@/lib/module-licensing/license-map";
+import { loadOrgChrome } from "@/lib/organizations/chrome-cache";
 import type { ModuleKey } from "@/lib/module-licensing/types";
 import { brandComboColors } from "@/lib/branding/org-brand";
 
@@ -10,16 +17,28 @@ export default async function InspectLayout({ children }: { children: React.Reac
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  // Teams is visible to a JAGS Admin (manages every team) or any staff account that leads at least
-  // one team (manages only their own) — an Inspector with no lead role has no reason to see it.
-  // Admin already implies this, so the extra DB round-trip only happens for non-admin staff.
-  const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || (await isLeadOfAnyTeam(supabase, session.userId)));
-
-  // R112 module licensing: "own org" for a non-staff login, same lookup used everywhere else in
-  // this file/app (client-teams/page.tsx, manage/page.tsx) — a non-staff user's access_grants are
-  // in practice all scoped to the one org they belong to, so the first organization_id-bearing grant
-  // is that org. Computed once here, hoisted above the Client Teams block below since both need it.
+  // "own org" for a non-staff login, same lookup used everywhere else in this file/app
+  // (client-teams/page.tsx, manage/page.tsx) — a non-staff user's access_grants are in practice all
+  // scoped to the one org they belong to, so the first organization_id-bearing grant is that org.
   const ownOrgId = session.isJagsStaff ? null : session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+
+  // D-05: these lookups are independent of each other (none consumes another's result), so they all
+  // start now instead of as four-plus serial round trips on the critical path of every navigation.
+  //  - Teams is visible to a JAGS Admin (manages every team) or any staff account that leads at
+  //    least one team; the extra query only happens for non-admin staff.
+  //  - A client login with a definite own org needs: its client-team count (live), its organisation
+  //    chrome (engagement mode/scope, branding colours, signed logo URL — D-07 cached, tagged and
+  //    invalidated by the branding/numbering actions) and its module licences (D-07: ONE cached
+  //    per-org map instead of one query per module).
+  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap] = await Promise.all([
+    session.isJagsStaff && !isAdminStaff(session) ? isLeadOfAnyTeam(supabase, session.userId) : Promise.resolve(false),
+    ownOrgId && !session.isJagsStaff
+      ? supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId)
+      : Promise.resolve(null),
+    ownOrgId ? loadOrgChrome(supabase, ownOrgId) : Promise.resolve(null),
+    ownOrgId ? getLicenseMap(supabase, ownOrgId) : Promise.resolve(null),
+  ]);
+  const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || teamLeadResult === true);
 
   // Client Teams (a client org's OWN people grouping — see app/inspect/organisation/client-teams,
   // supabase/migrations/20260919020000_client_teams.sql) is always visible to staff (an Admin can
@@ -36,72 +55,29 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // "is my own org self_managed" lookup.
   let isSelfManagedOrg = false;
   if (!showClientTeamsNav && ownOrgId) {
-    const [{ count: clientTeamCount }, { data: org }] = await Promise.all([
-      supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId),
-      supabase.from("organizations").select("engagement_scope").eq("id", ownOrgId).maybeSingle(),
-    ]);
-    isSelfManagedOrg = org?.engagement_scope === "self_managed" || org?.engagement_scope === "client_managed";
-    showClientTeamsNav = (clientTeamCount ?? 0) > 0 || isSelfManagedOrg;
+    const scope = orgChrome?.row.engagement_scope;
+    isSelfManagedOrg = scope === "self_managed" || scope === "client_managed";
+    showClientTeamsNav = (clientTeamCountResult?.count ?? 0) > 0 || isSelfManagedOrg;
   }
 
   // Reqs R113-R118: engagement_mode already drives document numbering (lib/numbering/generate.ts's
   // internalReference) — this is the same signal driving visual branding in the app chrome. Only
   // looked up for a user with a definite own-org context (a client login); JAGS staff move across
   // every organisation's data, so their chrome always stays JAGS-only, same as today.
-  let orgBranding: { engagementMode: string; logoUrl: string | null; brandCombo: string[] | null } | null = null;
-  if (ownOrgId) {
-    const { data: brandOrg } = await supabase
-      .from("organizations")
-      .select(
-        "engagement_mode, branding_logo_path, brand_primary_color, brand_accent_color, brand_extra_colors, brand_multi_color_mode"
-      )
-      .eq("id", ownOrgId)
-      .maybeSingle<{
-        engagement_mode: string;
-        branding_logo_path: string | null;
-        brand_primary_color: string | null;
-        brand_accent_color: string | null;
-        brand_extra_colors: string[];
-        brand_multi_color_mode: boolean;
-      }>();
-
-    if (brandOrg) {
-      let logoUrl: string | null = null;
-      if (brandOrg.engagement_mode !== "jags_led" && brandOrg.branding_logo_path) {
-        const { data: signed } = await supabase.storage
-          .from("org-branding")
-          .createSignedUrl(brandOrg.branding_logo_path, 3600);
-        logoUrl = signed?.signedUrl ?? null;
-      }
-      orgBranding = { engagementMode: brandOrg.engagement_mode, logoUrl, brandCombo: brandComboColors(brandOrg) };
-    }
-  }
+  const orgBranding: { engagementMode: string; logoUrl: string | null; brandCombo: string[] | null } | null = orgChrome
+    ? { engagementMode: orgChrome.row.engagement_mode, logoUrl: orgChrome.logoUrl, brandCombo: brandComboColors(orgChrome.row) }
+    : null;
 
   // R112 module licensing (layout-level): every nav item below that corresponds directly to a real
   // module_key is checked against `ownOrgId`'s licenses and dropped from the nav when explicitly
   // unlicensed. This is layout-level (rather than per-page redirects, like the project-scoped
   // Registers/Data Book/Reports pages use — see those pages' own doc comments) because every one of
   // these items is a TOP-LEVEL nav destination for a single, unambiguous org: a non-staff login's
-  // own org, resolved once via ownOrgId above. JAGS staff always bypass entirely (isModuleLicensed
-  // is only even called for a non-staff session with a resolvable own org) — they need to see every
-  // module to support any client. Fails open (see lib/module-licensing/access.ts) so a query error
-  // never hides a nav item nobody explicitly unlicensed.
-  const licensedModules = new Map<ModuleKey, boolean>();
-  if (ownOrgId) {
-    const keysToCheck: ModuleKey[] = [
-      "itps",
-      "ncrs",
-      "observations",
-      "vault",
-      "standalone_assignments",
-      "handover",
-      "client_teams",
-      "custom_roles",
-    ];
-    const results = await Promise.all(keysToCheck.map((key) => isModuleLicensed(supabase, ownOrgId, key)));
-    keysToCheck.forEach((key, i) => licensedModules.set(key, results[i]));
-  }
-  const isLicensed = (key: ModuleKey) => licensedModules.get(key) ?? true;
+  // own org, resolved once via ownOrgId above. JAGS staff always bypass entirely (the map is only
+  // ever loaded for a non-staff session with a resolvable own org) — they need to see every module
+  // to support any client. Fails open (see lib/module-licensing/access.ts) so a query error never
+  // hides a nav item nobody explicitly unlicensed; a null map (cache unavailable) reads as licensed.
+  const isLicensed = (key: ModuleKey) => isLicensedIn(licenseMap, key);
 
   // Every non-staff role used to get the identical nav, with only the underlying data differing
   // via RLS — no portal actually looked or felt different per party. This is a first, deliberately
@@ -131,6 +107,12 @@ export default async function InspectLayout({ children }: { children: React.Reac
           ? [{ label: "Data Book / Handover", href: "/inspect/handover" }]
           : []),
         { label: "Punch list (choose a project)", href: "/inspect/projects" },
+        { label: "Registers: materials, calibration, plant (choose a project)", href: "/inspect/projects" },
+        { label: "Data Book (choose a project)", href: "/inspect/reports-documents" },
+        { label: "Reports (choose a project)", href: "/inspect/reports-documents" },
+        { label: "NCR register", href: "/inspect/ncrs" },
+        { label: "Observations register", href: "/inspect/observations" },
+        { label: "Inspections list", href: "/inspect/inspections" },
       ],
     },
     { label: "Projects", href: "/inspect/projects", group: "Plan" },
@@ -195,6 +177,9 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Document Traceability", href: "/inspect/organisation/traceability" },
               { label: "Intervention Levels", href: "/inspect/settings?section=intervention-levels" },
               { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
+              { label: "Document Retention", href: "/inspect/settings?section=retention" },
+              { label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
+              { label: "Orphaned Photos", href: "/inspect/organisation/orphan-photos" },
             ],
           },
         ]
@@ -236,9 +221,10 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : "JAGS Inspector"
     : (grant?.role ?? "Member");
 
+  const locale = normalizeLocale((await cookies()).get(LOCALE_COOKIE)?.value);
   return (
     <AppShell
-      navItems={navItems}
+      navItems={localizeNavItems(navItems, locale)}
       userId={session.userId}
       userName={session.fullName}
       userRole={userRole}
@@ -248,9 +234,10 @@ export default async function InspectLayout({ children }: { children: React.Reac
         { label: "Dashboard", href: "/inspect" },
         ...(isAdminStaff(session) ? [{ label: "Settings", href: "/inspect/settings" }] : []),
         { label: "Guide", href: "/inspect/guide" },
+        ...(mfaEnabled() ? [{ label: "Account security", href: "/inspect/account/security" }] : []),
       ]}
     >
-      {children}
+      <LocaleProvider locale={locale}>{children}</LocaleProvider>
     </AppShell>
   );
 }

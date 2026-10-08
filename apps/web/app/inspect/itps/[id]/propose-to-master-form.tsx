@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { proposeItpToMasterAction, type ProposeToMasterState } from "@/lib/itp-master/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: ProposeToMasterState = { error: null, success: false };
 
@@ -67,23 +68,18 @@ export function ProposeToMasterForm({
 
       {action === "new_template" ? (
         <div className="mt-3">
-          <label htmlFor="proposed_title" className="block text-sm font-medium text-ink">
-            Template title
-          </label>
-          <input
-            id="proposed_title"
+          <FormField label="Template title">
+            <input
             name="proposed_title"
             defaultValue={itpTitle}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
       ) : (
         <div className="mt-3">
-          <label htmlFor="target_template_id" className="block text-sm font-medium text-ink">
-            Target template
-          </label>
-          <select
-            id="target_template_id"
+          <FormField label="Target template">
+            <select
             name="target_template_id"
             required
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
@@ -95,19 +91,18 @@ export function ProposeToMasterForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
 
       <div className="mt-3">
-        <label htmlFor="proposal_notes" className="block text-sm font-medium text-ink">
-          Notes for the reviewer
-        </label>
-        <textarea
-          id="proposal_notes"
+        <FormField label="Notes for the reviewer">
+          <textarea
           name="proposal_notes"
           rows={2}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}

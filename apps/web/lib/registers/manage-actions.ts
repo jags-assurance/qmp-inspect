@@ -16,6 +16,7 @@ import {
 } from "@/lib/registers/types";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 import { checkCertificateInput } from "@/lib/registers/certificate-input";
+import { certificateChange, recordCertificateReplacement } from "@/lib/registers/certificate-history";
 import { isMissingDbObject, REGISTER_LIFECYCLE_STATUSES, type RegisterLifecycleStatus } from "@/lib/registers/lifecycle";
 
 export type RegisterKind = "calibration" | "welder" | "material" | "personnel";
@@ -183,6 +184,9 @@ export async function updateRegisterEntryAction(_prev: ManageRegisterState, form
   const cert = await checkCertificateInput(supabase, projectId, text(formData, "certificate_path"));
   if (cert.error) return { error: cert.error };
   if (cert.path) patch.certificate_path = cert.path;
+  const { data: before } = cert.path
+    ? await supabase.from(TABLE_BY_KIND[kind]).select("certificate_path").eq("id", id).eq("project_id", projectId).maybeSingle<{ certificate_path: string | null }>()
+    : { data: null };
 
   const { data: updated, error } = await supabase
     .from(TABLE_BY_KIND[kind])
@@ -193,7 +197,68 @@ export async function updateRegisterEntryAction(_prev: ManageRegisterState, form
   if (error?.code === "23505") return { error: "Another active entry with the same identifiers already exists in this register." };
   if (error || !updated?.length) return { error: `Could not update the ${KIND_LABEL[kind]}. Check you have permission and try again.` };
 
+  const change = certificateChange(before?.certificate_path, cert.path);
+  if (change === "replaced" && before?.certificate_path && cert.path) {
+    await recordCertificateReplacement(supabase, { projectId, kind, entryId: id, oldPath: before.certificate_path, newPath: cert.path, reason: null, userId: staff.userId });
+    summary += " (certificate file replaced)";
+  } else if (change === "attached") {
+    summary += " (certificate file attached)";
+  }
   await audit(supabase, projectId, staff.userId, `${kind}_register_entry`, id, "updated", summary);
+  revalidatePath(`/inspect/projects/${projectId}/registers`);
+  return { error: null };
+}
+
+/**
+ * S3-11: replaces (or attaches) just the certificate file of one register entry, with a reason. The previous
+ * file is kept on record in register_certificate_history and stays in storage. JAGS staff only.
+ */
+export async function replaceRegisterCertificateAction(_prev: ManageRegisterState, formData: FormData): Promise<ManageRegisterState> {
+  const kind = text(formData, "kind") as RegisterKind;
+  const id = text(formData, "id");
+  const projectId = text(formData, "project_id");
+  const reason = text(formData, "reason");
+  if (!id || !projectId || !(kind in TABLE_BY_KIND)) return { error: "Missing entry." };
+  if (!text(formData, "certificate_path")) return { error: "Choose the new certificate file first." };
+
+  const staff = await requireStaff();
+  if (staff.error) return { error: staff.error };
+
+  const supabase = await createSupabaseServerClient();
+  const cert = await checkCertificateInput(supabase, projectId, text(formData, "certificate_path"));
+  if (cert.error || !cert.path) return { error: cert.error ?? "The certificate file isn't valid." };
+
+  const { data: current } = await supabase
+    .from(TABLE_BY_KIND[kind])
+    .select("certificate_path")
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .maybeSingle<{ certificate_path: string | null }>();
+  if (!current) return { error: `That ${KIND_LABEL[kind]} wasn't found.` };
+  const change = certificateChange(current.certificate_path, cert.path);
+  if (change === "none") return { error: "That is already the attached certificate." };
+  if (change === "replaced" && reason.length < 5) return { error: "Give a reason for replacing the certificate (at least 5 characters)." };
+
+  const { data: updated, error } = await supabase
+    .from(TABLE_BY_KIND[kind])
+    .update({ certificate_path: cert.path })
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .select("id");
+  if (error || !updated?.length) return { error: `Could not update the ${KIND_LABEL[kind]}. Check you have permission and try again.` };
+
+  if (change === "replaced" && current.certificate_path) {
+    await recordCertificateReplacement(supabase, { projectId, kind, entryId: id, oldPath: current.certificate_path, newPath: cert.path, reason, userId: staff.userId });
+  }
+  await audit(
+    supabase,
+    projectId,
+    staff.userId,
+    `${kind}_register_entry`,
+    id,
+    change === "replaced" ? "certificate_replaced" : "certificate_attached",
+    change === "replaced" ? `Certificate file of a ${KIND_LABEL[kind]} replaced: ${reason}` : `Certificate file attached to a ${KIND_LABEL[kind]}`
+  );
   revalidatePath(`/inspect/projects/${projectId}/registers`);
   return { error: null };
 }

@@ -11,6 +11,7 @@ import {
 } from "@/lib/ncrs/actions";
 import { WITHDRAW_REASON_MIN } from "@/lib/ncrs/rules";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const field = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
 
@@ -69,6 +70,7 @@ export function EditNcrDetailsForm({
 /** Withdraw an NCR raised in error / as a duplicate: closed with a reason, excluded from gates. */
 export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; others: { id: string; ncr_number: string }[]; onDone?: () => void }) {
   const [state, action, pending] = useActionState(withdrawNcrAction, { error: null } as WithdrawNcrState);
+  const { askThenSubmit, dialog } = useConfirm();
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
@@ -80,6 +82,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
     <details className="mt-4 border-t border-border pt-4 text-sm">
       <summary className="cursor-pointer font-medium text-ink">Withdraw (raised in error / duplicate)</summary>
       <form action={action} className="mt-2 space-y-2">
+        {dialog}
         <input type="hidden" name="ncr_id" value={ncrId} />
         <textarea name="reason" rows={2} required minLength={WITHDRAW_REASON_MIN} placeholder="Why is this being withdrawn? (required)" className={field} aria-label="Reason" />
         {others.length > 0 && (
@@ -93,7 +96,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
           </select>
         )}
         {state.error && <p className="text-sm text-danger">{state.error}</p>}
-        <Button type="submit" variant="outline" disabled={pending} onClick={(e) => { if (!window.confirm("Withdraw this NCR? It will be closed and its punch item withdrawn with it.")) e.preventDefault(); }}>
+        <Button type="submit" variant="outline" disabled={pending} onClick={askThenSubmit({ title: "Withdraw this NCR?", message: "It will be closed and its punch item withdrawn with it.", confirmLabel: "Withdraw NCR", destructive: true })}>
           {pending ? "Withdrawing…" : "Withdraw NCR"}
         </Button>
       </form>

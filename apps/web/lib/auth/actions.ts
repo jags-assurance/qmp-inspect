@@ -7,6 +7,7 @@ import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/
 import { recordAuditEvent } from "@/lib/audit/log";
 import { getAppUrl } from "./app-url";
 import { checkPasswordPolicy } from "./password-policy";
+import { mfaChallengePath, mfaEnabled, needsMfaChallenge } from "./mfa";
 import { safeNextPath } from "./safe-redirect";
 import { checkThrottle, clearAttempts, recordAttempt } from "./throttle";
 
@@ -52,7 +53,13 @@ export async function signInAction(_prev: SignInState, formData: FormData): Prom
     })
   );
 
-  redirect(safeNextPath(String(formData.get("next") ?? "/")));
+  const next = safeNextPath(String(formData.get("next") ?? "/"));
+  // Two-step sign-in: a user with an authenticator app goes to the code step first (the proxy enforces it too).
+  if (mfaEnabled()) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (needsMfaChallenge(aal)) redirect(mfaChallengePath(next));
+  }
+  redirect(next);
 }
 
 export interface RequestPasswordResetState {

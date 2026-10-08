@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 export const metadata: Metadata = { title: "Manage" };
 
@@ -123,6 +124,39 @@ export default async function ManageHubPage() {
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
+  const queueColumns: ResponsiveColumn<(typeof actionQueue)[number]>[] = [
+    {
+      key: "itp",
+      header: "ITP",
+      render: (row) => (
+        <div className="text-left">
+          <Link href={`/inspect/itps/${row.id}`} className="doc-id text-burgundy hover:underline">
+            {row.itp_number}
+          </Link>
+          <div className="text-xs text-muted">{row.title}</div>
+        </div>
+      ),
+    },
+    { key: "project", header: "Project", className: "text-muted", render: (row) => projectById.get(row.project_id)?.project_number },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
+    },
+    {
+      key: "action",
+      header: "Action",
+      render: (row) => (
+        <Link
+          href={row.action === "Generate checklists" ? `/inspect/itps/${row.id}/checklists` : `/inspect/itps/${row.id}`}
+          className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-1 text-xs font-medium hover:bg-off-white sm:min-h-0"
+        >
+          {row.action} →
+        </Link>
+      ),
+    },
+  ];
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
@@ -151,41 +185,19 @@ export default async function ManageHubPage() {
             Nothing waiting on you right now.
           </p>
         ) : (
-          <div className="mt-2 overflow-hidden rounded-lg border border-border bg-surface">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-off-white text-left text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-4 py-2">ITP</th>
-                  <th className="px-4 py-2">Project</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {actionQueue.map((row) => (
-                  <tr key={row.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2">
-                      <Link href={`/inspect/itps/${row.id}`} className="doc-id text-burgundy hover:underline">
-                        {row.itp_number}
-                      </Link>
-                      <div className="text-xs text-muted">{row.title}</div>
-                    </td>
-                    <td className="px-4 py-2 text-muted">{projectById.get(row.project_id)?.project_number}</td>
-                    <td className="px-4 py-2">
-                      <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
-                    </td>
-                    <td className="px-4 py-2">
-                      <Link
-                        href={row.action === "Generate checklists" ? `/inspect/itps/${row.id}/checklists` : `/inspect/itps/${row.id}`}
-                        className="rounded-md border border-border bg-surface px-3 py-1 text-xs font-medium hover:bg-off-white"
-                      >
-                        {row.action} →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-2 overflow-x-auto rounded-lg border border-border bg-surface">
+            <ResponsiveTable
+              columns={queueColumns}
+              rows={actionQueue}
+              rowKey={(row) => row.id}
+              caption="ITPs needing action"
+              wrapperClassName=""
+              theadClassName="border-b border-border bg-off-white text-left text-xs uppercase tracking-wide text-muted"
+              headRowClassName=""
+              thClassName="px-4 py-2"
+              tdClassName="px-4 py-2"
+              cardClassName="px-4"
+            />
           </div>
         )}
       </section>

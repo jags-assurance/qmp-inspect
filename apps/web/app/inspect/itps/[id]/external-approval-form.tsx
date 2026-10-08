@@ -52,7 +52,7 @@ export function ExternalApprovalForm({
           placeholder="e.g. Approved in client's Aconex system, ref AX-2026-4471"
           defaultValue={reference ?? ""}
           required
-          className="min-w-[20rem] flex-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          className="w-full sm:min-w-[20rem] flex-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         <button
           type="submit"

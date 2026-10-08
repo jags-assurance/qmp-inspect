@@ -140,9 +140,9 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
             "A role is a named bundle of specific permissions from a fixed set (e.g. \"add a project party\", \"approve an ITP\") — pick exactly which ones when you create it.",
             "Assigning a role to someone ADDS to their access — it never replaces what their staff role, team lead status, or party type already grants them.",
             admin
-              ? "As Admin, you can create a JAGS-global role (assignable to any JAGS staff member) or a role scoped to one client organisation (assignable to that client's own users), and you can grant any of the 10 permission keys."
+              ? "As Admin, you can create a JAGS-global role (assignable to any JAGS staff member) or a role scoped to one client organisation (assignable to that client's own users), and you can grant any of the 12 permission keys."
               : "Roles you create here are scoped to your own organisation only — your own people, your own projects. Self-Managed orgs can only self-grant add_project_party, reassign_project_party and view_org_reports; Full Client-Managed orgs can additionally self-grant approve_itp and provision_party_login.",
-            "manage_intervention_levels, issue_irn, close_ncr, approve_vault_document and close_punch_item stay JAGS-Admin-grantable only on every tier — a client can revoke one of these from a role if a JAGS Admin already granted it, but can never grant it themselves.",
+            "manage_intervention_levels, issue_irn, close_ncr, approve_vault_document, close_punch_item and issue_handover stay JAGS-Admin-grantable only on every tier — a client can revoke one of these from a role if a JAGS Admin already granted it, but can never grant it themselves.",
             "A role can optionally be narrowed to one specific project when you assign it, instead of the whole organisation.",
           ]}
         />

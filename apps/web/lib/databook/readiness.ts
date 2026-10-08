@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { untypedFrom } from "@/lib/supabase/untyped";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { CHECKLIST_TEMPLATES_TABLE } from "@/lib/checklists/db-types";
 import {
@@ -7,6 +8,7 @@ import {
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
 import { fetchAllRows, fetchInChunks } from "./helpers";
+import { isTerminalItpStatus } from "@/lib/itps/lifecycle";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 
 export interface ReadinessCategory {
@@ -114,8 +116,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     // Observations are advisory notes, not nonconformances — they must not hold the book at "not ready".
     // .or() keeps rows whose severity is NULL (a plain .neq would drop them in SQL).
     fetchAllRows<{ id: string; status: string }>((from, to) =>
-      supabase
-        .from("ncrs" as any)
+      untypedFrom(supabase, "ncrs")
         .select("id, status")
         .eq("project_id", projectId)
         .or("severity.is.null,severity.neq.observation")
@@ -144,7 +145,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
         .returns<{ id: string; approval_status: string; receipt_status: string }[]>()
     ),
     fetchAllRows<{ id: string }>((from, to) =>
-      supabase.from("data_books" as any).select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(from, to).returns<{ id: string }[]>()
+      untypedFrom(supabase, "data_books").select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(from, to).returns<{ id: string }[]>()
     ),
     fetchAllRows<{ id: string; expiry_date: string }>((from, to) =>
       supabase
@@ -169,8 +170,10 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   // A failed count must not read as "0 open punch items" (fail closed).
   if (punchError) throw new Error(`Data Book query failed: ${punchError.message}`);
 
-  const itpTotal = itps.length;
-  const itpReady = itps.filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
+  // Superseded / withdrawn ITPs are kept for the record but no longer count toward readiness.
+  const liveItps = itps.filter((itp) => !isTerminalItpStatus(itp.status));
+  const itpTotal = liveItps.length;
+  const itpReady = liveItps.filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
   // "Inspection records with an issued IRN" denominator: ONLY the latest COMPLETED record per itp_item
   // (overall_result not null), and only when that latest result is pass/partial. Drafts (no result)

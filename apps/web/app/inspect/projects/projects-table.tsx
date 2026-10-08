@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import type { SupportedLocale } from "@/lib/i18n/direction";
 
 export interface ProjectRow {
   id: string;
@@ -104,7 +105,7 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
 // Component — this wrapper exists so the Server Component page only ever passes plain, serializable
 // row data down, and the column/search config (which contains functions) is defined here, already
 // inside client code.
-export function ProjectsTable({ rows, canCreate = false }: { rows: ProjectRow[]; canCreate?: boolean }) {
+export function ProjectsTable({ rows, canCreate = false, locale }: { rows: ProjectRow[]; canCreate?: boolean; locale?: SupportedLocale }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border p-8 text-center">
@@ -120,6 +121,7 @@ export function ProjectsTable({ rows, canCreate = false }: { rows: ProjectRow[];
   return (
     <DataTable
       columns={COLUMNS}
+      locale={locale}
       rows={rows}
       searchPlaceholder="Search projects…"
       searchKeys={(row) => `${row.project_number} ${row.name} ${row.site_location ?? ""} ${row.organizations?.name ?? ""} ${row.status}`}

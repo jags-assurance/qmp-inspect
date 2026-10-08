@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { createProjectAction, type CreateProjectState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CreateProjectState = { error: null };
 
@@ -55,75 +56,64 @@ export function NewProjectForm({
       </div>
 
       <div>
-        <label htmlFor="project_number" className="block text-sm font-medium text-ink">
-          Project number
-        </label>
-        <input
-          id="project_number"
+        <FormField label="Project number">
+          <input
           name="project_number"
           required
           placeholder="e.g. MER-2026-001"
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-ink">
-          Project name
-        </label>
-        <input
-          id="name"
+        <FormField label="Project name">
+          <input
           name="name"
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>
-        <label htmlFor="site_location" className="block text-sm font-medium text-ink">
-          Site location
-        </label>
-        <input
-          id="site_location"
+        <FormField label="Site location">
+          <input
           name="site_location"
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="country" className="block text-sm font-medium text-ink">
-            Country (optional)
-          </label>
-          <input id="country" name="country" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <FormField label="Country (optional)">
+            <input name="country" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          </FormField>
         </div>
         <div>
-          <label htmlFor="contract_number" className="block text-sm font-medium text-ink">
-            Contract number (optional)
-          </label>
-          <input id="contract_number" name="contract_number" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <FormField label="Contract number (optional)">
+            <input name="contract_number" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          </FormField>
         </div>
         <div>
-          <label htmlFor="start_date" className="block text-sm font-medium text-ink">
-            Start date (optional)
-          </label>
-          <input id="start_date" name="start_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <FormField label="Start date (optional)">
+            <input name="start_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          </FormField>
         </div>
         <div>
-          <label htmlFor="end_date" className="block text-sm font-medium text-ink">
-            End date (optional)
-          </label>
-          <input id="end_date" name="end_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <FormField label="End date (optional)">
+            <input name="end_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          </FormField>
         </div>
         <div>
-          <label htmlFor="status" className="block text-sm font-medium text-ink">
-            Status
-          </label>
-          <select id="status" name="status" defaultValue="active" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
+          <FormField label="Status">
+            <select name="status" defaultValue="active" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
             <option value="draft">Draft</option>
             <option value="active">Active</option>
             <option value="on_hold">On hold</option>
           </select>
+          </FormField>
         </div>
       </div>
       <div>
@@ -135,10 +125,8 @@ export function NewProjectForm({
       </div>
       {staffUsers.length > 0 && (
         <div>
-          <label htmlFor="responsible_person_id" className="block text-sm font-medium text-ink">
-            Responsible person (optional)
-          </label>
-          <select id="responsible_person_id" name="responsible_person_id" defaultValue="" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
+          <FormField label="Responsible person (optional)">
+            <select name="responsible_person_id" defaultValue="" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
             <option value="">— none set —</option>
             {staffUsers.map((u) => (
               <option key={u.id} value={u.id}>
@@ -146,6 +134,7 @@ export function NewProjectForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
 

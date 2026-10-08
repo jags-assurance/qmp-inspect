@@ -36,15 +36,23 @@ export interface NotificationEmailParams {
  * source of truth regardless of whether the email itself succeeds.
  */
 export async function sendNotificationEmail(params: NotificationEmailParams): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error("sendNotificationEmail called without RESEND_API_KEY set — caller should have gated this.");
-  }
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   // Title, body and link are user-influenced (party names, NCR text, reasons): escaped, and the link
   // is only ever a same-site path — see ./render.ts.
   const html = renderNotificationEmailHtml({ title: params.title, body: params.body, link: params.link, appUrl });
+  await sendEmail({ toEmail: params.toEmail, subject: params.title, html });
+}
+
+/**
+ * Sends one already-rendered HTML email via Resend. Shared by notification emails and document
+ * transmittals (S7-26). Like sendNotificationEmail it throws on a missing RESEND_API_KEY rather than
+ * silently doing nothing, so a caller that forgot to gate on it fails loudly.
+ */
+export async function sendEmail(params: { toEmail: string; subject: string; html: string }): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("sendEmail called without RESEND_API_KEY set — caller should have gated this.");
+  }
 
   const response = await fetch(RESEND_API_URL, {
     method: "POST",
@@ -55,8 +63,8 @@ export async function sendNotificationEmail(params: NotificationEmailParams): Pr
     body: JSON.stringify({
       from: DEFAULT_FROM,
       to: params.toEmail,
-      subject: params.title,
-      html,
+      subject: params.subject,
+      html: params.html,
     }),
   });
 

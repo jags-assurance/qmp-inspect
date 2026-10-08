@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { saveChecklistResponseAction, completeInspectionCore } from "@/lib/checklists/actions";
+import { saveChecklistResponseAction, completeInspectionCore, startInspectionAction, linkInspectionEvidenceDocumentAction } from "@/lib/checklists/actions";
+import { startInspectionMarkerPath } from "@/lib/offline/idempotency";
 import { createNcrAction, addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { addMeasurementAction, addPhotoAction, addSignatureAction } from "@/lib/standalone/actions";
 import { STANDALONE_ASSIGNMENT_MEASUREMENTS, STANDALONE_ASSIGNMENT_PHOTOS, STANDALONE_ASSIGNMENT_SIGNATURES } from "@/lib/standalone/types";
 import { validateOfflinePhoto, MAX_PHOTO_BYTES } from "@/lib/checklists/photo-validation";
 import { isMissingSchemaError, isStoragePermissionError } from "@/lib/offline/missing-schema";
 import { boundedCapturedAt } from "@/lib/offline/policy";
+import { checkOfflineSyncOrigin } from "@/lib/offline/origin-check";
 import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
+import { rateLimitResponse } from "@/lib/api/rate-limit";
 
 /**
  * The server side of the offline outbox (lib/offline/db.ts, R60): replays one queued item once
@@ -28,6 +31,20 @@ import { INSPECTION_PHOTOS_TABLE, CHECKLIST_RESPONSES_TABLE, INSPECTION_RECORDS_
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  // E-10: refuse anything that isn't demonstrably from this app's own pages before touching the session.
+  const originCheck = checkOfflineSyncOrigin({
+    origin: request.headers.get("origin"),
+    secFetchSite: request.headers.get("sec-fetch-site"),
+    host: request.headers.get("host"),
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+    idempotencyKey: request.headers.get("x-idempotency-key"),
+  });
+  if (!originCheck.ok) {
+    // originRejected lets the offline client tell this apart from an expired session (also 401/403).
+    return NextResponse.json({ ok: false, originRejected: true, error: originCheck.reason }, { status: 403 });
+  }
+
   const authClient = await createSupabaseServerClient();
   const {
     data: { user: authUser },
@@ -35,6 +52,8 @@ export async function POST(request: Request) {
   if (!authUser) {
     return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
   }
+  const limited = rateLimitResponse("offlineSync", authUser.id);
+  if (limited) return limited;
 
   // Shared-tablet safety: an item queued by one user must never be replayed under another user's
   // session (it would attribute answers and sign-offs to the wrong person).
@@ -79,6 +98,36 @@ export async function POST(request: Request) {
         }
         // updatedAt lets the client chain the baseline for later queued answers to the same item.
         return NextResponse.json({ ok: true, updatedAt: saved?.updatedAt });
+      }
+
+      case "start_inspection": {
+        // Queued by StartInspectionForm while offline. Same validated action as the live form (it also
+        // resumes an existing open draft). The marker stops a replay after a lost response from
+        // opening a second inspection once the first has been completed.
+        const projectId = String(formData.get("project_id") ?? "").trim();
+        const markerPath = startInspectionMarkerPath(projectId, clientKey);
+        if (markerPath) {
+          const { data: seen } = await authClient.storage.from("inspection-evidence").download(markerPath);
+          if (seen) return NextResponse.json({ ok: true });
+        }
+        const result = await startInspectionAction({ error: null }, formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        if (markerPath) {
+          // Best-effort, insert-only (no upsert): a failed marker write only loses the extra protection.
+          await authClient.storage
+            .from("inspection-evidence")
+            .upload(markerPath, new Blob([JSON.stringify({ startedAt: Date.now() })], { type: "application/json" }), { upsert: false })
+            .catch(() => undefined);
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      case "link_item_document": {
+        // Vault link made while offline. linkInspectionEvidenceDocumentAction upserts with
+        // ignoreDuplicates on (inspection_record_id, vault_document_id), so a replay is a no-op.
+        const result = await linkInspectionEvidenceDocumentAction({ error: null }, formData);
+        if (result.error) return NextResponse.json({ ok: false, error: result.error }, { status: 422 });
+        return NextResponse.json({ ok: true });
       }
 
       case "complete_inspection": {

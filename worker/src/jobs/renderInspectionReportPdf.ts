@@ -1,3 +1,4 @@
+import { createPhotoDownscaler, type PhotoDownscaler } from "./photoDownscale";
 import { getSharedBrowser } from "../browserPool";
 import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
@@ -8,6 +9,7 @@ import {
   type InspectionReportPhoto,
   type InspectionReportResult,
 } from "./inspectionReportTemplate";
+import { buildLinkedDocumentRows, type InspectionReportLinkedDocument, type LinkedDocumentSourceRow } from "./linkedDocuments";
 import type { RenderInspectionReportPdfPayload } from "./types";
 import { getOrgBranding } from "./orgBranding";
 import { buildGeneratedPath, resolveNextRevision, assertInspectionFileable } from "./vaultAutoFile";
@@ -22,19 +24,23 @@ const EVIDENCE_BUCKET = "inspection-evidence";
 // An inline base64 photo is ~1.33x its size and the whole report is ONE html string in a shared browser:
 // 80 photos at 5 MB would be a 500 MB+ document that times out or takes the queue down. Cap per photo, per
 // report and in count; whatever is left out is LISTED in the report instead of silently dropped.
-const MAX_PHOTO_BYTES = 6 * 1024 * 1024;
+// The cap applies to the ORIGINAL download; photos are downscaled (S6-07, photoDownscale.ts) before they are
+// inlined, so originals can be larger than what the report actually carries, and the total cap below is
+// counted on the downscaled bytes that really go into the document.
+const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
 const MAX_TOTAL_PHOTO_BYTES = 48 * 1024 * 1024;
 const MAX_PHOTOS = 60;
 
 type PhotoOutcome = { dataUri: string; bytes: number } | { skipped: string };
 
-async function toDataUri(storagePath: string): Promise<PhotoOutcome> {
+async function toDataUri(storagePath: string, downscaler: PhotoDownscaler): Promise<PhotoOutcome> {
   const { data, error } = await supabase.storage.from(EVIDENCE_BUCKET).download(storagePath);
   if (error || !data) return { skipped: "could not be read" };
   if (data.size > MAX_PHOTO_BYTES) return { skipped: `larger than ${Math.round(MAX_PHOTO_BYTES / 1024 / 1024)} MB` };
   const buffer = Buffer.from(await data.arrayBuffer());
   const contentType = data.type || "image/jpeg";
-  return { dataUri: `data:${contentType};base64,${buffer.toString("base64")}`, bytes: buffer.length };
+  const scaled = await downscaler.downscale(buffer, contentType);
+  return { dataUri: scaled.dataUri, bytes: scaled.bytes };
 }
 
 /**
@@ -162,15 +168,37 @@ export async function renderInspectionReportPdf(
     id: w.welder_identifier, wpq: w.wpq_number, expiry: w.expiry_date,
   }));
 
+  // Documents linked to individual checklist items. Best-effort: a failed read leaves the section out
+  // rather than failing the whole report.
+  let linkedDocuments: InspectionReportLinkedDocument[] = [];
+  {
+    const { data: rawDocRows, error: docErr } = await supabase
+      .from("inspection_evidence_documents" as never)
+      .select("vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
+      .eq("inspection_record_id" as never, record.id as never)
+      .not("checklist_item_id" as never, "is", null);
+    const docRows = rawDocRows as unknown as LinkedDocumentSourceRow[] | null;
+    if (docErr) {
+      console.error("[inspection-report] linked documents unavailable", docErr.message);
+    } else if (docRows && docRows.length > 0) {
+      const itemIds = uniq(docRows.map((d) => d.checklist_item_id));
+      const { data: itemRows } = await supabase.from("checklist_items").select("id, item_number").in("id", itemIds);
+      const itemNumberById = new Map(((itemRows ?? []) as { id: string; item_number: string }[]).map((i) => [i.id, i.item_number]));
+      linkedDocuments = buildLinkedDocumentRows(docRows, itemNumberById, record.project_id, process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL);
+    }
+  }
+
   const photos: InspectionReportPhoto[] = [];
   const skippedPhotos: string[] = [];
   let totalPhotoBytes = 0;
   // Sequential in small batches so memory stays bounded (the old code downloaded every photo at once).
   const allPhotos = photoRows ?? [];
+  const downscaler = createPhotoDownscaler();
+  try {
   for (let i = 0; i < allPhotos.length; i += 4) {
     const batch = allPhotos.slice(i, i + 4);
     const outcomes = await Promise.all(
-      batch.map((p, j) => (i + j >= MAX_PHOTOS ? Promise.resolve<PhotoOutcome>({ skipped: `over the ${MAX_PHOTOS}-photo limit` }) : toDataUri(p.storage_path)))
+      batch.map((p, j) => (i + j >= MAX_PHOTOS ? Promise.resolve<PhotoOutcome>({ skipped: `over the ${MAX_PHOTOS}-photo limit` }) : toDataUri(p.storage_path, downscaler)))
     );
     outcomes.forEach((o, j) => {
       const p = batch[j];
@@ -182,6 +210,9 @@ export async function renderInspectionReportPdf(
         photos.push({ caption: p.caption, dataUri: o.dataUri });
       }
     });
+  }
+  } finally {
+    await downscaler.close();
   }
 
   // Only a completed inspection (overall result recorded) is a final report.
@@ -267,6 +298,7 @@ export async function renderInspectionReportPdf(
     governingDrawingRevision: record.governing_drawing_revision,
     irnNumber: irn?.irn_number ?? null,
     results,
+    linkedDocuments,
     photos,
     skippedPhotos,
     signedByName: record.signed_by_name,

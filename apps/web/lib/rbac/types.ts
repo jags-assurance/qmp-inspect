@@ -25,6 +25,7 @@ export const PERMISSION_KEYS = [
   "provision_party_login",
   "close_punch_item",
   "run_standalone_assignment",
+  "issue_handover",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
@@ -71,6 +72,7 @@ export const PERMISSION_LABEL: Record<PermissionKey, string> = {
   provision_party_login: "Create a new login for a project party (client-managed tier only)",
   close_punch_item: "Verify and close a punch list item",
   run_standalone_assignment: "Create and run a Standalone Assignment (client-managed tier only)",
+  issue_handover: "Issue a conditional handover certificate (JAGS staff only)",
 };
 
 export interface CustomRoleRow {

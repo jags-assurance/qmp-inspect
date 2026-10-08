@@ -10,7 +10,7 @@
 // the bundler drops this whole branch — the SDK is not in the bundle at all — and with a DSN it
 // becomes an async chunk fetched after the page is already interactive. The trade-off: an error
 // thrown in the first moments before that chunk arrives isn't captured.
-import { scrubEvent } from "@/lib/observability/scrub";
+import { dropBreadcrumb, scrubEvent } from "@/lib/observability/scrub";
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   void import("@sentry/nextjs").then((Sentry) => {
@@ -19,6 +19,8 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
       tracesSampleRate: 0.1,
       sendDefaultPii: false,
       beforeSend: (event) => scrubEvent(event),
+      beforeSendTransaction: (event) => scrubEvent(event),
+      beforeBreadcrumb: dropBreadcrumb,
     });
   });
 }

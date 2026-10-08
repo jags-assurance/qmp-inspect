@@ -59,6 +59,20 @@ function backgroundJobInsertErrorMessage(error: { message: string } | null, gene
   return genericMessage;
 }
 
+/** Reads the optional project scope of a pack request and checks it belongs to the organisation. Returns null for the whole organisation. */
+async function resolvePackProject(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  raw: FormDataEntryValue | null
+): Promise<{ projectId: string | null } | { error: string }> {
+  const value = String(raw ?? "").trim();
+  if (!value) return { projectId: null };
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return { error: "Choose a valid project." };
+  const { data } = await supabase.from("projects").select("id").eq("id", value).eq("organization_id", organizationId).maybeSingle<{ id: string }>();
+  if (!data) return { error: "That project does not belong to this organisation." };
+  return { projectId: value };
+}
+
 /**
  * Queues a "generate_monthly_report_pack" background job (R109) for one organisation and one
  * calendar month, aggregated across all of that org's projects. Follows the exact insert-a-row
@@ -92,10 +106,13 @@ export async function generateMonthlyReportPackAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const scope = await resolvePackProject(supabase, organizationId, formData.get("project_id"));
+  if ("error" in scope) return { error: scope.error };
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "generate_monthly_report_pack",
     payload: {
       organization_id: organizationId,
+      ...(scope.projectId ? { project_id: scope.projectId } : {}),
       year,
       month,
       requested_by: session.userId,
@@ -143,10 +160,13 @@ export async function requestWeeklyReportPackAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const scope = await resolvePackProject(supabase, organizationId, formData.get("project_id"));
+  if ("error" in scope) return { error: scope.error };
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "generate_weekly_report_pack",
     payload: {
       organization_id: organizationId,
+      ...(scope.projectId ? { project_id: scope.projectId } : {}),
       week_start: weekStart,
       requested_by: session.userId,
     } satisfies WeeklyReportPackPayload,

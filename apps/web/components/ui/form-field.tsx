@@ -12,14 +12,18 @@ export function FormField({
   hint,
   error,
   required,
+  id: idProp,
 }: {
   label: ReactNode;
+  /** A stable id for the control (e.g. "email"), used by tests, password managers and deep links; a generated one is used when omitted. */
+  id?: string;
   children: ReactElement<Record<string, unknown>>;
   hint?: ReactNode;
   error?: ReactNode;
   required?: boolean;
 }) {
-  const id = useId();
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
   const hintId = hint ? `${id}-hint` : undefined;
   const errId = error ? `${id}-err` : undefined;
   const describedBy = [hintId, errId].filter(Boolean).join(" ") || undefined;
@@ -36,7 +40,7 @@ export function FormField({
       <label htmlFor={id} className="block text-sm font-medium text-ink">
         {label}
         {required && (
-          <span aria-hidden="true" className="ml-0.5 text-danger">
+          <span aria-hidden="true" className="ms-0.5 text-danger">
             *
           </span>
         )}

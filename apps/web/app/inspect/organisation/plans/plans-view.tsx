@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrgPlanForm } from "./org-plan-form";
+import { summariseSeatUsage } from "@/lib/plans/seat-limit";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 
@@ -81,6 +82,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
         {(organizations ?? []).map((org) => {
           const plan = planByOrgId.get(org.id);
           const seatsUsed = seatsUsedByOrgId.get(org.id)?.size ?? 0;
+          const usage = summariseSeatUsage(seatsUsed, plan?.seat_limit);
           return (
             <div key={org.id} className="rounded-lg border border-border bg-surface p-4">
               <div className="flex items-baseline justify-between">
@@ -91,6 +93,17 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
                   {plan ? ` · ${TIER_LABEL[plan.plan_tier] ?? plan.plan_tier}` : ""}
                 </span>
               </div>
+              {usage.percent !== null && (
+                <div className="mt-2">
+                  <div className="h-1.5 w-full overflow-hidden rounded bg-border" role="progressbar" aria-valuenow={usage.percent} aria-valuemin={0} aria-valuemax={100} aria-label={`Seat usage for ${org.name}`}>
+                    <div className={`h-full ${usage.overLimit ? "bg-danger" : usage.atLimit ? "bg-warning" : "bg-burgundy"}`} style={{ width: `${usage.percent}%` }} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    {usage.used} of {usage.limit} seats used
+                    {usage.overLimit ? " — over the limit (an Admin override was used or the limit was lowered)" : usage.atLimit ? " — full: the next login or staff grant is blocked unless an Admin overrides with a reason" : ""}
+                  </p>
+                </div>
+              )}
               <div className="mt-3">
                 <OrgPlanForm
                   organizationId={org.id}

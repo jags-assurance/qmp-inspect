@@ -94,6 +94,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
         <form action={applyFormAction} className="mt-3 space-y-4">
           <input type="hidden" name="itp_id" value={parseState.itpId} />
           <input type="hidden" name="rows_json" value={parseState.rowsJson} />
+          <input type="hidden" name="base_token" value={parseState.baseToken ?? ""} />
 
           <div className="space-y-3 rounded-md border border-border bg-off-white p-3 text-xs">
             {parseState.diff.sectionsAdded.length > 0 && (

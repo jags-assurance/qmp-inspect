@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PageGuide } from "@/components/domain/page-guide";
 import { Button } from "@/components/ui/button";
+import { StatusLegend } from "@/components/ui/status-legend";
 import { IRNS_TABLE } from "@/lib/checklists/db-types";
 import { InspectionsTable, INSPECTIONS_PAGE_SIZE, type InspectionListRow } from "./inspections-table";
 
@@ -86,15 +88,20 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
       .returns<{ id: string }[]>();
     const candIds = (cand ?? []).map((c) => c.id);
     const live = new Set<string>();
-    for (let i = 0; i < candIds.length; i += CHUNK) {
-      const { data: liveRows } = await supabase
-        .from(IRNS_TABLE)
-        .select("inspection_record_id")
-        .in("inspection_record_id", candIds.slice(i, i + CHUNK))
-        .is("voided_at", null)
-        .returns<{ inspection_record_id: string }[]>();
-      for (const r of liveRows ?? []) live.add(r.inspection_record_id);
-    }
+    // The chunk lookups are independent, so they run together instead of one after another.
+    const chunks: string[][] = [];
+    for (let i = 0; i < candIds.length; i += CHUNK) chunks.push(candIds.slice(i, i + CHUNK));
+    const liveResults = await Promise.all(
+      chunks.map((chunkIds) =>
+        supabase
+          .from(IRNS_TABLE)
+          .select("inspection_record_id")
+          .in("inspection_record_id", chunkIds)
+          .is("voided_at", null)
+          .returns<{ inspection_record_id: string }[]>()
+      )
+    );
+    for (const { data: liveRows } of liveResults) for (const r of liveRows ?? []) live.add(r.inspection_record_id);
     const noneIds = candIds.filter((cid) => !live.has(cid));
     count = noneIds.length;
     const pageIds = noneIds.slice(offset, offset + INSPECTIONS_PAGE_SIZE);
@@ -173,7 +180,7 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">Inspections</h1>
+          <h1 className="text-2xl font-semibold text-ink"><T>Inspections</T></h1>
           <PageGuide
             title="Inspections — how this works"
             points={[
@@ -235,7 +242,10 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
             to begin one.
           </div>
         ) : (
-          <InspectionsTable rows={rows} totalCount={count ?? 0} />
+          <>
+            <StatusLegend className="mb-2" />
+            <InspectionsTable rows={rows} totalCount={count ?? 0} />
+          </>
         )}
       </div>
     </div>

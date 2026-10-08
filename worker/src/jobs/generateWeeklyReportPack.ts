@@ -1,4 +1,5 @@
 import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { resolveProjectScope, packBasePath, packDocumentReference } from "./reportScope";
 import { withBidi } from "./bidi";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
@@ -100,9 +101,10 @@ export async function generateWeeklyReportPack(
   payload: GenerateWeeklyReportPackPayload
 ): Promise<{ resultStoragePath: string }> {
   const { organization_id: organizationId, week_start: weekStart } = payload;
+  const projectId = resolveProjectScope(payload.project_id);
 
   const { startIso, endIso, startDate, endDate } = weekRange(weekStart);
-  const agg = await aggregateReportPackData(organizationId, startIso, endIso);
+  const agg = await aggregateReportPackData(organizationId, startIso, endIso, projectId);
 
   const weekLabel = `${formatDateLabel(startDate)} - ${formatDateLabel(endDate)}`;
 
@@ -145,7 +147,7 @@ export async function generateWeeklyReportPack(
     await page.close();
   }
 
-  const basePath = `weekly-reports/${organizationId}/${weekStart}`;
+  const basePath = packBasePath("weekly-reports", organizationId, weekStart, projectId);
   // Unique directory per generation; the file names stay fixed because the web app derives the
   // .xlsx path from the PDF path (xlsxPathFromPdfPath). Never overwrites an earlier generation.
   const pdfPath = buildGeneratedDirPath(basePath, "report-pack.pdf");
@@ -162,7 +164,7 @@ export async function generateWeeklyReportPack(
   await fileOrgPackInProjectVaults(supabase, {
     projectIds: agg.perProject.map((p) => p.projectId),
     title: `Weekly Report Pack ${weekLabel}`,
-    documentReference: `WEEKLY-${weekStart}`,
+    documentReference: packDocumentReference(`WEEKLY-${weekStart}`, projectId),
     storagePath: pdfPath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,

@@ -7,8 +7,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { ProjectOverviewView } from "./project-overview-view";
-import { PunchListView } from "./punch-list/punch-list-view";
-import { RegistersView } from "./registers/registers-view";
+import { PunchListView, PUNCH_CLOSED_LIMITS } from "./punch-list/punch-list-view";
+import { parseListLimit } from "@/lib/pagination/list-limit";
+import { RegistersView, REGISTER_LIMITS } from "./registers/registers-view";
 import { ActivityView } from "./activity/activity-view";
 import { KpisView } from "./kpis/kpis-view";
 import { DataBookView } from "./data-book/data-book-view";
@@ -16,6 +17,8 @@ import { ReportsView } from "./reports/reports-view";
 import { GuideView } from "./guide/guide-view";
 import { AuditLogView } from "./audit-log/audit-log-view";
 import { ItpsTabView, NcrsTabView } from "./workspace/project-record-lists";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { countOpenNcrs, countPunchByStatus } from "@/lib/projects/open-counts";
 import { WorkspaceSkeleton, WorkspaceTabs, type WorkspaceTab, type WorkspaceTabKey } from "./workspace/workspace-tabs";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
@@ -39,14 +42,17 @@ export default async function ProjectWorkspacePage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ tab?: string; range?: string }>;
+  searchParams: Promise<{ tab?: string; range?: string; limit?: string }>;
 }) {
   const { projectId } = await params;
-  const { tab: tabParam, range } = await searchParams;
+  const { tab: tabParam, range, limit: limitParam } = await searchParams;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: project }, { count: openNcrs }, { count: openObservations }, { count: openPunch }] = await Promise.all([
+  // The tab badges need open NCRs, open observations and outstanding punch items. That is TWO light
+  // row queries (ncrs.severity, punch.status — open rows only) instead of three head counts, and the
+  // numbers are handed to the overview so it does not count the same rows again.
+  const [{ data: project }, openNcrRows, openPunchRows] = await Promise.all([
     supabase
       .from("projects")
       .select("id, project_number, name, status, site_location, country, organizations(name)")
@@ -60,17 +66,39 @@ export default async function ProjectWorkspacePage({
         country: string | null;
         organizations: { name: string } | null;
       }>(),
-    supabase.from("ncrs" as never).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed").neq("severity", "observation"),
-    supabase.from("ncrs" as never).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed").eq("severity", "observation"),
-    supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+    fetchAll<{ id: string; severity: string }>((from, to) =>
+      supabase
+        .from("ncrs" as never)
+        .select("id, severity")
+        .eq("project_id", projectId)
+        .neq("status", "closed")
+        .order("id")
+        .range(from, to)
+        .returns<{ id: string; severity: string }[]>()
+    ),
+    fetchAll<{ id: string; status: string }>((from, to) =>
+      supabase
+        .from(PUNCH_LIST_ITEMS_TABLE)
+        .select("id, status")
+        .eq("project_id", projectId)
+        .neq("status", "closed")
+        .order("id")
+        .range(from, to)
+        .returns<{ id: string; status: string }[]>()
+    ),
   ]);
+  const ncrCounts = countOpenNcrs(openNcrRows);
+  const punchCounts = countPunchByStatus(openPunchRows);
+  const openNcrs = ncrCounts.ncrs;
+  const openObservations = ncrCounts.observations;
+  const openPunch = punchCounts.outstanding;
   if (!project) notFound();
 
   const tabs: WorkspaceTab[] = [
     { key: "overview", label: "Overview", short: "Overview" },
-    { key: "punch-list", label: "Punch list", short: "Punch", count: openPunch ?? 0 },
-    { key: "ncrs", label: "NCRs", count: openNcrs ?? 0 },
-    { key: "observations", label: "Observations", short: "Obs.", count: openObservations ?? 0 },
+    { key: "punch-list", label: "Punch list", short: "Punch", count: openPunch },
+    { key: "ncrs", label: "NCRs", count: openNcrs },
+    { key: "observations", label: "Observations", short: "Obs.", count: openObservations },
     { key: "itps", label: "ITPs" },
     { key: "registers", label: "Registers" },
     { key: "activity", label: "Activity" },
@@ -93,7 +121,11 @@ export default async function ProjectWorkspacePage({
     return (
       <div>
         {backLink}
-        <ProjectOverviewView projectId={projectId} tabBar={tabBar} />
+        <ProjectOverviewView
+          projectId={projectId}
+          tabBar={tabBar}
+          knownCounts={{ openNcrsAndObservations: ncrCounts.total, openPunchOutstanding: punchCounts.outstanding, openPunchOpen: punchCounts.open }}
+        />
       </div>
     );
   }
@@ -120,13 +152,13 @@ export default async function ProjectWorkspacePage({
 
       {tabBar}
 
-      <Suspense key={`${active}:${range ?? ""}`} fallback={<WorkspaceSkeleton />}>
+      <Suspense key={`${active}:${range ?? ""}:${limitParam ?? ""}`} fallback={<WorkspaceSkeleton />}>
         <div className="pt-4">
-          {active === "punch-list" && <PunchListView projectId={projectId} embedded />}
+          {active === "punch-list" && <PunchListView projectId={projectId} embedded closedLimit={parseListLimit(limitParam, PUNCH_CLOSED_LIMITS)} searchParams={{ tab: "punch-list", range, limit: limitParam }} />}
           {active === "ncrs" && <NcrsTabView projectId={projectId} />}
           {active === "observations" && <NcrsTabView projectId={projectId} observations />}
           {active === "itps" && <ItpsTabView projectId={projectId} />}
-          {active === "registers" && <RegistersView projectId={projectId} embedded />}
+          {active === "registers" && <RegistersView projectId={projectId} embedded limit={parseListLimit(limitParam, REGISTER_LIMITS)} searchParams={{ tab: "registers", range, limit: limitParam }} />}
           {active === "activity" && <ActivityView projectId={projectId} range={range} embedded />}
           {active === "kpis" && <KpisView projectId={projectId} embedded />}
           {active === "data-book" && <DataBookView projectId={projectId} embedded />}

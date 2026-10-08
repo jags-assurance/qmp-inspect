@@ -1,5 +1,6 @@
 "use client";
 
+import { MarkupFileInput } from "@/components/domain/photo-markup";
 import { useActionState, useState } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { resolvePunchItemAction, type ResolvePunchItemState } from "@/lib/punch-list/actions";
@@ -41,7 +42,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
   }
 
   return (
-    <form action={submit} encType="multipart/form-data" className="flex min-w-56 flex-col gap-2">
+    <form action={submit} encType="multipart/form-data" className="flex w-full sm:min-w-56 flex-col gap-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <textarea
@@ -55,7 +56,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
       />
       <label className="text-xs font-medium text-ink">
         Photos of the fix (required)
-        <input name="closing_photos" type="file" accept="image/*" capture="environment" multiple required className="mt-1 w-full text-xs" />
+        <MarkupFileInput name="closing_photos"  accept="image/*" capture="environment" multiple required className="mt-1 w-full text-xs" />
       </label>
       {photoError && <p className="text-xs text-danger">{photoError}</p>}
       {state.error && <p className="text-xs text-danger">{state.error}</p>}

@@ -14,6 +14,7 @@ import { NCR_SEVERITIES, type NcrSeverity } from "@/lib/ncrs/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CreateNcrState = { error: null };
 const initialDraftState: DraftNcrDescriptionState = {
@@ -93,6 +94,7 @@ export function NewNcrForm({
   // Idempotency key for this raise attempt; a fresh one is issued after each successful create.
   const [requestId, setRequestId] = useState("");
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
     setRequestId(crypto.randomUUID());
   }, [state.created?.id]);
   const [draftState, draftFormAction, draftPending] = useActionState(
@@ -283,11 +285,8 @@ export function NewNcrForm({
         </div>
 
         <div>
-          <label htmlFor="requirement_not_met" className="block text-sm font-medium text-ink">
-            Requirement not met
-          </label>
-          <textarea
-            id="requirement_not_met"
+          <FormField label="Requirement not met">
+            <textarea
             name="requirement_not_met"
             rows={2}
             value={requirementNotMet}
@@ -295,6 +294,7 @@ export function NewNcrForm({
             placeholder="Spec clause, drawing note, or ITP acceptance criteria not met…"
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
       </section>
 
@@ -325,11 +325,8 @@ export function NewNcrForm({
             {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
           </div>
           <div>
-            <label htmlFor="due_date" className="block text-sm font-medium text-ink">
-              Due date
-            </label>
-            <input
-              id="due_date"
+            <FormField label="Due date">
+              <input
               name="due_date"
               type="date"
               required
@@ -340,6 +337,7 @@ export function NewNcrForm({
               }}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
+            </FormField>
           </div>
         </div>
 

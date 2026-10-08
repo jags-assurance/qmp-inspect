@@ -1,3 +1,4 @@
+import { createPhotoDownscaler, type PhotoDownscaler } from "./photoDownscale";
 import { getOrgBranding } from "./orgBranding";
 import { withBidi } from "./bidi";
 import { getSharedBrowser } from "../browserPool";
@@ -9,12 +10,13 @@ import type { RenderFatReportPdfPayload } from "./types";
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
 
-async function toDataUri(storagePath: string): Promise<string | null> {
+async function toDataUri(storagePath: string, downscaler: PhotoDownscaler): Promise<string | null> {
   const { data, error } = await supabase.storage.from(EVIDENCE_BUCKET).download(storagePath);
   if (error || !data) return null;
   const buffer = Buffer.from(await data.arrayBuffer());
   const contentType = data.type || "image/jpeg";
-  return `data:${contentType};base64,${buffer.toString("base64")}`;
+  // S6-07: downscale before inlining (falls back to the original bytes on any failure).
+  return (await downscaler.downscale(buffer, contentType)).dataUri;
 }
 
 /**
@@ -117,7 +119,13 @@ export async function renderFatReportPdf(payload: RenderFatReportPdfPayload): Pr
     .returns<{ name: string; party_type: string }[]>();
 
   const photoRowsTyped = (photoRows ?? []) as unknown as { storage_path: string; caption: string | null }[];
-  const photoDataUris = await Promise.all(photoRowsTyped.map((p) => toDataUri(p.storage_path)));
+  const downscaler = createPhotoDownscaler();
+  let photoDataUris: (string | null)[];
+  try {
+    photoDataUris = await Promise.all(photoRowsTyped.map((p) => toDataUri(p.storage_path, downscaler)));
+  } finally {
+    await downscaler.close();
+  }
   const photos: FatReportPhoto[] = photoRowsTyped
     .map((p, i) => ({ caption: p.caption, dataUri: photoDataUris[i] }))
     .filter((p): p is FatReportPhoto => Boolean(p.dataUri));

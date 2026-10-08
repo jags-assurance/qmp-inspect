@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProjectPickerForm, type ProjectOption } from "../vault/project-picker-form";
@@ -100,7 +101,7 @@ export default async function ReportsDocumentsPage({
       )}
       <div className={selectedProject ? "mt-2" : undefined}>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">Reports &amp; Documents</h1>
+          <h1 className="text-2xl font-semibold text-ink"><T>Reports &amp; Documents</T></h1>
           <PageGuide
             title="Reports & Documents — how this works"
             points={[
@@ -126,7 +127,7 @@ export default async function ReportsDocumentsPage({
       </div>
 
       {attention.length > 0 && (
-        <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <div className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-4">
           <p className="font-medium text-ink">Needs attention ({attention.length})</p>
           <ul className="mt-2 space-y-1 text-sm">
             {attention.map((a) => (

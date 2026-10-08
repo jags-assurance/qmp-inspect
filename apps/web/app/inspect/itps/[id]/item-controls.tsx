@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { REGISTER_KINDS, REGISTER_KIND_LABEL } from "@/lib/itps/required-registers";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useConfirm, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import {
   deleteItpItemAction,
   editItpItemAction,
@@ -17,7 +19,7 @@ const initialDeleteState: DeleteItemState = { error: null };
  * Edit + Delete for a single ITP item row in the sign-off grid — previously the grid only supported
  * Add (see AddItemForm), with no way to fix or remove an activity short of the staff-only offline
  * .xlsx re-upload. Shown in place of the plain item-number/activity text once canEditContent is
- * true, mirroring SectionControls' inline-toggle + prompt()-for-revision-reason pattern.
+ * true, mirroring SectionControls' inline-toggle + revision-reason dialog pattern.
  */
 export function ItemControls({
   itpId,
@@ -32,6 +34,7 @@ export function ItemControls({
   disciplineId,
   noticeHoursOverride,
   plannedDate = null,
+  requiredRegisters = [],
   disciplines,
   isIssued,
 }: {
@@ -47,14 +50,15 @@ export function ItemControls({
   disciplineId: string | null;
   noticeHoursOverride: number | null;
   plannedDate?: string | null;
+  /** S3-06: registers this activity explicitly requires (empty = none set; the keyword heuristic still applies). */
+  requiredRegisters?: string[];
   disciplines: { id: string; code: string; name: string }[];
   isIssued: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [state, formAction, pending] = useActionState(editItpItemAction, initialState);
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteItpItemAction, initialDeleteState);
-  const editReasonRef = useRef<HTMLInputElement>(null);
-  const deleteReasonRef = useRef<HTMLInputElement>(null);
+  const { gateSubmit, dialog } = useConfirm();
   const hasSubmittedRef = useRef(false);
 
   // Close the edit form once a save actually succeeds (state flips to no-error after a real
@@ -67,52 +71,32 @@ export function ItemControls({
     }
   }, [state, pending]);
 
-  function askRevisionReason(): string | null {
-    const reason = prompt("This ITP has already been issued — reason for this change (will start a new revision):");
-    return reason && reason.trim() ? reason.trim() : null;
-  }
-
-  function handleEditSubmit(e: FormEvent<HTMLFormElement>) {
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return;
+  const revisionReason = {
+    label: "Reason for this change",
+    required: true,
+  } as const;
+  const revisionOpts: ConfirmOptions | null = isIssued
+    ? {
+        title: "Change an issued ITP",
+        message: "This ITP has already been issued. The change will start a new revision.",
+        confirmLabel: "Apply change",
+        reason: revisionReason,
       }
-      editReasonRef.current!.value = reason;
-    }
-    hasSubmittedRef.current = true;
-  }
-
-  function handleMoveSubmit(e: FormEvent<HTMLFormElement>) {
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return;
-      }
-      (e.currentTarget.elements.namedItem("revision_reason") as HTMLInputElement).value = reason;
-    }
-  }
-
-  function handleDeleteSubmit(e: FormEvent<HTMLFormElement>) {
-    if (!confirm(`Delete activity "${itemNumber}: ${activity}"? This also deletes its sign-off levels. An activity with inspection, sign-off or evidence history cannot be deleted. This cannot be undone.`)) {
-      e.preventDefault();
-      return;
-    }
-    if (isIssued) {
-      const reason = askRevisionReason();
-      if (!reason) {
-        e.preventDefault();
-        return;
-      }
-      deleteReasonRef.current!.value = reason;
-    }
-  }
+    : null;
+  const deleteOpts: ConfirmOptions = {
+    title: "Delete activity?",
+    message: `Delete activity "${itemNumber}: ${activity}"? This also deletes its sign-off levels. An activity with inspection, sign-off or evidence history cannot be deleted. This cannot be undone.${
+      isIssued ? " This ITP has already been issued, so the deletion will start a new revision." : ""
+    }`,
+    confirmLabel: "Delete",
+    destructive: true,
+    reason: isIssued ? revisionReason : undefined,
+  };
 
   if (!isEditing) {
     return (
       <div>
+        {dialog}
         <p className="text-sm text-ink">
           <span className="doc-id mr-1.5 text-muted">{itemNumber}</span>
           {activity}
@@ -129,31 +113,31 @@ export function ItemControls({
           <button
             type="button"
             onClick={() => setIsEditing(true)}
-            className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium hover:bg-off-white"
+            className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
           >
             Edit
           </button>
           {(["up", "down"] as const).map((direction) => (
-            <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={handleMoveSubmit}>
+            <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={gateSubmit(revisionOpts, "revision_reason")}>
               <input type="hidden" name="item_id" value={itemId} />
               <input type="hidden" name="revision_reason" />
               <button
                 type="submit"
                 aria-label={direction === "up" ? "Move activity up" : "Move activity down"}
-                className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium hover:bg-off-white"
+                className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
               >
                 {direction === "up" ? "↑" : "↓"}
               </button>
             </form>
           ))}
-          <form action={deleteFormAction} onSubmit={handleDeleteSubmit}>
+          <form action={deleteFormAction} onSubmit={gateSubmit(deleteOpts, "revision_reason")}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="item_id" value={itemId} />
-            <input type="hidden" name="revision_reason" ref={deleteReasonRef} />
+            <input type="hidden" name="revision_reason" />
             <button
               type="submit"
               disabled={deletePending}
-              className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
+              className="rounded border border-border px-1.5 py-0.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
             >
               {deletePending ? "Deleting…" : "Delete"}
             </button>
@@ -165,10 +149,13 @@ export function ItemControls({
   }
 
   return (
-    <form action={formAction} onSubmit={handleEditSubmit} className="flex flex-col gap-1.5">
+    // The ref is only written inside the submit handler, never read during render.
+    // eslint-disable-next-line react-hooks/refs
+    <form action={formAction} onSubmit={gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })} className="flex flex-col gap-1.5">
+      {dialog}
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="item_id" value={itemId} />
-      <input type="hidden" name="revision_reason" ref={editReasonRef} />
+      <input type="hidden" name="revision_reason" />
       <div className="flex gap-1.5">
         <input
           name="item_number"
@@ -248,18 +235,28 @@ export function ItemControls({
           className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
       </div>
+      <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <legend className="mb-0.5 text-xs text-muted">Registers this activity needs (leave all unticked to let the system infer it)</legend>
+        <input type="hidden" name="registers_sent" value="1" />
+        {REGISTER_KINDS.map((kind) => (
+          <label key={kind} className="flex items-center gap-1 text-xs text-ink">
+            <input type="checkbox" name="required_registers" value={kind} defaultChecked={requiredRegisters.includes(kind)} />
+            {REGISTER_KIND_LABEL[kind]}
+          </label>
+        ))}
+      </fieldset>
       <div className="flex items-center gap-1.5">
         <button
           type="submit"
           disabled={pending}
-          className="rounded border border-border bg-off-white px-2 py-1 text-[10px] font-medium hover:bg-surface disabled:opacity-50"
+          className="rounded border border-border bg-off-white px-2 py-1 text-xs font-medium hover:bg-surface disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save"}
         </button>
         <button
           type="button"
           onClick={() => setIsEditing(false)}
-          className="rounded border border-border px-2 py-1 text-[10px] font-medium hover:bg-off-white"
+          className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white"
         >
           Cancel
         </button>

@@ -34,7 +34,7 @@ export function ItpAcceptorPicker({
         <select
           name="acceptor_user_id"
           defaultValue={currentAcceptorUserId ?? ""}
-          className="min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
+          className="w-full sm:min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
         >
           <option value="">— Any linked client party —</option>
           {clientPartyUsers.map((u) => (

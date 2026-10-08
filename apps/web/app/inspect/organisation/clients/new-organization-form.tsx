@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createOrganizationAction, type CreateOrganizationState } from "@/lib/organizations/actions";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: CreateOrganizationState = { error: null };
 
@@ -22,16 +23,14 @@ export function NewOrganizationForm() {
   return (
     <form action={formAction} className="mt-6 max-w-lg space-y-4 rounded-lg border border-border bg-surface p-5">
       <div>
-        <label htmlFor="org_name" className="block text-sm font-medium text-ink">
-          Organisation name
-        </label>
-        <input
-          id="org_name"
+        <FormField label="Organisation name">
+          <input
           name="name"
           required
           placeholder="e.g. Northgate Industries"
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
 
       <div>

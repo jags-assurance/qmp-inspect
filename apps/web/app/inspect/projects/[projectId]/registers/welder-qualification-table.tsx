@@ -75,6 +75,7 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
           kind="welder"
           projectId={projectId}
           verifiedAt={row.verified_at}
+          hasCertificate={!!row.certificate_path}
           lifecycleStatus={row.lifecycle_status}
           row={{
             id: row.id,
@@ -98,6 +99,7 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
       caption="Welder qualification register"
       columns={columns}
       rows={rows}
+      scannable
       searchPlaceholder="Search welders, WPS, WPQ…"
       searchKeys={(row) => `${row.welder_identifier} ${row.qualified_wps} ${row.wpq_number ?? ""} ${row.process ?? ""}`}
       emptyMessage="No welders yet — add the first qualification above, with the WPQ record."

@@ -333,7 +333,7 @@ export function PunchListTable({
             )}
             {openRow.closing_photo_urls.length > 0 && (
               <div>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">Photos of the fix</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Photos of the fix</p>
                 <div className="flex flex-wrap gap-2">
                   {openRow.closing_photo_urls.map((u) => (
                     <a key={u} href={u} target="_blank" rel="noreferrer">
@@ -356,11 +356,11 @@ export function PunchListTable({
             {openRow.status === "closed" && (
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Resolver&rsquo;s evidence</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resolver&rsquo;s evidence</p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.closing_evidence || "—"}</p>
                 </div>
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Verification notes</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Verification notes</p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.verification_notes || "—"}</p>
                 </div>
                 {openRow.resolved_by_name && <p className="text-xs text-muted">Resolved by {openRow.resolved_by_name}; closed by {openRow.closed_by_name ?? "unknown"}.</p>}
@@ -372,7 +372,7 @@ export function PunchListTable({
             {openRow.status === "resolved" && (
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Resolver&rsquo;s evidence</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resolver&rsquo;s evidence</p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.closing_evidence || "—"}</p>
                 </div>
                 {canVerifyClose ? (

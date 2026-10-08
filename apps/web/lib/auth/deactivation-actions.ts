@@ -5,10 +5,22 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { MAX_BULK_ACCOUNTS, parseEmailList } from "@/lib/auth/bulk-emails";
 
 export interface DeactivationState {
   error: string | null;
   message: string | null;
+}
+
+export interface BulkDeactivationResult {
+  email: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface BulkDeactivationState {
+  error: string | null;
+  results: BulkDeactivationResult[];
 }
 
 const PATH = "/inspect/organisation/staff-access";
@@ -54,8 +66,17 @@ export async function deactivateUserAction(_prev: DeactivationState, formData: F
   if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can deactivate an account.", message: null };
 
   const { supabase, target } = await loadTarget(formData);
+  const result = await deactivateTarget(session.userId, supabase, target);
+  if (!result.error) revalidatePath(PATH);
+  return result;
+}
+
+type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+/** The deactivation steps for one resolved account. The caller has already checked the actor is a JAGS Admin. */
+async function deactivateTarget(actorId: string, supabase: Supabase, target: TargetRow | null): Promise<DeactivationState> {
   if (!target) return { error: "No matching account found.", message: null };
-  if (target.id === session.userId) return { error: "You can't deactivate your own account.", message: null };
+  if (target.id === actorId) return { error: "You can't deactivate your own account.", message: null };
   if (!target.is_active) return { error: "That account is already deactivated.", message: null };
 
   const { data: grants } = await supabase
@@ -97,13 +118,44 @@ export async function deactivateUserAction(_prev: DeactivationState, formData: F
     entityType: "user",
     entityId: target.id,
     action: "deactivated",
-    actorId: session.userId,
+    actorId,
     summary: `Account ${target.email} deactivated and ${grants?.length ?? 0} access grant(s) revoked`,
     changes: { grants: grants ?? [] },
   });
 
-  revalidatePath(PATH);
   return { error: null, message: `${target.full_name} (${target.email}) was deactivated.${notes.length ? ` ${notes.join(" ")}` : ""}` };
+}
+
+/**
+ * S1-16: deactivates (or restores) several accounts in one go from a pasted list of emails, e.g. when a whole
+ * subcontractor crew leaves a project. JAGS Admin only; at most MAX_BULK_ACCOUNTS addresses per request; each
+ * account is processed on its own with the same safeguards as the single action (last-admin guard, no
+ * self-deactivation) and the result is reported per address.
+ */
+export async function bulkAccountLifecycleAction(_prev: BulkDeactivationState, formData: FormData): Promise<BulkDeactivationState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can deactivate accounts.", results: [] };
+
+  const intent = String(formData.get("intent") ?? "deactivate") === "reactivate" ? "reactivate" : "deactivate";
+  const parsed = parseEmailList(String(formData.get("emails") ?? ""), MAX_BULK_ACCOUNTS);
+  if (parsed.emails.length === 0) return { error: "Paste at least one email address.", results: [] };
+  if (parsed.truncated) return { error: `At most ${MAX_BULK_ACCOUNTS} addresses can be processed at once.`, results: [] };
+
+  const results: BulkDeactivationResult[] = [];
+  for (const email of parsed.emails) {
+    const fd = new FormData();
+    fd.set("email", email);
+    const { supabase, target } = await loadTarget(fd);
+    const outcome =
+      intent === "reactivate"
+        ? await reactivateTarget(session.userId, supabase, target)
+        : await deactivateTarget(session.userId, supabase, target);
+    results.push({ email, ok: !outcome.error, detail: outcome.error ?? outcome.message ?? "" });
+  }
+  for (const bad of parsed.invalid) results.push({ email: bad, ok: false, detail: "Not a valid email address." });
+
+  revalidatePath(PATH);
+  return { error: null, results };
 }
 
 /** Form entry point for the "by email" box: `intent` is "deactivate" (default) or "reactivate". */
@@ -119,6 +171,12 @@ export async function reactivateUserAction(_prev: DeactivationState, formData: F
   if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can reactivate an account.", message: null };
 
   const { supabase, target } = await loadTarget(formData);
+  const result = await reactivateTarget(session.userId, supabase, target);
+  if (!result.error) revalidatePath(PATH);
+  return result;
+}
+
+async function reactivateTarget(actorId: string, supabase: Supabase, target: TargetRow | null): Promise<DeactivationState> {
   if (!target) return { error: "No matching account found.", message: null };
   if (target.is_active) return { error: "That account is already active.", message: null };
 
@@ -162,11 +220,10 @@ export async function reactivateUserAction(_prev: DeactivationState, formData: F
     entityType: "user",
     entityId: target.id,
     action: "reactivated",
-    actorId: session.userId,
+    actorId,
     summary: `Account ${target.email} reactivated; ${restored} access grant(s) restored`,
   });
 
-  revalidatePath(PATH);
   return {
     error: null,
     message: `${target.full_name} was reactivated and ${restored} access grant(s) restored.${notes.length ? ` ${notes.join(" ")}` : ""}`,

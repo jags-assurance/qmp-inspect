@@ -60,7 +60,7 @@ export function StatusTimeline({ status }: { status: NcrStatus }) {
               </div>
               <span
                 className={cn(
-                  "text-center text-[11px] leading-tight sm:text-xs",
+                  "text-center text-xs leading-tight sm:text-xs",
                   isComplete || isCurrent ? "font-medium text-ink" : "text-muted"
                 )}
               >

@@ -8,6 +8,7 @@ import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 interface HandoverAttentionRow {
   id: string;
@@ -102,6 +103,32 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
   ]);
 
   const Heading = embedded ? "h2" : "h1";
+  const packColumns: ResponsiveColumn<(typeof reportPacks)[number]>[] = [
+    { key: "period", header: "Period", render: (pack) => `${MONTH_NAMES[pack.month - 1]} ${pack.year}` },
+    { key: "status", header: "Status", render: (pack) => REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status },
+    {
+      key: "generated",
+      header: "Generated",
+      className: "text-xs text-muted",
+      render: (pack) => (pack.completedAt ? new Date(pack.completedAt).toLocaleString("en-GB") : "—"),
+    },
+    {
+      key: "download",
+      header: "Download",
+      render: (pack) =>
+        pack.status === "completed" && pack.pdfUrl ? (
+          <span className="flex gap-3">
+            <a href={pack.pdfUrl} className="text-burgundy underline">PDF</a>
+            {pack.xlsxUrl && <a href={pack.xlsxUrl} className="text-burgundy underline">Excel</a>}
+          </span>
+        ) : pack.status === "failed" ? (
+          <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
+        ) : (
+          <span className="text-xs text-muted">Preparing…</span>
+        ),
+    },
+  ];
+
   return (
     <div>
       {!embedded && (
@@ -173,43 +200,17 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
         {reportPacks.length === 0 ? (
           <p className="mt-4 text-sm text-muted">No report packs have been generated for your organisation yet.</p>
         ) : (
-          <table className="mt-4 w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                <th className="py-2">Period</th>
-                <th className="py-2">Status</th>
-                <th className="py-2">Generated</th>
-                <th className="py-2">Download</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reportPacks.map((pack) => (
-                <tr key={pack.id} className="border-b border-border last:border-0">
-                  <td className="py-2">
-                    {MONTH_NAMES[pack.month - 1]} {pack.year}
-                  </td>
-                  <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
-                  <td className="py-2 text-xs text-muted">
-                    {pack.completedAt ? new Date(pack.completedAt).toLocaleString("en-GB") : "—"}
-                  </td>
-                  <td className="py-2">
-                    {pack.status === "completed" && pack.pdfUrl ? (
-                      <span className="flex gap-3">
-                        <a href={pack.pdfUrl} className="text-burgundy underline">PDF</a>
-                        {pack.xlsxUrl && (
-                          <a href={pack.xlsxUrl} className="text-burgundy underline">Excel</a>
-                        )}
-                      </span>
-                    ) : pack.status === "failed" ? (
-                      <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
-                    ) : (
-                      <span className="text-xs text-muted">Preparing…</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-4">
+            <ResponsiveTable
+              columns={packColumns}
+              rows={reportPacks}
+              rowKey={(pack) => pack.id}
+              caption="Monthly report packs"
+              headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+              thClassName="py-2"
+              tdClassName="py-2"
+            />
+          </div>
         )}
       </div>
 

@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { issueHandoverAction } from "@/lib/handover/actions";
 import { sha256HexOfBlob } from "@/lib/databook/sha256-stream";
+import { uploadWithResume } from "@/lib/storage/upload-client";
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 
@@ -94,7 +95,13 @@ export function IssueHandoverForm({
     }
 
     setStatus(`Uploading ${formatBytes(file.size)}…`);
-    const { error: uploadError } = await supabase.storage.from("generated-documents").upload(path, file, { contentType: file.type || undefined });
+    // Resumable (TUS) for large packages, with a plain-upload fallback (S7-21).
+    const { error: uploadError } = await uploadWithResume(supabase, {
+      bucket: "generated-documents",
+      path,
+      file,
+      onProgress: (f) => setStatus(`Uploading ${formatBytes(file.size)} (${Math.round(f * 100)}%)…`),
+    });
     if (uploadError) {
       setError("Package upload failed. Check your connection and try again.");
       setPending(false);

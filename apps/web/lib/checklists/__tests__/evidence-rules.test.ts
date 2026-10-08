@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  evidenceRequirementHint,
   hasMandatoryNa,
   isCountableEvidenceDoc,
   itemsMissingEvidence,
@@ -58,5 +59,20 @@ describe("evaluateSignoffAuthority", () => {
     expect(evaluateSignoffAuthority({ isJagsStaff: true, isAdminOrTeamLead: true, isLinkedActiveParty: false, reason: "short" }).allowed).toBe(false);
     expect(evaluateSignoffAuthority({ isJagsStaff: true, isAdminOrTeamLead: true, isLinkedActiveParty: false, reason: "party unavailable on site" })).toMatchObject({ allowed: true, onBehalf: true });
     expect(evaluateSignoffAuthority({ isJagsStaff: false, isAdminOrTeamLead: false, isLinkedActiveParty: false, reason: "x".repeat(20) }).allowed).toBe(false);
+  });
+});
+
+
+describe("evidenceRequirementHint", () => {
+  it("requires evidence for a mandatory pass or any fail, none for optional pass", () => {
+    expect(evidenceRequirementHint(true, "yes", false)?.met).toBe(false);
+    expect(evidenceRequirementHint(true, "yes", true)?.met).toBe(true);
+    expect(evidenceRequirementHint(false, "no", false)?.met).toBe(false);
+    expect(evidenceRequirementHint(false, "yes", false)).toBeNull();
+    expect(evidenceRequirementHint(true, null, false)).toBeNull();
+  });
+  it("warns about N/A on a mandatory item only", () => {
+    expect(evidenceRequirementHint(true, "na", false)?.text).toMatch(/N\/A/);
+    expect(evidenceRequirementHint(false, "na", false)).toBeNull();
   });
 });

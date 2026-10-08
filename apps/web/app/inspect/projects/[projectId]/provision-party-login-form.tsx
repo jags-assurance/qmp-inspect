@@ -22,12 +22,15 @@ export function ProvisionPartyLoginForm({
   projectPartyId,
   contactEmail,
   hasLogin = false,
+  isAdmin = false,
 }: {
   projectPartyId: string;
   contactEmail: string | null;
   /** True once the party already has a login — the form then renders nothing unless it just
    *  created one and still has the one-time temporary password to show. */
   hasLogin?: boolean;
+  /** A JAGS Admin may override the organisation seat limit (with a reason, audited). */
+  isAdmin?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(provisionPartyLoginAction, initialState);
   const [open, setOpen] = useState(false);
@@ -42,7 +45,7 @@ export function ProvisionPartyLoginForm({
           change it on first sign-in
           {state.expiresAt ? `; it stops working on ${formatDateTime(state.expiresAt, "UTC")} UTC if unused` : ""}):
         </p>
-        <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-[11px] text-ink">{state.tempPassword}</p>
+        <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-xs text-ink">{state.tempPassword}</p>
       </div>
     );
   }
@@ -69,6 +72,18 @@ export function ProvisionPartyLoginForm({
         placeholder="person@company.com"
         className="w-44 rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
       />
+      {isAdmin && (
+        <div className="flex w-full flex-wrap items-center gap-1.5">
+          <label className="flex items-center gap-1 text-muted">
+            <input type="checkbox" name="seat_override" /> Override seat limit (Admin, audited)
+          </label>
+          <input
+            name="seat_override_reason"
+            placeholder="Reason (required if ticked)"
+            className="w-44 rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
+          />
+        </div>
+      )}
       <button type="submit" disabled={pending} className="text-burgundy hover:underline disabled:opacity-50">
         {pending ? "Granting…" : "Confirm"}
       </button>

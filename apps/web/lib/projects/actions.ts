@@ -1,5 +1,7 @@
 "use server";
 
+import { seatLimitMessage } from "@/lib/plans/seat-limit";
+import { parseSiteGeofenceForm } from "@/lib/checklists/geofence";
 import { clientRecipientIds } from "@/lib/handover/helpers";
 import { describeCloseBlockers, isClosedStatus, statusReasonError, type ProjectCloseCounts } from "@/lib/projects/close-helpers";
 import { redirect } from "next/navigation";
@@ -10,6 +12,7 @@ import { isTeamLeadForProject } from "@/lib/teams/helpers";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { checkPartyTypeLimit } from "./party-limits";
 import { createNotification } from "@/lib/notifications/helpers";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { aiErrorMessage } from "@/lib/ai/config";
@@ -132,6 +135,24 @@ type PartyType = (typeof VALID_PARTY_TYPES)[number];
  *  policies (expected-record provider, register contributor), so only a JAGS Admin may mint them. */
 const CLIENT_ADDABLE_PARTY_TYPES: readonly PartyType[] = ["subcontractor", "main_contractor", "vendor", "client"];
 
+/** S1-13: refuses a new party when the project already has the maximum of ACTIVE parties of that type. */
+async function partyLimitError(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  partyType: string
+): Promise<string | null> {
+  const { count, error } = await supabase
+    .from("project_parties")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("party_type", partyType as PartyType)
+    .eq("is_active", true);
+  // A failed count must not block onboarding: the cap is a guard rail, not a security boundary.
+  if (error || count === null) return null;
+  const result = checkPartyTypeLimit(partyType, count);
+  return result.ok ? null : result.message;
+}
+
 /**
  * Client onboarding gap this closes: previously project_parties could only be populated by hand-
  * written seed data — the project detail page displayed the party list but had no way to add to it,
@@ -198,6 +219,8 @@ export async function addProjectPartyAction(
   if (duplicate) {
     return { error: `A ${partyType.replace(/_/g, " ")} party named "${name}" is already on this project.` };
   }
+  const limitError = await partyLimitError(supabase, projectId, partyType);
+  if (limitError) return { error: limitError };
 
   const { data: party, error } = await supabase
     .from("project_parties")
@@ -332,6 +355,9 @@ export async function addSelfManagedPartyAction(
     }
   }
 
+  const limitError = await partyLimitError(supabase, projectId, partyType);
+  if (limitError) return { error: limitError };
+
   // Escape ILIKE's own wildcard characters so a literal email is matched, not a pattern — email is
   // still compared case-insensitively since Supabase Auth normalises emails to lowercase on signup,
   // but this form shouldn't force whoever's typing to remember that.
@@ -381,7 +407,7 @@ export async function addSelfManagedPartyAction(
       return { error: "That person already has access to this project (the party was still added)." };
     }
     if (grantError.message.includes("seat limit")) {
-      return { error: `${grantError.message} (the party was still added, without platform access.)` };
+      return { error: `${seatLimitMessage(grantError.message, false)} (The party was still added, without platform access.)` };
     }
     return { error: "The party was added, but granting platform access failed. Check with a JAGS Admin." };
   }
@@ -504,6 +530,40 @@ export async function setEnforceHoldBlocksStartAction(
 
   revalidatePath(`/inspect/projects/${projectId}`);
   return { error: null };
+}
+
+export interface SetSiteGeofenceState {
+  error: string | null;
+  saved?: boolean;
+}
+
+/** S4-17: site point and radius for the soft start-inspection geofence. Admin only; blank clears. */
+export async function setSiteGeofenceAction(_prev: SetSiteGeofenceState, formData: FormData): Promise<SetSiteGeofenceState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can change this setting." };
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) return { error: "Missing project." };
+  const parsed = parseSiteGeofenceForm(
+    String(formData.get("site_latitude") ?? ""),
+    String(formData.get("site_longitude") ?? ""),
+    String(formData.get("site_radius_m") ?? "")
+  );
+  if ("error" in parsed) return { error: parsed.error };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .update(
+      parsed.value
+        ? { site_latitude: parsed.value.lat, site_longitude: parsed.value.lng, site_radius_m: parsed.value.radiusM }
+        : { site_latitude: null, site_longitude: null, site_radius_m: null }
+    )
+    .eq("id", projectId);
+  if (error) {
+    const missing = error.code === "42703" || error.code === "PGRST204";
+    return { error: missing ? "The site geofence needs a database update that has not been applied yet." : "Could not save the site location. Check you have permission and try again." };
+  }
+  revalidatePath(`/inspect/projects/${projectId}`);
+  return { error: null, saved: true };
 }
 
 export interface SetAllowClientItpCreationState {

@@ -53,7 +53,7 @@ export function LocationPresetsSettings({
           name="name"
           placeholder="e.g. Block C, Level 2"
           required
-          className="min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
+          className="w-full sm:min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
         />
         <button
           type="submit"

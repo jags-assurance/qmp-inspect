@@ -31,6 +31,7 @@ describe("backoffMs", () => {
 describe("classifyHttpFailure", () => {
   it("maps auth, conflict, size and validation statuses", () => {
     expect(classifyHttpFailure(401, true)).toBe("auth");
+    expect(classifyHttpFailure(429, true)).toBe("network");
     expect(classifyHttpFailure(403, false)).toBe("auth");
     expect(classifyHttpFailure(409, true)).toBe("conflict");
     expect(classifyHttpFailure(413, false)).toBe("too_large");
@@ -108,6 +109,21 @@ describe("schema error helpers", () => {
   });
 });
 
+import { formatQueueAge } from "../policy";
+
+describe("formatQueueAge", () => {
+  const now = 1_000_000_000_000;
+  it("formats minutes, hours and days", () => {
+    expect(formatQueueAge(now - 10_000, now)).toBe("just now");
+    expect(formatQueueAge(now - 12 * 60_000, now)).toBe("12 min");
+    expect(formatQueueAge(now - 3 * 3_600_000, now)).toBe("3 h");
+    expect(formatQueueAge(now - 72 * 3_600_000, now)).toBe("3 days");
+  });
+  it("never goes negative for future timestamps", () => {
+    expect(formatQueueAge(now + 5_000, now)).toBe("just now");
+  });
+});
+
 describe("laterAnswersToRebase", () => {
   const answer = (id: string, item: string, extra: Record<string, string> = {}, status?: string) => ({
     id,
@@ -130,5 +146,17 @@ describe("laterAnswersToRebase", () => {
   it("does nothing for items that are not checklist answers", () => {
     const photo = { id: "p", kind: "photo", fields: {} };
     expect(laterAnswersToRebase([photo], photo)).toEqual([]);
+import { formatQueueAge } from "../policy";
+
+describe("formatQueueAge", () => {
+  const now = 1_000_000_000_000;
+  it("formats minutes, hours and days", () => {
+    expect(formatQueueAge(now - 10_000, now)).toBe("just now");
+    expect(formatQueueAge(now - 12 * 60_000, now)).toBe("12 min");
+    expect(formatQueueAge(now - 3 * 3_600_000, now)).toBe("3 h");
+    expect(formatQueueAge(now - 72 * 3_600_000, now)).toBe("3 days");
+  });
+  it("never goes negative for future timestamps", () => {
+    expect(formatQueueAge(now + 5_000, now)).toBe("just now");
   });
 });

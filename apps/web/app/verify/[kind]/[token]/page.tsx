@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { formatUtcDate } from "@/lib/databook/db-errors";
+import { hasAnyHash } from "@/lib/verify/hash-match";
+import { FileChecker } from "./file-checker";
 
 // Public verification page for QR codes printed on handover certificates and IRNs. No login: it
 // calls the verify_document() SECURITY DEFINER function with the unguessable token and shows ONLY
@@ -20,6 +22,7 @@ interface VerifyResult {
   conditional?: boolean;
   package_sha256?: string | null;
   data_book_sha256?: string | null;
+  pdf_sha256s?: string[] | null;
   voided_at?: string | null;
 }
 
@@ -90,9 +93,13 @@ export default async function VerifyPage({ params }: { params: Promise<{ kind: s
               </div>
             )}
           </dl>
-          <p className="mt-3 text-xs text-muted">Compare the fingerprint with your copy of the file to confirm it is unmodified. Project details are only available to authorised users.</p>
+          <p className="mt-3 text-xs text-muted">Compare the fingerprint with your copy of the file to confirm it is unmodified. This is a tamper check, not a digital signature. Project details are only available to authorised users.</p>
         </div>
-      ) : (
+      ) : null}
+      {result?.valid && hasAnyHash(result) ? (
+        <FileChecker known={{ pdf_sha256s: result.pdf_sha256s, data_book_sha256: result.data_book_sha256, package_sha256: result.package_sha256 }} />
+      ) : null}
+      {unavailable ? null : result?.valid ? null : (
         <p className="mt-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">No document matches this code. Do not rely on a document that cannot be verified.</p>
       )}
     </main>

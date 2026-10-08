@@ -1,6 +1,7 @@
 "use client";
 
 import { compressImageFile } from "./compress-image";
+import { HEIC_TIP, isHeicLike, stillUndecodableHeic } from "./heic";
 
 /** Server Actions are capped (next.config.ts serverActions.bodySizeLimit = 4 MB; hosts cap near 4.5 MB). */
 export const FORM_PHOTO_BUDGET_BYTES = 3_800_000;
@@ -12,6 +13,7 @@ export const FORM_PHOTO_BUDGET_BYTES = 3_800_000;
  */
 export async function compressFormPhotos(formData: FormData, fieldNames: string[]): Promise<string | null> {
   let total = 0;
+  let undecodableHeic = false;
   for (const name of fieldNames) {
     const entries = formData.getAll(name);
     if (entries.length === 0) continue;
@@ -22,13 +24,14 @@ export async function compressFormPhotos(formData: FormData, fieldNames: string[
         continue;
       }
       if (!entry.size) continue; // an empty file input still posts a zero-byte file
-      const file = entry.type.startsWith("image/") ? await compressImageFile(entry) : entry;
+      const file = entry.type.startsWith("image/") || isHeicLike(entry) ? await compressImageFile(entry) : entry;
+      if (stillUndecodableHeic(entry, file)) undecodableHeic = true;
       total += file.size;
       formData.append(name, file);
     }
   }
   if (total > FORM_PHOTO_BUDGET_BYTES) {
-    return `These photos are ${(total / 1_048_576).toFixed(1)} MB after compression, more than the ${(FORM_PHOTO_BUDGET_BYTES / 1_048_576).toFixed(1)} MB one submission can carry. Attach fewer photos now and add the rest afterwards.`;
+    return `These photos are ${(total / 1_048_576).toFixed(1)} MB after compression, more than the ${(FORM_PHOTO_BUDGET_BYTES / 1_048_576).toFixed(1)} MB one submission can carry. Attach fewer photos now and add the rest afterwards.${undecodableHeic ? ` ${HEIC_TIP}` : ""}`;
   }
   return null;
 }

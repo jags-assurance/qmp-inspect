@@ -118,6 +118,13 @@ export function RevisionCompare({
   revisions: CompareRevisionRow[];
   initialRightId: string;
 }) {
+  const rightIndex = revisions.findIndex((r) => r.id === initialRightId);
+  const safeRightIndex = rightIndex === -1 ? revisions.length - 1 : rightIndex;
+  const leftIndex = safeRightIndex > 0 ? safeRightIndex - 1 : Math.max(0, revisions.length - 2);
+
+  const [leftId, setLeftId] = useState(revisions[leftIndex]?.id ?? "");
+  const [rightId, setRightId] = useState(revisions[safeRightIndex]?.id ?? "");
+
   if (revisions.length < 2) {
     return (
       <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
@@ -125,13 +132,6 @@ export function RevisionCompare({
       </p>
     );
   }
-
-  const rightIndex = revisions.findIndex((r) => r.id === initialRightId);
-  const safeRightIndex = rightIndex === -1 ? revisions.length - 1 : rightIndex;
-  const leftIndex = safeRightIndex > 0 ? safeRightIndex - 1 : Math.max(0, revisions.length - 2);
-
-  const [leftId, setLeftId] = useState(revisions[leftIndex].id);
-  const [rightId, setRightId] = useState(revisions[safeRightIndex].id);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

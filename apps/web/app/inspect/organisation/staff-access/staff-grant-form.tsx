@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { addStaffGrantAction, type StaffAccessState } from "@/lib/staff-access/actions";
+import { FormField } from "@/components/ui/form-field";
 
 const initialState: StaffAccessState = { error: null };
 
@@ -40,8 +41,8 @@ export function StaffGrantForm({
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <div>
-        <label className="block text-xs text-muted">Staff member</label>
-        <select
+        <FormField label="Staff member">
+          <select
           name="staff_user_id"
           required
           className="mt-1 w-56 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -52,11 +53,12 @@ export function StaffGrantForm({
             </option>
           ))}
         </select>
+        </FormField>
       </div>
 
       <div>
-        <label className="block text-xs text-muted">Scope</label>
-        <select
+        <FormField label="Scope">
+          <select
           name="scope_type"
           value={scopeType}
           onChange={(e) => setScopeType(e.target.value as typeof scopeType)}
@@ -66,12 +68,13 @@ export function StaffGrantForm({
           <option value="organization">One organisation</option>
           <option value="project">One project</option>
         </select>
+        </FormField>
       </div>
 
       {(scopeType === "organization" || scopeType === "project") && (
         <div>
-          <label className="block text-xs text-muted">Organisation</label>
-          <select
+          <FormField label="Organisation">
+            <select
             name="organization_id"
             value={organizationId}
             onChange={(e) => setOrganizationId(e.target.value)}
@@ -85,13 +88,14 @@ export function StaffGrantForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
 
       {scopeType === "project" && (
         <div>
-          <label className="block text-xs text-muted">Project</label>
-          <select
+          <FormField label="Project">
+            <select
             name="project_id"
             required
             disabled={!organizationId}
@@ -104,19 +108,34 @@ export function StaffGrantForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
       )}
 
       <div>
-        <label className="block text-xs text-muted">Role label</label>
-        <input
+        <FormField label="Role label">
+          <input
           name="role"
           required
           placeholder="jags_inspector"
           defaultValue="jags_inspector"
           className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
+        </FormField>
       </div>
+
+      {scopeType !== "global" && (
+        <div className="w-full">
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" name="seat_override" /> Override seat limit if this organisation is full (audited)
+          </label>
+          <input
+            name="seat_override_reason"
+            placeholder="Reason for the override (required if ticked)"
+            className="mt-1 w-full max-w-md rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          />
+        </div>
+      )}
 
       <button
         type="submit"

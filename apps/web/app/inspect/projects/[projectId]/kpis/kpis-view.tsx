@@ -21,7 +21,7 @@ import { OpenItemsTable } from "./open-items-table";
 import { KpiDrilldown } from "./kpi-drilldown";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
-import { computeDataBookReadiness } from "@/lib/databook/readiness";
+import { getDataBookReadiness } from "@/lib/databook/readiness-cached";
 
 function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value)}%`;
@@ -226,7 +226,7 @@ function MonthlyTrendChart({ points }: { points: MonthlyTrendPoint[] }) {
 // or anything resembling the internal Power BI command centre — nothing it reads or renders here
 // does.
 export async function KpisView({ projectId, embedded = false }: { projectId: string; embedded?: boolean }) {
-  await requireSession();
+  const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
   const { data: project } = await supabase
@@ -257,7 +257,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
     computeOverdueItems(supabase, projectId),
     computePunchListBySource(supabase, projectId),
     computeOpenHolds(supabase, projectId),
-    computeDataBookReadiness(projectId).catch(() => null),
+    getDataBookReadiness(session.userId, projectId).catch(() => null),
   ]);
   const readinessPercent = readiness ? readiness.overallPercentage : null;
 

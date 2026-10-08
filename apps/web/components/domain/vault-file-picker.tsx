@@ -64,7 +64,7 @@ function extOf(d: VaultPickerDocument): string {
 
 function typeBadge(ext: string): { label: string; className: string } {
   if (ext === "pdf") return { label: "PDF", className: "bg-danger/10 text-danger" };
-  if (ext === "doc" || ext === "docx") return { label: "DOC", className: "bg-blue-100 text-blue-700" };
+  if (ext === "doc" || ext === "docx") return { label: "DOC", className: "bg-info/10 text-info" };
   if (ext === "xls" || ext === "xlsx" || ext === "csv") return { label: ext === "csv" ? "CSV" : "XLS", className: "bg-success/10 text-success" };
   if (/^(png|jpe?g|gif|webp|heic|bmp|tiff?)$/.test(ext)) return { label: "IMG", className: "bg-purple-100 text-purple-700" };
   if (ext === "txt" || ext === "md") return { label: "TXT", className: "bg-off-white text-muted" };
@@ -87,7 +87,7 @@ function TypeBadge({ doc }: { doc: VaultPickerDocument }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex h-8 w-9 shrink-0 items-center justify-center rounded text-[10px] font-bold ${b.className}`}
+      className={`inline-flex h-8 w-9 shrink-0 items-center justify-center rounded text-xs font-bold ${b.className}`}
     >
       {b.label}
     </span>
@@ -315,7 +315,7 @@ export function VaultFilePicker({
                                 {isNew && statusOf(d) === "for_review" ? "For review — pending approval" : meta.label}
                               </span>
                             </span>
-                            {!ok && <span className="mt-0.5 block text-[11px] text-muted">{whyNot(d)}</span>}
+                            {!ok && <span className="mt-0.5 block text-xs text-muted">{whyNot(d)}</span>}
                           </span>
                         </label>
                       </li>

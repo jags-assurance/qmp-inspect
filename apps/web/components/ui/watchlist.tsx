@@ -32,7 +32,7 @@ export function Watchlist<T extends { id: string }>({
     <div id={anchorId} className="flex scroll-mt-24 flex-col rounded-lg border border-border bg-surface p-4">
       <h2 className="text-sm font-medium text-ink">
         {title}
-        {total !== undefined && total > 0 && <span className="ml-1.5 text-xs font-normal text-muted">({total})</span>}
+        {total !== undefined && total > 0 && <span className="ms-1.5 text-xs font-normal text-muted">({total})</span>}
       </h2>
       {description && <p className="mt-1 text-xs text-muted">{description}</p>}
       <ul className="mt-2 max-h-72 divide-y divide-border overflow-y-auto overflow-x-hidden">

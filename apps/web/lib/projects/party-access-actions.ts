@@ -1,5 +1,6 @@
 "use server";
 
+import { isSeatLimitError, seatLimitMessage } from "@/lib/plans/seat-limit";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -193,8 +194,8 @@ export async function addPartyMemberAction(
     // anything — same compensating-rollback instinct as provisionPartyLoginAction's own comment.
     if (inserted) await supabase.from(PROJECT_PARTY_MEMBERS_TABLE).delete().eq("id", inserted.id);
     return {
-      error: grantError.message.includes("seat limit")
-        ? grantError.message
+      error: isSeatLimitError(grantError.message)
+        ? seatLimitMessage(grantError.message, false)
         : "Could not grant platform access to that person.",
     };
   }

@@ -5,12 +5,15 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
 import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
 import { GenerateChecklistsButton } from "./generate-button";
 import { AttachLibraryTemplateForm } from "./attach-library-template-form";
 import { ITP_STATUS_LABEL } from "../../itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
+import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
+import { filterByArchive, type ArchiveFilter } from "@/lib/checklists/template-ui-logic";
 
 /**
  * Lists every checklist-type (evidence_type = 1) activity on an ITP, generates checklists for an
@@ -18,7 +21,7 @@ import { PageGuide } from "@/components/domain/page-guide";
  * own route rather than folded into the ITP detail page so that page's existing content and tests
  * don't need to change.
  */
-export async function ChecklistsView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+export async function ChecklistsView({ id, embedded = false, archiveFilter = "active" }: { id: string; embedded?: boolean; archiveFilter?: ArchiveFilter }) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -71,7 +74,12 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
     .in("itp_item_id", itemIds.length > 0 ? itemIds : ["00000000-0000-0000-0000-000000000000"])
     .returns<Pick<ChecklistTemplateRow, "id" | "itp_item_id" | "checklist_number">[]>();
 
-  const templateByItem = new Map((templates ?? []).map((t) => [t.itp_item_id, t]));
+  // Archived checklists are hidden (their activity row too) unless the Archived filter is on.
+  const archivedIds = await loadArchivedTemplateIds(supabase);
+  const archivedOnItp = (templates ?? []).filter((t) => archivedIds.has(t.id));
+  const shownTemplates = filterByArchive(templates ?? [], archivedIds, archiveFilter);
+  const templateByItem = new Map(shownTemplates.map((t) => [t.itp_item_id, t]));
+  const archivedItemIds = new Set(archivedOnItp.map((t) => t.itp_item_id));
 
   // Real-world gap found live: this table previously had no status column at all — the only way to
   // tell whether a checklist had been started, or completed pass/fail, was to open every single one.
@@ -135,7 +143,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
   // RLS layer by is_client_checklist_generator (20260921000000_self_managed_submit_and_checklist_
   // gen.sql). Approve itself stays JAGS-only and is untouched by this.
   let isEligibleChecklistGenerator = false;
-  if (!session.isJagsStaff && itp.status === "approved") {
+  if (!session.isJagsStaff && (itp.status === "approved" || itp.status === "client_accepted")) {
     const { data: myParty } = await supabase
       .from("project_parties")
       .select("party_type, is_active")
@@ -155,7 +163,49 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
     }
   }
 
-  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && itp.status === "approved";
+  const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && (itp.status === "approved" || itp.status === "client_accepted");
+
+  const columnsDef: ResponsiveColumn<NonNullable<typeof items>[number]>[] = [
+    { key: "item", header: "Item", tdClassName: "doc-id text-ink", render: (item) => item.item_number },
+    { key: "activity", header: "Activity", tdClassName: "text-ink", render: (item) => item.activity },
+    {
+      key: "checklist",
+      header: "Checklist",
+      render: (item) => {
+        const template = templateByItem.get(item.id);
+        return template ? (
+          <span className="doc-id text-muted">{template.checklist_number}</span>
+        ) : (
+          <span className="text-muted">Not generated yet</span>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item) => {
+        const status = statusFor(templateByItem.get(item.id)?.id);
+        return <Badge tone={status.tone}>{status.label}</Badge>;
+      },
+    },
+    {
+      key: "action",
+      header: "Action",
+      srOnlyHeader: true,
+      cardLabel: null,
+      tdClassName: "text-right",
+      render: (item) => {
+        const template = templateByItem.get(item.id);
+        return template ? (
+          <Link href={`/inspect/checklists/${template.id}`} className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline sm:min-h-0">
+            Open →
+          </Link>
+        ) : (
+          session.isJagsStaff && libraryTemplates.length > 0 && <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
+        );
+      },
+    },
+  ];
 
   const Heading = embedded ? "h2" : "h1";
   return (
@@ -186,7 +236,7 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
         <p className="mt-1 text-sm text-muted">{itp.title}</p>
       </div>
 
-      {itp.status !== "approved" && (
+      {itp.status !== "approved" && itp.status !== "client_accepted" && (
         <>
           <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
             Checklists are generated once this ITP is approved. Current status:{" "}
@@ -207,59 +257,38 @@ export async function ChecklistsView({ id, embedded = false }: { id: string; emb
         </div>
       )}
 
-      <div className="mt-6 rounded-lg border border-border bg-surface">
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted">
-              <th className="px-4 py-2 font-medium">Item</th>
-              <th className="px-4 py-2 font-medium">Activity</th>
-              <th className="px-4 py-2 font-medium">Checklist</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {(items ?? []).map((item) => {
-              const template = templateByItem.get(item.id);
-              const status = statusFor(template?.id);
-              return (
-                <tr key={item.id} className="border-b border-border last:border-0">
-                  <td className="doc-id px-4 py-3 text-ink">{item.item_number}</td>
-                  <td className="px-4 py-3 text-ink">{item.activity}</td>
-                  <td className="px-4 py-3">
-                    {template ? (
-                      <span className="doc-id text-muted">{template.checklist_number}</span>
-                    ) : (
-                      <span className="text-muted">Not generated yet</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={status.tone}>{status.label}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {template ? (
-                      <Link href={`/inspect/checklists/${template.id}`} className="font-medium text-burgundy hover:underline">
-                        Open →
-                      </Link>
-                    ) : (
-                      session.isJagsStaff &&
-                      libraryTemplates.length > 0 && (
-                        <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
-                      )
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {(items ?? []).length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                  No checklist-type activities on this ITP.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table></div>
+      {(archivedOnItp.length > 0 || archiveFilter === "archived") && (
+        <p className="mt-6 text-sm text-muted">
+          {archiveFilter === "archived" ? (
+            <>
+              Showing archived checklists only.{" "}
+              <Link href={`/inspect/itps/${itp.id}/checklists`} className="font-medium text-burgundy hover:underline">
+                Back to active checklists
+              </Link>
+            </>
+          ) : (
+            <>
+              {archivedOnItp.length} archived checklist{archivedOnItp.length === 1 ? " is" : "s are"} hidden.{" "}
+              <Link href={`/inspect/itps/${itp.id}/checklists?archived=archived`} className="font-medium text-burgundy hover:underline">
+                Show Archived
+              </Link>
+            </>
+          )}
+        </p>
+      )}
+
+      <div className="mt-3 rounded-lg border border-border bg-surface">
+        <ResponsiveTable
+          columns={columnsDef}
+          rows={(items ?? []).filter((item) => (archiveFilter === "archived" ? templateByItem.has(item.id) : !archivedItemIds.has(item.id)))}
+          rowKey={(item) => item.id}
+          caption="Checklist-type activities"
+          empty={(items ?? []).length === 0 ? "No checklist-type activities on this ITP." : undefined}
+          emptyCellClassName="px-4 py-8 text-center text-muted"
+          thClassName="px-4 py-2 font-medium"
+          tdClassName="px-4 py-3"
+          cardClassName="px-4"
+        />
       </div>
     </div>
   );
