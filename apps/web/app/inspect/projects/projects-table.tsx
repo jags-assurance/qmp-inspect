@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { formatDateOnly } from "@/lib/dates/format";
+import { useLocale } from "@/lib/i18n/locale-context";
+import { translateText } from "@/lib/i18n/dictionary";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 
 export interface ProjectRow {
@@ -21,6 +24,13 @@ export interface ProjectRow {
   /** Overdue hold points on this project (overdue_hold_points() RPC, aggregated by project). */
   overdueHoldCount: number;
   end_date: string | null;
+  /** When the project was closed out (projects.closed_at); null for projects closed before that column existed. */
+  closed_at?: string | null;
+}
+
+/** Completed and cancelled projects are "closed" (hidden from the default list). */
+export function isClosedStatus(status: string): boolean {
+  return status === "completed" || status === "cancelled";
 }
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
@@ -63,7 +73,17 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
   {
     key: "status",
     header: "Status",
-    render: (row) => <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>,
+    render: (row) => (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
+        {isClosedStatus(row.status) && (
+          <>
+            <Badge tone="neutral">Closed</Badge>
+            {row.closed_at && <span className="text-xs text-muted">{formatDateOnly(row.closed_at.slice(0, 10))}</span>}
+          </>
+        )}
+      </span>
+    ),
   },
   {
     key: "itp_completion",
@@ -106,13 +126,15 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
 // row data down, and the column/search config (which contains functions) is defined here, already
 // inside client code.
 export function ProjectsTable({ rows, canCreate = false, locale }: { rows: ProjectRow[]; canCreate?: boolean; locale?: SupportedLocale }) {
+  const contextLocale = useLocale();
+  const loc = locale ?? contextLocale;
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border p-8 text-center">
-        <p className="text-sm text-muted">No projects to show.</p>
+        <p className="text-sm text-muted">{translateText(loc, "No projects to show.")}</p>
         {canCreate && (
           <Link href="/inspect/projects/new" className="mt-3 inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 text-sm font-medium text-white">
-            Create project
+            {translateText(loc, "Create project")}
           </Link>
         )}
       </div>

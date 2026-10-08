@@ -107,8 +107,8 @@ export function DataTable<T>({
         <input
           value={query}
           onChange={(e) => (isServerDriven ? serverSearch.onChange(e.target.value) : setLocalQuery(e.target.value))}
-          placeholder={searchPlaceholder}
-          aria-label={searchPlaceholder}
+          placeholder={translateText(locale, searchPlaceholder)}
+          aria-label={translateText(locale, searchPlaceholder)}
           className="min-h-10 w-full max-w-xs rounded-md border border-border px-3 py-1.5 text-base focus:border-burgundy sm:text-sm"
         />
         {scannable && (
@@ -158,7 +158,7 @@ export function DataTable<T>({
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-muted">
-                  {emptyContent ?? emptyMessage}
+                  {emptyContent ?? translateText(locale, emptyMessage)}
                 </td>
               </tr>
             )}
@@ -177,14 +177,14 @@ export function DataTable<T>({
               ))}
             </li>
           ))}
-          {filtered.length === 0 && <li className="px-4 py-8 text-center text-sm text-muted">{emptyContent ?? emptyMessage}</li>}
+          {filtered.length === 0 && <li className="px-4 py-8 text-center text-sm text-muted">{emptyContent ?? translateText(locale, emptyMessage)}</li>}
         </ul>
       )}
       {pagination && totalPages !== null && pagination.totalCount > 0 && (
         <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-sm">
           <span className="text-muted">
             {(pagination.page - 1) * pagination.pageSize + 1}–
-            {Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} of {pagination.totalCount}
+            {Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} {translateText(locale, "of")} {pagination.totalCount}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -193,10 +193,10 @@ export function DataTable<T>({
               onClick={() => pagination.onPageChange(pagination.page - 1)}
               className="rounded-md border border-border min-h-10 px-3 py-1 font-medium text-ink hover:bg-off-white disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              Prev
+              {translateText(locale, "Prev")}
             </button>
             <span className="text-muted">
-              Page {pagination.page} of {totalPages}
+              {translateText(locale, "Page")} {pagination.page} {translateText(locale, "of")} {totalPages}
             </span>
             <button
               type="button"
@@ -204,7 +204,7 @@ export function DataTable<T>({
               onClick={() => pagination.onPageChange(pagination.page + 1)}
               className="rounded-md border border-border min-h-10 px-3 py-1 font-medium text-ink hover:bg-off-white disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              Next
+              {translateText(locale, "Next")}
             </button>
           </div>
         </div>

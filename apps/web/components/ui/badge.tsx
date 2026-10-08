@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { Tx } from "@/components/domain/tx";
 
 export type Tone = "success" | "danger" | "warning" | "info" | "neutral" | "gold";
 
@@ -54,7 +55,7 @@ export function Badge({
         </span>
       )}
       {srPrefix && <span className="sr-only">{srPrefix} </span>}
-      {children}
+      {typeof children === "string" ? <Tx>{children}</Tx> : children}
     </span>
   );
 }

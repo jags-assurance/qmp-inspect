@@ -1,5 +1,6 @@
 "use client";
 
+import { Tx } from "@/components/domain/tx";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
@@ -141,7 +142,7 @@ export function AdminDashboard({
             {greeting}, {firstName}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">JAGS Admin Overview</h1>
+            <h1 className="text-2xl font-semibold text-ink"><Tx>JAGS Admin Overview</Tx></h1>
             <PageGuide
               title="JAGS Admin Overview — how this works"
               points={[
@@ -310,7 +311,7 @@ export function AdminDashboard({
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-medium text-ink">Master Library proposals awaiting review</h2>
+              <h2 className="font-medium text-ink"><Tx>Master Library proposals awaiting review</Tx></h2>
               <p className="mt-1 text-sm text-muted">Submitted by staff, waiting on your decision.</p>
             </div>
             <Link href="/inspect/itp-master/proposals" className="text-sm font-medium text-burgundy hover:underline">
@@ -370,7 +371,7 @@ export function AdminDashboard({
 
       {/* Another full-width window — same reasoning as Proposals above. */}
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="font-medium text-ink">Your organisations</h2>
+        <h2 className="font-medium text-ink"><Tx>Your organisations</Tx></h2>
         <p className="mt-1 text-sm text-muted">
           Visible here only because your access grants reach them — this list is the tenant isolation
           check made visible, with each client&apos;s real portfolio numbers.

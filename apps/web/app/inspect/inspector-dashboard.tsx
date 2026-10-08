@@ -1,3 +1,4 @@
+import { Tx } from "@/components/domain/tx";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
@@ -115,7 +116,7 @@ export function InspectorDashboard({
             {greeting}, {firstName}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">Inspector Dashboard</h1>
+            <h1 className="text-2xl font-semibold text-ink"><Tx>Inspector Dashboard</Tx></h1>
             <PageGuide
               title="Inspector Dashboard — how this works"
               points={[
@@ -158,7 +159,7 @@ export function InspectorDashboard({
       {overdueHoldItems.length > 0 && (
         <div id="overdue-holds" className="mt-6 scroll-mt-20 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium text-ink">Overdue hold points</h2>
+            <h2 className="font-medium text-ink"><Tx>Overdue hold points</Tx></h2>
             <span className="text-xs text-muted">
               Showing {overdueHoldItems.length} of {overdueHoldPoints}, oldest first
             </span>
@@ -187,7 +188,7 @@ export function InspectorDashboard({
       {ncrsAssignedToMe.length > 0 && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium text-ink">NCRs assigned to me</h2>
+            <h2 className="font-medium text-ink"><Tx>NCRs assigned to me</Tx></h2>
             <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
               All NCRs
             </Link>
@@ -275,7 +276,7 @@ export function InspectorDashboard({
       )}
 
       <div id="pending-actions" className="mt-8 scroll-mt-20 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">My pending actions</h2>
+        <h2 className="font-medium text-ink"><Tx>My pending actions</Tx></h2>
         <p className="mt-1 text-sm text-muted">
           Checklists not yet started, or still in progress, across every project you have access to.
         </p>

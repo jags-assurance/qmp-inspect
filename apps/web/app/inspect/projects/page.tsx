@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
-import { ProjectsTable, type ProjectRow } from "./projects-table";
+import { ProjectsTable, isClosedStatus, type ProjectRow } from "./projects-table";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { OrgFilter } from "./org-filter";
@@ -39,12 +39,12 @@ export default async function ProjectsPage({
 
   let projectsQuery = supabase
     .from("projects")
-    .select("id, project_number, name, site_location, status, end_date, organization_id, organizations(name)")
+    .select("id, project_number, name, site_location, status, end_date, closed_at, organization_id, organizations(name)")
     .order("created_at", { ascending: false });
   if (selectedOrgId) projectsQuery = projectsQuery.eq("organization_id", selectedOrgId);
   const { data: allVisible } = await projectsQuery.returns<ProjectRow[]>();
   // Completed / cancelled projects are hidden by default so the list shows live work first.
-  const isClosed = (s: string) => s === "completed" || s === "cancelled";
+  const isClosed = isClosedStatus;
   const closedCount = (allVisible ?? []).filter((p) => isClosed(p.status)).length;
   const projects = onlyClosed
     ? (allVisible ?? []).filter((p) => isClosed(p.status))
@@ -154,16 +154,16 @@ export default async function ProjectsPage({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {session.isJagsStaff
+            <T>{session.isJagsStaff
               ? "Every project across every client you have access to."
-              : "Projects your organisation is engaged on."}
+              : "Projects your organisation is engaged on."}</T>
           </p>
         </div>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
           {orgFilterOptions.length > 0 && <OrgFilter organizations={orgFilterOptions} />}
           {canCreateProject && (
             <Link href="/inspect/projects/new">
-              <Button>+ New project</Button>
+              <Button><T>+ New project</T></Button>
             </Link>
           )}
         </div>
@@ -187,7 +187,7 @@ export default async function ProjectsPage({
               <span key={opt.label}>
                 {i > 0 && " · "}
                 {opt.active ? (
-                  <span className="font-medium text-ink">{opt.label}</span>
+                  <span className="font-medium text-ink"><T>{opt.label}</T></span>
                 ) : (
                   <Link
                     className="text-burgundy hover:underline"
@@ -196,7 +196,7 @@ export default async function ProjectsPage({
                       ...(opt.key ? { show: opt.key } : {}),
                     }).toString()}`}
                   >
-                    {opt.label}
+                    <T>{opt.label}</T>
                   </Link>
                 )}
               </span>
