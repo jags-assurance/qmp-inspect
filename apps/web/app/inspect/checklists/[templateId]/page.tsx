@@ -40,6 +40,7 @@ import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
 import { WaiveNoticeForm } from "./waive-notice-form";
+import { CloneAnswersForm } from "./clone-answers-form";
 import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
 import { unnotifiedNonBlockingLevels } from "@/lib/checklists/notice-waiver";
 import { ConsistencyCheck } from "./consistency-check";
@@ -657,6 +658,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {draft && (
         <div className="mt-6 space-y-6">
+          {canExecute && <CloneAnswersForm inspectionRecordId={draft.id} />}
           <ChecklistExecutionPanel
             templateId={template.id}
             inspectionRecordId={draft.id}
