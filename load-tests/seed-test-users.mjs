@@ -25,6 +25,12 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
   process.exit(1);
 }
+// This repository has no staging project, so a pasted production URL is the realistic failure. Same speed bump
+// as the k6 script: the target must be named a second time, exactly.
+if ((process.env.LOAD_TEST_CONFIRM_TARGET ?? "").trim() !== SUPABASE_URL.trim()) {
+  console.error(`Refusing to seed: set LOAD_TEST_CONFIRM_TARGET to exactly ${SUPABASE_URL}. It must be a dedicated test project, never the real one.`);
+  process.exit(1);
+}
 if (!Number.isFinite(COUNT) || COUNT <= 0) {
   console.error("Pass the number of test users to create as the first argument, e.g. `node seed-test-users.mjs 1000`.");
   process.exit(1);

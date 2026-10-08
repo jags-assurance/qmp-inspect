@@ -65,6 +65,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @jags/web --filter @jags/worker test
+      # Offline (reads supabase/migrations and the test sources; no database, no secrets): fails when a
+      # database write guard exists in a migration without an entry in packages/rls-tests/src/guard-registry.ts.
+      - name: Guard coverage (every write guard has a test or a recorded gap)
+        run: pnpm --filter @jags/rls-tests test:coverage
 
   migration-names:
     name: Migration file names
