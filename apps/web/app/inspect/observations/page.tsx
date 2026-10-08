@@ -12,6 +12,8 @@ import { DisciplineFilterForm } from "../ncrs/discipline-filter-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { RaiseObservationPanel } from "./raise-observation-panel";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { summariseObservationRows, type ObservationStatRow } from "@/lib/ncrs/register-stats";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -47,8 +49,9 @@ export default async function ObservationsPage({
     itpItemIdFilter = (taggedItems ?? []).map((i) => i.id);
   }
 
-  // Stat cards use head+count queries (no rows transferred); only the open rows' created_at is
-  // fetched for the aging chart. The table itself is a paginated + searched query.
+  // ONE light query (status, due date, created date) feeds every stat card and the aging chart — it used
+  // to be four head counts plus a separate open-ages query, each re-running the ncrs row-level security
+  // over the whole table. The table itself is a paginated + searched query (with its own exact count).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ncrs is an untyped table handle
   const baseFilters = (q: any): any => {
     let out = q;
@@ -58,7 +61,6 @@ export default async function ObservationsPage({
     if (projectId) out = out.eq("project_id", projectId);
     return out;
   };
-  const countQuery = () => baseFilters(supabase.from(NCRS_TABLE).select("id", { count: "exact", head: true }).eq("severity", "observation"));
   const todayIso = new Date().toISOString().slice(0, 10);
   let tableQuery = baseFilters(
     supabase
@@ -75,12 +77,12 @@ export default async function ObservationsPage({
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
-  const [totalRes, openRes, closedRes, overdueRes, openAgesRes, { data: observations, count: totalCount }] = await Promise.all([
-    countQuery(),
-    countQuery().neq("status", "closed"),
-    countQuery().eq("status", "closed"),
-    countQuery().neq("status", "closed").lt("due_date", todayIso),
-    baseFilters(supabase.from(NCRS_TABLE).select("created_at").eq("severity", "observation")).neq("status", "closed").limit(2000),
+  const [statRows, { data: observations, count: totalCount }] = await Promise.all([
+    fetchAll<ObservationStatRow>((from, to) =>
+      baseFilters(supabase.from(NCRS_TABLE).select("status, due_date, created_at").eq("severity", "observation"))
+        .order("id")
+        .range(from, to)
+    ),
     tableQuery
       .order("created_at", { ascending: false })
       .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
@@ -88,12 +90,7 @@ export default async function ObservationsPage({
   ]);
 
   const rows = (observations ?? []) as NcrRegisterRow[];
-  const total = totalRes.count ?? 0;
-  const open = openRes.count ?? 0;
-  const closed = closedRes.count ?? 0;
-  const overdue = overdueRes.count ?? 0;
-  const today = new Date().getTime();
-  const openAgeDays = (openAgesRes.data ?? []).map((r: { created_at: string }) => Math.floor((today - new Date(r.created_at).getTime()) / 86_400_000));
+  const { total, open, closed, overdue, openAgeDays } = summariseObservationRows(statRows, new Date().getTime(), todayIso);
   const agingCounts = bucketAge(openAgeDays);
 
   return (

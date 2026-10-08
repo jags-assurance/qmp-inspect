@@ -88,15 +88,20 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
       .returns<{ id: string }[]>();
     const candIds = (cand ?? []).map((c) => c.id);
     const live = new Set<string>();
-    for (let i = 0; i < candIds.length; i += CHUNK) {
-      const { data: liveRows } = await supabase
-        .from(IRNS_TABLE)
-        .select("inspection_record_id")
-        .in("inspection_record_id", candIds.slice(i, i + CHUNK))
-        .is("voided_at", null)
-        .returns<{ inspection_record_id: string }[]>();
-      for (const r of liveRows ?? []) live.add(r.inspection_record_id);
-    }
+    // The chunk lookups are independent, so they run together instead of one after another.
+    const chunks: string[][] = [];
+    for (let i = 0; i < candIds.length; i += CHUNK) chunks.push(candIds.slice(i, i + CHUNK));
+    const liveResults = await Promise.all(
+      chunks.map((chunkIds) =>
+        supabase
+          .from(IRNS_TABLE)
+          .select("inspection_record_id")
+          .in("inspection_record_id", chunkIds)
+          .is("voided_at", null)
+          .returns<{ inspection_record_id: string }[]>()
+      )
+    );
+    for (const { data: liveRows } of liveResults) for (const r of liveRows ?? []) live.add(r.inspection_record_id);
     const noneIds = candIds.filter((cid) => !live.has(cid));
     count = noneIds.length;
     const pageIds = noneIds.slice(offset, offset + INSPECTIONS_PAGE_SIZE);

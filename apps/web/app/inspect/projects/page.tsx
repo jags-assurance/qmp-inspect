@@ -8,6 +8,7 @@ import { ProjectsTable, type ProjectRow } from "./projects-table";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { OrgFilter } from "./org-filter";
+import { orgFilterOptionsFrom } from "@/lib/projects/open-counts";
 
 export default async function ProjectsPage({
   searchParams,
@@ -54,17 +55,18 @@ export default async function ProjectsPage({
   // Organisations for the filter dropdown — drawn from the same RLS-scoped `projects` query (not a
   // separate `organizations` select) so the list only ever shows orgs this session can actually see
   // projects for, and stays correct even while `selectedOrgId` narrows the `projects` fetch above.
-  const { data: allProjectOrgs } = await supabase
-    .from("projects")
-    .select("organization_id, organizations(name)")
-    .returns<{ organization_id: string; organizations: { name: string } | null }[]>();
-  const orgFilterOptions = [
-    ...new Map(
-      (allProjectOrgs ?? [])
-        .filter((p) => p.organizations)
-        .map((p) => [p.organization_id, { id: p.organization_id, label: p.organizations!.name }])
-    ).values(),
-  ].sort((a, b) => a.label.localeCompare(b.label));
+  // With no organisation selected, `allVisible` already holds every visible project and its organisation
+  // name, so the dropdown is built from it; a second identical-scope projects query only runs while an
+  // organisation filter is narrowing `allVisible`.
+  const allProjectOrgs = selectedOrgId
+    ? (
+        await supabase
+          .from("projects")
+          .select("organization_id, organizations(name)")
+          .returns<{ organization_id: string; organizations: { name: string } | null }[]>()
+      ).data
+    : allVisible;
+  const orgFilterOptions = orgFilterOptionsFrom(allProjectOrgs ?? []);
 
   const projectIds = (projects ?? []).map((p) => p.id);
 

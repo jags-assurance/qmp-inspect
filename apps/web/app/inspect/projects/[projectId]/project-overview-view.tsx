@@ -97,36 +97,46 @@ const STATUSES_ELIGIBLE_FOR_BULK_DEACTIVATE = new Set(["completed", "cancelled"]
  * the URL directly (see docs/MANUAL_TESTING_GUIDE.md, which does exactly that). This page is that
  * entry point, plus real per-project numbers computed here rather than guessed at.
  */
-export async function ProjectOverviewView({ projectId, tabBar }: { projectId: string; tabBar: ReactNode }) {
+export async function ProjectOverviewView({
+  projectId,
+  tabBar,
+  knownCounts,
+}: {
+  projectId: string;
+  tabBar: ReactNode;
+  /** Counts the workspace page already computed for its tab badges; when given, they are not queried again. */
+  knownCounts?: { openNcrsAndObservations: number; openPunchOutstanding: number; openPunchOpen: number };
+}) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select(
-      "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, allow_contractor_standalone_assignment, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
-    )
-    .eq("id", projectId)
-    .maybeSingle<ProjectDetail>();
-
-  if (!project) notFound();
-
-  // S4-17 site geofence (columns exist after migration 20261110000200; errors mean "not set up yet").
-  const { data: siteRow } = await supabase
-    .from("projects")
-    .select("site_latitude, site_longitude, site_radius_m")
-    .eq("id", projectId)
-    .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
-
+  // The project row, its geofence columns and every count below depend only on projectId, so they all
+  // start together (the geofence read stays its own query: its columns exist only after migration
+  // 20261110000200 and an error there just means "not set up yet").
   const [
+    { data: project },
+    { data: siteRow },
     { data: parties },
-    { count: itpCount },
-    { count: openNcrCount },
+    { count: itpCountRaw },
+    { count: openNcrCountRaw },
     { count: pendingInspectionCount },
-    { count: openPunchCount },
-    { count: openPunchAnyCount },
+    { count: openPunchCountRaw },
+    { count: openPunchAnyCountRaw },
     { data: assignedClientTeams },
   ] = await Promise.all([
+    supabase
+      .from("projects")
+      .select(
+        "id, project_number, name, site_location, country, contract_number, start_date, end_date, status, organization_id, allow_client_execution, allow_client_itp_creation, allow_contractor_itp_creation, allow_contractor_standalone_assignment, enforce_hold_blocks_start, responsible_person_id, responsible_person:users!projects_responsible_person_id_fkey(full_name, email), organizations(name, engagement_mode, engagement_scope, brand_primary_color, brand_accent_color)"
+      )
+      .eq("id", projectId)
+      .maybeSingle<ProjectDetail>(),
+    // S4-17 site geofence.
+    supabase
+      .from("projects")
+      .select("site_latitude, site_longitude, site_radius_m")
+      .eq("id", projectId)
+      .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>(),
     supabase
       .from("project_parties")
       .select("id, name, party_type, is_active, onboarded_by, user_id, contact_email, access_mode, users(full_name, email)")
@@ -147,18 +157,25 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
         }[]
       >(),
     supabase.from("itps").select("id", { count: "exact", head: true }).eq("project_id", projectId),
-    supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+    // Open NCRs + observations and the punch counts come from the workspace page when it supplies them.
+    knownCounts
+      ? Promise.resolve({ count: null })
+      : supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase
       .from("inspection_records")
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .is("overall_result", null),
-    supabase
-      .from(PUNCH_LIST_ITEMS_TABLE)
-      .select("id", { count: "exact", head: true })
-      .eq("project_id", projectId)
-      .eq("status", "open"),
-    supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+    knownCounts
+      ? Promise.resolve({ count: null })
+      : supabase
+          .from(PUNCH_LIST_ITEMS_TABLE)
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", projectId)
+          .eq("status", "open"),
+    knownCounts
+      ? Promise.resolve({ count: null })
+      : supabase.from(PUNCH_LIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     // Read-only visibility for client_team_project_assignments (organisation/client-teams' "Assign
     // to project" control) — previously that assignment had no consequence anywhere outside the
     // admin page that wrote it; showing it here at least makes the assignment itself legible from
@@ -170,6 +187,13 @@ export async function ProjectOverviewView({ projectId, tabBar }: { projectId: st
       .eq("project_id", projectId)
       .returns<{ client_teams: { name: string } | null }[]>(),
   ]);
+
+  if (!project) notFound();
+
+  const itpCount = itpCountRaw;
+  const openNcrCount = knownCounts ? knownCounts.openNcrsAndObservations : openNcrCountRaw;
+  const openPunchCount = knownCounts ? knownCounts.openPunchOpen : openPunchCountRaw;
+  const openPunchAnyCount = knownCounts ? knownCounts.openPunchOutstanding : openPunchAnyCountRaw;
 
   // Reassignment is a sensitive affordance — gated the same way reassignSignoffPartyAction gates
   // itself server-side: a JAGS Admin, or a lead of a JAGS team actually assigned to this project.

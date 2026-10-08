@@ -14,6 +14,7 @@ import { userNames } from "@/lib/ncrs/recipients";
 import { LoadMore } from "@/components/domain/load-more";
 import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
 import { StatusLegend } from "@/components/ui/status-legend";
+import { countPunchByStatus, listHitCap } from "@/lib/projects/open-counts";
 
 // Outstanding (open / resolved) items are always loaded — they block the Data Book and are the
 // working set. Only the CLOSED history is windowed ("Load more"), newest first.
@@ -50,8 +51,6 @@ export async function PunchListView({
     { data: outstanding },
     { data: closedRows },
     { count: closedTotal },
-    { count: openTotal },
-    { count: resolvedTotal },
     { data: projectParties },
   ] =
     await Promise.all([
@@ -76,8 +75,6 @@ export async function PunchListView({
         .limit(closedLimit)
         .returns<RawPunchRow[]>(),
       punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "closed"),
-      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
-      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "resolved"),
       supabase
         .from("project_parties")
         .select("id, name")
@@ -96,8 +93,23 @@ export async function PunchListView({
 
   // "Outstanding" for the Data Book blurb below means not yet truly closed — a 'resolved' item still
   // blocks compilation until someone independently verifies it (see readiness.ts's matching count).
-  // Counted in the database, so the blurb is right however many items are loaded below.
-  const openCount = openTotal ?? 0;
+  // The outstanding rows are already loaded above (every non-closed item, up to OUTSTANDING_CAP), so
+  // open / resolved are counted from them instead of two more head-count queries; only if that list hit
+  // its cap are the exact counts fetched.
+  let openCount: number;
+  let resolvedCount: number;
+  if (listHitCap(outstanding, OUTSTANDING_CAP)) {
+    const [{ count: openTotal }, { count: resolvedTotal }] = await Promise.all([
+      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
+      punch().select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "resolved"),
+    ]);
+    openCount = openTotal ?? 0;
+    resolvedCount = resolvedTotal ?? 0;
+  } else {
+    const counted = countPunchByStatus(outstanding ?? []);
+    openCount = counted.outstanding;
+    resolvedCount = counted.resolved;
+  }
 
   // ONE batched call signs every photo path of every item (bucket is private), then maps back.
   const allPaths = [...new Set((items ?? []).flatMap((i) => [...(i.photo_paths ?? []), ...(i.closing_photo_paths ?? [])]))];
@@ -123,7 +135,6 @@ export async function PunchListView({
     closed_by_name: item.closed_by ? nameById.get(item.closed_by) ?? null : null,
   }));
 
-  const resolvedCount = resolvedTotal ?? 0;
   const reallyOpenCount = Math.max(0, openCount - resolvedCount);
   const loadMoreHref = closedWindow.next
     ? hrefWithLimit(embedded ? `/inspect/projects/${projectId}` : `/inspect/projects/${projectId}/punch-list`, embedded ? { ...searchParams, tab: "punch-list" } : searchParams, closedWindow.next)

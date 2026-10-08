@@ -1,7 +1,8 @@
 import { Suspense, type ReactNode } from "react";
 import { signOutAction } from "@/lib/auth/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { listRecentNotifications } from "@/lib/notifications/helpers";
+import { listRecentNotifications, RECENT_NOTIFICATIONS_LIMIT } from "@/lib/notifications/helpers";
+import { needsUnreadCountQuery, unreadInList } from "@/lib/notifications/unread";
 import { NOTIFICATIONS_TABLE } from "@/lib/notifications/types";
 import { SidebarShell } from "./sidebar-shell";
 import { OfflineBanner } from "./offline-banner";
@@ -111,15 +112,18 @@ export async function AppShell({
 
 async function NotificationsBellLoader({ userId }: { userId: string }) {
   const supabase = await createSupabaseServerClient();
-  // The bell only carries the latest 20 rows, so the badge needs a true unread total (head count,
-  // no rows transferred), fetched in parallel with the list.
-  const [initialNotifications, { count }] = await Promise.all([
-    listRecentNotifications(supabase, userId),
-    supabase
+  // The bell only carries the latest 20 rows, so the badge needs a true unread total. When fewer than 20
+  // came back that list is the whole inbox and the total is counted from it; only a full list needs the
+  // head-count query (no rows transferred).
+  const initialNotifications = await listRecentNotifications(supabase, userId);
+  let count = unreadInList(initialNotifications);
+  if (needsUnreadCountQuery(initialNotifications, RECENT_NOTIFICATIONS_LIMIT)) {
+    const res = await supabase
       .from(NOTIFICATIONS_TABLE)
       .select("id", { count: "exact", head: true })
       .eq("recipient_user_id", userId)
-      .eq("is_read", false),
-  ]);
-  return <NotificationsBell userId={userId} initialNotifications={initialNotifications} initialUnreadCount={count ?? 0} />;
+      .eq("is_read", false);
+    count = res.count ?? 0;
+  }
+  return <NotificationsBell userId={userId} initialNotifications={initialNotifications} initialUnreadCount={count} />;
 }

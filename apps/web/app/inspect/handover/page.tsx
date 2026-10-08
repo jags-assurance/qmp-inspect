@@ -119,7 +119,10 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
   const orgIds = [...new Set(rows.map((c) => c.data_books?.projects?.organization_id).filter((v): v is string => Boolean(v)))];
   const unlicensedOrgs = new Set<string>();
   if (!session.isJagsStaff) {
-    for (const orgId of orgIds) if (!(await isModuleLicensed(supabase, orgId, "data_book"))) unlicensedOrgs.add(orgId);
+    const licensed = await Promise.all(orgIds.map((orgId) => isModuleLicensed(supabase, orgId, "data_book")));
+    orgIds.forEach((orgId, i) => {
+      if (!licensed[i]) unlicensedOrgs.add(orgId);
+    });
   }
   const certificatesShown = rows.filter((c) => !unlicensedOrgs.has(c.data_books?.projects?.organization_id ?? ""));
 

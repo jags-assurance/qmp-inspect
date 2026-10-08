@@ -8,6 +8,7 @@ import {
   verifyStamp,
 } from "@/lib/auth/session-limits";
 import { decideProxyAccess } from "@/lib/auth/proxy-decision";
+import { isPrefetchRequest } from "@/lib/auth/prefetch";
 import { isMfaExemptPath, mfaChallengePath, mfaEnabled, needsMfaChallenge } from "@/lib/auth/mfa";
 
 const PUBLIC_PATHS = [
@@ -39,11 +40,7 @@ const CHECK_TTL_MS = 5 * 60_000;
 const COOKIE_OPTS = { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/" };
 
 function isPrefetch(request: NextRequest): boolean {
-  return (
-    request.headers.get("next-router-prefetch") === "1" ||
-    request.headers.get("purpose") === "prefetch" ||
-    request.headers.get("sec-purpose")?.includes("prefetch") === true
-  );
+  return isPrefetchRequest(request.headers);
 }
 
 /**
@@ -88,14 +85,28 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Every Link in the viewport fires a prefetch request through this proxy, and an Auth-server round trip
+  // (getUser) per prefetch hammers a small shared Supabase project. A prefetch is never the enforcement
+  // point (the real navigation is, and RLS is the boundary), so it only verifies the JWT locally with
+  // getClaims() (JWKS-cached; refreshes an expiring session through the same cookie handler; falls back to a
+  // server check only for a project on symmetric signing keys). Real requests still call getUser().
+  const prefetch = isPrefetch(request);
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  let signedIn = false;
+  if (prefetch) {
+    const { data: claimsData } = await supabase.auth.getClaims();
+    signedIn = Boolean(claimsData?.claims?.sub);
+  } else {
+    ({
+      data: { user },
+    } = await supabase.auth.getUser());
+    signedIn = user !== null;
+  }
 
   const pathname = request.nextUrl.pathname;
   const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
-  if (!user && !isPublicPath) {
+  if (!signedIn && !isPublicPath) {
     const redirectUrl = new URL("/login", request.url);
     // Keep the query string so a deep link (?panel=…&status=…) survives sign-in; the login page and
     // signInAction re-validate it as a same-site path.
@@ -105,14 +116,13 @@ export async function proxy(request: NextRequest) {
 
   // (A signed-in user sent back with ?error=... is shown the message instead of being bounced home,
   // which would loop for an account whose session context can no longer be built.)
-  if (user && pathname === "/login" && !request.nextUrl.searchParams.has("error")) {
+  if (signedIn && pathname === "/login" && !request.nextUrl.searchParams.has("error")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (user && !isPublicPath) {
     const now = Date.now();
     const secret = sessionCookieSecret();
-    const prefetch = isPrefetch(request);
 
     // Redirect that also carries any cookie writes made above (token refresh, sign-out).
     const redirectWithCookies = (to: string) => {
