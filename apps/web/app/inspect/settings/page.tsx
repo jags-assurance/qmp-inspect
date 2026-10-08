@@ -94,6 +94,7 @@ const ALL_GROUPS: SettingsNavGroup[] = [
       { key: "roles", label: "Custom Roles" },
       { key: "teams", label: "Teams" },
       { key: "module-licensing", label: "Module Licensing" },
+      { key: "data-requests", label: "Data Requests", href: "/inspect/organisation/data-requests" },
     ],
   },
   {

@@ -23,6 +23,8 @@ const SCREENS = [
   "app/inspect/observations/page.tsx",
   "app/inspect/itps/new/new-itp-form.tsx",
   "app/inspect/vault/[projectId]/[folderId]/vault-documents-table.tsx",
+  "app/inspect/organisation/data-requests/page.tsx",
+  "app/inspect/organisation/data-requests/anonymise-control.tsx",
 ];
 
 const root = join(__dirname, "..", "..", "..");

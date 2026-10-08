@@ -2545,6 +2545,38 @@ const AR: Record<string, string> = {
   "Discard what you've typed?": "تجاهل ما كتبته؟",
   "Resize list and detail panes (arrow keys; Enter expands the detail)":
     "تغيير حجم لوحتي القائمة والتفاصيل (مفاتيح الأسهم؛ يوسّع Enter التفاصيل)",
+  // Data requests (U6)
+  "Data Requests": "طلبات البيانات",
+  "Data requests": "طلبات البيانات",
+  "Data requests — how this works": "طلبات البيانات — كيف يعمل هذا",
+  "Download everything the system holds about one person, or anonymise their account. Both are recorded in the audit log.":
+    "نزّل كل ما يحتفظ به النظام عن شخص واحد، أو أخفِ هوية حسابه. يُسجَّل الإجراءان في سجل التدقيق.",
+  "No matching account found.": "لم يتم العثور على حساب مطابق.",
+  "Download data export (JSON)": "تنزيل تصدير البيانات (JSON)",
+  "Contains personal data: send it only by the approved secure channel.":
+    "يحتوي على بيانات شخصية: أرسله فقط عبر القناة الآمنة المعتمدة.",
+  "This account is already anonymised.": "تم إخفاء هوية هذا الحساب مسبقاً.",
+  "You can't anonymise your own account.": "لا يمكنك إخفاء هوية حسابك أنت.",
+  "Anonymised": "مخفي الهوية",
+  "Anonymise": "إخفاء هوية",
+  "Anonymise account": "إخفاء هوية الحساب",
+  "Anonymise account…": "إخفاء هوية الحساب…",
+  "Working…": "جارٍ العمل…",
+  "Replaces the name and email with placeholders and deactivates the account. All records, signatures and audit history are kept. This cannot be undone.":
+    "يستبدل الاسم والبريد الإلكتروني ببدائل ويوقف الحساب. تُحفظ جميع السجلات والتواقيع وسجل التدقيق. لا يمكن التراجع عن ذلك.",
+  "Reason for this request (kept in the audit log)": "سبب هذا الطلب (يُحفظ في سجل التدقيق)",
+  "For example: erasure request received 2026-10-08, identity verified, no legal hold":
+    "مثال: ورد طلب محو بتاريخ 2026-10-08، وتم التحقق من الهوية، ولا يوجد حجز قانوني",
+  "Anonymising keeps every record; it only removes who the account belonged to.":
+    "يُبقي إخفاء الهوية كل السجلات؛ ويزيل فقط هوية صاحب الحساب.",
+  "Admin-only. Use it to answer a person's request for a copy of their data, or for deletion. Verify who is asking first, and log the request (see docs/DATA_SUBJECT_REQUESTS.md).":
+    "للمسؤول فقط. استخدمه للرد على طلب شخص للحصول على نسخة من بياناته أو لحذفها. تحقق أولاً ممن يطلب، وسجّل الطلب (انظر docs/DATA_SUBJECT_REQUESTS.md).",
+  "Export downloads one JSON file with everything held about the account: profile, access, memberships, audit events they performed, notifications, signing and photo metadata, comments and AI usage. Every export is written to the audit log.":
+    "ينزّل التصدير ملف JSON واحداً بكل ما يُحتفظ به عن الحساب: الملف الشخصي والصلاحيات والعضويات وأحداث التدقيق التي نفّذها والإشعارات وبيانات التوقيع والصور والتعليقات واستخدام الذكاء الاصطناعي. يُسجَّل كل تصدير في سجل التدقيق.",
+  "Anonymise replaces the name and email with placeholders and deactivates the account. No record is deleted: signed inspections, the audit trail and quality records stay, attributed to 'Former user'.":
+    "يستبدل إخفاء الهوية الاسم والبريد الإلكتروني ببدائل ويوقف الحساب. لا يُحذف أي سجل: تبقى عمليات الفحص الموقّعة ومسار التدقيق وسجلات الجودة منسوبة إلى «مستخدم سابق».",
+  "The last active JAGS Admin and your own account cannot be anonymised.":
+    "لا يمكن إخفاء هوية آخر مسؤول نشط في جاغز ولا حسابك أنت.",
 };
 
 const DICTIONARIES: Partial<Record<SupportedLocale, Record<string, string>>> = { ar: AR };

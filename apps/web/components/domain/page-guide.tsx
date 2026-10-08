@@ -54,7 +54,7 @@ export function PageGuide({
           <p className="text-sm font-semibold text-ink">{title}</p>
           <ul className="mt-2 list-disc space-y-1.5 ps-4 text-xs text-ink">
             {points.map((p, i) => (
-              <li key={i}>{p}</li>
+              <li key={i}><Tx>{p}</Tx></li>
             ))}
           </ul>
           {linkToAppGuide && (
