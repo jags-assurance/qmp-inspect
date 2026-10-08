@@ -5,7 +5,9 @@
   "scripts": {
     "test": "tsx src/tenant-isolation.test.ts",
     "test:guards": "tsx src/guards.test.ts",
-    "test:all": "tsx src/tenant-isolation.test.ts && tsx src/guards.test.ts",
+    "test:write-guards": "tsx src/write-guards.test.ts",
+    "test:coverage": "tsx src/coverage.test.ts",
+    "test:all": "tsx src/tenant-isolation.test.ts && tsx src/guards.test.ts && tsx src/write-guards.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

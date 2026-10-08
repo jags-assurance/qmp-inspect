@@ -3,9 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * Read-only end-to-end suite for the deployed QMP web app (see e2e/README.md and
- * docs/E2E_RUN_RESULTS.md). It signs in with the seeded demo accounts and only ever navigates and
- * reads: no form is submitted other than the sign-in form, and no server action is invoked.
+ * End-to-end suite for the deployed QMP web app (see e2e/README.md and docs/E2E_RUN_RESULTS.md).
+ * Specs 01-04 sign in with the seeded demo accounts and only ever navigate and read: no form is
+ * submitted other than the sign-in form, and no server action is invoked. Specs 05-* write (under an
+ * `E2E-` organisation/project) and are SKIPPED unless E2E_ALLOW_WRITES=1; see the README.
  *
  * Configuration (all via environment):
  *   BASE_URL            Site under test. Default https://jags-qmp-client-dev.vercel.app

@@ -1,6 +1,8 @@
 // Real load test for JAGS Assurance QMP Inspect, covering the exact concern raised: "1000+ members,
-// login takes time, check RBAC/tariff handling." Run this against a STAGING environment, never
-// production, with synthetic test accounts (see seed-test-users.mjs in this directory).
+// login takes time, check RBAC/tariff handling." Run this against a DEDICATED TEST Supabase project,
+// never the real one, with synthetic test accounts (see seed-test-users.mjs in this directory). This
+// repository has no staging project: create a throwaway one (or a Supabase branch) for it, apply every
+// migration, and write the results down in BASELINES.md.
 //
 // Why this hits Supabase's REST/Auth APIs directly instead of the Next.js pages: replicating the
 // exact browser session-cookie format @supabase/ssr sets (base64, possibly chunked, version-
@@ -13,9 +15,14 @@
 //
 // Run:
 //   SUPABASE_URL=https://xxxx.supabase.co \
+//   LOAD_TEST_CONFIRM_TARGET=https://xxxx.supabase.co \
 //   SUPABASE_ANON_KEY=eyJ... \
 //   TEST_USERS_FILE=./test-users.json \
-//   k6 run load-tests/k6-load-test.js
+//   k6 run --summary-export=results/<date>-<env>.json load-tests/k6-load-test.js
+//
+// LOAD_TEST_CONFIRM_TARGET must equal SUPABASE_URL exactly. It is a deliberate speed bump: with no staging
+// project, a pasted production URL is how this goes wrong, and 1000 concurrent synthetic logins against the
+// real project is an outage, not a test.
 //
 // Optional (enables the write-path scenario — skipped with a warning if unset, since it needs real
 // data seeded in your staging project first):
@@ -40,6 +47,13 @@ const WRITE_SCENARIO_ENABLED = !!(TEST_INSPECTION_RECORD_ID && TEST_CHECKLIST_IT
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY are required env vars.");
 }
+if ((__ENV.LOAD_TEST_CONFIRM_TARGET || "").trim() !== SUPABASE_URL.trim()) {
+  throw new Error(
+    "Refusing to run: set LOAD_TEST_CONFIRM_TARGET to exactly the SUPABASE_URL you mean to load (" +
+      SUPABASE_URL +
+      "). It must be a dedicated test project, never the real one."
+  );
+}
 if (!WRITE_SCENARIO_ENABLED) {
   console.warn(
     "TEST_INSPECTION_RECORD_ID / TEST_CHECKLIST_ITEM_ID not set — the checklist-write scenario will be " +
@@ -61,6 +75,8 @@ const sessionReadDuration = new Trend("custom_session_read_duration", true);
 const checklistWriteDuration = new Trend("custom_checklist_write_duration", true);
 
 export const options = {
+  // BASELINES.md records p50 / p95 / p99; k6's default summary stops at p(95), so ask for the rest.
+  summaryTrendStats: ["avg", "min", "med", "p(90)", "p(95)", "p(99)", "max"],
   scenarios: {
     // Scenario A: a "login stampede" — many distinct users signing in within a short window (the
     // literal shift-start scenario). One iteration per VU: sign in once, hold a moment, done. This

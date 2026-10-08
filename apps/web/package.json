@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test -c e2e/playwright.config.ts",
-    "e2e:report": "node e2e/scripts/summarize-results.mjs"
+    "e2e:report": "node e2e/scripts/summarize-results.mjs",
+    "e2e:cleanup": "node e2e/scripts/cleanup-e2e-data.mjs"
   },
   "dependencies": {
     "@jags/shared-types": "workspace:*",
