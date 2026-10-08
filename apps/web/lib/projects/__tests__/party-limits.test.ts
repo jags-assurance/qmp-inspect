@@ -33,3 +33,14 @@ describe("party type limits (S1-13)", () => {
     expect(checkPartyTypeLimit("observer", 9999).ok).toBe(true);
   });
 });
+
+describe("database trigger stays in step with PARTY_TYPE_LIMITS", () => {
+  it("uses the same cap for every party type", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(join(__dirname, "../../../../../supabase/migrations/20261118000500_project_party_type_limit.sql"), "utf8");
+    for (const [type, limit] of Object.entries(PARTY_TYPE_LIMITS)) {
+      expect(sql).toContain(`when '${type}' then ${limit}`);
+    }
+  });
+});
