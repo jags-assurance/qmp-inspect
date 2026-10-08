@@ -31,6 +31,7 @@ describe("approveDocumentAction (single approver path)", () => {
     mock.on("vault_documents", "update", { data: [{ id: "doc-1" }] });
     mock.on("vault_documents", "select", { data: approvedDoc });
     mock.onRpc("has_custom_permission", { data: false });
+    mock.onRpc("vault_approve_document", { data: true });
   });
 
   it("refuses an inspector without approve_vault_document and writes nothing", async () => {
@@ -46,36 +47,51 @@ describe("approveDocumentAction (single approver path)", () => {
     expect(mock.writes()).toHaveLength(0);
   });
 
-  it("lets a permission holder approve (guarded on for_review) and supersedes earlier revisions", async () => {
+  it("lets a permission holder approve through the atomic approve-and-retire function", async () => {
     mock.onRpc("has_custom_permission", { data: true });
     expect((await approve()).error).toBeNull();
-    const updates = mock.writes("vault_documents", "update");
-    expect(updates[0].payload).toMatchObject({ status: "approved", approved_by: "inspector-1" });
-    expect(updates[0].filters).toContainEqual(["eq", "status", "for_review"]);
-    // Supersede step: retire older revisions of the same reference, never the document itself.
-    expect(updates[1].payload).toMatchObject({ status: "superseded", superseded_by: "doc-1" });
-    expect(updates[1].filters).toEqual(expect.arrayContaining([["eq", "document_reference", "DWG-001"], ["neq", "id", "doc-1"], ["neq", "status", "superseded"]]));
+    expect(mock.rpcCalls).toContainEqual({ name: "vault_approve_document", args: { p_document_id: "doc-1", p_approved_by: "inspector-1" } });
+    // Retiring the earlier copy and approving happen inside that one function: no separate table writes.
+    expect(mock.writes("vault_documents", "update")).toHaveLength(0);
     expect(decision.notifyDocumentDecision).toHaveBeenCalledWith(expect.anything(), "doc-1", "inspector-1", "approved");
   });
 
   it("lets an admin approve without a custom permission lookup", async () => {
     testCtx.session = sessions.admin();
     expect((await approve()).error).toBeNull();
-    expect(mock.rpcCalls).toHaveLength(0);
+    expect(mock.rpcCalls.map((c) => c.name)).toEqual(["vault_approve_document"]);
     expect(audit.recordAuditEvent).not.toHaveBeenCalled(); // no org on the stubbed document row
   });
 
-  it("does not supersede anything when the document has no reference", async () => {
+  it("reports a document that is no longer awaiting review", async () => {
     testCtx.session = sessions.admin();
-    mock.on("vault_documents", "select", { data: { ...approvedDoc, document_reference: null } });
-    expect((await approve()).error).toBeNull();
-    expect(mock.writes("vault_documents", "update")).toHaveLength(1);
+    mock.onRpc("vault_approve_document", { data: false });
+    expect((await approve()).error).toMatch(/no longer awaiting review/);
+    expect(mock.writes("vault_documents", "update")).toHaveLength(0);
   });
 
-  it("reports a document that is no longer awaiting review and supersedes nothing", async () => {
+  it("treats a concurrent finalisation (40001) as no longer awaiting review", async () => {
     testCtx.session = sessions.admin();
-    mock.on("vault_documents", "update", { data: [] });
+    mock.onRpc("vault_approve_document", { data: null, error: { code: "40001", message: "Document is no longer awaiting review" } });
     expect((await approve()).error).toMatch(/no longer awaiting review/);
+  });
+
+  it("falls back to approve-then-retire while the migration is not applied", async () => {
+    testCtx.session = sessions.admin();
+    mock.onRpc("vault_approve_document", { data: null, error: { code: "PGRST202", message: "Could not find the function" } });
+    expect((await approve()).error).toBeNull();
+    const updates = mock.writes("vault_documents", "update");
+    expect(updates[0].payload).toMatchObject({ status: "approved", approved_by: expect.any(String) });
+    expect(updates[0].filters).toContainEqual(["eq", "status", "for_review"]);
+    expect(updates[1].payload).toMatchObject({ status: "superseded", superseded_by: "doc-1" });
+    expect(updates[1].filters).toEqual(expect.arrayContaining([["eq", "document_reference", "DWG-001"], ["neq", "id", "doc-1"], ["neq", "status", "superseded"]]));
+  });
+
+  it("fallback retires nothing when the document has no reference", async () => {
+    testCtx.session = sessions.admin();
+    mock.onRpc("vault_approve_document", { data: null, error: { code: "PGRST202", message: "missing" } });
+    mock.on("vault_documents", "select", { data: { ...approvedDoc, document_reference: null } });
+    expect((await approve()).error).toBeNull();
     expect(mock.writes("vault_documents", "update")).toHaveLength(1);
   });
 
@@ -93,6 +109,7 @@ describe("approveDocumentAction (named approvers)", () => {
     mock.onRpc("has_custom_permission", { data: true });
     mock.on("vault_documents", "update", { data: [{ id: "doc-1" }] });
     mock.on("vault_documents", "select", { data: { ...approvedDoc, status: "for_review" } });
+    mock.onRpc("vault_approve_document", { data: true });
   });
 
   it("refuses someone who is not one of the named approvers, even with the general permission", async () => {
@@ -121,7 +138,7 @@ describe("approveDocumentAction (named approvers)", () => {
       ],
     });
     expect((await approve()).error).toBeNull();
-    expect(mock.writes("vault_documents", "update")[0].payload).toMatchObject({ status: "approved" });
+    expect(mock.rpcCalls.filter((c) => c.name === "vault_approve_document")).toHaveLength(1);
   });
 });
 
@@ -169,6 +186,7 @@ describe("setDocumentApproversAction / bulkApproveDocumentsAction", () => {
     mock.on("vault_documents", "update", { data: [{ id: "doc-1" }] });
     mock.on("vault_documents", "select", { data: approvedDoc });
     mock.onRpc("has_custom_permission", { data: false });
+    mock.onRpc("vault_approve_document", { data: true });
   });
 
   it("only a JAGS Admin can configure approvers", async () => {
@@ -196,6 +214,6 @@ describe("setDocumentApproversAction / bulkApproveDocumentsAction", () => {
     fd.append("document_ids", "doc-2");
     const res = await bulkApproveDocumentsAction({ error: null }, fd);
     expect(res.approved).toBe(2);
-    expect(mock.writes("vault_documents", "update").filter((c) => (c.payload as { status: string }).status === "approved")).toHaveLength(2);
+    expect(mock.rpcCalls.filter((c) => c.name === "vault_approve_document")).toHaveLength(2);
   });
 });

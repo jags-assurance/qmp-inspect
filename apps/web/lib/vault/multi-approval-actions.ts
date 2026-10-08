@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { finalizeDocumentApproval } from "./approve-finalize";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
@@ -153,14 +154,9 @@ export async function approveDocumentAction(
     if (!canApproveGenerally) {
       return { error: "Only a JAGS Admin, or someone granted this permission, can approve a document." };
     }
-    const { data: approvedRows, error } = await supabase
-      .from(VAULT_DOCUMENTS_TABLE)
-      .update({ status: "approved", approved_by: session.userId, approved_at: new Date().toISOString() })
-      .eq("id", documentId)
-      .eq("status", "for_review")
-      .select("id");
-    if (error) return { error: "Could not approve the document. Check you have permission and try again." };
-    if (!approvedRows?.length) return { error: "This document is no longer awaiting review (it may already be approved or superseded)." };
+    const outcome = await finalizeDocumentApproval(supabase, documentId, session.userId);
+    if (outcome.kind === "error") return { error: "Could not approve the document. Check you have permission and try again." };
+    if (outcome.kind === "not_awaiting_review") return { error: "This document is no longer awaiting review (it may already be approved or superseded)." };
   } else {
     const myRow = approvers.find((a) => a.approver_user_id === session.userId);
     if (!myRow) {
@@ -183,35 +179,12 @@ export async function approveDocumentAction(
 
     const stillPending = approvers.filter((a) => a.id !== myRow.id && a.status !== "approved").length;
     if (stillPending === 0) {
-      const { error } = await supabase
-        .from(VAULT_DOCUMENTS_TABLE)
-        .update({ status: "approved", approved_by: session.userId, approved_at: new Date().toISOString() })
-        .eq("id", documentId)
-        .eq("status", "for_review");
-      if (error) return { error: "Recorded your approval, but could not finalize the document — try again, it will retry automatically." };
+      const outcome = await finalizeDocumentApproval(supabase, documentId, session.userId);
+      // "Not awaiting review" here means a concurrent approval already finalized it: nothing left to do.
+      if (outcome.kind === "error") return { error: "Recorded your approval, but could not finalize the document — try again, it will retry automatically." };
     } else if (myRow.status === "approved") {
       return { error: "You've already approved this document — still waiting on the other required approver(s)." };
     }
-  }
-
-  // Once THIS revision is approved, retire any earlier revision of the same document reference.
-  try {
-    const { data: approvedDoc } = await supabase
-      .from(VAULT_DOCUMENTS_TABLE)
-      .select("id, folder_id, document_reference, status")
-      .eq("id", documentId)
-      .maybeSingle<{ id: string; folder_id: string; document_reference: string | null; status: string }>();
-    if (approvedDoc?.status === "approved" && approvedDoc.document_reference) {
-      await supabase
-        .from(VAULT_DOCUMENTS_TABLE)
-        .update({ status: "superseded", superseded_by: approvedDoc.id })
-        .eq("folder_id", approvedDoc.folder_id)
-        .eq("document_reference", approvedDoc.document_reference)
-        .neq("id", approvedDoc.id)
-        .neq("status", "superseded");
-    }
-  } catch {
-    // Best-effort — the approval itself already succeeded.
   }
 
   try {
