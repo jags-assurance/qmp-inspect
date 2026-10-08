@@ -11,7 +11,7 @@ import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type 
 import type { ItpDraftResult, ItpSourceDocument } from "@/lib/ai/provider";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
-import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { recordAuditEvent } from "@/lib/audit/log";
 
@@ -33,8 +33,8 @@ export interface GenerateItpDraftState {
   aiLogId: string | null;
   /** An auto-generated ITP number from the org's numbering scheme, offered as a starting value in
    *  the (still freely editable) ITP number field. Drawn from the same atomic sequence used for
-   *  real ITPs, so an abandoned draft can leave a gap in the sequence — same as a voided document
-   *  number in any real document-control scheme, not a correctness issue. Only generated once per
+   *  real ITPs but handed straight back (a preview, not a reservation), so an abandoned draft leaves no
+   *  gap; the confirm step draws the real number again if the suggestion went stale. Only generated once per
    *  draft (the "regenerate with feedback" flow reuses it, see generateItpDraftAction) so repeated
    *  regeneration doesn't burn a fresh number each time. Null if numbering couldn't be generated,
    *  in which case the field just starts blank as before. */
@@ -216,6 +216,8 @@ export async function generateItpDraftAction(
         projectNumber: project.project_number,
       });
       suggestedItpNumber = generated.documentNumber;
+      // A preview only: give the number back so an abandoned draft leaves no gap in the sequence.
+      await generated.releaseNumber?.();
     } catch (err) {
       // Best-effort suggestion only — the field stays editable and required either way.
       console.error("[itp-draft] Could not auto-suggest an ITP number:", err);
@@ -308,6 +310,7 @@ export async function createItpFromDraftAction(
   } = await supabase.auth.getUser();
 
   let numberToUse = itpNumber;
+  let releaseNumberToUse: (() => Promise<void>) | undefined;
   // Only JAGS staff may choose the ITP number; for anyone else the posted number is ignored and the
   // numbering engine draws the next one (same rule as createItpAction), so a typed number can't break the convention.
   const { data: callerProfile } = await supabase.from("users").select("is_jags_staff").eq("id", user?.id ?? "").maybeSingle<{ is_jags_staff: boolean }>();
@@ -320,16 +323,16 @@ export async function createItpFromDraftAction(
       .maybeSingle<{ organization_id: string; project_number: string }>();
     if (numberingProject) {
       try {
-        numberToUse = (
-          await generateDocumentNumber(supabase, {
-            organizationId: numberingProject.organization_id,
-            projectId,
-            docType: "itp",
-            projectNumber: numberingProject.project_number,
-          })
-        ).documentNumber;
-      } catch {
-        return { error: "Could not generate the next ITP number. Try again." };
+        const generated = await generateDocumentNumber(supabase, {
+          organizationId: numberingProject.organization_id,
+          projectId,
+          docType: "itp",
+          projectNumber: numberingProject.project_number,
+        });
+        numberToUse = generated.documentNumber;
+        releaseNumberToUse = generated.releaseNumber;
+      } catch (err) {
+        return { error: err instanceof NumberingError ? err.message : "Could not generate the next ITP number. Try again." };
       }
     }
   }
@@ -366,6 +369,8 @@ export async function createItpFromDraftAction(
           projectNumber: project.project_number,
         });
         numberToUse = generated.documentNumber;
+        // The stale number was a duplicate (in use); the fresh one is what a failure must give back.
+        releaseNumberToUse = generated.releaseNumber;
         ({ data: itp, error } = await supabase
           .from("itps")
           .insert({
@@ -384,6 +389,8 @@ export async function createItpFromDraftAction(
   }
 
   if (error || !itp) {
+    // A failed save must not leave a gap (B3); a duplicate number is in use, so it is not given back.
+    if (error?.code !== "23505") await releaseNumberToUse?.();
     if (error?.code === "23505") {
       return {
         error: `An ITP with that number already exists for this project (tried "${numberToUse}"). Please choose a different number and try again.`,
@@ -424,6 +431,7 @@ export async function createItpFromDraftAction(
 
   if (sectionsError || !newSections) {
     await supabase.from("itps").delete().eq("id", itp.id);
+    await releaseNumberToUse?.();
     return { error: "The ITP could not be created because its sections could not be added from the draft. Nothing was saved — please try again." };
   }
 
@@ -461,6 +469,7 @@ export async function createItpFromDraftAction(
 
   if (itemsToInsert.length === 0) {
     await supabase.from("itps").delete().eq("id", itp.id);
+    await releaseNumberToUse?.();
     return { error: "The draft had no valid activities to add, so no ITP was created." };
   }
 
@@ -471,6 +480,7 @@ export async function createItpFromDraftAction(
 
   if (itemsError || !newItems) {
     await supabase.from("itps").delete().eq("id", itp.id);
+    await releaseNumberToUse?.();
     return { error: "The ITP could not be created because its activities could not be added from the draft. Nothing was saved — please try again." };
   }
 

@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
-import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { extractTextFromFile } from "@/lib/vault/extract-text";
 import { notifyDocumentSubmitted } from "@/lib/vault/notifications";
 
@@ -101,12 +101,19 @@ export async function uploadVaultDocumentCore(
     return { error: "Project not found, or you don't have access to it." };
   }
 
-  const { documentNumber, internalReference } = await generateDocumentNumber(supabase, {
-    organizationId: project.organization_id,
-    projectId,
-    docType: "vault_document",
-    projectNumber: project.project_number,
-  });
+  let generatedNumber: Awaited<ReturnType<typeof generateDocumentNumber>>;
+  try {
+    generatedNumber = await generateDocumentNumber(supabase, {
+      organizationId: project.organization_id,
+      projectId,
+      docType: "vault_document",
+      projectNumber: project.project_number,
+    });
+  } catch (err) {
+    if (err instanceof NumberingError) return { error: err.message };
+    throw err;
+  }
+  const { documentNumber, internalReference } = generatedNumber;
 
   let previousLatest: { id: string; status: string; revision?: string } | null = null;
   if (revisesDocumentId) {

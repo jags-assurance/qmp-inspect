@@ -90,3 +90,47 @@ export async function isSelfManagedOrg(
 
   return data?.engagement_scope === "self_managed" || data?.engagement_scope === "client_managed";
 }
+
+type ServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+/**
+ * B7: grants `userId` project-scoped platform access (role 'member') to each of `projectIds` in
+ * `organizationId` — the only access a client team member gets, so a member reaches just the projects
+ * their team is assigned to instead of every project in the organisation. A duplicate (23505, they
+ * already hold a grant for that project) is fine; the first other failure is returned, remaining
+ * projects are still attempted so one bad row doesn't strand the rest. Never deletes or widens anything.
+ */
+export async function grantClientTeamMemberProjectAccess(
+  supabase: ServerClient,
+  params: { userId: string; organizationId: string; projectIds: string[] }
+): Promise<{ error: { code?: string; message: string } | null; granted: string[] }> {
+  let firstError: { code?: string; message: string } | null = null;
+  const granted: string[] = [];
+  for (const projectId of params.projectIds) {
+    const { error } = await supabase.from("access_grants").insert({
+      user_id: params.userId,
+      scope_type: "project",
+      organization_id: params.organizationId,
+      project_id: projectId,
+      role: "member",
+    });
+    if (!error) granted.push(projectId);
+    else if (error.code !== "23505" && !firstError) firstError = { code: error.code, message: error.message };
+  }
+  return { error: firstError, granted };
+}
+
+/** Project ids the client team is currently assigned to. */
+export async function listClientTeamProjectIds(supabase: ServerClient, clientTeamId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("client_team_project_assignments")
+    .select("project_id")
+    .eq("client_team_id", clientTeamId);
+  return (data ?? []).map((row) => row.project_id);
+}
+
+/** User ids of every member of the client team. */
+export async function listClientTeamMemberIds(supabase: ServerClient, clientTeamId: string): Promise<string[]> {
+  const { data } = await supabase.from("client_team_members").select("user_id").eq("client_team_id", clientTeamId);
+  return (data ?? []).map((row) => row.user_id);
+}

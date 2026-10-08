@@ -41,7 +41,7 @@ import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import type { ChecklistItemDraft } from "@/lib/ai/provider";
-import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { nextSequenceNumber, releaseSequence, NumberingError } from "@/lib/numbering/generate";
 import { supersedeIrnVaultDocuments } from "@/lib/vault/irn-void";
 import { normaliseLocation, parseCoordinates } from "./location";
 import { evaluateGeofence, sanitiseAccuracy, siteGeofenceFromProject } from "./geofence";
@@ -228,6 +228,7 @@ export async function generateChecklistsForItp(
     items: { item_number: string; description: string; is_mandatory: boolean; sort_order: number }[];
   }[] = [];
   let failed = 0;
+  const allocatedChecklistSeqs: number[] = [];
 
   for (const item of pending) {
     const draftedItems = itemsByPendingId.get(item.id)?.drafted;
@@ -237,11 +238,18 @@ export async function generateChecklistsForItp(
       failed += 1;
       continue;
     }
-    const seq = await nextSequenceNumber(supabase, {
-      organizationId,
-      projectId,
-      seqKey: `checklist:${itpId}`,
-    });
+    let seq: number;
+    try {
+      seq = await nextSequenceNumber(supabase, {
+        organizationId,
+        projectId,
+        seqKey: `checklist:${itpId}`,
+      });
+    } catch (err) {
+      if (err instanceof NumberingError) return { error: err.message, created: 0 };
+      throw err;
+    }
+    allocatedChecklistSeqs.push(seq);
     const drafted = itemsByPendingId.get(item.id)?.drafted;
     const items =
       mode === "ai" && drafted && drafted.length > 0
@@ -265,6 +273,10 @@ export async function generateChecklistsForItp(
   const { data: inserted, error: insertError } = await supabase.rpc("insert_checklists_atomic", { templates: payload });
 
   if (insertError || !inserted) {
+    // Give the numbers back newest first so the failed run leaves no gap (B3).
+    for (const value of [...allocatedChecklistSeqs].reverse()) {
+      await releaseSequence(supabase, { organizationId, projectId, seqKey: `checklist:${itpId}`, value });
+    }
     return { error: "Could not generate checklists. Check you have permission and try again.", created: 0 };
   }
 
@@ -845,11 +857,25 @@ export async function startInspectionAction(
   // Atomic per-ITP counter, same reasoning as checklist_number above — a plain count-then-insert
   // would let two inspectors starting a field inspection at the same moment collide on the same
   // INSP suffix.
-  const seq = await nextSequenceNumber(supabase, {
-    organizationId: project?.organization_id ?? "",
-    projectId,
-    seqKey: `inspection:${itpNumber}`,
-  });
+  let seq: number;
+  try {
+    seq = await nextSequenceNumber(supabase, {
+      organizationId: project?.organization_id ?? "",
+      projectId,
+      seqKey: `inspection:${itpNumber}`,
+    });
+  } catch (err) {
+    if (err instanceof NumberingError) return { error: err.message };
+    throw err;
+  }
+  // Hands the number back when the record is not created (B3: a failed save leaves no gap).
+  const releaseInspectionNumber = () =>
+    releaseSequence(supabase, {
+      organizationId: project?.organization_id ?? "",
+      projectId,
+      seqKey: `inspection:${itpNumber}`,
+      value: seq,
+    });
 
   // Per-ACTIVITY attempt count (distinct from the ITP-wide `seq` above) — drives the PDF's Document
   // Control "REV" field. Read-then-insert is fine here (unlike the shared seq counter): a double
@@ -922,9 +948,12 @@ export async function startInspectionAction(
         .limit(1)
         .maybeSingle<{ id: string }>();
       if (existing) {
+        await releaseInspectionNumber(); // the concurrent start already holds the draft; ours went unused
         revalidatePath(`/inspect/checklists/${templateId}`);
         return { error: null };
       }
+    } else {
+      await releaseInspectionNumber();
     }
     return { error: "Could not start the inspection. Check you have permission and try again." };
   }
@@ -1688,6 +1717,16 @@ async function issueIrnForRecord(
       issued_by: user?.id ?? null,
     });
     if (error) {
+      // A failed save must not leave a gap in the IRN numbering (B3). A 23505 other than a concurrent
+      // issue (below) means the number itself is already in use, so it is only handed back for other errors.
+      const releaseIrnNumber = () =>
+        releaseSequence(supabase, {
+          organizationId: project.organization_id,
+          projectId: record.project_id,
+          seqKey: `irn:${record.itp_number}`,
+          value: seqData,
+        });
+      if (error.code !== "23505") await releaseIrnNumber();
       if (error.code === "23505") {
         // Concurrent issue: the other request won - return the existing live IRN rather than failing.
         const { data: winner } = await supabase
@@ -1698,6 +1737,7 @@ async function issueIrnForRecord(
           .limit(1)
           .maybeSingle<{ id: string }>();
         if (winner) {
+          await releaseIrnNumber(); // our number went unused: the concurrent request issued the IRN
           revalidatePath(`/inspect/inspections/${inspectionRecordId}`);
           return { error: null, already: true };
         }

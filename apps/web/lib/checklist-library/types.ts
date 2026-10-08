@@ -34,6 +34,11 @@ export interface ChecklistLibraryItemRow {
   evidence_type: string | null;
   is_mandatory: boolean;
   sort_order: number;
+  /** 20261113000500: 'pass_fail' (default) or 'numeric' with optional limits and unit. */
+  value_type?: string;
+  numeric_min?: number | null;
+  numeric_max?: number | null;
+  numeric_unit?: string | null;
   created_at: string;
 }
 

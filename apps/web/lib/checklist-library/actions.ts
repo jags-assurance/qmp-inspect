@@ -13,8 +13,15 @@ import {
   type ParsedLibraryItemRow,
 } from "./types";
 import { CHECKLIST_ITEMS_TABLE, CHECKLIST_TEMPLATES_TABLE } from "@/lib/checklists/db-types";
-import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { nextSequenceNumber, releaseSequence, NumberingError } from "@/lib/numbering/generate";
 import { parseLibraryItemsWorkbook } from "./xlsx";
+import {
+  LIBRARY_ITEM_BASE_COLUMNS,
+  LIBRARY_ITEM_COLUMNS,
+  libraryItemToChecklistItem,
+  type LibraryItemForCopy,
+} from "./copy";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 
 /**
  * R44/R47: a standalone, reusable checklist/form template builder — Tier 1 of the same two-tier
@@ -386,27 +393,44 @@ export async function attachLibraryTemplateToActivityAction(
     return { error: "That library template is scoped to a different client and can't be attached here." };
   }
 
-  const { data: libraryItems } = await supabase
-    .from(CHECKLIST_LIBRARY_ITEMS_TABLE)
-    .select("item_number, description, acceptance_criteria, evidence_type, is_mandatory, sort_order")
-    .eq("library_template_id", libraryTemplateId)
-    .order("sort_order")
-    .returns<
-      Pick<
-        ChecklistLibraryItemRow,
-        "item_number" | "description" | "acceptance_criteria" | "evidence_type" | "is_mandatory" | "sort_order"
-      >[]
-    >();
+  // value_type / numeric_* arrived with 20261113000500; read them when present so numeric limits survive the
+  // copy, and fall back to the basic columns until that migration is applied.
+  const readItems = (columns: string) =>
+    supabase
+      .from(CHECKLIST_LIBRARY_ITEMS_TABLE)
+      .select(columns)
+      .eq("library_template_id", libraryTemplateId)
+      .order("sort_order")
+      .returns<LibraryItemForCopy[]>();
+  let libraryItemsResult = await readItems(LIBRARY_ITEM_COLUMNS);
+  if (libraryItemsResult.error && isMissingSchemaError(libraryItemsResult.error)) {
+    libraryItemsResult = await readItems(LIBRARY_ITEM_BASE_COLUMNS);
+  }
+  const libraryItems = libraryItemsResult.data;
 
   if (!libraryItems || libraryItems.length === 0) {
     return { error: "That library template has no items to attach." };
   }
 
-  const seq = await nextSequenceNumber(supabase, {
-    organizationId: itp.projects?.organization_id ?? "",
-    projectId: itp.project_id,
-    seqKey: `checklist:${itpId}`,
-  });
+  let seq: number;
+  try {
+    seq = await nextSequenceNumber(supabase, {
+      organizationId: itp.projects?.organization_id ?? "",
+      projectId: itp.project_id,
+      seqKey: `checklist:${itpId}`,
+    });
+  } catch (err) {
+    if (err instanceof NumberingError) return { error: err.message };
+    throw err;
+  }
+  // Hands the number back when nothing is attached (B3: a failed save leaves no gap).
+  const releaseChecklistNumber = () =>
+    releaseSequence(supabase, {
+      organizationId: itp.projects?.organization_id ?? "",
+      projectId: itp.project_id,
+      seqKey: `checklist:${itpId}`,
+      value: seq,
+    });
 
   const checklistNumber = `${itp.itp_number}-CHK-${seq}`;
 
@@ -422,6 +446,7 @@ export async function attachLibraryTemplateToActivityAction(
   if (!rpc.error && rpc.data) {
     newTemplate = { id: String(rpc.data) };
   } else if (rpc.error && rpc.error.code !== "PGRST202" && rpc.error.code !== "42883") {
+    await releaseChecklistNumber();
     return { error: "Could not attach the template. Check you have permission and try again." };
   } else {
     const { data: created, error: templateError } = await supabase
@@ -430,22 +455,16 @@ export async function attachLibraryTemplateToActivityAction(
       .select("id")
       .single<{ id: string }>();
     if (templateError || !created) {
+      await releaseChecklistNumber();
       return { error: "Could not attach the template. Check you have permission and try again." };
     }
     const { error: itemsError } = await supabase.from(CHECKLIST_ITEMS_TABLE).insert(
-      libraryItems.map((item) => ({
-        template_id: created.id,
-        item_number: item.item_number,
-        description: item.description,
-        acceptance_criteria: item.acceptance_criteria,
-        evidence_type: item.evidence_type,
-        is_mandatory: item.is_mandatory,
-        sort_order: item.sort_order,
-      }))
+      libraryItems.map((item) => libraryItemToChecklistItem(created.id, item))
     );
     if (itemsError) {
       // Don't leave an empty checklist that blocks the activity.
       await supabase.from(CHECKLIST_TEMPLATES_TABLE).delete().eq("id", created.id);
+      await releaseChecklistNumber();
       return { error: "The library items could not be copied, so nothing was attached. Please try again." };
     }
     newTemplate = created;

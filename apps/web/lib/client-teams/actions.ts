@@ -5,7 +5,12 @@ import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { isClientTeamLeadOf } from "./helpers";
+import {
+  isClientTeamLeadOf,
+  grantClientTeamMemberProjectAccess,
+  listClientTeamMemberIds,
+  listClientTeamProjectIds,
+} from "./helpers";
 
 export interface ClientTeamActionState {
   error: string | null;
@@ -153,12 +158,12 @@ export async function addClientTeamMemberAction(
  * had no way onto their own team at all.
  *
  * Looks the person up by email (same case-insensitive lookup addSelfManagedPartyAction uses in
- * lib/projects/actions.ts), and — best-effort, ignore-duplicate, same tolerance that action has —
- * grants them a baseline organisation-scoped access_grants row alongside adding them to the team,
- * so being on a client team actually means something (some real platform access into their own
- * org), not membership with nothing to show for it. A person who already holds broader access
- * (global/organisation/project) just gets a harmless redundant row if this one doesn't collide with
- * the existing unique-per-org partial index.
+ * lib/projects/actions.ts), and grants them PROJECT-scoped access_grants rows for exactly the projects
+ * this team is assigned to (B7) — never an organisation-wide grant, so a member reaches only the
+ * assigned projects. A team with no assigned project yet gets membership only; the access arrives when
+ * the team is assigned to a project (assignClientTeamToProjectAction grants every current member).
+ * Duplicates are ignored. Existing org-wide grants of earlier members are left untouched (nothing is
+ * deleted); see the client_team_org_wide_grants_review view for what an admin should review.
  */
 export async function addClientTeamMemberByEmailAction(
   _prev: ClientTeamActionState,
@@ -205,13 +210,17 @@ export async function addClientTeamMemberByEmailAction(
     };
   }
 
-  const { error: grantError } = await supabase
-    .from("access_grants")
-    .insert({ user_id: targetUser.id, scope_type: "organization", organization_id: organizationId, role: "member" });
+  const assignedProjectIds = await listClientTeamProjectIds(supabase, clientTeamId);
+  const { error: grantError, granted } = await grantClientTeamMemberProjectAccess(supabase, {
+    userId: targetUser.id,
+    organizationId,
+    projectIds: assignedProjectIds,
+  });
   const grantWarning: string | null = null;
-  if (grantError && grantError.code !== "23505") {
-    // A team member with no platform access is useless and confusing, so undo the membership
-    // rather than leaving a half-added person behind.
+  if (grantError) {
+    // A team member whose project access could not be set up is useless and confusing, so undo the
+    // membership rather than leaving a half-added person behind (grants already inserted are kept: they
+    // are scoped to this team's own projects and a retry is idempotent).
     await supabase
       .from("client_team_members")
       .delete()
@@ -221,25 +230,23 @@ export async function addClientTeamMemberByEmailAction(
     return {
       error: grantError.message.includes("seat limit")
         ? `${grantError.message} The person was not added.`
-        : "Could not grant this person platform access, so they were not added. Ask a JAGS Admin to add them.",
+        : "Could not grant this person access to the team's projects, so they were not added. Ask a JAGS Admin to add them.",
     };
   }
 
-  // Found missing in a self-review audit: this is a real permission grant (organisation-scoped
-  // platform access), not just a team-membership add — the event below only covers the latter, so
-  // logged separately here under its own entityType, whether or not the insert above actually
-  // succeeded (a duplicate/23505 still means "this person already has this grant," worth a trail
-  // entry distinct from a genuine seat-limit failure, which is only ever surfaced as grantWarning).
-  if (!grantError || grantError.code === "23505") {
+  // A real permission grant (project-scoped platform access), not just a team-membership add — logged
+  // separately under its own entityType, one event per newly created grant.
+  for (const projectId of granted) {
     try {
       await recordAuditEvent(supabase, {
         organizationId,
+        projectId,
         entityType: "access_grant",
         entityId: targetUser.id,
         action: "granted",
         actorId: session.userId,
-        summary: `Organisation access granted to ${email} via client team add`,
-        changes: { user_id: targetUser.id, scope_type: "organization", organization_id: organizationId, role: "member" },
+        summary: `Project access granted to ${email} via client team add`,
+        changes: { user_id: targetUser.id, scope_type: "project", organization_id: organizationId, project_id: projectId, role: "member" },
       });
     } catch {
       // Best-effort — see lib/audit/log.ts's doc comment.
@@ -364,6 +371,22 @@ export async function assignClientTeamToProjectAction(
   }
 
   const organizationId = await findOrgForClientTeam(supabase, clientTeamId);
+
+  // B7: members only reach the projects their team is assigned to, so assigning a project is what
+  // gives every current member project-scoped access to it (duplicates ignored; an existing org-wide
+  // grant is untouched). A failure here does not undo the assignment; re-assigning is idempotent.
+  let grantFailed = false;
+  if (organizationId) {
+    for (const memberId of await listClientTeamMemberIds(supabase, clientTeamId)) {
+      const { error: grantError } = await grantClientTeamMemberProjectAccess(supabase, {
+        userId: memberId,
+        organizationId,
+        projectIds: [projectId],
+      });
+      if (grantError) grantFailed = true;
+    }
+  }
+
   if (organizationId) {
     await recordAuditEvent(supabase, {
       organizationId,
@@ -377,6 +400,9 @@ export async function assignClientTeamToProjectAction(
   }
 
   revalidatePath(CLIENT_TEAMS_PATH);
+  if (grantFailed) {
+    return { error: "The team was assigned, but some members could not be given access to this project. Ask a JAGS Admin to grant them access." };
+  }
   return { error: null };
 }
 

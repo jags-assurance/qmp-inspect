@@ -10,7 +10,7 @@ import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { boundedCapturedAt } from "@/lib/offline/policy";
 import { sanitizeClientKey } from "@/lib/offline/idempotency";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
-import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { nextSequenceNumber, NumberingError } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { normaliseLocation } from "@/lib/checklists/location";
@@ -308,11 +308,17 @@ export async function createAssignmentAction(
   // Atomic per-project-per-type counter (next_document_sequence) — a plain count-then-insert would
   // let two assignments of the same type created at the same moment collide on the same number,
   // which is exactly the race the 23505 handling below used to paper over rather than prevent.
-  const rawSeq = await nextSequenceNumber(supabase, {
-    organizationId: project.organization_id,
-    projectId,
-    seqKey: `standalone_assignment:${assignmentType}`,
-  });
+  let rawSeq: number;
+  try {
+    rawSeq = await nextSequenceNumber(supabase, {
+      organizationId: project.organization_id,
+      projectId,
+      seqKey: `standalone_assignment:${assignmentType}`,
+    });
+  } catch (err) {
+    if (err instanceof NumberingError) return { error: err.message };
+    throw err;
+  }
   const seq = String(rawSeq).padStart(3, "0");
   const assignmentNumber = `${project.project_number}-${ASSIGNMENT_TYPE_PREFIX[assignmentType]}-${seq}`;
 

@@ -16,7 +16,7 @@ vi.mock("@/lib/ai/log", () => ({ logAiUsage: vi.fn() }));
 vi.mock("@/lib/ai/cache", () => ({ findCachedAiResponse: vi.fn(), hashAiCacheInput: vi.fn() }));
 vi.mock("@/lib/ai/gemini-provider", () => ({ geminiProvider: {}, getGeminiModel: () => "m", PROMPT_VERSIONS: {}, withGeminiUsage: vi.fn() }));
 vi.mock("@/lib/punch-list/actions", () => ({ createPunchItemFromSource: vi.fn() }));
-vi.mock("@/lib/numbering/generate", () => ({ nextSequenceNumber: vi.fn(), generateDocumentNumber: vi.fn() }));
+vi.mock("@/lib/numbering/generate", () => ({ nextSequenceNumber: vi.fn(), generateDocumentNumber: vi.fn(), releaseSequence: vi.fn(async () => true), NumberingError: class NumberingError extends Error {} }));
 vi.mock("@/lib/vault/irn-void", () => ({ supersedeIrnVaultDocuments: vi.fn() }));
 vi.mock("@/lib/signoff/actions", () => ({ canCompleteInspection: vi.fn(async () => true) }));
 vi.mock("../irn-notifications", () => ({ notifyAfterIrnIssued: vi.fn(), notifyAfterIrnVoided: vi.fn() }));

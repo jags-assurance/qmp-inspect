@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NUMBERING_CONFIGS_TABLE, type NumberingConfigRow, type NumberingDocType } from "@/lib/numbering/types";
 import { formatDocumentNumber } from "@/lib/numbering/format";
+import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 
 export interface GenerateDocumentNumberParams {
   organizationId: string;
@@ -18,8 +19,26 @@ export interface GenerateDocumentNumberParams {
   disciplineCode?: string | null;
 }
 
+/** Raised when a number cannot be allocated. Callers surface a clear error instead of issuing a
+ *  differently-formatted or collision-prone number (B3: no silent timestamp fallback). */
+export class NumberingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NumberingError";
+  }
+}
+
+export const NUMBERING_UNAVAILABLE_MESSAGE = "Could not allocate the next number. Please try again.";
+
 export interface GeneratedDocumentNumber {
   documentNumber: string;
+  /**
+   * Hands the allocated number(s) back to the counter. Call it when the insert that was meant to use the
+   * number fails, so the failed save leaves no gap. Best-effort and safe to call once: it only takes effect
+   * while nothing newer has been allocated (see release_document_sequence); otherwise a gap remains.
+   * Optional so callers/mocks that build the result by hand need not provide it.
+   */
+  releaseNumber?: () => Promise<void>;
   /**
    * Only populated for a 'white_label' engagement — the hidden JAGS-internal traceability
    * reference behind the client-visible document number. Null for every other engagement mode.
@@ -56,6 +75,8 @@ function formatNumber(
  *
  * Lookup order for the config: project-specific row, then org-level row (project_id is null),
  * then a hardcoded default — numbering being unconfigured must never block document creation.
+ * If the sequence itself cannot be allocated this THROWS NumberingError (no timestamp fallback).
+ * The returned releaseNumber() hands the number back when the subsequent insert fails.
  *
  * The sequence itself is advanced via the next_document_sequence() Postgres function (a single
  * atomic upsert-and-increment-and-return), never via a separate select-then-update from here,
@@ -101,21 +122,12 @@ export async function generateDocumentNumber(
   });
 
   if (seqError || typeof seqValue !== "number") {
-    // Numbering must never block document creation — fall back to a timestamp-based placeholder
-    // number rather than throwing. Still log loudly: a silent fallback here means collision-prone
-    // numbers are being issued instead of real atomic ones, and nobody would otherwise know.
+    // Fail clearly: a timestamp-based number would silently use a different format and could collide.
     console.error(
-      `[numbering] next_document_sequence RPC failed for org ${organizationId}, docType "${docType}" — using fallback sequence number.`,
+      `[numbering] next_document_sequence RPC failed for org ${organizationId}, docType "${docType}".`,
       seqError?.message ?? `unexpected RPC result: ${JSON.stringify(seqValue)}`
     );
-    const fallbackSeq = Date.now() % 100000;
-    return {
-      documentNumber: formatNumber(
-        { clientCode: projectNumber, originatorCode: "JAGS", docType, seq: fallbackSeq },
-        DEFAULT_CONFIG
-      ),
-      internalReference: null,
-    };
+    throw new NumberingError(NUMBERING_UNAVAILABLE_MESSAGE);
   }
 
   const documentNumber = formatNumber(
@@ -130,6 +142,7 @@ export async function generateDocumentNumber(
     .maybeSingle<{ engagement_mode: string }>();
 
   let internalReference: string | null = null;
+  let internalSeq: number | null = null;
   if (org?.engagement_mode === "white_label") {
     const { data: internalSeqValue } = await supabase.rpc("next_document_sequence", {
       org_id: organizationId,
@@ -137,6 +150,7 @@ export async function generateDocumentNumber(
       seq_doc_type: `internal:${docType}`,
     });
     if (typeof internalSeqValue === "number") {
+      internalSeq = internalSeqValue;
       internalReference = formatNumber(
         { clientCode: "JAGS", originatorCode: "", docType, seq: internalSeqValue },
         { separator: "-", sequence_padding: 3, include_year: false, include_discipline: false }
@@ -144,7 +158,17 @@ export async function generateDocumentNumber(
     }
   }
 
-  return { documentNumber, internalReference };
+  return {
+    documentNumber,
+    internalReference,
+    releaseNumber: async () => {
+      // Newest first so each release still sees its own number as the latest.
+      if (internalSeq !== null) {
+        await releaseSequence(supabase, { organizationId, projectId, seqKey: `internal:${docType}`, value: internalSeq });
+      }
+      await releaseSequence(supabase, { organizationId, projectId, seqKey: docType, value: seqValue });
+    },
+  };
 }
 
 /**
@@ -169,14 +193,41 @@ export async function nextSequenceNumber(
   });
 
   if (error || typeof data !== "number") {
-    // Numbering must never block document creation — same fallback spirit as generateDocumentNumber.
-    // Still log loudly: a silent fallback here means a collision-prone number is being issued.
+    // Fail clearly (B3): no timestamp fallback number that could collide or break the format.
     console.error(
-      `[numbering] next_document_sequence RPC failed for org ${organizationId}, seqKey "${seqKey}" — using fallback sequence number.`,
+      `[numbering] next_document_sequence RPC failed for org ${organizationId}, seqKey "${seqKey}".`,
       error?.message ?? `unexpected RPC result: ${JSON.stringify(data)}`
     );
-    return Date.now() % 100000;
+    throw new NumberingError(NUMBERING_UNAVAILABLE_MESSAGE);
   }
 
   return data;
+}
+
+/**
+ * Gives an allocated sequence value back (B3) when the insert that was going to use it failed, so the
+ * failed save leaves no gap. Compare-and-decrement in release_document_sequence: it only takes effect
+ * while `value` is still the counter's latest number, so a number a concurrent request has since taken is
+ * never reused or disturbed. Best-effort and silent (including before the migration is applied).
+ * Returns whether the counter was stepped back.
+ */
+export async function releaseSequence(
+  supabase: SupabaseClient,
+  { organizationId, projectId, seqKey, value }: { organizationId: string; projectId: string | null; seqKey: string; value: number }
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc("release_document_sequence", {
+      org_id: organizationId,
+      proj_id: projectId,
+      seq_doc_type: seqKey,
+      released_value: value,
+    });
+    if (error) {
+      if (!isMissingSchemaError(error)) console.error("[numbering] release_document_sequence failed", error.message);
+      return false;
+    }
+    return data === true;
+  } catch {
+    return false;
+  }
 }

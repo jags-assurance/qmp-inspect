@@ -21,7 +21,7 @@ import { logAiUsage, recordAiReviewDecision } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
-import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
@@ -273,13 +273,20 @@ export async function createNcrAction(
   let lastError: { code?: string; message: string } | null = null;
 
   for (let attempt = 0; attempt < 5 && !ncr; attempt++) {
-    const generated = await generateDocumentNumber(supabase, {
-      organizationId: project.organization_id,
-      projectId,
-      docType: "ncr",
-      projectNumber: project.project_number,
-      disciplineCode,
-    });
+    let generated: Awaited<ReturnType<typeof generateDocumentNumber>>;
+    try {
+      generated = await generateDocumentNumber(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        docType: "ncr",
+        projectNumber: project.project_number,
+        disciplineCode,
+      });
+    } catch (err) {
+      // Fail clearly rather than issue a differently formatted number (B3).
+      if (err instanceof NumberingError) return { error: err.message };
+      throw err;
+    }
     ncrNumber = generated.documentNumber;
 
     const basePayload = {
@@ -317,6 +324,7 @@ export async function createNcrAction(
       // A simultaneous request with the same key won the race: return its NCR.
       const winner = await existingByRequest();
       if (winner) {
+        await generated.releaseNumber?.();
         if (formData.get("stay_on_page") === "true") return { error: null, created: winner };
         redirect(`/inspect/ncrs/${winner.id}`);
       }
@@ -328,7 +336,12 @@ export async function createNcrAction(
     }
 
     lastError = error;
-    if (error?.code !== "23505") break; // Only a number collision is worth retrying.
+    // A failed save must not leave a gap in the numbering (B3). A number collision (23505) means that
+    // number is already in use (the counter is catching up), so it is not given back.
+    if (error?.code !== "23505") {
+      await generated.releaseNumber?.();
+      break; // Only a number collision is worth retrying.
+    }
   }
 
   if (!ncr) {

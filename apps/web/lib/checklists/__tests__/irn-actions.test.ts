@@ -14,7 +14,13 @@ vi.mock("@/lib/ai/log", () => ({ logAiUsage: vi.fn() }));
 vi.mock("@/lib/ai/cache", () => ({ findCachedAiResponse: vi.fn(), hashAiCacheInput: vi.fn() }));
 vi.mock("@/lib/ai/gemini-provider", () => ({ geminiProvider: {}, getGeminiModel: () => "m", PROMPT_VERSIONS: {}, withGeminiUsage: vi.fn() }));
 vi.mock("@/lib/punch-list/actions", () => ({ createPunchItemFromSource: vi.fn() }));
-vi.mock("@/lib/numbering/generate", () => ({ nextSequenceNumber: vi.fn(), generateDocumentNumber: vi.fn() }));
+const numbering = vi.hoisted(() => ({
+  nextSequenceNumber: vi.fn(),
+  generateDocumentNumber: vi.fn(),
+  releaseSequence: vi.fn(async () => true),
+  NumberingError: class NumberingError extends Error {},
+}));
+vi.mock("@/lib/numbering/generate", () => numbering);
 const supersede = vi.hoisted(() => ({ supersedeIrnVaultDocuments: vi.fn(async () => undefined) }));
 vi.mock("@/lib/vault/irn-void", () => supersede);
 const holds = vi.hoisted(() => ({ canCompleteInspection: vi.fn(async () => true) }));
@@ -203,13 +209,18 @@ describe("issueIrnAction", () => {
       mock.onOnce("irns", "select", { data: null });
       mock.onOnce("irns", "select", { data: { id: "irn-winner" } });
       expect((await issue()).error).toBeNull();
+      // our allocated number went unused, so it is handed back (no gap)
+      expect(numbering.releaseSequence).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ seqKey: "irn:ITP-001", value: 7 }));
       expect(audit.recordAuditEvent).not.toHaveBeenCalled();
     });
 
     it("reports a refused insert (e.g. the write guard) as a failure", async () => {
       mock.on("irns", "insert", { error: { code: "42501", message: "An IRN can only be issued from a passed inspection" } });
+      numbering.releaseSequence.mockClear();
       expect((await issue()).error).toBe("Could not issue the IRN.");
       expect(audit.recordAuditEvent).not.toHaveBeenCalled();
+      // a failed save hands the allocated number back so it leaves no gap
+      expect(numbering.releaseSequence).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ seqKey: "irn:ITP-001", value: 7 }));
     });
   });
 });

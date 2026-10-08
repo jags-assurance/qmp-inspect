@@ -4,7 +4,7 @@ import { parseRequiredRegisters } from "./required-registers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { hasPermission } from "@/lib/rbac/permissions";
@@ -75,16 +75,23 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   // Auto-generated via the same numbering engine every other document type uses (client's own
   // numbering format if configured, else a sensible default) — a manual override is still accepted
   // for the rare case a specific number needs to be forced (e.g. matching a legacy/external scheme).
-  const itpNumber =
-    effectiveNumberOverride ||
-    (
-      await generateDocumentNumber(supabase, {
+  let itpNumber = effectiveNumberOverride;
+  let releaseItpNumber: (() => Promise<void>) | undefined;
+  if (!itpNumber) {
+    try {
+      const generated = await generateDocumentNumber(supabase, {
         organizationId: project.organization_id,
         projectId,
         docType: "itp",
         projectNumber: project.project_number,
-      })
-    ).documentNumber;
+      });
+      itpNumber = generated.documentNumber;
+      releaseItpNumber = generated.releaseNumber;
+    } catch (err) {
+      if (err instanceof NumberingError) return { error: err.message };
+      throw err;
+    }
+  }
 
   const { data: itp, error } = await supabase
     .from("itps")
@@ -100,6 +107,8 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
     .single();
 
   if (error || !itp) {
+    // A failed save must not leave a gap in the numbering (B3). Not for a duplicate: that number is in use.
+    if (error?.code !== "23505") await releaseItpNumber?.();
     if (error?.code === "23505") {
       return { error: "An ITP with that number already exists for this project." };
     }
@@ -113,6 +122,7 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   if (sectionsError) {
     // Don't leave an empty draft holding the number: remove it so the user can simply retry.
     await supabase.from("itps").delete().eq("id", itp.id);
+    await releaseItpNumber?.();
     return { error: "The ITP could not be created because its default sections could not be added. Nothing was saved — please try again." };
   }
 

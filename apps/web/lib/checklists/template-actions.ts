@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { nextSequenceNumber } from "@/lib/numbering/generate";
+import { nextSequenceNumber, releaseSequence, NumberingError } from "@/lib/numbering/generate";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { CHECKLIST_ITEMS_TABLE, CHECKLIST_TEMPLATES_TABLE, type ChecklistItemRow } from "./db-types";
 import { canExecuteItpItem } from "./execution-parties";
@@ -152,11 +152,25 @@ export async function duplicateChecklistTemplateAction(input: { templateId: stri
   const { count: itemCount } = await supabase.from(CHECKLIST_ITEMS_TABLE).select("id", { count: "exact", head: true }).eq("template_id", source.id);
   if (!itemCount) return { error: "The source checklist has no items to copy." };
 
-  const seq = await nextSequenceNumber(supabase, {
-    organizationId: itp.projects?.organization_id ?? "",
-    projectId: itp.project_id,
-    seqKey: `checklist:${itp.id}`,
-  });
+  let seq: number;
+  try {
+    seq = await nextSequenceNumber(supabase, {
+      organizationId: itp.projects?.organization_id ?? "",
+      projectId: itp.project_id,
+      seqKey: `checklist:${itp.id}`,
+    });
+  } catch (err) {
+    if (err instanceof NumberingError) return { error: err.message };
+    throw err;
+  }
+  // Hands the number back when nothing is created (B3: a failed save leaves no gap).
+  const releaseChecklistNumber = () =>
+    releaseSequence(supabase, {
+      organizationId: itp.projects?.organization_id ?? "",
+      projectId: itp.project_id,
+      seqKey: `checklist:${itp.id}`,
+      value: seq,
+    });
   const checklistNumber = `${itp.itp_number}-CHK-${seq}`;
   const name = target.activity || duplicateTemplateName(source.name); // templates are named after their activity
 
@@ -183,16 +197,22 @@ export async function duplicateChecklistTemplateAction(input: { templateId: stri
       .insert({ itp_item_id: target.id, checklist_number: checklistNumber, name })
       .select("id")
       .single<{ id: string }>();
-    if (createError || !created) return { error: "Could not duplicate the checklist. Check you have permission and try again." };
+    if (createError || !created) {
+      await releaseChecklistNumber();
+      return { error: "Could not duplicate the checklist. Check you have permission and try again." };
+    }
     const { error: itemsError } = await supabase
       .from(CHECKLIST_ITEMS_TABLE)
       .insert((items ?? []).map((i) => ({ ...i, template_id: created.id })));
     if (itemsError) {
       await supabase.from(CHECKLIST_TEMPLATES_TABLE).delete().eq("id", created.id);
+      await releaseChecklistNumber();
       return { error: "Could not duplicate the checklist items. Nothing was copied." };
     }
     newId = created.id;
   } else {
+    // A 23505 means the activity already has a checklist, so this number went unused as well.
+    await releaseChecklistNumber();
     return { error: rpc.error?.code === "23505" ? "The target activity already has a checklist." : "Could not duplicate the checklist. Check you have permission and try again." };
   }
 
