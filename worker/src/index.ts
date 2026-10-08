@@ -16,6 +16,7 @@ import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
 import { shouldRetry, MAX_JOB_ATTEMPTS, jobTimeoutMs } from "./jobs/retryPolicy";
 import { jobsTable, claimNextPendingJob, markCompleted, markFailed, markRetry, reclaimOrphanedJobs } from "./jobs/queue";
+import { alertPermanentJobFailure, sweepUnnotifiedFailedJobs } from "./jobs/jobFailureAlert";
 import { runAutomationSweep } from "./automation";
 import { dropBreadcrumb, scrubEvent } from "./observability/scrub";
 import { isRpcMissing, replicaId, sweepLeaseSeconds, type RpcError } from "./jobs/claim";
@@ -169,8 +170,9 @@ async function processJob(job: BackgroundJobRow): Promise<void> {
     reportError(`[worker] Job ${job.id} (${job.job_type}) failed:`, err);
     if (shouldRetry(job.attempts, err) && (await markRetry(job.id, message, job.attempts))) {
       console.log(`[worker] Job ${job.id} requeued (attempt ${job.attempts} of ${MAX_JOB_ATTEMPTS}).`);
-    } else {
-      await markFailed(job.id, message);
+    } else if (await markFailed(job.id, message)) {
+      // Final failure: tell the organisation's admins once. Never throws.
+      await alertPermanentJobFailure({ ...job, status: "failed", error_message: message });
     }
   }
 }
@@ -205,7 +207,10 @@ async function processJobWithTimeout(job: BackgroundJobRow): Promise<void> {
 
   if (timedOut) {
     console.error(`[worker] Job ${job.id} (${job.job_type}) exceeded ${timeoutMs}ms — marking failed.`);
-    await markFailed(job.id, `Render timed out after ${Math.round(timeoutMs / 1000)}s.`);
+    const timeoutMessage = `Render timed out after ${Math.round(timeoutMs / 1000)}s.`;
+    if (await markFailed(job.id, timeoutMessage)) {
+      await alertPermanentJobFailure({ ...job, status: "failed", error_message: timeoutMessage });
+    }
   }
 }
 
@@ -249,6 +254,8 @@ async function pollOnce(cycle: number): Promise<void> {
   if (cycle % OBSERVABILITY_LOG_EVERY_N_CYCLES === 0) {
     await logQueueHealth();
     await reclaimOrphanedJobs();
+    // Catch-up for failures nobody was told about (orphans that ran out of attempts, a crash before the alert).
+    await sweepUnnotifiedFailedJobs();
   }
 
   if (

@@ -87,7 +87,10 @@ export async function aggregateReportPackData(
   if (itpsResult.error) {
     throw new Error(`Failed to load ITPs: ${itpsResult.error.message}`);
   }
-  const itps = itpsResult.data ?? [];
+  // Defence in depth for project-scoped packs: the queries already filter by project_id, but a row for
+  // any other project is dropped here too, so a project pack can never carry another project's figures.
+  const inScope = new Set(projectIds);
+  const itps = (itpsResult.data ?? []).filter((r) => inScope.has(r.project_id));
 
   // Inspection records for the period, across the org's projects — the same "overall_result is not
   // null = completed" logic as computeProjectKpis() in apps/web/lib/kpis/compute.ts, scoped to the
@@ -107,7 +110,7 @@ export async function aggregateReportPackData(
   if (inspectionRecordsResult.error) {
     throw new Error(`Failed to load inspection records: ${inspectionRecordsResult.error.message}`);
   }
-  const inspectionRecords = inspectionRecordsResult.data ?? [];
+  const inspectionRecords = (inspectionRecordsResult.data ?? []).filter((r) => inScope.has(r.project_id));
 
   // NCRs opened OR closed in the period, across the org's projects.
   const ncrsResult =
@@ -122,7 +125,7 @@ export async function aggregateReportPackData(
   if (ncrsResult.error) {
     throw new Error(`Failed to load NCRs: ${ncrsResult.error.message}`);
   }
-  const allNcrs = ncrsResult.data ?? [];
+  const allNcrs = (ncrsResult.data ?? []).filter((n) => inScope.has(n.project_id));
   const ncrsOpenedInPeriod = allNcrs.filter((n) => n.created_at >= startIso && n.created_at < endIso);
   const ncrsClosedInPeriod = allNcrs.filter((n) => n.closed_at && n.closed_at >= startIso && n.closed_at < endIso);
 

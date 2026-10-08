@@ -323,6 +323,42 @@ export async function autoFileVaultDocument(
  * visible to its client / contractor / TPI. Off by default; only set
  * FILE_ORG_PACKS_IN_PROJECT_VAULTS=true for development/test data.
  */
+/** Kill switch for project-scoped packs: filed by default; set FILE_PROJECT_PACKS_IN_PROJECT_VAULTS=false to stop. */
+export function shouldFileProjectPacks(): boolean {
+  return process.env.FILE_PROJECT_PACKS_IN_PROJECT_VAULTS !== "false";
+}
+
+/**
+ * Files a PROJECT-SCOPED pack (aggregated with a project_id filter, so it only holds that project's
+ * figures) into that one project's vault under "General Reference". Unlike fileOrgPackInProjectVaults it
+ * is on by default, because nothing in the PDF belongs to another project. Callers must only pass a pack
+ * that was aggregated for exactly this project.
+ */
+export async function fileProjectPackInProjectVault(
+  supabase: SupabaseClient,
+  params: {
+    projectId: string;
+    title: string;
+    documentReference: string;
+    storagePath: string;
+    fileSize: number | null;
+    generatedBy?: string | null;
+  }
+): Promise<void> {
+  if (!shouldFileProjectPacks()) return;
+  await autoFileVaultDocument(supabase, {
+    projectId: params.projectId,
+    folderKey: "general_reference",
+    title: params.title,
+    documentReference: params.documentReference,
+    revision: "0",
+    storagePath: params.storagePath,
+    fileSize: params.fileSize,
+    generatedBy: params.generatedBy ?? null,
+    autoRevision: true,
+  });
+}
+
 export async function fileOrgPackInProjectVaults(
   supabase: SupabaseClient,
   params: {

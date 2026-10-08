@@ -1,4 +1,5 @@
-import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { fileOrgPackInProjectVaults, fileProjectPackInProjectVault, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { runProjectPacks, describeProjectPackOutcome, PROJECT_PACK_BUDGET_MS } from "./projectPackFanout";
 import { resolveProjectScope, packBasePath, packDocumentReference } from "./reportScope";
 import { withBidi } from "./bidi";
 import { getOrgBranding } from "./orgBranding";
@@ -100,8 +101,36 @@ async function buildXlsx(data: WeeklyReportTemplateData): Promise<Buffer> {
 export async function generateWeeklyReportPack(
   payload: GenerateWeeklyReportPackPayload
 ): Promise<{ resultStoragePath: string }> {
+  const startedAt = Date.now();
   const { organization_id: organizationId, week_start: weekStart } = payload;
   const projectId = resolveProjectScope(payload.project_id);
+
+  const { pdfPath, agg } = await buildAndFileWeeklyPack(payload, projectId);
+
+  // An organisation-wide pack is followed by a filtered copy per active project, filed in that project's
+  // vault only. A project-scoped request never fans out. One project failing never fails the job (the
+  // organisation pack above is already uploaded); failures are logged and the others still run.
+  if (!projectId) {
+    const outcome = await runProjectPacks(
+      agg.perProject,
+      async (row) => {
+        await buildAndFileWeeklyPack({ ...payload, organization_id: organizationId }, row.projectId);
+      },
+      { deadline: startedAt + PROJECT_PACK_BUDGET_MS }
+    );
+    console.log(describeProjectPackOutcome(`weekly ${weekStart} org ${organizationId}`, outcome));
+    for (const f of outcome.failed) console.error(`[worker] weekly project pack for project ${f.projectId} failed: ${f.message}`);
+  }
+
+  return { resultStoragePath: pdfPath };
+}
+
+/** Aggregates, renders, uploads and files ONE pack: the organisation-wide one (projectId null) or a single project's. */
+async function buildAndFileWeeklyPack(
+  payload: GenerateWeeklyReportPackPayload,
+  projectId: string | null
+): Promise<{ pdfPath: string; agg: Awaited<ReturnType<typeof aggregateReportPackData>> }> {
+  const { organization_id: organizationId, week_start: weekStart } = payload;
 
   const { startIso, endIso, startDate, endDate } = weekRange(weekStart);
   const agg = await aggregateReportPackData(organizationId, startIso, endIso, projectId);
@@ -161,16 +190,21 @@ export async function generateWeeklyReportPack(
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   );
 
-  await fileOrgPackInProjectVaults(supabase, {
-    projectIds: agg.perProject.map((p) => p.projectId),
+  const filing = {
     title: `Weekly Report Pack ${weekLabel}`,
     documentReference: packDocumentReference(`WEEKLY-${weekStart}`, projectId),
     storagePath: pdfPath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
-  });
+  };
+  if (projectId) {
+    // Aggregated for this project alone, so it goes to this project's vault only.
+    await fileProjectPackInProjectVault(supabase, { ...filing, projectId });
+  } else {
+    await fileOrgPackInProjectVaults(supabase, { ...filing, projectIds: agg.perProject.map((p) => p.projectId) });
+  }
 
   // result_storage_path stores the PDF path, same convention as generateMonthlyReportPack.ts — the
   // web app derives the .xlsx path by convention (xlsxPathFromPdfPath) instead of a second DB column.
-  return { resultStoragePath: pdfPath };
+  return { pdfPath, agg };
 }
