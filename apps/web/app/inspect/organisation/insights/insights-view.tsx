@@ -4,6 +4,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { NCRS_TABLE, type NcrSeverity } from "@/lib/ncrs/types";
@@ -327,6 +328,37 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       return (a.pct ?? 0) - (b.pct ?? 0);
     });
 
+  const healthColumns: ResponsiveColumn<(typeof itpByProjectSorted)[number]>[] = [
+    {
+      key: "project",
+      header: "Project",
+      className: "pr-3",
+      cardLabel: null,
+      render: (r) => (
+        <Link href={`/inspect/projects/${r.projectId}`} className="text-burgundy hover:underline">
+          <span className="doc-id">{r.project?.project_number}</span> — {r.project?.name}
+        </Link>
+      ),
+    },
+    {
+      key: "itp",
+      header: "ITP completion",
+      className: "pr-3 tabular-nums text-ink",
+      render: (r) =>
+        r.pct !== null ? (
+          <>
+            {r.pct.toFixed(1)}%
+            {r.total < SMALL_SAMPLE_THRESHOLD && <span className="ml-1 font-normal text-muted">(n={r.total})</span>}
+          </>
+        ) : (
+          "—"
+        ),
+    },
+    { key: "ncr", header: "Open NCRs", className: "pr-3 tabular-nums text-ink", render: (r) => r.openNcrCount },
+    { key: "punch", header: "Overdue punch", className: "pr-3 tabular-nums text-ink", render: (r) => r.overdueCount },
+    { key: "health", header: "Health", render: (r) => <Badge tone={r.health}>{HEALTH_LABEL[r.health]}</Badge> },
+  ];
+
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
@@ -455,46 +487,16 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
         {itpByProjectSorted.length === 0 ? (
           <p className="mt-3 text-sm text-muted">No project data yet.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                  <th className="py-2 pr-3">Project</th>
-                  <th className="py-2 pr-3">ITP completion</th>
-                  <th className="py-2 pr-3">Open NCRs</th>
-                  <th className="py-2 pr-3">Overdue punch</th>
-                  <th className="py-2">Health</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itpByProjectSorted.slice(0, 12).map((r) => (
-                  <tr key={r.projectId} className="border-b border-border last:border-0">
-                    <td className="py-2 pr-3">
-                      <Link href={`/inspect/projects/${r.projectId}`} className="text-burgundy hover:underline">
-                        <span className="doc-id">{r.project?.project_number}</span> — {r.project?.name}
-                      </Link>
-                    </td>
-                    <td className="py-2 pr-3 tabular-nums text-ink">
-                      {r.pct !== null ? (
-                        <>
-                          {r.pct.toFixed(1)}%
-                          {r.total < SMALL_SAMPLE_THRESHOLD && (
-                            <span className="ml-1 font-normal text-muted">(n={r.total})</span>
-                          )}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 tabular-nums text-ink">{r.openNcrCount}</td>
-                    <td className="py-2 pr-3 tabular-nums text-ink">{r.overdueCount}</td>
-                    <td className="py-2">
-                      <Badge tone={r.health}>{HEALTH_LABEL[r.health]}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-3">
+            <ResponsiveTable
+              columns={healthColumns}
+              rows={itpByProjectSorted.slice(0, 12)}
+              rowKey={(r) => r.projectId}
+              caption="Project health"
+              headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+              thClassName="py-2"
+              tdClassName="py-2"
+            />
           </div>
         )}
       </div>

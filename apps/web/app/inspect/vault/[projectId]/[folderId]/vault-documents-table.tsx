@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { ApproveDocumentButton } from "./approve-document-button";
 import { RejectDocumentButton } from "./reject-document-button";
 import { bulkApproveDocumentsAction, type BulkApproveState } from "@/lib/vault/document-control-actions";
@@ -132,6 +133,125 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
 
   const fieldCls = "min-h-11 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy sm:min-h-0";
 
+  const columns: ResponsiveColumn<VaultDocumentTableRow>[] = [
+    {
+      key: "select",
+      header: (
+        <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select all shown documents" className="size-4" />
+      ),
+      cardLabel: null,
+      thClassName: "w-10",
+      render: (row) => (
+        <input
+          type="checkbox"
+          checked={selected.has(row.id)}
+          onChange={() => toggle(row.id)}
+          aria-label={`Select ${row.title}`}
+          className="mt-1 size-4"
+        />
+      ),
+    },
+    {
+      key: "document",
+      header: "Document",
+      cardLabel: null,
+      render: (row) => (
+        <div className="flex items-start gap-2 text-left">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 inline-flex h-8 w-9 shrink-0 items-center justify-center rounded border border-border bg-off-white text-xs font-semibold text-muted"
+          >
+            {FILE_ICON[row.fileType.key] ?? "DOC"}
+          </span>
+          <div className="min-w-0">
+            <Link
+              prefetch={false}
+              href={`/inspect/vault/${row.project_id}/${row.folder_id}?doc=${row.id}`}
+              scroll={false}
+              className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0 [overflow-wrap:anywhere]"
+            >
+              {row.title}
+            </Link>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+              <span className="doc-id text-ink">{row.document_number ?? "—"}</span>
+              {row.document_reference && <span>Ref {row.document_reference}</span>}
+              <Badge tone={row.kind.tone}>{row.kind.label}</Badge>
+              <Badge tone={row.fileType.tone}>{row.fileType.label}</Badge>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "rev",
+      header: "Rev.",
+      cardLabel: "Revision",
+      render: (row) => <span className="doc-id text-ink">Rev {row.revision}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => {
+        const named = row.approverProgress ? row.approverProgress[2] : false;
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <Badge showIcon tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
+            {row.status === "rejected" && row.rejection_reason && (
+              <span className="max-w-48 text-xs text-muted" title={row.rejection_reason}>
+                {row.rejection_reason.length > 60 ? `${row.rejection_reason.slice(0, 60)}…` : row.rejection_reason}
+              </span>
+            )}
+            {row.approverProgress && row.status === "for_review" && (
+              <span className="text-xs text-muted" title="Named approvers required for this document">
+                {row.approverProgress[0]}/{row.approverProgress[1]} approvers agreed{named ? " (you are one)" : ""}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "dated",
+      header: "Dated",
+      tdClassName: "text-xs text-muted",
+      render: (row) => (
+        <>
+          <div>{row.document_date ? new Date(row.document_date).toLocaleDateString("en-GB") : "—"}</div>
+          <div>added {new Date(row.created_at).toLocaleDateString("en-GB")}</div>
+        </>
+      ),
+    },
+    {
+      key: "added-by",
+      header: "Added by",
+      render: (row) => (
+        <>
+          <span className="text-ink">{row.uploader_name ?? (row.kind.generated ? "System" : "—")}</span>
+          <span className="block text-xs text-muted">{row.kind.generated ? "Generated" : "Uploaded"}</span>
+        </>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      srOnlyHeader: true,
+      cardLabel: null,
+      render: (row) =>
+        canActOn(row, canApprove) ? (
+          <span className="flex flex-wrap items-center gap-2 text-left">
+            <ApproveDocumentButton
+              documentId={row.id}
+              projectId={row.project_id}
+              folderId={row.folder_id}
+              canApproveGenerally={canApprove}
+              label={row.approverProgress ? "Agree" : "Approve"}
+            />
+            <RejectDocumentButton documentId={row.id} projectId={row.project_id} folderId={row.folder_id} />
+          </span>
+        ) : null,
+    },
+  ];
+
   return (
     <div className="rounded-lg border border-border bg-surface">
       <div className="space-y-2 border-b border-border p-3">
@@ -243,120 +363,24 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted">
-              <th className="w-10 px-3 py-2">
-                <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select all shown documents" className="size-4" />
-              </th>
-              <th className="px-3 py-2 font-medium">Document</th>
-              <th className="px-3 py-2 font-medium">Rev.</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Dated</th>
-              <th className="px-3 py-2 font-medium">Added by</th>
-              <th className="px-3 py-2 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((row) => {
-              const named = row.approverProgress ? row.approverProgress[2] : false;
-              return (
-                <tr key={row.id} className={`border-b border-border last:border-0 hover:bg-off-white ${row.status === "superseded" ? "opacity-70" : ""}`}>
-                  <td className="px-3 py-3 align-top">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.id)}
-                      onChange={() => toggle(row.id)}
-                      aria-label={`Select ${row.title}`}
-                      className="mt-1 size-4"
-                    />
-                  </td>
-                  <td className="px-3 py-3 align-top">
-                    <div className="flex items-start gap-2">
-                      <span
-                        aria-hidden="true"
-                        className="mt-0.5 inline-flex h-8 w-9 shrink-0 items-center justify-center rounded border border-border bg-off-white text-xs font-semibold text-muted"
-                      >
-                        {FILE_ICON[row.fileType.key] ?? "DOC"}
-                      </span>
-                      <div className="min-w-0">
-                        <Link
-                          prefetch={false}
-                          href={`/inspect/vault/${row.project_id}/${row.folder_id}?doc=${row.id}`}
-                          scroll={false}
-                          className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0 [overflow-wrap:anywhere]"
-                        >
-                          {row.title}
-                        </Link>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                          <span className="doc-id text-ink">{row.document_number ?? "—"}</span>
-                          {row.document_reference && <span>Ref {row.document_reference}</span>}
-                          <Badge tone={row.kind.tone}>{row.kind.label}</Badge>
-                          <Badge tone={row.fileType.tone}>{row.fileType.label}</Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 align-top">
-                    <span className="doc-id text-ink">Rev {row.revision}</span>
-                  </td>
-                  <td className="px-3 py-3 align-top">
-                    <div className="flex flex-col items-start gap-1">
-                      <Badge showIcon tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
-                      {row.status === "rejected" && row.rejection_reason && (
-                        <span className="max-w-48 text-xs text-muted" title={row.rejection_reason}>
-                          {row.rejection_reason.length > 60 ? `${row.rejection_reason.slice(0, 60)}…` : row.rejection_reason}
-                        </span>
-                      )}
-                      {row.approverProgress && row.status === "for_review" && (
-                        <span className="text-xs text-muted" title="Named approvers required for this document">
-                          {row.approverProgress[0]}/{row.approverProgress[1]} approvers agreed{named ? " (you are one)" : ""}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 align-top text-xs text-muted">
-                    <div>{row.document_date ? new Date(row.document_date).toLocaleDateString("en-GB") : "—"}</div>
-                    <div>added {new Date(row.created_at).toLocaleDateString("en-GB")}</div>
-                  </td>
-                  <td className="px-3 py-3 align-top">
-                    <span className="text-ink">{row.uploader_name ?? (row.kind.generated ? "System" : "—")}</span>
-                    <span className="block text-xs text-muted">{row.kind.generated ? "Generated" : "Uploaded"}</span>
-                  </td>
-                  <td className="px-3 py-3 align-top">
-                    {canActOn(row, canApprove) && (
-                      <span className="flex flex-wrap items-center gap-2">
-                        <ApproveDocumentButton
-                          documentId={row.id}
-                          projectId={row.project_id}
-                          folderId={row.folder_id}
-                          canApproveGenerally={canApprove}
-                          label={row.approverProgress ? "Agree" : "Approve"}
-                        />
-                        <RejectDocumentButton documentId={row.id} projectId={row.project_id} folderId={row.folder_id} />
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {visible.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted">
-                  {rows.length === 0
-                    ? "No documents in this folder yet. Use the upload form below, or drag files onto it."
-                    : filtersActive
-                      ? "No documents match these filters."
-                      : "Only superseded documents are in this folder. Tick 'Show superseded' to see them."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable
+        columns={columns}
+        rows={visible}
+        rowKey={(row) => row.id}
+        caption="Documents in this folder"
+        thClassName="px-3 py-2 font-medium"
+        tdClassName="px-3 py-3 align-top"
+        rowClassName={(row) => `border-b border-border last:border-0 hover:bg-off-white ${row.status === "superseded" ? "opacity-70" : ""}`}
+        cardClassName={(row) => `px-3 ${row.status === "superseded" ? "opacity-70" : ""}`}
+        emptyCellClassName="px-4 py-10 text-center text-sm text-muted"
+        empty={
+          rows.length === 0
+            ? "No documents in this folder yet. Use the upload form below, or drag files onto it."
+            : filtersActive
+              ? "No documents match these filters."
+              : "Only superseded documents are in this folder. Tick 'Show superseded' to see them."
+        }
+      />
     </div>
   );
 }

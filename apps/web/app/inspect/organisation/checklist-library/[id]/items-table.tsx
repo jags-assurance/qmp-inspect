@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { deleteLibraryItemAction, type LibraryItemFormState } from "@/lib/checklist-library/actions";
 import type { ChecklistLibraryItemRow } from "@/lib/checklist-library/types";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 const initialState: LibraryItemFormState = { error: null };
 
@@ -33,47 +34,42 @@ export function ItemsTable({
    *  no Remove action or column. */
   editable?: boolean;
 }) {
+  const columns: ResponsiveColumn<ChecklistLibraryItemRow>[] = [
+    { key: "item", header: "Item", tdClassName: "doc-id text-ink", render: (item) => item.item_number },
+    { key: "description", header: "Description", tdClassName: "text-ink", render: (item) => item.description },
+    { key: "criteria", header: "Acceptance criteria", tdClassName: "text-muted", render: (item) => item.acceptance_criteria ?? "—" },
+    { key: "evidence", header: "Evidence", tdClassName: "text-muted", render: (item) => item.evidence_type ?? "—" },
+    {
+      key: "mandatory",
+      header: "Mandatory",
+      render: (item) => <Badge tone={item.is_mandatory ? "gold" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>,
+    },
+    ...(editable
+      ? [
+          {
+            key: "delete",
+            header: "Delete",
+            srOnlyHeader: true,
+            cardLabel: null,
+            tdClassName: "text-right",
+            render: (item: ChecklistLibraryItemRow) => <DeleteItemButton templateId={templateId} itemId={item.id} />,
+          } satisfies ResponsiveColumn<ChecklistLibraryItemRow>,
+        ]
+      : []),
+  ];
+
+
   return (
     <div className="rounded-lg border border-border bg-surface">
-      <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs text-muted">
-            <th className="px-3 py-2 font-medium">Item</th>
-            <th className="px-3 py-2 font-medium">Description</th>
-            <th className="px-3 py-2 font-medium">Acceptance criteria</th>
-            <th className="px-3 py-2 font-medium">Evidence</th>
-            <th className="px-3 py-2 font-medium">Mandatory</th>
-            {editable && <th className="px-3 py-2 font-medium" />}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border last:border-0">
-              <td className="doc-id px-3 py-2 text-ink">{item.item_number}</td>
-              <td className="px-3 py-2 text-ink">{item.description}</td>
-              <td className="px-3 py-2 text-muted">{item.acceptance_criteria ?? "—"}</td>
-              <td className="px-3 py-2 text-muted">{item.evidence_type ?? "—"}</td>
-              <td className="px-3 py-2">
-                <Badge tone={item.is_mandatory ? "gold" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>
-              </td>
-              {editable && (
-                <td className="px-3 py-2 text-right">
-                  <DeleteItemButton templateId={templateId} itemId={item.id} />
-                </td>
-              )}
-            </tr>
-          ))}
-          {items.length === 0 && (
-            <tr>
-              <td colSpan={editable ? 6 : 5} className="px-3 py-8 text-center text-muted">
-                {editable ? "No items yet — add one below or import from an Excel file." : "No items yet."}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-      </div>
+      <ResponsiveTable
+        columns={columns}
+        rows={items}
+        rowKey={(item) => item.id}
+        caption="Checklist items"
+        cardClassName="px-3"
+        emptyCellClassName="px-3 py-8 text-center text-muted"
+        empty={editable ? "No items yet — add one below or import from an Excel file." : "No items yet."}
+      />
     </div>
   );
 }

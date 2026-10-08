@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/checklists/db-types";
 import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
 import { GenerateChecklistsButton } from "./generate-button";
@@ -164,6 +165,48 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
 
   const canGenerate = (session.isJagsStaff || isEligibleChecklistGenerator) && (itp.status === "approved" || itp.status === "client_accepted");
 
+  const columnsDef: ResponsiveColumn<NonNullable<typeof items>[number]>[] = [
+    { key: "item", header: "Item", tdClassName: "doc-id text-ink", render: (item) => item.item_number },
+    { key: "activity", header: "Activity", tdClassName: "text-ink", render: (item) => item.activity },
+    {
+      key: "checklist",
+      header: "Checklist",
+      render: (item) => {
+        const template = templateByItem.get(item.id);
+        return template ? (
+          <span className="doc-id text-muted">{template.checklist_number}</span>
+        ) : (
+          <span className="text-muted">Not generated yet</span>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item) => {
+        const status = statusFor(templateByItem.get(item.id)?.id);
+        return <Badge tone={status.tone}>{status.label}</Badge>;
+      },
+    },
+    {
+      key: "action",
+      header: "Action",
+      srOnlyHeader: true,
+      cardLabel: null,
+      tdClassName: "text-right",
+      render: (item) => {
+        const template = templateByItem.get(item.id);
+        return template ? (
+          <Link href={`/inspect/checklists/${template.id}`} className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline sm:min-h-0">
+            Open →
+          </Link>
+        ) : (
+          session.isJagsStaff && libraryTemplates.length > 0 && <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
+        );
+      },
+    },
+  ];
+
   const Heading = embedded ? "h2" : "h1";
   return (
     <div>
@@ -235,60 +278,17 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
       )}
 
       <div className="mt-3 rounded-lg border border-border bg-surface">
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted">
-              <th className="px-4 py-2 font-medium">Item</th>
-              <th className="px-4 py-2 font-medium">Activity</th>
-              <th className="px-4 py-2 font-medium">Checklist</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {(items ?? [])
-              .filter((item) => (archiveFilter === "archived" ? templateByItem.has(item.id) : !archivedItemIds.has(item.id)))
-              .map((item) => {
-              const template = templateByItem.get(item.id);
-              const status = statusFor(template?.id);
-              return (
-                <tr key={item.id} className="border-b border-border last:border-0">
-                  <td className="doc-id px-4 py-3 text-ink">{item.item_number}</td>
-                  <td className="px-4 py-3 text-ink">{item.activity}</td>
-                  <td className="px-4 py-3">
-                    {template ? (
-                      <span className="doc-id text-muted">{template.checklist_number}</span>
-                    ) : (
-                      <span className="text-muted">Not generated yet</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={status.tone}>{status.label}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {template ? (
-                      <Link href={`/inspect/checklists/${template.id}`} className="font-medium text-burgundy hover:underline">
-                        Open →
-                      </Link>
-                    ) : (
-                      session.isJagsStaff &&
-                      libraryTemplates.length > 0 && (
-                        <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
-                      )
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {(items ?? []).length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                  No checklist-type activities on this ITP.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table></div>
+        <ResponsiveTable
+          columns={columnsDef}
+          rows={(items ?? []).filter((item) => (archiveFilter === "archived" ? templateByItem.has(item.id) : !archivedItemIds.has(item.id)))}
+          rowKey={(item) => item.id}
+          caption="Checklist-type activities"
+          empty={(items ?? []).length === 0 ? "No checklist-type activities on this ITP." : undefined}
+          emptyCellClassName="px-4 py-8 text-center text-muted"
+          thClassName="px-4 py-2 font-medium"
+          tdClassName="px-4 py-3"
+          cardClassName="px-4"
+        />
       </div>
     </div>
   );

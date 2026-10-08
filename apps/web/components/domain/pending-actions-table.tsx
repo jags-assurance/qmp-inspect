@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 export type PendingActionPriority = "high" | "medium" | "low";
 
@@ -24,6 +25,63 @@ const PRIORITY_TONE: Record<PendingActionPriority, "danger" | "warning" | "neutr
   medium: "warning",
   low: "neutral",
 };
+
+const columns: ResponsiveColumn<PendingActionItem>[] = [
+  {
+    key: "priority",
+    header: "Priority",
+    render: (action) => <Badge tone={PRIORITY_TONE[action.priority]}>{PRIORITY_LABEL[action.priority]}</Badge>,
+  },
+  {
+    key: "activity",
+    header: "Activity",
+    tdClassName: "text-ink",
+    render: (action) => (
+      <>
+        {action.activity}
+        <div className="doc-id text-xs text-muted">{action.checklistNumber}</div>
+      </>
+    ),
+  },
+  {
+    key: "project",
+    header: "Project / Discipline",
+    tdClassName: "text-muted",
+    render: (action) => (
+      <>
+        {action.projectName}
+        {action.discipline && <span className="text-xs"> · {action.discipline}</span>}
+      </>
+    ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (action) => (
+      <span
+        className={
+          action.status === "in_progress"
+            ? "rounded bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
+            : "rounded bg-muted/15 px-1.5 py-0.5 text-xs font-medium text-muted"
+        }
+      >
+        {action.status === "in_progress" ? "In progress" : "Not started"}
+      </span>
+    ),
+  },
+  {
+    key: "action",
+    header: "Action",
+    srOnlyHeader: true,
+    cardLabel: null,
+    tdClassName: "text-right",
+    render: (action) => (
+      <Link href={`/inspect/checklists/${action.templateId}`} className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
+        {action.status === "in_progress" ? "Continue →" : "Start →"}
+      </Link>
+    ),
+  },
+];
 
 /**
  * Tab-filtered view over the same "My pending actions" worklist — All / Today / Overdue. The
@@ -68,62 +126,25 @@ export function PendingActionsTable({
           </button>
         ))}
       </div>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted">
-              <th className="py-2 pr-3 font-medium">Priority</th>
-              <th className="py-2 pr-3 font-medium">Activity</th>
-              <th className="py-2 pr-3 font-medium">Project / Discipline</th>
-              <th className="py-2 pr-3 font-medium">Status</th>
-              <th className="py-2 pr-3 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((action) => (
-              <tr key={action.templateId} className="border-b border-border last:border-0">
-                <td className="py-2 pr-3">
-                  <Badge tone={PRIORITY_TONE[action.priority]}>{PRIORITY_LABEL[action.priority]}</Badge>
-                </td>
-                <td className="py-2 pr-3 text-ink">
-                  {action.activity}
-                  <div className="doc-id text-xs text-muted">{action.checklistNumber}</div>
-                </td>
-                <td className="py-2 pr-3 text-muted">
-                  {action.projectName}
-                  {action.discipline && <span className="text-xs"> · {action.discipline}</span>}
-                </td>
-                <td className="py-2 pr-3">
-                  <span
-                    className={
-                      action.status === "in_progress"
-                        ? "rounded bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
-                        : "rounded bg-muted/15 px-1.5 py-0.5 text-xs font-medium text-muted"
-                    }
-                  >
-                    {action.status === "in_progress" ? "In progress" : "Not started"}
-                  </span>
-                </td>
-                <td className="py-2 pr-3 text-right">
-                  <Link href={`/inspect/checklists/${action.templateId}`} className="text-burgundy hover:underline">
-                    {action.status === "in_progress" ? "Continue →" : "Start →"}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-4 text-center text-sm text-muted">
-                  {tab === "all"
-                    ? "Nothing pending — every generated checklist has been completed."
-                    : tab === "today"
-                      ? "Nothing generated today."
-                      : "Nothing overdue right now."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="mt-4">
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(action) => action.templateId}
+          caption="Pending actions"
+          wrapperClassName="overflow-x-auto"
+          thClassName="py-2 pr-3 font-medium"
+          tdClassName="py-2 pr-3"
+          cardClassName="px-1"
+          emptyCellClassName="py-4 text-center text-sm text-muted"
+          empty={
+            tab === "all"
+              ? "Nothing pending — every generated checklist has been completed."
+              : tab === "today"
+                ? "Nothing generated today."
+                : "Nothing overdue right now."
+          }
+        />
       </div>
     </div>
   );

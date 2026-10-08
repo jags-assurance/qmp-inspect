@@ -15,6 +15,7 @@ import { REPORT_PACK_STATUS_LABEL } from "@/lib/reports/status-labels";
 import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
 const initialState: GenerateMonthlyReportPackState = { error: null };
 const summaryInitialState: GenerateReportSummaryState = { error: null, summary: null };
@@ -58,6 +59,43 @@ export function MonthlyReportPackForm({
     if (state.success) startPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startPolling is stable; only re-fire on a new success
   }, [state.success]);
+
+  const packColumns: ResponsiveColumn<(typeof reportPacks)[number]>[] = [
+    { key: "period", header: "Period", className: "py-2", render: (pack) => `${MONTH_NAMES[pack.month - 1]} ${pack.year}` },
+    { key: "status", header: "Status", render: (pack) => REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status },
+    {
+      key: "requested",
+      header: "Requested",
+      className: "text-xs text-muted",
+      render: (pack) => new Date(pack.createdAt).toLocaleString("en-GB"),
+    },
+    {
+      key: "download",
+      header: "Download",
+      render: (pack) =>
+        pack.status === "completed" && pack.pdfUrl ? (
+          <span className="flex flex-wrap gap-3">
+            <a href={pack.pdfUrl} target="_blank" rel="noreferrer" className="text-burgundy underline">
+              View PDF
+            </a>
+            {pack.pdfDownloadUrl && (
+              <a href={pack.pdfDownloadUrl} className="text-burgundy underline">
+                Download PDF
+              </a>
+            )}
+            {pack.xlsxDownloadUrl && (
+              <a href={pack.xlsxDownloadUrl} className="text-burgundy underline">
+                Download Excel
+              </a>
+            )}
+          </span>
+        ) : pack.status === "failed" ? (
+          <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
+        ) : (
+          <span className="text-xs text-muted">{jobStatusText({ status: pack.status as "pending" | "processing" | "completed" | "failed", errorMessage: pack.errorMessage })}</span>
+        ),
+    },
+  ];
 
   return (
     <div>
@@ -139,50 +177,17 @@ export function MonthlyReportPackForm({
       {reportPacks.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No report packs generated yet for this organisation.</p>
       ) : (
-        <div className="overflow-x-auto"><table className="mt-2 w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase text-muted">
-              <th className="py-2">Period</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Requested</th>
-              <th className="py-2">Download</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reportPacks.map((pack) => (
-              <tr key={pack.id} className="border-b border-border last:border-0">
-                <td className="py-2">
-                  {MONTH_NAMES[pack.month - 1]} {pack.year}
-                </td>
-                <td className="py-2">{REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status}</td>
-                <td className="py-2 text-xs text-muted">{new Date(pack.createdAt).toLocaleString("en-GB")}</td>
-                <td className="py-2">
-                  {pack.status === "completed" && pack.pdfUrl ? (
-                    <span className="flex flex-wrap gap-3">
-                      <a href={pack.pdfUrl} target="_blank" rel="noreferrer" className="text-burgundy underline">
-                        View PDF
-                      </a>
-                      {pack.pdfDownloadUrl && (
-                        <a href={pack.pdfDownloadUrl} className="text-burgundy underline">
-                          Download PDF
-                        </a>
-                      )}
-                      {pack.xlsxDownloadUrl && (
-                        <a href={pack.xlsxDownloadUrl} className="text-burgundy underline">
-                          Download Excel
-                        </a>
-                      )}
-                    </span>
-                  ) : pack.status === "failed" ? (
-                    <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
-                  ) : (
-                    <span className="text-xs text-muted">{jobStatusText({ status: pack.status as "pending" | "processing" | "completed" | "failed", errorMessage: pack.errorMessage })}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
+        <div className="mt-2">
+          <ResponsiveTable
+            columns={packColumns}
+            rows={reportPacks}
+            rowKey={(pack) => pack.id}
+            caption="Report packs"
+            headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+            thClassName="py-2"
+            tdClassName="py-2"
+          />
+        </div>
       )}
     </div>
   );

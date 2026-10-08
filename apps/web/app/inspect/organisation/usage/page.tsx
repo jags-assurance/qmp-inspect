@@ -3,6 +3,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { AI_USAGE_LOG_TABLE, type AiFeature } from "@/lib/ai/log";
 import { FEATURE_CATEGORY, type AiFeatureCategory } from "@/lib/ai/feature-categories";
 import { estimateGeminiCallCostUsd, formatUsd } from "@/lib/ai/pricing";
@@ -286,6 +287,40 @@ export default async function UsageAndCostPage({
     ? allProjectRows.filter((r) => r.projectId === selectedProjectId)
     : allProjectRows;
 
+  const projectCostColumns: ResponsiveColumn<(typeof allProjectRows)[number]>[] = [
+    {
+      key: "project",
+      header: "Project",
+      cardLabel: null,
+      className: "pr-3",
+      render: (row) => (
+        <div className="text-left">
+          <span className="flex items-center gap-2">
+            <span className="text-ink">
+              <span className="doc-id">{row.project?.project_number ?? "—"}</span> — {row.project?.name ?? "Unknown project"}
+            </span>
+            {row.projectId === topCostProjectId && row.aiCostUsd > 0 && <Badge tone="gold">Highest cost</Badge>}
+          </span>
+          <span className="block text-xs text-muted">{row.project?.organizations?.name ?? "—"}</span>
+        </div>
+      ),
+    },
+    { key: "ai-calls", header: "AI calls", className: "pr-3 text-right tabular-nums text-ink", render: (row) => row.aiCalls },
+    {
+      key: "ai-cost",
+      header: "Est. AI cost",
+      className: "pr-3 text-right tabular-nums text-ink",
+      render: (row) => (row.aiCalls > 0 ? (row.aiCostKnown ? formatUsd(row.aiCostUsd) : "—") : "—"),
+    },
+    { key: "jobs", header: "Render jobs", className: "pr-3 text-right tabular-nums text-ink", render: (row) => row.jobCount },
+    {
+      key: "avg-render",
+      header: "Avg render time",
+      className: "text-right tabular-nums text-muted",
+      render: (row) => formatDuration(averageSeconds(row.jobDurations)),
+    },
+  ];
+
   const totalRenderSeconds = totalRenderDurations.reduce((sum, d) => sum + d, 0);
 
   const projectFilterOptions = (projects ?? [])
@@ -424,39 +459,17 @@ export default async function UsageAndCostPage({
             {selectedProjectId ? "No AI or render usage for this project in this window." : "No AI or render usage in this window."}
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted">
-                  <th className="py-2 pr-3">Project</th>
-                  <th className="py-2 pr-3 text-right">AI calls</th>
-                  <th className="py-2 pr-3 text-right">Est. AI cost</th>
-                  <th className="py-2 pr-3 text-right">Render jobs</th>
-                  <th className="py-2 text-right">Avg render time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjectRows.map((row) => (
-                  <tr key={row.projectId} className="border-b border-border last:border-0">
-                    <td className="py-2 pr-3">
-                      <span className="flex items-center gap-2">
-                        <span className="text-ink">
-                          <span className="doc-id">{row.project?.project_number ?? "—"}</span> — {row.project?.name ?? "Unknown project"}
-                        </span>
-                        {row.projectId === topCostProjectId && row.aiCostUsd > 0 && <Badge tone="gold">Highest cost</Badge>}
-                      </span>
-                      <span className="block text-xs text-muted">{row.project?.organizations?.name ?? "—"}</span>
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums text-ink">{row.aiCalls}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums text-ink">
-                      {row.aiCalls > 0 ? (row.aiCostKnown ? formatUsd(row.aiCostUsd) : "—") : "—"}
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums text-ink">{row.jobCount}</td>
-                    <td className="py-2 text-right tabular-nums text-muted">{formatDuration(averageSeconds(row.jobDurations))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-3">
+            <ResponsiveTable
+              columns={projectCostColumns}
+              rows={filteredProjectRows}
+              rowKey={(row) => row.projectId}
+              caption="AI and render cost by project"
+              wrapperClassName="overflow-x-auto"
+              headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+              thClassName="py-2"
+              tdClassName="py-2"
+            />
           </div>
         )}
 
