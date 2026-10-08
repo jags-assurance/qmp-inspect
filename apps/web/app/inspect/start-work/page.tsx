@@ -58,6 +58,8 @@ export default async function StartWorkPage({
   const assignedFilter = parseAssignedFilter(sp.assigned);
 
   const supabase = await createSupabaseServerClient();
+  // Independent of everything below, so it starts now (it reuses the cached archived-id read).
+  const assignedQueuePromise = loadAssignedToMe(supabase, session.userId);
   const archivedIds = await loadArchivedTemplateIds(supabase);
   const templateSelect = (withAssignee: boolean) =>
     `id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, ${withAssignee ? "assigned_to_user_id, " : ""}itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))`;
@@ -144,7 +146,7 @@ export default async function StartWorkPage({
   const dueSoonCount = withFlags.filter((a) => a.dueSoon).length;
   const heldCount = withFlags.filter((a) => a.awaitingHold && a.status !== "completed").length;
   const assignedMine = filterAssignedToMe(withFlags, session.userId).filter((a) => a.status !== "completed");
-  const assignedQueue = await loadAssignedToMe(supabase, session.userId);
+  const assignedQueue = await assignedQueuePromise;
   const visible = (assignedFilter === "me" ? assignedMine : withFlags)
     .filter((a) => !dueFilter || (dueFilter === "overdue" ? a.overdue : dueFilter === "soon" ? a.dueSoon : a.awaitingHold && a.status !== "completed"))
     .filter((a) => !statusFilter || a.status === statusFilter)

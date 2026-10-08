@@ -58,15 +58,17 @@ export default async function VaultFolderPage({
   // High authority by default (JAGS Admin), delegatable per person via the approve_vault_document
   // custom-role permission — see approveVaultDocumentAction's own doc comment for why this stays
   // out of a self-managed client's own grantable subset.
-  const canApprove = isAdminStaff(session) || (await hasPermission(session.userId, "approve_vault_document", projectId));
-
-  const { data: folder } = await supabase
-    .from(VAULT_FOLDERS_TABLE)
-    .select("id, project_id, folder_key, name, created_at")
-    .eq("id", folderId)
-    .eq("project_id", projectId)
-    .maybeSingle()
-    .returns<VaultFolderRow | null>();
+  // The permission check and the folder row are independent, so they run together.
+  const [canApprove, { data: folder }] = await Promise.all([
+    isAdminStaff(session) ? Promise.resolve(true) : hasPermission(session.userId, "approve_vault_document", projectId),
+    supabase
+      .from(VAULT_FOLDERS_TABLE)
+      .select("id, project_id, folder_key, name, created_at")
+      .eq("id", folderId)
+      .eq("project_id", projectId)
+      .maybeSingle()
+      .returns<VaultFolderRow | null>(),
+  ]);
 
   if (!folder) notFound();
 
@@ -189,20 +191,22 @@ export default async function VaultFolderPage({
 
   const approverOptions: { id: string; name: string }[] = [];
   if (isAdminStaff(session)) {
-    const { data: parties } = await supabase
-      .from("project_parties")
-      .select("user_id, name, users(full_name)")
-      .eq("project_id", projectId)
-      .eq("is_active", true)
-      .not("user_id", "is", null)
-      .returns<{ user_id: string; name: string; users: { full_name: string } | null }[]>();
-
-    const { data: staffUsers } = await supabase
-      .from("users")
-      .select("id, full_name")
-      .eq("is_jags_staff", true)
-      .order("full_name")
-      .returns<{ id: string; full_name: string }[]>();
+    // Independent reads, run together.
+    const [{ data: parties }, { data: staffUsers }] = await Promise.all([
+      supabase
+        .from("project_parties")
+        .select("user_id, name, users(full_name)")
+        .eq("project_id", projectId)
+        .eq("is_active", true)
+        .not("user_id", "is", null)
+        .returns<{ user_id: string; name: string; users: { full_name: string } | null }[]>(),
+      supabase
+        .from("users")
+        .select("id, full_name")
+        .eq("is_jags_staff", true)
+        .order("full_name")
+        .returns<{ id: string; full_name: string }[]>(),
+    ]);
 
     const seen = new Set<string>();
     for (const p of parties ?? []) {

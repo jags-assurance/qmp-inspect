@@ -659,8 +659,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           grid being multi-party in the first place. Unfiltered on this table (small per-ITP volume;
           Supabase Realtime filters only support simple equality, and this page's relevant rows span
           several itp_item_ids with no single column to filter on cheaply). */}
-      <RealtimeRefresh table="activity_signoff_progress" />
-      <RealtimeRefresh table="itps" filter={`id=eq.${id}`} />
+      <RealtimeRefresh table="activity_signoff_progress" also={[{ table: "itps", filter: `id=eq.${id}` }]} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         {embedded ? <span /> : (
           <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">

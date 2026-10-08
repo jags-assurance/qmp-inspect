@@ -100,6 +100,8 @@ async function sendNotificationEmailNow(
   }
 }
 
+export const RECENT_NOTIFICATIONS_LIMIT = 20;
+
 /** Initial server-rendered load for the bell — the client component then keeps this list live via Realtime. */
 export async function listRecentNotifications(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -110,7 +112,7 @@ export async function listRecentNotifications(
     .select("*")
     .eq("recipient_user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(20)
+    .limit(RECENT_NOTIFICATIONS_LIMIT)
     .returns<NotificationRow[]>();
   return data ?? [];
 }
