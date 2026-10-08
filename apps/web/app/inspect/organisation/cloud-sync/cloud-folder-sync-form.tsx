@@ -9,6 +9,8 @@ import {
 import type { CloudSyncProvider } from "@/lib/cloud-sync/types";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CloudFolderSyncConfigState = { error: null };
 
@@ -21,6 +23,7 @@ export function CloudFolderSyncForm({
   provider: CloudSyncProvider | null;
   folderReference: string | null;
 }) {
+  const tl = useTranslate();
   const [saveState, saveAction, savePending] = useActionState(saveCloudFolderSyncConfigAction, initialState);
   const [clearState, clearAction, clearPending] = useActionState(clearCloudFolderSyncConfigAction, initialState);
 
@@ -37,8 +40,8 @@ export function CloudFolderSyncForm({
               defaultValue={provider ?? "sharepoint"}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             >
-              <option value="sharepoint">SharePoint</option>
-              <option value="onedrive">OneDrive</option>
+              <option value="sharepoint"><Tx>SharePoint</Tx></option>
+              <option value="onedrive"><Tx>OneDrive</Tx></option>
             </select>
             </FormField>
           </div>
@@ -48,7 +51,7 @@ export function CloudFolderSyncForm({
               <input
               name="folder_reference"
               defaultValue={folderReference ?? ""}
-              placeholder="https://yourtenant.sharepoint.com/sites/.../Shared Documents/Project Files"
+              placeholder={tl("https://yourtenant.sharepoint.com/sites/.../Shared Documents/Project Files")}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { T } from "@/components/domain/t";
 
 /**
  * The one back link every Settings page uses. Section pages go back to the Settings hub; drill-in
@@ -17,7 +18,7 @@ export function SettingsBackLink({
   if (embedded) return null;
   return (
     <Link href={href} className="mb-2 inline-flex min-h-8 items-center text-sm text-burgundy hover:underline">
-      ← Back to {label}
+      <T>← Back to</T> {label}
     </Link>
   );
 }

@@ -84,6 +84,8 @@ import { ItpExitControls } from "./itp-exit-controls";
 import { approvePermissionStrict } from "@/lib/itps/lifecycle";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -123,6 +125,7 @@ const EVIDENCE_LABEL: Record<number, string> = {
 };
 
 async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: boolean }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -171,7 +174,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     if (embedded) {
       return (
         <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">
-          ITP not found. It may have been removed or you may not have access.
+          <T>ITP not found. It may have been removed or you may not have access.</T>
         </div>
       );
     }
@@ -677,22 +680,21 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {embedded ? <span /> : (
           <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-          ← Back to ITP Register
+          <T>← Back to ITP Register</T>
           </Link>
         )}
         <Link
           href={`/inspect/projects/${itp.projects?.id}/guide`}
           className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-off-white"
         >
-          ? Project Guide
+          <T>? Project Guide</T>
         </Link>
       </div>
       {itp.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
         <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-          <p className="font-medium">Revision {itp.revision} is awaiting approval</p>
+          <p className="font-medium"><T>Revision</T> {itp.revision} <T>is awaiting approval</T></p>
           <p className="mt-0.5 text-xs text-muted">
-            This ITP was changed after it was issued. The change is recorded in the revision history; someone other than the person who made
-            it needs to approve the new revision.
+            <T>This ITP was changed after it was issued. The change is recorded in the revision history; someone other than the person who made it needs to approve the new revision.</T>
           </p>
           {canApproveItp && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
         </div>
@@ -711,19 +713,19 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         if (warnings.length === 0) return null;
         return (
           <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-            <p className="font-medium">Before you submit for review</p>
+            <p className="font-medium"><T>Before you submit for review</T></p>
             <ul className="mt-1 list-disc ps-5 text-xs text-muted">
               {warnings.map((w) => (
                 <li key={w}>{w}</li>
               ))}
             </ul>
-            <p className="mt-1 text-xs text-muted">These don&apos;t block submission, but reviewers will usually expect them filled in.</p>
+            <p className="mt-1 text-xs text-muted"><T>These don&apos;t block submission, but reviewers will usually expect them filled in.</T></p>
           </div>
         );
       })()}
       {itp.status === "draft" && itp.returned_reason && (
         <div className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink" role="status">
-          <p className="font-medium text-danger">Returned for changes</p>
+          <p className="font-medium text-danger"><T>Returned for changes</T></p>
           <p className="mt-0.5 whitespace-pre-line">{itp.returned_reason}</p>
           {itp.returned_at && <p className="mt-1 text-xs text-muted">{new Date(itp.returned_at).toLocaleString("en-GB")}</p>}
         </div>
@@ -731,10 +733,10 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       {exitNotice && (
         <div className="mt-3 rounded-md border border-border bg-off-white px-4 py-3 text-sm text-ink" role="status" data-testid="itp-exit-notice">
           <p className="font-medium">{exitNotice.heading}</p>
-          <p className="mt-0.5 whitespace-pre-line">Reason: {exitNotice.reason}</p>
+          <p className="mt-0.5 whitespace-pre-line"><T>Reason:</T> {exitNotice.reason}</p>
           {replacementItp && (
             <p className="mt-1">
-              Replaced by{" "}
+              <T>Replaced by</T>{" "}
               <Link href={`/inspect/itps/${replacementItp.id}`} className="text-burgundy hover:underline">
                 {replacementItp.itp_number} — {replacementItp.title}
               </Link>
@@ -747,7 +749,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           <div className="flex flex-wrap items-center gap-3">
             <Heading className="doc-id text-2xl font-semibold text-ink">{itp.itp_number}</Heading>
             <PageGuide
-              title="ITP detail — how this works"
+              title={tl("ITP detail — how this works")}
               points={[
                 "The H/W/R/S grid records which party intervenes at what level on each activity (Hold/Witness/Review/Surveillance, or a custom level your org configures) — a blocking level (e.g. Hold) stops the next step until that party signs off.",
                 "A party can only sign off their own intervention point: staff can always countersign, but an external login can only sign for the project party their account is linked to, and only while that party is active.",
@@ -761,7 +763,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             {/* R23: real lifecycle phase, derived from status + sign-off completion — never set
                 directly by this page or any action (see lib/itps/phase.ts). */}
             <Badge tone={ITP_PHASE_TONE[normalizeItpPhase(itp.phase)]}>{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</Badge>
-            <span className="text-sm text-muted">Rev {itp.revision}</span>
+            <span className="text-sm text-muted"><T>Rev</T> {itp.revision}</span>
             {aiDraftReview && (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-xs font-medium text-[color:var(--color-burgundy-dark)]"
@@ -771,7 +773,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                     : undefined
                 }
               >
-                ✨ AI-drafted{aiDraftReview.users?.full_name ? ` · reviewed by ${aiDraftReview.users.full_name}` : ""}
+                <T>✨ AI-drafted</T>{aiDraftReview.users?.full_name ? ` · reviewed by ${aiDraftReview.users.full_name}` : ""}
               </span>
             )}
           </div>
@@ -784,7 +786,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
           {signoffTotal > 0 && (
             <p className="mt-1 text-sm text-muted">
-              {signoffComplete} of {signoffTotal} sign-off points complete
+              {signoffComplete} <T>of</T> {signoffTotal} <T>sign-off points complete</T>
             </p>
           )}
 
@@ -826,7 +828,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                     staff-only. */}
                 <DropdownMenuItem>
                   <ExportLink href={`/api/itps/${itp.id}/export-xlsx`} pendingLabel="Preparing…">
-                    Download for offline editing
+                    <T>Download for offline editing</T>
                   </ExportLink>
                 </DropdownMenuItem>
                 {/* R107: a plain Word copy of the controlled ITP (sections/items + intervention
@@ -834,7 +836,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                     app/api/itps/[id]/export-docx/route.ts. */}
                 <DropdownMenuItem>
                   <ExportLink href={`/api/itps/${itp.id}/export-docx`} pendingLabel="Preparing…">
-                    Word
+                    <T>Word</T>
                   </ExportLink>
                 </DropdownMenuItem>
               </>
@@ -847,19 +849,19 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 href={`/inspect/itps/${itp.id}/checklists`}
                 className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
               >
-                Checklists →
+                <T>Checklists →</T>
               </Link>
               <Link
                 href={`/inspect/itps/${itp.id}/status`}
                 className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
               >
-                Completion roadmap →
+                <T>Completion roadmap →</T>
               </Link>
               <Link
                 href={`/inspect/itps/${itp.id}/approval-roadmap`}
                 className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
               >
-                Approval roadmap →
+                <T>Approval roadmap →</T>
               </Link>
             </>
           )}
@@ -876,7 +878,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             <form action={notifyAllPendingForItpAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
               <button type="submit" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
-                Notify all pending
+                <T>Notify all pending</T>
               </button>
             </form>
           )}
@@ -926,10 +928,10 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           existing heading. Only worth showing once there's more than one section to jump between. */}
       {(sections ?? []).length > 1 && (
         <nav
-          aria-label="Jump to section"
+          aria-label={tl("Jump to section")}
           className="sticky top-0 z-10 mt-8 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface/80"
         >
-          <span className="text-xs font-medium text-muted">Jump to:</span>
+          <span className="text-xs font-medium text-muted"><T>Jump to:</T></span>
           {(sections ?? []).map((section) => (
             <a
               key={section.id}
@@ -947,7 +949,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           checklist will start from). Open by default while the ITP is waiting on a decision. */}
       <details className="mt-6 rounded-lg border border-border bg-surface px-4 py-2" open={itp.status === "under_review" || itp.status === "approved"}>
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink">
-          Checklists that go with this ITP
+          <T>Checklists that go with this ITP</T>
         </summary>
         <div className="pb-3">
           <ItpChecklistPreview
@@ -1141,6 +1143,7 @@ export async function ItpDetailView({
   /** Embedded only: the register's current query string (filters, `itp`), without `pane`. */
   baseQuery?: string;
 }) {
+  const tl = await getTranslator();
   if (!embedded) return <ItpDetailBody id={id} />;
   const active: ItpPane = PANES.some((p) => p.key === pane) ? pane : "details";
   const hrefFor = (key: ItpPane) => {
@@ -1152,7 +1155,7 @@ export async function ItpDetailView({
   };
   return (
     <div>
-      <nav aria-label="ITP sections" className="border-b border-border">
+      <nav aria-label={tl("ITP sections")} className="border-b border-border">
         <ul className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]">
           {PANES.map((p) => {
             const isActive = p.key === active;

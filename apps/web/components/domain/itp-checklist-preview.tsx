@@ -1,4 +1,6 @@
 import type { ItpChecklistPreviewItem } from "@/lib/checklists/preview";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Read-only "the checklist that goes with this ITP" — one collapsible entry per activity. Used
@@ -7,9 +9,10 @@ import type { ItpChecklistPreviewItem } from "@/lib/checklists/preview";
  * client components alike.
  */
 export function ItpChecklistPreview({ items, approved }: { items: ItpChecklistPreviewItem[]; approved: boolean }) {
+  const tl = useTranslate();
   const withChecklist = items.filter((i) => i.hasChecklist);
   if (withChecklist.length === 0) {
-    return <p className="rounded-md bg-off-white px-3 py-3 text-sm text-muted">This ITP has no checklist-type activities.</p>;
+    return <p className="rounded-md bg-off-white px-3 py-3 text-sm text-muted"><Tx>This ITP has no checklist-type activities.</Tx></p>;
   }
   return (
     <div>
@@ -37,7 +40,7 @@ export function ItpChecklistPreview({ items, approved }: { items: ItpChecklistPr
                     <span aria-hidden="true" className="text-muted">☐</span>
                     <span className="[overflow-wrap:anywhere]">
                       {l.text}
-                      {l.mandatory && <span className="ms-1 text-danger" title="Mandatory">*</span>}
+                      {l.mandatory && <span className="ms-1 text-danger" title={tl("Mandatory")}>*</span>}
                     </span>
                   </li>
                 ))}

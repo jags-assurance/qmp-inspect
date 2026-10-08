@@ -1,6 +1,7 @@
 "use client";
 
 import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from "react";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * Consistent label / hint / error wrapper. Clones the single child control to wire id,
@@ -44,7 +45,7 @@ export function FormField({
             *
           </span>
         )}
-        {required && <span className="sr-only"> (required)</span>}
+        {required && <span className="sr-only"> <Tx>(required)</Tx></span>}
       </label>
       {control}
       {hint && (

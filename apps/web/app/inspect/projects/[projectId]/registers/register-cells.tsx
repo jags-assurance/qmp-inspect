@@ -13,6 +13,8 @@ import { RegisterLifecycleActions } from "./register-lifecycle-actions";
 import { CertificateUpload } from "./certificate-upload";
 import { MATERIAL_APPROVAL_STATUS_LABELS, MATERIAL_RECEIPT_STATUS_LABELS } from "@/lib/registers/types";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /** Formats a plain YYYY-MM-DD date as dd/mm/yyyy without the timezone shift `new Date("YYYY-MM-DD")` causes west of UTC. */
 export function formatRegisterDate(date: string | null | undefined): string {
@@ -37,7 +39,7 @@ export function CertificateLink({ kind, id, hasFile }: { kind: RegisterKind; id:
   if (!hasFile) return <span className="text-muted">—</span>;
   return (
     <a href={`/api/registers/certificate?kind=${kind}&id=${id}`} target="_blank" rel="noreferrer" className="text-sm text-burgundy hover:underline">
-      View
+      <Tx>View</Tx>
     </a>
   );
 }
@@ -192,7 +194,7 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
         </div>
         <CertificateUpload projectId={projectId} kind={kind} label="Attach or replace certificate (optional)" />
         {kind === "material" && (
-          <p className="text-xs text-muted">Setting the receiving status to “Released” releases the material for use; who released it and when is recorded.</p>
+          <p className="text-xs text-muted"><Tx>Setting the receiving status to “Released” releases the material for use; who released it and when is recorded.</Tx></p>
         )}
         {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
         <div className="flex items-center gap-3">
@@ -200,7 +202,7 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
             {pending ? "Saving…" : "Save changes"}
           </button>
           <button type="button" onClick={onClose} className="text-sm text-muted hover:underline">
-            Cancel
+            <Tx>Cancel</Tx>
           </button>
         </div>
       </form>
@@ -210,6 +212,7 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
 
 /** S3-11: replace (or attach) just the certificate file of one entry; the previous file stays on record. */
 function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKind; projectId: string; id: string; hasFile: boolean }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(replaceRegisterCertificateAction, initialState);
   const [open, setOpen] = useState(false);
   const submitted = useRef(false);
@@ -236,18 +239,18 @@ function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKi
           <CertificateUpload projectId={projectId} kind={kind} label={hasFile ? "New certificate file" : "Certificate file"} />
           {hasFile && (
             <label className="block text-xs font-medium text-ink">
-              Reason for replacing
-              <input name="reason" required minLength={5} className={INPUT} placeholder="e.g. re-issued certificate" />
+              <Tx>Reason for replacing</Tx>
+              <input name="reason" required minLength={5} className={INPUT} placeholder={tl("e.g. re-issued certificate")} />
             </label>
           )}
-          {hasFile && <p className="text-xs text-muted">The previous file is kept on record.</p>}
+          {hasFile && <p className="text-xs text-muted"><Tx>The previous file is kept on record.</Tx></p>}
           {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
           <div className="flex items-center gap-3">
             <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
               {pending ? "Saving…" : "Save"}
             </button>
             <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </div>
         </form>
@@ -293,7 +296,7 @@ export function RegisterRowActions({
         </form>
       )}
       <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
-        Edit
+        <Tx>Edit</Tx>
       </button>
       {row.id && <ReplaceCertificate kind={kind} projectId={projectId} id={row.id} hasFile={hasCertificate} />}
       <form

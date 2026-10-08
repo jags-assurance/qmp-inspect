@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { CompleteInspectionForm } from "./complete-inspection-form";
+import { Tx } from "@/components/domain/tx";
 
 const MIN_REASON = 15;
 
@@ -39,14 +40,14 @@ export function EvidenceMissingNotice({
   return (
     <div className="space-y-4">
       <div className="rounded-md bg-warning/10 p-4 text-sm text-ink">
-        <p>Attach at least one evidence photo or linked document (★ required, above) before completing this inspection.</p>
+        <p><Tx>Attach at least one evidence photo or linked document (★ required, above) before completing this inspection.</Tx></p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button type="button" onClick={takePhoto} className="min-h-11">
-            Take a photo
+            <Tx>Take a photo</Tx>
           </Button>
           {!waiving && (
             <Button type="button" variant="outline" onClick={() => setWaiving(true)} className="min-h-11">
-              No evidence applies…
+              <Tx>No evidence applies…</Tx>
             </Button>
           )}
         </div>
@@ -55,11 +56,10 @@ export function EvidenceMissingNotice({
       {waiving && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <label htmlFor="no-evidence-reason" className="block text-sm font-medium text-ink">
-            Why is there no evidence to attach?
+            <Tx>Why is there no evidence to attach?</Tx>
           </label>
           <p className="mt-0.5 text-xs text-muted">
-            Recorded on the inspection and in the audit log. Use only when nothing photographable or attachable exists
-            for this activity.
+            <Tx>Recorded on the inspection and in the audit log. Use only when nothing photographable or attachable exists for this activity.</Tx>
           </p>
           <textarea
             id="no-evidence-reason"
@@ -68,9 +68,9 @@ export function EvidenceMissingNotice({
             rows={3}
             className="mt-2 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
-          {!reasonOk && <p className="mt-1 text-xs text-muted">At least {MIN_REASON} characters.</p>}
+          {!reasonOk && <p className="mt-1 text-xs text-muted"><Tx>At least</Tx> {MIN_REASON} <Tx>characters.</Tx></p>}
           <button type="button" onClick={() => setWaiving(false)} className="mt-2 text-xs text-muted hover:text-ink">
-            Cancel — I&rsquo;ll attach evidence instead
+            <Tx>Cancel — I&rsquo;ll attach evidence instead</Tx>
           </button>
         </div>
       )}

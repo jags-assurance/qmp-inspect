@@ -4,10 +4,12 @@ import { useActionState } from "react";
 import { createClientTeamAction, type ClientTeamActionState } from "@/lib/client-teams/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ClientTeamActionState = { error: null };
 
 export function CreateClientTeamForm({ organizationId }: { organizationId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createClientTeamAction, initialState);
 
   return (
@@ -18,7 +20,7 @@ export function CreateClientTeamForm({ organizationId }: { organizationId: strin
           <input
           name="name"
           required
-          placeholder="e.g. Site Delivery Team"
+          placeholder={tl("e.g. Site Delivery Team")}
           className="mt-1 w-64 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

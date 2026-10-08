@@ -10,6 +10,7 @@ import {
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestDataBookPdfState = { error: null };
 
@@ -39,7 +40,7 @@ function PdfViewerDialog({ url, title, onClose }: { url: string; title: string; 
           <h2 className="text-sm font-semibold text-ink">{title}</h2>
           <div className="flex items-center gap-2">
             <a href={url} target="_blank" rel="noreferrer" className="text-sm text-burgundy hover:underline">
-              Open in new tab ↗
+              <Tx>Open in new tab ↗</Tx>
             </a>
             <button
               ref={closeRef}
@@ -47,13 +48,13 @@ function PdfViewerDialog({ url, title, onClose }: { url: string; title: string; 
               onClick={onClose}
               className="rounded-md border border-border px-3 py-1 text-sm hover:bg-off-white focus:outline-none focus:ring-2 focus:ring-burgundy"
             >
-              Close
+              <Tx>Close</Tx>
             </button>
           </div>
         </div>
         <iframe src={url} title={title} className="min-h-0 flex-1 bg-white" />
         <p className="border-t border-border px-4 py-1.5 text-xs text-muted">
-          If the document does not display here (some mobile browsers), use &quot;Open in new tab&quot;.
+          <Tx>If the document does not display here (some mobile browsers), use &quot;Open in new tab&quot;.</Tx>
         </p>
       </div>
     </div>
@@ -104,7 +105,7 @@ export function DataBookPdfButton({
       <div className="flex flex-wrap gap-2">
         {ready && liveStatus.pdfUrl && (
           <Button type="button" size="sm" onClick={() => setViewing(true)}>
-            View
+            <Tx>View</Tx>
           </Button>
         )}
         {ready && liveStatus.downloadUrl && (
@@ -112,7 +113,7 @@ export function DataBookPdfButton({
             href={liveStatus.downloadUrl}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
           >
-            Download PDF ↓
+            <Tx>Download PDF ↓</Tx>
           </a>
         )}
         {showGenerate && (
@@ -130,7 +131,7 @@ export function DataBookPdfButton({
       <p className="text-xs text-muted" aria-live="polite">
         {liveStatus ? (
           <>
-            PDF job: <span className="font-medium">{jobStatusText(liveStatus)}</span>
+            <Tx>PDF job:</Tx> <span className="font-medium">{jobStatusText(liveStatus)}</span>
             {" · "}
             {new Date(liveStatus.createdAt).toLocaleString("en-GB")}
             {isDraftBook && ready ? " · DRAFT — not issued" : ""}
@@ -141,13 +142,13 @@ export function DataBookPdfButton({
       </p>
       {pdfOutOfDate && ready && (
         <p className="text-xs font-medium text-warning" role="status">
-          PDF out of date — NCRs, punch items or IRNs changed after it was generated.
+          <Tx>PDF out of date — NCRs, punch items or IRNs changed after it was generated.</Tx>
         </p>
       )}
-      {polling && <p className="text-xs text-muted">Rendering — View and Download appear automatically when ready…</p>}
+      {polling && <p className="text-xs text-muted"><Tx>Rendering — View and Download appear automatically when ready…</Tx></p>}
       {timedOut && (
         <p className="text-xs text-danger">
-          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+          <Tx>Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.</Tx>
         </p>
       )}
       {viewing && ready && liveStatus.pdfUrl && (

@@ -8,6 +8,7 @@ import {
   type ParseOfflineUploadState,
 } from "@/lib/itps/offline-revision-actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const parseInitialState: ParseOfflineUploadState = { error: null, itpId: null, rowsJson: null, diff: null };
 const applyInitialState: ApplyOfflineRevisionState = { error: null, success: false };
@@ -48,7 +49,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
         }}
         className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
       >
-        Re-upload edited file…
+        <Tx>Re-upload edited file…</Tx>
       </button>
     );
   }
@@ -56,9 +57,9 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-ink">Re-upload offline-edited file</h2>
+        <h2 className="text-sm font-semibold text-ink"><Tx>Re-upload offline-edited file</Tx></h2>
         <button type="button" onClick={reset} className="text-xs font-medium text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
 
@@ -72,8 +73,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
           className="mt-3 space-y-3"
         >
           <p className="text-xs text-muted">
-            Upload the edited .xlsx workbook (the same layout produced by &quot;Download for offline
-            editing&quot;). You&apos;ll see exactly what changed before anything is applied.
+            <Tx>Upload the edited .xlsx workbook (the same layout produced by &quot;Download for offline editing&quot;). You&apos;ll see exactly what changed before anything is applied.</Tx>
           </p>
           <input
             ref={fileInputRef}
@@ -147,7 +147,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
 
           <div>
             <label htmlFor="offline_revision_reason" className="block text-xs font-medium text-ink">
-              Reason for this revision <span className="text-danger">*</span>
+              <Tx>Reason for this revision</Tx> <span className="text-danger">*</span>
             </label>
             <textarea
               id="offline_revision_reason"
@@ -163,7 +163,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
 
           {applyState.error && <p role="alert" className="text-sm text-danger">{applyState.error}</p>}
           {applyState.success && (
-            <p className="text-sm text-success">Applied — a new revision has been created from the uploaded file.</p>
+            <p className="text-sm text-success"><Tx>Applied — a new revision has been created from the uploaded file.</Tx></p>
           )}
 
           <div className="flex gap-3">
@@ -171,7 +171,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
               {applyPending ? "Applying…" : "Apply as new revision"}
             </Button>
             <button type="button" onClick={reset} className="rounded-md border border-border px-3 py-2 text-sm text-ink hover:bg-off-white">
-              Discard
+              <Tx>Discard</Tx>
             </button>
           </div>
         </form>

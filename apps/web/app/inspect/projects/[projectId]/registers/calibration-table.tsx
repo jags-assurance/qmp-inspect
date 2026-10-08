@@ -6,6 +6,7 @@ import { CALIBRATION_DUE_SOON_DAYS } from "@/lib/registers/status";
 import type { CalibrationStatus } from "@/lib/registers/types";
 import { CertificateLink, formatRegisterDate, ExpiryDate, RegisterRowActions } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
+import { Tx } from "@/components/domain/tx";
 
 export interface CalibrationRegisterDisplayRow {
   id: string;
@@ -45,7 +46,7 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
       render: (row) => (
         <span>
           {row.instrument_name}
-          {row.instrument_tag && <span className="block text-xs text-muted">ID {row.instrument_tag}</span>}
+          {row.instrument_tag && <span className="block text-xs text-muted"><Tx>ID</Tx> {row.instrument_tag}</span>}
         </span>
       ),
     },

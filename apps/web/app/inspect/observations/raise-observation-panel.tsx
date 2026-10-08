@@ -8,6 +8,8 @@ import { SidePanel, Toast, useToast, useUrlPanel } from "@/components/ui/side-pa
 import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
 import type { RaiseOptions } from "@/lib/ncrs/raise-options";
 import { NewNcrForm } from "../ncrs/new/new-ncr-form";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Raising an observation without leaving the register: the same NewNcrForm + createNcrAction as
@@ -17,6 +19,7 @@ import { NewNcrForm } from "../ncrs/new/new-ncr-form";
  * appears (the action revalidates it) and a toast links to the new record.
  */
 export function RaiseObservationPanel() {
+  const tl = useTranslate();
   const router = useRouter();
   const panel = useUrlPanel("raise");
   const isOpen = panel.value !== null;
@@ -44,9 +47,9 @@ export function RaiseObservationPanel() {
       setFormKey((k) => k + 1);
       show(
         <>
-          {created.ncrNumber} raised.{" "}
+          {created.ncrNumber} <Tx>raised.</Tx>{" "}
           <Link href={`/inspect/ncrs/${created.id}`} className="font-medium underline">
-            View it →
+            <Tx>View it →</Tx>
           </Link>
         </>
       );
@@ -58,18 +61,18 @@ export function RaiseObservationPanel() {
   return (
     <>
       <Button onClick={() => panel.open()} className="min-h-11">
-        + Raise Observation
+        <Tx>+ Raise Observation</Tx>
       </Button>
       <SidePanel
         open={isOpen}
         onClose={panel.close}
-        title="Raise Observation"
+        title={tl("Raise Observation")}
         description="The register stays open behind this panel. After you raise it you stay here."
       >
         {loadError ? (
-          <p className="mt-6 text-sm text-danger">Couldn&rsquo;t load the project and people lists. Close and try again.</p>
+          <p className="mt-6 text-sm text-danger"><Tx>Couldn&rsquo;t load the project and people lists. Close and try again.</Tx></p>
         ) : !options ? (
-          <p className="mt-6 text-sm text-muted">Loading…</p>
+          <p className="mt-6 text-sm text-muted"><Tx>Loading…</Tx></p>
         ) : (
           <NewNcrForm
             key={formKey}

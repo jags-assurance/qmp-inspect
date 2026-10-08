@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { PrintButton } from "./print-button";
 import { PRINT_STATUS_LABEL, bannerLine, isPrintStatus } from "@/lib/itps/print-banner";
 import { ITP_PHASES, ITP_PHASE_LABEL, normalizeItpPhase } from "@/lib/itps/phase";
+import { T } from "@/components/domain/t";
 
 const STATUS_LABEL = PRINT_STATUS_LABEL;
 
@@ -66,33 +67,33 @@ export default async function ItpRegisterPrintPage({
     <div>
       <div className="no-print flex items-center justify-between">
         <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-          ← Back to ITP Register
+          <T>← Back to ITP Register</T>
         </Link>
         <PrintButton />
       </div>
 
       <div className="print-area mt-6">
         <div className="mb-3 rounded border border-border px-3 py-2 text-sm text-ink" data-testid="print-banner">
-          <p className="text-xs text-muted">Revision · status · issue date (approval date, else last change) for every ITP below</p>
+          <p className="text-xs text-muted"><T>Revision · status · issue date (approval date, else last change) for every ITP below</T></p>
           <ul className="mt-1 space-y-0.5">
             {(itps ?? []).map((itp) => (
               <li key={itp.itp_number} className="doc-id">{bannerLine(itp)}</li>
             ))}
           </ul>
         </div>
-        <h1 className="text-xl font-semibold text-ink">ITP Register</h1>
-        <p className="mt-1 text-xs text-muted">Generated {new Date().toLocaleString("en-GB")} · {itps?.length ?? 0} ITPs</p>
+        <h1 className="text-xl font-semibold text-ink"><T>ITP Register</T></h1>
+        <p className="mt-1 text-xs text-muted"><T>Generated</T> {new Date().toLocaleString("en-GB")} · {itps?.length ?? 0} <T>ITPs</T></p>
         <div className="overflow-x-auto"><table className="mt-4 w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-start text-xs uppercase text-muted">
-              <th className="py-2 pe-3">ITP Number</th>
-              <th className="py-2 pe-3">Title</th>
-              <th className="py-2 pe-3">Client</th>
-              <th className="py-2 pe-3">Project</th>
-              <th className="py-2 pe-3">Status</th>
-              <th className="py-2 pe-3">Phase</th>
-              <th className="py-2 pe-3">Rev</th>
-              <th className="py-2 pe-3">Applicable Standard</th>
+              <th className="py-2 pe-3"><T>ITP Number</T></th>
+              <th className="py-2 pe-3"><T>Title</T></th>
+              <th className="py-2 pe-3"><T>Client</T></th>
+              <th className="py-2 pe-3"><T>Project</T></th>
+              <th className="py-2 pe-3"><T>Status</T></th>
+              <th className="py-2 pe-3"><T>Phase</T></th>
+              <th className="py-2 pe-3"><T>Rev</T></th>
+              <th className="py-2 pe-3"><T>Applicable Standard</T></th>
             </tr>
           </thead>
           <tbody>
@@ -111,7 +112,7 @@ export default async function ItpRegisterPrintPage({
             {(itps ?? []).length === 0 && (
               <tr>
                 <td colSpan={8} className="py-4 text-center text-muted">
-                  No ITPs match the current filters.
+                  <T>No ITPs match the current filters.</T>
                 </td>
               </tr>
             )}

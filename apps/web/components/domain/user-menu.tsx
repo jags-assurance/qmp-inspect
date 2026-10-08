@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { setLocaleAction } from "@/lib/i18n/actions";
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from "@/lib/i18n/direction";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * The top-right profile control. A real menu (not a static badge): shows who is signed in and their
@@ -21,6 +23,7 @@ export function UserMenu({
   signOutAction: () => Promise<void>;
   links?: { label: string; href: string }[];
 }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -88,8 +91,8 @@ export function UserMenu({
               ))}
             </ul>
           )}
-          <form action={setLocaleAction} className="flex items-center gap-2 border-t border-border px-4 py-2.5" aria-label="Language">
-            <span className="text-xs text-muted">Language</span>
+          <form action={setLocaleAction} className="flex items-center gap-2 border-t border-border px-4 py-2.5" aria-label={tl("Language")}>
+            <span className="text-xs text-muted"><Tx>Language</Tx></span>
             {SUPPORTED_LOCALES.map((code) => (
               <button
                 key={code}
@@ -106,7 +109,7 @@ export function UserMenu({
           </form>
           <form action={signOutAction} className="border-t border-border">
             <button type="submit" role="menuitem" className="block w-full px-4 py-2.5 text-start text-sm font-medium text-danger hover:bg-off-white">
-              Sign out
+              <Tx>Sign out</Tx>
             </button>
           </form>
         </div>

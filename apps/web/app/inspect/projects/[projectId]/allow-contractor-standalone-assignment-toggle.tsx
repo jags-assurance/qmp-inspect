@@ -5,6 +5,7 @@ import {
   setAllowContractorStandaloneAssignmentAction,
   type SetAllowContractorStandaloneAssignmentState,
 } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetAllowContractorStandaloneAssignmentState = { error: null };
 
@@ -28,9 +29,9 @@ export function AllowContractorStandaloneAssignmentToggle({
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
           disabled={pending}
         />
-        Allow a subcontractor or main-contractor party to run Standalone Assignments (FAT/witness/test/pre-shipment) on this project
+        <Tx>Allow a subcontractor or main-contractor party to run Standalone Assignments (FAT/witness/test/pre-shipment) on this project</Tx>
       </label>
-      {pending && <span className="text-xs text-muted">Saving…</span>}
+      {pending && <span className="text-xs text-muted"><Tx>Saving…</Tx></span>}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );

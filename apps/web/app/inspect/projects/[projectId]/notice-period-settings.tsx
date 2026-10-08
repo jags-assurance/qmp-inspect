@@ -6,6 +6,7 @@ import {
   clearProjectNoticePeriodAction,
   type NoticePeriodConfigState,
 } from "@/lib/signoff/notice-period-config-actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: NoticePeriodConfigState = { error: null };
 
@@ -27,7 +28,7 @@ export function NoticePeriodSettings({
   configuredHours: Record<string, number>;
 }) {
   if (levels.length === 0) {
-    return <p className="mt-3 text-sm text-muted">No intervention levels configured for this organisation yet.</p>;
+    return <p className="mt-3 text-sm text-muted"><Tx>No intervention levels configured for this organisation yet.</Tx></p>;
   }
 
   return (
@@ -95,7 +96,7 @@ function NoticePeriodRow({
           </button>
         </form>
       )}
-      {currentHours == null && <span className="text-xs text-muted">Using organisation default</span>}
+      {currentHours == null && <span className="text-xs text-muted"><Tx>Using organisation default</Tx></span>}
       {setState.error && <p role="alert" className="w-full text-xs text-danger">{setState.error}</p>}
       {clearState.error && <p role="alert" className="w-full text-xs text-danger">{clearState.error}</p>}
     </div>

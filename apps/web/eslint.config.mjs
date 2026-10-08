@@ -16,12 +16,16 @@ const eslintConfig = defineConfig([
   // error: the existing app/ and components/ trees are unmigrated and
   // will produce a large number of warnings. Do not "fix" those warnings
   // as part of unrelated changes — that cleanup is future, scoped work.
+  // Update (S12): the main screens are now wrapped in <T> / <Tx>; the remaining warnings are the
+  // unmigrated worklist (legal pages, guides, mixed-content fragments, attributes are not reported).
   {
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
     ignores: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
     plugins: { i18next },
     rules: {
-      "i18next/no-literal-string": "warn",
+      // <T> / <Tx> children ARE the dictionary keys (see lib/i18n/dictionary.ts), so they are already
+      // translated through the helper and must not be reported again.
+      "i18next/no-literal-string": ["warn", { "jsx-components": { exclude: ["T", "Tx"] } }],
     },
   },
   // Override default ignores of eslint-config-next.

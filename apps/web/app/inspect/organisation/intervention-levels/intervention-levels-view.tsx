@@ -7,6 +7,8 @@ import { LevelRowForm } from "./level-row-form";
 import { AddLevelForm } from "./add-level-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationOption {
   id: string;
@@ -28,6 +30,7 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -57,9 +60,9 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Intervention (sign-off) levels</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Intervention (sign-off) levels</T></Heading>
         <PageGuide
-          title="Intervention (sign-off) levels — how this works"
+          title={tl("Intervention (sign-off) levels — how this works")}
           points={[
             "Admin-only, same page-shape convention as Numbering/Branding/Plans — an org picker up top, then a focused settings panel for whichever org is selected.",
             "Every org is seeded with the same four built-in levels (Hold/Witness/Review/Surveillance), but they're fully custom per organisation now: freely renamed, reordered or reclassified, plus any number of custom levels added here.",
@@ -70,28 +73,24 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Every ITP activity&apos;s per-party sign-off level (Hold/Witness/Review/Surveillance by default)
-        is now custom per organisation, not a fixed set. A <strong>blocking</strong> level (like Hold)
-        stops an inspection completing until it&rsquo;s signed off; a non-blocking level doesn&rsquo;t.
-        Default notice hours is how long the originator waits before a non-blocking level can
-        &ldquo;proceed without response&rdquo; — leave blank for none.
+        <T>Every ITP activity&apos;s per-party sign-off level (Hold/Witness/Review/Surveillance by default) is now custom per organisation, not a fixed set. A</T> <strong><T>blocking</T></strong> <T>level (like Hold) stops an inspection completing until it&rsquo;s signed off; a non-blocking level doesn&rsquo;t. Default notice hours is how long the originator waits before a non-blocking level can &ldquo;proceed without response&rdquo; — leave blank for none.</T>
       </p>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 
       {selectedOrg && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}&rsquo;s levels</h2>
+          <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}<T>&rsquo;s levels</T></h2>
 
           <div className="mt-3 divide-y divide-border">
             {levels.map((level) => (
               <LevelRowForm key={level.id} level={level} />
             ))}
-            {levels.length === 0 && <p className="py-4 text-sm text-muted">No levels configured yet.</p>}
+            {levels.length === 0 && <p className="py-4 text-sm text-muted"><T>No levels configured yet.</T></p>}
           </div>
 
           <div className="mt-6 border-t border-border pt-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Add a custom level</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted"><T>Add a custom level</T></h3>
             <div className="mt-3">
               <AddLevelForm organizationId={selectedOrg.id} />
             </div>

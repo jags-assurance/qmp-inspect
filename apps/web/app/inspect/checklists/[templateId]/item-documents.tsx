@@ -7,6 +7,8 @@ import { uploadItemDocumentAction, unlinkItemDocumentAction } from "@/lib/checkl
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { VaultFilePicker, type VaultPickerDocument, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface ItemLinkedDocument {
   linkId: string;
@@ -44,6 +46,7 @@ export function ItemDocuments({
   vaultFolders?: VaultPickerFolder[];
   readOnly: boolean;
 }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"vault" | "upload">("vault");
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -87,7 +90,7 @@ export function ItemDocuments({
                   }
                   className="min-h-11 px-2 text-xs text-danger hover:underline disabled:opacity-60"
                 >
-                  Remove
+                  <Tx>Remove</Tx>
                 </button>
               )}
             </li>
@@ -103,13 +106,13 @@ export function ItemDocuments({
           aria-label={`Attach a document to item ${itemNumber}`}
           className={btn + " gap-1 text-muted hover:bg-off-white"}
         >
-          <span aria-hidden="true">📎</span> + Document
+          <span aria-hidden="true">📎</span> <Tx>+ Document</Tx>
         </button>
       )}
 
       {!readOnly && open && (
         <div className="space-y-3 rounded-md border border-border bg-off-white p-3">
-          <div role="tablist" aria-label="Document source" className="flex gap-2">
+          <div role="tablist" aria-label={tl("Document source")} className="flex gap-2">
             {(["vault", "upload"] as const).map((m) => (
               <button
                 key={m}
@@ -142,7 +145,7 @@ export function ItemDocuments({
             />
           )}
           <button type="button" onClick={() => setOpen(false)} className="min-h-11 text-sm text-muted hover:underline">
-            Cancel
+            <Tx>Cancel</Tx>
           </button>
         </div>
       )}
@@ -195,7 +198,7 @@ function VaultLinkForm({
     }
   }
   if (available.length === 0 && folders.length === 0) {
-    return <p className="text-sm text-muted">No approved files in the Document Vault are available to link. Use &ldquo;Upload new&rdquo; instead.</p>;
+    return <p className="text-sm text-muted"><Tx>No approved files in the Document Vault are available to link. Use &ldquo;Upload new&rdquo; instead.</Tx></p>;
   }
   return (
     <form action={action} onSubmit={onSubmit} className="space-y-2">
@@ -204,7 +207,7 @@ function VaultLinkForm({
       <VaultFilePicker documents={available} projectId={projectId} folders={folders} allowUpload allowPendingUploads />
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       {queueError && <p role="alert" className="text-xs text-danger">{queueError}</p>}
-      {queuedCount > 0 && <p role="status" className="text-xs text-muted">{queuedCount} link{queuedCount === 1 ? "" : "s"} saved on this device; they will be added when you are back online.</p>}
+      {queuedCount > 0 && <p role="status" className="text-xs text-muted">{queuedCount} <Tx>link</Tx>{queuedCount === 1 ? "" : "s"} <Tx>saved on this device; they will be added when you are back online.</Tx></p>}
       <button type="submit" disabled={pending} className={btn + " w-full bg-burgundy text-white disabled:opacity-60"}>
         {pending ? "Linking…" : "Link selected files"}
       </button>
@@ -257,7 +260,7 @@ function UploadForm({
   return (
     <div className="space-y-2">
       <label htmlFor={`item-doc-file-${checklistItemId}`} className="block text-sm text-ink">
-        Choose a document (PDF, Word, Excel, CSV, TXT or image, max 25 MB)
+        <Tx>Choose a document (PDF, Word, Excel, CSV, TXT or image, max 25 MB)</Tx>
       </label>
       <input
         ref={inputRef}
@@ -268,8 +271,7 @@ function UploadForm({
         className="block w-full text-sm"
       />
       <p className="text-xs text-muted">
-        It is saved to the Document Vault folder &ldquo;Checklists &amp; Forms&rdquo; and linked to this item now; it shows
-        &ldquo;Pending vault approval&rdquo; until approved there.
+        <Tx>It is saved to the Document Vault folder &ldquo;Checklists &amp; Forms&rdquo; and linked to this item now; it shows &ldquo;Pending vault approval&rdquo; until approved there.</Tx>
       </p>
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <button type="button" onClick={submit} disabled={busy} className={btn + " w-full bg-burgundy text-white disabled:opacity-60"}>

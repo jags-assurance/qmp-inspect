@@ -5,6 +5,7 @@ import { finalizeAssignmentAction, type FinalizeAssignmentState } from "@/lib/st
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: FinalizeAssignmentState = { error: null };
 
@@ -49,7 +50,7 @@ export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: str
       {dialog}
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <div>
-        <span className="block text-xs text-muted">Conclusion</span>
+        <span className="block text-xs text-muted"><Tx>Conclusion</Tx></span>
         <div className="mt-1 flex flex-wrap gap-2">
           {CONCLUSION_OPTIONS.map((option) => (
             <label
@@ -67,7 +68,7 @@ export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: str
       </div>
       {!hasSignature && (
         <p className="text-xs text-muted">
-          Capture at least one signature under Witness Signatures before this can be finalized.
+          <Tx>Capture at least one signature under Witness Signatures before this can be finalized.</Tx>
         </p>
       )}
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}

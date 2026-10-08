@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useUrlPanel } from "@/components/ui/side-panel";
 import { cn } from "@/lib/cn";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export type TodayKind = "inspection" | "hold" | "signoff" | "ncr" | "acceptance" | "review" | "proposal" | "assignment";
 
@@ -69,6 +71,7 @@ export function TodayQueue({
   items: TodayItem[];
   emptyText?: string;
 }) {
+  const tl = useTranslate();
   const panel = useUrlPanel("panel");
   const [kind, setKind] = useState<TodayKind | "all">("all");
   // Long days stay scannable: each group shows its first few rows and expands on request.
@@ -83,12 +86,12 @@ export function TodayQueue({
         <div>
           <h2 id="today-queue-title" className="font-medium text-ink">
             {title}
-            {items.length > 0 && <span className="ms-2 text-sm font-normal text-muted">{items.length} to do</span>}
+            {items.length > 0 && <span className="ms-2 text-sm font-normal text-muted">{items.length} <Tx>to do</Tx></span>}
           </h2>
           {description && <p className="mt-1 text-sm text-muted">{description}</p>}
         </div>
         {kinds.length > 1 && (
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by type">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={tl("Filter by type")}>
             {(["all", ...kinds] as const).map((k) => {
               const count = k === "all" ? items.length : items.filter((i) => i.kind === k).length;
               return (
@@ -177,7 +180,7 @@ export function TodayQueue({
               </div>
             );
           })}
-          {visible.length === 0 && <p className="text-sm text-muted">Nothing of this type.</p>}
+          {visible.length === 0 && <p className="text-sm text-muted"><Tx>Nothing of this type.</Tx></p>}
         </div>
       )}
     </section>

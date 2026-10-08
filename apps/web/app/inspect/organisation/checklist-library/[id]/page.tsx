@@ -14,6 +14,8 @@ import { ExportButton } from "./export-button";
 import { EditTemplateForm } from "./edit-template-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * R46: staff get the full builder (edit details incl. client scope, add/import/export items).
@@ -23,6 +25,7 @@ import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
  * read-only view: no edit form, no add/import/export actions.
  */
 export default async function ChecklistLibraryTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const tl = await getTranslator();
   const { id } = await params;
   const session = await requireSession();
 
@@ -58,7 +61,7 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
             <PageGuide
-              title="Checklist / Form Template — how this works"
+              title={tl("Checklist / Form Template — how this works")}
               points={[
                 "Staff get the full builder here: edit the template's details (including which client org it's scoped to, if any), add/import/export items. A non-staff viewer only ever reaches a template RLS already resolved as visible to them (global, or scoped to their own org) and gets a read-only view — no edit form, no add/import/export actions.",
                 "You only ever reach this page for a template you're allowed to see — a non-staff user requesting one outside their visibility gets a plain 404, no separate redirect logic needed.",
@@ -98,13 +101,13 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
       {session.isJagsStaff && (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <div>
-            <h2 className="text-sm font-semibold text-ink">Add an item</h2>
+            <h2 className="text-sm font-semibold text-ink"><T>Add an item</T></h2>
             <div className="mt-2">
               <AddItemForm templateId={template.id} />
             </div>
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-ink">Import from Excel</h2>
+            <h2 className="text-sm font-semibold text-ink"><T>Import from Excel</T></h2>
             <div className="mt-2">
               <ImportPanel templateId={template.id} />
             </div>

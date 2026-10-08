@@ -7,6 +7,8 @@ import { sha256HexOfBlob } from "@/lib/databook/sha256-stream";
 import { uploadWithResume } from "@/lib/storage/upload-client";
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /** Storage keys must be plain ASCII: keep the readable part, replace the rest. The ORIGINAL file name
  *  (Arabic, Chinese, ...) is recorded in the certificate notes instead of being lost as "____.pdf". */
@@ -47,6 +49,7 @@ export function IssueHandoverForm({
   bookNumber: string;
   isConditional?: boolean;
 }) {
+  const tl = useTranslate();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -136,13 +139,13 @@ export function IssueHandoverForm({
       <form ref={formRef} onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
         <div>
           <label htmlFor={`certificate_number_${dataBookId}`} className="block text-xs font-medium text-ink">
-            Certificate reference (optional)
+            <Tx>Certificate reference (optional)</Tx>
           </label>
           <input
             id={`certificate_number_${dataBookId}`}
             name="certificate_number"
             maxLength={60}
-            placeholder="blank = next HC-###"
+            placeholder={tl("blank = next HC-###")}
             disabled={pending}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
           />
@@ -150,7 +153,7 @@ export function IssueHandoverForm({
 
         <div>
           <label htmlFor={`package_file_${dataBookId}`} className="block text-xs font-medium text-ink">
-            Package file
+            <Tx>Package file</Tx>
           </label>
           <input
             id={`package_file_${dataBookId}`}
@@ -164,7 +167,7 @@ export function IssueHandoverForm({
 
         <div className="w-full">
           <label htmlFor={`handover_notes_${dataBookId}`} className="block text-xs font-medium text-ink">
-            Notes for the certificate (optional)
+            <Tx>Notes for the certificate (optional)</Tx>
           </label>
           <textarea
             id={`handover_notes_${dataBookId}`}
@@ -191,18 +194,17 @@ export function IssueHandoverForm({
 
       {confirming && (
         <ConfirmTypeDialog
-          title="Issue this handover to the client?"
+          title={tl("Issue this handover to the client?")}
           phrase={bookNumber}
           confirmLabel="Issue handover"
           onCancel={() => setConfirming(null)}
           onConfirm={() => void issue(confirming.file, confirming.formData)}
         >
           <p>
-            This certifies Data Book <strong>{bookNumber}</strong> and the package <strong>{confirming.file.name}</strong> ({formatBytes(confirming.file.size)}) and makes both visible
-            to the client. It cannot be undone.
+            <Tx>This certifies Data Book</Tx> <strong>{bookNumber}</strong> <Tx>and the package</Tx> <strong>{confirming.file.name}</strong> ({formatBytes(confirming.file.size)}<Tx>) and makes both visible to the client. It cannot be undone.</Tx>
           </p>
-          {isConditional && <p className="text-warning">This is a Conditional Handover: the open items recorded at compile time will be listed on the certificate.</p>}
-          <p className="text-xs text-muted">The client will be notified and asked to acknowledge receipt.</p>
+          {isConditional && <p className="text-warning"><Tx>This is a Conditional Handover: the open items recorded at compile time will be listed on the certificate.</Tx></p>}
+          <p className="text-xs text-muted"><Tx>The client will be notified and asked to acknowledge receipt.</Tx></p>
         </ConfirmTypeDialog>
       )}
     </>

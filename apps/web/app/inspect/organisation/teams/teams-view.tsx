@@ -7,6 +7,8 @@ import { TeamCard, type TeamCardData, type StaffOption, type ProjectOption } fro
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface StaffRow {
   id: string;
@@ -35,6 +37,7 @@ interface TeamAssignmentJoinRow {
  * with no lead role of their own has no reason to be here, same boundary as Staff Access.
  */
 export async function TeamsView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
@@ -102,9 +105,9 @@ export async function TeamsView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Teams</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Teams</T></Heading>
         <PageGuide
-          title="Teams — how this works"
+          title={tl("Teams — how this works")}
           points={[
             "JAGS-internal staff groupings only — who's on which team, who leads it, which projects it's responsible for. Every JAGS staff account can see every team; only a JAGS Admin or that team's own lead can manage one.",
             "Visible only to a JAGS Admin (full control over every team) or a staff account that leads at least one team (control over their own team's membership/assignments only) — a plain Inspector with no lead role is redirected away.",
@@ -114,9 +117,7 @@ export async function TeamsView({ embedded }: { embedded?: boolean }) {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        JAGS-internal staff groupings — which staff belong to which team, who leads it, and which
-        projects that team is responsible for. A team lead can manage their own team&apos;s
-        membership and project assignments; a JAGS Admin can manage every team.
+        <T>JAGS-internal staff groupings — which staff belong to which team, who leads it, and which projects that team is responsible for. A team lead can manage their own team&apos;s membership and project assignments; a JAGS Admin can manage every team.</T>
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -136,7 +137,7 @@ export async function TeamsView({ embedded }: { embedded?: boolean }) {
         {teamCards.map((team) => (
           <TeamCard key={team.id} team={team} staff={staffOptions} projects={projects ?? []} />
         ))}
-        {teamCards.length === 0 && <p className="text-sm text-muted">No teams yet.</p>}
+        {teamCards.length === 0 && <p className="text-sm text-muted"><T>No teams yet.</T></p>}
       </div>
     </div>
   );

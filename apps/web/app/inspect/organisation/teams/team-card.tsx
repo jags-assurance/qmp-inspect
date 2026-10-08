@@ -11,6 +11,7 @@ import {
   unassignTeamFromProjectAction,
   type TeamActionState,
 } from "@/lib/teams/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: TeamActionState = { error: null };
 
@@ -54,22 +55,22 @@ export function TeamCard({
         <div className="flex items-center gap-2">
           <h2 className="font-medium text-ink">{team.name}</h2>
           <Badge tone="neutral">
-            {team.members.length} member{team.members.length === 1 ? "" : "s"}
+            {team.members.length} <Tx>member</Tx>{team.members.length === 1 ? "" : "s"}
           </Badge>
           <Badge tone="neutral">
-            {team.assignedProjects.length} project{team.assignedProjects.length === 1 ? "" : "s"}
+            {team.assignedProjects.length} <Tx>project</Tx>{team.assignedProjects.length === 1 ? "" : "s"}
           </Badge>
         </div>
-        {!team.canManage && <span className="text-xs text-muted">View only</span>}
+        {!team.canManage && <span className="text-xs text-muted"><Tx>View only</Tx></span>}
       </div>
 
       <div className="mt-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">Members</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>Members</Tx></p>
         <ul className="mt-2 space-y-1.5">
           {team.members.map((m) => (
             <MemberRow key={m.userId} teamId={team.id} member={m} canManage={team.canManage} />
           ))}
-          {team.members.length === 0 && <li className="text-sm text-muted">No members yet.</li>}
+          {team.members.length === 0 && <li className="text-sm text-muted"><Tx>No members yet.</Tx></li>}
         </ul>
         {team.canManage && availableStaff.length > 0 && (
           <AddMemberForm teamId={team.id} staff={availableStaff} />
@@ -77,12 +78,12 @@ export function TeamCard({
       </div>
 
       <div className="mt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">Assigned projects</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>Assigned projects</Tx></p>
         <ul className="mt-2 space-y-1.5">
           {team.assignedProjects.map((p) => (
             <AssignedProjectRow key={p.projectId} teamId={team.id} project={p} canManage={team.canManage} />
           ))}
-          {team.assignedProjects.length === 0 && <li className="text-sm text-muted">No projects assigned.</li>}
+          {team.assignedProjects.length === 0 && <li className="text-sm text-muted"><Tx>No projects assigned.</Tx></li>}
         </ul>
         {team.canManage && availableProjects.length > 0 && (
           <AssignProjectForm teamId={team.id} projects={availableProjects} />
@@ -110,7 +111,7 @@ function MemberRow({
         {member.fullName} <span className="text-muted">({member.email})</span>
       </span>
       <span className="flex items-center gap-2">
-        {member.isTeamLead && <Badge tone="success">Team lead</Badge>}
+        {member.isTeamLead && <Badge tone="success"><Tx>Team lead</Tx></Badge>}
         {canManage && (
           <>
             <form action={leadAction} className="inline">
@@ -125,7 +126,7 @@ function MemberRow({
               <input type="hidden" name="team_id" value={teamId} />
               <input type="hidden" name="user_id" value={member.userId} />
               <button type="submit" disabled={removePending} className="text-xs text-danger hover:underline disabled:opacity-50">
-                Remove
+                <Tx>Remove</Tx>
               </button>
             </form>
           </>
@@ -156,7 +157,7 @@ function AddMemberForm({ teamId, staff }: { teamId: string; staff: StaffOption[]
         ))}
       </select>
       <label className="flex items-center gap-1 text-xs text-ink">
-        <input type="checkbox" name="is_team_lead" /> Team lead
+        <input type="checkbox" name="is_team_lead" /> <Tx>Team lead</Tx>
       </label>
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Adding…" : "+ Add member"}
@@ -185,7 +186,7 @@ function AssignedProjectRow({
           <input type="hidden" name="team_id" value={teamId} />
           <input type="hidden" name="project_id" value={project.projectId} />
           <button type="submit" disabled={pending} className="text-xs text-danger hover:underline disabled:opacity-50">
-            Unassign
+            <Tx>Unassign</Tx>
           </button>
         </form>
       )}

@@ -1,4 +1,5 @@
 import type { ItpMasterRevisionRow } from "@/lib/itp-master/revision-types";
+import { T } from "@/components/domain/t";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -22,10 +23,9 @@ export function VersionHistoryPanel({
 
   return (
     <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-medium text-ink">Version history</h2>
+      <h2 className="text-sm font-medium text-ink"><T>Version history</T></h2>
       <p className="mt-1 text-xs text-muted">
-        {revisions.length} recorded {revisions.length === 1 ? "version" : "versions"} — the content each superseded, frozen at the
-        moment it changed.
+        {revisions.length} <T>recorded</T> {revisions.length === 1 ? "version" : "versions"} <T>— the content each superseded, frozen at the moment it changed.</T>
       </p>
       <ul className="mt-3 space-y-2">
         {revisions.map((rev) => {
@@ -34,7 +34,7 @@ export function VersionHistoryPanel({
             <li key={rev.id}>
               <details className="rounded-md border border-border">
                 <summary className="cursor-pointer select-none px-3 py-2 text-sm">
-                  <span className="doc-id font-medium text-ink">v{rev.version}</span>{" "}
+                  <span className="doc-id font-medium text-ink"><T>v</T>{rev.version}</span>{" "}
                   <span className="text-muted">
                     — {new Date(rev.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
                     {rev.users?.full_name ? ` · ${rev.users.full_name}` : ""}
@@ -49,7 +49,7 @@ export function VersionHistoryPanel({
                   </p>
                   <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
                     {rev.sections_snapshot.length} {rev.sections_snapshot.length === 1 ? "section" : "sections"}, {itemCount}{" "}
-                    {itemCount === 1 ? "activity" : "activities"} at this version
+                    {itemCount === 1 ? "activity" : "activities"} <T>at this version</T>
                   </p>
                   <div className="mt-2 space-y-3">
                     {rev.sections_snapshot.map((section) => (
@@ -66,7 +66,7 @@ export function VersionHistoryPanel({
                               {EVIDENCE_LABEL[item.evidence_type] ?? "Checklist"}
                             </li>
                           ))}
-                          {section.items.length === 0 && <li className="text-xs text-muted">No activities in this section.</li>}
+                          {section.items.length === 0 && <li className="text-xs text-muted"><T>No activities in this section.</T></li>}
                         </ul>
                       </div>
                     ))}

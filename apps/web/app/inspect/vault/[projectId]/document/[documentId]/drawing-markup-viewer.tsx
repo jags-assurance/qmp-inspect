@@ -7,6 +7,8 @@ import { DRAWING_MARKUP_TYPE_LABELS, type DrawingMarkupRow, type DrawingMarkupTy
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 
@@ -62,6 +64,7 @@ export function DrawingMarkupViewer({
   markups: DrawingMarkupRow[];
   ncrOptions: NcrOption[];
 }) {
+  const tl = useTranslate();
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [pendingPin, setPendingPin] = useState<{ x: number; y: number } | null>(null);
   const [selectedMarkup, setSelectedMarkup] = useState<DrawingMarkupRow | null>(null);
@@ -172,7 +175,7 @@ export function DrawingMarkupViewer({
     return (
       <div className="rounded-lg border border-border bg-surface p-4">
         {signedUrl && fileExtension(storagePath) === "pdf" && (
-          <iframe src={signedUrl} title="Document preview" className="mb-3 h-[70vh] w-full rounded-md border border-border bg-off-white" />
+          <iframe src={signedUrl} title={tl("Document preview")} className="mb-3 h-[70vh] w-full rounded-md border border-border bg-off-white" />
         )}
         <p className="text-sm text-muted">
           {fileExtension(storagePath) === "pdf"
@@ -182,16 +185,16 @@ export function DrawingMarkupViewer({
         {signedUrl && (
           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <a href={signedUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
-              Open in new tab ↗
+              <Tx>Open in new tab ↗</Tx>
             </a>
             <a href={signedUrl} download className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
-              Download
+              <Tx>Download</Tx>
             </a>
           </p>
         )}
         {markups.length > 0 && (
           <div className="mt-4">
-            <h2 className="text-sm font-semibold text-ink">Pins on this document</h2>
+            <h2 className="text-sm font-semibold text-ink"><Tx>Pins on this document</Tx></h2>
             <ul className="mt-2 space-y-1 text-sm text-ink">
               {markups.map((m) => (
                 <li key={m.id}>
@@ -210,7 +213,7 @@ export function DrawingMarkupViewer({
       <div
         tabIndex={0}
         role="group"
-        aria-label="Drawing. Press Enter to place a pin at the centre, then use the arrow keys to move it (Shift for larger steps), then Tab to the label form. Escape cancels."
+        aria-label={tl("Drawing. Press Enter to place a pin at the centre, then use the arrow keys to move it (Shift for larger steps), then Tab to the label form. Escape cancels.")}
         onKeyDown={handleDrawingKeyDown}
         className="relative inline-block max-w-full rounded-lg border border-border bg-off-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-burgundy"
       >
@@ -222,7 +225,7 @@ export function DrawingMarkupViewer({
             className="block max-w-full cursor-crosshair select-none"
           />
         ) : (
-          <div className="flex h-64 w-96 items-center justify-center text-sm text-muted">Loading…</div>
+          <div className="flex h-64 w-96 items-center justify-center text-sm text-muted"><Tx>Loading…</Tx></div>
         )}
 
         {markups.map((m) => (
@@ -258,13 +261,13 @@ export function DrawingMarkupViewer({
       <div className="w-full max-w-sm shrink-0 space-y-4">
         {pendingPin && (
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">+ Add pin</h2>
+            <h2 className="text-sm font-semibold text-ink"><Tx>+ Add pin</Tx></h2>
             <div className="mt-3">
               <FormField label="Label">
                 <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="e.g. Hold point at this valve"
+                placeholder={tl("e.g. Hold point at this valve")}
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
               />
               </FormField>
@@ -276,7 +279,7 @@ export function DrawingMarkupViewer({
                 onChange={(e) => setLinkedNcrId(e.target.value)}
                 className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
               >
-                <option value="">— None —</option>
+                <option value=""><Tx>— None —</Tx></option>
                 {ncrOptions.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.label}
@@ -293,8 +296,8 @@ export function DrawingMarkupViewer({
                   onChange={(e) => setMarkupType(e.target.value as DrawingMarkupType)}
                   className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
                 >
-                  <option value="note">Note</option>
-                  <option value="photo">Photo</option>
+                  <option value="note"><Tx>Note</Tx></option>
+                  <option value="photo"><Tx>Photo</Tx></option>
                 </select>
                 </FormField>
               </div>
@@ -305,7 +308,7 @@ export function DrawingMarkupViewer({
                 {saving ? "Saving…" : "Drop pin"}
               </Button>
               <Button size="sm" variant="outline" onClick={() => setPendingPin(null)} disabled={saving}>
-                Cancel
+                <Tx>Cancel</Tx>
               </Button>
             </div>
           </div>
@@ -316,13 +319,13 @@ export function DrawingMarkupViewer({
             <div className="flex items-center justify-between">
               <Badge tone="neutral">{DRAWING_MARKUP_TYPE_LABELS[selectedMarkup.markup_type]}</Badge>
               <button type="button" onClick={() => setSelectedMarkup(null)} className="text-xs text-muted hover:underline">
-                Close
+                <Tx>Close</Tx>
               </button>
             </div>
             <p className="mt-2 text-sm text-ink">{selectedMarkup.label}</p>
             {selectedMarkup.linked_entity_id && (
               <p className="mt-1 text-xs text-muted">
-                Linked NCR:{" "}
+                <Tx>Linked NCR:</Tx>{" "}
                 {ncrOptions.find((n) => n.id === selectedMarkup.linked_entity_id)?.label ?? selectedMarkup.linked_entity_id}
               </p>
             )}
@@ -332,13 +335,13 @@ export function DrawingMarkupViewer({
 
         {!pendingPin && !selectedMarkup && (
           <p className="text-sm text-muted">
-            Click a point on the drawing to drop a labeled pin. Keyboard: focus the drawing, press Enter, then use the arrow keys to position the pin.
+            <Tx>Click a point on the drawing to drop a labeled pin. Keyboard: focus the drawing, press Enter, then use the arrow keys to position the pin.</Tx>
           </p>
         )}
 
         {markups.length > 0 && (
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">All pins ({markups.length})</h2>
+            <h2 className="text-sm font-semibold text-ink"><Tx>All pins (</Tx>{markups.length})</h2>
             <ul className="mt-2 space-y-1">
               {markups.map((m) => (
                 <li key={m.id}>

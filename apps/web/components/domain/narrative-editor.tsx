@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { cleanUpNarrativeAction, type CleanUpNarrativeState, type DraftReportNarrativeState, type SaveNarrativeState } from "@/lib/reports/actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const draftInitialState: DraftReportNarrativeState = { error: null, narrative: null, aiLogId: null };
 const saveInitialState: SaveNarrativeState = { error: null };
@@ -34,6 +36,7 @@ export function NarrativeEditor({
   draftAction: (state: DraftReportNarrativeState, formData: FormData) => Promise<DraftReportNarrativeState>;
   saveAction: (state: SaveNarrativeState, formData: FormData) => Promise<SaveNarrativeState>;
 }) {
+  const tl = useTranslate();
   const [draftState, draftFormAction, draftPending] = useActionState(draftAction, draftInitialState);
   const [saveState, saveFormAction, savePending] = useActionState(saveAction, saveInitialState);
   const [cleanupState, cleanupFormAction, cleanupPending] = useActionState(cleanUpNarrativeAction, cleanupInitialState);
@@ -64,7 +67,7 @@ export function NarrativeEditor({
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-ink">Report conclusion / narrative</h2>
+        <h2 className="text-sm font-medium text-ink"><Tx>Report conclusion / narrative</Tx></h2>
         <form action={draftFormAction}>
           <input type="hidden" name={recordIdFieldName} value={recordId} />
           <button
@@ -77,7 +80,7 @@ export function NarrativeEditor({
         </form>
       </div>
       <p className="mt-1 text-xs text-muted">
-        Used as the PDF&apos;s conclusion paragraph once saved. Leave blank to use the automatic factual summary instead.
+        <Tx>Used as the PDF&apos;s conclusion paragraph once saved. Leave blank to use the automatic factual summary instead.</Tx>
       </p>
 
       {draftState.error && <p role="alert" className="mt-2 text-xs text-danger">{draftState.error}</p>}
@@ -94,7 +97,7 @@ export function NarrativeEditor({
             setCleanupDiscarded(false);
           }}
           rows={4}
-          placeholder="e.g. The inspection of... was completed in accordance with... The recorded result is..."
+          placeholder={tl("e.g. The inspection of... was completed in accordance with... The recorded result is...")}
           className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         <div className="flex items-center gap-3">
@@ -129,7 +132,7 @@ export function NarrativeEditor({
 
       {showCleanupSuggestion && (
         <div className="mt-3 rounded-md border border-border bg-off-white p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">AI-cleaned-up suggestion</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>AI-cleaned-up suggestion</Tx></p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{cleanupState.cleaned}</p>
           <div className="mt-2 flex gap-2">
             <button
@@ -140,14 +143,14 @@ export function NarrativeEditor({
               }}
               className="rounded-md bg-burgundy px-3 py-1.5 text-xs font-medium text-white hover:bg-burgundy-dark"
             >
-              Accept
+              <Tx>Accept</Tx>
             </button>
             <button
               type="button"
               onClick={() => setCleanupDiscarded(true)}
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-off-white"
             >
-              Discard
+              <Tx>Discard</Tx>
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * A small "Guide" button next to a page's own <h1> — click-to-open, not always-on text, so it
@@ -45,7 +46,7 @@ export function PageGuide({
           <path d="M8 8a2 2 0 1 1 2.6 1.9c-.5.2-.9.6-.9 1.1v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           <circle cx="10" cy="13.8" r=".9" fill="currentColor" stroke="none" />
         </svg>
-        Guide
+        <Tx>Guide</Tx>
       </button>
 
       {open && (
@@ -62,7 +63,7 @@ export function PageGuide({
               className="mt-3 inline-block text-xs font-medium text-burgundy hover:underline"
               onClick={() => setOpen(false)}
             >
-              Full app guide →
+              <Tx>Full app guide →</Tx>
             </Link>
           )}
         </div>

@@ -14,6 +14,8 @@ import { filterByArchive, parseArchiveFilter } from "@/lib/checklists/template-u
 import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
 import { AssignedToMe } from "@/components/domain/assigned-to-me";
 import { filterAssignedToMe, parseAssignedFilter } from "@/lib/checklists/assignment-logic";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -46,6 +48,7 @@ export default async function StartWorkPage({
 }: {
   searchParams: Promise<{ q?: string; status?: string; project?: string; due?: string; archived?: string; assigned?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
   const sp = await searchParams;
@@ -158,9 +161,9 @@ export default async function StartWorkPage({
   return (
     <div className="max-w-4xl">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Start work</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Start work</T></h1>
         <PageGuide
-          title="Start work — how this works"
+          title={tl("Start work — how this works")}
           points={[
             "Only JAGS staff see this page — anyone else is redirected straight back to the dashboard.",
             "Both cards just link to a real creation form — nothing is created by clicking here, only once you submit that form.",
@@ -170,14 +173,13 @@ export default async function StartWorkPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Choose the workflow that best matches the engagement. Both options take you to the real
-        creation form — nothing is created until you submit it there.
+        <T>Choose the workflow that best matches the engagement. Both options take you to the real creation form — nothing is created until you submit it there.</T>
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <WorkModeCard
           badge="Full workflow"
-          title="ITP-driven project"
+          title={tl("ITP-driven project")}
           description="Plan and control a project through approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off."
           bullets={[
             "Structured ITP workflow",
@@ -191,7 +193,7 @@ export default async function StartWorkPage({
         />
         <WorkModeCard
           badge="Quick setup"
-          title="Standalone assignment"
+          title={tl("Standalone assignment")}
           description="Create a focused inspection without building a full project ITP. Ideal for FATs, vendor visits and one-off verification."
           bullets={[
             "Fast assignment setup",
@@ -207,39 +209,39 @@ export default async function StartWorkPage({
       <AssignedToMe items={assignedQueue} />
 
       <section className="mt-10" aria-labelledby="activities-heading">
-        <h2 id="activities-heading" className="text-lg font-semibold text-ink">Activities ready for site work</h2>
+        <h2 id="activities-heading" className="text-lg font-semibold text-ink"><T>Activities ready for site work</T></h2>
         <p className="mt-1 text-sm text-muted">
-          Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.
+          <T>Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.</T>
         </p>
         <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
 <ScanSearchInput defaultValue={sp.q ?? ""} />
-          <select name="project" defaultValue={projectFilter} aria-label="Project" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value="">All projects</option>
+          <select name="project" defaultValue={projectFilter} aria-label={tl("Project")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value=""><T>All projects</T></option>
             {projectOptions.map(([id, name]) => (
               <option key={id} value={id}>{name}</option>
             ))}
           </select>
-          <select name="status" defaultValue={statusFilter} aria-label="Status" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value="">Any status</option>
+          <select name="status" defaultValue={statusFilter} aria-label={tl("Status")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value=""><T>Any status</T></option>
             {(Object.keys(STATUS_LABEL) as StatusKey[]).map((k) => (
               <option key={k} value={k}>{STATUS_LABEL[k]}</option>
             ))}
           </select>
-          <select name="due" defaultValue={dueFilter} aria-label="Schedule" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value="">Any schedule</option>
-            <option value="overdue">Overdue ({overdueCount})</option>
-            <option value="soon">Due soon - 7 days ({dueSoonCount})</option>
-            <option value="held">Awaiting hold release ({heldCount})</option>
+          <select name="due" defaultValue={dueFilter} aria-label={tl("Schedule")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value=""><T>Any schedule</T></option>
+            <option value="overdue"><T>Overdue (</T>{overdueCount})</option>
+            <option value="soon"><T>Due soon - 7 days (</T>{dueSoonCount})</option>
+            <option value="held"><T>Awaiting hold release (</T>{heldCount})</option>
           </select>
-          <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} aria-label="Archived" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value="">Active checklists</option>
-            <option value="archived">Archived ({archivedIds.size})</option>
+          <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} aria-label={tl("Archived")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value=""><T>Active checklists</T></option>
+            <option value="archived"><T>Archived (</T>{archivedIds.size})</option>
           </select>
-          <select name="assigned" defaultValue={assignedFilter} aria-label="Assignment" className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value="">Everyone&apos;s activities</option>
-            <option value="me">Assigned to me ({assignedMine.length})</option>
+          <select name="assigned" defaultValue={assignedFilter} aria-label={tl("Assignment")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
+            <option value=""><T>Everyone&apos;s activities</T></option>
+            <option value="me"><T>Assigned to me (</T>{assignedMine.length})</option>
           </select>
-          <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">Filter</button>
+          <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"><T>Filter</T></button>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -268,14 +270,14 @@ export default async function StartWorkPage({
               <li key={a.templateId}>
                 <Link href={`/inspect/checklists/${a.templateId}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-off-white">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ms-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy">Assigned to you</span>}</span>
+                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ms-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy"><T>Assigned to you</T></span>}</span>
                     <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                     {a.plannedDate && <span className="text-xs text-muted">{a.plannedDate}</span>}
-                    {a.overdue && <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger">Overdue</span>}
-                    {a.dueSoon && <span className="rounded-full bg-gold/30 px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-burgundy-dark)]">Due soon</span>}
-                    {a.awaitingHold && a.status !== "completed" && <span className="rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-ink">Awaiting hold release</span>}
+                    {a.overdue && <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger"><T>Overdue</T></span>}
+                    {a.dueSoon && <span className="rounded-full bg-gold/30 px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-burgundy-dark)]"><T>Due soon</T></span>}
+                    {a.awaitingHold && a.status !== "completed" && <span className="rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-ink"><T>Awaiting hold release</T></span>}
                     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>
                       {STATUS_LABEL[a.status]}
                     </span>

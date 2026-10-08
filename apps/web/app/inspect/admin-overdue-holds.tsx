@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/ui/stat-card";
 import { Watchlist } from "@/components/ui/watchlist";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export interface OverdueHoldPointItem {
   id: string;
@@ -70,11 +72,12 @@ export async function OverdueHoldsTile() {
 }
 
 export async function OverdueHoldsCard() {
+  const tl = await getTranslator();
   const items = await getOverdueHoldPoints();
   return (
     <Watchlist
       anchorId="overdue-holds"
-      title="Overdue hold points"
+      title={tl("Overdue hold points")}
       total={items.length}
       description="Blocking sign-offs notified past their notice period, or still open after the activity's planned date."
       items={items}
@@ -89,13 +92,13 @@ export async function OverdueHoldsCard() {
             <span className="min-w-0 truncate text-muted" title={`${item.itpNumber} · ${item.projectLabel}`}>
               {item.projectLabel}
             </span>
-            <span className="shrink-0 whitespace-nowrap font-semibold text-danger">{item.daysOpen}d overdue</span>
+            <span className="shrink-0 whitespace-nowrap font-semibold text-danger">{item.daysOpen}<T>d overdue</T></span>
           </span>
           <span className="mt-0.5 block text-xs text-muted">
             {item.reason}
             {item.plannedDate ? ` (planned ${item.plannedDate})` : ""}
           </span>
-          <span className="mt-1 block text-xs font-medium text-burgundy">Review →</span>
+          <span className="mt-1 block text-xs font-medium text-burgundy"><T>Review →</T></span>
         </Link>
       )}
     />

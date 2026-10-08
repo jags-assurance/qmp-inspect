@@ -3,10 +3,12 @@
 import { useActionState } from "react";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/standalone/actions";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddPunchItemState = { error: null };
 
 export function AddPunchItemForm({ assignmentId }: { assignmentId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addPunchItemAction, initialState);
 
   return (
@@ -18,7 +20,7 @@ export function AddPunchItemForm({ assignmentId }: { assignmentId: string }) {
           <input
           name="description"
           required
-          placeholder="What needs fixing…"
+          placeholder={tl("What needs fixing…")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

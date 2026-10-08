@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import { BarcodeScanButton } from "@/components/ui/barcode-scan-button";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /** The start-work search box with a camera scan button: a scanned checklist code fills the box and runs the search. */
 export function ScanSearchInput({ defaultValue }: { defaultValue: string }) {
+  const tl = useTranslate();
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
   return (
@@ -15,7 +17,7 @@ export function ScanSearchInput({ defaultValue }: { defaultValue: string }) {
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search activity, ITP or checklist"
+        placeholder={tl("Search activity, ITP or checklist")}
         className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       <BarcodeScanButton

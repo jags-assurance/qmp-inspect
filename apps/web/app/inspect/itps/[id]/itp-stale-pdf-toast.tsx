@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Was a full-width banner shown persistently for as long as the ITP stayed newer than its last
@@ -16,6 +18,7 @@ import { useEffect, useState } from "react";
  * auto-dismissed on them).
  */
 export function ItpStalePdfToast({ isStale, changedAt }: { isStale: boolean; changedAt: string }) {
+  const tl = useTranslate();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -48,11 +51,11 @@ export function ItpStalePdfToast({ isStale, changedAt }: { isStale: boolean; cha
       className="fixed bottom-4 right-4 z-40 max-w-sm rounded-md border border-warning/60 bg-warning/10 px-4 py-3 text-sm font-medium text-warning shadow-lg"
     >
       <div className="flex items-start gap-3">
-        <span className="flex-1">This ITP has changed since its PDF was last generated — use &ldquo;⋯ More → Regenerate PDF&rdquo; to pick up the latest state.</span>
+        <span className="flex-1"><Tx>This ITP has changed since its PDF was last generated — use &ldquo;⋯ More → Regenerate PDF&rdquo; to pick up the latest state.</Tx></span>
         <button
           type="button"
           onClick={() => setVisible(false)}
-          aria-label="Dismiss"
+          aria-label={tl("Dismiss")}
           className="shrink-0 text-warning/70 hover:text-warning"
         >
           ✕

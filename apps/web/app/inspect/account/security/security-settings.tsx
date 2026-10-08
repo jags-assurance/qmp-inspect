@@ -9,6 +9,7 @@ import {
   type MfaState,
 } from "@/lib/auth/mfa-actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initial: MfaState = { error: null };
 
@@ -27,7 +28,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
   if (verifiedFactorId || confirmState.success) {
     return (
       <section className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <p className="text-sm text-ink">✓ Two-step sign-in is on for your account.</p>
+        <p className="text-sm text-ink"><Tx>✓ Two-step sign-in is on for your account.</Tx></p>
         {verifiedFactorId && (
           <form action={removeAction} className="mt-3">
             <input type="hidden" name="factor_id" value={verifiedFactorId} />
@@ -46,7 +47,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
     <section className="mt-6 rounded-lg border border-border bg-surface p-4">
       {!enrol?.factorId ? (
         <>
-          <p className="text-sm text-ink">Two-step sign-in is off.</p>
+          <p className="text-sm text-ink"><Tx>Two-step sign-in is off.</Tx></p>
           <Button type="button" onClick={start} disabled={starting} className="mt-3">
             {starting ? "Starting…" : "Set up an authenticator app"}
           </Button>
@@ -54,13 +55,13 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
         </>
       ) : (
         <form action={confirmAction} className="space-y-3">
-          <p className="text-sm text-ink">1. Scan this code with your authenticator app (or type the secret).</p>
+          <p className="text-sm text-ink"><Tx>1. Scan this code with your authenticator app (or type the secret).</Tx></p>
           {/* A data: SVG from Supabase; next/image adds nothing for it. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {enrol.qr && <img src={enrol.qr} alt="QR code for your authenticator app" width={180} height={180} className="rounded border border-border bg-white p-2" />}
-          <p className="text-xs text-muted">Secret: <code className="doc-id select-all">{enrol.secret}</code></p>
+          <p className="text-xs text-muted"><Tx>Secret:</Tx> <code className="doc-id select-all">{enrol.secret}</code></p>
           <input type="hidden" name="factor_id" value={enrol.factorId} />
-          <label htmlFor="enrol-code" className="block text-sm text-ink">2. Enter the 6-digit code it shows</label>
+          <label htmlFor="enrol-code" className="block text-sm text-ink"><Tx>2. Enter the 6-digit code it shows</Tx></label>
           <input
             id="enrol-code"
             name="code"

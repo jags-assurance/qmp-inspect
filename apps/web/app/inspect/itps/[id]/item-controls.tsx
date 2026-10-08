@@ -11,6 +11,8 @@ import {
   type DeleteItemState,
   type EditItemState,
 } from "@/lib/itps/actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: EditItemState = { error: null };
 const initialDeleteState: DeleteItemState = { error: null };
@@ -55,6 +57,7 @@ export function ItemControls({
   disciplines: { id: string; code: string; name: string }[];
   isIssued: boolean;
 }) {
+  const tl = useTranslate();
   const [isEditing, setIsEditing] = useState(false);
   const [state, formAction, pending] = useActionState(editItpItemAction, initialState);
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteItpItemAction, initialDeleteState);
@@ -115,7 +118,7 @@ export function ItemControls({
             onClick={() => setIsEditing(true)}
             className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
           >
-            Edit
+            <Tx>Edit</Tx>
           </button>
           {(["up", "down"] as const).map((direction) => (
             <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={gateSubmit(revisionOpts, "revision_reason")}>
@@ -173,26 +176,26 @@ export function ItemControls({
       <input
         name="acceptance_criteria"
         defaultValue={acceptanceCriteria ?? ""}
-        placeholder="Acceptance criteria"
+        placeholder={tl("Acceptance criteria")}
         className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
       />
       <div className="flex flex-wrap gap-1.5">
         <input
           name="reference_spec"
           defaultValue={referenceSpec ?? ""}
-          placeholder="Reference spec / clause"
+          placeholder={tl("Reference spec / clause")}
           className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
         <input
           name="method"
           defaultValue={method ?? ""}
-          placeholder="Method"
+          placeholder={tl("Method")}
           className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
         <input
           name="frequency"
           defaultValue={frequency ?? ""}
-          placeholder="Frequency / sample"
+          placeholder={tl("Frequency / sample")}
           className="w-32 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
       </div>
@@ -202,16 +205,16 @@ export function ItemControls({
           defaultValue={String(evidenceType)}
           className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         >
-          <option value="1">Checklist</option>
-          <option value="2">Document upload</option>
-          <option value="3">Measurement</option>
+          <option value="1"><Tx>Checklist</Tx></option>
+          <option value="2"><Tx>Document upload</Tx></option>
+          <option value="3"><Tx>Measurement</Tx></option>
         </select>
         <select
           name="discipline_id"
           defaultValue={disciplineId ?? ""}
           className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         >
-          <option value="">— Discipline —</option>
+          <option value=""><Tx>— Discipline —</Tx></option>
           {disciplines.map((d) => (
             <option key={d.id} value={d.id}>
               {d.code}
@@ -223,20 +226,20 @@ export function ItemControls({
           type="number"
           min={0}
           defaultValue={noticeHoursOverride ?? ""}
-          placeholder="Notice hrs"
+          placeholder={tl("Notice hrs")}
           className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
         <input
           name="planned_date"
           type="date"
           defaultValue={plannedDate ?? ""}
-          aria-label="Planned date"
-          title="Planned date"
+          aria-label={tl("Planned date")}
+          title={tl("Planned date")}
           className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         />
       </div>
       <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <legend className="mb-0.5 text-xs text-muted">Registers this activity needs (leave all unticked to let the system infer it)</legend>
+        <legend className="mb-0.5 text-xs text-muted"><Tx>Registers this activity needs (leave all unticked to let the system infer it)</Tx></legend>
         <input type="hidden" name="registers_sent" value="1" />
         {REGISTER_KINDS.map((kind) => (
           <label key={kind} className="flex items-center gap-1 text-xs text-ink">
@@ -258,7 +261,7 @@ export function ItemControls({
           onClick={() => setIsEditing(false)}
           className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white"
         >
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}

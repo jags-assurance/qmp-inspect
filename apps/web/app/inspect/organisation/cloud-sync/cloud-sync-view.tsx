@@ -8,6 +8,8 @@ import { OrgPickerForm } from "../numbering/org-picker-form";
 import { CloudFolderSyncForm } from "./cloud-folder-sync-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationOption {
   id: string;
@@ -24,6 +26,7 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -51,9 +54,9 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Cloud folder sync</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Cloud folder sync</T></Heading>
         <PageGuide
-          title="Cloud folder sync — how this works"
+          title={tl("Cloud folder sync — how this works")}
           points={[
             "Admin-only — this is an external-integration configuration act, same boundary as Plans & Seats and Reporting, not a self-managed client's own org setting like branding/numbering.",
             "You can save which SharePoint/OneDrive folder to sync against an organisation even before live syncing is possible — the configuration is stored now and syncing begins automatically once a JAGS admin registers an Azure app and sets the Microsoft Graph OAuth env vars (MICROSOFT_GRAPH_CLIENT_ID/SECRET/TENANT_ID).",
@@ -63,22 +66,18 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Point a SharePoint or OneDrive folder at an organisation so its documents can flow into the
-        Document Vault automatically.
+        <T>Point a SharePoint or OneDrive folder at an organisation so its documents can flow into the Document Vault automatically.</T>
       </p>
 
       {!syncConfigured && (
         <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
-          <p className="font-semibold">Not yet connected — requires Microsoft OAuth app credentials.</p>
+          <p className="font-semibold"><T>Not yet connected — requires Microsoft OAuth app credentials.</T></p>
           <p className="mt-1">
-            Live syncing isn&rsquo;t possible in this environment yet: no{" "}
-            <code className="doc-id">MICROSOFT_GRAPH_CLIENT_ID</code> /{" "}
-            <code className="doc-id">MICROSOFT_GRAPH_CLIENT_SECRET</code> /{" "}
-            <code className="doc-id">MICROSOFT_GRAPH_TENANT_ID</code> are configured for this
-            deployment. You can still save which folder should be synced below — that configuration
-            is stored now, and syncing will begin automatically once a JAGS admin registers an Azure
-            app and sets those variables (see the code comment in{" "}
-            <code className="doc-id">lib/cloud-sync/gate.ts</code> for the exact steps).
+            <T>Live syncing isn&rsquo;t possible in this environment yet: no</T>{" "}
+            <code className="doc-id"><T>MICROSOFT_GRAPH_CLIENT_ID</T></code> /{" "}
+            <code className="doc-id"><T>MICROSOFT_GRAPH_CLIENT_SECRET</T></code> /{" "}
+            <code className="doc-id"><T>MICROSOFT_GRAPH_TENANT_ID</T></code> <T>are configured for this deployment. You can still save which folder should be synced below — that configuration is stored now, and syncing will begin automatically once a JAGS admin registers an Azure app and sets those variables (see the code comment in</T>{" "}
+            <code className="doc-id"><T>lib/cloud-sync/gate.ts</T></code> <T>for the exact steps).</T>
           </p>
         </div>
       )}
@@ -91,8 +90,8 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
 
           {config && (
             <p className="mt-1 text-xs text-muted">
-              Currently pointed at a {config.provider === "sharepoint" ? "SharePoint" : "OneDrive"}{" "}
-              folder, saved {new Date(config.connected_at).toLocaleString("en-GB")}.
+              <T>Currently pointed at a</T> {config.provider === "sharepoint" ? "SharePoint" : "OneDrive"}{" "}
+              <T>folder, saved</T> {new Date(config.connected_at).toLocaleString("en-GB")}.
             </p>
           )}
 
@@ -107,9 +106,9 @@ export async function CloudFolderSyncView({ searchParams, embedded }: {
       )}
 
       <p className="mt-8 text-sm text-muted">
-        Looking for Aconex, Procore or ProjectWise instead? See the connector list on the{" "}
+        <T>Looking for Aconex, Procore or ProjectWise instead? See the connector list on the</T>{" "}
         <Link href="/inspect/vault" className="text-burgundy hover:underline">
-          Document Vault
+          <T>Document Vault</T>
         </Link>{" "}
         (R21).
       </p>

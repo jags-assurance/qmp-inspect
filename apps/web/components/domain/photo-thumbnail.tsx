@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteInspectionPhotoAction, updateInspectionPhotoCaptionAction } from "@/lib/checklists/actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Renders one inspection-evidence photo as a thumbnail from an ALREADY-RESOLVED signed URL — the
@@ -25,6 +27,7 @@ export function PhotoThumbnail({
   photoId?: string;
   editable?: boolean;
 }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(caption ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +100,7 @@ export function PhotoThumbnail({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Photo details"
+          aria-label={tl("Photo details")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget && !pending) setOpen(false);
@@ -109,14 +112,14 @@ export function PhotoThumbnail({
               <img src={url} alt={caption ?? "Inspection evidence"} className="max-h-[50vh] w-full rounded-md object-contain" />
             )}
             <label htmlFor={`photo-caption-${photoId}`} className="mt-3 block text-sm font-medium text-ink">
-              Caption
+              <Tx>Caption</Tx>
             </label>
             <input
               id={`photo-caption-${photoId}`}
               value={text}
               maxLength={300}
               onChange={(e) => setText(e.target.value)}
-              placeholder="What does this photo show?"
+              placeholder={tl("What does this photo show?")}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm"
             />
             {error && (
@@ -140,7 +143,7 @@ export function PhotoThumbnail({
                   onClick={() => setConfirming(true)}
                   className="min-h-11 rounded-md border border-danger px-4 text-sm font-medium text-danger disabled:opacity-60"
                 >
-                  Delete
+                  <Tx>Delete</Tx>
                 </button>
               ) : (
                 <button
@@ -158,10 +161,10 @@ export function PhotoThumbnail({
                 onClick={() => setOpen(false)}
                 className="min-h-11 rounded-md border border-border px-4 text-sm font-medium text-ink"
               >
-                Close
+                <Tx>Close</Tx>
               </button>
             </div>
-            {confirming && <p className="mt-2 text-xs text-muted">This permanently removes the photo from the evidence record.</p>}
+            {confirming && <p className="mt-2 text-xs text-muted"><Tx>This permanently removes the photo from the evidence record.</Tx></p>}
           </div>
         </div>
       )}

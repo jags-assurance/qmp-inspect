@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { proposeItpToMasterAction, type ProposeToMasterState } from "@/lib/itp-master/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: ProposeToMasterState = { error: null, success: false };
 
@@ -29,19 +30,19 @@ export function ProposeToMasterForm({
   if (!open) {
     return (
       <Button variant="outline" onClick={() => setOpen(true)}>
-        Propose to master library
+        <Tx>Propose to master library</Tx>
       </Button>
     );
   }
 
   if (state.success) {
-    return <p className="text-sm text-success">Proposal submitted — an admin will review it.</p>;
+    return <p className="text-sm text-success"><Tx>Proposal submitted — an admin will review it.</Tx></p>;
   }
 
   return (
     <form action={formAction} className="w-full max-w-md rounded-lg border border-border bg-surface p-4 text-start">
       <input type="hidden" name="source_itp_id" value={itpId} />
-      <p className="text-sm font-medium text-ink">Propose to master library</p>
+      <p className="text-sm font-medium text-ink"><Tx>Propose to master library</Tx></p>
 
       <div className="mt-3 space-y-1">
         <label className="flex items-center gap-2 text-sm text-ink">
@@ -52,7 +53,7 @@ export function ProposeToMasterForm({
             checked={action === "new_template"}
             onChange={() => setAction("new_template")}
           />
-          New master template
+          <Tx>New master template</Tx>
         </label>
         <label className="flex items-center gap-2 text-sm text-ink">
           <input
@@ -62,7 +63,7 @@ export function ProposeToMasterForm({
             checked={action === "update_existing"}
             onChange={() => setAction("update_existing")}
           />
-          Update an existing master template
+          <Tx>Update an existing master template</Tx>
         </label>
       </div>
 
@@ -84,7 +85,7 @@ export function ProposeToMasterForm({
             required
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">Select…</option>
+            <option value=""><Tx>Select…</Tx></option>
             {masterTemplates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.title}
@@ -112,7 +113,7 @@ export function ProposeToMasterForm({
           {pending ? "Submitting…" : "Submit proposal"}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
-          Cancel
+          <Tx>Cancel</Tx>
         </Button>
       </div>
     </form>

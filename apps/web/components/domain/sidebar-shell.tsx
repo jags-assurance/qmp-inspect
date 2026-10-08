@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { NavItem, OrgBrandingInfo } from "./app-shell";
 import { SidebarNav } from "./sidebar-nav";
 import { useSidebarMobile } from "./sidebar-mobile-context";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const STORAGE_KEY = "jags-sidebar-collapsed";
 
@@ -27,6 +29,7 @@ export function SidebarShell({
   signOutAction: (formData: FormData) => void | Promise<void>;
   orgBranding?: OrgBrandingInfo | null;
 }) {
+  const tl = useTranslate();
   // Reqs R113-R118: engagement_mode drives visual branding the same way it already drives document
   // numbering (lib/numbering/generate.ts's internalReference) — jags_led (or no logo uploaded)
   // renders exactly as before; co_branded shows the org's logo alongside JAGS's own mark; white_label
@@ -123,7 +126,7 @@ export function SidebarShell({
         <button
           type="button"
           tabIndex={-1}
-          aria-label="Close menu"
+          aria-label={tl("Close menu")}
           className="fixed inset-0 z-20 cursor-default bg-black/40 min-[901px]:hidden"
           onClick={() => setMobileOpen(false)}
         />
@@ -134,7 +137,7 @@ export function SidebarShell({
         tabIndex={-1}
         inert={drawerHidden}
         aria-hidden={drawerHidden ? true : undefined}
-        aria-label="Sidebar"
+        aria-label={tl("Sidebar")}
         className={
           "flex h-screen flex-col overflow-y-auto bg-burgundy text-white outline-none transition-all duration-150 " +
           // Desktop (>900px): permanent, sticky column, collapsible width.
@@ -167,10 +170,10 @@ export function SidebarShell({
               style={brandCombo ? { background: `conic-gradient(${brandCombo.join(", ")}, ${brandCombo[0]})` } : undefined}
             >
               <span className={brandCombo ? "flex h-full w-full items-center justify-center rounded-full bg-burgundy" : "contents"}>
-                JA
+                <Tx>JA</Tx>
               </span>
             </div>
-            {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide">JAGS Assurance</span>}
+            {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide"><Tx>JAGS Assurance</Tx></span>}
           </>
         )}
         {isCoBranded && !effectiveCollapsed && (
@@ -204,7 +207,7 @@ export function SidebarShell({
           >
             <path d="M12.5 4.5L7 10l5.5 5.5" />
           </svg>
-          {!collapsed && <span>Collapse</span>}
+          {!collapsed && <span><Tx>Collapse</Tx></span>}
         </button>
       </div>
 
@@ -225,7 +228,7 @@ export function SidebarShell({
         <form action={signOutAction} className={effectiveCollapsed ? "mt-2 flex justify-center" : ""}>
           <button
             type="submit"
-            title="Sign out"
+            title={tl("Sign out")}
             className={
               effectiveCollapsed
                 ? "flex h-7 w-7 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white"
@@ -253,7 +256,7 @@ export function SidebarShell({
           </button>
         </form>
         {isWhiteLabel && !effectiveCollapsed && (
-          <div className="mt-3 text-xs text-white/50">Powered by JAGS Assurance</div>
+          <div className="mt-3 text-xs text-white/50"><Tx>Powered by JAGS Assurance</Tx></div>
         )}
       </div>
       </aside>

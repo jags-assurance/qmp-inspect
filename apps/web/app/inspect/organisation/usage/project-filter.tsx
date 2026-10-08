@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Tx } from "@/components/domain/tx";
 
 /** Plain GET-style filter — the page itself does all the real work (it's a server component reading
  *  ?project= from searchParams), this just needs to change the URL. No client-side data fetching, no
@@ -13,7 +14,7 @@ export function ProjectFilter({ projects }: { projects: { id: string; label: str
 
   return (
     <label className="flex w-full min-w-0 items-center gap-2 text-sm sm:w-auto">
-      <span className="font-medium text-ink">Project</span>
+      <span className="font-medium text-ink"><Tx>Project</Tx></span>
       <select
         value={current}
         onChange={(e) => {
@@ -26,7 +27,7 @@ export function ProjectFilter({ projects }: { projects: { id: string; label: str
         }}
         className="min-w-0 flex-1 rounded-md border border-border bg-off-white px-3 py-1.5 text-sm outline-none focus:border-burgundy sm:flex-none"
       >
-        <option value="">All projects</option>
+        <option value=""><Tx>All projects</Tx></option>
         {projects.map((p) => (
           <option key={p.id} value={p.id}>
             {p.label}

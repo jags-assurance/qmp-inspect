@@ -10,6 +10,7 @@ import {
 } from "@/lib/registers/types";
 import { CertificateLink, formatRegisterDate, RegisterRowActions } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
+import { Tx } from "@/components/domain/tx";
 
 export interface MaterialRegisterDisplayRow {
   id: string;
@@ -96,7 +97,7 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
         <div>
           <Badge showIcon tone={RECEIPT_TONE[row.receipt_status]}>{MATERIAL_RECEIPT_STATUS_LABELS[row.receipt_status]}</Badge>
           <RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} />
-          {row.released_at && <p className="mt-1 text-xs text-muted">Released {formatRegisterDate(row.released_at)}</p>}
+          {row.released_at && <p className="mt-1 text-xs text-muted"><Tx>Released</Tx> {formatRegisterDate(row.released_at)}</p>}
           {row.disposition_notes && <p className="mt-1 text-xs text-muted">{row.disposition_notes}</p>}
         </div>
       ),

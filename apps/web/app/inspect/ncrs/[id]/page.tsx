@@ -27,8 +27,11 @@ import {
   STATUS_LABEL,
   StatusTimeline,
 } from "../ncr-shared";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function NcrDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ warning?: string }> }) {
+  const tl = await getTranslator();
   const { id } = await params;
   const { warning } = await searchParams;
   await requireSession();
@@ -54,11 +57,11 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
         href={ncr.severity === "observation" ? "/inspect/observations" : "/inspect/ncrs"}
         className="text-sm text-burgundy hover:underline"
       >
-        ← Back to {ncr.severity === "observation" ? "Observations" : "NCR Register"}
+        <T>← Back to</T> {ncr.severity === "observation" ? "Observations" : "NCR Register"}
       </Link>
       {warning === "punch" && (
         <div role="alert" className="mt-2 rounded-md border border-warning bg-warning/10 px-3 py-2 text-sm text-ink">
-          This NCR was raised, but its punch-list item could not be created. Do not raise it again - use &quot;Create missing punch item&quot; below.
+          <T>This NCR was raised, but its punch-list item could not be created. Do not raise it again - use &quot;Create missing punch item&quot; below.</T>
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
@@ -67,11 +70,11 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             <h1 className="doc-id text-2xl font-semibold text-ink">{ncr.ncr_number}</h1>
             <Badge tone={SEVERITY_TONE[ncr.severity]}>{SEVERITY_LABEL[ncr.severity]}</Badge>
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
-            {isOverdue(ncr, projectTz) && <Badge tone="danger">Overdue</Badge>}
-            {isWithdrawn && <Badge tone="neutral">Withdrawn</Badge>}
-            {ncr.due_date && <span className="text-xs text-muted">Due {formatDateOnly(ncr.due_date)}</span>}
+            {isOverdue(ncr, projectTz) && <Badge tone="danger"><T>Overdue</T></Badge>}
+            {isWithdrawn && <Badge tone="neutral"><T>Withdrawn</T></Badge>}
+            {ncr.due_date && <span className="text-xs text-muted"><T>Due</T> {formatDateOnly(ncr.due_date)}</span>}
             <PageGuide
-              title="NCR detail — how this works"
+              title={tl("NCR detail — how this works")}
               points={[
                 "Flow: Open, In progress, Pending verification, Closed. \"Send for verification\" needs root cause, corrective action and preventive action saved first.",
                 "Sending for verification needs root cause, corrective and preventive action saved and at least one evidence photo or linked document.",
@@ -112,31 +115,31 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
           <div className="rounded-lg border border-border bg-surface p-4">
             {isWithdrawn && (
               <p className="mb-3 rounded-md bg-off-white px-3 py-2 text-sm text-muted">
-                Withdrawn{ncr.withdrawn_reason ? `: ${ncr.withdrawn_reason}` : ""}
+                <T>Withdrawn</T>{ncr.withdrawn_reason ? `: ${ncr.withdrawn_reason}` : ""}
                 {ncr.duplicate_of_ncr_id ? " (duplicate of another NCR)" : ""}
               </p>
             )}
-            <h2 className="text-sm font-medium text-ink">Description</h2>
+            <h2 className="text-sm font-medium text-ink"><T>Description</T></h2>
             <p className="mt-1 text-sm text-ink">{ncr.description}</p>
             {ncr.requirement_not_met && (
               <>
-                <h2 className="mt-4 text-sm font-medium text-ink">Requirement not met</h2>
+                <h2 className="mt-4 text-sm font-medium text-ink"><T>Requirement not met</T></h2>
                 <p className="mt-1 text-sm text-muted">{ncr.requirement_not_met}</p>
               </>
             )}
             {extendedAvailable && (ncr.location || ncr.equipment_tag || ncr.spec_reference || categoryLabel || ncr.disposition || ncr.cost_impact != null || ncr.schedule_impact_days != null) && (
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
-                {ncr.location && (<div><dt className="text-muted">Location</dt><dd className="text-ink">{ncr.location}</dd></div>)}
-                {ncr.equipment_tag && (<div><dt className="text-muted">Equipment tag</dt><dd className="text-ink">{ncr.equipment_tag}</dd></div>)}
-                {ncr.spec_reference && (<div><dt className="text-muted">Spec clause</dt><dd className="text-ink">{ncr.spec_reference}</dd></div>)}
-                {categoryLabel && (<div><dt className="text-muted">Root-cause category</dt><dd className="text-ink">{categoryLabel}</dd></div>)}
-                {ncr.disposition && (<div><dt className="text-muted">Disposition</dt><dd className="text-ink">{NCR_DISPOSITION_LABELS[ncr.disposition as NcrDisposition] ?? ncr.disposition}</dd></div>)}
-                {ncr.cost_impact != null && (<div><dt className="text-muted">Cost impact</dt><dd className="text-ink">{Number(ncr.cost_impact).toLocaleString("en-GB")}</dd></div>)}
-                {ncr.schedule_impact_days != null && (<div><dt className="text-muted">Schedule impact</dt><dd className="text-ink">{ncr.schedule_impact_days} day(s)</dd></div>)}
+                {ncr.location && (<div><dt className="text-muted"><T>Location</T></dt><dd className="text-ink">{ncr.location}</dd></div>)}
+                {ncr.equipment_tag && (<div><dt className="text-muted"><T>Equipment tag</T></dt><dd className="text-ink">{ncr.equipment_tag}</dd></div>)}
+                {ncr.spec_reference && (<div><dt className="text-muted"><T>Spec clause</T></dt><dd className="text-ink">{ncr.spec_reference}</dd></div>)}
+                {categoryLabel && (<div><dt className="text-muted"><T>Root-cause category</T></dt><dd className="text-ink">{categoryLabel}</dd></div>)}
+                {ncr.disposition && (<div><dt className="text-muted"><T>Disposition</T></dt><dd className="text-ink">{NCR_DISPOSITION_LABELS[ncr.disposition as NcrDisposition] ?? ncr.disposition}</dd></div>)}
+                {ncr.cost_impact != null && (<div><dt className="text-muted"><T>Cost impact</T></dt><dd className="text-ink">{Number(ncr.cost_impact).toLocaleString("en-GB")}</dd></div>)}
+                {ncr.schedule_impact_days != null && (<div><dt className="text-muted"><T>Schedule impact</T></dt><dd className="text-ink">{ncr.schedule_impact_days} <T>day(s)</T></dd></div>)}
               </dl>
             )}
             {(ncr.reopen_count ?? 0) > 0 && (
-              <p className="mt-3 text-xs text-muted">Re-opened {ncr.reopen_count} time(s){ncr.last_reopen_reason ? `; last reason: ${ncr.last_reopen_reason}` : ""}.</p>
+              <p className="mt-3 text-xs text-muted"><T>Re-opened</T> {ncr.reopen_count} <T>time(s)</T>{ncr.last_reopen_reason ? `; last reason: ${ncr.last_reopen_reason}` : ""}.</p>
             )}
             {detail.canEditDetails && (
               <EditNcrDetailsForm
@@ -152,7 +155,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
           </div>
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-base font-medium text-ink">Corrective action close-out</h2>
+            <h2 className="text-base font-medium text-ink"><T>Corrective action close-out</T></h2>
             <p className="mt-1 text-sm text-muted">
               {isClosed
                 ? `Closed ${ncr.closed_at ? formatSiteDateTime(ncr.closed_at, siteTz) : ""}.`
@@ -160,7 +163,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             </p>
             {!isClosed && (
               <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
-                <p className="font-medium">Closing this will also:</p>
+                <p className="font-medium"><T>Closing this will also:</T></p>
                 <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
                   {closeConsequences.map((c) => (
                     <li key={c}>{c}</li>
@@ -213,7 +216,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
         <div className="flex flex-col gap-6">
           {ncr.itp_items && (
             <div className="rounded-lg border border-border bg-surface p-4">
-              <h2 className="text-sm font-medium text-ink">Linked Checklist Item</h2>
+              <h2 className="text-sm font-medium text-ink"><T>Linked Checklist Item</T></h2>
               <div className="mt-2 flex items-center gap-3 rounded-md border border-border bg-off-white px-3 py-2">
                 <span className="doc-id text-xs text-muted">{ncr.itp_items.item_number}</span>
                 <span className="flex-grow truncate text-sm text-ink">{ncr.itp_items.activity}</span>
@@ -223,16 +226,16 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
                   href={`/inspect/inspections/${ncr.inspection_record_id}`}
                   className="mt-2 inline-block text-xs text-burgundy hover:underline"
                 >
-                  ← View the inspection record this was raised from{inspectionRecord ? ` (${inspectionRecord.record_number})` : ""}
+                  <T>← View the inspection record this was raised from</T>{inspectionRecord ? ` (${inspectionRecord.record_number})` : ""}
                 </Link>
               )}
             </div>
           )}
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium text-ink">Punch-list item</h2>
+            <h2 className="text-sm font-medium text-ink"><T>Punch-list item</T></h2>
             {punchItems.length === 0 ? (
-              ncr.severity !== "observation" && !isClosed ? <EnsurePunchButton ncrId={ncr.id} /> : <p className="mt-2 text-sm text-muted">None.</p>
+              ncr.severity !== "observation" && !isClosed ? <EnsurePunchButton ncrId={ncr.id} /> : <p className="mt-2 text-sm text-muted"><T>None.</T></p>
             ) : (
               <ul className="mt-2 space-y-2">
                 {punchItems.map((p) => (
@@ -246,12 +249,12 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
               </ul>
             )}
             <Link href={`/inspect/projects/${ncr.project_id}/punch-list`} className="mt-2 inline-block text-xs text-burgundy hover:underline">
-              Open the project punch list →
+              <T>Open the project punch list →</T>
             </Link>
           </div>
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
+            <h2 className="text-sm font-medium text-ink"><T>Photo evidence</T></h2>
             <div className="mt-3 grid grid-cols-2 gap-3">
               {photos.map((photo) => (
                 <div key={photo.id}>
@@ -260,7 +263,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
                 </div>
               ))}
               {photos.length === 0 && (
-                <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>
+                <p className="col-span-full text-sm text-muted"><T>No photos uploaded yet.</T></p>
               )}
             </div>
             {canUploadEvidence && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} />}
@@ -272,7 +275,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
           </div>
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium text-ink">Documents</h2>
+            <h2 className="text-sm font-medium text-ink"><T>Documents</T></h2>
             <div className="mt-3">
               <NcrDocuments
                 ncrId={ncr.id}
@@ -286,7 +289,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
 
           {canVerify && ncr.severity === "observation" && !isClosed && (
             <div className="rounded-lg border border-border bg-surface p-4">
-              <h2 className="text-sm font-medium text-ink">Grade to NCR</h2>
+              <h2 className="text-sm font-medium text-ink"><T>Grade to NCR</T></h2>
               <div className="mt-3">
                 <GradeObservation ncrId={ncr.id} />
               </div>
@@ -294,7 +297,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
           )}
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium text-ink">Activity</h2>
+            <h2 className="text-sm font-medium text-ink"><T>Activity</T></h2>
             <ul className="mt-3 space-y-2">
               {history.map((h) => (
                 <li key={h.id} className="text-xs text-ink">
@@ -302,7 +305,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
                   {h.actor_name && <span className="text-muted"> - {h.actor_name}</span>}
                 </li>
               ))}
-              {history.length === 0 && <li className="text-sm text-muted">No activity recorded yet.</li>}
+              {history.length === 0 && <li className="text-sm text-muted"><T>No activity recorded yet.</T></li>}
             </ul>
           </div>
         </div>

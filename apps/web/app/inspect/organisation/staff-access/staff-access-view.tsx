@@ -8,6 +8,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface StaffRow {
   id: string;
@@ -27,6 +29,7 @@ interface GrantRow {
 }
 
 export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   // Deciding who has access to which clients is an Admin/account-administration concern, same
@@ -84,9 +87,9 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Staff access</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Staff access</T></Heading>
         <PageGuide
-          title="Staff access — how this works"
+          title={tl("Staff access — how this works")}
           points={[
             "Admin-only — deciding who can see which client's data is an account-administration concern, same boundary as project creation and numbering settings.",
             "Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client's data at all — with none, the account can sign in but sees nothing.",
@@ -96,20 +99,10 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any
-        client&apos;s data — <strong>Global</strong> reaches every organisation (the default for a
-        new staff account), while <strong>Organisation</strong> or <strong>Project</strong> narrows
-        an Inspector to only the clients they actually work with. This is a permission boundary
-        enforced by the database itself (Row-Level Security), not just this screen.
+        <T>Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client&apos;s data —</T> <strong><T>Global</T></strong> <T>reaches every organisation (the default for a new staff account), while</T> <strong><T>Organisation</T></strong> <T>or</T> <strong><T>Project</T></strong> <T>narrows an Inspector to only the clients they actually work with. This is a permission boundary enforced by the database itself (Row-Level Security), not just this screen.</T>
       </p>
       <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
-        This is the first of four related Access &amp; Roles screens, read in order: <strong>Staff
-        Access</strong> (this page) decides who has an account and which org/project they can reach
-        at all; <strong>Custom Roles</strong> then decides what a specific person is additionally
-        allowed to do on top of that; <strong>Teams</strong> groups staff so a team lead can delegate
-        day-to-day actions on the projects their team is assigned to; and <strong>Module
-        Licensing</strong> decides which modules exist for a client org&apos;s own people to be given
-        any access to in the first place.
+        <T>This is the first of four related Access &amp; Roles screens, read in order:</T> <strong><T>Staff Access</T></strong> <T>(this page) decides who has an account and which org/project they can reach at all;</T> <strong><T>Custom Roles</T></strong> <T>then decides what a specific person is additionally allowed to do on top of that;</T> <strong><T>Teams</T></strong> <T>groups staff so a team lead can delegate day-to-day actions on the projects their team is assigned to; and</T> <strong><T>Module Licensing</T></strong> <T>decides which modules exist for a client org&apos;s own people to be given any access to in the first place.</T>
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -142,7 +135,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
                 <p className="text-sm font-medium text-ink">{s.full_name}</p>
                 <p className="text-xs text-muted">
                   {s.email} · {s.staff_role === "inspector" ? "JAGS Inspector" : "JAGS Admin"}
-                  {s.is_active === false && <> · <span className="font-medium text-danger">Deactivated</span></>}
+                  {s.is_active === false && <> · <span className="font-medium text-danger"><T>Deactivated</T></span></>}
                 </p>
               </div>
               {s.id !== session.userId && (
@@ -151,7 +144,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
             </div>
             <div className="mt-3 space-y-1.5">
               {(grantsByUser.get(s.id) ?? []).length === 0 && (
-                <Badge tone="danger">No access grants — sees no client data</Badge>
+                <Badge tone="danger"><T>No access grants — sees no client data</T></Badge>
               )}
               {(grantsByUser.get(s.id) ?? []).map((grant) => (
                 <div key={grant.id} className="flex items-center justify-between text-sm">

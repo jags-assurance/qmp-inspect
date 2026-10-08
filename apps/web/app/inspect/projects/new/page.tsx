@@ -4,8 +4,11 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NewProjectForm } from "./new-project-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function NewProjectPage() {
+  const tl = await getTranslator();
   const session = await requireSession();
 
   // Project setup is normally the Admin's job (client onboarding, commercial scope) — an Inspector
@@ -54,12 +57,12 @@ export default async function NewProjectPage() {
   return (
     <div className="max-w-xl">
       <Link href="/inspect/projects" className="text-sm text-burgundy hover:underline">
-        ← Back to Projects
+        <T>← Back to Projects</T>
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">New project</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>New project</T></h1>
         <PageGuide
-          title="New project — how this works"
+          title={tl("New project — how this works")}
           points={[
             "Normally Admin-only — client onboarding and commercial scope are set up by JAGS.",
             "The exception: anyone whose organisation is on the Self-Managed (Hybrid) or Full Client-Managed engagement tier runs its own program on the platform, so they can create their own projects here too, scoped to their own organisation.",
@@ -67,7 +70,7 @@ export default async function NewProjectPage() {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">Set up a new project for a client organisation.</p>
+      <p className="mt-1 text-sm text-muted"><T>Set up a new project for a client organisation.</T></p>
       <NewProjectForm organizations={organizations} allowCreateOrg={isAdminStaff(session)} staffUsers={staffUsers} />
     </div>
   );

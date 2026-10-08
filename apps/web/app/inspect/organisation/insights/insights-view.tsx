@@ -13,6 +13,8 @@ import { getLatestPortfolioSummaryPdf } from "@/lib/reports/actions";
 import { PortfolioSummaryPdfButton } from "./portfolio-summary-pdf-button";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * A lightweight in-app equivalent of the vw_powerbi_* views (see
@@ -110,6 +112,7 @@ const PORTFOLIO_INSIGHTS_GUIDE_POINTS = [
 ];
 
 export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -130,12 +133,12 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       <SettingsBackLink embedded={embedded} />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Heading className="text-2xl font-semibold text-ink">Portfolio Insights</Heading>
-            <PageGuide title="Portfolio Insights — how this works" points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
+            <Heading className="text-2xl font-semibold text-ink"><T>Portfolio Insights</T></Heading>
+            <PageGuide title={tl("Portfolio Insights — how this works")} points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
           </div>
           <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
         </div>
-        <p className="mt-3 text-sm text-muted">No projects yet.</p>
+        <p className="mt-3 text-sm text-muted"><T>No projects yet.</T></p>
       </div>
     );
   }
@@ -365,17 +368,15 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Heading className="text-2xl font-semibold text-ink">Portfolio Insights</Heading>
-            <PageGuide title="Portfolio Insights — how this works" points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
+            <Heading className="text-2xl font-semibold text-ink"><T>Portfolio Insights</T></Heading>
+            <PageGuide title={tl("Portfolio Insights — how this works")} points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
           </div>
           <p className="mt-1 text-sm text-muted">
-            A live, in-app summary across every client and project you have access to — the same
-            aggregates Power BI Desktop reads (see{" "}
+            <T>A live, in-app summary across every client and project you have access to — the same aggregates Power BI Desktop reads (see</T>{" "}
             <a href="/inspect/organisation/reporting" className="underline">
-              Reporting
+              <T>Reporting</T>
             </a>
-            ), computed here through the ordinary RLS-scoped queries every other page in this app uses.
-            Admin-only.
+            <T>), computed here through the ordinary RLS-scoped queries every other page in this app uses. Admin-only.</T>
           </p>
         </div>
         <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
@@ -430,18 +431,18 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="font-medium text-ink">NCR volume — last 6 months</h2>
-            <p className="mt-1 text-sm text-muted">Total NCRs and observations raised per month, all projects.</p>
+            <h2 className="font-medium text-ink"><T>NCR volume — last 6 months</T></h2>
+            <p className="mt-1 text-sm text-muted"><T>Total NCRs and observations raised per month, all projects.</T></p>
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-muted">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-danger" /> Major
+              <span className="h-2.5 w-2.5 rounded-sm bg-danger" /> <T>Major</T>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-warning" /> Minor
+              <span className="h-2.5 w-2.5 rounded-sm bg-warning" /> <T>Minor</T>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-info" /> Observation
+              <span className="h-2.5 w-2.5 rounded-sm bg-info" /> <T>Observation</T>
             </span>
           </div>
         </div>
@@ -480,12 +481,12 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">Project health</h2>
+        <h2 className="font-medium text-ink"><T>Project health</T></h2>
         <p className="mt-1 text-sm text-muted">
-          ITP completion, open NCRs and overdue punch items per project — worst first.
+          <T>ITP completion, open NCRs and overdue punch items per project — worst first.</T>
         </p>
         {itpByProjectSorted.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">No project data yet.</p>
+          <p className="mt-3 text-sm text-muted"><T>No project data yet.</T></p>
         ) : (
           <div className="mt-3">
             <ResponsiveTable

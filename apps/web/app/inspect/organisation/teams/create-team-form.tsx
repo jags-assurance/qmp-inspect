@@ -4,10 +4,12 @@ import { useActionState } from "react";
 import { createTeamAction, type TeamActionState } from "@/lib/teams/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: TeamActionState = { error: null };
 
 export function CreateTeamForm() {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createTeamAction, initialState);
 
   return (
@@ -17,7 +19,7 @@ export function CreateTeamForm() {
           <input
           name="name"
           required
-          placeholder="e.g. North Region Field Team"
+          placeholder={tl("e.g. North Region Field Team")}
           className="mt-1 w-64 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

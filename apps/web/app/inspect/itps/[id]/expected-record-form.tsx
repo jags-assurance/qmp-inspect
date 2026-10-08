@@ -13,6 +13,8 @@ import {
 import { EXPECTED_RECORD_PROVIDERS, type ActivityExpectedRecordRow, type ExpectedRecordProvider } from "@/lib/expected-records/db-types";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const PROVIDER_LABEL: Record<ExpectedRecordProvider, string> = {
   jags: "Jags",
@@ -64,7 +66,7 @@ export function ExpectedRecordsSection({
   return (
     <div className="border-t border-border px-3 py-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-medium text-muted">Expected records</h4>
+        <h4 className="text-xs font-medium text-muted"><Tx>Expected records</Tx></h4>
       </div>
       <ul className="mt-2 space-y-1.5">
         {records.map((record) => (
@@ -77,7 +79,7 @@ export function ExpectedRecordsSection({
             vaultDocuments={vaultDocuments}
           />
         ))}
-        {records.length === 0 && <li className="text-xs text-muted">No expected records listed for this activity.</li>}
+        {records.length === 0 && <li className="text-xs text-muted"><Tx>No expected records listed for this activity.</Tx></li>}
       </ul>
       {canAdd && <AddExpectedRecordForm itpItemId={itpItemId} />}
     </div>
@@ -118,7 +120,7 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
           {updating ? "Saving…" : "Save"}
         </button>
         <button type="button" onClick={() => setEditing(false)} className="text-xs text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
         {updateState.error && <span className="w-full text-danger">{updateState.error}</span>}
       </form>
@@ -128,7 +130,7 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
   return (
     <div className="mt-1 flex items-center gap-2">
       <button type="button" onClick={() => setEditing(true)} className="text-xs text-muted hover:underline">
-        Edit
+        <Tx>Edit</Tx>
       </button>
       {dialog}
       <form
@@ -182,7 +184,7 @@ function ExpectedRecordRow({
       </div>
       {isReceived ? (
         <p className="mt-1 text-muted">
-          Doc no. <span className="doc-id text-ink">{record.document_number}</span>
+          <Tx>Doc no.</Tx> <span className="doc-id text-ink">{record.document_number}</span>
         </p>
       ) : (
         <>
@@ -191,7 +193,7 @@ function ExpectedRecordRow({
           <div className="mt-1">
             {!open ? (
               <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
-                Mark received →
+                <Tx>Mark received →</Tx>
               </button>
             ) : (
               <MarkReceivedForm
@@ -220,6 +222,7 @@ function MarkReceivedForm({
   vaultDocuments: VaultDocumentOption[];
   onClose: () => void;
 }) {
+  const tl = useTranslate();
   const [source, setSource] = useState<"upload" | "vault">(vaultDocuments.length > 0 ? "vault" : "upload");
   const [documentNumber, setDocumentNumber] = useState("");
   const [vaultDocumentId, setVaultDocumentId] = useState("");
@@ -297,7 +300,7 @@ function MarkReceivedForm({
       <input
         value={documentNumber}
         onChange={(e) => setDocumentNumber(e.target.value)}
-        placeholder="Document number"
+        placeholder={tl("Document number")}
         className="doc-id w-full rounded border border-border bg-surface px-2 py-1 text-xs"
       />
 
@@ -308,14 +311,14 @@ function MarkReceivedForm({
             onClick={() => setSource("vault")}
             className={`rounded px-2 py-1 font-medium ${source === "vault" ? "bg-burgundy text-white" : "border border-border bg-surface text-ink"}`}
           >
-            Attach from vault
+            <Tx>Attach from vault</Tx>
           </button>
           <button
             type="button"
             onClick={() => setSource("upload")}
             className={`rounded px-2 py-1 font-medium ${source === "upload" ? "bg-burgundy text-white" : "border border-border bg-surface text-ink"}`}
           >
-            Upload new file
+            <Tx>Upload new file</Tx>
           </button>
         </div>
       )}
@@ -326,7 +329,7 @@ function MarkReceivedForm({
           onChange={(e) => onVaultDocumentChange(e.target.value)}
           className="w-full rounded border border-border bg-surface px-2 py-1 text-xs"
         >
-          <option value="">Select a document already in the vault…</option>
+          <option value=""><Tx>Select a document already in the vault…</Tx></option>
           {[...new Set(vaultDocuments.map((d) => d.folderName))].sort().map((folder) => (
             <optgroup key={folder} label={folder}>
               {vaultDocuments
@@ -350,7 +353,7 @@ function MarkReceivedForm({
           {uploading ? "Saving…" : "Mark received"}
         </Button>
         <button type="button" onClick={onClose} className="text-xs text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>
@@ -358,6 +361,7 @@ function MarkReceivedForm({
 }
 
 function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [recordType, setRecordType] = useState("");
   const [provider, setProvider] = useState<ExpectedRecordProvider>("tpi");
@@ -372,7 +376,7 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
         onClick={() => setOpen(true)}
         className="mt-2 text-xs font-medium text-burgundy hover:underline"
       >
-        + Add expected record
+        <Tx>+ Add expected record</Tx>
       </button>
     );
   }
@@ -417,7 +421,7 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
         <input
           value={recordType}
           onChange={(e) => setRecordType(e.target.value)}
-          placeholder="e.g. Mill certificate"
+          placeholder={tl("e.g. Mill certificate")}
           className="flex-1 rounded border border-border bg-surface px-2 py-1"
         />
       </div>
@@ -427,7 +431,7 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
           {pending ? "Adding…" : "Add"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

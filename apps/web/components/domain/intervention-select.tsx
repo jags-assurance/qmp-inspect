@@ -5,6 +5,7 @@ import { setInterventionAction } from "@/lib/itps/actions";
 import type { InterventionLevel } from "@jags/shared-types";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toneClassForLevelIndex } from "@/lib/intervention-levels/types";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface InterventionLevelOption {
   code: string;
@@ -42,6 +43,7 @@ export function InterventionSelect({
    *  reason and the server records it as a new revision (same rule as adding/editing an activity). */
   isIssued?: boolean;
 }) {
+  const tl = useTranslate();
   const formRef = useRef<HTMLFormElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const reasonRef = useRef<HTMLInputElement>(null);
@@ -117,7 +119,7 @@ export function InterventionSelect({
         defaultValue={value ?? ""}
         onChange={handleChange}
         title={value ? labelOf(value) : "No intervention"}
-        aria-label="Intervention level"
+        aria-label={tl("Intervention level")}
         className="h-7 w-14 rounded border border-border bg-surface text-center text-xs font-semibold text-muted outline-none focus:border-burgundy"
       >
         <option value="">—</option>

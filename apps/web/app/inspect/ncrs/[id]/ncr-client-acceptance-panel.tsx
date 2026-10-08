@@ -5,6 +5,7 @@ import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { dispositionSuggestsClientAcceptance } from "@/lib/ncrs/acceptance";
 import { formatSiteDateTime } from "@/lib/ncrs/site-date";
 import { ClientAcceptanceForm, ClientAcceptanceRequiredToggle } from "./ncr-client-acceptance";
+import { T } from "@/components/domain/t";
 
 interface AcceptanceRow {
   client_acceptance_required: boolean | null;
@@ -87,16 +88,16 @@ export async function NcrClientAcceptancePanel({
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
-      <h2 className="font-medium text-ink">Client acceptance</h2>
+      <h2 className="font-medium text-ink"><T>Client acceptance</T></h2>
       {staff && !isClosed && <ClientAcceptanceRequiredToggle ncrId={ncrId} required={required} />}
       {staff && !isClosed && !required && dispositionSuggestsClientAcceptance(disposition) && (
-        <p className="mt-1 text-xs text-muted">This disposition leaves the work not simply put right to specification; consider asking the client to accept it.</p>
+        <p className="mt-1 text-xs text-muted"><T>This disposition leaves the work not simply put right to specification; consider asking the client to accept it.</T></p>
       )}
       {required && (
         <div className="mt-2 text-sm">
           {decided ? (
             <p className={decided === "accepted" ? "text-success" : "text-danger"}>
-              {decided === "accepted" ? "Accepted" : "Rejected"} by {row.client_accepted_by_user?.full_name ?? "the client"}
+              {decided === "accepted" ? "Accepted" : "Rejected"} <T>by</T> {row.client_accepted_by_user?.full_name ?? "the client"}
               {row.client_accepted_at ? ` on ${formatSiteDateTime(row.client_accepted_at)}` : ""}
               {row.client_acceptance_comment ? `: ${row.client_acceptance_comment}` : "."}
             </p>

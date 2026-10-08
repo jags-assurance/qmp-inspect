@@ -20,6 +20,7 @@ import { ItpsTabView, NcrsTabView } from "./workspace/project-record-lists";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { countOpenNcrs, countPunchByStatus } from "@/lib/projects/open-counts";
 import { WorkspaceSkeleton, WorkspaceTabs, type WorkspaceTab, type WorkspaceTabKey } from "./workspace/workspace-tabs";
+import { T } from "@/components/domain/t";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -113,7 +114,7 @@ export default async function ProjectWorkspacePage({
 
   const backLink = (
     <Link href="/inspect/projects" className="inline-flex min-h-9 items-center text-sm text-burgundy hover:underline">
-      ← Back to Projects
+      <T>← Back to Projects</T>
     </Link>
   );
 

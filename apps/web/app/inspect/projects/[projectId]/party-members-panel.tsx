@@ -8,6 +8,8 @@ import {
   type PartyMemberActionState,
 } from "@/lib/projects/party-access-actions";
 import { Badge } from "@/components/ui/badge";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const INITIAL_STATE: PartyMemberActionState = { error: null };
 
@@ -50,6 +52,7 @@ export function PartyMembersPanel({
   customRoles: CustomRoleOption[];
   primaryContactUserId: string | null;
 }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [modeState, modeAction, modePending] = useActionState(setPartyAccessModeAction, INITIAL_STATE);
   const [addState, addAction, addPending] = useActionState(addPartyMemberAction, INITIAL_STATE);
@@ -60,7 +63,7 @@ export function PartyMembersPanel({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
-        Members{extraMembers.length > 0 ? ` (${extraMembers.length})` : ""}
+        <Tx>Members</Tx>{extraMembers.length > 0 ? ` (${extraMembers.length})` : ""}
       </button>
     );
   }
@@ -69,7 +72,7 @@ export function PartyMembersPanel({
     <div className="mt-2 w-full rounded-md border border-border bg-off-white p-2.5 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-muted">Access mode:</span>
+          <span className="text-muted"><Tx>Access mode:</Tx></span>
           <form action={modeAction} className="flex items-center gap-1">
             <input type="hidden" name="project_party_id" value={projectPartyId} />
             <select
@@ -79,13 +82,13 @@ export function PartyMembersPanel({
               onChange={(e) => e.currentTarget.form?.requestSubmit()}
               className="rounded border border-border bg-surface px-1 py-0.5 text-xs outline-none focus:border-burgundy"
             >
-              <option value="whole_org">Whole organisation</option>
-              <option value="selected_people">Selected people only</option>
+              <option value="whole_org"><Tx>Whole organisation</Tx></option>
+              <option value="selected_people"><Tx>Selected people only</Tx></option>
             </select>
           </form>
         </div>
         <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
-          Close
+          <Tx>Close</Tx>
         </button>
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -96,7 +99,7 @@ export function PartyMembersPanel({
       {modeState.error && <p role="alert" className="mt-1 text-danger">{modeState.error}</p>}
 
       <ul className="mt-2 space-y-1">
-        {extraMembers.length === 0 && <li className="text-muted">No additional members yet.</li>}
+        {extraMembers.length === 0 && <li className="text-muted"><Tx>No additional members yet.</Tx></li>}
         {extraMembers.map((m) => (
           <li key={m.id} className="flex items-center justify-between gap-2 rounded border border-border bg-surface px-2 py-1">
             <span className="text-ink">
@@ -118,7 +121,7 @@ export function PartyMembersPanel({
           name="email"
           type="email"
           required
-          placeholder="person@company.com"
+          placeholder={tl("person@company.com")}
           className="w-40 rounded border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
         />
         <select
@@ -127,8 +130,8 @@ export function PartyMembersPanel({
           onChange={(e) => setPermissionMode(e.target.value as "standard" | "custom")}
           className="rounded border border-border bg-surface px-1 py-1 text-xs outline-none focus:border-burgundy"
         >
-          <option value="standard">Standard access</option>
-          <option value="custom">Custom permission</option>
+          <option value="standard"><Tx>Standard access</Tx></option>
+          <option value="custom"><Tx>Custom permission</Tx></option>
         </select>
         {permissionMode === "custom" && (
           <select
@@ -136,13 +139,13 @@ export function PartyMembersPanel({
             required
             className="rounded border border-border bg-surface px-1 py-1 text-xs outline-none focus:border-burgundy"
           >
-            <option value="">— choose role —</option>
+            <option value=""><Tx>— choose role —</Tx></option>
             {customRoles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
               </option>
             ))}
-            {customRoles.length === 0 && <option value="">No custom roles for this org yet</option>}
+            {customRoles.length === 0 && <option value=""><Tx>No custom roles for this org yet</Tx></option>}
           </select>
         )}
         <button type="submit" disabled={addPending} className="text-burgundy hover:underline disabled:opacity-50">

@@ -13,10 +13,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddMaterialEntryState = { error: null };
 
 export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isStaff: boolean }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addMaterialEntryAction, initialState);
   const [receiptStatus, setReceiptStatus] = useState<MaterialReceiptStatus>("released");
   const needsDisposition = isStaff && receiptStatus !== "released" && receiptStatus !== "received_pending_inspection";
@@ -125,7 +128,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
         <FormField label="CoC / MTC ref.">
           <input
           name="certificate_reference"
-          placeholder="Certificate of conformance / material test cert"
+          placeholder={tl("Certificate of conformance / material test cert")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -169,20 +172,20 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
         </div>
       ) : (
         <p className="w-full text-xs text-muted-foreground">
-          New deliveries are recorded as &lsquo;received — pending inspection&rsquo;; JAGS staff release them after the receiving inspection.
+          <Tx>New deliveries are recorded as &lsquo;received — pending inspection&rsquo;; JAGS staff release them after the receiving inspection.</Tx>
         </p>
       )}
 
       {needsDisposition && (
         <div className="w-full sm:min-w-56 flex-1">
           <label htmlFor="disposition_notes" className="block text-xs font-medium text-ink">
-            Disposition notes <span className="text-danger">*</span>
+            <Tx>Disposition notes</Tx> <span className="text-danger">*</span>
           </label>
           <input
             id="disposition_notes"
             name="disposition_notes"
             required
-            placeholder="Why quarantined/on hold, and what's needed to release it"
+            placeholder={tl("Why quarantined/on hold, and what's needed to release it")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
         </div>

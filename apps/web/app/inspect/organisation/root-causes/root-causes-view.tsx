@@ -7,6 +7,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { mergeCategories, type CategoryRow } from "@/lib/ncrs/taxonomy";
 import { AddCategoryForm, EditCategoryRow } from "./root-causes-forms";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * NCR root-cause categories (S5-22): the list an inspector picks from when closing out an NCR. The platform
@@ -14,6 +16,7 @@ import { AddCategoryForm, EditCategoryRow } from "./root-causes-forms";
  * own. Existing NCRs keep the code they were closed with, so changing the list never rewrites history.
  */
 export async function RootCausesView({ searchParams, embedded }: { searchParams: { org?: string }; embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -48,9 +51,9 @@ export async function RootCausesView({ searchParams, embedded }: { searchParams:
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">NCR root causes</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>NCR root causes</T></Heading>
         <PageGuide
-          title="NCR root causes — how this works"
+          title={tl("NCR root causes — how this works")}
           points={[
             "These are the categories offered when an NCR is closed out. They also drive the root-cause counts you see here.",
             "The platform defaults are always available. Add your own for this organisation, or rename, re-order or switch off the ones you added.",
@@ -58,12 +61,12 @@ export async function RootCausesView({ searchParams, embedded }: { searchParams:
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">The list of root-cause categories used when closing NCRs.</p>
+      <p className="mt-1 text-sm text-muted"><T>The list of root-cause categories used when closing NCRs.</T></p>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 
       {unavailable && (
-        <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">The root-cause list is not available (the NCR database update has not been applied).</p>
+        <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink"><T>The root-cause list is not available (the NCR database update has not been applied).</T></p>
       )}
 
       {selectedOrg && !unavailable && (
@@ -74,7 +77,7 @@ export async function RootCausesView({ searchParams, embedded }: { searchParams:
               c.organization_id === null ? (
                 <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
                   <span className="w-64 text-ink">{c.label}</span>
-                  <span className="text-xs text-muted">Platform default · {usage.get(c.code) ?? 0} NCR{(usage.get(c.code) ?? 0) === 1 ? "" : "s"}</span>
+                  <span className="text-xs text-muted"><T>Platform default ·</T> {usage.get(c.code) ?? 0} <T>NCR</T>{(usage.get(c.code) ?? 0) === 1 ? "" : "s"}</span>
                 </li>
               ) : (
                 <li key={c.id}>

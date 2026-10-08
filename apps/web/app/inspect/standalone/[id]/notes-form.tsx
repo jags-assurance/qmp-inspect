@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updateNotesAction, type UpdateNotesState } from "@/lib/standalone/actions";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: UpdateNotesState = { error: null };
 
@@ -14,6 +15,7 @@ export function NotesForm({
   notes: string | null;
   readOnly: boolean;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateNotesAction, initialState);
 
   if (readOnly) {
@@ -27,7 +29,7 @@ export function NotesForm({
         name="notes"
         rows={6}
         defaultValue={notes ?? ""}
-        placeholder="General notes about this assignment…"
+        placeholder={tl("General notes about this assignment…")}
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}

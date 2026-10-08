@@ -6,6 +6,8 @@ import { CreateTemplateForm } from "./create-template-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * R44/R47: standalone checklist/form template builder — a reusable library of check-item sets,
@@ -23,6 +25,7 @@ import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
  * hand; a non-staff viewer just gets a read-only list with no create form.
  */
 export async function ChecklistLibraryView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
 
@@ -49,9 +52,9 @@ export async function ChecklistLibraryView({ embedded }: { embedded?: boolean })
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">Checklist / Form Template Library</Heading>
+          <Heading className="text-2xl font-semibold text-ink"><T>Checklist / Form Template Library</T></Heading>
           <PageGuide
-            title="Checklist / Form Template Library — how this works"
+            title={tl("Checklist / Form Template Library — how this works")}
             points={[
               "Building and editing templates (and seeing the whole library) is staff-only — a client user gets a read-only list, filtered by RLS to global templates plus any built specifically for their own organisation.",
               "A template is a reusable set of check items, independent of any project — attaching it to an ITP activity's checklist copies its items into a fresh, project-scoped checklist, so the same global template can be reused across many different clients' ITPs, each getting its own independent, editable copy.",

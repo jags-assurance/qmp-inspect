@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { addProjectPartyAction, type AddProjectPartyState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddProjectPartyState = { error: null };
 
@@ -17,6 +19,7 @@ const PARTY_TYPE_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export function AddProjectPartyForm({ projectId }: { projectId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addProjectPartyAction, initialState);
 
   return (
@@ -43,14 +46,14 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
             <input
             name="name"
             required
-            placeholder="e.g. Voltway Electrical Ltd"
+            placeholder={tl("e.g. Voltway Electrical Ltd")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
         </div>
         <div>
           <label htmlFor="contact_name" className="block text-xs font-medium text-ink">
-            Contact name <span className="font-normal text-muted">(optional)</span>
+            <Tx>Contact name</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <input
             id="contact_name"
@@ -60,7 +63,7 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
         </div>
         <div>
           <label htmlFor="contact_email" className="block text-xs font-medium text-ink">
-            Contact email <span className="font-normal text-muted">(optional)</span>
+            <Tx>Contact email</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <input
             id="contact_email"
@@ -70,13 +73,13 @@ export function AddProjectPartyForm({ projectId }: { projectId: string }) {
           />
         </div>
         <div>
-          <span className="block text-xs font-medium text-ink">Onboarded by</span>
+          <span className="block text-xs font-medium text-ink"><Tx>Onboarded by</Tx></span>
           <div className="mt-1 flex items-center gap-4 text-sm text-ink">
             <label className="flex items-center gap-1.5">
-              <input type="radio" name="onboarded_by" value="jags" defaultChecked /> JAGS
+              <input type="radio" name="onboarded_by" value="jags" defaultChecked /> <Tx>JAGS</Tx>
             </label>
             <label className="flex items-center gap-1.5">
-              <input type="radio" name="onboarded_by" value="client" /> Client
+              <input type="radio" name="onboarded_by" value="client" /> <Tx>Client</Tx>
             </label>
           </div>
         </div>

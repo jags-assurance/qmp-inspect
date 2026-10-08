@@ -18,6 +18,8 @@ import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { TransmittalSection } from "@/components/domain/transmittal-section";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { RETENTION_FLAGS_TABLE, REVIEW_OUTCOME_LABEL, type RetentionReviewOutcome } from "@/lib/retention/logic";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface DocumentRow {
   id: string;
@@ -75,6 +77,7 @@ export async function VaultDocumentView({
   documentId: string;
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -86,7 +89,7 @@ export async function VaultDocumentView({
     .returns<DocumentRow | null>();
 
   if (!document) {
-    if (embedded) return <p className="rounded-md bg-off-white px-3 py-4 text-sm text-muted">Document not found.</p>;
+    if (embedded) return <p className="rounded-md bg-off-white px-3 py-4 text-sm text-muted"><T>Document not found.</T></p>;
     notFound();
   }
 
@@ -99,7 +102,7 @@ export async function VaultDocumentView({
     .returns<VaultFolderRow | null>();
 
   if (!folder) {
-    if (embedded) return <p className="rounded-md bg-off-white px-3 py-4 text-sm text-muted">Document not found.</p>;
+    if (embedded) return <p className="rounded-md bg-off-white px-3 py-4 text-sm text-muted"><T>Document not found.</T></p>;
     notFound();
   }
 
@@ -200,7 +203,7 @@ export async function VaultDocumentView({
       <RealtimeRefresh table="drawing_markups" filter={`vault_document_id=eq.${documentId}`} />
       {!embedded && (
         <Link href={`/inspect/vault/${projectId}/${folder.id}`} className="text-sm text-burgundy hover:underline">
-          ← Back to {folder.name}
+          <T>← Back to</T> {folder.name}
         </Link>
       )}
 
@@ -208,7 +211,7 @@ export async function VaultDocumentView({
         <Heading className="text-xl font-semibold text-ink sm:text-2xl [overflow-wrap:anywhere]">{document.title}</Heading>
         <RenameDocumentForm projectId={projectId} documentId={documentId} title={document.title} />
         <PageGuide
-          title="Document viewer — how this works"
+          title={tl("Document viewer — how this works")}
           points={[
             "Drop a pin anywhere on the drawing to mark where something happened on site — a way to record location, not just a text description.",
             "A pin can optionally link to an existing NCR on this project, tying the markup directly to the non-conformance it documents.",
@@ -217,12 +220,12 @@ export async function VaultDocumentView({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        {document.document_number ?? "—"} · Rev. {document.revision}
+        {document.document_number ?? "—"} <T>· Rev.</T> {document.revision}
         {document.document_reference && (
           <>
             {" · "}
             <Link href={`/inspect/vault/${projectId}/document/${documentId}/compare`} className="text-burgundy hover:underline">
-              Compare revisions →
+              <T>Compare revisions →</T>
             </Link>
           </>
         )}
@@ -242,19 +245,19 @@ export async function VaultDocumentView({
       )}
       {retentionFlag && (
         <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
-          Retention: the {retentionFlag.retention_years}-year retention period ended on {retentionFlag.due_on}.{" "}
+          <T>Retention: the</T> {retentionFlag.retention_years}<T>-year retention period ended on</T> {retentionFlag.due_on}.{" "}
           {retentionFlag.review_outcome
             ? `Review decision: ${REVIEW_OUTCOME_LABEL[retentionFlag.review_outcome]}.`
             : "It is waiting for a JAGS Admin to decide whether to keep it. Nothing has been deleted or changed."}
         </p>
       )}
       {document.status === "rejected" && document.rejection_reason && (
-        <p className="mt-2 rounded-md bg-off-white px-3 py-2 text-sm text-ink">Rejection reason: {document.rejection_reason}</p>
+        <p className="mt-2 rounded-md bg-off-white px-3 py-2 text-sm text-ink"><T>Rejection reason:</T> {document.rejection_reason}</p>
       )}
       {(approverRows ?? []).length > 0 && (
-        <section className="mt-3" aria-label="Approvers">
+        <section className="mt-3" aria-label={tl("Approvers")}>
           <h3 className="text-sm font-semibold text-ink">
-            Required approvers ({(approverRows ?? []).filter((a) => a.status === "approved").length} of {(approverRows ?? []).length} agreed)
+            <T>Required approvers (</T>{(approverRows ?? []).filter((a) => a.status === "approved").length} <T>of</T> {(approverRows ?? []).length} <T>agreed)</T>
           </h3>
           <ul className="mt-1 space-y-0.5 text-sm">
             {(approverRows ?? []).map((a) => (
@@ -276,7 +279,7 @@ export async function VaultDocumentView({
           className={`inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline sm:min-h-0 ${canRevise ? "" : "pointer-events-none opacity-50"}`}
           aria-disabled={!canRevise}
         >
-          Upload new revision
+          <T>Upload new revision</T>
         </Link>
         {canEditMeta && (
           <EditMetadataForm
@@ -291,9 +294,9 @@ export async function VaultDocumentView({
           />
         )}
       </div>
-      {document.notes && <p className="mt-2 text-sm text-muted">Notes: {document.notes}</p>}
+      {document.notes && <p className="mt-2 text-sm text-muted"><T>Notes:</T> {document.notes}</p>}
       <p className="mt-1 text-xs text-muted">
-        Added {fmt(document.created_at)}
+        <T>Added</T> {fmt(document.created_at)}
         {document.document_date ? ` · Document date ${new Date(document.document_date).toLocaleDateString("en-GB")}` : ""}
       </p>
 
@@ -309,20 +312,20 @@ export async function VaultDocumentView({
       </div>
       )}
 
-      <section className="mt-8" aria-label="Revision history">
-        <h3 className="text-sm font-semibold text-ink">Revision history</h3>
+      <section className="mt-8" aria-label={tl("Revision history")}>
+        <h3 className="text-sm font-semibold text-ink"><T>Revision history</T></h3>
         {revisions.length <= 1 ? (
-          <p className="mt-1 text-sm text-muted">This is the only revision so far.</p>
+          <p className="mt-1 text-sm text-muted"><T>This is the only revision so far.</T></p>
         ) : (
           <ol className="mt-2 space-y-2 border-s border-border ps-4">
             {revisions.map((r) => (
               <li key={r.id} className="text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   {r.id === documentId ? (
-                    <span className="font-medium text-ink">Rev {r.revision} (viewing)</span>
+                    <span className="font-medium text-ink"><T>Rev</T> {r.revision} <T>(viewing)</T></span>
                   ) : (
                     <Link href={`/inspect/vault/${projectId}/document/${r.id}`} className="font-medium text-burgundy hover:underline">
-                      Rev {r.revision}
+                      <T>Rev</T> {r.revision}
                     </Link>
                   )}
                   <Badge showIcon tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
@@ -331,34 +334,34 @@ export async function VaultDocumentView({
                     {r.users?.full_name ? ` · ${r.users.full_name}` : ""}
                   </span>
                 </div>
-                {r.notes && <p className="text-xs text-muted">Change note: {r.notes}</p>}
+                {r.notes && <p className="text-xs text-muted"><T>Change note:</T> {r.notes}</p>}
               </li>
             ))}
           </ol>
         )}
       </section>
 
-      <section className="mt-6" aria-label="Where used">
-        <h3 className="text-sm font-semibold text-ink">Where used</h3>
+      <section className="mt-6" aria-label={tl("Where used")}>
+        <h3 className="text-sm font-semibold text-ink"><T>Where used</T></h3>
         {usedCount === 0 ? (
-          <p className="mt-1 text-sm text-muted">Not linked as evidence to any ITP, inspection or NCR yet.</p>
+          <p className="mt-1 text-sm text-muted"><T>Not linked as evidence to any ITP, inspection or NCR yet.</T></p>
         ) : (
           <ul className="mt-1 space-y-0.5 text-sm">
             {(itpLinks ?? []).map((l, i) =>
               l.itp_items?.itp_sections?.itps ? (
                 <li key={`itp-${i}`}>
-                  ITP{" "}
+                  <T>ITP</T>{" "}
                   <Link href={`/inspect/itps/${l.itp_items.itp_sections.itps.id}`} className="doc-id text-burgundy hover:underline">
                     {l.itp_items.itp_sections.itps.itp_number}
                   </Link>{" "}
-                  · item {l.itp_items.item_number} {l.itp_items.activity}
+                  <T>· item</T> {l.itp_items.item_number} {l.itp_items.activity}
                 </li>
               ) : null
             )}
             {(inspectionLinks ?? []).map((l, i) =>
               l.inspection_records ? (
                 <li key={`ins-${i}`}>
-                  Inspection{" "}
+                  <T>Inspection</T>{" "}
                   <Link href={`/inspect/inspections/${l.inspection_records.id}`} className="doc-id text-burgundy hover:underline">
                     {l.inspection_records.record_number}
                   </Link>{" "}
@@ -368,11 +371,11 @@ export async function VaultDocumentView({
             )}
             {linkedNcrs.map((n) => (
               <li key={n.id}>
-                NCR{" "}
+                <T>NCR</T>{" "}
                 <Link href={`/inspect/ncrs/${n.id}`} className="doc-id text-burgundy hover:underline">
                   {n.ncr_number}
                 </Link>{" "}
-                (drawing pin)
+                <T>(drawing pin)</T>
               </li>
             ))}
           </ul>
@@ -383,10 +386,10 @@ export async function VaultDocumentView({
         <TransmittalSection entityType="vault_document" entityId={documentId} projectId={projectId} status={document.status} />
       )}
 
-      <section className="mt-6" aria-label="Audit trail">
-        <h3 className="text-sm font-semibold text-ink">Audit trail</h3>
+      <section className="mt-6" aria-label={tl("Audit trail")}>
+        <h3 className="text-sm font-semibold text-ink"><T>Audit trail</T></h3>
         {(auditRows ?? []).length === 0 ? (
-          <p className="mt-1 text-sm text-muted">No recorded events.</p>
+          <p className="mt-1 text-sm text-muted"><T>No recorded events.</T></p>
         ) : (
           <ul className="mt-1 divide-y divide-border rounded-md border border-border text-sm">
             {(auditRows ?? []).map((a) => (

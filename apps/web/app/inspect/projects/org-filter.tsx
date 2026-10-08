@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Tx } from "@/components/domain/tx";
 
 /** Plain GET-style filter — mirrors apps/web/app/inspect/organisation/usage/project-filter.tsx.
  *  The page itself does all the real work (it's a server component reading ?org= from
@@ -14,7 +15,7 @@ export function OrgFilter({ organizations }: { organizations: { id: string; labe
 
   return (
     <label className="flex w-full min-w-0 items-center gap-2 text-sm sm:w-auto">
-      <span className="font-medium text-ink">Organisation</span>
+      <span className="font-medium text-ink"><Tx>Organisation</Tx></span>
       <select
         value={current}
         onChange={(e) => {
@@ -27,7 +28,7 @@ export function OrgFilter({ organizations }: { organizations: { id: string; labe
         }}
         className="min-w-0 flex-1 rounded-md border border-border bg-off-white px-3 py-1.5 text-sm outline-none focus:border-burgundy sm:flex-none"
       >
-        <option value="">All organisations</option>
+        <option value=""><Tx>All organisations</Tx></option>
         {organizations.map((o) => (
           <option key={o.id} value={o.id}>
             {o.label}

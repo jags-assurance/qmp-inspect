@@ -6,6 +6,8 @@ import {
   setClientAcceptanceRequiredAction,
   type ClientAcceptanceState,
 } from "@/lib/ncrs/acceptance-actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const field = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
 
@@ -17,7 +19,7 @@ export function ClientAcceptanceRequiredToggle({ ncrId, required }: { ncrId: str
       <input type="hidden" name="ncr_id" value={ncrId} />
       <label className="flex items-center gap-2 text-ink">
         <input type="checkbox" name="required" defaultChecked={required} onChange={(e) => e.currentTarget.form?.requestSubmit()} disabled={pending} />
-        The client must accept the disposition before this NCR can be closed
+        <Tx>The client must accept the disposition before this NCR can be closed</Tx>
       </label>
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
@@ -26,11 +28,12 @@ export function ClientAcceptanceRequiredToggle({ ncrId, required }: { ncrId: str
 
 /** Client (or an admin on their behalf): accept or reject the recorded disposition. */
 export function ClientAcceptanceForm({ ncrId }: { ncrId: string }) {
+  const tl = useTranslate();
   const [state, action, pending] = useActionState(recordClientAcceptanceAction, { error: null } as ClientAcceptanceState);
   return (
     <form action={action} className="mt-2 space-y-2">
       <input type="hidden" name="ncr_id" value={ncrId} />
-      <textarea name="comment" rows={2} maxLength={1000} placeholder="Comment (required if you reject)" className={field} aria-label="Comment" />
+      <textarea name="comment" rows={2} maxLength={1000} placeholder={tl("Comment (required if you reject)")} className={field} aria-label={tl("Comment")} />
       <div className="flex flex-wrap gap-2">
         <button
           type="submit"
@@ -39,7 +42,7 @@ export function ClientAcceptanceForm({ ncrId }: { ncrId: string }) {
           disabled={pending}
           className="min-h-10 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          Accept disposition
+          <Tx>Accept disposition</Tx>
         </button>
         <button
           type="submit"
@@ -48,7 +51,7 @@ export function ClientAcceptanceForm({ ncrId }: { ncrId: string }) {
           disabled={pending}
           className="min-h-10 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink disabled:opacity-50"
         >
-          Reject disposition
+          <Tx>Reject disposition</Tx>
         </button>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}

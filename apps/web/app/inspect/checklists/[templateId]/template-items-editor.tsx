@@ -11,6 +11,8 @@ import {
   updateChecklistItemAction,
 } from "@/lib/checklists/template-item-actions";
 import { moveItem } from "@/lib/checklists/template-logic";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface EditorItem {
   id: string;
@@ -33,6 +35,7 @@ export function TemplateItemsEditor({
   items: EditorItem[];
   blockedReason: string | null;
 }) {
+  const tl = useTranslate();
   const router = useRouter();
   const { ask, dialog } = useConfirm();
   const [pending, startTransition] = useTransition();
@@ -66,7 +69,7 @@ export function TemplateItemsEditor({
   async function remove(item: EditorItem) {
     const ok = await ask({
       title: `Delete item ${item.item_number}?`,
-      message: <>This permanently removes &quot;{item.description}&quot; from the checklist. It cannot be undone.</>,
+      message: <><Tx>This permanently removes &quot;</Tx>{item.description}<Tx>&quot; from the checklist. It cannot be undone.</Tx></>,
       confirmLabel: "Delete item",
       destructive: true,
     });
@@ -79,7 +82,7 @@ export function TemplateItemsEditor({
       {dialog}
       {blockedReason && (
         <p id={reasonId} className="border-b border-border bg-warning/10 px-4 py-2 text-xs text-ink" role="note">
-          Editing is disabled: {blockedReason}
+          <Tx>Editing is disabled:</Tx> {blockedReason}
         </p>
       )}
       <ul className="divide-y divide-border">
@@ -102,7 +105,7 @@ export function TemplateItemsEditor({
             <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm text-ink">
               <span className="doc-id text-muted">{item.item_number}.</span>
               <span className="min-w-40 flex-1">{item.description}</span>
-              <span title="Only changes the red asterisk shown to the inspector — every item must still be answered.">
+              <span title={tl("Only changes the red asterisk shown to the inspector — every item must still be answered.")}>
                 <Badge tone={item.is_mandatory ? "danger" : "neutral"}>{item.is_mandatory ? "Mandatory" : "Optional"}</Badge>
               </span>
               <span className="flex items-center gap-1" role="group" aria-label={`Actions for item ${item.item_number}`}>
@@ -137,7 +140,7 @@ export function TemplateItemsEditor({
                   aria-label={`Edit item ${item.item_number}`}
                   onClick={() => setEditingId(item.id)}
                 >
-                  Edit
+                  <Tx>Edit</Tx>
                 </Button>
                 <Button
                   type="button"
@@ -149,13 +152,13 @@ export function TemplateItemsEditor({
                   className="text-danger"
                   onClick={() => void remove(item)}
                 >
-                  Delete
+                  <Tx>Delete</Tx>
                 </Button>
               </span>
             </li>
           )
         )}
-        {items.length === 0 && <li className="px-4 py-4 text-sm text-muted">No items yet.</li>}
+        {items.length === 0 && <li className="px-4 py-4 text-sm text-muted"><Tx>No items yet.</Tx></li>}
       </ul>
       <div role="alert" className="px-4">
         {error && <p role="alert" className="py-2 text-sm text-danger">{error}</p>}
@@ -191,7 +194,7 @@ function EditItemForm({
     >
       <div>
         <label htmlFor={`${id}-n`} className="block text-xs font-medium text-muted">
-          Item no.
+          <Tx>Item no.</Tx>
         </label>
         <input
           id={`${id}-n`}
@@ -204,7 +207,7 @@ function EditItemForm({
       </div>
       <div className="w-full sm:min-w-64 flex-1">
         <label htmlFor={`${id}-d`} className="block text-xs font-medium text-muted">
-          Description
+          <Tx>Description</Tx>
         </label>
         <input
           id={`${id}-d`}
@@ -217,13 +220,13 @@ function EditItemForm({
       </div>
       <label className="flex items-center gap-2 pb-2 text-sm text-ink">
         <input type="checkbox" name="is_mandatory" defaultChecked={item.is_mandatory} />
-        Mandatory
+        <Tx>Mandatory</Tx>
       </label>
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
       <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={pending}>
-        Cancel
+        <Tx>Cancel</Tx>
       </Button>
     </form>
   );

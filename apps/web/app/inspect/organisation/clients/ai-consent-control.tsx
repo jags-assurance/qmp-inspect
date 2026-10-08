@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { setAiConsentAction, type AiConsentState } from "@/lib/ai/consent-actions";
 import { FormMessage } from "@/components/ui/form-message";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: AiConsentState = { error: null, message: null };
 
@@ -15,14 +16,14 @@ export function AiConsentControl({ organizationId, slug, consent }: { organizati
       <input type="hidden" name="enable" value={consent ? "false" : "true"} />
       {!consent && (
         <label className="text-xs font-medium text-ink">
-          Type “{slug}” to confirm
+          <Tx>Type “</Tx>{slug}<Tx>” to confirm</Tx>
           <input name="confirm" autoComplete="off" className="mt-1 block min-h-9 w-44 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
         </label>
       )}
       <button type="submit" disabled={pending} className="min-h-9 rounded-md border border-border px-3 text-xs font-medium text-burgundy hover:bg-off-white disabled:opacity-50">
         {pending ? "Saving…" : consent ? "Withdraw AI consent" : "Give AI consent"}
       </button>
-      {!consent && <p className="basis-full text-xs text-muted">This lets the organisation&apos;s content be sent to the AI provider (paid tier only).</p>}
+      {!consent && <p className="basis-full text-xs text-muted"><Tx>This lets the organisation&apos;s content be sent to the AI provider (paid tier only).</Tx></p>}
       <FormMessage error={state.error} success={state.message} className="basis-full" />
     </form>
   );

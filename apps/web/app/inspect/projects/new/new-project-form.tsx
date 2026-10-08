@@ -6,6 +6,8 @@ import { createProjectAction, type CreateProjectState } from "@/lib/projects/act
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { TimeZoneOptions } from "@/components/domain/timezone-options";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateProjectState = { error: null };
 
@@ -21,6 +23,7 @@ export function NewProjectForm({
   /** JAGS staff who can be named as the project's responsible person (Admin only). */
   staffUsers?: { id: string; full_name: string; email: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
 
   return (
@@ -28,11 +31,11 @@ export function NewProjectForm({
       <div>
         <div className="flex items-center justify-between">
           <label htmlFor="organization_id" className="block text-sm font-medium text-ink">
-            Client organisation
+            <Tx>Client organisation</Tx>
           </label>
           {allowCreateOrg && (
             <Link href="/inspect/organisation/clients" className="text-xs font-medium text-burgundy hover:underline">
-              + New organisation
+              <Tx>+ New organisation</Tx>
             </Link>
           )}
         </div>
@@ -42,7 +45,7 @@ export function NewProjectForm({
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">Select…</option>
+          <option value=""><Tx>Select…</Tx></option>
           {organizations.map((org) => (
             <option key={org.id} value={org.id}>
               {org.name}
@@ -54,7 +57,7 @@ export function NewProjectForm({
         )}
         {organizations.length === 0 && (
           <p className="mt-1 text-xs text-muted">
-            No client organisations exist yet — create one first.
+            <Tx>No client organisations exist yet — create one first.</Tx>
           </p>
         )}
       </div>
@@ -64,7 +67,7 @@ export function NewProjectForm({
           <input
           name="project_number"
           required
-          placeholder="e.g. MER-2026-001"
+          placeholder={tl("e.g. MER-2026-001")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -112,32 +115,32 @@ export function NewProjectForm({
         </div>
         <div>
           <FormField label="Site time zone (optional)">
-            <input name="timezone" list="project-timezones" maxLength={64} placeholder="e.g. Asia/Dubai (default UTC)" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <input name="timezone" list="project-timezones" maxLength={64} placeholder={tl("e.g. Asia/Dubai (default UTC)")} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
           </FormField>
           <TimeZoneOptions />
         </div>
         <div>
           <FormField label="Status">
             <select name="status" defaultValue="active" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
-            <option value="draft">Draft</option>
-            <option value="active">Active</option>
-            <option value="on_hold">On hold</option>
+            <option value="draft"><Tx>Draft</Tx></option>
+            <option value="active"><Tx>Active</Tx></option>
+            <option value="on_hold"><Tx>On hold</Tx></option>
           </select>
           </FormField>
         </div>
       </div>
       <div>
         <label htmlFor="locations" className="block text-sm font-medium text-ink">
-          Inspection locations (optional, one per line)
+          <Tx>Inspection locations (optional, one per line)</Tx>
         </label>
         <textarea id="locations" name="locations" rows={3} placeholder={"Block A\nBlock B\nPump house"} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
-        <p className="mt-1 text-xs text-muted">These appear in the location dropdown when an inspection is started on this project.</p>
+        <p className="mt-1 text-xs text-muted"><Tx>These appear in the location dropdown when an inspection is started on this project.</Tx></p>
       </div>
       {staffUsers.length > 0 && (
         <div>
           <FormField label="Responsible person (optional)">
             <select name="responsible_person_id" defaultValue="" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
-            <option value="">— none set —</option>
+            <option value=""><Tx>— none set —</Tx></option>
             {staffUsers.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name} ({u.email})

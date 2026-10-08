@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { addSelfManagedPartyAction, type AddSelfManagedPartyState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddSelfManagedPartyState = { error: null };
 
@@ -23,14 +25,14 @@ const PARTY_TYPE_OPTIONS: { value: string; label: string }[] = [
  * a new contact, so email is the only thing needed to find that account.
  */
 export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addSelfManagedPartyAction, initialState);
 
   return (
     <form action={formAction} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
       <input type="hidden" name="project_id" value={projectId} />
       <p className="text-xs text-muted">
-        Add someone who already has a JAGS Assurance account — including a contractor, subcontractor
-        or vendor from outside your own organisation — to this project.
+        <Tx>Add someone who already has a JAGS Assurance account — including a contractor, subcontractor or vendor from outside your own organisation — to this project.</Tx>
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
@@ -53,7 +55,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
             <input
             name="name"
             required
-            placeholder="e.g. Voltway Electrical Ltd"
+            placeholder={tl("e.g. Voltway Electrical Ltd")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
@@ -64,7 +66,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
             name="email"
             type="email"
             required
-            placeholder="name@company.com"
+            placeholder={tl("name@company.com")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
           </FormField>

@@ -1,5 +1,6 @@
 import { diffRevisions, type RevisionDiff } from "@/lib/itps/revision-diff";
 import type { ItpRevisionRow, ItpRevisionSnapshotItem, ItpRevisionSnapshotSection } from "@/lib/itps/revision-types";
+import { T } from "@/components/domain/t";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -50,9 +51,9 @@ function changeSummary(item: ItpRevisionSnapshotItem, previous: ItpRevisionSnaps
 function RevisionDiffBlock({ diff, olderRevision }: { diff: RevisionDiff; olderRevision: number }) {
   return (
     <div className="mt-3 rounded-md border border-border bg-off-white p-3 text-xs" data-testid="revision-diff">
-      <p className="font-medium uppercase tracking-wide text-muted">Changes since Rev {olderRevision}</p>
+      <p className="font-medium uppercase tracking-wide text-muted"><T>Changes since Rev</T> {olderRevision}</p>
       {diff.isEmpty ? (
-        <p className="mt-1 text-muted">No content differences were recorded.</p>
+        <p className="mt-1 text-muted"><T>No content differences were recorded.</T></p>
       ) : (
         <ul className="mt-1 space-y-1 text-ink">
           {diff.headerChanges.map((c) => (
@@ -61,14 +62,14 @@ function RevisionDiffBlock({ diff, olderRevision }: { diff: RevisionDiff; olderR
             </li>
           ))}
           {diff.addedSections.map((s) => (
-            <li key={`as-${s.number}-${s.title}`}>+ Section {s.number}. {s.title}</li>
+            <li key={`as-${s.number}-${s.title}`}><T>+ Section</T> {s.number}. {s.title}</li>
           ))}
           {diff.removedSections.map((s) => (
-            <li key={`rs-${s.number}-${s.title}`}>- Section {s.number}. {s.title}</li>
+            <li key={`rs-${s.number}-${s.title}`}><T>- Section</T> {s.number}. {s.title}</li>
           ))}
           {diff.renamedSections.map((s) => (
             <li key={`ns-${s.number}`}>
-              Section {s.number}: <del className="text-muted">{s.before}</del> <ins className="no-underline font-medium">{s.after}</ins>
+              <T>Section</T> {s.number}: <del className="text-muted">{s.before}</del> <ins className="no-underline font-medium">{s.after}</ins>
             </li>
           ))}
           {diff.addedItems.map((i) => (
@@ -121,14 +122,13 @@ export function RevisionHistoryPanel({
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-medium text-ink">Revision history</h2>
+      <h2 className="text-sm font-medium text-ink"><T>Revision history</T></h2>
       <p className="mt-1 text-xs text-muted">
-        {revisions.length} recorded {revisions.length === 1 ? "revision" : "revisions"} — the content each superseded, frozen at the
-        moment it changed.
+        {revisions.length} <T>recorded</T> {revisions.length === 1 ? "revision" : "revisions"} <T>— the content each superseded, frozen at the moment it changed.</T>
         {currentRevision !== undefined && (
           <>
             {" "}
-            Current: <span className="doc-id text-ink">Rev {currentRevision}</span>
+            <T>Current:</T> <span className="doc-id text-ink"><T>Rev</T> {currentRevision}</span>
             {awaitingApproval ? " (awaiting approval)" : ""}.
           </>
         )}
@@ -144,7 +144,7 @@ export function RevisionHistoryPanel({
             <li key={rev.id}>
               <details className="rounded-md border border-border">
                 <summary className="cursor-pointer select-none px-3 py-2 text-sm">
-                  <span className="doc-id font-medium text-ink">Rev {rev.revision}</span>{" "}
+                  <span className="doc-id font-medium text-ink"><T>Rev</T> {rev.revision}</span>{" "}
                   <span className="text-muted">
                     — {new Date(rev.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
                     {rev.users?.full_name ? ` · ${rev.users.full_name}` : ""}
@@ -154,11 +154,11 @@ export function RevisionHistoryPanel({
                 <div className="border-t border-border px-3 py-3 text-sm">
                   {older && <RevisionDiffBlock diff={diffRevisions(older, rev)} olderRevision={older.revision} />}
                   <p className="mt-3 text-ink">{rev.title}</p>
-                  {rev.scope && <p className="mt-0.5 text-xs text-muted">Scope: {rev.scope}</p>}
+                  {rev.scope && <p className="mt-0.5 text-xs text-muted"><T>Scope:</T> {rev.scope}</p>}
                   {rev.applicable_standard && <p className="mt-0.5 text-xs text-muted">{rev.applicable_standard}</p>}
                   <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
                     {sections.length} {sections.length === 1 ? "section" : "sections"}, {itemCount}{" "}
-                    {itemCount === 1 ? "activity" : "activities"} at this revision
+                    {itemCount === 1 ? "activity" : "activities"} <T>at this revision</T>
                     {removedCount > 0 ? ` · ${removedCount} removed since Rev ${older!.revision}` : ""}
                   </p>
                   <div className="mt-2 space-y-3">
@@ -186,13 +186,13 @@ export function RevisionHistoryPanel({
                                 {detail.length > 0 && <span className="block">{detail.join(" · ")}</span>}
                                 {(item.interventions ?? []).length > 0 && (
                                   <span className="block">
-                                    Sign-off: {(item.interventions ?? []).map((i) => `${i.party_name || "Party"} ${i.intervention}`).join(" · ")}
+                                    <T>Sign-off:</T> {(item.interventions ?? []).map((i) => `${i.party_name || "Party"} ${i.intervention}`).join(" · ")}
                                   </span>
                                 )}
                               </li>
                             );
                           })}
-                          {(section.items ?? []).length === 0 && <li className="text-xs text-muted">No activities in this section.</li>}
+                          {(section.items ?? []).length === 0 && <li className="text-xs text-muted"><T>No activities in this section.</T></li>}
                         </ul>
                       </div>
                     ))}

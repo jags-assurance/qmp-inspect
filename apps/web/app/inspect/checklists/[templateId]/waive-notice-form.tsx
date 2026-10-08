@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { waiveWitnessNoticeAction, type WaiveNoticeState } from "@/lib/checklists/waiver-actions";
 import { WAIVER_REASON_MIN } from "@/lib/checklists/notice-waiver";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initial: WaiveNoticeState = { error: null };
 
@@ -19,13 +20,13 @@ export function WaiveNoticeForm({ inspectionRecordId, labels }: { inspectionReco
 
   return (
     <form action={formAction} className="rounded-md border border-warning/60 bg-warning/10 p-3 text-sm">
-      <p className="font-medium text-ink">The {labels.join(", ")} party has not been notified.</p>
+      <p className="font-medium text-ink"><Tx>The</Tx> {labels.join(", ")} <Tx>party has not been notified.</Tx></p>
       <p className="mt-1 text-xs text-muted">
-        Notify them from the Sign-off tab on the ITP, or record a written waiver so this one inspection can be completed.
+        <Tx>Notify them from the Sign-off tab on the ITP, or record a written waiver so this one inspection can be completed.</Tx>
       </p>
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <label htmlFor="waiver-reason" className="mt-2 block text-xs font-medium text-ink">
-        Reason for waiving the notice (kept on the audit trail)
+        <Tx>Reason for waiving the notice (kept on the audit trail)</Tx>
       </label>
       <textarea
         id="waiver-reason"

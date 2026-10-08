@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { generateChecklistTemplatesAction, type GenerateChecklistsState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: GenerateChecklistsState = { error: null };
 
@@ -16,7 +17,7 @@ export function GenerateChecklistsButton({ itpId }: { itpId: string }) {
         {pending ? "Generating…" : "Generate checklists with AI"}
       </Button>
       <p className="mt-2 text-xs text-muted">
-        AI-generated checklists are saved as drafts. Staff must review and confirm each one before inspections can start.
+        <Tx>AI-generated checklists are saved as drafts. Staff must review and confirm each one before inspections can start.</Tx>
       </p>
       {state.notice && (
         <p
@@ -28,7 +29,7 @@ export function GenerateChecklistsButton({ itpId }: { itpId: string }) {
       )}
       {state.offerBlank && (
         <Button type="submit" name="mode" value="blank" variant="outline" className="mt-2" disabled={pending}>
-          Create blank checklists instead
+          <Tx>Create blank checklists instead</Tx>
         </Button>
       )}
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}

@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * Toggles between the ways to start an ITP. Only a tab-selection string lives here — the
@@ -38,7 +39,7 @@ export function ItpCreationTabs({
           onClick={() => setTab("manual")}
           className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "manual" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
         >
-          Build from scratch
+          <Tx>Build from scratch</Tx>
         </button>
         {fromTemplate && (
           <button
@@ -46,7 +47,7 @@ export function ItpCreationTabs({
             onClick={() => setTab("template")}
             className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
           >
-            Start from a master template
+            <Tx>Start from a master template</Tx>
           </button>
         )}
         {fromAi && (
@@ -55,7 +56,7 @@ export function ItpCreationTabs({
             onClick={() => setTab("ai")}
             className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
           >
-            Generate from vault documents
+            <Tx>Generate from vault documents</Tx>
           </button>
         )}
       </div>

@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { issueIrnAction, voidIrnAction, type IssueIrnState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: IssueIrnState = { error: null };
 
@@ -21,10 +23,11 @@ export function IssueIrnForm({ inspectionRecordId }: { inspectionRecordId: strin
 }
 
 export function VoidIrnForm({ irnId }: { irnId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(voidIrnAction, initialState);
   return (
     <details className="mt-3 text-sm">
-      <summary className="cursor-pointer text-danger">Void this IRN…</summary>
+      <summary className="cursor-pointer text-danger"><Tx>Void this IRN…</Tx></summary>
       <form action={formAction} className="mt-2 space-y-2">
         <input type="hidden" name="irn_id" value={irnId} />
         <textarea
@@ -32,7 +35,7 @@ export function VoidIrnForm({ irnId }: { irnId: string }) {
           required
           minLength={15}
           rows={2}
-          placeholder="Reason for voiding (required, min 15 characters)"
+          placeholder={tl("Reason for voiding (required, min 15 characters)")}
           className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         <Button type="submit" disabled={pending}>

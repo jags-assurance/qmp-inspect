@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { updateMasterTemplateMetaAction, setMasterTemplateActiveAction, type MasterAdminState } from "@/lib/itp-master/admin-actions";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initial: MasterAdminState = { error: null };
 const field = "mt-1 w-full min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
@@ -25,6 +27,7 @@ export function MasterAdminPanel({
   isActive: boolean;
   disciplines: { id: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [metaState, metaAction, metaPending] = useActionState(updateMasterTemplateMetaAction, initial);
   const [activeState, activeAction, activePending] = useActionState(setMasterTemplateActiveAction, initial);
@@ -36,24 +39,24 @@ export function MasterAdminPanel({
         <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)} className="min-h-11">
           {open ? "Close editor" : "Edit details"}
         </Button>
-        <span className="text-xs text-muted">Admin only. Editing details does not change activities or the version number.</span>
+        <span className="text-xs text-muted"><Tx>Admin only. Editing details does not change activities or the version number.</Tx></span>
       </div>
 
       {open && (
         <form action={metaAction} className="mt-3 grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="template_id" value={templateId} />
           <label className="text-sm text-ink sm:col-span-2">
-            Title
+            <Tx>Title</Tx>
             <input name="title" required maxLength={200} defaultValue={title} className={field} />
           </label>
           <label className="text-sm text-ink">
-            Industry
+            <Tx>Industry</Tx>
             <input name="industry" required defaultValue={industry} className={field} />
           </label>
           <label className="text-sm text-ink">
-            Discipline
+            <Tx>Discipline</Tx>
             <select name="discipline_id" defaultValue={disciplineId ?? ""} className={field}>
-              <option value="">None</option>
+              <option value=""><Tx>None</Tx></option>
               {disciplines.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -62,11 +65,11 @@ export function MasterAdminPanel({
             </select>
           </label>
           <label className="text-sm text-ink sm:col-span-2">
-            Applicable standard
+            <Tx>Applicable standard</Tx>
             <input name="applicable_standard" defaultValue={standard ?? ""} className={field} />
           </label>
           {metaState.error && <p role="alert" className="text-sm text-danger sm:col-span-2">{metaState.error}</p>}
-          {metaState.ok && <p className="text-sm text-success sm:col-span-2">Saved.</p>}
+          {metaState.ok && <p className="text-sm text-success sm:col-span-2"><Tx>Saved.</Tx></p>}
           <div className="sm:col-span-2">
             <Button type="submit" disabled={metaPending}>
               {metaPending ? "Saving…" : "Save details"}
@@ -92,8 +95,8 @@ export function MasterAdminPanel({
         <input type="hidden" name="active" value={isActive ? "false" : "true"} />
         {isActive && (
           <label className="min-w-0 flex-1 text-sm text-ink">
-            Reason for retiring
-            <input name="reason" required className={field} placeholder="e.g. superseded by v2 of the standard" />
+            <Tx>Reason for retiring</Tx>
+            <input name="reason" required className={field} placeholder={tl("e.g. superseded by v2 of the standard")} />
           </label>
         )}
         <Button type="submit" variant="outline" disabled={activePending} className="min-h-11">

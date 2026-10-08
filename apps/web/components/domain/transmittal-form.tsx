@@ -6,6 +6,8 @@ import { MAX_TRANSMITTAL_MESSAGE_LENGTH, MAX_TRANSMITTAL_RECIPIENTS, parseRecipi
 import type { TransmittalEntityType } from "@/lib/transmittals/logic";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: SendTransmittalState = { error: null };
 
@@ -19,6 +21,7 @@ export function TransmittalForm({
   entityId: string;
   projectId: string;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(sendTransmittalAction, initialState);
   const [recipients, setRecipients] = useState("");
   const parsed = parseRecipients(recipients);
@@ -31,7 +34,7 @@ export function TransmittalForm({
       <input type="hidden" name="project_id" value={projectId} />
       <div>
         <label htmlFor={`tx_recipients_${entityId}`} className="block text-xs font-medium text-ink">
-          Recipients (email addresses separated by commas, spaces or new lines; up to {MAX_TRANSMITTAL_RECIPIENTS})
+          <Tx>Recipients (email addresses separated by commas, spaces or new lines; up to</Tx> {MAX_TRANSMITTAL_RECIPIENTS})
         </label>
         <textarea
           id={`tx_recipients_${entityId}`}
@@ -41,7 +44,7 @@ export function TransmittalForm({
           value={recipients}
           onChange={(e) => setRecipients(e.target.value)}
           className={fieldCls}
-          placeholder="name@company.com"
+          placeholder={tl("name@company.com")}
         />
         {recipients.trim() && (
           <p className={`mt-1 text-xs ${parsed.invalid.length > 0 ? "text-danger" : "text-muted"}`}>
@@ -53,13 +56,12 @@ export function TransmittalForm({
       </div>
       <div>
         <label htmlFor={`tx_message_${entityId}`} className="block text-xs font-medium text-ink">
-          Message (optional)
+          <Tx>Message (optional)</Tx>
         </label>
         <textarea id={`tx_message_${entityId}`} name="message" rows={3} maxLength={MAX_TRANSMITTAL_MESSAGE_LENGTH} className={fieldCls} />
       </div>
       <p className="text-xs text-muted">
-        The email contains a link, not the file: recipients sign in to JAGS Assurance to open it, so they need an account with access to this project.
-        Every send is logged below.
+        <Tx>The email contains a link, not the file: recipients sign in to JAGS Assurance to open it, so they need an account with access to this project. Every send is logged below.</Tx>
       </p>
       <FormMessage error={state.error} success={state.success} />
       <Button type="submit" disabled={pending || parsed.valid.length === 0 || parsed.invalid.length > 0}>

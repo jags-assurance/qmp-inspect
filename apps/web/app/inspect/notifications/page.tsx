@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { NOTIFICATIONS_TABLE, type NotificationRow } from "@/lib/notifications/types";
 import { markAllNotificationsReadAction } from "@/lib/notifications/actions";
+import { T } from "@/components/domain/t";
 
 const PAGE_SIZE = 25;
 
@@ -45,11 +46,11 @@ export default async function NotificationsPage({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-ink">Notifications</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Notifications</T></h1>
         {(unreadTotal ?? 0) > 0 && (
           <form action={markAll}>
             <button type="submit" className="min-h-11 rounded-md border border-border px-3 text-sm text-burgundy hover:bg-off-white">
-              Mark all read ({unreadTotal})
+              <T>Mark all read (</T>{unreadTotal})
             </button>
           </form>
         )}
@@ -60,13 +61,13 @@ export default async function NotificationsPage({
           href="/inspect/notifications"
           className={"min-h-11 rounded-md border px-3 py-2.5 " + (!unreadOnly ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border text-muted")}
         >
-          All
+          <T>All</T>
         </Link>
         <Link
           href="/inspect/notifications?filter=unread"
           className={"min-h-11 rounded-md border px-3 py-2.5 " + (unreadOnly ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border text-muted")}
         >
-          Unread
+          <T>Unread</T>
         </Link>
       </div>
 
@@ -106,17 +107,17 @@ export default async function NotificationsPage({
         <div className="mt-4 flex items-center justify-between text-sm">
           {page > 1 ? (
             <Link href={qs(page - 1)} className="min-h-11 py-2.5 text-burgundy hover:underline">
-              Newer
+              <T>Newer</T>
             </Link>
           ) : (
             <span />
           )}
           <span className="text-muted">
-            Page {page} of {pages}
+            <T>Page</T> {page} <T>of</T> {pages}
           </span>
           {page < pages ? (
             <Link href={qs(page + 1)} className="min-h-11 py-2.5 text-burgundy hover:underline">
-              Older
+              <T>Older</T>
             </Link>
           ) : (
             <span />

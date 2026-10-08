@@ -17,6 +17,8 @@ import { notifyOutboxChanged, onOutboxChanged, syncOutbox } from "@/lib/offline/
 import { getLocalUserId } from "@/lib/offline/user";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { STALE_QUEUE_DAYS, formatQueueAge, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -60,6 +62,7 @@ interface BeforeInstallPromptEvent extends Event {
  * app shell. Also hosts the PWA install prompt when idle.
  */
 export function OfflineBanner() {
+  const tl = useTranslate();
   const { ask, dialog } = useConfirm();
   // Matches the server render on first paint (no `navigator` there); real value is read in effects.
   const [isOnline, setIsOnline] = useState(true);
@@ -144,9 +147,9 @@ export function OfflineBanner() {
 
   const updateBar = waitingSw ? (
     <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info" role="status">
-      <span>Update available</span>
+      <span><Tx>Update available</Tx></span>
       <button type="button" className="font-medium underline" onClick={applyUpdate}>
-        Reload
+        <Tx>Reload</Tx>
       </button>
     </div>
   ) : null;
@@ -270,7 +273,7 @@ export function OfflineBanner() {
       {dialog}
       {updateBar}
       <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info">
-        <span>Install QMP Inspect on this device for faster access in the field.</span>
+        <span><Tx>Install QMP Inspect on this device for faster access in the field.</Tx></span>
         <span className="flex shrink-0 gap-3">
           <button
             type="button"
@@ -281,7 +284,7 @@ export function OfflineBanner() {
               setInstallEvent(null);
             }}
           >
-            Install
+            <Tx>Install</Tx>
           </button>
           <button
             type="button"
@@ -295,7 +298,7 @@ export function OfflineBanner() {
               setInstallEvent(null);
             }}
           >
-            Not now
+            <Tx>Not now</Tx>
           </button>
         </span>
       </div>
@@ -330,29 +333,29 @@ export function OfflineBanner() {
         <span className="flex shrink-0 gap-3">
           {isOnline && pendingCount > 0 && !syncing && (
             <button type="button" onClick={attemptSync} className="font-medium underline">
-              Sync now
+              <Tx>Sync now</Tx>
             </button>
           )}
           {pendingCount > 0 && (staleCount > 0 || failedCount > 0 || !storagePersisted) && (
             <button type="button" onClick={exportQueue} className="underline">
-              Export queue
+              <Tx>Export queue</Tx>
             </button>
           )}
           {authBlocked && (
             <a href="/login" className="font-medium underline">
-              Sign in
+              <Tx>Sign in</Tx>
             </a>
           )}
         </span>
       </div>
       {pendingCount > 0 && (
         <details className="border-b border-border bg-surface text-sm">
-          <summary className="cursor-pointer px-4 py-2 text-muted">View everything in the queue ({pendingCount})</summary>
+          <summary className="cursor-pointer px-4 py-2 text-muted"><Tx>View everything in the queue (</Tx>{pendingCount})</summary>
           <ul className="divide-y divide-border">
             {allItems.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5">
                 <span>
-                  {describeItem(item)} <span className="text-muted">· queued {formatQueueAge(item.createdAt)} ago{item.status ? ` · ${item.status}` : ""}</span>
+                  {describeItem(item)} <span className="text-muted"><Tx>· queued</Tx> {formatQueueAge(item.createdAt)} <Tx>ago</Tx>{item.status ? ` · ${item.status}` : ""}</span>
                 </span>
                 {!reviewItems.some((r) => r.id === item.id) && (
                   <button
@@ -369,7 +372,7 @@ export function OfflineBanner() {
                       });
                     }}
                   >
-                    Discard
+                    <Tx>Discard</Tx>
                   </button>
                 )}
               </li>
@@ -378,7 +381,7 @@ export function OfflineBanner() {
         </details>
       )}
       {reviewItems.length > 0 && (
-        <ul className="divide-y divide-border border-b border-border bg-surface text-sm" aria-label="Changes that need review">
+        <ul className="divide-y divide-border border-b border-border bg-surface text-sm" aria-label={tl("Changes that need review")}>
           {reviewItems.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
               <span>
@@ -393,11 +396,11 @@ export function OfflineBanner() {
               <span className="flex shrink-0 gap-3">
                 {item.status === "conflict" ? (
                   <button type="button" className="font-medium underline" onClick={() => act(forceOutboxItem, item.id).then(attemptSync)}>
-                    Keep mine
+                    <Tx>Keep mine</Tx>
                   </button>
                 ) : (
                   <button type="button" className="font-medium underline" onClick={() => act(resetOutboxItem, item.id).then(attemptSync)}>
-                    Retry
+                    <Tx>Retry</Tx>
                   </button>
                 )}
                 <button

@@ -15,6 +15,7 @@ import { RaiseObservationPanel } from "./raise-observation-panel";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
 import type { ObservationStatRow } from "@/lib/ncrs/register-stats";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -29,6 +30,7 @@ export default async function ObservationsPage({
 }: {
   searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const { discipline: disciplineId, project: projectId, q, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
@@ -107,7 +109,7 @@ export default async function ObservationsPage({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink"><T>Observation Register</T></h1>
             <PageGuide
-              title="Observation Register — how this works"
+              title={tl("Observation Register — how this works")}
               points={[
                 "Observations are raised on the same NCR form and stored in the same ncrs table as minor/major NCRs — severity \"Observation\" is what routes a record here instead of to the NCR Register, so the two registers never double-list the same rows.",
                 "Anyone with project access can raise one via \"+ Raise Observation\". An observation does not create a punch-list item and does not count in readiness or the open-NCR exceptions; if JAGS staff grade it up to a minor or major NCR, a punch-list item is created then.",
@@ -121,7 +123,7 @@ export default async function ObservationsPage({
               ? "Observations across every project you have access to."
               : "Observations on your organisation's projects."}{" "}
             <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
-              See NCRs →
+              <T>See NCRs →</T>
             </Link>
           </p>
         </div>
@@ -130,9 +132,9 @@ export default async function ObservationsPage({
 
       {projectId && (
         <p className="mt-3 text-sm text-muted">
-          Filtered to one project.{" "}
+          <T>Filtered to one project.</T>{" "}
           <Link href="/inspect/observations" className="text-burgundy hover:underline">
-            Clear filter
+            <T>Clear filter</T>
           </Link>
         </p>
       )}

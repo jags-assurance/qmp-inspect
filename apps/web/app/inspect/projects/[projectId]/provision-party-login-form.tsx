@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { provisionPartyLoginAction, type ProvisionPartyLoginState } from "@/lib/projects/party-provisioning";
 import { formatDateTime } from "@/lib/dates/format";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null };
 
@@ -32,6 +34,7 @@ export function ProvisionPartyLoginForm({
   /** A JAGS Admin may override the organisation seat limit (with a reason, audited). */
   isAdmin?: boolean;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(provisionPartyLoginAction, initialState);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(contactEmail ?? "");
@@ -39,10 +42,9 @@ export function ProvisionPartyLoginForm({
   if (state.tempPassword && state.email) {
     return (
       <div className="mt-1 rounded-md border border-warning/40 bg-warning/5 px-2 py-1.5 text-xs">
-        <p className="font-medium text-ink">Account created for {state.email}</p>
+        <p className="font-medium text-ink"><Tx>Account created for</Tx> {state.email}</p>
         <p className="mt-0.5 text-muted">
-          Temporary password (shown once — copy it now and share it directly with this person; they must
-          change it on first sign-in
+          <Tx>Temporary password (shown once — copy it now and share it directly with this person; they must change it on first sign-in</Tx>
           {state.expiresAt ? `; it stops working on ${formatDateTime(state.expiresAt, "UTC")} UTC if unused` : ""}):
         </p>
         <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-xs text-ink">{state.tempPassword}</p>
@@ -55,7 +57,7 @@ export function ProvisionPartyLoginForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
-        Grant platform access
+        <Tx>Grant platform access</Tx>
       </button>
     );
   }
@@ -69,17 +71,17 @@ export function ProvisionPartyLoginForm({
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="person@company.com"
+        placeholder={tl("person@company.com")}
         className="w-44 rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
       />
       {isAdmin && (
         <div className="flex w-full flex-wrap items-center gap-1.5">
           <label className="flex items-center gap-1 text-muted">
-            <input type="checkbox" name="seat_override" /> Override seat limit (Admin, audited)
+            <input type="checkbox" name="seat_override" /> <Tx>Override seat limit (Admin, audited)</Tx>
           </label>
           <input
             name="seat_override_reason"
-            placeholder="Reason (required if ticked)"
+            placeholder={tl("Reason (required if ticked)")}
             className="w-44 rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
           />
         </div>
@@ -88,7 +90,7 @@ export function ProvisionPartyLoginForm({
         {pending ? "Granting…" : "Confirm"}
       </button>
       <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
-        Cancel
+        <Tx>Cancel</Tx>
       </button>
       {state.error && <span className="w-full text-danger">{state.error}</span>}
     </form>

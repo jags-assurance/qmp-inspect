@@ -18,6 +18,8 @@ import { HwrsSection, type HwrsPoint } from "./hwrs-section";
 import { ItpReviewChainForm } from "../itp-review-chain-form";
 import { ItpAcceptorPicker } from "../itp-acceptor-picker";
 import { ItpApprovalRoadmap } from "../itp-approval-roadmap";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * Own page (not an inline panel on the ITP page — found too heavy there for what's mostly a
@@ -29,6 +31,7 @@ import { ItpApprovalRoadmap } from "../itp-approval-roadmap";
  * not, so whoever's turn is next knows it, and everyone else can watch the whole thing progress).
  */
 export async function ApprovalRoadmapView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -56,7 +59,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     if (embedded) {
       return (
         <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">
-          ITP not found. It may have been removed or you may not have access.
+          <T>ITP not found. It may have been removed or you may not have access.</T>
         </div>
       );
     }
@@ -197,17 +200,17 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     <div>
       {!embedded && (
         <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        ← Back to ITP
+        <T>← Back to ITP</T>
       </Link>
       )}
       <div className={embedded ? "" : "mt-2"}>
         <p className="text-sm text-muted">{itp.projects?.name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Heading className="text-2xl font-semibold text-ink">
-            Approval roadmap <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
+            <T>Approval roadmap</T> <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
           </Heading>
           <PageGuide
-            title="Approval roadmap — how this works"
+            title={tl("Approval roadmap — how this works")}
             points={[
               "The Plan (top): who is assigned to approve and accept this ITP, set before anyone acts — a JAGS Admin can assign a specific ordered review chain and a specific client acceptor here, or leave either unset to keep the open default (any JAGS staff approves, any linked client party accepts).",
               "The Process (below): the live stage-by-stage status — Draft, Submitted, Review chain, Approved, Client accepted — each stage shows who's responsible for it, so the next person in line knows it's their turn and everyone else can watch it progress.",
@@ -219,12 +222,12 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold text-ink">1. The plan — who approves, who accepts</h2>
-        <p className="mt-1 text-xs text-muted">Set once, before the process starts — this is what everyone below is following.</p>
+        <h2 className="text-sm font-semibold text-ink"><T>1. The plan — who approves, who accepts</T></h2>
+        <p className="mt-1 text-xs text-muted"><T>Set once, before the process starts — this is what everyone below is following.</T></p>
 
         <div className="mt-3 space-y-3">
           <div>
-            <p className="text-xs font-medium text-muted">Review chain (in order)</p>
+            <p className="text-xs font-medium text-muted"><T>Review chain (in order)</T></p>
             {plannedChain.length > 0 ? (
               <ol className="mt-1 space-y-0.5">
                 {plannedChain.map((member, i) => (
@@ -234,11 +237,11 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
                 ))}
               </ol>
             ) : (
-              <p className="mt-1 text-sm text-ink">Any JAGS staff member — no chain configured</p>
+              <p className="mt-1 text-sm text-ink"><T>Any JAGS staff member — no chain configured</T></p>
             )}
           </div>
           <div>
-            <p className="text-xs font-medium text-muted">Accepts</p>
+            <p className="text-xs font-medium text-muted"><T>Accepts</T></p>
             <p className="mt-1 text-sm text-ink">
               {itp.assigned_acceptor_user_id
                 ? (nameById.get(itp.assigned_acceptor_user_id) ?? "Assigned person")
@@ -261,28 +264,28 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
           </div>
         )}
         {!isAdminStaff(session) && (
-          <p className="mt-3 text-xs text-muted">Only a JAGS Admin can change who&apos;s assigned here.</p>
+          <p className="mt-3 text-xs text-muted"><T>Only a JAGS Admin can change who&apos;s assigned here.</T></p>
         )}
       </div>
 
       <div className="mt-4">
-        <h2 className="mb-2 text-sm font-semibold text-ink">2. The process — where it stands right now</h2>
+        <h2 className="mb-2 text-sm font-semibold text-ink"><T>2. The process — where it stands right now</T></h2>
         {itp.status === "draft" && lifecycleExtra?.returned_reason && (
           <div className="mb-3 rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink" role="status">
-            <p className="font-medium text-danger">Returned for changes</p>
+            <p className="font-medium text-danger"><T>Returned for changes</T></p>
             <p className="mt-0.5 whitespace-pre-line">{lifecycleExtra.returned_reason}</p>
             {lifecycleExtra.returned_at && <p className="mt-1 text-xs text-muted">{formatWhen(lifecycleExtra.returned_at)}</p>}
           </div>
         )}
         {lifecycleExtra?.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
           <div className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-            <p className="font-medium">Revision {lifecycleExtra.revision} is awaiting approval</p>
-            <p className="mt-0.5 text-xs text-muted">The stages below show the originally issued ITP; the latest change still needs re-approval.</p>
+            <p className="font-medium"><T>Revision</T> {lifecycleExtra.revision} <T>is awaiting approval</T></p>
+            <p className="mt-0.5 text-xs text-muted"><T>The stages below show the originally issued ITP; the latest change still needs re-approval.</T></p>
           </div>
         )}
         {reviewSteps.length > 0 && (
           <div className="mb-3 rounded-md border border-border bg-surface px-4 py-3">
-            <p className="text-xs font-medium text-muted">Review chain</p>
+            <p className="text-xs font-medium text-muted"><T>Review chain</T></p>
             <ol className="mt-1 space-y-1">
               {reviewSteps.map((step) => (
                 <li key={step.id} className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-ink">
@@ -299,7 +302,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
         )}
         {lifecycleExtra?.external_approval_reference && (
           <p className="mb-3 text-xs text-muted">
-            External approval recorded: <span className="text-ink">{lifecycleExtra.external_approval_reference}</span>
+            <T>External approval recorded:</T> <span className="text-ink">{lifecycleExtra.external_approval_reference}</span>
             {lifecycleExtra.external_approval_recorded_at ? ` · ${formatWhen(lifecycleExtra.external_approval_recorded_at)}` : ""}
           </p>
         )}

@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { addItpItemAction, type AddItemState } from "@/lib/itps/actions";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddItemState = { error: null };
 
@@ -32,6 +34,7 @@ export function AddItemForm({
   parties?: { id: string; name: string }[];
   levels?: { code: string; label: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addItpItemAction, initialState);
   // Was always rendered fully open, one 7-field row per section, whether or not anyone was
   // actively adding an activity — real clutter on an ITP with several sections. Collapsed behind
@@ -45,7 +48,7 @@ export function AddItemForm({
         onClick={() => setOpen(true)}
         className="w-full border-t border-border bg-off-white px-4 py-2.5 text-start text-sm font-medium text-burgundy hover:bg-burgundy/5"
       >
-        + Add activity
+        <Tx>+ Add activity</Tx>
       </button>
     );
   }
@@ -87,7 +90,7 @@ export function AddItemForm({
         <FormField label="Reference document / clause">
           <input
           name="reference_spec"
-          placeholder="e.g. Spec 03300 cl. 5.2 / API 1104"
+          placeholder={tl("e.g. Spec 03300 cl. 5.2 / API 1104")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -96,7 +99,7 @@ export function AddItemForm({
         <FormField label="Method">
           <input
           name="method"
-          placeholder="e.g. Visual, UT, Hydrotest"
+          placeholder={tl("e.g. Visual, UT, Hydrotest")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -105,7 +108,7 @@ export function AddItemForm({
         <FormField label="Frequency / sample">
           <input
           name="frequency"
-          placeholder="e.g. 100%, each pour, 1 in 10"
+          placeholder={tl("e.g. 100%, each pour, 1 in 10")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -117,9 +120,9 @@ export function AddItemForm({
           defaultValue="1"
           className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         >
-          <option value="1">Checklist</option>
-          <option value="2">Document upload</option>
-          <option value="3">Measurement</option>
+          <option value="1"><Tx>Checklist</Tx></option>
+          <option value="2"><Tx>Document upload</Tx></option>
+          <option value="3"><Tx>Measurement</Tx></option>
         </select>
         </FormField>
       </div>
@@ -145,8 +148,8 @@ export function AddItemForm({
           name="notice_hours_override"
           type="number"
           min={0}
-          placeholder="Default"
-          title="R25: optional per-activity notice period, in hours. Leave blank to use the project/organisation default for the level assigned on each cell."
+          placeholder={tl("Default")}
+          title={tl("R25: optional per-activity notice period, in hours. Leave blank to use the project/organisation default for the level assigned on each cell.")}
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -168,10 +171,10 @@ export function AddItemForm({
             defaultValue=""
             className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">— None —</option>
+            <option value=""><Tx>— None —</Tx></option>
             {drawingDocuments.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.title} (Rev {d.revision})
+                {d.title} <Tx>(Rev</Tx> {d.revision})
               </option>
             ))}
           </select>
@@ -180,7 +183,7 @@ export function AddItemForm({
       )}
       {parties.length > 0 && levels.length > 0 && (
         <fieldset className="w-full rounded-md border border-border bg-surface px-3 py-2">
-          <legend className="px-1 text-xs font-medium text-muted">Sign-off level per party (optional — leave blank for no intervention)</legend>
+          <legend className="px-1 text-xs font-medium text-muted"><Tx>Sign-off level per party (optional — leave blank for no intervention)</Tx></legend>
           <div className="mt-1 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
             {parties.map((party) => (
               <label key={party.id} className="flex items-center justify-between gap-2 text-sm text-ink">
@@ -207,11 +210,11 @@ export function AddItemForm({
       )}
       {isIssued && (
         <div className="w-full sm:min-w-64 flex-1">
-          <label className="block text-xs font-medium text-danger">Reason for revision (required — this ITP is already issued)</label>
+          <label className="block text-xs font-medium text-danger"><Tx>Reason for revision (required — this ITP is already issued)</Tx></label>
           <input
             name="revision_reason"
             required
-            placeholder="Why this activity is being added after issue"
+            placeholder={tl("Why this activity is being added after issue")}
             className="mt-1 w-full rounded-md border border-danger/40 bg-surface px-2.5 py-2 text-sm outline-none focus:border-danger"
           />
         </div>
@@ -224,11 +227,11 @@ export function AddItemForm({
         {pending ? "Adding…" : isIssued ? "Add activity (new revision)" : "Add activity"}
       </button>
       <button type="button" onClick={() => setOpen(false)} className="text-sm text-muted hover:underline">
-        Cancel
+        <Tx>Cancel</Tx>
       </button>
       {isIssued && (
         <p className="w-full text-xs text-warning">
-          This ITP has already been issued — adding an activity will record a new revision and freeze the current content into history.
+          <Tx>This ITP has already been issued — adding an activity will record a new revision and freeze the current content into history.</Tx>
         </p>
       )}
       {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}

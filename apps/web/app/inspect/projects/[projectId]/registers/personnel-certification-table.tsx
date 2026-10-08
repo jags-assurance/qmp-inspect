@@ -7,6 +7,7 @@ import { groupCertificatesByPerson } from "@/lib/registers/personnel";
 import type { PersonnelCertificationStatus } from "@/lib/registers/types";
 import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
+import { Tx } from "@/components/domain/tx";
 
 export interface PersonnelCertificationDisplayRow {
   id: string;
@@ -93,17 +94,17 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
     <>
       {people.length > 0 && (
         <div className="mb-3 rounded-md border border-border bg-off-white p-3" data-testid="personnel-by-person">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">By person</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>By person</Tx></p>
           <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {people.map((p) => (
               <li key={p.key} className="rounded border border-border bg-surface px-3 py-2 text-xs">
                 <span className="block text-sm font-medium text-ink">{p.name}</span>
                 {p.partyName && p.partyName !== p.name && <span className="block text-muted">{p.partyName}</span>}
                 <span className="mt-1 block text-muted">
-                  {p.total} certificate{p.total === 1 ? "" : "s"}
-                  {p.expired > 0 && <span className="ms-1 font-medium text-danger">· {p.expired} expired</span>}
-                  {p.expiringSoon > 0 && <span className="ms-1 font-medium text-warning">· {p.expiringSoon} expiring</span>}
-                  {p.expired === 0 && p.expiringSoon === 0 && <span className="ms-1 text-success">· all valid</span>}
+                  {p.total} <Tx>certificate</Tx>{p.total === 1 ? "" : "s"}
+                  {p.expired > 0 && <span className="ms-1 font-medium text-danger">· {p.expired} <Tx>expired</Tx></span>}
+                  {p.expiringSoon > 0 && <span className="ms-1 font-medium text-warning">· {p.expiringSoon} <Tx>expiring</Tx></span>}
+                  {p.expired === 0 && p.expiringSoon === 0 && <span className="ms-1 text-success"><Tx>· all valid</Tx></span>}
                 </span>
               </li>
             ))}

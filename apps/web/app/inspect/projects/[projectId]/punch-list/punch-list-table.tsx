@@ -19,6 +19,8 @@ import { ResolvePunchItemForm } from "./resolve-punch-item-form";
 import { VerifyClosePunchItemForm } from "./verify-close-punch-item-form";
 import { BulkPunchBar, WithdrawPunchItemForm } from "./punch-extras";
 import Link from "next/link";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface PunchListItemDisplayRow {
   id: string;
@@ -96,6 +98,7 @@ export function PunchListTable({
   /** "Mine" = items whose responsible party is the one linked to this viewer's own login. */
   currentUserId: string;
 }) {
+  const tl = useTranslate();
   const isOverdueRow = (r: { due_date: string | null; status: string }) => isPunchOverdue(r, new Date(), timeZone);
   const panel = useUrlPanel("item");
   const [view, setView] = useUrlTab<ViewKey>("view", VIEWS.map((v) => v.key));
@@ -204,7 +207,7 @@ export function PunchListTable({
       render: (row) => (
         <span className="inline-flex items-center gap-1">
           {row.due_date ? new Date(row.due_date).toLocaleDateString("en-GB") : "—"}
-          {isOverdueRow(row) && <Badge tone="danger">Overdue</Badge>}
+          {isOverdueRow(row) && <Badge tone="danger"><Tx>Overdue</Tx></Badge>}
         </span>
       ),
     },
@@ -241,38 +244,38 @@ export function PunchListTable({
       </div>
       <div className="mb-3 flex flex-wrap items-end gap-2 text-xs">
         <label className="flex flex-col gap-1 text-muted">
-          Responsible party
+          <Tx>Responsible party</Tx>
           <select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="min-h-11 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            <option value="">All</option>
-            <option value="none">Unassigned</option>
+            <option value=""><Tx>All</Tx></option>
+            <option value="none"><Tx>Unassigned</Tx></option>
             {projectParties.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-muted">
-          Priority
+          <Tx>Priority</Tx>
           <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="min-h-11 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            <option value="">All</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
+            <option value=""><Tx>All</Tx></option>
+            <option value="A"><Tx>A</Tx></option>
+            <option value="B"><Tx>B</Tx></option>
+            <option value="C"><Tx>C</Tx></option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-muted">
-          Location
-          <input value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} placeholder="Contains…" className="min-h-11 w-36 rounded-md border border-border bg-surface px-2 text-sm text-ink" />
+          <Tx>Location</Tx>
+          <input value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} placeholder={tl("Contains…")} className="min-h-11 w-36 rounded-md border border-border bg-surface px-2 text-sm text-ink" />
         </label>
-        {overdueCount > 0 && <Badge tone="danger">{overdueCount} overdue</Badge>}
+        {overdueCount > 0 && <Badge tone="danger">{overdueCount} <Tx>overdue</Tx></Badge>}
         <div className="no-print ms-auto flex gap-2">
           <button type="button" onClick={() => exportCsv(false)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
-            Export filtered ({visibleRows.length})
+            <Tx>Export filtered (</Tx>{visibleRows.length})
           </button>
           <button type="button" onClick={() => exportCsv(true)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
-            Export all ({rows.length})
+            <Tx>Export all (</Tx>{rows.length})
           </button>
           <button type="button" onClick={() => window.print()} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
-            Print
+            <Tx>Print</Tx>
           </button>
         </div>
       </div>
@@ -280,7 +283,7 @@ export function PunchListTable({
       {/* Only .print-area survives @media print (globals.css): the heading + table, not the filters/buttons. */}
       <div className="print-area">
         <h1 className="mb-3 hidden text-xl font-semibold text-ink print:block">
-          Punch list · {visibleRows.length} item{visibleRows.length === 1 ? "" : "s"} · {new Date().toLocaleDateString("en-GB")}
+          <Tx>Punch list ·</Tx> {visibleRows.length} <Tx>item</Tx>{visibleRows.length === 1 ? "" : "s"} · {new Date().toLocaleDateString("en-GB")}
         </h1>
       <DataTable
         columns={columns}
@@ -292,7 +295,7 @@ export function PunchListTable({
         emptyMessage={view === "all" && !partyFilter && !priorityFilter && !locationFilter ? "No punch list items yet. Use Record walk-down or Add punch item above." : "Nothing matches these filters."}
       />
       </div>
-      <SidePanel open={!!openRow} onClose={panel.close} title="Punch list item">
+      <SidePanel open={!!openRow} onClose={panel.close} title={tl("Punch list item")}>
         {openRow && (
           <div className="mt-4 space-y-3 text-sm">
             <p className="text-ink">{openRow.description}</p>
@@ -301,33 +304,33 @@ export function PunchListTable({
               <Badge tone="neutral">{PUNCH_LIST_SOURCE_LABELS[openRow.source]}</Badge>
               {openRow.source_ncr_id && (
                 <Link href={`/inspect/ncrs/${openRow.source_ncr_id}`} className="text-xs text-burgundy hover:underline">
-                  Open the NCR →
+                  <Tx>Open the NCR →</Tx>
                 </Link>
               )}
               {openRow.source_inspection_record_id && (
                 <Link href={`/inspect/inspections/${openRow.source_inspection_record_id}`} className="text-xs text-burgundy hover:underline">
-                  Open the inspection →
+                  <Tx>Open the inspection →</Tx>
                 </Link>
               )}
               {openRow.source_standalone_assignment_id && (
                 <Link href={`/inspect/standalone/${openRow.source_standalone_assignment_id}`} className="text-xs text-burgundy hover:underline">
-                  Open the assignment →
+                  <Tx>Open the assignment →</Tx>
                 </Link>
               )}
             </p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-              <dt className="text-muted">Location</dt>
+              <dt className="text-muted"><Tx>Location</Tx></dt>
               <dd className="text-ink">{formatLocationForDisplay(openRow.location)}</dd>
-              <dt className="text-muted">Responsible party</dt>
+              <dt className="text-muted"><Tx>Responsible party</Tx></dt>
               <dd className="text-ink">{openRow.project_parties?.name ?? "—"}</dd>
-              <dt className="text-muted">Priority</dt>
+              <dt className="text-muted"><Tx>Priority</Tx></dt>
               <dd className="text-ink">{openRow.priority}</dd>
-              <dt className="text-muted">Due</dt>
+              <dt className="text-muted"><Tx>Due</Tx></dt>
               <dd className="text-ink">{openRow.due_date ? new Date(openRow.due_date).toLocaleDateString("en-GB") : "—"}</dd>
             </dl>
             {openRow.reopen_reason && (
               <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-ink">
-                Reopened{openRow.reopen_count && openRow.reopen_count > 1 ? ` (${openRow.reopen_count}x)` : ""}: {openRow.reopen_reason}
+                <Tx>Reopened</Tx>{openRow.reopen_count && openRow.reopen_count > 1 ? ` (${openRow.reopen_count}x)` : ""}: {openRow.reopen_reason}
               </p>
             )}
             {openRow.photo_urls.length > 0 && (
@@ -342,7 +345,7 @@ export function PunchListTable({
             )}
             {openRow.closing_photo_urls.length > 0 && (
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Photos of the fix</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Photos of the fix</Tx></p>
                 <div className="flex flex-wrap gap-2">
                   {openRow.closing_photo_urls.map((u) => (
                     <a key={u} href={u} target="_blank" rel="noreferrer">
@@ -365,14 +368,14 @@ export function PunchListTable({
             {openRow.status === "closed" && (
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resolver&rsquo;s evidence</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Resolver&rsquo;s evidence</Tx></p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.closing_evidence || "—"}</p>
                 </div>
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Verification notes</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Verification notes</Tx></p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.verification_notes || "—"}</p>
                 </div>
-                {openRow.resolved_by_name && <p className="text-xs text-muted">Resolved by {openRow.resolved_by_name}; closed by {openRow.closed_by_name ?? "unknown"}.</p>}
+                {openRow.resolved_by_name && <p className="text-xs text-muted"><Tx>Resolved by</Tx> {openRow.resolved_by_name}<Tx>; closed by</Tx> {openRow.closed_by_name ?? "unknown"}.</p>}
                 {canVerifyClose && <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} label="Reopen closed item" />}
               </div>
             )}
@@ -381,7 +384,7 @@ export function PunchListTable({
             {openRow.status === "resolved" && (
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-off-white px-3 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resolver&rsquo;s evidence</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Resolver&rsquo;s evidence</Tx></p>
                   <p className="mt-0.5 text-sm text-ink">{openRow.closing_evidence || "—"}</p>
                 </div>
                 {canVerifyClose ? (
@@ -390,7 +393,7 @@ export function PunchListTable({
                     <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} label="Reject fix - send back to open" />
                   </>
                 ) : (
-                  <p className="text-xs text-muted">Awaiting verification by a JAGS Admin or someone granted the close punch item permission (not the person who resolved it).</p>
+                  <p className="text-xs text-muted"><Tx>Awaiting verification by a JAGS Admin or someone granted the close punch item permission (not the person who resolved it).</Tx></p>
                 )}
               </div>
             )}

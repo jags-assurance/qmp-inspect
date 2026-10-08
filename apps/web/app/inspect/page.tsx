@@ -27,6 +27,7 @@ import { WatchlistSkeleton } from "@/components/ui/watchlist";
 import { StatCard } from "@/components/ui/stat-card";
 import type { OrgHealth } from "@/lib/dashboard/widgets";
 import { planDashboardQueries } from "@/lib/dashboard/query-plan";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface PendingSignoffRow {
   id: string;
@@ -110,6 +111,7 @@ function activityHref(entityType: string, entityId: string | null, projectId: st
 }
 
 export default async function InspectDashboardPage() {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
   // Only the queries this login's own dashboard renders (see lib/dashboard/query-plan.ts).
@@ -1004,7 +1006,7 @@ export default async function InspectDashboardPage() {
         </Suspense>
       }
       overdueHoldsCard={
-        <Suspense fallback={<WatchlistSkeleton title="Overdue hold points" />}>
+        <Suspense fallback={<WatchlistSkeleton title={tl("Overdue hold points")} />}>
           <OverdueHoldsCard />
         </Suspense>
       }

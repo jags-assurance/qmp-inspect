@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { FirstAttemptRecordRow } from "@/lib/kpis/compute";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { Tx } from "@/components/domain/tx";
 
 const RESULT_LABEL: Record<NonNullable<FirstAttemptRecordRow["result"]>, string> = {
   pass: "Passed",
@@ -56,13 +57,13 @@ export function KpiDrilldown({
       {open && (
         <div className="mt-2 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-ink">First-time pass rate — contributing inspections</h3>
+            <h3 className="text-sm font-medium text-ink"><Tx>First-time pass rate — contributing inspections</Tx></h3>
             <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:text-ink">
-              Close
+              <Tx>Close</Tx>
             </button>
           </div>
           <p className="mt-1 text-xs text-muted">
-            Every activity&rsquo;s earliest recorded inspection, pass or fail — this is what the rate above is computed from.
+            <Tx>Every activity&rsquo;s earliest recorded inspection, pass or fail — this is what the rate above is computed from.</Tx>
           </p>
           <div className="mt-3 max-h-80 overflow-auto">
             <ResponsiveTable

@@ -12,6 +12,8 @@ import { ModuleLicenseToggle } from "./module-license-toggle";
 import { PageGuide } from "@/components/domain/page-guide";
 import { Badge } from "@/components/ui/badge";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationOption {
   id: string;
@@ -34,6 +36,7 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -67,9 +70,9 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Module licensing</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Module licensing</T></Heading>
         <PageGuide
-          title="Module licensing — how this works"
+          title={tl("Module licensing — how this works")}
           points={[
             "Admin-only — turns individual feature modules (ITPs, NCRs, Observations, Vault, Standalone Assignments, Registers, Data Book, Handover, Client Teams, Custom Roles, Reporting, Power BI) on or off per organisation.",
             "Every module is licensed by default — a missing row for a module means it's on; you only ever switch one off here to restrict a client.",
@@ -79,10 +82,8 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Turn individual feature modules on or off for a client organisation. Every module is{" "}
-        <strong>licensed by default</strong> — switch one off here only when a client should not
-        have access to it. JAGS staff logins always see every module regardless of this setting, so
-        support work is never blocked by a client&rsquo;s own licensing.
+        <T>Turn individual feature modules on or off for a client organisation. Every module is</T>{" "}
+        <strong><T>licensed by default</T></strong> <T>— switch one off here only when a client should not have access to it. JAGS staff logins always see every module regardless of this setting, so support work is never blocked by a client&rsquo;s own licensing.</T>
       </p>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
@@ -90,7 +91,7 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
       {selectedOrg && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}&rsquo;s modules</h2>
+            <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}<T>&rsquo;s modules</T></h2>
             <Badge tone={offCount === 0 ? "success" : "warning"}>
               {offCount === 0 ? `All ${MODULE_KEYS.length} licensed` : `${offCount} of ${MODULE_KEYS.length} off`}
             </Badge>

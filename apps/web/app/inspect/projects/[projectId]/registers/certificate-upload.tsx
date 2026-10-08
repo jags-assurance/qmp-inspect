@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Tx } from "@/components/domain/tx";
 
 const MAX_MB = 20;
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx";
@@ -54,8 +55,8 @@ export function CertificateUpload({ projectId, kind, label = "Certificate (optio
         className="mt-1 block w-full text-xs text-ink file:me-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs"
       />
       <div role="status" aria-live="polite" aria-atomic="true">
-        {uploading ? <p className="mt-0.5 text-xs text-muted">Uploading…</p> : null}
-        {path && !uploading ? <p className="mt-0.5 text-xs text-success">✓ Attached: {fileName}</p> : null}
+        {uploading ? <p className="mt-0.5 text-xs text-muted"><Tx>Uploading…</Tx></p> : null}
+        {path && !uploading ? <p className="mt-0.5 text-xs text-success"><Tx>✓ Attached:</Tx> {fileName}</p> : null}
       </div>
       <div role="alert" aria-live="assertive" aria-atomic="true">
         {error ? <p className="mt-0.5 text-xs text-danger">{error}</p> : null}

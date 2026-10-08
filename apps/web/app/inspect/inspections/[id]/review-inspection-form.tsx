@@ -5,6 +5,7 @@ import { reviewInspectionAction, type ReviewInspectionState } from "@/lib/checkl
 import { MIN_REJECT_COMMENT_LENGTH } from "@/lib/checklists/review-logic";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: ReviewInspectionState = { error: null };
 
@@ -43,22 +44,22 @@ export function ReviewInspectionForm({ inspectionRecordId, hasPreviousReview }: 
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <fieldset>
         <legend id={decisionId} className="text-sm font-medium text-ink">
-          Decision
+          <Tx>Decision</Tx>
         </legend>
         <div className="mt-1 flex gap-4 text-sm text-ink">
           <label className="flex items-center gap-2">
             <input type="radio" name="decision" value="approve" checked={decision === "approve"} onChange={() => setDecision("approve")} />
-            Approve
+            <Tx>Approve</Tx>
           </label>
           <label className="flex items-center gap-2">
             <input type="radio" name="decision" value="reject" checked={decision === "reject"} onChange={() => setDecision("reject")} />
-            Reject
+            <Tx>Reject</Tx>
           </label>
         </div>
       </fieldset>
       <div>
         <label htmlFor={commentId} className="block text-sm font-medium text-ink">
-          Review comment{rejecting ? <span className="text-danger"> *</span> : <span className="text-muted"> (optional)</span>}
+          <Tx>Review comment</Tx>{rejecting ? <span className="text-danger"> *</span> : <span className="text-muted"> <Tx>(optional)</Tx></span>}
         </label>
         <textarea
           id={commentId}

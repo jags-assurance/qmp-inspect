@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -132,7 +133,7 @@ export function ConfirmDialog({
           <div className="mt-3 space-y-1">
             <label htmlFor={reasonId} className="block text-sm font-medium text-ink">
               {reason.label}
-              {min > 0 && <span className="sr-only"> (required)</span>}
+              {min > 0 && <span className="sr-only"> <Tx>(required)</Tx></span>}
             </label>
             <textarea
               id={reasonId}

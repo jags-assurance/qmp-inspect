@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface ActivityChecklist {
   /** The generated checklist's number, or null while it is only the draft that generation starts from. */
@@ -14,6 +16,7 @@ export interface ActivityChecklist {
  * checklist once the ITP is approved, and what generation will start from before that.
  */
 export function ActivityChecklistToggle({ label, checklist }: { label: string; checklist: ActivityChecklist | null }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   if (!checklist) {
     return <span className="inline-flex items-center rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-muted">{label}</span>;
@@ -35,7 +38,7 @@ export function ActivityChecklistToggle({ label, checklist }: { label: string; c
           <p className="text-xs font-semibold text-ink">
             {checklist.number ? `Checklist ${checklist.number}` : "Checklist — draft (generated when the ITP is approved)"}
             <span className="ms-1.5 font-normal text-muted">
-              {checklist.lines.length} item{checklist.lines.length === 1 ? "" : "s"}
+              {checklist.lines.length} <Tx>item</Tx>{checklist.lines.length === 1 ? "" : "s"}
             </span>
           </p>
           <ul className="mt-1.5 space-y-1 text-xs">
@@ -47,7 +50,7 @@ export function ActivityChecklistToggle({ label, checklist }: { label: string; c
                 <span className="[overflow-wrap:anywhere]">
                   {line.text}
                   {line.mandatory && (
-                    <span className="ms-1 text-danger" title="Mandatory">
+                    <span className="ms-1 text-danger" title={tl("Mandatory")}>
                       *
                     </span>
                   )}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CONNECTOR_REGISTRY } from "@/lib/connectors/registry";
+import { T } from "@/components/domain/t";
 
 /**
  * R21 — makes the connector stubs (Aconex/Procore/ProjectWise) visible and discoverable on the
@@ -11,14 +12,13 @@ import { CONNECTOR_REGISTRY } from "@/lib/connectors/registry";
 export function ConnectorsPanel() {
   return (
     <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">External document platforms</h2>
+      <h2 className="text-sm font-semibold text-ink"><T>External document platforms</T></h2>
       <p className="mt-1 text-xs text-muted">
-        Import documents directly from a project&rsquo;s Aconex, Procore or ProjectWise instance.
-        Not yet functional here — see{" "}
+        <T>Import documents directly from a project&rsquo;s Aconex, Procore or ProjectWise instance. Not yet functional here — see</T>{" "}
         <Link href="/inspect/organisation/cloud-sync" className="text-burgundy hover:underline">
-          Cloud folder sync
+          <T>Cloud folder sync</T>
         </Link>{" "}
-        for the SharePoint/OneDrive equivalent.
+        <T>for the SharePoint/OneDrive equivalent.</T>
       </p>
       <ul className="mt-3 divide-y divide-border">
         {CONNECTOR_REGISTRY.map((connector) => (

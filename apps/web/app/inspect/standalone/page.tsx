@@ -8,12 +8,15 @@ import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-
 import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ project?: string; discipline?: string; q?: string; page?: string; status?: string; type?: string; result?: string; sort?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
   // Full Client-Managed tier: a run_standalone_assignment permission holder gets the same
@@ -136,9 +139,9 @@ export default async function StandaloneAssignmentsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">Standalone Assignments</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>Standalone Assignments</T></h1>
             <PageGuide
-              title="Standalone Assignments — how this works"
+              title={tl("Standalone Assignments — how this works")}
               points={[
                 "One-off FATs, witness inspections, specific tests and pre-shipment checks that don't need an ITP or data book behind them.",
                 "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance — UNLESS your organisation is on the Full Client-Managed tier and you specifically hold the \"Create and run a Standalone Assignment\" custom permission, OR you're an active subcontractor/main-contractor party on a project a JAGS Admin has specifically opted into contractor-run assignments — either way you can then do all of it yourself.",
@@ -148,13 +151,12 @@ export default async function StandaloneAssignmentsPage({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            One-off FATs, witness inspections, specific tests and pre-shipment checks — no ITP or
-            data book required.
+            <T>One-off FATs, witness inspections, specific tests and pre-shipment checks — no ITP or data book required.</T>
           </p>
         </div>
         {canRunStandaloneAssignment && (
           <Link href="/inspect/standalone/new">
-            <Button>+ New assignment</Button>
+            <Button><T>+ New assignment</T></Button>
           </Link>
         )}
       </div>
@@ -175,55 +177,55 @@ export default async function StandaloneAssignmentsPage({
         {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
         {q && <input type="hidden" name="q" value={q} />}
         <div>
-          <label htmlFor="f_project" className="block text-sm font-medium text-ink">Project</label>
+          <label htmlFor="f_project" className="block text-sm font-medium text-ink"><T>Project</T></label>
           <select id="f_project" name="project" defaultValue={projectId ?? ""} className={selectCls}>
-            <option value="">All projects</option>
+            <option value=""><T>All projects</T></option>
             {(projectOptions ?? []).map((p) => (
               <option key={p.id} value={p.id}>{p.project_number} - {p.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label htmlFor="f_type" className="block text-sm font-medium text-ink">Type</label>
+          <label htmlFor="f_type" className="block text-sm font-medium text-ink"><T>Type</T></label>
           <select id="f_type" name="type" defaultValue={typeFilter} className={selectCls}>
-            <option value="">All types</option>
-            <option value="fat">FAT</option>
-            <option value="witness_inspection">Witness Inspection</option>
-            <option value="specific_test">Specific Test</option>
-            <option value="pre_shipment">Pre-Shipment</option>
+            <option value=""><T>All types</T></option>
+            <option value="fat"><T>FAT</T></option>
+            <option value="witness_inspection"><T>Witness Inspection</T></option>
+            <option value="specific_test"><T>Specific Test</T></option>
+            <option value="pre_shipment"><T>Pre-Shipment</T></option>
           </select>
         </div>
         <div>
-          <label htmlFor="f_result" className="block text-sm font-medium text-ink">Result</label>
+          <label htmlFor="f_result" className="block text-sm font-medium text-ink"><T>Result</T></label>
           <select id="f_result" name="result" defaultValue={resultFilter} className={selectCls}>
-            <option value="">Any result</option>
-            <option value="pass">Pass</option>
-            <option value="conditional_pass">Conditional Pass</option>
-            <option value="fail">Fail</option>
+            <option value=""><T>Any result</T></option>
+            <option value="pass"><T>Pass</T></option>
+            <option value="conditional_pass"><T>Conditional Pass</T></option>
+            <option value="fail"><T>Fail</T></option>
           </select>
         </div>
         <div>
-          <label htmlFor="f_discipline" className="block text-sm font-medium text-ink">Discipline</label>
+          <label htmlFor="f_discipline" className="block text-sm font-medium text-ink"><T>Discipline</T></label>
           <select id="f_discipline" name="discipline" defaultValue={disciplineId ?? ""} className={selectCls}>
-            <option value="">All disciplines</option>
+            <option value=""><T>All disciplines</T></option>
             {(disciplines ?? []).map((d) => (
               <option key={d.id} value={d.id}>{d.code} - {d.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label htmlFor="f_sort" className="block text-sm font-medium text-ink">Sort</label>
+          <label htmlFor="f_sort" className="block text-sm font-medium text-ink"><T>Sort</T></label>
           <select id="f_sort" name="sort" defaultValue={sortKey} className={selectCls}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="date">Assignment date</option>
-            <option value="number">Assignment no.</option>
+            <option value="newest"><T>Newest first</T></option>
+            <option value="oldest"><T>Oldest first</T></option>
+            <option value="date"><T>Assignment date</T></option>
+            <option value="number"><T>Assignment no.</T></option>
           </select>
         </div>
         <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-5">
-          <Button type="submit">Apply filters</Button>
+          <Button type="submit"><T>Apply filters</T></Button>
           {hasFilters && (
-            <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">Clear all</Link>
+            <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline"><T>Clear all</T></Link>
           )}
         </div>
       </form>

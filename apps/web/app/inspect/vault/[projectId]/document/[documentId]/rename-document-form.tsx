@@ -3,10 +3,13 @@
 import { useActionState, useState } from "react";
 import { renameVaultDocumentAction, type RenameVaultDocumentState } from "@/lib/vault/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: RenameVaultDocumentState = { error: null };
 
 export function RenameDocumentForm({ projectId, documentId, title }: { projectId: string; documentId: string; title: string }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (prev: RenameVaultDocumentState, formData: FormData) => {
@@ -20,7 +23,7 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-xs text-burgundy hover:underline">
-        Rename
+        <Tx>Rename</Tx>
       </button>
     );
   }
@@ -33,14 +36,14 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
         defaultValue={title}
         required
         maxLength={200}
-        aria-label="Document title"
+        aria-label={tl("Document title")}
         className="w-full sm:min-w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm"
       />
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
       <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-        Cancel
+        <Tx>Cancel</Tx>
       </button>
       {state.error && <p role="alert" className="w-full text-xs text-danger">{state.error}</p>}
     </form>

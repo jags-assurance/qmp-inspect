@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { assignActivityAction, type AssignActivityState } from "@/lib/checklists/assignment-actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: AssignActivityState = { error: null };
 
@@ -24,13 +25,13 @@ export function AssignActivityForm({
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="template_id" value={templateId} />
       <label className="flex flex-col gap-1 text-sm text-ink">
-        Assigned to
+        <Tx>Assigned to</Tx>
         <select
           name="assignee_id"
           defaultValue={currentAssigneeId ?? ""}
           className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm"
         >
-          <option value="">Not assigned to a specific person</option>
+          <option value=""><Tx>Not assigned to a specific person</Tx></option>
           {options.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}

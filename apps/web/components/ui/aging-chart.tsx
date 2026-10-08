@@ -1,3 +1,4 @@
+import { T } from "@/components/domain/t";
 const BUCKETS = ["0-7 days", "8-14 days", "15-30 days", "30+ days"] as const;
 
 /** Buckets a list of "days open" counts into the same four ranges the register mockups use. */
@@ -18,7 +19,7 @@ export function AgingChart({ counts }: { counts: number[] }) {
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
-      <p className="text-sm font-medium text-ink">Aging profile</p>
+      <p className="text-sm font-medium text-ink"><T>Aging profile</T></p>
       <div className="mt-4 flex items-end gap-4" style={{ height: 96 }}>
         {BUCKETS.map((label, i) => (
           <div key={label} className="flex flex-1 flex-col items-center gap-1">

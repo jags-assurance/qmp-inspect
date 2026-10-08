@@ -6,6 +6,7 @@ import { formatDateOnly, formatSiteDateTime } from "@/lib/ncrs/site-date";
 import { summariseWalkdown } from "@/lib/punch-list/walkdown";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { PrintButton } from "./print-button";
+import { T } from "@/components/domain/t";
 
 interface Walkdown {
   id: string;
@@ -60,20 +61,20 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
     <div className="print-area max-w-4xl">
       <div className="flex items-center justify-between print:hidden">
         <Link href={`/inspect/projects/${projectId}/punch-list`} className="text-sm text-burgundy hover:underline">
-          ← Back to punch list
+          <T>← Back to punch list</T>
         </Link>
         <PrintButton />
       </div>
-      <h1 className="mt-3 text-2xl font-semibold text-ink">Walkdown record{wd.walkdown_number ? ` ${wd.walkdown_number}` : ""}</h1>
+      <h1 className="mt-3 text-2xl font-semibold text-ink"><T>Walkdown record</T>{wd.walkdown_number ? ` ${wd.walkdown_number}` : ""}</h1>
       <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-        <div><dt className="inline text-muted">Date: </dt><dd className="inline text-ink">{formatDateOnly(wd.walked_on)}</dd></div>
-        <div><dt className="inline text-muted">Area: </dt><dd className="inline text-ink">{wd.area || "-"}</dd></div>
-        <div><dt className="inline text-muted">Recorded by: </dt><dd className="inline text-ink">{wd.created_by_user?.full_name ?? "-"}</dd></div>
-        <div><dt className="inline text-muted">Attendees: </dt><dd className="inline text-ink">{wd.attendees || "-"}</dd></div>
+        <div><dt className="inline text-muted"><T>Date:</T> </dt><dd className="inline text-ink">{formatDateOnly(wd.walked_on)}</dd></div>
+        <div><dt className="inline text-muted"><T>Area:</T> </dt><dd className="inline text-ink">{wd.area || "-"}</dd></div>
+        <div><dt className="inline text-muted"><T>Recorded by:</T> </dt><dd className="inline text-ink">{wd.created_by_user?.full_name ?? "-"}</dd></div>
+        <div><dt className="inline text-muted"><T>Attendees:</T> </dt><dd className="inline text-ink">{wd.attendees || "-"}</dd></div>
       </dl>
       {wd.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-ink">{wd.notes}</p>}
       <p className="mt-3 text-sm text-muted">
-        {summary.total} item{summary.total === 1 ? "" : "s"}: {summary.open} open, {summary.resolved} resolved, {summary.closed} closed.
+        {summary.total} <T>item</T>{summary.total === 1 ? "" : "s"}: {summary.open} <T>open,</T> {summary.resolved} <T>resolved,</T> {summary.closed} <T>closed.</T>
         {Object.keys(summary.byPriority).length > 0 && ` Priority ${Object.entries(summary.byPriority).sort().map(([p, n]) => `${p}: ${n}`).join(", ")}.`}
       </p>
 
@@ -81,12 +82,12 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
         <thead className="text-start text-xs text-muted">
           <tr>
             <th className="py-1 pe-2">#</th>
-            <th className="py-1 pe-2">Description</th>
-            <th className="py-1 pe-2">Location</th>
-            <th className="py-1 pe-2">Responsible</th>
-            <th className="py-1 pe-2">Priority</th>
-            <th className="py-1 pe-2">Due</th>
-            <th className="py-1">Status</th>
+            <th className="py-1 pe-2"><T>Description</T></th>
+            <th className="py-1 pe-2"><T>Location</T></th>
+            <th className="py-1 pe-2"><T>Responsible</T></th>
+            <th className="py-1 pe-2"><T>Priority</T></th>
+            <th className="py-1 pe-2"><T>Due</T></th>
+            <th className="py-1"><T>Status</T></th>
           </tr>
         </thead>
         <tbody>
@@ -107,10 +108,10 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
       <div className="mt-8 border-t border-border pt-3 text-sm">
         {wd.signed_off_at ? (
           <p className="text-ink">
-            Signed off by {wd.signed_off_by_user?.full_name ?? "the recorder"} on {formatSiteDateTime(wd.signed_off_at)}.
+            <T>Signed off by</T> {wd.signed_off_by_user?.full_name ?? "the recorder"} <T>on</T> {formatSiteDateTime(wd.signed_off_at)}.
           </p>
         ) : (
-          <p className="text-muted">Not signed off yet.</p>
+          <p className="text-muted"><T>Not signed off yet.</T></p>
         )}
       </div>
     </div>

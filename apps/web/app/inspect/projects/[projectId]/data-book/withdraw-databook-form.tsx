@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { withdrawDataBookAction, type WithdrawDataBookState } from "@/lib/databook/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: WithdrawDataBookState = { error: null };
 
@@ -15,7 +16,7 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-xs text-burgundy hover:underline">
-        Withdraw to draft…
+        <Tx>Withdraw to draft…</Tx>
       </button>
     );
   }
@@ -24,7 +25,7 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
       <input type="hidden" name="data_book_id" value={dataBookId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label htmlFor={`withdraw_reason_${dataBookId}`} className="text-xs font-medium text-ink">
-        Why is the compiled book being withdrawn?
+        <Tx>Why is the compiled book being withdrawn?</Tx>
       </label>
       <textarea
         id={`withdraw_reason_${dataBookId}`}
@@ -42,7 +43,7 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
           {pending ? "Withdrawing…" : "Withdraw to draft"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
       {state.error && <p className="text-xs text-danger" role="alert">{state.error}</p>}

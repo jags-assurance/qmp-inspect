@@ -10,6 +10,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { computeCalibrationStatus, computeWelderStatus, daysUntil, describeDays } from "@/lib/registers/status";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { fetchRegisterUsage } from "@/lib/registers/usage";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -135,6 +137,7 @@ export default async function DocumentTraceabilityPage({
 }: {
   searchParams: Promise<{ q?: string; project?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect"); // JAGS staff; row-level security limits what each person can see to their own projects
 
@@ -167,9 +170,9 @@ export default async function DocumentTraceabilityPage({
     <div>
       <SettingsBackLink href="/inspect/settings?section=insights" />
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Document Traceability</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Document Traceability</T></h1>
         <PageGuide
-          title="Document Traceability — how this works"
+          title={tl("Document Traceability — how this works")}
           points={[
             "JAGS-staff, read-only lookup (you only see projects you have access to) — enter any ITP, NCR or inspection report number and see its full lineage: identity, revision history, related records and audit trail. It writes nothing.",
             "An ITP's items are reached through its sections (itp_items has no direct itp_id column) — that's how related inspection records and NCRs for an ITP get found.",
@@ -179,8 +182,7 @@ export default async function DocumentTraceabilityPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Look up any document number — an ITP, NCR or inspection report number — and see its full
-        lineage: identity, revision history, related records and audit trail.
+        <T>Look up any document number — an ITP, NCR or inspection report number — and see its full lineage: identity, revision history, related records and audit trail.</T>
       </p>
 
       <form className="mt-6 flex max-w-3xl flex-wrap gap-2 print:hidden">
@@ -188,22 +190,22 @@ export default async function DocumentTraceabilityPage({
           type="text"
           name="q"
           defaultValue={query}
-          placeholder="ITP / NCR / IRN number, heat / batch / PO / cert number, instrument ID, welder ID / WPQ"
+          placeholder={tl("ITP / NCR / IRN number, heat / batch / PO / cert number, instrument ID, welder ID / WPQ")}
           className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         <button
           type="submit"
           className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy/90"
         >
-          Look up
+          <T>Look up</T>
         </button>
         <select
           name="project"
           defaultValue={projectId ?? ""}
-          aria-label="Limit the lookup to one project"
+          aria-label={tl("Limit the lookup to one project")}
           className="rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">All my projects</option>
+          <option value=""><T>All my projects</T></option>
           {(scopeProjects ?? []).map((p) => (
             <option key={p.id} value={p.id}>
               {p.project_number} - {p.name}
@@ -214,7 +216,7 @@ export default async function DocumentTraceabilityPage({
       </form>
       {scopeProject && (
         <p className="mt-2 text-xs text-muted">
-          Showing results for {scopeProject.project_number} - {scopeProject.name} only.
+          <T>Showing results for</T> {scopeProject.project_number} - {scopeProject.name} <T>only.</T>
         </p>
       )}
 
@@ -341,16 +343,16 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 }
 
 function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
-  if (events.length === 0) return <p className="text-sm text-muted">No audit events recorded for this document.</p>;
+  if (events.length === 0) return <p className="text-sm text-muted"><T>No audit events recorded for this document.</T></p>;
   return (
     <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-start text-xs uppercase text-muted">
-          <th className="py-2">Timestamp</th>
-          <th className="py-2">Actor</th>
-          <th className="py-2">Action</th>
-          <th className="py-2">Summary</th>
+          <th className="py-2"><T>Timestamp</T></th>
+          <th className="py-2"><T>Actor</T></th>
+          <th className="py-2"><T>Action</T></th>
+          <th className="py-2"><T>Summary</T></th>
         </tr>
       </thead>
       <tbody>
@@ -364,7 +366,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
                   <span className="ms-1 text-xs text-muted">({event.actor.email})</span>
                 </span>
               ) : (
-                <span className="text-xs text-muted">System</span>
+                <span className="text-xs text-muted"><T>System</T></span>
               )}
             </td>
             <td className="py-2 text-xs text-muted">{event.action}</td>
@@ -378,6 +380,7 @@ function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
 }
 
 async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: ItpMatch }) {
+  const tl = await getTranslator();
   const [revisions, auditEvents, itemIds] = await Promise.all([
     fetchRevisions(supabase, itp.id),
     fetchAuditTrail(supabase, "itp", itp.id),
@@ -430,19 +433,19 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
         <IdentityRow label="Approved by" value={itp.approved_by_user?.full_name} />
         <p className="mt-3">
           <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-            Open full ITP →
+            <T>Open full ITP →</T>
           </Link>
         </p>
       </SectionCard>
 
-      <SectionCard title="Revision history (R101)">
+      <SectionCard title={tl("Revision history (R101)")}>
         {revisions.length === 0 ? (
-          <p className="text-sm text-muted">No frozen revision snapshots yet — the ITP has not been issued.</p>
+          <p className="text-sm text-muted"><T>No frozen revision snapshots yet — the ITP has not been issued.</T></p>
         ) : (
           <ul className="space-y-2 text-sm">
             {revisions.map((r) => (
               <li key={r.id} className="border-b border-border pb-2 last:border-0">
-                <span className="font-medium text-ink">Rev {r.revision}</span> — {r.title}
+                <span className="font-medium text-ink"><T>Rev</T> {r.revision}</span> — {r.title}
                 <div className="text-xs text-muted">
                   {r.reason ?? "No reason recorded"} · {new Date(r.created_at).toLocaleString("en-GB")}
                   {r.created_by_user ? ` · ${r.created_by_user.full_name}` : ""}
@@ -455,7 +458,7 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
 
       <SectionCard title={`Related inspection records (${relatedInspections.length})`}>
         {relatedInspections.length === 0 ? (
-          <p className="text-sm text-muted">No inspection records reference an item on this ITP.</p>
+          <p className="text-sm text-muted"><T>No inspection records reference an item on this ITP.</T></p>
         ) : (
           <ul className="space-y-1 text-sm">
             {relatedInspections.map((r) => (
@@ -472,7 +475,7 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
 
       <SectionCard title={`Related NCRs (${relatedNcrs.length})`}>
         {relatedNcrs.length === 0 ? (
-          <p className="text-sm text-muted">No NCRs reference an item on this ITP.</p>
+          <p className="text-sm text-muted"><T>No NCRs reference an item on this ITP.</T></p>
         ) : (
           <ul className="space-y-1 text-sm">
             {relatedNcrs.map((n) => (
@@ -487,7 +490,7 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
         )}
       </SectionCard>
 
-      <SectionCard title="Audit trail (R102)">
+      <SectionCard title={tl("Audit trail (R102)")}>
         <AuditTrailTable events={auditEvents} />
       </SectionCard>
     </>
@@ -495,6 +498,7 @@ async function ItpLineage({ supabase, itp }: { supabase: SupabaseClient; itp: It
 }
 
 async function NcrLineage({ supabase, ncr }: { supabase: SupabaseClient; ncr: NcrMatch }) {
+  const tl = await getTranslator();
   const auditEventsPromise = fetchAuditTrail(supabase, "ncr", ncr.id);
 
   let sourceItp: LinkedItpRow | null = null;
@@ -545,21 +549,20 @@ async function NcrLineage({ supabase, ncr }: { supabase: SupabaseClient; ncr: Nc
         <IdentityRow label="Closed at" value={ncr.closed_at ? new Date(ncr.closed_at).toLocaleString("en-GB") : null} />
         <p className="mt-3">
           <Link href={`/inspect/ncrs/${ncr.id}`} className="text-sm text-burgundy hover:underline">
-            Open full NCR →
+            <T>Open full NCR →</T>
           </Link>
         </p>
       </SectionCard>
 
-      <SectionCard title="Raised against">
+      <SectionCard title={tl("Raised against")}>
         {!sourceItp && !sourceInspection && (
           <p className="text-sm text-muted">
-            This NCR was not raised against a specific ITP item or inspection record (both links are
-            optional on the ncrs table).
+            <T>This NCR was not raised against a specific ITP item or inspection record (both links are optional on the ncrs table).</T>
           </p>
         )}
         {sourceItp && (
           <p className="text-sm">
-            ITP:{" "}
+            <T>ITP:</T>{" "}
             <Link href={`/inspect/itps/${sourceItp.id}`} className="text-burgundy hover:underline">
               {sourceItp.itp_number}
             </Link>{" "}
@@ -568,7 +571,7 @@ async function NcrLineage({ supabase, ncr }: { supabase: SupabaseClient; ncr: Nc
         )}
         {sourceInspection && (
           <p className="mt-2 text-sm">
-            Inspection record:{" "}
+            <T>Inspection record:</T>{" "}
             <Link href={`/inspect/inspections/${sourceInspection.id}`} className="text-burgundy hover:underline">
               {sourceInspection.record_number}
             </Link>{" "}
@@ -577,7 +580,7 @@ async function NcrLineage({ supabase, ncr }: { supabase: SupabaseClient; ncr: Nc
         )}
       </SectionCard>
 
-      <SectionCard title="Audit trail (R102)">
+      <SectionCard title={tl("Audit trail (R102)")}>
         <AuditTrailTable events={auditEvents} />
       </SectionCard>
     </>
@@ -585,6 +588,7 @@ async function NcrLineage({ supabase, ncr }: { supabase: SupabaseClient; ncr: Nc
 }
 
 async function InspectionRecordLineage({ supabase, record }: { supabase: SupabaseClient; record: InspectionRecordMatch }) {
+  const tl = await getTranslator();
   const [auditEvents, itpId] = await Promise.all([
     fetchAuditTrail(supabase, "inspection_record", record.id),
     itpIdForItpItem(supabase, record.itp_item_id),
@@ -638,23 +642,23 @@ async function InspectionRecordLineage({ supabase, record }: { supabase: Supabas
         />
         <p className="mt-3">
           <Link href={`/inspect/inspections/${record.id}`} className="text-sm text-burgundy hover:underline">
-            Open full inspection record →
+            <T>Open full inspection record →</T>
           </Link>
         </p>
       </SectionCard>
 
-      <SectionCard title="Governing ITP">
+      <SectionCard title={tl("Governing ITP")}>
         {sourceItp ? (
           <p className="text-sm">
             <Link href={`/inspect/itps/${sourceItp.id}`} className="text-burgundy hover:underline">
               {sourceItp.itp_number}
             </Link>{" "}
-            — {sourceItp.title} ({sourceItp.status}). Frozen at inspection time as{" "}
+            — {sourceItp.title} ({sourceItp.status}<T>). Frozen at inspection time as</T>{" "}
             <span className="doc-id">{record.itp_number}</span>.
           </p>
         ) : (
           <p className="text-sm text-muted">
-            The governing ITP item could not be resolved (frozen number was{" "}
+            <T>The governing ITP item could not be resolved (frozen number was</T>{" "}
             <span className="doc-id">{record.itp_number}</span>).
           </p>
         )}
@@ -662,7 +666,7 @@ async function InspectionRecordLineage({ supabase, record }: { supabase: Supabas
 
       <SectionCard title={`Related NCRs (${(relatedNcrs ?? []).length})`}>
         {(relatedNcrs ?? []).length === 0 ? (
-          <p className="text-sm text-muted">No NCRs reference this inspection record.</p>
+          <p className="text-sm text-muted"><T>No NCRs reference this inspection record.</T></p>
         ) : (
           <ul className="space-y-1 text-sm">
             {(relatedNcrs ?? []).map((n) => (
@@ -677,7 +681,7 @@ async function InspectionRecordLineage({ supabase, record }: { supabase: Supabas
         )}
       </SectionCard>
 
-      <SectionCard title="Audit trail (R102)">
+      <SectionCard title={tl("Audit trail (R102)")}>
         <AuditTrailTable events={auditEvents} />
       </SectionCard>
     </>
@@ -916,10 +920,10 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
 
       {hit.kind === "calibration" && (
         <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-          <div className="font-semibold text-ink">Impact report</div>
+          <div className="font-semibold text-ink"><T>Impact report</T></div>
           <p className="mt-1 text-ink">
-            If this instrument is found out of tolerance, these <span className="font-semibold">{impactedRecords.length}</span>{" "}
-            inspection{impactedRecords.length === 1 ? "" : "s"} used it
+            <T>If this instrument is found out of tolerance, these</T> <span className="font-semibold">{impactedRecords.length}</span>{" "}
+            <T>inspection</T>{impactedRecords.length === 1 ? "" : "s"} <T>used it</T>
             {sinceCal
               ? ` since ${new Date(sinceCal).toLocaleDateString("en-GB")} (last calibration)`
               : cycleCount > 1
@@ -928,13 +932,13 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
             .
           </p>
           <p className="mt-1 text-xs text-muted">
-            A recalibration is recorded as a new certificate linked to the old one, so uses before it stay attached to the certificate that was valid at the time.
+            <T>A recalibration is recorded as a new certificate linked to the old one, so uses before it stay attached to the certificate that was valid at the time.</T>
           </p>
           <a
             href={`/api/registers/usage-export?kind=${hit.kind}&id=${hit.id}`}
             className="mt-2 inline-block text-xs text-burgundy hover:underline"
           >
-            Export impacted inspections (CSV)
+            <T>Export impacted inspections (CSV)</T>
           </a>
           {impactedRecords.length > 0 && (
             <ul className="mt-2 list-disc space-y-0.5 ps-5">
@@ -952,21 +956,21 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
       )}
 
       <h3 className="mt-4 text-xs font-semibold uppercase text-muted">
-        Inspection answers verified against this entry ({inspectionIds.size} inspection{inspectionIds.size === 1 ? "" : "s"})
+        <T>Inspection answers verified against this entry (</T>{inspectionIds.size} <T>inspection</T>{inspectionIds.size === 1 ? "" : "s"})
       </h3>
       {usage.length === 0 ? (
-        <p className="mt-1 text-sm text-muted">No inspection checklist answer has been verified against this entry yet.</p>
+        <p className="mt-1 text-sm text-muted"><T>No inspection checklist answer has been verified against this entry yet.</T></p>
       ) : (
         <div className="overflow-x-auto">
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b border-border text-start text-xs uppercase text-muted">
-              <th className="py-2">Record</th>
-              <th className="py-2">ITP activity</th>
-              <th className="py-2">Checklist item</th>
-              <th className="py-2">Date</th>
-              <th className="py-2">Answer</th>
-              <th className="py-2">Result</th>
+              <th className="py-2"><T>Record</T></th>
+              <th className="py-2"><T>ITP activity</T></th>
+              <th className="py-2"><T>Checklist item</T></th>
+              <th className="py-2"><T>Date</T></th>
+              <th className="py-2"><T>Answer</T></th>
+              <th className="py-2"><T>Result</T></th>
             </tr>
           </thead>
           <tbody>

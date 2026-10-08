@@ -3,6 +3,8 @@
 import { useState, useTransition, type FocusEvent, type FormEvent } from "react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { renameItpSectionAction, deleteItpSectionAction, moveSectionUpAction, moveSectionDownAction } from "@/lib/itps/sections";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * R24: inline rename + delete + move-up/move-down for a single section header, shown in place of
@@ -31,6 +33,7 @@ export function SectionControls({
   isLast: boolean;
   isOnlySection: boolean;
 }) {
+  const tl = useTranslate();
   const [value, setValue] = useState(title);
   const { ask, dialog } = useConfirm();
 
@@ -110,7 +113,7 @@ export function SectionControls({
           <form onSubmit={submitWith(moveSectionUpAction)}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
-            <button type="submit" title="Move section up" className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-off-white">
+            <button type="submit" title={tl("Move section up")} className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-off-white">
               ↑
             </button>
           </form>
@@ -119,7 +122,7 @@ export function SectionControls({
           <form onSubmit={submitWith(moveSectionDownAction)}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
-            <button type="submit" title="Move section down" className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-off-white">
+            <button type="submit" title={tl("Move section down")} className="rounded-md border border-border bg-surface px-2 py-1 text-xs hover:bg-off-white">
               ↓
             </button>
           </form>
@@ -128,8 +131,8 @@ export function SectionControls({
           <form onSubmit={submitWith(deleteItpSectionAction, `Delete section "${sectionNumber}. ${title}"? This also deletes every activity in it. This cannot be undone.`)}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="section_id" value={sectionId} />
-            <button type="submit" title="Delete section" className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-danger hover:bg-danger/10">
-              Delete
+            <button type="submit" title={tl("Delete section")} className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-danger hover:bg-danger/10">
+              <Tx>Delete</Tx>
             </button>
           </form>
         )}

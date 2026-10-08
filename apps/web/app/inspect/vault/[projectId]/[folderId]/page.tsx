@@ -24,6 +24,8 @@ import { LoadMore } from "@/components/domain/load-more";
 import { describeListWindow, hrefWithLimit, mergeNewestFirst, parseListLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
 import { vaultDocKind, vaultFileType } from "@/lib/vault/doc-kind";
 import { VaultDocumentView } from "../document/[documentId]/vault-document-view";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 // Newest documents (revisions included) loaded per page; documents awaiting review are always loaded.
 const VAULT_DOC_LIMITS: ListLimitOptions = { defaultLimit: 100, step: 100, max: 1000 };
@@ -49,6 +51,7 @@ export default async function VaultFolderPage({
   params: Promise<{ projectId: string; folderId: string }>;
   searchParams: Promise<{ doc?: string; newrev?: string; limit?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const { projectId, folderId } = await params;
   const { doc: selectedDocId, newrev: newRevOf, limit: limitParam } = await searchParams;
@@ -225,13 +228,13 @@ export default async function VaultFolderPage({
     <div>
       <RealtimeRefresh table="vault_documents" filter={`folder_id=eq.${folderId}`} />
       <Link href={`/inspect/vault?project=${projectId}`} className="text-sm text-burgundy hover:underline">
-        ← Back to Document Vault
+        <T>← Back to Document Vault</T>
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">{folder.name}</h1>
         <PageGuide
-          title="Vault folder — how this works"
+          title={tl("Vault folder — how this works")}
           points={[
             "Every revision of a document uploaded to this folder stays visible — a new upload matching an existing document reference marks the old one \"superseded\", it's never deleted or replaced.",
             "New uploads start at status \"for review\". Only a JAGS Admin, or someone specifically granted the approve_vault_document permission for this project, can approve one to make it the controlled baseline.",
@@ -240,21 +243,20 @@ export default async function VaultFolderPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Superseded revisions are hidden by default (tick &quot;Show superseded&quot; to see them) but are never deleted.
-        An approved revision stays current until its replacement is approved.
+        <T>Superseded revisions are hidden by default (tick &quot;Show superseded&quot; to see them) but are never deleted. An approved revision stays current until its replacement is approved.</T>
       </p>
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <Link
           href={`/inspect/vault/${projectId}/pending`}
           className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
         >
-          My pending approvals
+          <T>My pending approvals</T>
         </Link>
         <a
           href="#vault-upload"
           className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
         >
-          Upload
+          <T>Upload</T>
         </a>
       </div>
 
@@ -303,27 +305,27 @@ export default async function VaultFolderPage({
         }
         detail={
           selectedDocId ? (
-          <section className="min-w-0 rounded-lg border border-border bg-surface p-3 sm:p-4" aria-label="Document preview">
+          <section className="min-w-0 rounded-lg border border-border bg-surface p-3 sm:p-4" aria-label={tl("Document preview")}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Link
                 href={`/inspect/vault/${projectId}/${folderId}`}
                 scroll={false}
                 className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline lg:hidden"
               >
-                ← Back to documents
+                <T>← Back to documents</T>
               </Link>
               <Link
                 href={`/inspect/vault/${projectId}/${folderId}`}
                 scroll={false}
                 className="hidden min-h-11 items-center text-sm text-muted hover:text-ink lg:inline-flex"
               >
-                ✕ Close preview
+                <T>✕ Close preview</T>
               </Link>
               <Link
                 href={`/inspect/vault/${projectId}/document/${selectedDocId}`}
                 className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline"
               >
-                Open full page →
+                <T>Open full page →</T>
               </Link>
             </div>
             <Suspense key={selectedDocId} fallback={<div className="mt-4 h-64 animate-pulse rounded-md bg-off-white" aria-busy="true" />}>

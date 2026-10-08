@@ -10,6 +10,7 @@ import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
 import { Watchlist } from "@/components/ui/watchlist";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface PendingProposalItem {
   id: string;
@@ -123,6 +124,7 @@ export function AdminDashboard({
   overdueHoldsTile: ReactNode;
   overdueHoldsCard: ReactNode;
 }) {
+  const tl = useTranslate();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   // One shared side panel for every "open this row" action on the page (proposal review, NCR
@@ -144,7 +146,7 @@ export function AdminDashboard({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink"><Tx>JAGS Admin Overview</Tx></h1>
             <PageGuide
-              title="JAGS Admin Overview — how this works"
+              title={tl("JAGS Admin Overview — how this works")}
               points={[
                 "This view only renders for JAGS Admin — Inspectors and every external party each get their own dashboard instead, scoped to their own work.",
                 "\"Pending proposals\" are submissions to the Tier-1 ITP template library — an Inspector can propose a new template or an update, but only an Admin can approve one.",
@@ -153,13 +155,13 @@ export function AdminDashboard({
               ]}
             />
           </div>
-          <p className="mt-1 text-sm text-muted">{today} · Portfolio status across every client you have access to.</p>
+          <p className="mt-1 text-sm text-muted">{today} <Tx>· Portfolio status across every client you have access to.</Tx></p>
         </div>
         <Link
           href="/inspect/projects/new"
           className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
         >
-          New project
+          <Tx>New project</Tx>
         </Link>
       </div>
 
@@ -244,7 +246,7 @@ export function AdminDashboard({
 
         <Watchlist
           anchorId="open-ncrs"
-          title="Open NCRs"
+          title={tl("Open NCRs")}
           description="Minor and major, across every project you have access to."
           items={openNcrItems}
           total={openNcrTotal}
@@ -263,15 +265,15 @@ export function AdminDashboard({
                 <span className="min-w-0 truncate" title={item.projectLabel}>
                   {item.projectLabel}
                 </span>
-                <span className="shrink-0 whitespace-nowrap">Raised {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
+                <span className="shrink-0 whitespace-nowrap"><Tx>Raised</Tx> {new Date(item.createdAt).toLocaleDateString("en-GB")}</span>
               </span>
-              <span className="mt-1 block text-xs font-medium text-burgundy">Open NCR →</span>
+              <span className="mt-1 block text-xs font-medium text-burgundy"><Tx>Open NCR →</Tx></span>
             </Link>
           )}
         />
 
         <Watchlist
-          title="Recent activity"
+          title={tl("Recent activity")}
           description="Across every organisation your access reaches."
           items={recentActivity}
           emptyText="No recent activity."
@@ -296,7 +298,7 @@ export function AdminDashboard({
             return event.href ? (
               <Link href={event.href} className="block rounded-md px-1.5 py-1 hover:bg-off-white">
                 {body}
-                <span className="mt-1 block text-xs font-medium text-burgundy">Open →</span>
+                <span className="mt-1 block text-xs font-medium text-burgundy"><Tx>Open →</Tx></span>
               </Link>
             ) : (
               body
@@ -312,10 +314,10 @@ export function AdminDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-medium text-ink"><Tx>Master Library proposals awaiting review</Tx></h2>
-              <p className="mt-1 text-sm text-muted">Submitted by staff, waiting on your decision.</p>
+              <p className="mt-1 text-sm text-muted"><Tx>Submitted by staff, waiting on your decision.</Tx></p>
             </div>
             <Link href="/inspect/itp-master/proposals" className="text-sm font-medium text-burgundy hover:underline">
-              View all{pendingProposalTotal > pendingProposals.length ? ` ${pendingProposalTotal}` : ""} →
+              <Tx>View all</Tx>{pendingProposalTotal > pendingProposals.length ? ` ${pendingProposalTotal}` : ""} →
             </Link>
           </div>
           <div className="mt-3">
@@ -343,7 +345,7 @@ export function AdminDashboard({
                   header: "Submitted",
                   render: (r) => <span className="text-muted">{new Date(r.submittedOn).toLocaleDateString("en-GB")}</span>,
                 },
-                { key: "status", header: "Status", render: () => <Badge tone="warning">Pending review</Badge> },
+                { key: "status", header: "Status", render: () => <Badge tone="warning"><Tx>Pending review</Tx></Badge> },
                 {
                   key: "action",
                   header: "",
@@ -353,7 +355,7 @@ export function AdminDashboard({
                       onClick={() => panel.open(`proposal:${r.id}`)}
                       className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline"
                     >
-                      Review
+                      <Tx>Review</Tx>
                     </button>
                   ),
                 },
@@ -362,9 +364,9 @@ export function AdminDashboard({
           </div>
           <p className="mt-2 text-xs text-muted">
             <Link href="/inspect/itp-master/proposals" className="text-burgundy hover:underline">
-              Open the full proposals queue →
+              <Tx>Open the full proposals queue →</Tx>
             </Link>{" "}
-            if you need to see the source ITP for one of these.
+            <Tx>if you need to see the source ITP for one of these.</Tx>
           </p>
         </div>
       )}
@@ -373,8 +375,7 @@ export function AdminDashboard({
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="font-medium text-ink"><Tx>Your organisations</Tx></h2>
         <p className="mt-1 text-sm text-muted">
-          Visible here only because your access grants reach them — this list is the tenant isolation
-          check made visible, with each client&apos;s real portfolio numbers.
+          <Tx>Visible here only because your access grants reach them — this list is the tenant isolation check made visible, with each client&apos;s real portfolio numbers.</Tx>
         </p>
         <div className="mt-3">
           <DataTable
@@ -405,7 +406,7 @@ export function AdminDashboard({
                     <span className="text-muted">0</span>
                   ) : (
                     <Link href={`/inspect/projects?org=${r.id}`} className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline">
-                      {r.activeProjects} project{r.activeProjects === 1 ? "" : "s"} →
+                      {r.activeProjects} <Tx>project</Tx>{r.activeProjects === 1 ? "" : "s"} →
                     </Link>
                   ),
               },
@@ -422,16 +423,16 @@ export function AdminDashboard({
       <SidePanel
         open={!!openProposal}
         onClose={panel.close}
-        title="Review proposal"
+        title={tl("Review proposal")}
         description={openProposal?.title}
         guardUnsaved={false}
       >
         {openProposal && (
           <div className="mt-4 text-sm">
-            <p className="text-muted">Submitted {new Date(openProposal.submittedOn).toLocaleDateString("en-GB")}</p>
+            <p className="text-muted"><Tx>Submitted</Tx> {new Date(openProposal.submittedOn).toLocaleDateString("en-GB")}</p>
             {openProposal.sourceItpId && (
               <p className="mt-2">
-                Source ITP:{" "}
+                <Tx>Source ITP:</Tx>{" "}
                 <Link href={`/inspect/itps/${openProposal.sourceItpId}`} className="text-burgundy hover:underline">
                   {openProposal.sourceItpLabel}
                 </Link>
@@ -453,18 +454,18 @@ export function AdminDashboard({
             </p>
             <p className="text-ink">{openNcr.description}</p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-              <dt className="text-muted">Project</dt>
+              <dt className="text-muted"><Tx>Project</Tx></dt>
               <dd className="text-ink">{openNcr.projectLabel}</dd>
-              <dt className="text-muted">Raised</dt>
+              <dt className="text-muted"><Tx>Raised</Tx></dt>
               <dd className="text-ink">{new Date(openNcr.createdAt).toLocaleDateString("en-GB")}</dd>
-              <dt className="text-muted">Due</dt>
+              <dt className="text-muted"><Tx>Due</Tx></dt>
               <dd className="text-ink">{openNcr.dueDate ? new Date(openNcr.dueDate).toLocaleDateString("en-GB") : "—"}</dd>
             </dl>
             <Link
               href={`/inspect/ncrs/${openNcr.id}`}
               className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 text-sm font-medium text-white hover:bg-burgundy-dark"
             >
-              Open full NCR →
+              <Tx>Open full NCR →</Tx>
             </Link>
           </div>
         )}
@@ -485,12 +486,12 @@ export function AdminDashboard({
                   <Link href={`/inspect/projects/${p.id}`} className="min-w-0 truncate text-burgundy hover:underline">
                     {p.projectNumber} — {p.name}
                   </Link>
-                  {p.openNcrs > 0 && <Badge tone="danger">{p.openNcrs} NCR{p.openNcrs === 1 ? "" : "s"}</Badge>}
+                  {p.openNcrs > 0 && <Badge tone="danger">{p.openNcrs} <Tx>NCR</Tx>{p.openNcrs === 1 ? "" : "s"}</Badge>}
                 </li>
               ))}
             </ul>
             <Link href={`/inspect/projects?org=${openOrg.id}`} className="mt-3 inline-block text-sm text-burgundy hover:underline">
-              Open in Projects →
+              <Tx>Open in Projects →</Tx>
             </Link>
           </div>
         )}

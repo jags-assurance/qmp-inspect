@@ -6,6 +6,7 @@ import { WELDER_EXPIRING_DAYS } from "@/lib/registers/status";
 import type { WelderQualificationStatus } from "@/lib/registers/types";
 import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
+import { Tx } from "@/components/domain/tx";
 
 export interface WelderQualificationDisplayRow {
   id: string;
@@ -46,7 +47,7 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
       render: (row) => (
         <span>
           {row.welder_identifier}
-          {row.wpq_number && <span className="block text-xs text-muted">WPQ {row.wpq_number}</span>}
+          {row.wpq_number && <span className="block text-xs text-muted"><Tx>WPQ</Tx> {row.wpq_number}</span>}
         </span>
       ),
     },

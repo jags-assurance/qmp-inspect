@@ -8,6 +8,8 @@ import {
   type ProjectCloseSummary,
 } from "@/lib/projects/actions";
 import { isClosedStatus } from "@/lib/projects/close-helpers";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: UpdateProjectStatusState = { error: null };
 
@@ -39,6 +41,7 @@ export function ProjectStatusControl({
   openNcrs?: number;
   openPunch?: number;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateProjectStatusAction, initialState);
   const [target, setTarget] = useState<string | null>(null);
   const [summary, setSummary] = useState<ProjectCloseSummary | null>(null);
@@ -100,7 +103,7 @@ export function ProjectStatusControl({
           value={target ?? status}
           onChange={(e) => void onChange(e.currentTarget.value)}
           disabled={pending}
-          aria-label="Project status"
+          aria-label={tl("Project status")}
           className="min-h-11 rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink"
         >
           {STATUSES.map((s) => (
@@ -109,40 +112,40 @@ export function ProjectStatusControl({
             </option>
           ))}
         </select>
-        {pending && <span className="text-xs text-muted">Saving…</span>}
+        {pending && <span className="text-xs text-muted"><Tx>Saving…</Tx></span>}
       </div>
 
       {needsPanel && (
-        <div role="alertdialog" aria-label="Confirm project status change" className="max-w-md rounded-md border border-border bg-surface p-3 text-sm text-ink shadow-sm">
+        <div role="alertdialog" aria-label={tl("Confirm project status change")} className="max-w-md rounded-md border border-border bg-surface p-3 text-sm text-ink shadow-sm">
           <p className="font-medium">
-            Change status from {STATUS_LABEL[status] ?? status} to {STATUS_LABEL[target ?? ""] ?? target}?
+            <Tx>Change status from</Tx> {STATUS_LABEL[status] ?? status} <Tx>to</Tx> {STATUS_LABEL[target ?? ""] ?? target}?
           </p>
-          {closing && loadingSummary && <p className="mt-1 text-xs text-muted">Checking open items…</p>}
+          {closing && loadingSummary && <p className="mt-1 text-xs text-muted"><Tx>Checking open items…</Tx></p>}
           {closing && !loadingSummary && (
             <div className="mt-1 text-xs">
               {blockers.length > 0 ? (
                 <>
-                  <p className="text-danger">This project still has outstanding work:</p>
+                  <p className="text-danger"><Tx>This project still has outstanding work:</Tx></p>
                   <ul className="mt-1 list-disc ps-5">
-                    {summary && summary.openNcrs > 0 && <li>{summary.openNcrs} open NCR{summary.openNcrs === 1 ? "" : "s"}</li>}
-                    {summary && summary.openPunch > 0 && <li>{summary.openPunch} open punch item{summary.openPunch === 1 ? "" : "s"}</li>}
-                    {summary && summary.overdueHolds > 0 && <li>{summary.overdueHolds} overdue hold point{summary.overdueHolds === 1 ? "" : "s"}</li>}
-                    {summary && summary.draftInspections > 0 && <li>{summary.draftInspections} draft inspection{summary.draftInspections === 1 ? "" : "s"}</li>}
+                    {summary && summary.openNcrs > 0 && <li>{summary.openNcrs} <Tx>open NCR</Tx>{summary.openNcrs === 1 ? "" : "s"}</li>}
+                    {summary && summary.openPunch > 0 && <li>{summary.openPunch} <Tx>open punch item</Tx>{summary.openPunch === 1 ? "" : "s"}</li>}
+                    {summary && summary.overdueHolds > 0 && <li>{summary.overdueHolds} <Tx>overdue hold point</Tx>{summary.overdueHolds === 1 ? "" : "s"}</li>}
+                    {summary && summary.draftInspections > 0 && <li>{summary.draftInspections} <Tx>draft inspection</Tx>{summary.draftInspections === 1 ? "" : "s"}</li>}
                   </ul>
-                  <p className="mt-1 text-muted">A reason is required to close with these outstanding.</p>
+                  <p className="mt-1 text-muted"><Tx>A reason is required to close with these outstanding.</Tx></p>
                 </>
               ) : (
-                <p className="text-muted">No open NCRs, punch items, overdue holds or draft inspections.</p>
+                <p className="text-muted"><Tx>No open NCRs, punch items, overdue holds or draft inspections.</Tx></p>
               )}
-              {target === "completed" && <p className="mt-1 text-muted">Make sure the Data Book has been compiled first. Closing blocks further edits by non-admins.</p>}
+              {target === "completed" && <p className="mt-1 text-muted"><Tx>Make sure the Data Book has been compiled first. Closing blocks further edits by non-admins.</Tx></p>}
             </div>
           )}
-          {leavingClosed && <p className="mt-1 text-xs text-muted">Re-opening notifies the client and the responsible person. A reason is required.</p>}
+          {leavingClosed && <p className="mt-1 text-xs text-muted"><Tx>Re-opening notifies the client and the responsible person. A reason is required.</Tx></p>}
 
           {(leavingClosed || (closing && blockers.length > 0)) && (
             <div className="mt-2">
               <label htmlFor={`status-reason-${projectId}`} className="block text-xs font-medium">
-                Reason
+                <Tx>Reason</Tx>
               </label>
               <textarea
                 id={`status-reason-${projectId}`}
@@ -161,10 +164,10 @@ export function ProjectStatusControl({
               disabled={pending || loadingSummary || ((leavingClosed || blockers.length > 0) && reason.trim().length < 5)}
               className="rounded-md bg-burgundy px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
-              Confirm
+              <Tx>Confirm</Tx>
             </button>
             <button type="button" onClick={cancel} disabled={pending} className="rounded-md border border-border px-3 py-1.5 text-sm">
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </div>
         </div>

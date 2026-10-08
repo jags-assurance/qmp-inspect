@@ -8,6 +8,7 @@ import { AddCategoryForm } from "./add-category-form";
 import { ConnectorsPanel } from "./connectors-panel";
 import { PageGuide } from "@/components/domain/page-guide";
 import { fetchAll } from "@/lib/supabase/fetch-all";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface DocSummary {
   id: string;
@@ -23,6 +24,7 @@ export default async function VaultPage({
 }: {
   searchParams: Promise<{ project?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const { project: projectId } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -110,7 +112,7 @@ export default async function VaultPage({
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink"><T>Document Vault</T></h1>
           <PageGuide
-            title="Document Vault — how this works"
+            title={tl("Document Vault — how this works")}
             points={[
               "Every project gets the same fixed set of 12 folders automatically — pick a project above, then open a folder to see its documents.",
               "Uploading a file whose document reference matches one already in that folder doesn't overwrite it — the old row is marked superseded and stays visible, nothing is silently lost.",
@@ -120,8 +122,7 @@ export default async function VaultPage({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          The controlled set of project documents, organised into fixed folders with revision
-          tracking.
+          <T>The controlled set of project documents, organised into fixed folders with revision tracking.</T>
         </p>
       </div>
 
@@ -142,16 +143,16 @@ export default async function VaultPage({
               href={`/inspect/vault/${selectedProject}/pending`}
               className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
             >
-              My pending approvals
+              <T>My pending approvals</T>
             </Link>
             <a
               href={`/api/vault/${selectedProject}/download-all`}
               className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
             >
-              Download approved (.zip)
+              <T>Download approved (.zip)</T>
             </a>
             <span className="text-sm text-muted">
-              {totalDocs} current document{totalDocs === 1 ? "" : "s"} · {pendingCount} awaiting approval
+              {totalDocs} <T>current document</T>{totalDocs === 1 ? "" : "s"} · {pendingCount} <T>awaiting approval</T>
             </span>
           </div>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -163,20 +164,20 @@ export default async function VaultPage({
               >
                 <p className="font-medium text-ink">
                   {folder.name}
-                  {folder.is_custom && <span className="ms-1.5 text-xs font-normal text-muted">(custom)</span>}
+                  {folder.is_custom && <span className="ms-1.5 text-xs font-normal text-muted"><T>(custom)</T></span>}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {folder.documentCount} document{folder.documentCount === 1 ? "" : "s"}
+                  {folder.documentCount} <T>document</T>{folder.documentCount === 1 ? "" : "s"}
                   {(pendingByFolder.get(folder.id) ?? 0) > 0 && (
-                    <span className="ms-2 text-warning">{pendingByFolder.get(folder.id)} for review</span>
+                    <span className="ms-2 text-warning">{pendingByFolder.get(folder.id)} <T>for review</T></span>
                   )}
                 </p>
               </Link>
             ))}
           </div>
           {recent.length > 0 && (
-            <section className="mt-8" aria-label="Recently added">
-              <h2 className="text-sm font-semibold text-ink">Recently added</h2>
+            <section className="mt-8" aria-label={tl("Recently added")}>
+              <h2 className="text-sm font-semibold text-ink"><T>Recently added</T></h2>
               <ul className="mt-2 divide-y divide-border rounded-lg border border-border bg-surface text-sm">
                 {recent.map((d) => (
                   <li key={d.id}>
@@ -186,7 +187,7 @@ export default async function VaultPage({
                     >
                       <span className="min-w-0 flex-1 truncate text-ink">{d.title}</span>
                       <span className="text-xs text-muted">
-                        {folderNameById.get(d.folder_id)} · Rev {d.revision} · {d.status.replace("_", " ")} ·{" "}
+                        {folderNameById.get(d.folder_id)} <T>· Rev</T> {d.revision} · {d.status.replace("_", " ")} ·{" "}
                         {new Date(d.created_at).toLocaleDateString("en-GB")}
                       </span>
                     </Link>

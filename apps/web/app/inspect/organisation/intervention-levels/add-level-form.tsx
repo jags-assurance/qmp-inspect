@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { addInterventionLevelAction, type InterventionLevelState } from "@/lib/intervention-levels/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: InterventionLevelState = { error: null };
 
@@ -12,6 +14,7 @@ const initialState: InterventionLevelState = { error: null };
  *  the end of this org's list); an admin can fine-tune order afterward via each row's own "Order"
  *  field on the settings page above. */
 export function AddLevelForm({ organizationId }: { organizationId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addInterventionLevelAction, initialState);
 
   return (
@@ -23,7 +26,7 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
           name="code"
           required
           maxLength={8}
-          placeholder="e.g. CQR"
+          placeholder={tl("e.g. CQR")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm uppercase outline-none focus:border-burgundy"
         />
         </FormField>
@@ -33,14 +36,14 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
           <input
           name="label"
           required
-          placeholder="e.g. Client QA Review"
+          placeholder={tl("e.g. Client QA Review")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
       </div>
       <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
         <input type="checkbox" name="is_blocking" />
-        Blocking
+        <Tx>Blocking</Tx>
       </label>
       <div>
         <FormField label="Notice hrs">
@@ -48,7 +51,7 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
           name="default_notice_hours"
           type="number"
           min={0}
-          placeholder="none"
+          placeholder={tl("none")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

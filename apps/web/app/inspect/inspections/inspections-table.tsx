@@ -11,6 +11,7 @@ import { BULK_IRN_MAX, isBulkIrnEligible, summariseBulk, type BulkIrnResult } fr
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
+import { Tx } from "@/components/domain/tx";
 
 export const INSPECTIONS_PAGE_SIZE = 50;
 
@@ -30,10 +31,10 @@ export interface InspectionListRow {
 }
 
 function ResultChip({ result }: { result: InspectionListRow["overall_result"] }) {
-  if (result === "pass") return <Badge tone="success">Pass</Badge>;
-  if (result === "fail") return <Badge tone="danger">Fail</Badge>;
-  if (result === "partial") return <Badge tone="warning">Conditional</Badge>;
-  return <Badge tone="neutral">In progress</Badge>;
+  if (result === "pass") return <Badge tone="success"><Tx>Pass</Tx></Badge>;
+  if (result === "fail") return <Badge tone="danger"><Tx>Fail</Tx></Badge>;
+  if (result === "partial") return <Badge tone="warning"><Tx>Conditional</Tx></Badge>;
+  return <Badge tone="neutral"><Tx>In progress</Tx></Badge>;
 }
 
 const columns: DataTableColumn<InspectionListRow>[] = [
@@ -66,11 +67,11 @@ const columns: DataTableColumn<InspectionListRow>[] = [
     header: "IRN",
     render: (r) =>
       !r.irn_number ? (
-        <span className="text-muted">None</span>
+        <span className="text-muted"><Tx>None</Tx></span>
       ) : r.irn_voided ? (
         <span className="inline-flex items-center gap-2">
           <span className="doc-id line-through">{r.irn_number}</span>
-          <Badge tone="danger">VOID</Badge>
+          <Badge tone="danger"><Tx>VOID</Tx></Badge>
         </span>
       ) : (
         <Badge tone="info">{r.irn_number}</Badge>
@@ -151,7 +152,7 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
           >
             {chosen.length === eligibleIds.length ? "Clear selection" : "Select all eligible on this page"}
           </button>
-          <span className="text-muted">Completed inspections without a live IRN. Up to {BULK_IRN_MAX} at a time.</span>
+          <span className="text-muted"><Tx>Completed inspections without a live IRN. Up to</Tx> {BULK_IRN_MAX} <Tx>at a time.</Tx></span>
         </div>
       )}
       {result && (
@@ -161,7 +162,7 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
           ) : (
             <>
               <p className="font-medium text-ink">
-                {summary!.issued} issued, {summary!.already} already issued, {summary!.skipped} skipped.
+                {summary!.issued} <Tx>issued,</Tx> {summary!.already} <Tx>already issued,</Tx> {summary!.skipped} <Tx>skipped.</Tx>
               </p>
               <ul className="mt-2 space-y-1">
                 {result.items.map((i) => (
@@ -170,15 +171,15 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
                       {byId.get(i.id)?.record_number ?? i.id}
                     </Link>
                     {i.status === "issued" && <Badge tone="success">{i.irnNumber}</Badge>}
-                    {i.status === "already" && <Badge tone="info">Already issued</Badge>}
-                    {i.status === "skipped" && <span className="text-danger">Skipped: {i.reason}</span>}
+                    {i.status === "already" && <Badge tone="info"><Tx>Already issued</Tx></Badge>}
+                    {i.status === "skipped" && <span className="text-danger"><Tx>Skipped:</Tx> {i.reason}</span>}
                   </li>
                 ))}
               </ul>
             </>
           )}
           <button type="button" className="mt-2 text-burgundy hover:underline" onClick={() => setResult(null)}>
-            Dismiss
+            <Tx>Dismiss</Tx>
           </button>
         </div>
       )}

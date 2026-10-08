@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { T } from "@/components/domain/t";
 
 interface HistoryRow {
   review_round: number;
@@ -37,15 +38,15 @@ export async function ReviewHistoryPanel({ itpId }: { itpId: string }) {
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-medium text-ink">Earlier review rounds</h2>
+      <h2 className="text-sm font-medium text-ink"><T>Earlier review rounds</T></h2>
       <ul className="mt-2 space-y-2">
         {[...rounds.entries()].map(([round, rows]) => (
           <li key={round}>
             <details className="rounded-md border border-border">
               <summary className="cursor-pointer select-none px-3 py-2 text-sm">
-                <span className="font-medium text-ink">Round {round}</span>{" "}
+                <span className="font-medium text-ink"><T>Round</T> {round}</span>{" "}
                 <span className="text-muted">
-                  — archived {new Date(rows[0].archived_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                  <T>— archived</T> {new Date(rows[0].archived_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
                   {rows[0].archived_reason ? ` · ${rows[0].archived_reason}` : ""}
                 </span>
               </summary>

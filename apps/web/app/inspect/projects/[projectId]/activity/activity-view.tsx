@@ -13,6 +13,8 @@ import { VAULT_FOLDERS_TABLE, VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { DateRangeFilter } from "@/components/domain/date-range-filter";
 import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const EVENT_DOT_TONE: Record<ActivityEvent["kind"], string> = {
   itp_created: "bg-info",
@@ -107,6 +109,7 @@ export async function ActivityView({
   filters?: { cat?: string; limit?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   await requireSession();
   const pageLimit = Math.min(1000, Math.max(ACTIVITY_PAGE, Number.parseInt(filters.limit ?? "", 10) || ACTIVITY_PAGE));
   const supabase = await createSupabaseServerClient();
@@ -458,14 +461,14 @@ export async function ActivityView({
     <div>
       {!embedded && (
         <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
+          <T>← Back to Project</T>
         </Link>
       )}
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Activity" : `${project.project_number} — Activity`}</Heading>
           <PageGuide
-            title="Activity — how this works"
+            title={tl("Activity — how this works")}
             points={[
               "A single chronological feed of everything recorded on this project — ITP lifecycle, sign-offs, inspections, NCRs, standalone assignments, data book/handover, punch list, and Document Vault uploads.",
               "Reachable by any role with access to this project (client, subcontractor, main contractor, TPI/lab, staff) — no staff-only gate, same as Punch List and Client KPIs.",
@@ -475,29 +478,27 @@ export async function ActivityView({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · {project.name}. A full chronological feed of everything recorded on this
-          project — ITPs, sign-offs, inspections, NCRs, standalone assignments, data book and handover, punch list,
-          and Document Vault uploads.
+          {project.organizations?.name} · {project.name}<T>. A full chronological feed of everything recorded on this project — ITPs, sign-offs, inspections, NCRs, standalone assignments, data book and handover, punch list, and Document Vault uploads.</T>
         </p>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <DateRangeFilter />
           <p className="text-xs text-muted">
-            Showing {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
+            <T>Showing</T> {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
             {filteredEvents.length > pageLimit ? ` (first ${pageLimit} of ${filteredEvents.length})` : ""}
           </p>
         </div>
         {embedded ? (
           <p className="mt-2 text-xs text-muted">
             <Link href={`/inspect/projects/${projectId}/activity`} className="text-burgundy hover:underline">
-              Open the full page
+              <T>Open the full page</T>
             </Link>{" "}
-            to filter by category.
+            <T>to filter by category.</T>
           </p>
         ) : (
           <form method="get" className="mt-3 flex flex-wrap gap-2">
             {range && <input type="hidden" name="range" value={range} />}
-            <select name="cat" defaultValue={filters.cat ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label="Category">
-              <option value="">All categories</option>
+            <select name="cat" defaultValue={filters.cat ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label={tl("Category")}>
+              <option value=""><T>All categories</T></option>
               {ACTIVITY_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>
                   {c.label}
@@ -505,7 +506,7 @@ export async function ActivityView({
               ))}
             </select>
             <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white">
-              Apply
+              <T>Apply</T>
             </button>
           </form>
         )}
@@ -513,7 +514,7 @@ export async function ActivityView({
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
         {events.length === 0 ? (
-          <p className="text-sm text-muted">No activity recorded on this project yet.</p>
+          <p className="text-sm text-muted"><T>No activity recorded on this project yet.</T></p>
         ) : (
           <ol className="space-y-4">
             {events.map((event) => (
@@ -549,7 +550,7 @@ export async function ActivityView({
               href={`/inspect/projects/${projectId}/activity?${moreParams.toString()}`}
               className="rounded-md border border-border px-4 py-2 text-sm text-burgundy"
             >
-              Show more
+              <T>Show more</T>
             </Link>
           </div>
         )}

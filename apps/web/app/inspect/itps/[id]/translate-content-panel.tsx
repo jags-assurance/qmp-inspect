@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { translateItpContentAction, type TranslateItpContentState } from "@/lib/itps/actions";
 import { isTranslationStale, type ItpTranslations } from "@/lib/itps/translations";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: TranslateItpContentState = { error: null, translated: null, targetLanguage: null };
 
@@ -24,7 +25,7 @@ export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId:
       <form action={formAction} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="target_language" value={TARGET_LANGUAGE} />
-        <p className="text-xs text-muted">Show the title &amp; scope in French, alongside the original.</p>
+        <p className="text-xs text-muted"><Tx>Show the title &amp; scope in French, alongside the original.</Tx></p>
         <button
           type="submit"
           disabled={pending}
@@ -39,7 +40,7 @@ export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId:
       {Object.entries(stored).map(([language, t]) => (
         <div key={language} className="mt-3 rounded-md border border-border bg-surface p-3" data-testid="stored-translation">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            {language} translation (stored{t.translated_at ? ` ${new Date(t.translated_at).toLocaleDateString("en-GB")}` : ""}
+            {language} <Tx>translation (stored</Tx>{t.translated_at ? ` ${new Date(t.translated_at).toLocaleDateString("en-GB")}` : ""}
             {isTranslationStale(t, revision) ? " — from an earlier revision, translate again to refresh" : ""})
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{[t.title, t.scope].filter(Boolean).join("\n\n")}</p>
@@ -49,7 +50,7 @@ export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId:
       {state.translated && (
         <div className="mt-3 rounded-md border border-border bg-surface p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            {state.targetLanguage} translation ({state.stored ? "saved on the ITP" : "not saved"} — original unchanged)
+            {state.targetLanguage} <Tx>translation (</Tx>{state.stored ? "saved on the ITP" : "not saved"} <Tx>— original unchanged)</Tx>
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{state.translated}</p>
         </div>

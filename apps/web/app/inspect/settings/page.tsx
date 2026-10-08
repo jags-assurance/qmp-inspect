@@ -22,6 +22,7 @@ import { CloudFolderSyncView } from "../organisation/cloud-sync/cloud-sync-view"
 import { InterventionLevelsSettingsView } from "../organisation/intervention-levels/intervention-levels-view";
 import { PlansSettingsView } from "../organisation/plans/plans-view";
 import { RetentionSettingsView } from "../organisation/retention/retention-view";
+import { T } from "@/components/domain/t";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -183,9 +184,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Settings</h1>
+      <h1 className="text-2xl font-semibold text-ink"><T>Settings</T></h1>
       <p className="mt-1 text-sm text-muted">
-        {DESCRIPTIONS[current.key] ?? "Manage your organisation."} Use the menu to switch section.
+        {DESCRIPTIONS[current.key] ?? "Manage your organisation."} <T>Use the menu to switch section.</T>
       </p>
       <div className="lg:flex lg:gap-8">
         <SettingsNav groups={groups} active={current.key} />

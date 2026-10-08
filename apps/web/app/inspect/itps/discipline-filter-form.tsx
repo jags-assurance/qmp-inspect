@@ -1,4 +1,5 @@
 "use client";
+import { Tx } from "@/components/domain/tx";
 
 export interface DisciplineOption {
   id: string;
@@ -19,7 +20,7 @@ export function DisciplineFilterForm({
   return (
     <form className="max-w-xs">
       <label htmlFor="discipline" className="block text-sm font-medium text-ink">
-        Filter by discipline
+        <Tx>Filter by discipline</Tx>
       </label>
       <select
         id="discipline"
@@ -28,7 +29,7 @@ export function DisciplineFilterForm({
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
         className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       >
-        <option value="">All disciplines</option>
+        <option value=""><Tx>All disciplines</Tx></option>
         {disciplines.map((d) => (
           <option key={d.id} value={d.id}>
             {d.code} — {d.name}

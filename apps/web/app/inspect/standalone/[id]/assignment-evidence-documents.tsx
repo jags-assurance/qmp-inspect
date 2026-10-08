@@ -9,6 +9,7 @@ import {
 } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
 import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: LinkEvidenceDocumentState = { error: null };
 
@@ -62,13 +63,13 @@ export function AssignmentEvidenceDocuments({
                 <input type="hidden" name="assignment_id" value={assignmentId} />
                 <input type="hidden" name="link_id" value={doc.id} />
                 <button type="submit" className="text-xs text-danger hover:underline">
-                  Unlink
+                  <Tx>Unlink</Tx>
                 </button>
               </form>
             )}
           </li>
         ))}
-        {documents.length === 0 && <li className="text-sm text-muted">No evidence documents linked yet.</li>}
+        {documents.length === 0 && <li className="text-sm text-muted"><Tx>No evidence documents linked yet.</Tx></li>}
       </ul>
       {canEdit && (
         <LinkDocumentForm
@@ -99,7 +100,7 @@ function LinkDocumentForm({
   if (availableDocuments.length === 0 && (!projectId || folders.length === 0)) {
     return (
       <p className="mt-3 text-xs text-muted">
-        Upload the evidence document to the project&rsquo;s Document Vault first, then link it here.
+        <Tx>Upload the evidence document to the project&rsquo;s Document Vault first, then link it here.</Tx>
       </p>
     );
   }
@@ -107,7 +108,7 @@ function LinkDocumentForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="mt-3 text-sm font-medium text-burgundy hover:underline">
-        + Link evidence document
+        <Tx>+ Link evidence document</Tx>
       </button>
     );
   }
@@ -122,7 +123,7 @@ function LinkDocumentForm({
           {pending ? "Linking…" : "Link selected files"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

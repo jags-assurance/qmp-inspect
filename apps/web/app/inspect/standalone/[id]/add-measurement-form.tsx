@@ -5,6 +5,7 @@ import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { addMeasurementAction, type AddMeasurementState } from "@/lib/standalone/actions";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: AddMeasurementState = { error: null };
 
@@ -81,8 +82,8 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
           className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
           <option value="">—</option>
-          <option value="pass">Pass</option>
-          <option value="fail">Fail</option>
+          <option value="pass"><Tx>Pass</Tx></option>
+          <option value="fail"><Tx>Fail</Tx></option>
         </select>
         </FormField>
       </div>
@@ -93,7 +94,7 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
       >
         {pending ? "Adding…" : "+ Add measurement"}
       </button>
-      {queued && <p className="w-full text-sm text-muted">Saved on this device — it will be sent when you&apos;re back online.</p>}
+      {queued && <p className="w-full text-sm text-muted"><Tx>Saved on this device — it will be sent when you&apos;re back online.</Tx></p>}
       {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );

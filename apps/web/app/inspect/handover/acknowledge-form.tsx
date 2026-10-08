@@ -9,6 +9,8 @@ import { uploadWithResume } from "@/lib/storage/upload-client";
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 import { SignaturePad } from "@/components/domain/signature-pad";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AcknowledgeHandoverState = { error: null };
 
@@ -31,6 +33,7 @@ export function AcknowledgeForm({
   /** False until the signature columns exist (migration 20261112000101): the pad and file upload are hidden. */
   signatureEnabled?: boolean;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(acknowledgeHandoverAction, initialState);
   const [expanded, setExpanded] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -126,11 +129,11 @@ export function AcknowledgeForm({
 
       {onBehalf && (
         <p className="w-full rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
-          You are recording this acceptance <strong>on behalf of the client</strong> as JAGS staff. It will be marked as such on the certificate and in the audit log.
+          <Tx>You are recording this acceptance</Tx> <strong><Tx>on behalf of the client</Tx></strong> <Tx>as JAGS staff. It will be marked as such on the certificate and in the audit log.</Tx>
         </p>
       )}
       <p className="w-full text-xs text-muted">
-        Acknowledging as <span className="font-medium text-ink">{userName ?? "you"}</span> at the time you confirm. This is a formal acceptance of the handover package.
+        <Tx>Acknowledging as</Tx> <span className="font-medium text-ink">{userName ?? "you"}</span> <Tx>at the time you confirm. This is a formal acceptance of the handover package.</Tx>
       </p>
 
       <div className="w-full sm:w-auto">
@@ -147,7 +150,7 @@ export function AcknowledgeForm({
       </div>
       <div className="w-full sm:w-auto">
         <label htmlFor={companyId} className="block text-xs font-medium text-ink">
-          Company
+          <Tx>Company</Tx>
         </label>
         <input
           id={companyId}
@@ -159,14 +162,14 @@ export function AcknowledgeForm({
 
       <div className="w-full">
         <label htmlFor={`ack_comment_${certificateId}`} className="block text-xs font-medium text-ink">
-          Comments (optional, recorded with the acceptance)
+          <Tx>Comments (optional, recorded with the acceptance)</Tx>
         </label>
         <textarea id={`ack_comment_${certificateId}`} name="ack_comment" rows={2} maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
       </div>
       {onBehalf && (
         <div className="w-full">
           <label htmlFor={`ack_basis_${certificateId}`} className="block text-xs font-medium text-ink">
-            How did the client confirm? (email, signed document reference)
+            <Tx>How did the client confirm? (email, signed document reference)</Tx>
           </label>
           <input id={`ack_basis_${certificateId}`} name="on_behalf_basis" required minLength={5} maxLength={1000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
         </div>
@@ -181,7 +184,7 @@ export function AcknowledgeForm({
             <SignaturePad onChange={setSignature} />
           </div>
           <label htmlFor={`ack_evidence_${certificateId}`} className="mt-3 block text-xs font-medium text-ink">
-            Supporting file (optional, for example a signed acceptance letter or an email export)
+            <Tx>Supporting file (optional, for example a signed acceptance letter or an email export)</Tx>
           </label>
           <input
             id={`ack_evidence_${certificateId}`}
@@ -195,7 +198,7 @@ export function AcknowledgeForm({
             className="mt-1 block w-full max-w-md text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm"
           />
           <p className="mt-1 text-xs text-muted">
-            Up to {Math.round(ACK_EVIDENCE_MAX_BYTES / (1024 * 1024))} MB. It is stored with the acknowledgement and cannot be changed afterwards.
+            <Tx>Up to</Tx> {Math.round(ACK_EVIDENCE_MAX_BYTES / (1024 * 1024))} <Tx>MB. It is stored with the acknowledgement and cannot be changed afterwards.</Tx>
           </p>
         </div>
       )}
@@ -203,8 +206,8 @@ export function AcknowledgeForm({
       <label htmlFor={confirmId} className="flex w-full items-start gap-2 text-sm text-ink">
         <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4" />
         <span>
-          I confirm the handover package was received and that this is a formal acceptance
-          {onBehalf ? " recorded on behalf of the client" : ""}. It cannot be undone.
+          <Tx>I confirm the handover package was received and that this is a formal acceptance</Tx>
+          {onBehalf ? " recorded on behalf of the client" : ""}<Tx>. It cannot be undone.</Tx>
         </span>
       </label>
 
@@ -220,7 +223,7 @@ export function AcknowledgeForm({
     </form>
     {dialog && (
       <ConfirmTypeDialog
-        title="Record formal acceptance?"
+        title={tl("Record formal acceptance?")}
         phrase=""
         confirmLabel="Accept handover"
         onCancel={() => setDialog(false)}
@@ -230,7 +233,7 @@ export function AcknowledgeForm({
         }}
       >
         <p>
-          This formally accepts handover certificate <strong>{certificateNumber}</strong>{onBehalf ? " on behalf of the client" : ""}. It cannot be undone.
+          <Tx>This formally accepts handover certificate</Tx> <strong>{certificateNumber}</strong>{onBehalf ? " on behalf of the client" : ""}<Tx>. It cannot be undone.</Tx>
         </p>
       </ConfirmTypeDialog>
     )}

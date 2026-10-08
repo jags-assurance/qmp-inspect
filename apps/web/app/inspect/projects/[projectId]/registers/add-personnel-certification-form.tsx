@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddPersonnelCertificationEntryState = { error: null };
 const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -23,6 +25,7 @@ export function AddPersonnelCertificationForm({
   /** Named people in each party; a certificate can be assigned to one so the check follows the person. */
   partyMembers?: { user_id: string; party_id: string; party_name: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addPersonnelCertificationEntryAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const wasPending = useRef(false);
@@ -58,7 +61,7 @@ export function AddPersonnelCertificationForm({
         <FormField label="Person">
           <select name="project_party_id" required defaultValue="" className={inputClass}>
           <option value="" disabled>
-            Select…
+            <Tx>Select…</Tx>
           </option>
           {projectParties.map((party) => (
             <option key={party.id} value={party.id}>
@@ -73,7 +76,7 @@ export function AddPersonnelCertificationForm({
         <div className="min-w-40 flex-1">
           <FormField label="Named holder (optional)">
             <select name="holder_user_id" defaultValue="" className={inputClass}>
-            <option value="">Whole party</option>
+            <option value=""><Tx>Whole party</Tx></option>
             {partyMembers.map((m) => (
               <option key={`${m.party_id}-${m.user_id}`} value={m.user_id}>
                 {m.name} ({m.party_name})
@@ -89,7 +92,7 @@ export function AddPersonnelCertificationForm({
           <input
           name="certification_type"
           required
-          placeholder="e.g. AWS CWI, ASNT NDT Level II"
+          placeholder={tl("e.g. AWS CWI, ASNT NDT Level II")}
           className={inputClass}
         />
         </FormField>

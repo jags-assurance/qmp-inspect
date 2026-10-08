@@ -6,6 +6,8 @@ import { SidePanel, Toast, useToast } from "@/components/ui/side-panel";
 import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
 import type { RaiseOptions } from "@/lib/ncrs/raise-options";
 import { NewNcrForm } from "../../ncrs/new/new-ncr-form";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * "Raise NCR for this item" without leaving the inspection: opens the same NewNcrForm a failed item
@@ -27,6 +29,7 @@ export function RaiseNcrDrawer({
   checklistItemId?: string;
   initialDescription: string;
 }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<RaiseOptions | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -48,9 +51,9 @@ export function RaiseNcrDrawer({
       setOpen(false);
       show(
         <>
-          {created.ncrNumber} raised and linked to this item.{" "}
+          {created.ncrNumber} <Tx>raised and linked to this item.</Tx>{" "}
           <Link href={`/inspect/ncrs/${created.id}`} className="font-medium underline">
-            View it →
+            <Tx>View it →</Tx>
           </Link>
         </>
       );
@@ -65,19 +68,19 @@ export function RaiseNcrDrawer({
         onClick={openPanel}
         className="inline-flex min-h-11 items-center font-medium underline hover:no-underline"
       >
-        Raise NCR for this item →
+        <Tx>Raise NCR for this item →</Tx>
       </button>
       <SidePanel
         open={open}
         onClose={() => setOpen(false)}
-        title="Raise NCR for this item"
+        title={tl("Raise NCR for this item")}
         description="Linked to this checklist item and inspection. Your answers stay on screen behind this panel."
         width="lg"
       >
         {loadError ? (
-          <p className="mt-6 text-sm text-danger">Couldn&rsquo;t load the form options. Close and try again.</p>
+          <p className="mt-6 text-sm text-danger"><Tx>Couldn&rsquo;t load the form options. Close and try again.</Tx></p>
         ) : !options ? (
-          <p className="mt-6 text-sm text-muted">Loading…</p>
+          <p className="mt-6 text-sm text-muted"><Tx>Loading…</Tx></p>
         ) : (
           <NewNcrForm
             projects={options.projects}

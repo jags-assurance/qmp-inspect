@@ -8,6 +8,8 @@ import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { loadRaiseOptionsAction } from "@/lib/ncrs/raise-options-actions";
 import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 import { HeicConversionError } from "@/lib/media/heic";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const PROJECTS_CACHE_KEY = "jags.quickRaise.projects";
 
@@ -36,6 +38,7 @@ function defaultDueDate(): string {
  * state-only (no ?panel= URL): navigating offline would need the server.
  */
 export function QuickRaiseObservation() {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -114,18 +117,18 @@ export function QuickRaiseObservation() {
   return (
     <>
       <Button variant="outline" onClick={openPanel} className="min-h-11">
-        Quick observation
+        <Tx>Quick observation</Tx>
       </Button>
       <SidePanel
         open={open}
         onClose={() => setOpen(false)}
-        title="Quick observation"
+        title={tl("Quick observation")}
         description="Three fields. Works offline — it's sent automatically once you have signal."
       >
         <form onSubmit={onSubmit} className="mt-5 space-y-4">
           <div>
             <label htmlFor="qr-project" className="block text-sm font-medium text-ink">
-              Project
+              <Tx>Project</Tx>
             </label>
             <select
               id="qr-project"
@@ -143,7 +146,7 @@ export function QuickRaiseObservation() {
           </div>
           <div>
             <label htmlFor="qr-description" className="block text-sm font-medium text-ink">
-              What did you see?
+              <Tx>What did you see?</Tx>
             </label>
             <textarea
               id="qr-description"
@@ -155,7 +158,7 @@ export function QuickRaiseObservation() {
           </div>
           <div>
             <label htmlFor="qr-due" className="block text-sm font-medium text-ink">
-              Due date
+              <Tx>Due date</Tx>
             </label>
             <input
               id="qr-due"
@@ -168,7 +171,7 @@ export function QuickRaiseObservation() {
           </div>
           <div>
             <label htmlFor="qr-photo" className="block text-sm font-medium text-ink">
-              Photo (optional)
+              <Tx>Photo (optional)</Tx>
             </label>
             <input
               id="qr-photo"
@@ -180,7 +183,7 @@ export function QuickRaiseObservation() {
             />
           </div>
           <p className="text-xs text-muted">
-            Severity is set to Observation. Add the assignee and responsible party afterwards from the NCR itself.
+            <Tx>Severity is set to Observation. Add the assignee and responsible party afterwards from the NCR itself.</Tx>
           </p>
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={saving} className="min-h-11 w-full">

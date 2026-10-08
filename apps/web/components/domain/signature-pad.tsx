@@ -2,6 +2,7 @@
 
 import { useRef, useState, type PointerEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * Plain HTML5 canvas + pointer events signature pad — no external dependency, which is the right
@@ -75,9 +76,9 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
         onPointerLeave={handlePointerUp}
       />
       <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-muted">Sign above with a finger, stylus, or mouse.</p>
+        <p className="text-xs text-muted"><Tx>Sign above with a finger, stylus, or mouse.</Tx></p>
         <Button type="button" variant="outline" size="sm" onClick={handleClear}>
-          Clear
+          <Tx>Clear</Tx>
         </Button>
       </div>
     </div>

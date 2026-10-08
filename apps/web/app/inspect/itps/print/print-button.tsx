@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 /** Triggers the browser's native print dialog — "Save as PDF" there is the real PDF export for
  *  R91's register-level requirement, using the .print-area convention in app/globals.css rather
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export function PrintButton() {
   return (
     <Button type="button" onClick={() => window.print()} className="no-print">
-      Print / Save as PDF
+      <Tx>Print / Save as PDF</Tx>
     </Button>
   );
 }

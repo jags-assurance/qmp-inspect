@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import type { DataBookReadiness } from "@/lib/databook/readiness";
+import { T } from "@/components/domain/t";
 
 function ProgressBar({ percentage, tone }: { percentage: number; tone: "success" | "warning" }) {
   return (
@@ -61,7 +62,7 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-medium text-ink">Compilation readiness</h2>
+        <h2 className="text-base font-medium text-ink"><T>Compilation readiness</T></h2>
         <Badge tone={overallTone}>{nothingProvisionedYet ? "No data yet" : `${readiness.overallPercentage}% overall`}</Badge>
       </div>
       <div className="mt-2">
@@ -81,29 +82,26 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
         <CategoryRow {...readiness.activitiesExecuted} />
         <CategoryRow {...readiness.holdPoints} />
         <div className="flex items-center justify-between py-3">
-          <span className="text-sm text-ink">Open punch list items</span>
+          <span className="text-sm text-ink"><T>Open punch list items</T></span>
           <Badge tone={readiness.openPunchItems === 0 ? "success" : "danger"}>
-            {readiness.openPunchItems} open
+            {readiness.openPunchItems} <T>open</T>
           </Badge>
         </div>
         <div className="flex items-center justify-between border-t border-border py-3">
-          <span className="text-sm text-muted">Handover certificate issued</span>
+          <span className="text-sm text-muted"><T>Handover certificate issued</T></span>
           <span className="text-xs text-muted">
-            {readiness.handoverCertificate.ready}/{readiness.handoverCertificate.total} — the outcome of
-            compiling, not a precondition
+            {readiness.handoverCertificate.ready}/{readiness.handoverCertificate.total} <T>— the outcome of compiling, not a precondition</T>
           </span>
         </div>
       </div>
 
       <p className="mt-3 text-xs text-muted">
-        Overall % = total items provided ÷ total items required, summed across every category above
-        (handover certificate excluded — it&apos;s produced by compiling, not required to compile).
+        <T>Overall % = total items provided ÷ total items required, summed across every category above (handover certificate excluded — it&apos;s produced by compiling, not required to compile).</T>
       </p>
 
       {!readiness.isReady && (
         <p className="mt-1 text-xs text-muted">
-          Every category must reach 100% and the punch list must have zero open items before a Data Book can
-          compile. A staff user can compile anyway with a documented override reason — see below.
+          <T>Every category must reach 100% and the punch list must have zero open items before a Data Book can compile. A staff user can compile anyway with a documented override reason — see below.</T>
         </p>
       )}
     </div>

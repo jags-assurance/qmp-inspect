@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { cloneLastAnswersAction, type CloneAnswersState } from "@/lib/checklists/clone-actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initial: CloneAnswersState = { error: null };
 
@@ -22,7 +23,7 @@ export function CloneAnswersForm({ inspectionRecordId }: { inspectionRecordId: s
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Copying…" : "Pre-fill from last inspection"}
       </Button>
-      <span className="text-xs text-muted">Copies Yes and N/A only. Failures and measured readings are never copied; review every answer.</span>
+      <span className="text-xs text-muted"><Tx>Copies Yes and N/A only. Failures and measured readings are never copied; review every answer.</Tx></span>
       {state.error && (
         <p role="alert" className="w-full text-xs text-danger">
           {state.error}
@@ -30,7 +31,7 @@ export function CloneAnswersForm({ inspectionRecordId }: { inspectionRecordId: s
       )}
       {!state.error && state.copied ? (
         <p role="status" className="w-full text-xs text-muted">
-          ✓ {state.copied} answer{state.copied === 1 ? "" : "s"} copied. Check them before completing.
+          ✓ {state.copied} <Tx>answer</Tx>{state.copied === 1 ? "" : "s"} <Tx>copied. Check them before completing.</Tx>
         </p>
       ) : null}
     </form>

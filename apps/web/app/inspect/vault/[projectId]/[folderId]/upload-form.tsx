@@ -8,6 +8,8 @@ import { uploadVaultDocumentAction } from "@/lib/vault/actions";
 import { checkVaultDuplicatesAction, type VaultDuplicateMatch } from "@/lib/vault/document-control-actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * The file itself goes straight from the browser to the "inspection-evidence" Storage bucket, then
@@ -58,6 +60,7 @@ export function VaultUploadForm({
   folderKey: string;
   prefill?: VaultUploadPrefill | null;
 }) {
+  const tl = useTranslate();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ documentNumber: string; internalReference: string | null } | null>(null);
@@ -237,7 +240,7 @@ export function VaultUploadForm({
       </h2>
       {prefill && (
         <p className="rounded-md bg-off-white px-3 py-2 text-xs text-muted">
-          Current revision is {prefill.currentRevision} ({prefill.currentStatus.replace("_", " ")}).{" "}
+          <Tx>Current revision is</Tx> {prefill.currentRevision} ({prefill.currentStatus.replace("_", " ")}).{" "}
           {prefill.currentStatus === "approved"
             ? "It stays the controlled copy until this new revision is approved."
             : "This upload will replace it (it is not approved yet)."}
@@ -254,9 +257,9 @@ export function VaultUploadForm({
         className={`rounded-md border-2 border-dashed p-4 text-center ${dragOver ? "border-burgundy bg-off-white" : "border-border"}`}
       >
         <p className="text-sm text-ink">{prefill ? "Drop the new file here" : "Drag and drop files here"}</p>
-        <p className="mt-0.5 text-xs text-muted">or</p>
+        <p className="mt-0.5 text-xs text-muted"><Tx>or</Tx></p>
         <label htmlFor="file" className="mt-1 inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white">
-          Choose file{prefill ? "" : "s"}
+          <Tx>Choose file</Tx>{prefill ? "" : "s"}
         </label>
         <input
           ref={inputRef}
@@ -272,12 +275,12 @@ export function VaultUploadForm({
           className="sr-only"
         />
         <p className="mt-2 text-xs text-muted">
-          Up to {MAX_UPLOAD_MB} MB each (large files upload in resumable chunks and carry on after a dropped connection). PDF, Word, Excel, images and plain text are all accepted; PDF, Word (.docx) and text also support AI drafting later.
+          <Tx>Up to</Tx> {MAX_UPLOAD_MB} <Tx>MB each (large files upload in resumable chunks and carry on after a dropped connection). PDF, Word, Excel, images and plain text are all accepted; PDF, Word (.docx) and text also support AI drafting later.</Tx>
         </p>
       </div>
 
       {rows.length > 0 && (
-        <ul className="divide-y divide-border rounded-md border border-border text-sm" aria-label="Files to upload">
+        <ul className="divide-y divide-border rounded-md border border-border text-sm" aria-label={tl("Files to upload")}>
           {rows.map((r, i) => (
             <li key={`${r.file.name}-${r.file.size}`} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1 truncate text-ink" title={r.file.name}>
@@ -297,7 +300,7 @@ export function VaultUploadForm({
                   className="min-h-11 px-2 text-xs text-muted hover:text-ink sm:min-h-0"
                   aria-label={`Remove ${r.file.name}`}
                 >
-                  Remove
+                  <Tx>Remove</Tx>
                 </button>
               )}
             </li>
@@ -312,8 +315,7 @@ export function VaultUploadForm({
 
       {isBatch && (
         <p className="text-xs text-muted">
-          {rows.length} files: each becomes its own document, titled from its filename (renameable afterwards). A file whose
-          name matches an existing document here is filed as that document&apos;s next revision. Date and notes apply to all.
+          {rows.length} <Tx>files: each becomes its own document, titled from its filename (renameable afterwards). A file whose name matches an existing document here is filed as that document&apos;s next revision. Date and notes apply to all.</Tx>
         </p>
       )}
 
@@ -339,7 +341,7 @@ export function VaultUploadForm({
                 name="document_reference"
                 defaultValue={prefill?.reference ?? ""}
                 readOnly={!!prefill}
-                placeholder="e.g. the drawing number"
+                placeholder={tl("e.g. the drawing number")}
                 className={fieldCls}
               />
               </FormField>
@@ -366,19 +368,18 @@ export function VaultUploadForm({
       </div>
 
       {duplicates && duplicates.length > 0 && (
-        <div role="alertdialog" aria-label="Possible duplicate or new revision" className="space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
+        <div role="alertdialog" aria-label={tl("Possible duplicate or new revision")} className="space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
           {duplicates.map((d) => {
             const row = rows[Number(d.key)];
             return (
               <p key={d.key} className="text-ink">
                 {d.sameRevision ? (
                   <>
-                    <strong>{row?.file.name}</strong>: revision {d.revision} of &quot;{d.title}&quot; already exists. Uploading again
-                    will replace it{d.status === "approved" ? " only after approval (the approved copy stays current)" : ""}.
+                    <strong>{row?.file.name}</strong><Tx>: revision</Tx> {d.revision} <Tx>of &quot;</Tx>{d.title}<Tx>&quot; already exists. Uploading again will replace it</Tx>{d.status === "approved" ? " only after approval (the approved copy stays current)" : ""}.
                   </>
                 ) : (
                   <>
-                    <strong>{row?.file.name}</strong>: this looks like a new revision of &quot;{d.title}&quot; (current Rev {d.revision},{" "}
+                    <strong>{row?.file.name}</strong><Tx>: this looks like a new revision of &quot;</Tx>{d.title}<Tx>&quot; (current Rev</Tx> {d.revision},{" "}
                     {d.status.replace("_", " ")}).
                     {d.status === "approved" ? " The approved copy stays current until the new one is approved." : " It will supersede the unapproved one."}
                   </>
@@ -388,10 +389,10 @@ export function VaultUploadForm({
           })}
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => runUpload(true)} disabled={uploading}>
-              Yes, upload as new revision
+              <Tx>Yes, upload as new revision</Tx>
             </Button>
             <button type="button" onClick={() => setDuplicates(null)} className="min-h-11 px-3 text-sm text-muted hover:underline sm:min-h-0">
-              Cancel, let me change the reference
+              <Tx>Cancel, let me change the reference</Tx>
             </button>
           </div>
         </div>
@@ -399,9 +400,9 @@ export function VaultUploadForm({
 
       {lastResult && (
         <p className="text-xs text-muted" role="status">
-          Uploaded. Assigned document number: <span className="doc-id">{lastResult.documentNumber}</span>
-          {lastResult.internalReference && <> (internal JAGS reference: {lastResult.internalReference})</>}
-          . It now awaits approval.
+          <Tx>Uploaded. Assigned document number:</Tx> <span className="doc-id">{lastResult.documentNumber}</span>
+          {lastResult.internalReference && <> <Tx>(internal JAGS reference:</Tx> {lastResult.internalReference})</>}
+          <Tx>. It now awaits approval.</Tx>
         </p>
       )}
 

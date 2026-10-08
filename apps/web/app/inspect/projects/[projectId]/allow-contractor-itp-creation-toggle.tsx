@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setAllowContractorItpCreationAction, type SetAllowContractorItpCreationState } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetAllowContractorItpCreationState = { error: null };
 
@@ -25,9 +26,9 @@ export function AllowContractorItpCreationToggle({
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
           disabled={pending}
         />
-        Allow a subcontractor or main-contractor party to create and build draft ITPs on this project
+        <Tx>Allow a subcontractor or main-contractor party to create and build draft ITPs on this project</Tx>
       </label>
-      {pending && <span className="text-xs text-muted">Saving…</span>}
+      {pending && <span className="text-xs text-muted"><Tx>Saving…</Tx></span>}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );

@@ -22,6 +22,8 @@ import {
   NEXT_STATUS_LABEL,
   StatusTimeline,
 } from "./ncr-shared";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 type TabId = "overview" | "closeout" | "evidence" | "history" | "related";
 const TABS: { id: TabId; label: string }[] = [
@@ -39,6 +41,7 @@ const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-GB
  * full-page / deep-link fallback.
  */
 export function NcrPanel() {
+  const tl = useTranslate();
   const router = useRouter();
   const panel = useUrlPanel("ncr");
   const ncrId = panel.value;
@@ -98,7 +101,7 @@ export function NcrPanel() {
       description={ncr ? `${ncr.projects?.organizations?.name ?? ""} · ${ncr.projects?.name ?? ""}` : undefined}
       width="xl"
     >
-      {loading && <p className="mt-6 text-sm text-muted">Loading…</p>}
+      {loading && <p className="mt-6 text-sm text-muted"><Tx>Loading…</Tx></p>}
       {!loading && error && (
         <div className="mt-6 text-sm">
           <p className="text-danger">{error}</p>
@@ -107,7 +110,7 @@ export function NcrPanel() {
             onClick={refresh}
             className="mt-3 min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white"
           >
-            Try again
+            <Tx>Try again</Tx>
           </button>
         </div>
       )}
@@ -120,13 +123,13 @@ export function NcrPanel() {
               href={`/inspect/ncrs/${ncr.id}`}
               className="ms-auto inline-flex min-h-11 items-center text-sm text-burgundy hover:underline"
             >
-              Open full page →
+              <Tx>Open full page →</Tx>
             </Link>
           </div>
 
           <div
             role="tablist"
-            aria-label="NCR sections"
+            aria-label={tl("NCR sections")}
             className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1"
           >
             {TABS.map((t) => (
@@ -160,42 +163,42 @@ export function NcrPanel() {
                 <StatusTimeline status={ncr.status} />
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-medium text-ink">Description</h3>
+                <h3 className="text-sm font-medium text-ink"><Tx>Description</Tx></h3>
                 <p className="mt-1 break-words text-sm text-ink">{ncr.description}</p>
                 {ncr.requirement_not_met && (
                   <>
-                    <h3 className="mt-4 text-sm font-medium text-ink">Requirement not met</h3>
+                    <h3 className="mt-4 text-sm font-medium text-ink"><Tx>Requirement not met</Tx></h3>
                     <p className="mt-1 break-words text-sm text-muted">{ncr.requirement_not_met}</p>
                   </>
                 )}
               </div>
               <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 text-sm">
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted">Assigned to</dt>
+                  <dt className="text-xs text-muted"><Tx>Assigned to</Tx></dt>
                   <dd className="break-words text-ink">{personName(ncr.assigned_to) ?? "Unassigned"}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted">Responsible party</dt>
+                  <dt className="text-xs text-muted"><Tx>Responsible party</Tx></dt>
                   <dd className="break-words text-ink">
                     {detail.responsibleParties.find((p) => p.id === ncr.responsible_party_id)?.name ?? "—"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Due</dt>
+                  <dt className="text-xs text-muted"><Tx>Due</Tx></dt>
                   <dd className="text-ink">{fmtDate(ncr.due_date)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Raised</dt>
+                  <dt className="text-xs text-muted"><Tx>Raised</Tx></dt>
                   <dd className="text-ink">{fmtDate(ncr.created_at)}</dd>
                 </div>
                 {ncr.closed_at && (
                   <div>
-                    <dt className="text-xs text-muted">Closed</dt>
+                    <dt className="text-xs text-muted"><Tx>Closed</Tx></dt>
                     <dd className="text-ink">{fmtDate(ncr.closed_at)}</dd>
                   </div>
                 )}
                 <div className="min-w-0">
-                  <dt className="text-xs text-muted">Project</dt>
+                  <dt className="text-xs text-muted"><Tx>Project</Tx></dt>
                   <dd className="break-words text-ink">{ncr.projects?.name ?? "—"}</dd>
                 </div>
               </dl>
@@ -220,7 +223,7 @@ export function NcrPanel() {
                 />
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-base font-medium text-ink">Corrective action close-out</h3>
+                <h3 className="text-base font-medium text-ink"><Tx>Corrective action close-out</Tx></h3>
                 <p className="mt-1 text-sm text-muted">
                   {isClosed
                     ? `Closed ${ncr.closed_at ? new Date(ncr.closed_at).toLocaleDateString("en-GB") : ""}.`
@@ -228,7 +231,7 @@ export function NcrPanel() {
                 </p>
                 {!isClosed && (
                   <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
-                    <p className="font-medium">Closing this will also:</p>
+                    <p className="font-medium"><Tx>Closing this will also:</Tx></p>
                     <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
                       {detail.closeConsequences.map((c) => (
                         <li key={c}>{c}</li>
@@ -270,7 +273,7 @@ export function NcrPanel() {
               className={`min-w-0 space-y-4 @3xl:col-span-2 ${tab === "evidence" ? "block" : "hidden"}`}
             >
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-medium text-ink">Photo evidence</h3>
+                <h3 className="text-sm font-medium text-ink"><Tx>Photo evidence</Tx></h3>
                 <div className="mt-3 grid grid-cols-2 gap-3 @3xl:grid-cols-4">
                   {detail.photos.map((photo) => (
                     <div key={photo.id} className="min-w-0">
@@ -278,13 +281,13 @@ export function NcrPanel() {
                       {photo.caption && <p className="mt-1 truncate text-xs text-muted">{photo.caption}</p>}
                     </div>
                   ))}
-                  {detail.photos.length === 0 && <p className="col-span-full text-sm text-muted">No photos uploaded yet.</p>}
+                  {detail.photos.length === 0 && <p className="col-span-full text-sm text-muted"><Tx>No photos uploaded yet.</Tx></p>}
                 </div>
                 {!isClosed && <NcrPhotoUpload ncrId={ncr.id} projectId={ncr.project_id} onUploaded={refresh} />}
               </div>
               {detail.punchItems.some((p) => p.closing_evidence) && (
                 <div className="rounded-lg border border-border bg-surface p-4">
-                  <h3 className="text-sm font-medium text-ink">Punch item closing evidence</h3>
+                  <h3 className="text-sm font-medium text-ink"><Tx>Punch item closing evidence</Tx></h3>
                   <ul className="mt-2 space-y-2">
                     {detail.punchItems
                       .filter((p) => p.closing_evidence)
@@ -309,9 +312,9 @@ export function NcrPanel() {
                 <StatusTimeline status={ncr.status} />
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-medium text-ink">Activity</h3>
+                <h3 className="text-sm font-medium text-ink"><Tx>Activity</Tx></h3>
                 {detail.history.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted">No recorded activity yet.</p>
+                  <p className="mt-2 text-sm text-muted"><Tx>No recorded activity yet.</Tx></p>
                 ) : (
                   <ul className="mt-2 divide-y divide-border">
                     {detail.history.map((e) => (
@@ -336,7 +339,7 @@ export function NcrPanel() {
             >
               {ncr.itp_items && (
                 <div className="rounded-lg border border-border bg-surface p-4">
-                  <h3 className="text-sm font-medium text-ink">Linked Checklist Item</h3>
+                  <h3 className="text-sm font-medium text-ink"><Tx>Linked Checklist Item</Tx></h3>
                   <div className="mt-2 flex items-center gap-3 rounded-md border border-border bg-off-white px-3 py-2">
                     <span className="doc-id text-xs text-muted">{ncr.itp_items.item_number}</span>
                     <span className="min-w-0 flex-grow truncate text-sm text-ink">{ncr.itp_items.activity}</span>
@@ -345,26 +348,26 @@ export function NcrPanel() {
               )}
               {detail.inspectionRecord && (
                 <div className="rounded-lg border border-border bg-surface p-4">
-                  <h3 className="text-sm font-medium text-ink">Inspection record</h3>
+                  <h3 className="text-sm font-medium text-ink"><Tx>Inspection record</Tx></h3>
                   <p className="mt-2 break-words text-sm text-ink">
                     <span className="doc-id text-xs text-muted">{detail.inspectionRecord.record_number}</span>{" "}
                     {detail.inspectionRecord.activity}
                   </p>
                   <p className="mt-1 text-xs text-muted">
-                    Result: {detail.inspectionRecord.overall_result ?? "pending"} · {fmtDate(detail.inspectionRecord.inspection_date)}
+                    <Tx>Result:</Tx> {detail.inspectionRecord.overall_result ?? "pending"} · {fmtDate(detail.inspectionRecord.inspection_date)}
                   </p>
                   <Link
                     href={`/inspect/inspections/${detail.inspectionRecord.id}`}
                     className="mt-1 inline-flex min-h-11 items-center text-xs text-burgundy hover:underline"
                   >
-                    ← View the inspection record this was raised from
+                    <Tx>← View the inspection record this was raised from</Tx>
                   </Link>
                 </div>
               )}
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-medium text-ink">Punch list items</h3>
+                <h3 className="text-sm font-medium text-ink"><Tx>Punch list items</Tx></h3>
                 {detail.punchItems.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted">None linked.</p>
+                  <p className="mt-2 text-sm text-muted"><Tx>None linked.</Tx></p>
                 ) : (
                   <ul className="mt-2 space-y-2">
                     {detail.punchItems.map((p) => (
@@ -373,16 +376,16 @@ export function NcrPanel() {
                         <Badge tone={p.status === "closed" ? "success" : p.status === "resolved" ? "gold" : "warning"}>
                           {p.status}
                         </Badge>
-                        {p.due_date && <span className="text-xs text-muted">Due {fmtDate(p.due_date)}</span>}
+                        {p.due_date && <span className="text-xs text-muted"><Tx>Due</Tx> {fmtDate(p.due_date)}</span>}
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-medium text-ink">Also on this project</h3>
+                <h3 className="text-sm font-medium text-ink"><Tx>Also on this project</Tx></h3>
                 {detail.otherNcrs.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted">No other open NCRs.</p>
+                  <p className="mt-2 text-sm text-muted"><Tx>No other open NCRs.</Tx></p>
                 ) : (
                   <ul className="mt-2 space-y-2">
                     {detail.otherNcrs.map((o) => (

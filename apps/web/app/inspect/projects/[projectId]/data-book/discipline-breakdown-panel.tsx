@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import type { DataBookDisciplineRow } from "@/lib/databook/discipline-breakdown";
+import { T } from "@/components/domain/t";
 
 const columns: ResponsiveColumn<DataBookDisciplineRow>[] = [
   {
@@ -25,7 +26,7 @@ const columns: ResponsiveColumn<DataBookDisciplineRow>[] = [
     tdClassName: "text-ink",
     render: (row) =>
       row.firstTimePassRate === null ? (
-        <span className="text-muted">No inspections yet</span>
+        <span className="text-muted"><T>No inspections yet</T></span>
       ) : (
         <>
           <Badge tone={row.firstTimePassRate === 100 ? "success" : row.firstTimePassRate >= 80 ? "warning" : "danger"}>
@@ -49,10 +50,9 @@ export function DisciplineBreakdownPanel({ rows }: { rows: DataBookDisciplineRow
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-base font-medium text-ink">Breakdown by service / discipline</h2>
+        <h2 className="text-base font-medium text-ink"><T>Breakdown by service / discipline</T></h2>
         <p className="mt-2 text-sm text-muted">
-          No ITP activities on this project are tagged with a discipline yet, so no per-discipline
-          breakdown is available.
+          <T>No ITP activities on this project are tagged with a discipline yet, so no per-discipline breakdown is available.</T>
         </p>
       </div>
     );
@@ -60,10 +60,9 @@ export function DisciplineBreakdownPanel({ rows }: { rows: DataBookDisciplineRow
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-base font-medium text-ink">Breakdown by service / discipline</h2>
+      <h2 className="text-base font-medium text-ink"><T>Breakdown by service / discipline</T></h2>
       <p className="mt-1 text-xs text-muted">
-        Same ITP, NCR and first-time-pass-rate figures as the project-wide totals above, grouped by
-        discipline. An ITP spanning multiple disciplines is counted once in each.
+        <T>Same ITP, NCR and first-time-pass-rate figures as the project-wide totals above, grouped by discipline. An ITP spanning multiple disciplines is counted once in each.</T>
       </p>
 
       <div className="mt-3">

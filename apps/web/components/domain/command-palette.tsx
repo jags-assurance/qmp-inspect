@@ -6,6 +6,8 @@ import type { NavItem } from "./app-shell";
 import { searchEntitiesAction, type EntityHit } from "@/lib/search/actions";
 
 import { filterEntries, flattenNavItems as flatten, type PaletteEntry as Entry } from "@/lib/search/palette-entries";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Header search: Ctrl/Cmd+K (or the header box / the mobile search button) opens a jump-to list over
@@ -14,6 +16,7 @@ import { filterEntries, flattenNavItems as flatten, type PaletteEntry as Entry }
  * Escape to close; focus stays inside the dialog while it is open.
  */
 export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
+  const tl = useTranslate();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -118,21 +121,21 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         className="relative hidden min-h-11 w-full max-w-xs items-center rounded-md border border-border bg-off-white py-1.5 ps-9 pe-3 text-start text-sm text-muted hover:border-burgundy sm:flex"
-        aria-label="Search pages and records (Ctrl+K)"
+        aria-label={tl("Search pages and records (Ctrl+K)")}
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        <span className="flex-1">Search pages and records…</span>
-        <kbd className="rounded border border-border px-1 text-xs">Ctrl K</kbd>
+        <span className="flex-1"><Tx>Search pages and records…</Tx></span>
+        <kbd className="rounded border border-border px-1 text-xs"><Tx>Ctrl K</Tx></kbd>
       </button>
 
       {/* Phone / small tablet: the box above is hidden, so there is a dedicated search button. */}
       <button
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
-        aria-label="Search pages and records"
+        aria-label={tl("Search pages and records")}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink hover:bg-off-white sm:hidden"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
@@ -142,7 +145,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Search pages and records">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label={tl("Search pages and records")}>
           <div aria-hidden="true" className="absolute inset-0 bg-ink/40" onClick={close} />
           <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
             <input
@@ -153,7 +156,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
                 setActive(0);
               }}
               onKeyDown={onInputKeyDown}
-              placeholder="Type a page name, or an NCR / ITP / inspection number…"
+              placeholder={tl("Type a page name, or an NCR / ITP / inspection number…")}
               role="combobox"
               aria-expanded="true"
               aria-controls="command-palette-list"

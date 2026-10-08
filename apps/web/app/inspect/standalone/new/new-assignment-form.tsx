@@ -5,6 +5,8 @@ import { createAssignmentAction, type CreateAssignmentState, type AssignmentType
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateAssignmentState = { error: null };
 
@@ -53,6 +55,7 @@ export function NewAssignmentForm({
   disciplines: { id: string; code: string; name: string }[];
   presetsByProject: Record<string, string[]>;
 }) {
+  const tl = useTranslate();
   // Date bounds are captured once at mount (impure Date.now() must not run on every render).
   const [dateBounds] = useState(() => ({
     min: new Date(Date.now() - 5 * 365 * 86400000).toISOString().slice(0, 10),
@@ -87,7 +90,7 @@ export function NewAssignmentForm({
   return (
     <form action={formAction} className="mt-6 space-y-6">
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted">Project &amp; type</legend>
+        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted"><Tx>Project &amp; type</Tx></legend>
         <div>
           <FormField label="Project">
             <select
@@ -100,7 +103,7 @@ export function NewAssignmentForm({
             }}
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">Select…</option>
+            <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.project_number} — {p.name}
@@ -111,7 +114,7 @@ export function NewAssignmentForm({
         </div>
 
         <div>
-          <span className="block text-sm font-medium text-ink">Assignment type</span>
+          <span className="block text-sm font-medium text-ink"><Tx>Assignment type</Tx></span>
           <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ASSIGNMENT_TYPES.map((type, i) => (
               <label
@@ -139,7 +142,7 @@ export function NewAssignmentForm({
       </fieldset>
 
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted">Equipment</legend>
+        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted"><Tx>Equipment</Tx></legend>
         <p className="text-xs text-muted">{selected.equipmentNote}</p>
 
         <div>
@@ -148,7 +151,7 @@ export function NewAssignmentForm({
             name="equipment_description"
             required
             maxLength={300}
-            placeholder="e.g. Jaw crusher C120"
+            placeholder={tl("e.g. Jaw crusher C120")}
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
@@ -159,7 +162,7 @@ export function NewAssignmentForm({
             <FormField label="Manufacturer">
               <input
               name="manufacturer"
-              placeholder="e.g. Metso"
+              placeholder={tl("e.g. Metso")}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
@@ -177,19 +180,19 @@ export function NewAssignmentForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <FormField label={<>Serial / tag no.{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}</>}>
+            <FormField label={<><Tx>Serial / tag no.</Tx>{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}</>}>
               <input
               name="serial_tag"
               maxLength={120}
               required={selectedType === "fat" || selectedType === "pre_shipment"}
-              placeholder="e.g. SN-48213 / TAG-102"
+              placeholder={tl("e.g. SN-48213 / TAG-102")}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
           </div>
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-ink">
-              Location
+              <Tx>Location</Tx>
             </label>
             <input type="hidden" name="location" value={location} />
             <select
@@ -202,8 +205,8 @@ export function NewAssignmentForm({
               }}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             >
-              <option value="">No location</option>
-              <option value="live">Use live location</option>
+              <option value=""><Tx>No location</Tx></option>
+              <option value="live"><Tx>Use live location</Tx></option>
               {presets.map((n) => (
                 <option key={n} value={n}>
                   {n}
@@ -211,20 +214,20 @@ export function NewAssignmentForm({
               ))}
             </select>
             {locError && <p role="alert" className="mt-1 text-xs text-danger">{locError}</p>}
-            {/^-?\d/.test(location) && <p className="mt-1 text-xs text-muted">Live: {location}</p>}
+            {/^-?\d/.test(location) && <p className="mt-1 text-xs text-muted"><Tx>Live:</Tx> {location}</p>}
           </div>
         </div>
       </fieldset>
 
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted">Reference</legend>
+        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted"><Tx>Reference</Tx></legend>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
             <FormField label="Standard reference">
               <input
               name="standard_reference"
-              placeholder="e.g. ISO 9001 / client spec no."
+              placeholder={tl("e.g. ISO 9001 / client spec no.")}
               className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>

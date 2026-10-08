@@ -9,6 +9,8 @@ import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { formatDateTime } from "@/lib/dates/format";
 import { fileNameOf, formatBytes, isImagePath, ORPHAN_BUCKET } from "@/lib/orphan-photos/logic";
 import { OrphanPhotoControls } from "./orphan-photo-controls";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export const metadata: Metadata = { title: "Orphaned photos" };
 
@@ -31,6 +33,7 @@ interface FlagRow {
  * was removed by hand, or deletes it here after a typed confirmation.
  */
 export default async function OrphanPhotosPage() {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
 
@@ -69,9 +72,9 @@ export default async function OrphanPhotosPage() {
     <div className="max-w-4xl">
       <SettingsBackLink />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Orphaned photos</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Orphaned photos</T></h1>
         <PageGuide
-          title="Orphaned photos — how this works"
+          title={tl("Orphaned photos — how this works")}
           points={[
             "A photo upload can succeed while its record is never saved. The worker flags such files (older than 7 days, not linked to anything). It never deletes them itself.",
             "Keep stops the file being flagged again. Mark removed records that the file was deleted by hand.",
@@ -79,11 +82,11 @@ export default async function OrphanPhotosPage() {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">Files in storage that no inspection photo or document points at.</p>
+      <p className="mt-1 text-sm text-muted"><T>Files in storage that no inspection photo or document points at.</T></p>
 
-      {error && <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">The orphan list is not available (the database update has not been applied).</p>}
+      {error && <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink"><T>The orphan list is not available (the database update has not been applied).</T></p>}
 
-      {!error && flagged.length === 0 && <p className="mt-6 text-sm text-muted">Nothing is waiting for review.</p>}
+      {!error && flagged.length === 0 && <p className="mt-6 text-sm text-muted"><T>Nothing is waiting for review.</T></p>}
 
       <div className="mt-6 space-y-4">
         {flagged.map((r) => {
@@ -95,9 +98,9 @@ export default async function OrphanPhotosPage() {
                   // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL, not optimisable
                   <img src={url} alt={`Preview of ${fileNameOf(r.storage_path)}`} className="h-full w-full object-cover" />
                 ) : url ? (
-                  <a href={url} target="_blank" rel="noreferrer" className="flex h-full items-center justify-center text-xs text-burgundy hover:underline">Open file</a>
+                  <a href={url} target="_blank" rel="noreferrer" className="flex h-full items-center justify-center text-xs text-burgundy hover:underline"><T>Open file</T></a>
                 ) : (
-                  <span className="flex h-full items-center justify-center text-xs text-muted">No preview</span>
+                  <span className="flex h-full items-center justify-center text-xs text-muted"><T>No preview</T></span>
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -110,7 +113,7 @@ export default async function OrphanPhotosPage() {
                   · {formatBytes(r.size_bytes)}
                 </p>
                 <p className="text-xs text-muted">
-                  Uploaded {r.object_created_at ? formatDateTime(r.object_created_at, "UTC") : "unknown"} UTC · flagged {formatDateTime(r.first_flagged_at, "UTC")} UTC
+                  <T>Uploaded</T> {r.object_created_at ? formatDateTime(r.object_created_at, "UTC") : "unknown"} <T>UTC · flagged</T> {formatDateTime(r.first_flagged_at, "UTC")} <T>UTC</T>
                 </p>
                 <OrphanPhotoControls storagePath={r.storage_path} />
               </div>
@@ -121,7 +124,7 @@ export default async function OrphanPhotosPage() {
 
       {reviewed.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-sm font-semibold text-ink">Recently reviewed</h2>
+          <h2 className="text-sm font-semibold text-ink"><T>Recently reviewed</T></h2>
           <ul className="mt-2 divide-y divide-border rounded-lg border border-border bg-surface text-xs">
             {reviewed.map((r) => (
               <li key={r.storage_path} className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2">

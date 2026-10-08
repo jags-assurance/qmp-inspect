@@ -5,6 +5,7 @@ import { updateEngagementScopeAction, type NumberingSettingsState } from "@/lib/
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { describeScopeChange, isEngagementScope, summarizeScopeChange } from "@/lib/numbering/scope-impact";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -72,7 +73,7 @@ export function EngagementScopeForm({
 
       {impact && impact.direction !== "none" && isEngagementScope(selected) && (
         <div role="status" className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-ink">
-          <p className="font-medium">What this change does</p>
+          <p className="font-medium"><Tx>What this change does</Tx></p>
           <p>{describeScopeChange(current, selected, impact)}</p>
           <p className="text-muted">{impact.unchanged.join(" ")}</p>
         </div>
@@ -81,8 +82,7 @@ export function EngagementScopeForm({
       <label className="flex items-start gap-2 text-xs text-ink">
         <input type="checkbox" name="confirm" value="yes" className="mt-0.5" />
         <span>
-          I understand changing the tier changes what this organisation&apos;s people can do immediately, and that
-          leaving Full Client-Managed removes its custom roles&apos; approve-ITP, provision-login and standalone permissions.
+          <Tx>I understand changing the tier changes what this organisation&apos;s people can do immediately, and that leaving Full Client-Managed removes its custom roles&apos; approve-ITP, provision-login and standalone permissions.</Tx>
         </span>
       </label>
 

@@ -7,6 +7,7 @@ import type { ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
+import { Tx } from "@/components/domain/tx";
 
 interface ChecklistItem {
   id: string;
@@ -150,7 +151,7 @@ export function ChecklistExecutionPanel({
         <div className="sticky top-0 z-10 -mx-1 bg-surface/95 px-1 py-2 backdrop-blur" aria-live="polite">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-ink">
-              {answeredCount} of {totalCount} answered
+              {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
               {mandatoryTotal > 0 && (
                 <span className={mandatoryRemaining > 0 ? "ms-2 text-danger" : "ms-2 text-success"}>
                   {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory remaining` : "all mandatory done"}
@@ -210,7 +211,7 @@ export function ChecklistExecutionPanel({
             vaultFolders={vaultFolders}
           />
         ))}
-        {items.length === 0 && <p className="p-4 text-sm text-muted">This checklist has no items yet.</p>}
+        {items.length === 0 && <p className="p-4 text-sm text-muted"><Tx>This checklist has no items yet.</Tx></p>}
       </div>
       {photoSlot}
       {canExecute && (
@@ -229,7 +230,7 @@ export function ChecklistExecutionPanel({
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1 text-sm" aria-live="polite">
                 <p className="font-medium text-ink">
-                  {answeredCount} of {totalCount} answered
+                  {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
                 </p>
                 <p className={mandatoryRemaining > 0 ? "truncate text-xs text-danger" : "truncate text-xs " + syncStatus.className}>
                   {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory left` : syncStatus.label}

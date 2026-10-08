@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { ReturnForReworkForm } from "./ncr-status-controls";
 import { NCR_DISPOSITIONS, NCR_DISPOSITION_LABELS } from "@/lib/ncrs/extended";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: UpdateNcrState = { error: null };
 const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
@@ -76,6 +78,7 @@ export function CloseOutForm({
   selfVerifyConflict?: boolean;
   isAdmin?: boolean;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateNcrAction, initialState);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
@@ -125,7 +128,7 @@ export function CloseOutForm({
             disabled={isClosed || !canAssign}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           >
-            <option value="">Unassigned</option>
+            <option value=""><Tx>Unassigned</Tx></option>
             {people.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
@@ -150,7 +153,7 @@ export function CloseOutForm({
 
       <div>
         <label htmlFor="responsible_party_id" className="block text-sm font-medium text-ink">
-          Responsible party <span className="font-normal text-muted">(optional)</span>
+          <Tx>Responsible party</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
         </label>
         <select
           id="responsible_party_id"
@@ -159,7 +162,7 @@ export function CloseOutForm({
           disabled={isClosed || !canAssign}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         >
-          <option value="">Not specified</option>
+          <option value=""><Tx>Not specified</Tx></option>
           {parties.map((party) => (
             <option key={party.id} value={party.id}>
               {party.name} ({party.party_type})
@@ -171,7 +174,7 @@ export function CloseOutForm({
       <div>
         <div className="flex items-center justify-between">
           <label htmlFor="root_cause" className="block text-sm font-medium text-ink">
-            Root cause
+            <Tx>Root cause</Tx>
           </label>
           {!isClosed && !capaLocked && (
             <button
@@ -200,7 +203,7 @@ export function CloseOutForm({
         {suggestState.error && <p role="alert" className="mt-1 text-xs text-danger">{suggestState.error}</p>}
         {aiOriginalRootCause !== null && (
           <p className="mt-1">
-            <Badge tone="info">AI-assisted draft</Badge>
+            <Badge tone="info"><Tx>AI-assisted draft</Tx></Badge>
           </p>
         )}
       </div>
@@ -246,12 +249,12 @@ export function CloseOutForm({
 
       {categories && (
         <fieldset className="space-y-4 rounded-md border border-border p-3" disabled={isClosed || capaLocked}>
-          <legend className="px-1 text-xs font-medium text-muted">Classification</legend>
+          <legend className="px-1 text-xs font-medium text-muted"><Tx>Classification</Tx></legend>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <FormField label="Root-cause category">
                 <select name="root_cause_category" defaultValue={rootCauseCategory ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
-                <option value="">Not classified</option>
+                <option value=""><Tx>Not classified</Tx></option>
                 {categories.map((c) => (
                   <option key={c.code} value={c.code}>{c.label}</option>
                 ))}
@@ -261,7 +264,7 @@ export function CloseOutForm({
             <div>
               <FormField label="Disposition">
                 <select name="disposition" defaultValue={disposition ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60">
-                <option value="">Not decided</option>
+                <option value=""><Tx>Not decided</Tx></option>
                 {NCR_DISPOSITIONS.map((d) => (
                   <option key={d} value={d}>{NCR_DISPOSITION_LABELS[d]}</option>
                 ))}
@@ -269,16 +272,16 @@ export function CloseOutForm({
               </FormField>
             </div>
             <div>
-              <label htmlFor="cost_impact" className="block text-sm font-medium text-ink">Cost impact <span className="font-normal text-muted">(optional)</span></label>
+              <label htmlFor="cost_impact" className="block text-sm font-medium text-ink"><Tx>Cost impact</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span></label>
               <input id="cost_impact" name="cost_impact" type="number" min="0" step="0.01" inputMode="decimal" defaultValue={costImpact ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
             </div>
             <div>
-              <label htmlFor="schedule_impact_days" className="block text-sm font-medium text-ink">Schedule impact (days) <span className="font-normal text-muted">(optional)</span></label>
+              <label htmlFor="schedule_impact_days" className="block text-sm font-medium text-ink"><Tx>Schedule impact (days)</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span></label>
               <input id="schedule_impact_days" name="schedule_impact_days" type="number" min="0" max="3650" step="1" inputMode="numeric" defaultValue={scheduleImpactDays ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
             </div>
           </div>
           <div>
-            <label htmlFor="contractor_response" className="block text-sm font-medium text-ink">Contractor response <span className="font-normal text-muted">(optional)</span></label>
+            <label htmlFor="contractor_response" className="block text-sm font-medium text-ink"><Tx>Contractor response</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span></label>
             <textarea id="contractor_response" name="contractor_response" rows={2} maxLength={2000} defaultValue={contractorResponse ?? ""} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
           </div>
         </fieldset>
@@ -287,7 +290,7 @@ export function CloseOutForm({
       {!isClosed && canClose && selfVerifyConflict && status === "pending_verification" && (
         <div>
           <label htmlFor="close_override_reason" className="block text-sm font-medium text-ink">
-            Override reason <span className="font-normal text-muted">(you are assigned to this NCR or wrote its corrective action)</span>
+            <Tx>Override reason</Tx> <span className="font-normal text-muted"><Tx>(you are assigned to this NCR or wrote its corrective action)</Tx></span>
           </label>
           <textarea id="close_override_reason" name="close_override_reason" rows={2} placeholder={isAdmin ? "Why you are verifying your own work (at least 10 characters; audited)" : "A different person must verify and close this NCR"} disabled={!isAdmin} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60" />
         </div>
@@ -309,22 +312,21 @@ export function CloseOutForm({
       )}
       {!isClosed && canClose && !canCloseNow && (
         <p className="text-xs text-muted">
-          To close: status must be Pending verification, with root cause, corrective action, preventive action,
-          verification notes and at least one evidence photo or linked document.
+          <Tx>To close: status must be Pending verification, with root cause, corrective action, preventive action, verification notes and at least one evidence photo or linked document.</Tx>
           {photoCount === 0 ? " No evidence yet." : ""}
         </p>
       )}
-      {capaLocked && <p className="text-xs text-muted">Awaiting verification: CAPA is locked until JAGS staff verify or return it for rework.</p>}
+      {capaLocked && <p className="text-xs text-muted"><Tx>Awaiting verification: CAPA is locked until JAGS staff verify or return it for rework.</Tx></p>}
       {!isClosed && !canClose && (
-        <p className="text-xs text-muted">Closing is done by a JAGS verifier after you send the NCR for verification.</p>
+        <p className="text-xs text-muted"><Tx>Closing is done by a JAGS verifier after you send the NCR for verification.</Tx></p>
       )}
     </form>
     {!isClosed && canVerify && status === "pending_verification" && <ReturnForReworkForm ncrId={ncrId} onDone={onSaved} />}
     {isClosed && canClose && (
       <form action={reopenAction} className="mt-4 space-y-2 border-t border-border pt-4">
         <input type="hidden" name="ncr_id" value={ncrId} />
-        <label htmlFor="reopen_reason" className="block text-sm font-medium text-ink">Re-open this NCR</label>
-        <textarea id="reopen_reason" name="reason" rows={2} required placeholder="Reason for re-opening (required)" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        <label htmlFor="reopen_reason" className="block text-sm font-medium text-ink"><Tx>Re-open this NCR</Tx></label>
+        <textarea id="reopen_reason" name="reason" rows={2} required placeholder={tl("Reason for re-opening (required)")} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
         {reopenState.error && <p role="alert" className="text-sm text-danger">{reopenState.error}</p>}
         <Button type="submit" variant="outline" disabled={reopenPending}>{reopenPending ? "Re-opening…" : "Re-open NCR"}</Button>
       </form>

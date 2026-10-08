@@ -7,6 +7,8 @@ import { CreateClientTeamForm } from "./create-client-team-form";
 import { ClientTeamCard, type ClientTeamCardData, type UserOption, type ProjectOption } from "./client-team-card";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationOption {
   id: string;
@@ -42,6 +44,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   const admin = isAdminStaff(session);
@@ -83,8 +86,8 @@ export async function ClientTeamsView({ searchParams, embedded }: {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
-        <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
-        <p className="mt-1 text-sm text-muted">No organisation found.</p>
+        <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
+        <p className="mt-1 text-sm text-muted"><T>No organisation found.</T></p>
       </div>
     );
   }
@@ -92,8 +95,8 @@ export async function ClientTeamsView({ searchParams, embedded }: {
   if (!admin && !(await isModuleLicensed(supabase, organizationId, "client_teams"))) {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
-        <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
-        <p className="mt-1 text-sm text-muted">This module isn&apos;t included in your organisation&apos;s plan. Ask a JAGS Admin to enable it.</p>
+        <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
+        <p className="mt-1 text-sm text-muted"><T>This module isn&apos;t included in your organisation&apos;s plan. Ask a JAGS Admin to enable it.</T></p>
       </div>
     );
   }
@@ -191,9 +194,9 @@ export async function ClientTeamsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Client Teams</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
         <PageGuide
-          title="Client Teams — how this works"
+          title={tl("Client Teams — how this works")}
           points={[
             "Who can ADD a member: a JAGS Admin (any organisation), or that team's own team lead (their team only). A Self-Managed or Full Client-Managed org's first user can also bootstrap its very first team before any lead exists yet.",
             "Add someone by picking from people who already have platform access to this organisation or its projects, or by entering their email directly if they have a JAGS Assurance account but aren't yet on any project — the email must already have an account; if not, provision their login first from that project's own page (Provision login).",
@@ -203,12 +206,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        This organisation&apos;s own groupings of its people — who&apos;s on which team, who leads
-        it, and which of this organisation&apos;s own projects that team is responsible for. Separate
-        from JAGS&apos;s internal Teams: a client team only ever contains this organisation&apos;s own
-        people and can only be assigned to this organisation&apos;s own projects. A team lead can
-        manage their own team&apos;s membership and project assignments; a JAGS Admin can manage
-        every organisation&apos;s teams.
+        <T>This organisation&apos;s own groupings of its people — who&apos;s on which team, who leads it, and which of this organisation&apos;s own projects that team is responsible for. Separate from JAGS&apos;s internal Teams: a client team only ever contains this organisation&apos;s own people and can only be assigned to this organisation&apos;s own projects. A team lead can manage their own team&apos;s membership and project assignments; a JAGS Admin can manage every organisation&apos;s teams.</T>
       </p>
 
       {admin && orgPicker && <OrgPickerForm organizations={orgPicker.organizations} selectedOrgId={orgPicker.selectedOrgId} />}
@@ -219,7 +217,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
         {teamCards.map((team) => (
           <ClientTeamCard key={team.id} team={team} users={eligibleUsers} projects={orgProjects ?? []} />
         ))}
-        {teamCards.length === 0 && <p className="text-sm text-muted">No teams yet.</p>}
+        {teamCards.length === 0 && <p className="text-sm text-muted"><T>No teams yet.</T></p>}
       </div>
     </div>
   );

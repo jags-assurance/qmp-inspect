@@ -6,6 +6,8 @@ import type { NumberingDocType } from "@/lib/numbering/types";
 import { formatDocumentNumber } from "@/lib/numbering/format";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -37,6 +39,7 @@ export function NumberingConfigRow({
   docType: NumberingDocType;
   config: NumberingConfigFormValues | null;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(upsertNumberingConfigAction, initialState);
 
   // Live preview — computed with the exact same formatDocumentNumber logic the server actually
@@ -76,7 +79,7 @@ export function NumberingConfigRow({
           required
           value={clientCode}
           onChange={(e) => setClientCode(e.target.value)}
-          placeholder="e.g. project number"
+          placeholder={tl("e.g. project number")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -120,12 +123,12 @@ export function NumberingConfigRow({
 
       <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
         <input type="checkbox" name="include_year" checked={includeYear} onChange={(e) => setIncludeYear(e.target.checked)} />
-        Year
+        <Tx>Year</Tx>
       </label>
 
       <label
         className="flex items-center gap-1.5 pb-2 text-xs text-muted"
-        title="Inserts this document's discipline code right after the doc-type segment, when one is resolvable — omitted otherwise, never a blank placeholder."
+        title={tl("Inserts this document's discipline code right after the doc-type segment, when one is resolvable — omitted otherwise, never a blank placeholder.")}
       >
         <input
           type="checkbox"
@@ -133,7 +136,7 @@ export function NumberingConfigRow({
           checked={includeDiscipline}
           onChange={(e) => setIncludeDiscipline(e.target.checked)}
         />
-        Discipline
+        <Tx>Discipline</Tx>
       </label>
 
       <Button type="submit" disabled={pending}>
@@ -141,7 +144,7 @@ export function NumberingConfigRow({
       </Button>
 
       <p className="col-span-full text-xs text-muted">
-        Sample: <span className="doc-id font-medium text-ink">{sample}</span>
+        <Tx>Sample:</Tx> <span className="doc-id font-medium text-ink">{sample}</span>
       </p>
 
       {state.error && <p role="alert" className="col-span-full text-sm text-danger">{state.error}</p>}

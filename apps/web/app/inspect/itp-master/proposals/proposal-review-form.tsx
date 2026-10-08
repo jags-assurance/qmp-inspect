@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { reviewProposalAction, type ReviewProposalState } from "@/lib/itp-master/actions";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ReviewProposalState = { error: null };
 
@@ -12,6 +13,7 @@ const initialState: ReviewProposalState = { error: null };
 // name="decision" value, so the server action reads formData.get("decision") directly — no client
 // state needed to know which one was pressed.
 export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(reviewProposalAction, initialState);
   const { askThenSubmit, dialog } = useConfirm();
   const confirmReject = askThenSubmit({
@@ -29,7 +31,7 @@ export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
       <textarea
         name="review_notes"
         rows={2}
-        placeholder="Review notes (required if rejecting)…"
+        placeholder={tl("Review notes (required if rejecting)…")}
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
 

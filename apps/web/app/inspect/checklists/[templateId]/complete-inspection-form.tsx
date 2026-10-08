@@ -8,6 +8,8 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { validateCompletionFieldsClient } from "@/lib/checklists/completion-logic";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CompleteInspectionState = { error: null };
 
@@ -21,6 +23,7 @@ export function CompleteInspectionForm({
   /** Set only when the inspector explicitly waived the evidence requirement with a written reason. */
   noEvidenceReason?: string;
 }) {
+  const tl = useTranslate();
   const [state, setState] = useState<CompleteInspectionState>(initialState);
   const [pending, setPending] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
@@ -100,35 +103,35 @@ export function CompleteInspectionForm({
       {noEvidenceReason && <input type="hidden" name="no_evidence_reason" value={noEvidenceReason} />}
 
       <h2 className="text-base font-medium text-ink">
-        Inspector sign-off <span className="text-danger">*</span>
+        <Tx>Inspector sign-off</Tx> <span className="text-danger">*</span>
       </h2>
 
       <label htmlFor="signed_by_name" className="mt-3 block text-sm font-medium text-ink">
-        Printed name
+        <Tx>Printed name</Tx>
       </label>
       <input
         id="signed_by_name"
         name="signed_by_name"
         value={signerName}
         onChange={(e) => setSignerName(e.target.value)}
-        placeholder="Defaults to your account name"
+        placeholder={tl("Defaults to your account name")}
         maxLength={120}
         className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       <p className="mt-1 text-xs text-muted">
-        The date and time are stamped automatically when you complete. The record is also stamped with your signed-in account, whatever name you type.
+        <Tx>The date and time are stamped automatically when you complete. The record is also stamped with your signed-in account, whatever name you type.</Tx>
       </p>
       <div className="mt-3">
         <SignaturePad onChange={setSignature} />
       </div>
       {!signature && (
-        <p className="mt-1 text-xs text-muted">Sign above — a signature is required to complete the inspection.</p>
+        <p className="mt-1 text-xs text-muted"><Tx>Sign above — a signature is required to complete the inspection.</Tx></p>
       )}
 
       <div className="mt-4 rounded-md border border-border p-3">
         <label className="flex items-center gap-2 text-sm font-medium text-ink">
           <input type="checkbox" checked={witnessOpen} onChange={(e) => setWitnessOpen(e.target.checked)} />
-          Add a witness signature (optional)
+          <Tx>Add a witness signature (optional)</Tx>
         </label>
         {witnessOpen && (
           <div className="mt-3 space-y-3">
@@ -136,7 +139,7 @@ export function CompleteInspectionForm({
               name="witness_name"
               value={witnessName}
               onChange={(e) => setWitnessName(e.target.value)}
-              placeholder="Witness name and company"
+              placeholder={tl("Witness name and company")}
               maxLength={120}
               className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
@@ -146,7 +149,7 @@ export function CompleteInspectionForm({
       </div>
 
       <label htmlFor="notes"className="mt-4 block text-sm font-medium text-ink">
-        Notes (optional)
+        <Tx>Notes (optional)</Tx>
       </label>
       <textarea
         id="notes"
@@ -161,7 +164,7 @@ export function CompleteInspectionForm({
       </Button>
       {queued && (
         <p className="mt-2 text-sm text-warning">
-          You&apos;re offline. This inspection will be completed automatically once your connection is back.
+          <Tx>You&apos;re offline. This inspection will be completed automatically once your connection is back.</Tx>
         </p>
       )}
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ResetPasswordForm } from "./reset-password-form";
+import { T } from "@/components/domain/t";
 
 export const metadata: Metadata = { title: "Reset password" };
 
@@ -23,11 +24,11 @@ export default async function ResetPasswordPage({
     <div className="flex min-h-screen">
       <div className="hidden w-1/2 flex-col justify-center bg-burgundy px-16 text-white md:flex">
         <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-gold text-lg font-semibold">
-          JA
+          <T>JA</T>
         </div>
-        <h1 className="mt-8 text-3xl font-semibold">JAGS Assurance</h1>
+        <h1 className="mt-8 text-3xl font-semibold"><T>JAGS Assurance</T></h1>
         <p className="mt-3 max-w-sm text-white/80">
-          Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.
+          <T>Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.</T>
         </p>
       </div>
       <div className="flex w-full flex-col justify-center px-8 md:w-1/2 md:px-20">

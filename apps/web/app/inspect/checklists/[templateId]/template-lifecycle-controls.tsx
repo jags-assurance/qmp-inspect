@@ -10,6 +10,7 @@ import {
   duplicateChecklistTemplateAction,
   unarchiveChecklistTemplateAction,
 } from "@/lib/checklists/template-actions";
+import { Tx } from "@/components/domain/tx";
 
 /** Archive / restore / duplicate / delete controls for a checklist template (staff-facing). */
 export function TemplateLifecycleControls({
@@ -67,15 +68,15 @@ export function TemplateLifecycleControls({
   return (
     <div className="space-y-3 border-t border-border bg-off-white px-4 py-4">
       {dialog}
-      <h3 className="text-xs font-medium uppercase tracking-wide text-muted">Checklist lifecycle</h3>
+      <h3 className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>Checklist lifecycle</Tx></h3>
       <div className="flex flex-wrap items-center gap-2">
         {archived ? (
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => run(() => unarchiveChecklistTemplateAction({ templateId }))}>
-            Restore (unarchive)
+            <Tx>Restore (unarchive)</Tx>
           </Button>
         ) : (
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => void archive()}>
-            Archive
+            <Tx>Archive</Tx>
           </Button>
         )}
         <Button
@@ -87,12 +88,12 @@ export function TemplateLifecycleControls({
           aria-describedby={deleteBlockedReason ? deleteReasonId : undefined}
           onClick={() => void remove()}
         >
-          Delete checklist
+          <Tx>Delete checklist</Tx>
         </Button>
       </div>
       {deleteBlockedReason && (
         <p id={deleteReasonId} className="text-xs text-muted">
-          Delete is disabled: {deleteBlockedReason}
+          <Tx>Delete is disabled:</Tx> {deleteBlockedReason}
         </p>
       )}
 
@@ -109,7 +110,7 @@ export function TemplateLifecycleControls({
       >
         <div className="w-full sm:min-w-64 flex-1">
           <label htmlFor={targetId} className="block text-xs font-medium text-muted">
-            Duplicate to activity
+            <Tx>Duplicate to activity</Tx>
           </label>
           <select
             id={targetId}

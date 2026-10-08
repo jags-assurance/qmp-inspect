@@ -8,6 +8,7 @@ import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
 import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { buildVendorScorecard, type ScorecardNcr } from "@/lib/ncrs/scorecard";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { T } from "@/components/domain/t";
 
 interface Row extends ScorecardNcr {
   project_id: string;
@@ -80,14 +81,14 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
   return (
     <div className="max-w-6xl">
       <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
-        ← Back to NCR Register
+        <T>← Back to NCR Register</T>
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">Vendor NCR scorecard</h1>
+      <h1 className="mt-2 text-2xl font-semibold text-ink"><T>Vendor NCR scorecard</T></h1>
       <p className="mt-1 text-sm text-muted">
-        Minor and major NCRs per responsible party. Withdrawn NCRs and observations are not counted. Worst first: most overdue, then most open.
+        <T>Minor and major NCRs per responsible party. Withdrawn NCRs and observations are not counted. Worst first: most overdue, then most open.</T>
       </p>
       {scores.length === 0 ? (
-        <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">No NCRs to score yet.</p>
+        <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted"><T>No NCRs to score yet.</T></p>
       ) : (
         <div className="mt-4 rounded-lg border border-border bg-surface">
           <ResponsiveTable

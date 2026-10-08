@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * Expected records / Evidence documents / Measurements used to render fully open under every
@@ -31,7 +32,7 @@ export function ActivityEvidenceToggle({ label, children }: { label: string; chi
       <div className="flex items-center justify-between border-b border-border px-2 py-1">
         <span className="text-xs font-medium text-muted">{label}</span>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:text-ink">
-          Close
+          <Tx>Close</Tx>
         </button>
       </div>
       {children}

@@ -9,6 +9,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { SiteLinks } from "@/components/domain/site-links";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SignInState = { error: null };
 
@@ -20,9 +21,9 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
     <div className="flex min-h-screen">
       <div className="hidden w-1/2 flex-col justify-center bg-burgundy px-16 text-white md:flex">
         <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-gold text-lg font-semibold">
-          JA
+          <Tx>JA</Tx>
         </div>
-        <h1 className="mt-8 text-3xl font-semibold">JAGS Assurance</h1>
+        <h1 className="mt-8 text-3xl font-semibold"><Tx>JAGS Assurance</Tx></h1>
         <p className="mt-3 max-w-sm text-white/80">
           {t("Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.")}
         </p>

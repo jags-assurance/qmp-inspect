@@ -14,6 +14,8 @@ import { evidenceRequirementHint } from "@/lib/checklists/evidence-rules";
 import { describeSpec, evaluateNumeric, parseNumericInput, type NumericSpec } from "@/lib/checklists/numeric-response";
 import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const PILLS: { value: ChecklistResponseResult; label: string; activeClass: string }[] = [
   { value: "yes", label: "Yes", activeClass: "bg-success text-white border-success" },
@@ -131,6 +133,7 @@ export function ResponseRow({
   numeric?: NumericSpec | null;
   initialNumericValue?: number | null;
 }) {
+  const tl = useTranslate();
   const initialSplit = splitStoredComment(initialComment);
   const [result, setResult] = useState<ChecklistResponseResult | null>(initialResult);
   const [comment, setComment] = useState(initialSplit.comment);
@@ -301,8 +304,8 @@ export function ResponseRow({
           <p className="text-sm font-medium text-ink">
             <span className="doc-id text-muted">{itemNumber}.</span> {description}
             {isMandatory && (
-              <span className="ms-1 text-danger" title="Mandatory item">
-                * <span className="sr-only">mandatory</span>
+              <span className="ms-1 text-danger" title={tl("Mandatory item")}>
+                * <span className="sr-only"><Tx>mandatory</Tx></span>
               </span>
             )}
           </p>
@@ -337,14 +340,14 @@ export function ResponseRow({
         {needsOverrideReason && (
           <div>
             <label htmlFor={`override-reason-${checklistItemId}`} className="sr-only">
-              Reason to proceed despite the register warning for item {itemNumber}
+              <Tx>Reason to proceed despite the register warning for item</Tx> {itemNumber}
             </label>
             <input
               id={`override-reason-${checklistItemId}`}
               type="text"
               disabled={readOnly}
               defaultValue={overrideReason}
-              placeholder="Reason to proceed despite the register warning above (required)"
+              placeholder={tl("Reason to proceed despite the register warning above (required)")}
               onBlur={(e) => {
                 setOverrideReason(e.target.value);
                 save(result, comment, e.target.value, calibrationAssetId);
@@ -357,7 +360,7 @@ export function ResponseRow({
         {showCalibrationPicker && (
           <div>
             <label htmlFor={`calibration-asset-${checklistItemId}`} className="block text-xs font-medium text-ink">
-              Instrument used for this measurement
+              <Tx>Instrument used for this measurement</Tx>
             </label>
             <select
               id={`calibration-asset-${checklistItemId}`}
@@ -369,17 +372,16 @@ export function ResponseRow({
               }}
               className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-base outline-none sm:text-sm focus:border-burgundy disabled:opacity-60"
             >
-              <option value="">— Not recorded —</option>
+              <option value=""><Tx>— Not recorded —</Tx></option>
               {calibrationOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
-                  {opt.instrument_name} (cert {opt.cert_number}){opt.status === "expired" ? " — EXPIRED" : ""}
+                  {opt.instrument_name} <Tx>(cert</Tx> {opt.cert_number}){opt.status === "expired" ? " — EXPIRED" : ""}
                 </option>
               ))}
             </select>
             {chosenCalibration?.status === "expired" && (
               <p className="mt-1 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
-                ⚠ Calibration expired — {chosenCalibration.instrument_name} (cert {chosenCalibration.cert_number}). It
-                cannot be recorded as the instrument used.
+                <Tx>⚠ Calibration expired —</Tx> {chosenCalibration.instrument_name} <Tx>(cert</Tx> {chosenCalibration.cert_number}<Tx>). It cannot be recorded as the instrument used.</Tx>
               </p>
             )}
           </div>
@@ -388,7 +390,7 @@ export function ResponseRow({
         {showMaterialPicker && (
           <div>
             <label htmlFor={`material-${checklistItemId}`} className="block text-xs font-medium text-ink">
-              Material used (heat/batch)
+              <Tx>Material used (heat/batch)</Tx>
             </label>
             <select
               id={`material-${checklistItemId}`}
@@ -400,7 +402,7 @@ export function ResponseRow({
               }}
               className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-base outline-none sm:text-sm focus:border-burgundy disabled:opacity-60"
             >
-              <option value="">— Not recorded —</option>
+              <option value=""><Tx>— Not recorded —</Tx></option>
               {materialOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {opt.material_description}
@@ -415,7 +417,7 @@ export function ResponseRow({
         {showWelderPicker && (
           <div>
             <label htmlFor={`welder-${checklistItemId}`} className="block text-xs font-medium text-ink">
-              Welder
+              <Tx>Welder</Tx>
             </label>
             <select
               id={`welder-${checklistItemId}`}
@@ -427,7 +429,7 @@ export function ResponseRow({
               }}
               className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-base outline-none sm:text-sm focus:border-burgundy disabled:opacity-60"
             >
-              <option value="">— Not recorded —</option>
+              <option value=""><Tx>— Not recorded —</Tx></option>
               {welderOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {opt.welder_identifier} ({opt.qualified_wps}){opt.status === "expired" ? " — EXPIRED" : ""}
@@ -436,8 +438,7 @@ export function ResponseRow({
             </select>
             {chosenWelder?.status === "expired" && (
               <p className="mt-1 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
-                ⚠ Welder qualification expired — {chosenWelder.welder_identifier} on {chosenWelder.qualified_wps}. It
-                cannot be recorded for this response.
+                <Tx>⚠ Welder qualification expired —</Tx> {chosenWelder.welder_identifier} <Tx>on</Tx> {chosenWelder.qualified_wps}<Tx>. It cannot be recorded for this response.</Tx>
               </p>
             )}
           </div>
@@ -446,7 +447,7 @@ export function ResponseRow({
         {numeric && (
           <div className="mb-2">
             <label htmlFor={`num-${checklistItemId}`} className="block text-xs font-medium text-muted">
-              Measured value <span className="font-normal">(limit: {describeSpec(numeric)})</span>
+              <Tx>Measured value</Tx> <span className="font-normal"><Tx>(limit:</Tx> {describeSpec(numeric)})</span>
             </label>
             <div className="mt-1 flex items-center gap-2">
               <input
@@ -512,12 +513,12 @@ export function ResponseRow({
 
         {result === "no" && !comment.trim() && (
           <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
-            Marked as No — add a comment below to save this response (required).
+            <Tx>Marked as No — add a comment below to save this response (required).</Tx>
           </p>
         )}
         {result === "no" && comment.trim() && (
           <p className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
-            <span>Marked as No.</span>
+            <span><Tx>Marked as No.</Tx></span>
             <RaiseNcrDrawer
               projectId={projectId}
               itpItemId={itpItemId}
@@ -530,7 +531,7 @@ export function ResponseRow({
         {result === "no" && comment.trim() && !hasNcr && (
           <div>
             <label htmlFor={`no-ncr-reason-${checklistItemId}`} className="block text-xs font-medium text-ink">
-              No NCR raised? Reason (required to complete unless an NCR/observation is raised)
+              <Tx>No NCR raised? Reason (required to complete unless an NCR/observation is raised)</Tx>
             </label>
             <input
               id={`no-ncr-reason-${checklistItemId}`}
@@ -538,7 +539,7 @@ export function ResponseRow({
               disabled={readOnly}
               defaultValue={noNcrReason}
               maxLength={500}
-              placeholder="e.g. Rectified on the spot and re-verified"
+              placeholder={tl("e.g. Rectified on the spot and re-verified")}
               onBlur={(e) => {
                 if (e.target.value === noNcrReason) return;
                 setNoNcrReason(e.target.value);
@@ -569,7 +570,7 @@ export function ResponseRow({
         />
 
         <label htmlFor={`comment-${checklistItemId}`} className="sr-only">
-          Comment for item {itemNumber}
+          <Tx>Comment for item</Tx> {itemNumber}
         </label>
         <textarea
           id={`comment-${checklistItemId}`}
@@ -595,7 +596,7 @@ export function ResponseRow({
                 onClick={() => window.location.reload()}
                 className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
               >
-                Reload
+                <Tx>Reload</Tx>
               </button>
             ) : (
               <button
@@ -603,7 +604,7 @@ export function ResponseRow({
                 onClick={retry}
                 className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
               >
-                Retry
+                <Tx>Retry</Tx>
               </button>
             )}
           </p>

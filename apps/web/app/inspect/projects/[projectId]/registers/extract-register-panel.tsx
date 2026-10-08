@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 export interface ExtractFieldConfig {
   key: string;
@@ -99,7 +100,7 @@ export function ExtractRegisterPanel({
         onClick={() => setOpen((v) => !v)}
         className="text-xs font-medium text-burgundy hover:underline"
       >
-        {open ? "▾" : "▸"} Extract from document text (AI-assisted)
+        {open ? "▾" : "▸"} <Tx>Extract from document text (AI-assisted)</Tx>
       </button>
 
       {open && (
@@ -118,9 +119,7 @@ export function ExtractRegisterPanel({
                 className="w-full rounded-md border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-burgundy"
               />
               <p className="text-xs text-muted">
-                Paste the certificate/document text (or the vault document&apos;s extracted text). A
-                missing field stays blank — the AI never guesses a date, number, or range it can&apos;t
-                actually find; you confirm every row below before anything is added.
+                <Tx>Paste the certificate/document text (or the vault document&apos;s extracted text). A missing field stays blank — the AI never guesses a date, number, or range it can&apos;t actually find; you confirm every row below before anything is added.</Tx>
               </p>
               {extractState.error && <p role="alert" className="text-xs text-danger">{extractState.error}</p>}
               <Button type="submit" size="sm" disabled={extractPending || !sourceText.trim()}>
@@ -136,7 +135,7 @@ export function ExtractRegisterPanel({
               <input type="hidden" name="rows_json" value={JSON.stringify(rows)} readOnly />
 
               <p className="text-xs font-medium text-ink">
-                {rows.length} extracted row{rows.length === 1 ? "" : "s"} — review and edit before adding
+                {rows.length} <Tx>extracted row</Tx>{rows.length === 1 ? "" : "s"} <Tx>— review and edit before adding</Tx>
               </p>
 
               <div className="space-y-2">
@@ -162,12 +161,12 @@ export function ExtractRegisterPanel({
                         onClick={() => removeRow(rowIdx)}
                         className="text-xs font-medium text-danger hover:underline"
                       >
-                        Remove
+                        <Tx>Remove</Tx>
                       </button>
                     </div>
                   </div>
                 ))}
-                {rows.length === 0 && <p className="text-xs text-muted">Every extracted row has been removed.</p>}
+                {rows.length === 0 && <p className="text-xs text-muted"><Tx>Every extracted row has been removed.</Tx></p>}
               </div>
 
               {addState.error && <p role="alert" className="text-xs text-danger">{addState.error}</p>}
@@ -183,7 +182,7 @@ export function ExtractRegisterPanel({
                   }}
                   className="text-xs text-muted hover:underline"
                 >
-                  Discard and re-extract
+                  <Tx>Discard and re-extract</Tx>
                 </button>
               </div>
             </form>

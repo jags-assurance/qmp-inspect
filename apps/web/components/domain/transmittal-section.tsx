@@ -4,6 +4,8 @@ import { isMissingDbObject, formatUtcDateTime } from "@/lib/databook/db-errors";
 import { Badge } from "@/components/ui/badge";
 import { TransmittalForm } from "./transmittal-form";
 import { TRANSMITTALS_TABLE, canTransmit, transmittalStatusLabel, type TransmittalEntityType, type TransmittalRow } from "@/lib/transmittals/logic";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const LOG_LIMIT = 25;
 
@@ -25,6 +27,7 @@ export async function TransmittalSection({
   /** vault_documents.status / data_books.status of the entity. */
   status: string;
 }) {
+  const tl = await getTranslator();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await untypedFrom(supabase, TRANSMITTALS_TABLE)
     .select("id, batch_id, entity_type, entity_id, entity_label, recipient_email, subject, message, status, last_error, created_at, sent_at, users:sent_by(full_name)")
@@ -37,8 +40,8 @@ export async function TransmittalSection({
   const log = data ?? [];
 
   return (
-    <section className="mt-8" aria-label="Email transmittals">
-      <h3 className="text-sm font-semibold text-ink">Email transmittal</h3>
+    <section className="mt-8" aria-label={tl("Email transmittals")}>
+      <h3 className="text-sm font-semibold text-ink"><T>Email transmittal</T></h3>
       {canTransmit(entityType, status) ? (
         <TransmittalForm entityType={entityType} entityId={entityId} projectId={projectId} />
       ) : (
@@ -47,9 +50,9 @@ export async function TransmittalSection({
         </p>
       )}
 
-      <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">Transmittal log</h4>
+      <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted"><T>Transmittal log</T></h4>
       {log.length === 0 ? (
-        <p className="mt-1 text-sm text-muted">Nothing has been emailed yet.</p>
+        <p className="mt-1 text-sm text-muted"><T>Nothing has been emailed yet.</T></p>
       ) : (
         <ul className="mt-1 divide-y divide-border rounded-md border border-border text-sm">
           {log.map((t) => (
@@ -65,7 +68,7 @@ export async function TransmittalSection({
                 {t.users?.full_name ? ` · ${t.users.full_name}` : ""}
               </span>
               {t.status === "failed" && t.last_error && <span className="w-full text-xs text-danger">{t.last_error}</span>}
-              {t.message && <span className="w-full whitespace-pre-line text-xs text-muted">Message: {t.message}</span>}
+              {t.message && <span className="w-full whitespace-pre-line text-xs text-muted"><T>Message:</T> {t.message}</span>}
             </li>
           ))}
         </ul>

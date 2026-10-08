@@ -4,21 +4,24 @@ import { useActionState } from "react";
 import { importRegisterCsvAction, type ImportRegisterCsvState } from "@/lib/registers/import-actions";
 import { FormMessage } from "@/components/ui/form-message";
 import type { CsvRegisterKind } from "@/lib/registers/csv-columns";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ImportRegisterCsvState = { error: null, lineErrors: [], imported: null, duplicates: 0 };
 
 /** Export / template download for every viewer, plus a CSV import for people who can add entries. */
 export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: string; kind: CsvRegisterKind; canAdd: boolean }) {
+  const tl = useTranslate();
   const [state, action, pending] = useActionState(importRegisterCsvAction, initialState);
   return (
     <details className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
-      <summary className="cursor-pointer text-xs font-medium text-ink">Import / export CSV</summary>
+      <summary className="cursor-pointer text-xs font-medium text-ink"><Tx>Import / export CSV</Tx></summary>
       <div className="mt-2 flex flex-wrap gap-3 text-xs">
         <a className="text-burgundy hover:underline" href={`/api/registers/export?kind=${kind}&project_id=${projectId}`}>
-          Export this register (CSV)
+          <Tx>Export this register (CSV)</Tx>
         </a>
         <a className="text-burgundy hover:underline" href={`/api/registers/export?kind=${kind}&project_id=${projectId}&template=1`}>
-          Download a blank template
+          <Tx>Download a blank template</Tx>
         </a>
       </div>
       {canAdd && (
@@ -26,11 +29,10 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="kind" value={kind} />
           <p className="text-xs text-muted">
-            Paste CSV (with the header row from the template) or choose a .csv file. Dates can be YYYY-MM-DD or DD/MM/YYYY. All or nothing: if any line has a problem,
-            nothing is imported. Imported entries are unverified until JAGS staff verify them.
+            <Tx>Paste CSV (with the header row from the template) or choose a .csv file. Dates can be YYYY-MM-DD or DD/MM/YYYY. All or nothing: if any line has a problem, nothing is imported. Imported entries are unverified until JAGS staff verify them.</Tx>
           </p>
-          <textarea name="csv_text" rows={4} className="w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-xs outline-none focus:border-burgundy" aria-label="CSV text" />
-          <input type="file" name="csv_file" accept=".csv,text/csv" className="block text-xs" aria-label="CSV file" />
+          <textarea name="csv_text" rows={4} className="w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-xs outline-none focus:border-burgundy" aria-label={tl("CSV text")} />
+          <input type="file" name="csv_file" accept=".csv,text/csv" className="block text-xs" aria-label={tl("CSV file")} />
           <FormMessage
             error={state.error}
             success={

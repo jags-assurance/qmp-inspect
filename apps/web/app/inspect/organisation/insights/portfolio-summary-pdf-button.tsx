@@ -9,6 +9,7 @@ import {
   type PortfolioSummaryPdfStatus,
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestPortfolioSummaryPdfState = { error: null };
 
@@ -52,7 +53,7 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
             rel="noreferrer"
             className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
           >
-            View PDF →
+            <Tx>View PDF →</Tx>
           </a>
         )}
         {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
@@ -60,7 +61,7 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
             href={liveStatus.downloadUrl}
             className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
           >
-            Download ↓
+            <Tx>Download ↓</Tx>
           </a>
         )}
         <form action={formAction}>
@@ -75,10 +76,10 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
         </form>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-      {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {polling && <p className="text-xs text-muted"><Tx>Rendering — the links above will appear automatically when ready…</Tx></p>}
       {timedOut && (
         <p className="text-xs text-danger">
-          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+          <Tx>Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.</Tx>
         </p>
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (

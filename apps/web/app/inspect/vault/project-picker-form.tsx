@@ -1,4 +1,5 @@
 "use client";
+import { Tx } from "@/components/domain/tx";
 
 export interface ProjectOption {
   id: string;
@@ -19,7 +20,7 @@ export function ProjectPickerForm({
   return (
     <form className="mt-6 max-w-xs">
       <label htmlFor="project" className="block text-sm font-medium text-ink">
-        Project
+        <Tx>Project</Tx>
       </label>
       <select
         id="project"

@@ -6,6 +6,7 @@ import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE } from "@/lib/vault/types";
 import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
 import { vaultDocKind, vaultFileType } from "@/lib/vault/doc-kind";
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "../[folderId]/vault-documents-table";
+import { T } from "@/components/domain/t";
 
 interface PendingDoc {
   id: string;
@@ -93,17 +94,16 @@ export default async function VaultPendingApprovalsPage({ params }: { params: Pr
   return (
     <div>
       <Link href={`/inspect/vault?project=${projectId}`} className="text-sm text-burgundy hover:underline">
-        ← Back to Document Vault
+        <T>← Back to Document Vault</T>
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-ink">My pending approvals</h1>
+      <h1 className="mt-2 text-2xl font-semibold text-ink"><T>My pending approvals</T></h1>
       <p className="mt-1 text-sm text-muted">
-        Documents across this project waiting for your approval, oldest first. Where specific approvers are named, every named
-        approver must agree before the document becomes the controlled copy; rejecting needs a reason.
+        <T>Documents across this project waiting for your approval, oldest first. Where specific approvers are named, every named approver must agree before the document becomes the controlled copy; rejecting needs a reason.</T>
       </p>
       <div className="mt-6">
         <VaultDocumentsTable rows={rows} canApprove={canApprove} />
       </div>
-      {rows.length === 0 && <p className="mt-3 text-sm text-muted">Nothing is waiting for you. You are all caught up.</p>}
+      {rows.length === 0 && <p className="mt-3 text-sm text-muted"><T>Nothing is waiting for you. You are all caught up.</T></p>}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { assignItpAcceptorAction, type AssignItpAcceptorState } from "@/lib/itps/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: AssignItpAcceptorState = { error: null };
 
@@ -24,10 +25,9 @@ export function ItpAcceptorPicker({
 
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="text-sm font-semibold text-ink">Assigned acceptor (optional)</h3>
+      <h3 className="text-sm font-semibold text-ink"><Tx>Assigned acceptor (optional)</Tx></h3>
       <p className="mt-1 text-xs text-muted">
-        Leave unset and any login linked to this project&apos;s client party can Accept. Assign one specific
-        person and only they can.
+        <Tx>Leave unset and any login linked to this project&apos;s client party can Accept. Assign one specific person and only they can.</Tx>
       </p>
       <input type="hidden" name="itp_id" value={itpId} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -36,7 +36,7 @@ export function ItpAcceptorPicker({
           defaultValue={currentAcceptorUserId ?? ""}
           className="w-full sm:min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
         >
-          <option value="">— Any linked client party —</option>
+          <option value=""><Tx>— Any linked client party —</Tx></option>
           {clientPartyUsers.map((u) => (
             <option key={u.userId} value={u.userId}>
               {u.name}
@@ -53,7 +53,7 @@ export function ItpAcceptorPicker({
       </div>
       {clientPartyUsers.length === 0 && (
         <p className="mt-2 text-xs text-warning">
-          No active client-party login is linked to this project yet — provision one before assigning an acceptor.
+          <Tx>No active client-party login is linked to this project yet — provision one before assigning an acceptor.</Tx>
         </p>
       )}
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}

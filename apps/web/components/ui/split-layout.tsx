@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const MIN = 260; // px — narrowest list column
 const MIN_PANE = 360; // px — narrowest detail column
@@ -31,6 +32,7 @@ export function SplitLayout({
   /** Optional controls shown in the detail toolbar next to the Expand button (e.g. "Open full page"). */
   detailActions?: ReactNode;
 }) {
+  const tl = useTranslate();
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // null = not user-sized yet: the CSS clamp() default applies so the list scales with the viewport.
@@ -116,7 +118,7 @@ export function SplitLayout({
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize list and detail panes (arrow keys; Enter expands the detail)"
+          aria-label={tl("Resize list and detail panes (arrow keys; Enter expands the detail)")}
           aria-valuenow={stored === null ? undefined : Math.round(stored)}
           aria-valuemin={MIN}
           tabIndex={0}

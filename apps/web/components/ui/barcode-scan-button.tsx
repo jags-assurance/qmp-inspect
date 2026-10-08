@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractScanCode } from "@/lib/scan/code";
+import { Tx } from "@/components/domain/tx";
 
 // Minimal typings: BarcodeDetector is not in every TypeScript DOM lib. No third-party library is
 // used; browsers without the API (Safari, Firefox) get a clear message instead of a broken button.
@@ -117,9 +118,9 @@ export function BarcodeScanButton({
       {open && (
         <span className="fixed inset-x-4 top-20 z-50 mx-auto block max-w-sm rounded-lg border border-border bg-surface p-3 shadow-lg">
           <video ref={videoRef} muted playsInline className="aspect-square w-full rounded-md bg-black object-cover" />
-          <span className="mt-2 block text-center text-xs text-muted">Point the camera at the barcode or QR code.</span>
+          <span className="mt-2 block text-center text-xs text-muted"><Tx>Point the camera at the barcode or QR code.</Tx></span>
           <button type="button" onClick={cancel} className="mt-2 w-full rounded-md border border-border px-3 py-2 text-sm">
-            Cancel
+            <Tx>Cancel</Tx>
           </button>
         </span>
       )}

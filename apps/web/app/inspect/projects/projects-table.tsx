@@ -7,6 +7,7 @@ import { formatDateOnly } from "@/lib/dates/format";
 import { useLocale } from "@/lib/i18n/locale-context";
 import { translateText } from "@/lib/i18n/dictionary";
 import type { SupportedLocale } from "@/lib/i18n/direction";
+import { Tx } from "@/components/domain/tx";
 
 export interface ProjectRow {
   id: string;
@@ -78,7 +79,7 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
         <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
         {isClosedStatus(row.status) && (
           <>
-            <Badge tone="neutral">Closed</Badge>
+            <Badge tone="neutral"><Tx>Closed</Tx></Badge>
             {row.closed_at && <span className="text-xs text-muted">{formatDateOnly(row.closed_at.slice(0, 10))}</span>}
           </>
         )}

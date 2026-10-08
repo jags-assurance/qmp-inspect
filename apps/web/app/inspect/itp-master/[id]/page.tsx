@@ -15,6 +15,8 @@ import { MasterAdminPanel } from "./admin-panel";
 import Link from "next/link";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -39,6 +41,7 @@ interface SectionWithItems {
 // Read-only view — editing a master template directly is out of scope; the only way content
 // enters the master library is via the proposal-approval flow (lib/itp-master/actions.ts).
 export default async function MasterTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const tl = await getTranslator();
   const { id } = await params;
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect/itps");
@@ -124,9 +127,9 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
         <Badge tone={template.is_active ? "success" : "neutral"}>{template.is_active ? "Active" : "Inactive"}</Badge>
-        <span className="text-sm text-muted">v{template.version}</span>
+        <span className="text-sm text-muted"><T>v</T>{template.version}</span>
         <PageGuide
-          title="Master template — how this works"
+          title={tl("Master template — how this works")}
           points={[
             "Sections and activities are read-only here. The one thing a JAGS Admin can set directly is each activity's default sign-off level per party type (Client, Main contractor, Subcontractor, TPI / Lab) — applied to the matching parties whenever a project ITP is created from this template.",
             "The only way content changes is via the proposal flow: a JAGS Admin approves a proposal (from an ITP's own \"Propose to master library\" action) to create a new template or update this one.",
@@ -145,7 +148,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
           href={`/inspect/itps/new?tab=template&template=${template.id}`}
           className="mt-3 inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
         >
-          Use this template
+          <T>Use this template</T>
         </Link>
       )}
       {canEditDefaults && (
@@ -179,15 +182,15 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
             />
           </div>
         ))}
-        {(sections ?? []).length === 0 && <p className="text-sm text-muted">No sections in this template.</p>}
+        {(sections ?? []).length === 0 && <p className="text-sm text-muted"><T>No sections in this template.</T></p>}
       </div>
 
       <VersionHistoryPanel revisions={revisions ?? []} />
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink">Change log</h2>
+        <h2 className="text-sm font-medium text-ink"><T>Change log</T></h2>
         {(auditRows ?? []).length === 0 ? (
-          <p className="mt-1 text-xs text-muted">No administrative changes recorded yet.</p>
+          <p className="mt-1 text-xs text-muted"><T>No administrative changes recorded yet.</T></p>
         ) : (
           <ul className="mt-2 space-y-1 text-sm">
             {(auditRows ?? []).map((a) => (

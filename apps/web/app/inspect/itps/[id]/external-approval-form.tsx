@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { recordExternalApprovalAction, type RecordExternalApprovalState } from "@/lib/itps/actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: RecordExternalApprovalState = { error: null };
 
@@ -22,14 +24,14 @@ export function ExternalApprovalForm({
   recordedByName: string | null;
   recordedAt: string | null;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(recordExternalApprovalAction, initialState);
 
   return (
     <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">External approval reference</h2>
+      <h2 className="text-sm font-semibold text-ink"><Tx>External approval reference</Tx></h2>
       <p className="mt-1 text-xs text-muted">
-        Record a reference if the client approved this ITP in their own document-control system
-        instead of accepting it here.
+        <Tx>Record a reference if the client approved this ITP in their own document-control system instead of accepting it here.</Tx>
       </p>
 
       {reference && (
@@ -37,7 +39,7 @@ export function ExternalApprovalForm({
           <p className="text-ink">{reference}</p>
           {(recordedByName || recordedAt) && (
             <p className="mt-1 text-xs text-muted">
-              Recorded by {recordedByName ?? "unknown"}
+              <Tx>Recorded by</Tx> {recordedByName ?? "unknown"}
               {recordedAt ? ` on ${new Date(recordedAt).toLocaleString("en-GB")}` : ""}
             </p>
           )}
@@ -49,7 +51,7 @@ export function ExternalApprovalForm({
         <input
           type="text"
           name="reference"
-          placeholder="e.g. Approved in client's Aconex system, ref AX-2026-4471"
+          placeholder={tl("e.g. Approved in client's Aconex system, ref AX-2026-4471")}
           defaultValue={reference ?? ""}
           required
           className="w-full sm:min-w-[20rem] flex-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"

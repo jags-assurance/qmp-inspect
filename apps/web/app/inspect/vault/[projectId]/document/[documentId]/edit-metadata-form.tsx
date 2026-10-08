@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updateVaultDocumentMetadataAction, type UpdateVaultMetadataState } from "@/lib/vault/document-control-actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: UpdateVaultMetadataState = { error: null };
 
@@ -39,7 +40,7 @@ export function EditMetadataForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline sm:min-h-0">
-        Edit details
+        <Tx>Edit details</Tx>
       </button>
     );
   }
@@ -49,28 +50,28 @@ export function EditMetadataForm({
       <input type="hidden" name="document_id" value={documentId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label className="block text-xs text-muted sm:col-span-2">
-        Title
+        <Tx>Title</Tx>
         <input name="title" defaultValue={title} required maxLength={200} className={cls} />
       </label>
       <label className="block text-xs text-muted">
-        Document reference
+        <Tx>Document reference</Tx>
         <input name="document_reference" defaultValue={reference} readOnly={locked} className={cls} />
       </label>
       <label className="block text-xs text-muted">
-        Revision
+        <Tx>Revision</Tx>
         <input name="revision" defaultValue={revision} required readOnly={locked} className={cls} />
       </label>
       <label className="block text-xs text-muted">
-        Document date
+        <Tx>Document date</Tx>
         <input name="document_date" type="date" defaultValue={documentDate} className={cls} />
       </label>
       <label className="block text-xs text-muted sm:col-span-2">
-        Notes
+        <Tx>Notes</Tx>
         <textarea name="notes" rows={2} defaultValue={notes} className={cls} />
       </label>
       {locked && (
         <p className="text-xs text-muted sm:col-span-2">
-          Reference and revision are locked because this document is approved. Upload a new revision to change them.
+          <Tx>Reference and revision are locked because this document is approved. Upload a new revision to change them.</Tx>
         </p>
       )}
       <div className="flex items-center gap-3 sm:col-span-2">
@@ -78,7 +79,7 @@ export function EditMetadataForm({
           {pending ? "Saving…" : "Save changes"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
       {state.error && (
