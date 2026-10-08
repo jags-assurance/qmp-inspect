@@ -15,7 +15,8 @@ export interface BackgroundJobRow {
     | "render_ncr_pdf"
     | "render_irn_pdf"
     | "render_data_book_pdf"
-    | "render_ncr_closeout_certificate";
+    | "render_ncr_closeout_certificate"
+    | "render_audit_trail_pdf";
   payload: Record<string, unknown>;
   status: "pending" | "processing" | "completed" | "failed";
   result_storage_path: string | null;
@@ -112,4 +113,15 @@ export interface RenderDataBookPdfPayload {
 export interface RenderNcrCloseoutCertificatePayload {
   ncr_id: string;
   requested_by: string;
+}
+
+/** Payload for "render_audit_trail_pdf" — a project's audit log (with the page's filters) as a branded
+ *  landscape A4 PDF. Staff-only; `from_iso` is the already-resolved lower bound of the date range.
+ *  Same shape as the web app's RenderAuditTrailPdfPayload (apps/web/lib/reports/types.ts). */
+export interface RenderAuditTrailPdfPayload {
+  project_id: string;
+  requested_by: string;
+  from_iso: string | null;
+  cat: string | null;
+  actor: string | null;
 }

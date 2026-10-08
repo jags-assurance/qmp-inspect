@@ -2,7 +2,12 @@
 import { formatLocationForDisplay } from "@/lib/checklists/location";
 
 import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { bulkIssueIrnAction } from "@/lib/checklists/actions";
+import { BULK_IRN_MAX, isBulkIrnEligible, summariseBulk, type BulkIrnResult } from "@/lib/checklists/bulk-irn";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
@@ -80,16 +85,113 @@ const columns: DataTableColumn<InspectionListRow>[] = [
 
 export function InspectionsTable({ rows, totalCount, locale }: { rows: InspectionListRow[]; totalCount: number; locale?: SupportedLocale }) {
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [result, setResult] = useState<BulkIrnResult | null>(null);
+  const [pending, startTransition] = useTransition();
+  const { ask, dialog } = useConfirm();
+
+  const eligibleIds = useMemo(() => rows.filter(isBulkIrnEligible).map((r) => r.id), [rows]);
+  const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
+  // Selection only ever holds ids still on this page and still eligible (a paged/refreshed list drops stale ones).
+  const chosen = eligibleIds.filter((id) => selected.has(id));
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const selectColumn: DataTableColumn<InspectionListRow> = {
+    key: "select",
+    header: "Select",
+    render: (r) =>
+      isBulkIrnEligible(r) ? (
+        <input
+          type="checkbox"
+          checked={selected.has(r.id)}
+          onChange={() => toggle(r.id)}
+          disabled={pending}
+          aria-label={`Select ${r.record_number} for bulk IRN issue`}
+          className="h-5 w-5"
+        />
+      ) : null,
+  };
+
+  async function run() {
+    const ok = await ask({
+      title: `Issue ${chosen.length} IRN${chosen.length === 1 ? "" : "s"}?`,
+      message: "Each selected inspection goes through the same checks as issuing it individually (assigned party, open Holds, mandatory N/A items, open NCRs). Any that fail are skipped and reported; the rest are issued.",
+      confirmLabel: "Issue IRNs",
+    });
+    if (ok === null) return;
+    const ids = chosen;
+    startTransition(async () => {
+      const res = await bulkIssueIrnAction(ids);
+      setResult(res);
+      setSelected(new Set());
+    });
+  }
+
+  const summary = result ? summariseBulk(result.items) : null;
+
   return (
-    <DataTable
-      columns={columns}
-      locale={locale}
-      rows={rows}
-      searchPlaceholder="Search record no., activity or ITP…"
-      searchKeys={(r) => `${r.record_number} ${r.activity} ${r.itp_number}`}
-      emptyMessage="No inspections match these filters."
-      serverSearch={{ value: searchValue, onChange: setSearchValue }}
-      pagination={{ page, pageSize: INSPECTIONS_PAGE_SIZE, totalCount, onPageChange: goToPage }}
-    />
+    <div>
+      {dialog}
+      {eligibleIds.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
+          <Button type="button" size="sm" disabled={pending || chosen.length === 0 || chosen.length > BULK_IRN_MAX} onClick={run}>
+            {pending ? "Issuing…" : `Issue IRN for selected (${chosen.length})`}
+          </Button>
+          <button
+            type="button"
+            className="text-burgundy hover:underline disabled:opacity-50"
+            disabled={pending}
+            onClick={() => setSelected(new Set(chosen.length === eligibleIds.length ? [] : eligibleIds.slice(0, BULK_IRN_MAX)))}
+          >
+            {chosen.length === eligibleIds.length ? "Clear selection" : "Select all eligible on this page"}
+          </button>
+          <span className="text-muted">Completed inspections without a live IRN. Up to {BULK_IRN_MAX} at a time.</span>
+        </div>
+      )}
+      {result && (
+        <div className="mb-3 rounded-lg border border-border bg-surface p-3 text-sm" role="status">
+          {result.error ? (
+            <p className="text-danger">{result.error}</p>
+          ) : (
+            <>
+              <p className="font-medium text-ink">
+                {summary!.issued} issued, {summary!.already} already issued, {summary!.skipped} skipped.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {result.items.map((i) => (
+                  <li key={i.id} className="flex flex-wrap items-baseline gap-2">
+                    <Link href={`/inspect/inspections/${i.id}`} className="doc-id text-burgundy hover:underline">
+                      {byId.get(i.id)?.record_number ?? i.id}
+                    </Link>
+                    {i.status === "issued" && <Badge tone="success">{i.irnNumber}</Badge>}
+                    {i.status === "already" && <Badge tone="info">Already issued</Badge>}
+                    {i.status === "skipped" && <span className="text-danger">Skipped: {i.reason}</span>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <button type="button" className="mt-2 text-burgundy hover:underline" onClick={() => setResult(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      <DataTable
+        columns={eligibleIds.length > 0 ? [selectColumn, ...columns] : columns}
+        locale={locale}
+        rows={rows}
+        searchPlaceholder="Search record no., activity or ITP…"
+        searchKeys={(r) => `${r.record_number} ${r.activity} ${r.itp_number}`}
+        emptyMessage="No inspections match these filters."
+        serverSearch={{ value: searchValue, onChange: setSearchValue }}
+        pagination={{ page, pageSize: INSPECTIONS_PAGE_SIZE, totalCount, onPageChange: goToPage }}
+      />
+    </div>
   );
 }

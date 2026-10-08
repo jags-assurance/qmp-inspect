@@ -49,7 +49,7 @@ export function jobTimeoutMs(jobType: string, payload?: Record<string, unknown> 
   if (jobType === "render_data_book_pdf") {
     return payload && payload.variant === "handover_certificate" ? DEFAULT_JOB_TIMEOUT_MS : DATA_BOOK_JOB_TIMEOUT_MS;
   }
-  if (jobType === "generate_monthly_report_pack" || jobType === "generate_weekly_report_pack" || jobType === "render_portfolio_summary_pdf") {
+  if (jobType === "generate_monthly_report_pack" || jobType === "generate_weekly_report_pack" || jobType === "render_portfolio_summary_pdf" || jobType === "render_audit_trail_pdf") {
     return 8 * 60 * 1000;
   }
   return DEFAULT_JOB_TIMEOUT_MS;

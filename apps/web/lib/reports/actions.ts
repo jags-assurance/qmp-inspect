@@ -29,10 +29,12 @@ import {
   type RenderIrnPdfPayload,
   type RenderDataBookPdfPayload,
   type RenderNcrCloseoutCertificatePayload,
+  type RenderAuditTrailPdfPayload,
 } from "./types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { aggregateReportSummaryData } from "@/lib/reports/report-summary";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { describeAuditFilters, parseAuditExportFilters } from "@/lib/audit/export";
 import { canRunStandaloneAssignment } from "@/lib/standalone/actions";
 
 /** Signed URL lifetime for generated PDFs (seconds): short, regenerated on every status poll / page load (E-11). */
@@ -1704,4 +1706,107 @@ export async function getLatestPortfolioSummaryPdf(): Promise<PortfolioSummaryPd
     pdfUrl,
     downloadUrl,
   };
+}
+
+export interface RequestAuditTrailPdfState {
+  error: string | null;
+  success?: boolean;
+}
+
+/**
+ * Queues a "render_audit_trail_pdf" background job: the project's audit log, with the page's current
+ * range / category / person filters, as a PDF. Same permission as viewing the log (JAGS staff). The
+ * request itself is written to the audit log. Needs migration 20261121000100 (job type + policies);
+ * until it is applied the insert is rejected and this reports that instead of a generic failure.
+ */
+export async function requestAuditTrailPdfAction(_prev: RequestAuditTrailPdfState, formData: FormData): Promise<RequestAuditTrailPdfState> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return { error: "The audit log is only available to JAGS staff." };
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  if (!projectId) return { error: "Missing project." };
+  const filters = parseAuditExportFilters({
+    range: String(formData.get("range") ?? "") || null,
+    cat: String(formData.get("cat") ?? "") || null,
+    actor: String(formData.get("actor") ?? "") || null,
+  });
+
+  const supabase = await createSupabaseServerClient();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, organization_id")
+    .eq("id", projectId)
+    .maybeSingle<{ id: string; organization_id: string }>();
+  if (!project) return { error: "Project not found, or you do not have access to it." };
+
+  if (await hasInFlightJob(supabase, "render_audit_trail_pdf", "project_id", projectId)) {
+    return { error: null, success: true };
+  }
+  const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
+    job_type: "render_audit_trail_pdf",
+    payload: {
+      project_id: projectId,
+      requested_by: session.userId,
+      from_iso: filters.fromIso,
+      cat: filters.cat,
+      actor: filters.actor,
+    } satisfies RenderAuditTrailPdfPayload,
+  });
+  if (error) {
+    // 23514 = job_type check violation: the migration adding this job type is not applied yet.
+    if (error.code === "23514" || /background_jobs_job_type_check/.test(error.message)) {
+      return { error: "PDF export of the audit log is not available yet - a pending database update has to be applied first. The CSV export works." };
+    }
+    return { error: backgroundJobInsertErrorMessage(error, "Could not queue the PDF. Check you have permission and try again.") };
+  }
+
+  await recordAuditEvent(supabase, {
+    organizationId: project.organization_id,
+    projectId,
+    entityType: "project",
+    entityId: projectId,
+    action: "audit_log_exported",
+    actorId: session.userId,
+    summary: `Audit log exported as PDF (${describeAuditFilters(filters)})`,
+    changes: { format: "pdf", filters },
+  });
+  return { error: null, success: true };
+}
+
+export interface AuditTrailPdfStatus {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  errorMessage: string | null;
+  createdAt: string;
+  pdfUrl: string | null;
+  downloadUrl: string | null;
+}
+
+/** This staff member's most recent audit-trail PDF for the project. Polled via usePdfPolling. */
+export async function getLatestAuditTrailPdf(projectId: string): Promise<AuditTrailPdfStatus | null> {
+  const session = await requireSession();
+  if (!session.isJagsStaff) return null;
+  const supabase = await createSupabaseServerClient();
+
+  const { data: latest } = await supabase
+    .from(BACKGROUND_JOBS_TABLE)
+    .select("id, status, result_storage_path, error_message, created_at")
+    .eq("job_type", "render_audit_trail_pdf")
+    .eq("payload->>project_id", projectId)
+    .eq("payload->>requested_by", session.userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<Pick<BackgroundJobRow, "id" | "status" | "error_message" | "created_at" | "result_storage_path">>();
+  if (!latest) return null;
+
+  let pdfUrl: string | null = null;
+  let downloadUrl: string | null = null;
+  if (latest.status === "completed" && latest.result_storage_path) {
+    const [{ data: viewSigned }, { data: downloadSigned }] = await Promise.all([
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS),
+      supabase.storage.from(GENERATED_DOCUMENTS_BUCKET).createSignedUrl(latest.result_storage_path, PDF_URL_TTL_SECONDS, { download: true }),
+    ]);
+    pdfUrl = viewSigned?.signedUrl ?? null;
+    downloadUrl = downloadSigned?.signedUrl ?? null;
+  }
+  return { id: latest.id, status: latest.status, errorMessage: latest.error_message, createdAt: latest.created_at, pdfUrl, downloadUrl };
 }
