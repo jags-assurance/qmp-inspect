@@ -8,6 +8,7 @@ import {
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
 import { fetchAllRows, fetchInChunks } from "./helpers";
+import { isRegisterRowCounted, type RegisterRowMeta } from "@/lib/registers/lifecycle";
 import { isTerminalItpStatus } from "@/lib/itps/lifecycle";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 
@@ -58,6 +59,27 @@ interface InspectionRecordRow {
   checklist_template_id: string | null;
   overall_result: string | null;
   irns: { id: string; voided_at: string | null }[] | { id: string; voided_at: string | null } | null;
+}
+
+/**
+ * E2: register rows for readiness are read WITH verified_at / lifecycle_status and filtered through
+ * isRegisterRowCounted (same rule as the inspection soft-stop): unverified (contributor-entered, not yet
+ * verified by JAGS staff) and superseded / retired / withdrawn rows are ignored. If those columns are not in
+ * the database yet (migration 20261103000100 unapplied) the read is repeated without them, as before.
+ */
+export async function fetchCountedRegisterRows<T extends object>(
+  columns: string,
+  page: (select: string, from: number, to: number) => PromiseLike<{ data: unknown[] | null; error?: unknown }>
+): Promise<(T & RegisterRowMeta)[]> {
+  const read = (select: string) => fetchAllRows<T & RegisterRowMeta>((from, to) => page(select, from, to) as never);
+  let rows: (T & RegisterRowMeta)[];
+  try {
+    rows = await read(`${columns}, verified_at, lifecycle_status`);
+  } catch (err) {
+    if (!/does not exist|schema cache/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    rows = await read(columns);
+  }
+  return rows.filter(isRegisterRowCounted);
 }
 
 function toCategory(label: string, ready: number, total: number): ReadinessCategory {
@@ -129,32 +151,20 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
       .select("id", { count: "exact", head: true })
       .eq("project_id", projectId)
       .neq("status", "closed"),
-    fetchAllRows<{ id: string; due_date: string }>((from, to) =>
-      supabase.from(CALIBRATION_REGISTER_TABLE).select("id, due_date").eq("project_id", projectId).order("id").range(from, to).returns<{ id: string; due_date: string }[]>()
+    fetchCountedRegisterRows<{ id: string; due_date: string }>("id, due_date", (select, from, to) =>
+      untypedFrom(supabase, CALIBRATION_REGISTER_TABLE).select(select).eq("project_id", projectId).order("id").range(from, to)
     ),
-    fetchAllRows<{ id: string; expiry_date: string }>((from, to) =>
-      supabase.from(WELDER_QUALIFICATION_REGISTER_TABLE).select("id, expiry_date").eq("project_id", projectId).order("id").range(from, to).returns<{ id: string; expiry_date: string }[]>()
+    fetchCountedRegisterRows<{ id: string; expiry_date: string }>("id, expiry_date", (select, from, to) =>
+      untypedFrom(supabase, WELDER_QUALIFICATION_REGISTER_TABLE).select(select).eq("project_id", projectId).order("id").range(from, to)
     ),
-    fetchAllRows<{ id: string; approval_status: string; receipt_status: string }>((from, to) =>
-      supabase
-        .from(MATERIAL_REGISTER_TABLE)
-        .select("id, approval_status, receipt_status")
-        .eq("project_id", projectId)
-        .order("id")
-        .range(from, to)
-        .returns<{ id: string; approval_status: string; receipt_status: string }[]>()
+    fetchCountedRegisterRows<{ id: string; approval_status: string; receipt_status: string }>("id, approval_status, receipt_status", (select, from, to) =>
+      untypedFrom(supabase, MATERIAL_REGISTER_TABLE).select(select).eq("project_id", projectId).order("id").range(from, to)
     ),
     fetchAllRows<{ id: string }>((from, to) =>
       untypedFrom(supabase, "data_books").select("id").eq("project_id", projectId).eq("status", "issued").order("id").range(from, to).returns<{ id: string }[]>()
     ),
-    fetchAllRows<{ id: string; expiry_date: string }>((from, to) =>
-      supabase
-        .from("personnel_certifications" as never)
-        .select("id, expiry_date")
-        .eq("project_id" as never, projectId as never)
-        .order("id" as never)
-        .range(from, to)
-        .returns<{ id: string; expiry_date: string }[]>()
+    fetchCountedRegisterRows<{ id: string; expiry_date: string }>("id, expiry_date", (select, from, to) =>
+      untypedFrom(supabase, "personnel_certifications").select(select).eq("project_id", projectId).order("id").range(from, to)
     ),
     fetchAllRows<{ id: string; status: string; conclusion: string | null; cleared_at: string | null }>((from, to) =>
       supabase

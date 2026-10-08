@@ -29,9 +29,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { data: itp } = await supabase
     .from("itps")
-    .select("id, itp_number, title, revision")
+    .select("id, itp_number, title, revision, updated_at")
     .eq("id", id)
-    .maybeSingle<{ id: string; itp_number: string; title: string; revision: number }>();
+    .maybeSingle<{ id: string; itp_number: string; title: string; revision: number; updated_at: string | null }>();
 
   if (!itp) {
     return NextResponse.json({ error: "ITP not found, or you don't have access to it." }, { status: 404 });
@@ -80,8 +80,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       })),
   }));
 
+  // D11: stamp the file with the revision / content fingerprint it was taken from, so a later upload of
+  // this file is refused if the ITP has moved on. Token is null until migration 20261113000600 is applied.
+  const tokenRes = await (supabase as unknown as { rpc: (fn: string, args: object) => Promise<{ data: unknown; error: unknown }> }).rpc("itp_content_token", { p_itp_id: id });
+  const contentToken = !tokenRes.error && typeof tokenRes.data === "string" ? tokenRes.data : null;
+
   const workbook = buildItpWorkbook(
-    { itpNumber: itp.itp_number, title: itp.title, revision: itp.revision },
+    {
+      itpNumber: itp.itp_number,
+      title: itp.title,
+      revision: itp.revision,
+      stamp: { itpId: itp.id, revision: itp.revision, itpUpdatedAt: itp.updated_at, contentToken, stampedAt: new Date().toISOString() },
+    },
     sourceSections
   );
 

@@ -75,7 +75,9 @@ import { OfflineRevisionForm } from "./offline-revision-form";
 // distinct from the status stepper below (see lib/itps/phase.ts's doc comment).
 import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
 // R111: honest "AI not configured" gate (R43's pattern) for the translate-content panel below.
-import { isAiConfigured } from "@/lib/ai/gate";
+import { parseItpTranslations } from "@/lib/itps/translations";
+import { describeItpExit } from "@/lib/itps/exit-notice";
+import { isAiEnabledForOrg } from "@/lib/ai/gate";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { TranslateContentPanel } from "./translate-content-panel";
 import { ItpExitControls } from "./itp-exit-controls";
@@ -150,6 +152,10 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       assigned_acceptor_user_id: string | null;
       returned_reason: string | null;
       returned_at: string | null;
+      withdrawn_reason?: string | null;
+      withdrawn_at?: string | null;
+      superseded_by_itp_id?: string | null;
+      translations?: unknown;
       revision_needs_approval: boolean;
       projects: {
         id: string;
@@ -172,6 +178,14 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     notFound();
   }
   const Heading = embedded ? "h2" : "h1";
+
+  // D9: a superseded/withdrawn ITP shows why, when, and a link to the replacement.
+  const replacementItp =
+    itp.superseded_by_itp_id && (itp.status === "superseded" || itp.status === "withdrawn")
+      ? (await supabase.from("itps").select("id, itp_number, title").eq("id", itp.superseded_by_itp_id).maybeSingle<{ id: string; itp_number: string; title: string }>()).data
+      : null;
+
+  const exitNotice = describeItpExit({ status: itp.status, reason: itp.withdrawn_reason, at: itp.withdrawn_at });
 
   // R80: only fetched once the field is actually set (or the viewer can write it) — a bare name
   // lookup for display, not gated by RLS beyond the normal users_select policy every staff login
@@ -714,6 +728,20 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {itp.returned_at && <p className="mt-1 text-xs text-muted">{new Date(itp.returned_at).toLocaleString("en-GB")}</p>}
         </div>
       )}
+      {exitNotice && (
+        <div className="mt-3 rounded-md border border-border bg-off-white px-4 py-3 text-sm text-ink" role="status" data-testid="itp-exit-notice">
+          <p className="font-medium">{exitNotice.heading}</p>
+          <p className="mt-0.5 whitespace-pre-line">Reason: {exitNotice.reason}</p>
+          {replacementItp && (
+            <p className="mt-1">
+              Replaced by{" "}
+              <Link href={`/inspect/itps/${replacementItp.id}`} className="text-burgundy hover:underline">
+                {replacementItp.itp_number} — {replacementItp.title}
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -752,7 +780,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             {itp.projects?.organizations?.name} · {itp.projects?.name}
             {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
           </p>
-          {isAiConfigured() && <TranslateContentPanel itpId={itp.id} />}
+          {(await isAiEnabledForOrg(supabase, itp.projects?.organization_id)) && <TranslateContentPanel itpId={itp.id} revision={itp.revision} stored={parseItpTranslations(itp.translations)} />}
           {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
           {signoffTotal > 0 && (
             <p className="mt-1 text-sm text-muted">

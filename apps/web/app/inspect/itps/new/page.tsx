@@ -13,6 +13,7 @@ import { NewItpFromAiForm, type VaultDocumentOption } from "./new-itp-from-ai-fo
 import { ItpCreationTabs } from "./itp-creation-tabs";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { isAiConfigured } from "@/lib/ai/gate";
+import { aiEntryPointVisible } from "@/lib/ai/gate-decision";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 
@@ -65,7 +66,7 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
   }
 
   const [{ data: allProjects }, { data: templates }, disciplines, { data: vaultDocumentRows }] = await Promise.all([
-    supabase.from("projects").select("id, project_number, name").order("name"),
+    supabase.from("projects").select("id, project_number, name, organizations(ai_consent)").order("name"),
     supabase
       .from(ITP_MASTER_TEMPLATES_TABLE)
       .select("id, title, industry, version")
@@ -126,9 +127,14 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
 
   // R43 — hide the AI entry point entirely when this deployment has no AI provider key configured,
   // rather than showing a tab that can only ever fail after submit.
-  const aiConfigured = isAiConfigured();
+  // D3/B9: ...and when the organisation's ai_consent is off, only projects of consenting orgs are offered
+  // (the tab disappears when none qualify) instead of refusing after submit.
+  const aiProjects = projects
+    .filter((p) => aiEntryPointVisible(true, p.organizations?.ai_consent))
+    .map(({ id, project_number, name }) => ({ id, project_number, name }));
+  const aiConfigured = isAiConfigured() && aiProjects.length > 0;
   const fromAi = aiConfigured ? (
-    <NewItpFromAiForm projects={projects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
+    <NewItpFromAiForm projects={aiProjects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
   ) : undefined;
 
   if (clientEligibleProjectIds) {

@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { mergeItpTranslation } from "@/lib/itps/translations";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -1126,6 +1127,8 @@ const NEXT_STATUS = {
 
 export interface AdvanceItpStatusState {
   error: string | null;
+  /** Non-blocking warning (the status change succeeded), e.g. checklists could not be generated. */
+  notice?: string | null;
 }
 
 /**
@@ -1272,6 +1275,7 @@ export async function advanceItpStatusAction(
     return { error: "This ITP's status has already changed — refresh the page to see where it is now." };
   }
 
+  let checklistNotice: string | null = null;
   // Best-effort: fetched once and reused by every side-effect below (audit trail, submit-for-review
   // staff notification, initial-issue revision snapshot, client-acceptance notification) — none of
   // these block the status change itself, which has already succeeded (error was already checked above).
@@ -1357,12 +1361,14 @@ export async function advanceItpStatusAction(
         await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
         await recordChecklistReviewTick(supabase, { itpId, decision: "approve", formData, actorId: user?.id ?? null });
         // Checklists for activities that don't have one yet (e.g. an AI draft by a client/contractor creator,
-        // or activities pasted in): idempotent, best-effort.
+        // or activities pasted in): idempotent. "starter" mode falls back to a deterministic non-AI starter
+        // checklist when AI is off / unpaid / fails, so approval always leaves checklists; a failure is surfaced.
         if (itp && organizationId) {
           try {
-            await generateChecklistsForItp(supabase, { itpId, itpNumber: itp.itp_number, projectId: itp.project_id, organizationId, userId: user?.id ?? null });
+            const gen = await generateChecklistsForItp(supabase, { itpId, itpNumber: itp.itp_number, projectId: itp.project_id, organizationId, userId: user?.id ?? null, mode: "starter" });
+            if (gen.error) checklistNotice = `ITP approved, but checklists were not generated: ${gen.error} Use "Generate checklists" on the checklists page.`;
           } catch {
-            // The manual "Generate checklists" button still works.
+            checklistNotice = 'ITP approved, but checklists could not be generated. Use "Generate checklists" on the checklists page.';
           }
         }
 
@@ -1398,7 +1404,7 @@ export async function advanceItpStatusAction(
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
-  return { error: null };
+  return { error: null, notice: checklistNotice };
 }
 
 export interface ApproveRevisionState {
@@ -1850,16 +1856,18 @@ export interface TranslateItpContentState {
   error: string | null;
   translated: string | null;
   targetLanguage: string | null;
+  /** True once the translation is saved on the ITP (itps.translations); false if it could not be stored. */
+  stored?: boolean;
 }
 
 const EMPTY_TRANSLATE_STATE: TranslateItpContentState = { error: null, translated: null, targetLanguage: null };
 
 /**
- * R111: translates this ITP's own title + scope (whatever it actually has recorded — never any
- * other project's data) into a language the user picks from the UI dropdown, for display alongside
- * the original. This is a pure display aid: nothing here is ever written back to the itp row, and
- * translating never touches title/scope/applicable_standard themselves — only
- * generateItpDraftAction/createItpFromDraftAction and the section/item editors do that.
+ * R111 / D12: translates this ITP's own title and scope (whatever it actually has recorded — never any
+ * other project's data) into a language from a fixed list, and STORES the result on the ITP
+ * (itps.translations, one entry per language, with the revision it was made from) so it is shown
+ * on the ITP page afterwards without another AI call. It never touches title/scope themselves — the
+ * original stays authoritative. Falls back to display-only if the column is not there yet.
  */
 export const TRANSLATION_LANGUAGES = ["French", "Arabic", "Spanish", "German", "Portuguese", "Chinese", "Hindi", "Urdu"] as const;
 
@@ -1885,19 +1893,19 @@ export async function translateItpContentAction(
 
   const { data: itp } = await supabase
     .from("itps")
-    .select("title, scope, project_id, projects(organization_id)")
+    .select("title, scope, revision, project_id, projects(organization_id)")
     .eq("id", itpId)
-    .maybeSingle<{ title: string; scope: string | null; project_id: string; projects: { organization_id: string } | null }>();
+    .maybeSingle<{ title: string; scope: string | null; revision: number; project_id: string; projects: { organization_id: string } | null }>();
 
   if (!itp || !itp.projects) {
     return { ...EMPTY_TRANSLATE_STATE, error: "ITP not found." };
   }
+  const organizationId = itp.projects.organization_id;
 
-  const gate = await assertAiAllowed(supabase, itp.projects.organization_id);
+  const gate = await assertAiAllowed(supabase, organizationId);
   if (!gate.allowed) return { ...EMPTY_TRANSLATE_STATE, error: gate.reason };
 
-  const sourceText = [itp.title, itp.scope].filter(Boolean).join("\n\n");
-  if (!sourceText.trim()) {
+  if (!itp.title.trim() && !itp.scope?.trim()) {
     return { ...EMPTY_TRANSLATE_STATE, error: "This ITP has no title or scope text to translate yet." };
   }
 
@@ -1905,37 +1913,58 @@ export async function translateItpContentAction(
     // The strongest repeat-input candidate in the app: re-picking the same target language for an
     // ITP's title/scope (which rarely change) is the normal way this feature gets used more than
     // once on the same ITP.
-    const inputHash = hashAiCacheInput({ text: sourceText, targetLanguage });
-    const cached = await findCachedAiResponse<string>(supabase, {
-      organizationId: itp.projects.organization_id,
-      feature: "content_translation",
-      promptVersion: PROMPT_VERSIONS.content_translation,
-      inputHash,
-    });
-    let usage: GeminiTokenUsage | null = null;
-    let translated: string;
-    if (cached) {
-      translated = cached;
-    } else {
-      const captured = await withGeminiUsage(() => geminiProvider.translateText({ text: sourceText, targetLanguage }));
-      translated = captured.result;
-      usage = captured.usage;
+    const translateOne = async (text: string): Promise<string> => {
+      const inputHash = hashAiCacheInput({ text, targetLanguage });
+      const cached = await findCachedAiResponse<string>(supabase, {
+        organizationId,
+        feature: "content_translation",
+        promptVersion: PROMPT_VERSIONS.content_translation,
+        inputHash,
+      });
+      let usage: GeminiTokenUsage | null = null;
+      let out: string;
+      if (cached) {
+        out = cached;
+      } else {
+        const captured = await withGeminiUsage(() => geminiProvider.translateText({ text, targetLanguage }));
+        out = captured.result;
+        usage = captured.usage;
+      }
+      await logAiUsage(supabase, {
+        organizationId,
+        projectId: itp.project_id,
+        userId: user?.id ?? null,
+        feature: "content_translation",
+        modelId: getGeminiModel("content_translation"),
+        promptVersion: PROMPT_VERSIONS.content_translation,
+        sourceRef: { itpId, targetLanguage },
+        aiResponse: out,
+        inputHash,
+        servedFromCache: !!cached,
+        inputTokens: usage?.inputTokens ?? null,
+        outputTokens: usage?.outputTokens ?? null,
+      });
+      return out;
+    };
+    const title = await translateOne(itp.title);
+    const scope = itp.scope?.trim() ? await translateOne(itp.scope) : null;
+    const translated = [title, scope].filter(Boolean).join("\n\n");
+
+    // Persist on the ITP (D12). Best effort: the translation is still shown if it cannot be saved.
+    let stored = false;
+    const { data: existing, error: readError } = await supabase.from("itps").select("translations").eq("id", itpId).maybeSingle<{ translations: unknown }>();
+    if (!readError) {
+      const merged = mergeItpTranslation(existing?.translations, targetLanguage, {
+        title,
+        scope,
+        translated_at: new Date().toISOString(),
+        source_revision: itp.revision,
+      });
+      const { data: saved, error: saveError } = await supabase.from("itps").update({ translations: merged } as never).eq("id", itpId).select("id");
+      stored = !saveError && !!saved?.length;
     }
-    await logAiUsage(supabase, {
-      organizationId: itp.projects.organization_id,
-      projectId: itp.project_id,
-      userId: user?.id ?? null,
-      feature: "content_translation",
-      modelId: getGeminiModel("content_translation"),
-      promptVersion: PROMPT_VERSIONS.content_translation,
-      sourceRef: { itpId, targetLanguage },
-      aiResponse: translated,
-      inputHash,
-      servedFromCache: !!cached,
-      inputTokens: usage?.inputTokens ?? null,
-      outputTokens: usage?.outputTokens ?? null,
-    });
-    return { error: null, translated, targetLanguage };
+    if (stored) revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: null, translated, targetLanguage, stored };
   } catch (err) {
     return { ...EMPTY_TRANSLATE_STATE, error: aiErrorMessage(err, "Could not translate this ITP's content.") };
   }

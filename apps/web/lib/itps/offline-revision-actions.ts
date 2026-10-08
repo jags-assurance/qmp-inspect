@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { bumpRevisionIfIssued } from "@/lib/itps/revisions";
-import { parseItpWorkbook, EVIDENCE_LABEL, type OfflineParsedRow } from "@/lib/itps/offline-workbook";
+import { parseItpWorkbook, staleWorkbookError, EVIDENCE_LABEL, type OfflineParsedRow } from "@/lib/itps/offline-workbook";
 import { recordAuditEvent } from "@/lib/audit/log";
 
 // R41 — the re-upload half of the AI offline round-trip: AI draft (ai-draft-actions.ts) -> review ->
@@ -207,13 +207,13 @@ export async function parseOfflineItpUploadAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: itp } = await supabase.from("itps").select("id").eq("id", itpId).maybeSingle<{ id: string }>();
+  const { data: itp } = await supabase.from("itps").select("id, revision").eq("id", itpId).maybeSingle<{ id: string; revision: number }>();
   if (!itp) {
     return { ...EMPTY_PARSE_STATE, error: "ITP not found, or you don't have access to it." };
   }
 
   const buffer = await file.arrayBuffer();
-  const { error: parseError, rows } = await parseItpWorkbook(buffer);
+  const { error: parseError, rows, stamp } = await parseItpWorkbook(buffer);
   if (parseError) {
     return { ...EMPTY_PARSE_STATE, error: parseError };
   }
@@ -232,7 +232,15 @@ export async function parseOfflineItpUploadAction(
   // Record the ITP's fingerprint so applying the file can refuse if someone edits the ITP in between
   // (best-effort: null until migration 20261113000600 is applied, which keeps the old behaviour).
   const tokenRes = await (supabase as unknown as { rpc: (fn: string, args: object) => Promise<{ data: unknown; error: unknown }> }).rpc("itp_content_token", { p_itp_id: itpId });
-  const baseToken = !tokenRes.error && typeof tokenRes.data === "string" ? tokenRes.data : null;
+  const currentToken = !tokenRes.error && typeof tokenRes.data === "string" ? tokenRes.data : null;
+
+  // D11: refuse a file downloaded before the ITP's current revision / content (stamped at download time).
+  const staleError = staleWorkbookError(stamp ?? null, { itpId, revision: itp.revision, contentToken: currentToken });
+  if (staleError) return { ...EMPTY_PARSE_STATE, error: staleError };
+
+  // The apply step re-checks inside its transaction; prefer the token from the file so a change after
+  // download (not just after preview) is caught there too.
+  const baseToken = stamp?.contentToken ?? currentToken;
 
   return { error: null, itpId, rowsJson: JSON.stringify(rows), diff, baseToken };
 }
