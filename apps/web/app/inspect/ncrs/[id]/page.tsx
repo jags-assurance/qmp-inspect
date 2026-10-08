@@ -13,7 +13,9 @@ import { NcrDocuments } from "./ncr-documents";
 import { GradeObservation } from "./grade-observation";
 import { NcrPhotoUpload } from "./ncr-photo-upload";
 import { EditNcrDetailsForm, EnsurePunchButton, WithdrawNcrForm } from "./ncr-extra-panels";
-import { formatDateOnly, formatSiteDateTime } from "@/lib/ncrs/site-date";
+import { formatDateOnly, formatSiteDateTime, resolveSiteTimeZone } from "@/lib/ncrs/site-date";
+import { fetchProjectTimeZone } from "@/lib/projects/timezone";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NCR_DISPOSITION_LABELS, type NcrDisposition } from "@/lib/ncrs/extended";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
@@ -35,6 +37,9 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
   if (!detail) notFound();
   const { history, documents, vaultOptions, canVerify, ncr, latestNcrPdf, latestCloseoutCertificate, photos, people, responsibleParties, closeConsequences, punchItems, inspectionRecord, otherNcrs } = detail;
 
+  // Dates and overdue are judged in the project's timezone (env site zone when none is set).
+  const projectTz = await fetchProjectTimeZone(await createSupabaseServerClient(), ncr.project_id);
+  const siteTz = resolveSiteTimeZone(projectTz);
   const isClosed = ncr.status === "closed";
   const isWithdrawn = Boolean(ncr.withdrawn_at);
   // `undefined` = the extended-fields migration is not applied (the select fell back to base columns).
@@ -62,7 +67,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             <h1 className="doc-id text-2xl font-semibold text-ink">{ncr.ncr_number}</h1>
             <Badge tone={SEVERITY_TONE[ncr.severity]}>{SEVERITY_LABEL[ncr.severity]}</Badge>
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
-            {isOverdue(ncr) && <Badge tone="danger">Overdue</Badge>}
+            {isOverdue(ncr, projectTz) && <Badge tone="danger">Overdue</Badge>}
             {isWithdrawn && <Badge tone="neutral">Withdrawn</Badge>}
             {ncr.due_date && <span className="text-xs text-muted">Due {formatDateOnly(ncr.due_date)}</span>}
             <PageGuide
@@ -150,7 +155,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             <h2 className="text-base font-medium text-ink">Corrective action close-out</h2>
             <p className="mt-1 text-sm text-muted">
               {isClosed
-                ? `Closed ${ncr.closed_at ? formatSiteDateTime(ncr.closed_at) : ""}.`
+                ? `Closed ${ncr.closed_at ? formatSiteDateTime(ncr.closed_at, siteTz) : ""}.`
                 : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
             </p>
             {!isClosed && (
@@ -293,7 +298,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             <ul className="mt-3 space-y-2">
               {history.map((h) => (
                 <li key={h.id} className="text-xs text-ink">
-                  <span className="text-muted">{formatSiteDateTime(h.created_at)}</span> {h.summary}
+                  <span className="text-muted">{formatSiteDateTime(h.created_at, siteTz)}</span> {h.summary}
                   {h.actor_name && <span className="text-muted"> - {h.actor_name}</span>}
                 </li>
               ))}

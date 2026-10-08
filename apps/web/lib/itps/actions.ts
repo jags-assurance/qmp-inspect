@@ -23,6 +23,7 @@ import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage } from "@/lib/ai/log";
 import { findCachedAiResponse, hashAiCacheInput } from "@/lib/ai/cache";
 import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
+import { safeDbMessage } from "@/lib/errors/safe-message";
 
 // Default section structure from the Requirements doc (R24 examples) — a starting point the user
 // can add to, rename, or reorder; sections are explicitly not fixed.
@@ -1615,7 +1616,7 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
 
   const { error: rpcError } = await supabase.rpc("accept_itp", { target_itp_id: itpId });
   if (rpcError) {
-    return { error: rpcError.message || "Could not accept this ITP." };
+    return { error: safeDbMessage(rpcError, "Could not accept this ITP. Check you have permission and try again.", "accept_itp") };
   }
 
   // Best-effort: confirm the RPC actually landed (status is now client_accepted) before recording

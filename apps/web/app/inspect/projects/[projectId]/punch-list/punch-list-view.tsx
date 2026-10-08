@@ -7,6 +7,7 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { AddPunchItemForm } from "./add-punch-item-form";
 import { RecordWalkdownForm } from "./record-walkdown-form";
 import { WalkdownsPanel } from "./walkdowns-panel";
+import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { PunchListTable, type PunchListItemDisplayRow } from "./punch-list-table";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -45,6 +46,7 @@ export async function PunchListView({
   // together instead of as a permission -> project -> lists waterfall. A missing project still 404s
   // below (its list queries just come back empty under RLS).
   const punch = () => supabase.from(PUNCH_LIST_ITEMS_TABLE);
+  const projectTz = await fetchProjectTimeZone(supabase, projectId);
   const [
     canVerifyClose,
     { data: project },
@@ -201,6 +203,7 @@ export async function PunchListView({
           currentUserId={session.userId}
           projectParties={projectParties ?? []}
           exportName={`${project.project_number}-punch-list`}
+          timeZone={projectTz}
         />
         <LoadMore window={closedWindow} nextHref={loadMoreHref} noun="closed punch items" />
       </div>

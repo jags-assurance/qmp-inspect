@@ -31,6 +31,7 @@ import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
 import { PageGuide } from "@/components/domain/page-guide";
+import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { EditProjectDetailsForm } from "./edit-project-details-form";
 import { ProjectStatusControl } from "./project-status-control";
 import { NoticePeriodSettings } from "./notice-period-settings";
@@ -189,6 +190,7 @@ export async function ProjectOverviewView({
   ]);
 
   if (!project) notFound();
+  const projectTz = await fetchProjectTimeZone(supabase, project.id);
 
   const itpCount = itpCountRaw;
   const openNcrCount = knownCounts ? knownCounts.openNcrsAndObservations : openNcrCountRaw;
@@ -356,6 +358,7 @@ export async function ProjectOverviewView({
                 contract_number: project.contract_number,
                 start_date: project.start_date,
                 end_date: project.end_date,
+                timezone: projectTz,
               }}
             />
           )}

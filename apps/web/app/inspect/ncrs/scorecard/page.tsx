@@ -4,7 +4,8 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
-import { siteToday } from "@/lib/ncrs/site-date";
+import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
+import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { buildVendorScorecard, type ScorecardNcr } from "@/lib/ncrs/scorecard";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 
@@ -44,7 +45,7 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
     for (const p of data ?? []) partyNames.set(p.id, p.name);
   }
 
-  const scores = buildVendorScorecard(rows, siteToday());
+  const scores = buildVendorScorecard(rows, siteToday(new Date(), resolveSiteTimeZone(projectId ? await fetchProjectTimeZone(supabase, projectId) : null)));
   const num = "px-3 py-2 text-right tabular-nums";
 
   const scoreColumns: ResponsiveColumn<(typeof scores)[number]>[] = [

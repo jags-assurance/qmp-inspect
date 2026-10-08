@@ -9,6 +9,7 @@ import { getAppUrl } from "./app-url";
 import { checkPasswordPolicy } from "./password-policy";
 import { mfaChallengePath, mfaEnabled, needsMfaChallenge } from "./mfa";
 import { safeNextPath } from "./safe-redirect";
+import { IDLE_LOGIN_PATH } from "./login-notices";
 import { checkThrottle, clearAttempts, recordAttempt } from "./throttle";
 
 export interface SignInState {
@@ -171,6 +172,16 @@ export async function updatePasswordAction(
 }
 
 export async function signOutAction() {
+  await signOutAndRedirect("/login");
+}
+
+/** Client idle-timer sign-out: same as signOutAction but lands on the login page with the "signed out
+ *  after inactivity" notice, matching what proxy.ts shows for a server-side idle expiry. */
+export async function idleSignOutAction() {
+  await signOutAndRedirect(IDLE_LOGIN_PATH);
+}
+
+async function signOutAndRedirect(destination: string) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -185,5 +196,5 @@ export async function signOutAction() {
     });
   }
   await supabase.auth.signOut();
-  redirect("/login");
+  redirect(destination);
 }

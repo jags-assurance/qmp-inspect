@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { signOutAction } from "@/lib/auth/actions";
+import { idleSignOutAction } from "@/lib/auth/actions";
+import { IDLE_LOGIN_PATH } from "@/lib/auth/login-notices";
 
 const IDLE_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 hours
 const ACTIVITY_THROTTLE_MS = 1000; // ignore activity bursts finer than this
@@ -26,11 +27,14 @@ export function IdleTimeout() {
     const signOutForIdle = () => {
       if (cancelled) return;
       cancelled = true;
-      void signOutAction().catch(() => {
-        // signOutAction redirects via a thrown Next.js redirect signal; anything else is a
-        // best-effort sign-out, so fall back to a hard redirect either way.
-      });
-      window.location.href = "/login";
+      // idleSignOutAction signs out server-side and redirects to /login with the "signed out after
+      // inactivity" notice (the redirect arrives as a thrown Next.js signal). Wait for it so the hard
+      // redirect below cannot cancel the request, and fall back to the same URL if it fails.
+      void idleSignOutAction()
+        .catch(() => {})
+        .finally(() => {
+          window.location.href = IDLE_LOGIN_PATH;
+        });
     };
 
     const scheduleTimeout = () => {

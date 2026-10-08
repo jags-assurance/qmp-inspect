@@ -104,7 +104,10 @@ async function deactivateTarget(actorId: string, supabase: Supabase, target: Tar
       ban_duration: BAN_FOREVER,
       app_metadata: { deactivated: true },
     });
-    if (banError) notes.push(`The sign-in ban could not be applied (${banError.message}); database access is already revoked.`);
+    if (banError) {
+      console.error("[deactivation] sign-in ban failed", banError.message);
+      notes.push("The sign-in ban could not be applied (see the server log); database access is already revoked.");
+    }
   } else {
     notes.push("SUPABASE_SERVICE_ROLE_KEY is not configured, so the Auth sign-in ban was not applied; database access is already revoked.");
   }
@@ -189,7 +192,10 @@ async function reactivateTarget(actorId: string, supabase: Supabase, target: Tar
       ban_duration: "none",
       app_metadata: { deactivated: false },
     });
-    if (banError) notes.push(`The sign-in ban could not be lifted (${banError.message}).`);
+    if (banError) {
+      console.error("[deactivation] sign-in ban lift failed", banError.message);
+      notes.push("The sign-in ban could not be lifted (see the server log).");
+    }
   }
 
   // Restore what the last deactivation removed.

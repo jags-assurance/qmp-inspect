@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { escalationTier, isDueSoon, siteDate } from "./escalation";
+import { isMissingSchemaError, isReminderSuppressed, reminderStep, FINAL_REMINDER_STEP, type ReminderStep } from "./reminderPolicy";
 import { daysWaiting, isAckReminderDue, isFinalAckReminder, MAX_ACK_REMINDERS } from "./handoverReminderPolicy";
 
 // automation_rules/automation_notification_log/notifications aren't in the generated Database type
@@ -18,27 +19,45 @@ interface AutomationRuleRow {
   repeat_hours: number;
 }
 
-/** Has this exact (rule, entity) already been nudged within its own repeat window? Best-effort: a
- *  lookup failure just means "assume not sent" — a possible duplicate nudge is far better than the
- *  sweep silently going dark because one query hiccuped. */
-async function alreadyNotifiedRecently(ruleId: string, entityId: string, repeatHours: number): Promise<boolean> {
+/** Has this (rule, entity) already been nudged at this escalation step? Once per step, except the final
+ *  step which repeats every repeat_hours (see reminderPolicy.ts). Best-effort: a lookup failure just means
+ *  "assume not sent" — a possible duplicate nudge is far better than the sweep silently going dark because
+ *  one query hiccuped. Before the tier column exists (migration 20261127000200) it falls back to the old
+ *  time-window-only check. */
+async function alreadyNotifiedAtStep(ruleId: string, entityId: string, step: ReminderStep, repeatHours: number): Promise<boolean> {
   try {
-    const cutoff = new Date(Date.now() - repeatHours * 3600 * 1000).toISOString();
-    const { data } = await db
+    const { data, error } = await db
       .from("automation_notification_log")
-      .select("id")
+      .select("sent_at")
       .eq("rule_id", ruleId)
       .eq("entity_id", entityId)
-      .gte("sent_at", cutoff)
+      .eq("tier", step)
+      .order("sent_at", { ascending: false })
       .limit(1);
-    return Boolean(data && data.length > 0);
+    if (error) {
+      if (!isMissingSchemaError(error)) return false;
+      const cutoff = new Date(Date.now() - repeatHours * 3600 * 1000).toISOString();
+      const { data: recent } = await db
+        .from("automation_notification_log")
+        .select("id")
+        .eq("rule_id", ruleId)
+        .eq("entity_id", entityId)
+        .gte("sent_at", cutoff)
+        .limit(1);
+      return Boolean(recent && recent.length > 0);
+    }
+    const last = (data as { sent_at: string }[] | null)?.[0]?.sent_at ?? null;
+    return isReminderSuppressed(step, last, repeatHours);
   } catch {
     return false;
   }
 }
 
-async function recordSent(ruleId: string, entityId: string): Promise<void> {
-  await db.from("automation_notification_log").insert({ rule_id: ruleId, entity_id: entityId });
+async function recordSent(ruleId: string, entityId: string, step: ReminderStep): Promise<void> {
+  const { error } = await db.from("automation_notification_log").insert({ rule_id: ruleId, entity_id: entityId, tier: step });
+  if (error && isMissingSchemaError(error)) {
+    await db.from("automation_notification_log").insert({ rule_id: ruleId, entity_id: entityId });
+  }
 }
 
 /** Every JAGS admin login with access (global, or specifically to this org) — the fallback
@@ -136,7 +155,8 @@ async function sweepHoldElapsed(rule: AutomationRuleRow): Promise<number> {
     const itp = row.itp_items?.itp_sections?.itps;
     const org = itp?.projects?.organization_id;
     if (!itp || org !== rule.organization_id) continue;
-    if (await alreadyNotifiedRecently(rule.id, row.id, rule.repeat_hours)) continue;
+    // A Hold has no ladder: its single step is the final one, so it repeats every repeat_hours.
+    if (await alreadyNotifiedAtStep(rule.id, row.id, FINAL_REMINDER_STEP, rule.repeat_hours)) continue;
 
     const admins = await getOrgAdminUserIds(rule.organization_id);
     const title = `Stuck Hold: ${itp.itp_number}`;
@@ -148,7 +168,7 @@ async function sweepHoldElapsed(rule: AutomationRuleRow): Promise<number> {
     for (const recipientId of recipients) {
       await notify(rule.organization_id, itp.project_id, recipientId, title, body, link);
     }
-    await recordSent(rule.id, row.id);
+    await recordSent(rule.id, row.id, FINAL_REMINDER_STEP);
     sent += 1;
   }
   return sent;
@@ -216,7 +236,8 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
     const dueSoon = isDueSoon(ncr.due_date, today);
     const tier = escalationTier(ncr.due_date, today);
     if (!dueSoon && tier === 0) continue;
-    if (await alreadyNotifiedRecently(rule.id, ncr.id, rule.repeat_hours)) continue;
+    const step = reminderStep(dueSoon, tier);
+    if (await alreadyNotifiedAtStep(rule.id, ncr.id, step, rule.repeat_hours)) continue;
     const recipients = new Set<string>();
     const awaitingVerification = ncr.status === "pending_verification";
     // Tier 1 / due soon: the people doing the work. Pending verification: the work is done, so the
@@ -247,7 +268,7 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
     for (const userId of await onlyActiveUsers(recipients)) {
       await notify(rule.organization_id, ncr.project_id, userId, title, body, link);
     }
-    await recordSent(rule.id, ncr.id);
+    await recordSent(rule.id, ncr.id, step);
     sent += 1;
   }
   return sent;
@@ -310,7 +331,8 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
     const dueSoon = isDueSoon(item.due_date, today);
     const tier = escalationTier(item.due_date, today);
     if (!dueSoon && tier === 0) continue;
-    if (await alreadyNotifiedRecently(rule.id, item.id, rule.repeat_hours)) continue;
+    const step = reminderStep(dueSoon, tier);
+    if (await alreadyNotifiedAtStep(rule.id, item.id, step, rule.repeat_hours)) continue;
     const recipients = new Set<string>();
     const partyUser = item.project_parties?.user_id ?? null;
     let body: string;
@@ -334,7 +356,7 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
     for (const userId of await onlyActiveUsers(recipients)) {
       await notify(rule.organization_id, item.project_id, userId, title, body, link);
     }
-    await recordSent(rule.id, item.id);
+    await recordSent(rule.id, item.id, step);
     sent += 1;
   }
   return sent;

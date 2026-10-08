@@ -190,7 +190,8 @@ function VaultLinkForm({
       notifyOutboxChanged();
       setQueuedCount(ids.length);
     } catch (err) {
-      setQueueError(err instanceof Error ? err.message : "Could not save the link offline.");
+      console.error("[item-documents] offline queue failed", err);
+      setQueueError("Could not save the link offline.");
     }
   }
   if (available.length === 0 && folders.length === 0) {

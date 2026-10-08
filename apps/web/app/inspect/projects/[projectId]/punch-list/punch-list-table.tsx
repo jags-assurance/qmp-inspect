@@ -51,7 +51,6 @@ export interface PunchListItemDisplayRow {
   source_standalone_assignment_id?: string | null;
 }
 
-const isOverdueRow = (r: { due_date: string | null; status: string }) => isPunchOverdue(r);
 
 const STATUS_TONE: Record<PunchListStatus, "success" | "neutral" | "warning"> = {
   open: "neutral",
@@ -83,9 +82,12 @@ export function PunchListTable({
   currentUserId,
   projectParties,
   exportName,
+  timeZone,
 }: {
   projectParties: { id: string; name: string }[];
   exportName: string;
+  /** The project's IANA zone: Overdue is judged on the site day. */
+  timeZone?: string | null;
   projectId: string;
   rows: PunchListItemDisplayRow[];
   /** Whether THIS viewer can do the independent verify-and-close step (JAGS Admin, or a
@@ -94,6 +96,7 @@ export function PunchListTable({
   /** "Mine" = items whose responsible party is the one linked to this viewer's own login. */
   currentUserId: string;
 }) {
+  const isOverdueRow = (r: { due_date: string | null; status: string }) => isPunchOverdue(r, new Date(), timeZone);
   const panel = useUrlPanel("item");
   const [view, setView] = useUrlTab<ViewKey>("view", VIEWS.map((v) => v.key));
   const counts = {

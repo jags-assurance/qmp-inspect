@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber } from "@/lib/numbering/generate";
+import { VAULT_EXTRACT_MAX_BYTES, VAULT_MAX_UPLOAD_BYTES, vaultFileTooLargeMessage } from "@/lib/vault/limits";
 import { extractTextFromFile } from "@/lib/vault/extract-text";
 import { notifyDocumentSubmitted } from "@/lib/vault/notifications";
 
@@ -87,8 +88,8 @@ export async function uploadVaultDocumentCore(
   if (!folderCheck) {
     return { error: "That folder doesn't belong to this project." };
   }
-  if (fileSize && Number(fileSize) > 100 * 1024 * 1024) {
-    return { error: "Upload failed — files larger than 100 MB can't be stored in the vault." };
+  if (fileSize && Number(fileSize) > VAULT_MAX_UPLOAD_BYTES) {
+    return { error: `Upload failed — ${vaultFileTooLargeMessage(Number(fileSize))}` };
   }
 
   const { data: project } = await supabase
@@ -185,6 +186,12 @@ export async function uploadVaultDocumentCore(
   // stuck at extraction_status 'pending'/'failed' still uploads and displays fine, it just can't
   // be picked as source text for a generation call.
   try {
+    // Very large files (up to VAULT_MAX_UPLOAD_MB) are not pulled into server memory for text
+    // extraction: they are stored as-is and simply cannot be used as AI source text.
+    if (fileSize && Number(fileSize) > VAULT_EXTRACT_MAX_BYTES) {
+      await supabase.from(VAULT_DOCUMENTS_TABLE).update({ extraction_status: "unsupported", extraction_error: null }).eq("id", document.id);
+      return { error: null, documentNumber, internalReference, documentId: document.id };
+    }
     const { data: fileBlob, error: downloadError } = await supabase.storage
       .from("inspection-evidence")
       .download(storagePath);

@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
           enforceCsp: process.env.CSP_REPORT_ONLY !== "1",
         }),
       },
+      {
+        // Signed-in pages must never be served from the browser's back/forward cache or an HTTP cache,
+        // so pressing Back after signing out re-requests the page and lands on /login (A7).
+        source: "/inspect/:path*",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
     ];
   },
 };

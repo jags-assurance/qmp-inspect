@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updateProjectDetailsAction, type UpdateProjectDetailsState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
+import { TimeZoneOptions } from "@/components/domain/timezone-options";
 
 const initialState: UpdateProjectDetailsState = { error: null };
 
@@ -15,6 +16,8 @@ export interface EditableProject {
   contract_number: string | null;
   start_date: string | null;
   end_date: string | null;
+  /** IANA zone (projects.timezone); null when not yet known. */
+  timezone?: string | null;
 }
 
 const inputClass = "mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink";
@@ -56,6 +59,11 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
           <label className="text-sm text-ink">
             Contract number
             <input name="contract_number" defaultValue={project.contract_number ?? ""} className={inputClass} />
+          </label>
+          <label className="text-sm text-ink">
+            Site time zone
+            <input name="timezone" list="project-timezones" maxLength={64} placeholder="e.g. Asia/Dubai" defaultValue={project.timezone ?? ""} className={inputClass} />
+            <TimeZoneOptions />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm text-ink">

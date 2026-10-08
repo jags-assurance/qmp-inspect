@@ -6,6 +6,22 @@ export function siteTimeZone(): string {
   return process.env.NEXT_PUBLIC_SITE_TIMEZONE || "Asia/Dubai";
 }
 
+/** True when `tz` is an IANA zone the runtime's Intl knows (e.g. "Asia/Dubai", "UTC"). */
+export function isValidTimeZone(tz: string | null | undefined): tz is string {
+  if (!tz || typeof tz !== "string") return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The project's zone when it is known and valid, else the environment site zone. */
+export function resolveSiteTimeZone(projectTimeZone?: string | null): string {
+  return isValidTimeZone(projectTimeZone) ? projectTimeZone : siteTimeZone();
+}
+
 /** Today's calendar date (YYYY-MM-DD) in the site timezone. */
 export function siteToday(now: Date = new Date(), timeZone: string = siteTimeZone()): string {
   try {
