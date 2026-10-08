@@ -230,49 +230,62 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   ]);
 
   const draft = draftRecords?.[0] ?? null;
-  const numericSpecs = await loadNumericSpecsForTemplate(supabase, templateId);
-  const numericValues = draft ? await loadNumericValues(supabase, draft.id) : new Map<string, number>();
-  const unnotifiedWitness = draft && session.isJagsStaff ? await unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : [];
-
-  // Version / archive state. Read separately from the main template query so the page still works
-  // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
-  const { data: lifecycleRow, error: lifecycleError } = await supabase
-    .from(CHECKLIST_TEMPLATES_TABLE)
-    .select("version, archived_at")
-    .eq("id", templateId)
-    .maybeSingle<{ version: number | null; archived_at: string | null }>();
+  // Perf: these reads are independent of each other, so they run together (one round trip's worth
+  // of latency instead of ~10 in sequence).
+  const [
+    numericSpecs,
+    numericValues,
+    unnotifiedWitness,
+    { data: lifecycleRow, error: lifecycleError },
+    { data: aiRow, error: aiError },
+    { data: assignRow, error: assignError },
+    canAssign,
+  ] = await Promise.all([
+    loadNumericSpecsForTemplate(supabase, templateId),
+    draft ? loadNumericValues(supabase, draft.id) : Promise.resolve(new Map<string, number>()),
+    draft && session.isJagsStaff ? unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : Promise.resolve([] as Awaited<ReturnType<typeof unnotifiedNonBlockingLevels>>),
+    // Version / archive state. Read separately from the main template query so the page still works
+    // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
+    supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("version, archived_at")
+      .eq("id", templateId)
+      .maybeSingle<{ version: number | null; archived_at: string | null }>(),
+    // AI review stage (20261114000102): absent columns (migration not applied) read as "not AI".
+    supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("ai_generated, ai_confirmed_at")
+      .eq("id", templateId)
+      .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>(),
+    // Per-person assignment (20261114000101).
+    supabase
+      .from(ITP_ITEMS_UNTYPED_TABLE)
+      .select("assigned_to_user_id")
+      .eq("id", itpItem.id)
+      .maybeSingle<{ assigned_to_user_id: string | null }>(),
+    viewerCanAssign(supabase, { userId: session.userId, isStaff: session.isJagsStaff, itpItemId: itpItem.id, projectId: project.id }),
+  ]);
   const templateVersion = lifecycleError ? null : (lifecycleRow?.version ?? null);
   const archived = lifecycleError ? false : !!lifecycleRow?.archived_at;
-  // AI review stage (20261114000102): absent columns (migration not applied) read as "not AI".
-  const { data: aiRow, error: aiError } = await supabase
-    .from(CHECKLIST_TEMPLATES_TABLE)
-    .select("ai_generated, ai_confirmed_at")
-    .eq("id", templateId)
-    .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>();
   const aiState = aiError || !aiRow ? "not_ai" : templateReviewState(aiRow);
   const aiDraft = aiState === "draft";
-  // Per-person assignment (20261114000101).
-  const { data: assignRow, error: assignError } = await supabase
-    .from(ITP_ITEMS_UNTYPED_TABLE)
-    .select("assigned_to_user_id")
-    .eq("id", itpItem.id)
-    .maybeSingle<{ assigned_to_user_id: string | null }>();
   const assignedToUserId = assignError ? null : (assignRow?.assigned_to_user_id ?? null);
-  const showAssign =
-    !assignError && (await viewerCanAssign(supabase, { userId: session.userId, isStaff: session.isJagsStaff, itpItemId: itpItem.id, projectId: project.id }));
-  const assigneeOptions = showAssign
-    ? await loadAssigneeOptions(supabase, { itpItemId: itpItem.id, projectId: project.id, organizationId: project.organization_id })
-    : [];
-  const assignedName = assigneeOptions.find((o) => o.id === assignedToUserId)?.name ?? null;
+  const showAssign = !assignError && canAssign;
   const showEditor = session.isJagsStaff;
-  const [responseCount, recordCount, duplicateTargets] = showEditor
-    ? await Promise.all([
-        countTemplateResponses(supabase, templateId),
-        countTemplateRecords(supabase, templateId),
-        archived ? Promise.resolve([]) : loadDuplicateTargets(supabase, project.id, itpItem.id),
-      ])
-    : [0, 0, []];
+  const [assigneeOptions, [responseCount, recordCount, duplicateTargets]] = await Promise.all([
+    showAssign
+      ? loadAssigneeOptions(supabase, { itpItemId: itpItem.id, projectId: project.id, organizationId: project.organization_id })
+      : Promise.resolve([] as Awaited<ReturnType<typeof loadAssigneeOptions>>),
+    showEditor
+      ? Promise.all([
+          countTemplateResponses(supabase, templateId),
+          countTemplateRecords(supabase, templateId),
+          archived ? Promise.resolve([]) : loadDuplicateTargets(supabase, project.id, itpItem.id),
+        ])
+      : Promise.resolve([0, 0, []] as [number, number, Awaited<ReturnType<typeof loadDuplicateTargets>> | never[]]),
+  ]);
   const editBlockReason = itemEditBlockReason({ archived, responseCount });
+  const assignedName = assigneeOptions.find((o) => o.id === assignedToUserId)?.name ?? null;
 
   let responseByItem = new Map<
     string,
@@ -305,16 +318,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
   const itemDocuments = new Map<string, import("./item-documents").ItemLinkedDocument[]>();
   let hasNcr = false;
-  if (draft) {
-    const { count: ncrCount } = await supabase
-      .from("ncrs")
-      .select("id", { count: "exact", head: true })
-      .eq("inspection_record_id", draft.id);
-    hasNcr = !!ncrCount;
-  }
 
   if (draft) {
-    const [{ data: responses }, { data: photoRows }, { data: evidenceDocRows }, { data: rawVaultDocuments }] = await Promise.all([
+    const [{ data: responses }, { data: photoRows }, { data: evidenceDocRows }, { data: rawVaultDocuments }, { count: ncrCount }, { data: rawVaultFolders }] = await Promise.all([
       supabase
         .from(CHECKLIST_RESPONSES_TABLE)
         .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id, updated_at, no_ncr_reason")
@@ -342,13 +348,15 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         .in("status", ["approved", "for_review", "rejected"])
         .order("title")
         .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; status: string; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
+      supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("inspection_record_id", draft.id),
+      supabase
+        .from("vault_folders")
+        .select("id, folder_key, name")
+        .eq("project_id", project.id)
+        .order("name")
+        .returns<{ id: string; folder_key: string; name: string }[]>(),
     ]);
-    const { data: rawVaultFolders } = await supabase
-      .from("vault_folders")
-      .select("id, folder_key, name")
-      .eq("project_id", project.id)
-      .order("name")
-      .returns<{ id: string; folder_key: string; name: string }[]>();
+    hasNcr = !!ncrCount;
     vaultFolderOptions = (rawVaultFolders ?? []).map((f) => ({ id: f.id, key: f.folder_key, name: f.name }));
     for (const d of evidenceDocRows ?? []) {
       if (!d.checklist_item_id) continue;
@@ -476,8 +484,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       .returns<{ intervention: string }[]>();
     const codes = [...new Set((progressCodes ?? []).map((r) => r.intervention))];
     const messages: string[] = [];
-    for (const code of codes) {
-      const check = await getNoticeCheck(supabase, itpItem.id, code);
+    const checks = await Promise.all(codes.map((code) => getNoticeCheck(supabase, itpItem.id, code)));
+    for (const check of checks) {
       if ((check.status === "short_notice" || check.status === "overdue") && check.message && !messages.includes(check.message)) messages.push(check.message);
     }
     if (messages.length > 0) noticeWarning = messages.join(" ");
