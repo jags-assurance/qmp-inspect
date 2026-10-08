@@ -1,4 +1,5 @@
-import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { fileOrgPackInProjectVaults, fileProjectPackInProjectVault, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { runProjectPacks, describeProjectPackOutcome, PROJECT_PACK_BUDGET_MS } from "./projectPackFanout";
 import { resolveProjectScope, packBasePath, packDocumentReference } from "./reportScope";
 import { withBidi } from "./bidi";
 import { getOrgBranding } from "./orgBranding";
@@ -87,8 +88,36 @@ async function buildXlsx(data: MonthlyReportTemplateData): Promise<Buffer> {
 export async function generateMonthlyReportPack(
   payload: GenerateMonthlyReportPackPayload
 ): Promise<{ resultStoragePath: string }> {
-  const { organization_id: organizationId, year, month } = payload;
+  const startedAt = Date.now();
+  const { year, month } = payload;
   const projectId = resolveProjectScope(payload.project_id);
+
+  const { pdfPath, agg } = await buildAndFileMonthlyPack(payload, projectId);
+
+  // An organisation-wide pack is followed by a filtered copy per active project, filed in that project's
+  // vault only. A project-scoped request never fans out. One project failing never fails the job (the
+  // organisation pack above is already uploaded); failures are logged and the others still run.
+  if (!projectId) {
+    const outcome = await runProjectPacks(
+      agg.perProject,
+      async (row) => {
+        await buildAndFileMonthlyPack(payload, row.projectId);
+      },
+      { deadline: startedAt + PROJECT_PACK_BUDGET_MS }
+    );
+    console.log(describeProjectPackOutcome(`monthly ${year}-${String(month).padStart(2, "0")} org ${payload.organization_id}`, outcome));
+    for (const f of outcome.failed) console.error(`[worker] monthly project pack for project ${f.projectId} failed: ${f.message}`);
+  }
+
+  return { resultStoragePath: pdfPath };
+}
+
+/** Aggregates, renders, uploads and files ONE pack: the organisation-wide one (projectId null) or a single project's. */
+async function buildAndFileMonthlyPack(
+  payload: GenerateMonthlyReportPackPayload,
+  projectId: string | null
+): Promise<{ pdfPath: string; agg: Awaited<ReturnType<typeof aggregateReportPackData>> }> {
+  const { organization_id: organizationId, year, month } = payload;
 
   const { startIso, endIso } = monthRange(year, month);
   const agg = await aggregateReportPackData(organizationId, startIso, endIso, projectId);
@@ -151,17 +180,22 @@ export async function generateMonthlyReportPack(
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   );
 
-  await fileOrgPackInProjectVaults(supabase, {
-    projectIds: agg.perProject.map((p) => p.projectId),
+  const filing = {
     title: `Monthly Report Pack ${year}-${monthTag}`,
     documentReference: packDocumentReference(`MONTHLY-${year}-${monthTag}`, projectId),
     storagePath: pdfPath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
-  });
+  };
+  if (projectId) {
+    // Aggregated for this project alone, so it goes to this project's vault only.
+    await fileProjectPackInProjectVault(supabase, { ...filing, projectId });
+  } else {
+    await fileOrgPackInProjectVaults(supabase, { ...filing, projectIds: agg.perProject.map((p) => p.projectId) });
+  }
 
   // result_storage_path stores the PDF path (the primary deliverable, same convention as
   // render_itp_pdf). The .xlsx lives alongside it at the same base path — see basePath above — so
   // the web app derives its path by convention rather than needing a second DB column.
-  return { resultStoragePath: pdfPath };
+  return { pdfPath, agg };
 }

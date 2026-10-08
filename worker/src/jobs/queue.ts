@@ -124,14 +124,19 @@ export async function markCompleted(jobId: string, resultStoragePath: string): P
   if (error) console.error("[worker] Failed to mark job completed", jobId, error.message);
 }
 
-export async function markFailed(jobId: string, errorMessage: string): Promise<void> {
-  const { error } = await jobsTable()
+/** Returns true only when THIS call moved the job from 'processing' to 'failed' (so the caller may alert admins once). */
+export async function markFailed(jobId: string, errorMessage: string): Promise<boolean> {
+  const { data, error } = await jobsTable()
     .update({ status: "failed", error_message: errorMessage.slice(0, 2000), completed_at: new Date().toISOString() })
     .eq("id", jobId)
     .eq("status", "processing")
     .select();
 
-  if (error) console.error("[worker] Failed to mark job failed", jobId, error.message);
+  if (error) {
+    console.error("[worker] Failed to mark job failed", jobId, error.message);
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
 }
 
 /** Puts a transiently failed job back in the queue (backoff enforced in-process). */
