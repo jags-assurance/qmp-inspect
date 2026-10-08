@@ -86,6 +86,8 @@ export default async function NcrsPage({
     }
     return applyNcrFilters(q, { ...sp, status: undefined, overdue: undefined }, session.userId);
   };
+  // Server component: evaluated once per request, which is the intended "now".
+  // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();
   const daysAgoIso = (d: number) => new Date(nowMs - d * 86_400_000).toISOString();
   const STATUSES = ["open", "in_progress", "pending_verification", "closed"] as const;
