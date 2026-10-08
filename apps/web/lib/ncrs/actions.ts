@@ -51,7 +51,7 @@ import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { detectPunchImage } from "@/lib/punch-list/helpers";
 import { PUNCH_PHOTO_MAX_BYTES } from "@/lib/punch-list/types";
 import { BACKGROUND_JOBS_TABLE, type RenderNcrCloseoutCertificatePayload } from "@/lib/reports/types";
-import { isStaleClaim, observationDonePath, observationMarkerPath, parseMarker, serializeClaimMarker, serializeObservationMarker } from "@/lib/offline/idempotency";
+import { sanitizeClientKey } from "@/lib/offline/idempotency";
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -195,46 +195,28 @@ export async function createNcrAction(
     return { error: "Project not found, or you don't have access to it." };
   }
 
-  // Idempotency: (1) a finished request leaves a "done" marker object naming its NCR; (2) before doing
-  // any work, atomically CLAIM the key (create-if-absent) so two simultaneous requests cannot both
-  // create an NCR. A claim older than CLAIM_STALE_MS is treated as abandoned. Only insert permission
-  // on the bucket is needed: markers are never overwritten, and cleanup is best-effort.
-  const markerPath = requestId ? observationMarkerPath(projectId, requestId) : null;
-  const donePath = requestId ? observationDonePath(projectId, requestId) : null;
-  let releaseClaim = async () => {};
-  if (markerPath && donePath) {
-    const bucket = supabase.storage.from("inspection-evidence");
-    try {
-      const { data: done } = await bucket.download(donePath);
-      const doneMarker = done ? parseMarker(await done.text()) : { kind: "unknown" as const };
-      if (doneMarker.kind === "ncr") {
-        const { data: existing } = await supabase.from(NCRS_TABLE).select("ncr_number").eq("id", doneMarker.ncrId).maybeSingle<{ ncr_number: string }>();
-        if (existing) {
-          const existingNcr = { id: doneMarker.ncrId, ncrNumber: existing.ncr_number };
-          if (formData.get("stay_on_page") === "true") return { error: null, created: existingNcr };
-          redirect(`/inspect/ncrs/${existingNcr.id}`);
-        }
-      }
-      const first = await bucket.upload(markerPath, new Blob([serializeClaimMarker()], { type: "application/json" }), { upsert: false });
-      if (first.error) {
-        const { data: claim } = await bucket.download(markerPath);
-        const parsed = claim ? parseMarker(await claim.text()) : { kind: "unknown" as const };
-        if (parsed.kind === "claim" && !isStaleClaim(parsed.claimedAt)) {
-          return { error: "This request is already being processed — it will finish shortly.", inFlight: true };
-        }
-        // Stale or unreadable claim: assume the earlier request died and carry on.
-      } else {
-        releaseClaim = async () => { try { await bucket.remove([markerPath]); } catch { /* best-effort */ } };
-      }
-    } catch (e) {
-      // redirect() throws NEXT_REDIRECT; anything else (storage unreachable) must not block raising the NCR.
-      if (e && typeof e === "object" && "digest" in e) throw e;
-    }
+  // Idempotency: ncrs has a unique (project_id, request_id) index, so a retried submit or an offline
+  // replay returns the NCR the first attempt created instead of raising a duplicate. The lookup here
+  // is the fast path (it also avoids burning a document number); the unique index is the guarantee
+  // for two simultaneous requests, handled where the insert is attempted below.
+  const clientRequestId = sanitizeClientKey(requestId) || null;
+  const existingByRequest = async () => {
+    if (!clientRequestId) return null;
+    const { data: found } = await supabase
+      .from(NCRS_TABLE)
+      .select("id, ncr_number")
+      .eq("project_id", projectId)
+      .eq("request_id", clientRequestId)
+      .maybeSingle<{ id: string; ncr_number: string }>();
+    return found ? { id: found.id, ncrNumber: found.ncr_number } : null;
+  };
+  const repeated = await existingByRequest();
+  if (repeated) {
+    if (formData.get("stay_on_page") === "true") return { error: null, created: repeated };
+    redirect(`/inspect/ncrs/${repeated.id}`);
   }
-
   const assignmentError = await validateAssignment(supabase, projectId, project.organization_id, assignedTo || null, responsiblePartyId);
   if (assignmentError) {
-    await releaseClaim();
     return { error: assignmentError };
   }
 
@@ -246,14 +228,12 @@ export async function createNcrAction(
       .eq("id", itpItemId)
       .maybeSingle<{ itp_sections: { itps: { project_id: string } | null } | null }>();
     if (itemRow?.itp_sections?.itps?.project_id !== projectId) {
-      await releaseClaim();
       return { error: "The linked ITP item does not belong to this project." };
     }
   }
   if (inspectionRecordId) {
     const { data: recRow } = await supabase.from(INSPECTION_RECORDS_TABLE).select("project_id").eq("id", inspectionRecordId).maybeSingle<{ project_id: string }>();
     if (recRow?.project_id !== projectId) {
-      await releaseClaim();
       return { error: "The linked inspection does not belong to this project." };
     }
   }
@@ -313,6 +293,7 @@ export async function createNcrAction(
       inspection_record_id: inspectionRecordId,
       checklist_item_id: checklistItemId,
       responsible_party_id: responsiblePartyId,
+      ...(clientRequestId ? { request_id: clientRequestId } : {}),
     };
     const hasExtended = Object.keys(extended.values).length > 0;
     let { data, error } = await supabase
@@ -323,6 +304,20 @@ export async function createNcrAction(
     if (!data && hasExtended && isMissingSchemaError(error)) {
       // Extended-fields migration not applied yet: raise the NCR without them rather than failing.
       ({ data, error } = await supabase.from(NCRS_TABLE).insert(basePayload).select("id").single<{ id: string }>());
+    }
+    if (!data && clientRequestId && isMissingSchemaError(error)) {
+      // request_id migration not applied yet: raise the NCR without the duplicate guard.
+      const { request_id: _omit, ...withoutRequestId } = basePayload;
+      void _omit;
+      ({ data, error } = await supabase.from(NCRS_TABLE).insert(withoutRequestId).select("id").single<{ id: string }>());
+    }
+    if (!data && error?.code === "23505" && clientRequestId && (error.message ?? "").includes("ncrs_project_request_id_uidx")) {
+      // A simultaneous request with the same key won the race: return its NCR.
+      const winner = await existingByRequest();
+      if (winner) {
+        if (formData.get("stay_on_page") === "true") return { error: null, created: winner };
+        redirect(`/inspect/ncrs/${winner.id}`);
+      }
     }
 
     if (data) {
@@ -337,20 +332,16 @@ export async function createNcrAction(
   if (!ncr) {
     const error = lastError;
     if (error?.code === "23505") {
-      await releaseClaim();
       return {
         error: "Could not generate a unique NCR number after several attempts — check the project's numbering configuration.",
       };
     }
     if (error?.code === "23503") {
-      await releaseClaim();
       return { error: "The assigned-to user or responsible party doesn't match a known record." };
     }
     if (error?.code === "22P02") {
-      await releaseClaim();
       return { error: "Assigned-to and responsible party must be valid IDs (UUID)." };
     }
-    await releaseClaim();
     return { error: dbMessage(error, "Could not raise the NCR. Check you have permission and try again.") };
   }
 
@@ -380,16 +371,6 @@ export async function createNcrAction(
       responsiblePartyId: responsiblePartyId ?? undefined,
     });
     punchError = punch.error;
-  }
-
-  if (donePath) {
-    try {
-      await supabase.storage
-        .from("inspection-evidence")
-        .upload(donePath, new Blob([serializeObservationMarker(ncr.id)], { type: "application/json" }), { upsert: false });
-    } catch {
-      // Best-effort.
-    }
   }
 
   // Best-effort: whoever this NCR is assigned to should hear about it without having to notice it

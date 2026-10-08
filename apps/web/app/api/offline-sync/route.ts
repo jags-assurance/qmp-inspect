@@ -103,8 +103,8 @@ export async function POST(request: Request) {
         // Queued by QuickRaiseObservation: same validated createNcrAction the register's form uses
         // (due date, severity, punch-list item, notification, audit), told to return instead of
         // redirect since there's no page to navigate when replaying from the outbox.
-        // Idempotent: createNcrAction owns the storage-marker dedupe keyed by request_id, so the
-        // queued item's key is passed through and online/offline paths share one marker.
+        // Idempotent: createNcrAction dedupes on ncrs.request_id (unique per project), so the
+        // queued item's key is passed through and online/offline paths share one guard.
         if (clientKey && !String(formData.get("request_id") ?? "").trim()) formData.set("request_id", clientKey);
         formData.set("severity", "observation");
         formData.set("stay_on_page", "true");
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
 
         // Optional photo taken with the quick form. The NCR already exists, so a bad photo (wrong type or
         // size) is skipped — it can never succeed. A failed upload/record is transient: return 503 so the item
-        // is retried; the retry finds the NCR through its request_id marker and repeats only the photo.
+        // is retried; the retry finds the NCR through its request_id and repeats only the photo.
         const photo = formData.get("file");
         if (photo instanceof Blob && photo.type.startsWith("image/") && photo.size <= MAX_PHOTO_BYTES) {
           const projectId = String(formData.get("project_id") ?? "").trim();
