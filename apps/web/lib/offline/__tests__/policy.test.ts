@@ -6,6 +6,7 @@ import {
   boundedCapturedAt,
   classifyHttpFailure,
   isStaleItem,
+  laterAnswersToRebase,
   mayReplayItem,
   queueAgeDays,
   responseKey,
@@ -104,5 +105,30 @@ describe("schema error helpers", () => {
     expect(isStoragePermissionError({ message: "new row violates row-level security policy" })).toBe(true);
     expect(isStoragePermissionError({ statusCode: 403 })).toBe(true);
     expect(isStoragePermissionError({ message: "timeout", statusCode: 500 })).toBe(false);
+  });
+});
+
+describe("laterAnswersToRebase", () => {
+  const answer = (id: string, item: string, extra: Record<string, string> = {}, status?: string) => ({
+    id,
+    kind: "checklist_response",
+    status,
+    fields: { inspection_record_id: "rec", checklist_item_id: item, ...extra },
+  });
+
+  it("returns only pending answers for the same item that carry a baseline", () => {
+    const first = answer("a", "i1", { expected_updated_at: "none" });
+    const second = answer("b", "i1", { expected_updated_at: "none" });
+    const otherItem = answer("c", "i2", { expected_updated_at: "none" });
+    const conflicted = answer("d", "i1", { expected_updated_at: "x" }, "conflict");
+    const noBaseline = answer("e", "i1");
+    const photo = { id: "f", kind: "photo", fields: { inspection_record_id: "rec", checklist_item_id: "i1", expected_updated_at: "x" } };
+    const out = laterAnswersToRebase([first, second, otherItem, conflicted, noBaseline, photo], first);
+    expect(out.map((i) => i.id)).toEqual(["b"]);
+  });
+
+  it("does nothing for items that are not checklist answers", () => {
+    const photo = { id: "p", kind: "photo", fields: {} };
+    expect(laterAnswersToRebase([photo], photo)).toEqual([]);
   });
 });

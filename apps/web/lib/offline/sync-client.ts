@@ -9,10 +9,18 @@ import {
   removeOutboxItem,
   type OutboxItem,
 } from "./db";
-import { MAX_SERVER_FAILURES, backoffMs, classifyHttpFailure, mayReplayItem, responseKey } from "./policy";
+import { MAX_SERVER_FAILURES, backoffMs, classifyHttpFailure, laterAnswersToRebase, mayReplayItem, responseKey } from "./policy";
 import { getLocalUserId } from "./user";
 
 const QUEUE_CHANGED_EVENT = "qmp-offline-queue-changed";
+/** Fired after a queued checklist answer syncs, so the on-screen row can adopt the new server baseline
+ *  (otherwise its next online save would be judged a conflict with the write the queue just made). */
+export const RESPONSE_SYNCED_EVENT = "qmp-response-synced";
+export interface ResponseSyncedDetail {
+  inspectionRecordId: string;
+  checklistItemId: string;
+  updatedAt: string;
+}
 
 /** Producers (ResponseRow, PhotoUpload, CompleteInspectionForm) call this after enqueueing an item
  *  so OfflineBanner refreshes its count and, if online, attempts an immediate sync rather than
@@ -127,16 +135,13 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
         updatedAt?: string;
       } | null;
       if (response.ok && body?.ok) {
-        await removeOutboxItem(item.id);
-        synced++;
-        // Chain the server baseline: later queued answers to the same item were based on the value
-        // this one just replaced, so they must expect the NEW updated_at (otherwise the second of two
-        // offline edits to one item would conflict with the first).
-        const key = responseKey(item);
-        if (key && body.updatedAt) {
-          for (const later of items) {
-            if (later.id === item.id || later.status !== "pending" || responseKey(later) !== key) continue;
-            if (!later.fields.expected_updated_at) continue;
+        // Chain the server baseline FIRST, then drop the synced item. Later queued answers to the same
+        // item were based on the value this one just replaced, so they must expect the NEW updated_at
+        // (otherwise the second of two offline edits to one item would 409 and block completion).
+        // Doing this before the removal means a tab closed half-way leaves this item queued: its replay
+        // is recognised as already applied and the chain is redone, never a stale baseline on its own.
+        if (body.updatedAt) {
+          for (const later of laterAnswersToRebase(items, item)) {
             later.fields.expected_updated_at = body.updatedAt;
             later.expectedUpdatedAt = body.updatedAt;
             await patchOutboxItem(later.id, (stored) => {
@@ -144,6 +149,19 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
               stored.expectedUpdatedAt = body.updatedAt;
             });
           }
+        }
+        await removeOutboxItem(item.id);
+        synced++;
+        if (body.updatedAt && responseKey(item) && typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent<ResponseSyncedDetail>(RESPONSE_SYNCED_EVENT, {
+              detail: {
+                inspectionRecordId: item.fields.inspection_record_id,
+                checklistItemId: item.fields.checklist_item_id,
+                updatedAt: body.updatedAt,
+              },
+            })
+          );
         }
         continue;
       }

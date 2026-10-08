@@ -6,6 +6,7 @@
 // through a Server Action or a direct Supabase call, both of which require a live connection; this
 // is the one place state survives a dropped connection until it can actually reach the server.
 
+import { responseKey } from "./policy";
 import { getLocalUserId } from "./user";
 
 const DB_NAME = "qmp-inspect-offline";
@@ -113,6 +114,22 @@ export async function getOutboxItems(): Promise<OutboxItem[]> {
   if (!isBrowser()) return [];
   const items = await withStore<OutboxItem[]>("readonly", (store) => store.getAll());
   return items.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * True when an answer for this checklist item is still waiting in the queue. A new answer must join the
+ * queue behind it instead of going straight to the server: sent online it would overtake the queued one,
+ * and when that one replayed later it would be judged a conflict with the newer value.
+ */
+export async function hasQueuedAnswerFor(inspectionRecordId: string, checklistItemId: string): Promise<boolean> {
+  if (!isBrowser()) return false;
+  try {
+    const items = await getOutboxItems();
+    const key = `${inspectionRecordId}:${checklistItemId}`;
+    return items.some((it) => responseKey(it) === key);
+  } catch {
+    return false;
+  }
 }
 
 export async function removeOutboxItem(id: string): Promise<void> {

@@ -75,3 +75,23 @@ export function boundedCapturedAt(raw: string | null | undefined, now: number = 
   if (t < now - maxAgeDays * 86_400_000) return null;
   return new Date(t).toISOString();
 }
+
+/**
+ * Queued answers to the same checklist item that must take over the server baseline once `done`
+ * has synced: every other pending answer for that item that carries a baseline. Later queued
+ * answers were based on the value `done` replaced, so they must expect the NEW updated_at.
+ */
+export function laterAnswersToRebase<T extends { id: string; kind: string; status?: string; fields: Record<string, string> }>(
+  items: T[],
+  done: { id: string; kind: string; fields: Record<string, string> }
+): T[] {
+  const key = responseKey(done);
+  if (!key) return [];
+  return items.filter(
+    (it) =>
+      it.id !== done.id &&
+      (it.status ?? "pending") === "pending" &&
+      responseKey(it) === key &&
+      !!it.fields.expected_updated_at
+  );
+}

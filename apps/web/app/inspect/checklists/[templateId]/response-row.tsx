@@ -1,14 +1,14 @@
 "use client";
 
 import { RaiseNcrDrawer } from "./raise-ncr-drawer";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { saveChecklistResponseAction } from "@/lib/checklists/actions";
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
 import { cn } from "@/lib/cn";
-import { enqueueOutboxItem } from "@/lib/offline/db";
-import { notifyOutboxChanged } from "@/lib/offline/sync-client";
+import { enqueueOutboxItem, hasQueuedAnswerFor } from "@/lib/offline/db";
+import { notifyOutboxChanged, RESPONSE_SYNCED_EVENT, type ResponseSyncedDetail } from "@/lib/offline/sync-client";
 import { ItemPhotoUpload } from "./item-photo-upload";
 import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
@@ -147,6 +147,17 @@ export function ResponseRow({
   const [noNcrReason, setNoNcrReason] = useState(initialNoNcrReason ?? "");
   // Baseline for concurrent-edit detection: "none" = no row existed when we loaded.
   const expectedUpdatedAt = useRef<string>(initialUpdatedAt ?? "none");
+  // A queued answer for this item synced in the background: adopt its server timestamp as the baseline.
+  useEffect(() => {
+    const onSynced = (e: Event) => {
+      const d = (e as CustomEvent<ResponseSyncedDetail>).detail;
+      if (d?.inspectionRecordId === inspectionRecordId && d.checklistItemId === checklistItemId) {
+        expectedUpdatedAt.current = d.updatedAt;
+      }
+    };
+    window.addEventListener(RESPONSE_SYNCED_EVENT, onSynced);
+    return () => window.removeEventListener(RESPONSE_SYNCED_EVENT, onSynced);
+  }, [inspectionRecordId, checklistItemId]);
   const showCalibrationPicker = registerVerification?.kind === "calibration" && calibrationOptions.length > 0;
   const showMaterialPicker = registerVerification?.kind === "material" && materialOptions.length > 0;
   const showWelderPicker = registerVerification?.kind === "welder" && welderOptions.length > 0;
@@ -215,7 +226,12 @@ export function ResponseRow({
         const fields = Object.fromEntries(formData) as Record<string, string>;
         // Offline (R60): queue right away when we already know there's no connection, and fall back
         // to the queue if a "we thought we were online" attempt throws (dropped connection mid-save).
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
+        // Also queue while an earlier answer for this item is still waiting to sync: sent online it would
+        // overtake the queued one, which would then replay against a newer server value and 409.
+        if (
+          (typeof navigator !== "undefined" && !navigator.onLine) ||
+          (await hasQueuedAnswerFor(inspectionRecordId, checklistItemId))
+        ) {
           await enqueueOutboxItem({ kind: "checklist_response", fields });
           notifyOutboxChanged();
           if (mySeq === saveSeq.current) onResultChange?.(nextResult);
