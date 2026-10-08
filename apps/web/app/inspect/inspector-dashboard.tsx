@@ -8,6 +8,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { QuickRaiseObservation } from "@/components/domain/quick-raise-observation";
 import { TodayQueue } from "@/components/domain/today-queue";
 import { buildInspectorToday } from "@/lib/dashboard/today";
+import { AssignedToMe } from "@/components/domain/assigned-to-me";
+import type { AssignedActivity } from "@/lib/checklists/assigned-queries";
 
 export interface OverdueHoldRow {
   id: string;
@@ -80,8 +82,11 @@ export function InspectorDashboard({
   pendingOverdue,
   pendingStandaloneAssignments,
   ncrsAssignedToMe = [],
+  assignedToMe = [],
   clearancesWidget = null,
 }: {
+  /** Activities assigned to this inspector personally (itp_items.assigned_to_user_id). */
+  assignedToMe?: AssignedActivity[];
   /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
   clearancesWidget?: ReactNode;
   /** The worst overdue holds (capped), each deep-linking to its ITP. */
@@ -147,6 +152,7 @@ export function InspectorDashboard({
         })}
         emptyText="Nothing waiting. Start a new inspection from Start work, or review Inspections."
       />
+      <AssignedToMe items={assignedToMe} />
       {clearancesWidget}
 
       {overdueHoldItems.length > 0 && (

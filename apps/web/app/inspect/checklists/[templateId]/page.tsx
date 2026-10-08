@@ -8,6 +8,7 @@ import {
   CHECKLIST_ITEMS_TABLE,
   CHECKLIST_RESPONSES_TABLE,
   CHECKLIST_TEMPLATES_TABLE,
+  ITP_ITEMS_UNTYPED_TABLE,
   INSPECTION_EVIDENCE_DOCUMENTS_TABLE,
   INSPECTION_PHOTOS_TABLE,
   INSPECTION_RECORDS_TABLE,
@@ -35,6 +36,10 @@ import { countTemplateRecords, countTemplateResponses } from "@/lib/checklists/t
 import { loadDuplicateTargets } from "@/lib/checklists/duplicate-targets";
 import { itemEditBlockReason, templateDeleteBlockReason } from "@/lib/checklists/template-ui-logic";
 import { StartInspectionForm } from "./start-inspection-form";
+import { ConfirmAiChecklist } from "./confirm-ai-checklist";
+import { AssignActivityForm } from "./assign-activity-form";
+import { templateReviewState } from "@/lib/checklists/ai-review-logic";
+import { loadAssigneeOptions, viewerCanAssign } from "@/lib/checklists/assignment-queries";
 import { getNoticeCheck } from "@/lib/signoff/notice-check";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
@@ -235,6 +240,27 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     .maybeSingle<{ version: number | null; archived_at: string | null }>();
   const templateVersion = lifecycleError ? null : (lifecycleRow?.version ?? null);
   const archived = lifecycleError ? false : !!lifecycleRow?.archived_at;
+  // AI review stage (20261114000102): absent columns (migration not applied) read as "not AI".
+  const { data: aiRow, error: aiError } = await supabase
+    .from(CHECKLIST_TEMPLATES_TABLE)
+    .select("ai_generated, ai_confirmed_at")
+    .eq("id", templateId)
+    .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>();
+  const aiState = aiError || !aiRow ? "not_ai" : templateReviewState(aiRow);
+  const aiDraft = aiState === "draft";
+  // Per-person assignment (20261114000101).
+  const { data: assignRow, error: assignError } = await supabase
+    .from(ITP_ITEMS_UNTYPED_TABLE)
+    .select("assigned_to_user_id")
+    .eq("id", itpItem.id)
+    .maybeSingle<{ assigned_to_user_id: string | null }>();
+  const assignedToUserId = assignError ? null : (assignRow?.assigned_to_user_id ?? null);
+  const showAssign =
+    !assignError && (await viewerCanAssign(supabase, { userId: session.userId, isStaff: session.isJagsStaff, itpItemId: itpItem.id, projectId: project.id }));
+  const assigneeOptions = showAssign
+    ? await loadAssigneeOptions(supabase, { itpItemId: itpItem.id, projectId: project.id, organizationId: project.organization_id })
+    : [];
+  const assignedName = assigneeOptions.find((o) => o.id === assignedToUserId)?.name ?? null;
   const showEditor = session.isJagsStaff;
   const [responseCount, recordCount, duplicateTargets] = showEditor
     ? await Promise.all([
@@ -571,6 +597,23 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
+      {aiDraft && <ConfirmAiChecklist templateId={template.id} canConfirm={session.isJagsStaff} />}
+      {aiState === "confirmed" && (
+        <p className="mt-2 text-xs text-muted">AI-generated checklist, reviewed and confirmed by JAGS staff.</p>
+      )}
+
+      {assignedToUserId && (
+        <p className="mt-2 text-sm text-ink">
+          Assigned to {assignedToUserId === session.userId ? "you" : (assignedName ?? "a team member")}
+        </p>
+      )}
+      {showAssign && !archived && (
+        <details className="mt-3 rounded-md border border-border bg-surface px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-ink">Assign to a person</summary>
+          <AssignActivityForm itpItemId={itpItem.id} templateId={template.id} currentAssigneeId={assignedToUserId} options={assigneeOptions} />
+        </details>
+      )}
+
       {!draft && canExecute && !archived && holdOpen && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           This activity has an open <Badge tone="danger">Hold</Badge> — held by{" "}
@@ -597,7 +640,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         </p>
       )}
 
-      {!draft && canExecute && !archived && itpApproved && !holdOpen && (
+      {!draft && canExecute && !archived && itpApproved && !holdOpen && !aiDraft && (
         <div className="mt-6">
           {noticeWarning && (
             <p className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
