@@ -49,7 +49,8 @@ export interface ReportPackAggregate {
 export async function aggregateReportPackData(
   organizationId: string,
   startIso: string,
-  endIso: string
+  endIso: string,
+  projectId: string | null = null
 ): Promise<ReportPackAggregate> {
   const { data: organization, error: orgError } = await supabase
     .from("organizations")
@@ -61,16 +62,18 @@ export async function aggregateReportPackData(
     throw new Error(`Organization ${organizationId} not found: ${orgError?.message ?? "no row"}`);
   }
 
-  const { data: projects, error: projectsError } = await supabase
-    .from("projects")
-    .select("id, project_number, name")
-    .eq("organization_id", organizationId);
+  let projectsQuery = supabase.from("projects").select("id, project_number, name").eq("organization_id", organizationId);
+  if (projectId) projectsQuery = projectsQuery.eq("id", projectId);
+  const { data: projects, error: projectsError } = await projectsQuery;
 
   if (projectsError) {
     throw new Error(`Failed to load projects for organization ${organizationId}: ${projectsError.message}`);
   }
 
   const projectRows = projects ?? [];
+  if (projectId && projectRows.length === 0) {
+    throw new Error(`Project ${projectId} does not belong to organization ${organizationId}`);
+  }
   const projectIds = projectRows.map((p) => p.id);
 
   // ITPs across the org's projects (all-time snapshot for completion %, per R109/compute.ts).
@@ -157,7 +160,8 @@ export async function aggregateReportPackData(
   }));
 
   return {
-    organizationName: organization.name,
+    // A project pack is titled with its project so the PDF and spreadsheet say what they cover.
+    organizationName: projectId && projectRows[0] ? `${organization.name} - ${projectRows[0].name}` : organization.name,
     firstTimePassRate,
     firstTimePassCounts: { firstAttempts: firstAttempts.length, firstTimePasses: firstTimePasses.length },
     inspectionsCompleted: inspectionRecords.filter((r) => r.overall_result !== null).length,

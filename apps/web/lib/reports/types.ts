@@ -9,6 +9,8 @@ export const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
 export interface MonthlyReportPackPayload {
   organization_id: string;
+  /** Optional: a pack for one project of the organisation instead of the whole organisation. */
+  project_id?: string | null;
   year: number;
   month: number;
   requested_by: string;
@@ -20,6 +22,8 @@ export interface MonthlyReportPackPayload {
  *  an ISO-week-number + year pair. */
 export interface WeeklyReportPackPayload {
   organization_id: string;
+  /** Optional: a pack for one project of the organisation instead of the whole organisation. */
+  project_id?: string | null;
   week_start: string;
   requested_by: string;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ProjectScopeSelect } from "@/components/domain/project-scope-select";
 import { useActionState, useEffect, useState } from "react";
 import {
   generateMonthlyReportPackAction,
@@ -35,8 +36,10 @@ export function MonthlyReportPackForm({
   organizationId,
   initialPacks,
   aiConfigured,
+  projects = [],
 }: {
   organizationId: string;
+  projects?: { id: string; name: string }[];
   initialPacks: ReportPackListItem[];
   /** R111: honest "AI not configured" gate (R43's pattern) for the AI executive-summary button
    *  below — see isAiConfigured() in lib/ai/gate.ts. */
@@ -61,6 +64,7 @@ export function MonthlyReportPackForm({
         <input type="hidden" name="organization_id" value={organizationId} />
         <input type="hidden" name="month" value={month} />
         <input type="hidden" name="year" value={year} />
+        <ProjectScopeSelect projects={projects} />
 
         <div>
           <label className="block text-xs text-muted">Month</label>

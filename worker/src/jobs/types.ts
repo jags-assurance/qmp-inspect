@@ -39,6 +39,8 @@ export interface RenderItpPdfPayload {
  *  aggregated across ALL of that org's projects. `month` is 1-12. */
 export interface GenerateMonthlyReportPackPayload {
   organization_id: string;
+  /** Optional: a pack for one project of the organisation instead of the whole organisation. */
+  project_id?: string | null;
   year: number;
   month: number;
   requested_by: string;
@@ -52,6 +54,8 @@ export interface GenerateMonthlyReportPackPayload {
  *  arithmetic instead of also having to derive a calendar date from an (year, week-number) pair. */
 export interface GenerateWeeklyReportPackPayload {
   organization_id: string;
+  /** Optional: a pack for one project of the organisation instead of the whole organisation. */
+  project_id?: string | null;
   week_start: string;
   requested_by: string;
 }

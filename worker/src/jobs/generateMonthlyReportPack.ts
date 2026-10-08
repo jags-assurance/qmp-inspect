@@ -1,4 +1,5 @@
 import { fileOrgPackInProjectVaults, uploadGeneratedFile, buildGeneratedDirPath } from "./vaultAutoFile";
+import { resolveProjectScope, packBasePath, packDocumentReference } from "./reportScope";
 import { withBidi } from "./bidi";
 import { getOrgBranding } from "./orgBranding";
 import { getSharedBrowser } from "../browserPool";
@@ -87,9 +88,10 @@ export async function generateMonthlyReportPack(
   payload: GenerateMonthlyReportPackPayload
 ): Promise<{ resultStoragePath: string }> {
   const { organization_id: organizationId, year, month } = payload;
+  const projectId = resolveProjectScope(payload.project_id);
 
   const { startIso, endIso } = monthRange(year, month);
-  const agg = await aggregateReportPackData(organizationId, startIso, endIso);
+  const agg = await aggregateReportPackData(organizationId, startIso, endIso, projectId);
 
   const monthLabel = `${MONTH_NAMES[month - 1]} ${year}`;
 
@@ -135,7 +137,7 @@ export async function generateMonthlyReportPack(
   }
 
   const monthTag = String(month).padStart(2, "0");
-  const basePath = `monthly-reports/${organizationId}/${year}-${monthTag}`;
+  const basePath = packBasePath("monthly-reports", organizationId, `${year}-${monthTag}`, projectId);
   // Unique directory per generation; the file names stay fixed because the web app derives the
   // .xlsx path from the PDF path (xlsxPathFromPdfPath). Never overwrites an earlier generation.
   const pdfPath = buildGeneratedDirPath(basePath, "report-pack.pdf");
@@ -152,7 +154,7 @@ export async function generateMonthlyReportPack(
   await fileOrgPackInProjectVaults(supabase, {
     projectIds: agg.perProject.map((p) => p.projectId),
     title: `Monthly Report Pack ${year}-${monthTag}`,
-    documentReference: `MONTHLY-${year}-${monthTag}`,
+    documentReference: packDocumentReference(`MONTHLY-${year}-${monthTag}`, projectId),
     storagePath: pdfPath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
