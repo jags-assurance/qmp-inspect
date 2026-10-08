@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders({
           supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
           isProduction: process.env.NODE_ENV === "production",
+          enforceCsp: process.env.CSP_REPORT_ONLY !== "1",
         }),
       },
     ];
