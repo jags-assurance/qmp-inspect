@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { fetchAll } from "@/lib/supabase/fetch-all";
-import { isOverdue } from "./is-overdue";
+import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
+import { siteToday } from "@/lib/ncrs/site-date";
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { StatCard } from "@/components/ui/stat-card";
-import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
+import { AgingChart } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
 import { NcrPanel } from "./ncr-panel";
@@ -97,10 +98,28 @@ export default async function NcrsPage({
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
-  // Stats read EVERY matching light row (one response is capped at 1000 rows): page through them.
-  const [statRows, { count: totalCount }, { data: ncrs }] = await Promise.all([
-    fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
-      statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
+  // Stat cards, chip counts and the aging chart come from one SQL aggregate (falls back to paging the
+  // light rows until the register_stats migration is applied).
+  // Server component: evaluated once per request, which is the intended "now".
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
+  const [stats, { count: totalCount }, { data: ncrs }] = await Promise.all([
+    loadRegisterStats(
+      supabase,
+      {
+        observations: false,
+        projectId: sp.project,
+        severity: sp.severity,
+        assignee: sp.assignee,
+        userId: session.userId,
+        itpItemIds: itpItemIdFilter,
+        todayIso: siteToday(),
+        nowMs,
+      },
+      () =>
+        fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
+          statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
+        )
     ),
     countQuery,
     (applyNcrSort(tableQuery, sp.sort) as typeof tableQuery)
@@ -109,18 +128,8 @@ export default async function NcrsPage({
   ]);
 
   const rows = ncrs ?? [];
-  const total = statRows.length;
-  const open = statRows.filter((r) => r.status !== "closed").length;
-  const closed = statRows.filter((r) => r.status === "closed").length;
-  const overdue = statRows.filter(isOverdue).length;
-  // Server component: evaluated once per request, which is the intended "now".
-  // eslint-disable-next-line react-hooks/purity
-  const nowMs = Date.now();
-  const agingCounts = bucketAge(
-    statRows.filter((r) => r.status !== "closed").map((r) => Math.floor((nowMs - new Date(r.created_at).getTime()) / 86_400_000))
-  );
-  const statusCounts: Record<string, number> = {};
-  for (const r of statRows) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+  const { total, open, closed, overdue, statusCounts } = stats;
+  const agingCounts = stats.aging;
   const hrefWith = (patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
     for (const [k, v] of Object.entries({ ...sp, ...patch, page: undefined })) if (v) next.set(k, String(v));

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE, type AuditLogRow } from "@/lib/audit/types";
+import { loadAuditFacets } from "@/lib/audit/facets";
 import { PageGuide } from "@/components/domain/page-guide";
 import { DateRangeFilter } from "@/components/domain/date-range-filter";
 import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
@@ -91,20 +92,17 @@ export async function AuditLogView({
   const hasMore = (fetched ?? []).length > limit;
   const events = (fetched ?? []).slice(0, limit);
 
-  // Filter options come from the project's own trail (distinct categories and people).
-  const { data: facetRows } = await supabase
-    .from(AUDIT_LOG_TABLE)
-    .select("entity_type, actor_id, actor:users(full_name)")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .limit(1000)
-    .returns<{ entity_type: string; actor_id: string | null; actor: { full_name: string } | null }[]>();
-  const categories = [...new Set((facetRows ?? []).map((r) => r.entity_type))].sort();
-  const actors = [
-    ...new Map(
-      (facetRows ?? []).filter((r) => r.actor_id).map((r) => [r.actor_id as string, r.actor?.full_name ?? "Unknown"])
-    ).entries(),
-  ];
+  // Filter options: distinct categories and people across the project's WHOLE trail (SQL DISTINCT).
+  const { categories, actors } = await loadAuditFacets(supabase, projectId, async () => {
+    const { data: facetRows } = await supabase
+      .from(AUDIT_LOG_TABLE)
+      .select("entity_type, actor_id, actor:users(full_name)")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1000)
+      .returns<{ entity_type: string; actor_id: string | null; actor: { full_name: string } | null }[]>();
+    return facetRows ?? [];
+  });
   const moreParams = new URLSearchParams();
   if (range) moreParams.set("range", range);
   if (filters.cat) moreParams.set("cat", filters.cat);

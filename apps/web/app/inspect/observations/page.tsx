@@ -3,7 +3,7 @@ import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { StatCard } from "@/components/ui/stat-card";
-import { AgingChart, bucketAge } from "@/components/ui/aging-chart";
+import { AgingChart } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "../ncrs/ncrs-table";
 import { NcrPanel } from "../ncrs/ncr-panel";
@@ -13,7 +13,8 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { RaiseObservationPanel } from "./raise-observation-panel";
 import { fetchAll } from "@/lib/supabase/fetch-all";
-import { summariseObservationRows, type ObservationStatRow } from "@/lib/ncrs/register-stats";
+import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
+import type { ObservationStatRow } from "@/lib/ncrs/register-stats";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -77,11 +78,17 @@ export default async function ObservationsPage({
   }
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
-  const [statRows, { data: observations, count: totalCount }] = await Promise.all([
-    fetchAll<ObservationStatRow>((from, to) =>
-      baseFilters(supabase.from(NCRS_TABLE).select("status, due_date, created_at").eq("severity", "observation"))
-        .order("id")
-        .range(from, to)
+  const nowMs = new Date().getTime();
+  const [stats, { data: observations, count: totalCount }] = await Promise.all([
+    loadRegisterStats(
+      supabase,
+      { observations: true, projectId, itpItemIds: itpItemIdFilter, todayIso, nowMs },
+      () =>
+        fetchAll<ObservationStatRow>((from, to) =>
+          baseFilters(supabase.from(NCRS_TABLE).select("status, due_date, created_at").eq("severity", "observation"))
+            .order("id")
+            .range(from, to)
+        )
     ),
     tableQuery
       .order("created_at", { ascending: false })
@@ -90,8 +97,8 @@ export default async function ObservationsPage({
   ]);
 
   const rows = (observations ?? []) as NcrRegisterRow[];
-  const { total, open, closed, overdue, openAgeDays } = summariseObservationRows(statRows, new Date().getTime(), todayIso);
-  const agingCounts = bucketAge(openAgeDays);
+  const { total, open, closed, overdue } = stats;
+  const agingCounts = stats.aging;
 
   return (
     <div>
