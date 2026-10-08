@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@jags/shared-types";
+import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
 
 /**
  * Server-side Supabase client for use in Server Components, Server Actions, and Route Handlers.
@@ -15,6 +16,7 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       global: {
         // Next.js patches the global `fetch` to run every request through its own Data
         // Cache/request-memoization layer unless told not to. That layer was observed to corrupt
