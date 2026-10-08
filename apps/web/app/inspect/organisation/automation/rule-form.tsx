@@ -5,6 +5,7 @@ import { upsertAutomationRuleAction, type UpsertAutomationRuleState } from "@/li
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { AutomationRuleType } from "@/lib/automation/types";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: UpsertAutomationRuleState = { error: null };
 
@@ -43,14 +44,14 @@ export function RuleForm({
         </div>
         <label className="flex items-center gap-2 text-sm text-ink">
           <input type="checkbox" name="enabled" checked={isEnabled} onChange={(e) => setIsEnabled(e.target.checked)} />
-          Enabled
+          <Tx>Enabled</Tx>
         </label>
       </div>
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
         <div>
           <label htmlFor={`${ruleType}-threshold`} className="block text-xs text-muted">
-            Nudge after (hours)
+            <Tx>Nudge after (hours)</Tx>
           </label>
           <input
             id={`${ruleType}-threshold`}
@@ -63,7 +64,7 @@ export function RuleForm({
         </div>
         <div>
           <label htmlFor={`${ruleType}-repeat`} className="block text-xs text-muted">
-            Don&rsquo;t repeat within (hours)
+            <Tx>Don&rsquo;t repeat within (hours)</Tx>
           </label>
           <input
             id={`${ruleType}-repeat`}

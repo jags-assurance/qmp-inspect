@@ -6,6 +6,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import type { AssignmentConclusion, AssignmentStatus, AssignmentType } from "@/lib/standalone/actions";
 import { STANDALONE_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
+import { Tx } from "@/components/domain/tx";
 
 export interface StandaloneAssignmentListRow {
   id: string;
@@ -72,7 +73,7 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
     header: "Status",
     render: (row) =>
       row.status === "draft" ? (
-        <Badge tone="neutral">Draft</Badge>
+        <Badge tone="neutral"><Tx>Draft</Tx></Badge>
       ) : (
         <Badge tone={row.conclusion ? CONCLUSION_TONE[row.conclusion] : "neutral"}>
           {row.conclusion ? CONCLUSION_LABEL[row.conclusion] : "Completed"}

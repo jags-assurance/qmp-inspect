@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { setItpReviewChainAction, type SetReviewChainState } from "@/lib/itps/review-chain-actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetReviewChainState = { error: null };
 
@@ -31,7 +32,7 @@ export function ItpReviewChainForm({
 
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="text-sm font-semibold text-ink">This ITP&apos;s own review chain (optional)</h3>
+      <h3 className="text-sm font-semibold text-ink"><Tx>This ITP&apos;s own review chain (optional)</Tx></h3>
       <p className="mt-1 text-xs text-muted">
         {usingProjectDefault
           ? "Currently following the project's own review chain (or plain single-click Approve, if the project has none). Set an ordered list below to override it for just this ITP."
@@ -46,7 +47,7 @@ export function ItpReviewChainForm({
             defaultValue={initialChain[i]?.reviewerUserId ?? ""}
             className="w-full rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
           >
-            <option value="">— Step {i + 1}: none —</option>
+            <option value=""><Tx>— Step</Tx> {i + 1}<Tx>: none —</Tx></option>
             {staff.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.full_name}

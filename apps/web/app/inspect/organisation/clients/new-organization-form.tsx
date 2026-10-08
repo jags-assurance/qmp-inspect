@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { createOrganizationAction, type CreateOrganizationState } from "@/lib/organizations/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateOrganizationState = { error: null };
 
@@ -18,6 +20,7 @@ const ENGAGEMENT_MODE_OPTIONS: { value: string; label: string; description: stri
 ];
 
 export function NewOrganizationForm() {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createOrganizationAction, initialState);
 
   return (
@@ -27,7 +30,7 @@ export function NewOrganizationForm() {
           <input
           name="name"
           required
-          placeholder="e.g. Northgate Industries"
+          placeholder={tl("e.g. Northgate Industries")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -35,18 +38,18 @@ export function NewOrganizationForm() {
 
       <div>
         <label htmlFor="org_slug" className="block text-sm font-medium text-ink">
-          Slug <span className="font-normal text-muted">(optional — derived from the name if left blank)</span>
+          <Tx>Slug</Tx> <span className="font-normal text-muted"><Tx>(optional — derived from the name if left blank)</Tx></span>
         </label>
         <input
           id="org_slug"
           name="slug"
-          placeholder="e.g. northgate"
+          placeholder={tl("e.g. northgate")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
       </div>
 
       <div>
-        <span className="block text-sm font-medium text-ink">Engagement mode</span>
+        <span className="block text-sm font-medium text-ink"><Tx>Engagement mode</Tx></span>
         <div className="mt-2 space-y-2">
           {ENGAGEMENT_MODE_OPTIONS.map((opt) => (
             <label key={opt.value} className="flex items-start gap-2 text-sm">
@@ -65,35 +68,35 @@ export function NewOrganizationForm() {
           ))}
         </div>
         <p className="mt-2 text-xs text-muted">
-          This can be changed later from Numbering &amp; engagement mode.
+          <Tx>This can be changed later from Numbering &amp; engagement mode.</Tx>
         </p>
       </div>
 
       <div>
-        <span className="block text-sm font-medium text-ink">Engagement scope</span>
+        <span className="block text-sm font-medium text-ink"><Tx>Engagement scope</Tx></span>
         <div className="mt-2 space-y-2">
           <label className="flex items-start gap-2 text-sm">
             <input type="radio" name="engagement_scope" value="full_service" defaultChecked className="mt-1" />
             <span>
-              <span className="font-medium text-ink">Full-Managed / End-to-End Execution</span>
-              <span className="block text-xs text-muted">JAGS runs the project — the default.</span>
+              <span className="font-medium text-ink"><Tx>Full-Managed / End-to-End Execution</Tx></span>
+              <span className="block text-xs text-muted"><Tx>JAGS runs the project — the default.</Tx></span>
             </span>
           </label>
           <label className="flex items-start gap-2 text-sm">
             <input type="radio" name="engagement_scope" value="self_managed" className="mt-1" />
             <span>
-              <span className="font-medium text-ink">Self-Managed (Hybrid)</span>
+              <span className="font-medium text-ink"><Tx>Self-Managed (Hybrid)</Tx></span>
               <span className="block text-xs text-muted">
-                This client&apos;s own teams build, submit and accept ITPs on every project — but a JAGS staff member still has to Approve each one.
+                <Tx>This client&apos;s own teams build, submit and accept ITPs on every project — but a JAGS staff member still has to Approve each one.</Tx>
               </span>
             </span>
           </label>
           <label className="flex items-start gap-2 text-sm">
             <input type="radio" name="engagement_scope" value="client_managed" className="mt-1" />
             <span>
-              <span className="font-medium text-ink">Full Client-Managed</span>
+              <span className="font-medium text-ink"><Tx>Full Client-Managed</Tx></span>
               <span className="block text-xs text-muted">
-                Everything Self-Managed gives, plus the client&apos;s own permission-granted people can Approve their own ITPs and create new logins for their own team — no JAGS staff involvement day-to-day after onboarding.
+                <Tx>Everything Self-Managed gives, plus the client&apos;s own permission-granted people can Approve their own ITPs and create new logins for their own team — no JAGS staff involvement day-to-day after onboarding.</Tx>
               </span>
             </span>
           </label>
@@ -103,7 +106,7 @@ export function NewOrganizationForm() {
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       {state.created && !state.error && (
         <p role="status" className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
-          ✓ Organisation “{state.created}” was created. It is at the top of the list below — next, add a project for it.
+          <Tx>✓ Organisation “</Tx>{state.created}<Tx>” was created. It is at the top of the list below — next, add a project for it.</Tx>
         </p>
       )}
 

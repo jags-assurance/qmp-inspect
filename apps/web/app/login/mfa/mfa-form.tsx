@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { verifyMfaLoginAction, type MfaState } from "@/lib/auth/mfa-actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initial: MfaState = { error: null };
 
@@ -11,8 +12,8 @@ export function MfaForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(verifyMfaLoginAction, initial);
   return (
     <main className="mx-auto mt-24 max-w-sm rounded-lg border border-border bg-surface p-6">
-      <h1 className="text-xl font-semibold text-ink">Two-step sign-in</h1>
-      <p className="mt-1 text-sm text-muted">Open your authenticator app and enter the 6-digit code for this account.</p>
+      <h1 className="text-xl font-semibold text-ink"><Tx>Two-step sign-in</Tx></h1>
+      <p className="mt-1 text-sm text-muted"><Tx>Open your authenticator app and enter the 6-digit code for this account.</Tx></p>
       <form action={formAction} className="mt-4 space-y-3">
         <input type="hidden" name="next" value={next} />
         <div>

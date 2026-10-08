@@ -4,10 +4,13 @@ import { useActionState } from "react";
 import { addLibraryItemAction, type LibraryItemFormState } from "@/lib/checklist-library/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: LibraryItemFormState = { error: null };
 
 export function AddItemForm({ templateId }: { templateId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addLibraryItemAction, initialState);
 
   return (
@@ -28,7 +31,7 @@ export function AddItemForm({ templateId }: { templateId: string }) {
           <FormField label="Evidence type">
             <input
             name="evidence_type"
-            placeholder="e.g. Photo, Measurement, Visual"
+            placeholder={tl("e.g. Photo, Measurement, Visual")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
@@ -55,7 +58,7 @@ export function AddItemForm({ templateId }: { templateId: string }) {
       </div>
       <label className="flex items-center gap-2 text-xs text-ink">
         <input type="checkbox" name="is_mandatory" defaultChecked className="h-3.5 w-3.5" />
-        Mandatory
+        <Tx>Mandatory</Tx>
       </label>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <Button type="submit" size="sm" disabled={pending}>

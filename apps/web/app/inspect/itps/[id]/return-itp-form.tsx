@@ -2,11 +2,14 @@
 
 import { useActionState, useState } from "react";
 import { returnItpToDraftAction, type ReturnItpState } from "@/lib/itps/actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ReturnItpState = { error: null };
 
 /** A reviewer sends the ITP back to its preparer with a written reason (under review -> draft). */
 export function ReturnItpForm({ itpId }: { itpId: string }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(returnItpToDraftAction, initialState);
 
@@ -17,7 +20,7 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
         onClick={() => setOpen(true)}
         className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-danger hover:bg-off-white"
       >
-        Return to preparer
+        <Tx>Return to preparer</Tx>
       </button>
     );
   }
@@ -30,8 +33,8 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
         required
         minLength={5}
         rows={2}
-        placeholder="What needs to change? (sent to the preparer)"
-        aria-label="Reason for returning the ITP"
+        placeholder={tl("What needs to change? (sent to the preparer)")}
+        aria-label={tl("Reason for returning the ITP")}
         className="w-full sm:min-w-64 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       <div className="flex flex-col gap-1">
@@ -43,7 +46,7 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
           {pending ? "Returning…" : "Confirm return"}
         </button>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
       {state.error && <p role="alert" className="w-full max-w-md text-xs text-danger">{state.error}</p>}

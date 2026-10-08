@@ -5,6 +5,8 @@ import { OrgPlanForm } from "./org-plan-form";
 import { summariseSeatUsage } from "@/lib/plans/seat-limit";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationRow {
   id: string;
@@ -35,6 +37,7 @@ const TIER_LABEL: Record<string, string> = {
  * that org (see lib/staff-access/actions.ts / staff-access page).
  */
 export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -61,9 +64,9 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Plans & seats</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Plans & seats</T></Heading>
         <PageGuide
-          title="Plans & seats — how this works"
+          title={tl("Plans & seats — how this works")}
           points={[
             "Admin-only. Each organisation's plan tier is informational today — nothing in the app currently gates a feature by tier.",
             "seat_limit is the one enforced setting: a seat is one distinct user holding an organisation- or project-scoped access grant for that client; leave it blank for unlimited.",
@@ -72,10 +75,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Each organisation&rsquo;s plan tier and optional seat cap. A seat is one distinct user
-        holding an organisation- or project-scoped access grant for that client; leave the seat
-        limit blank for unlimited. Exceeding the limit blocks the next staff-access grant for that
-        organisation with a clear error, enforced by the database itself.
+        <T>Each organisation&rsquo;s plan tier and optional seat cap. A seat is one distinct user holding an organisation- or project-scoped access grant for that client; leave the seat limit blank for unlimited. Exceeding the limit blocks the next staff-access grant for that organisation with a clear error, enforced by the database itself.</T>
       </p>
 
       <div className="mt-6 space-y-4">
@@ -88,7 +88,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
               <div className="flex items-baseline justify-between">
                 <h2 className="text-sm font-semibold text-ink">{org.name}</h2>
                 <span className="text-xs text-muted">
-                  {seatsUsed} seat{seatsUsed === 1 ? "" : "s"} in use
+                  {seatsUsed} <T>seat</T>{seatsUsed === 1 ? "" : "s"} <T>in use</T>
                   {plan?.seat_limit != null ? ` of ${plan.seat_limit}` : " (unlimited)"}
                   {plan ? ` · ${TIER_LABEL[plan.plan_tier] ?? plan.plan_tier}` : ""}
                 </span>
@@ -99,7 +99,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
                     <div className={`h-full ${usage.overLimit ? "bg-danger" : usage.atLimit ? "bg-warning" : "bg-burgundy"}`} style={{ width: `${usage.percent}%` }} />
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    {usage.used} of {usage.limit} seats used
+                    {usage.used} <T>of</T> {usage.limit} <T>seats used</T>
                     {usage.overLimit ? " — over the limit (an Admin override was used or the limit was lowered)" : usage.atLimit ? " — full: the next login or staff grant is blocked unless an Admin overrides with a reason" : ""}
                   </p>
                 </div>
@@ -115,7 +115,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
           );
         })}
         {(organizations ?? []).length === 0 && (
-          <p className="text-sm text-muted">No organisations yet.</p>
+          <p className="text-sm text-muted"><T>No organisations yet.</T></p>
         )}
       </div>
     </div>

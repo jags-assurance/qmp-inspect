@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateOrgLogoAction } from "@/lib/branding/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const ORG_BRANDING_BUCKET = "org-branding";
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB — a logo has no business being larger than this.
@@ -90,14 +91,14 @@ export function LogoUploadForm({
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
       <div className="flex flex-wrap items-center gap-4">
         <div>
-          <span className="block text-xs text-muted">Live preview</span>
+          <span className="block text-xs text-muted"><Tx>Live preview</Tx></span>
           <div className="mt-1 flex h-16 w-40 items-center justify-center rounded-md border border-border bg-off-white p-2">
             {previewSrc ? (
               // Signed/blob URLs — an <img> avoids next/image's remote-pattern allowlist entirely.
               // eslint-disable-next-line @next/next/no-img-element
               <img src={previewSrc} alt="Organisation logo preview" className="max-h-full max-w-full object-contain" />
             ) : (
-              <span className="text-xs text-muted">No logo uploaded</span>
+              <span className="text-xs text-muted"><Tx>No logo uploaded</Tx></span>
             )}
           </div>
         </div>

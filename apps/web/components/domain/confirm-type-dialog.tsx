@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * Confirmation for irreversible actions (compile / issue / acknowledge a Data Book handover). The
@@ -47,7 +48,7 @@ export function ConfirmTypeDialog({
         {phrase && (
           <div className="mt-3">
             <label htmlFor={inputId} className="block text-xs font-medium text-ink">
-              Type <span className="font-mono">{phrase}</span> to confirm
+              <Tx>Type</Tx> <span className="font-mono">{phrase}</span> <Tx>to confirm</Tx>
             </label>
             <input
               id={inputId}
@@ -66,7 +67,7 @@ export function ConfirmTypeDialog({
             onClick={onCancel}
             className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-off-white focus:outline-none focus:ring-2 focus:ring-burgundy"
           >
-            Cancel
+            <Tx>Cancel</Tx>
           </button>
           <Button type="button" size="sm" disabled={!ok} onClick={onConfirm}>
             {confirmLabel}

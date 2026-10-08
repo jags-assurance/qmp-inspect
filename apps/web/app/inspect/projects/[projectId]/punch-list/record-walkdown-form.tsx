@@ -4,6 +4,8 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: RecordWalkdownState = { error: null };
 
@@ -28,6 +30,7 @@ export function RecordWalkdownForm({
   projectId: string;
   projectParties: { id: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(recordWalkdownAction, initialState);
   const [rowIds, setRowIds] = useState<number[]>([nextRowId()]);
   const [open, setOpen] = useState(false);
@@ -67,7 +70,7 @@ export function RecordWalkdownForm({
   if (!open) {
     return (
       <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-        Record walk-down
+        <Tx>Record walk-down</Tx>
       </Button>
     );
   }
@@ -84,9 +87,9 @@ export function RecordWalkdownForm({
 
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium text-ink">Record walk-down</h3>
+          <h3 className="text-sm font-medium text-ink"><Tx>Record walk-down</Tx></h3>
           <p className="mt-0.5 text-xs text-muted">
-            Log everything found during this walk-down as punch items — add a row for each item.
+            <Tx>Log everything found during this walk-down as punch items — add a row for each item.</Tx>
           </p>
         </div>
         <button
@@ -94,25 +97,25 @@ export function RecordWalkdownForm({
           onClick={() => setOpen(false)}
           className="text-xs text-muted hover:text-ink"
         >
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 rounded-md border border-border bg-surface p-3 sm:grid-cols-4">
         <label className="text-xs font-medium text-ink">
-          Walk-down date
+          <Tx>Walk-down date</Tx>
           <input name="walked_on" type="date" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
         </label>
         <label className="text-xs font-medium text-ink">
-          Area walked
+          <Tx>Area walked</Tx>
           <input name="walkdown_area" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
         </label>
         <label className="text-xs font-medium text-ink">
-          Attendees
-          <input name="walkdown_attendees" maxLength={500} placeholder="Names / organisations" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+          <Tx>Attendees</Tx>
+          <input name="walkdown_attendees" maxLength={500} placeholder={tl("Names / organisations")} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
         </label>
         <label className="text-xs font-medium text-ink">
-          Notes
+          <Tx>Notes</Tx>
           <input name="walkdown_notes" maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
         </label>
       </div>
@@ -122,19 +125,19 @@ export function RecordWalkdownForm({
           <div key={rowId} className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface p-3">
             <div className="w-full sm:min-w-56 flex-1">
               <label htmlFor={`walkdown-description-${rowId}`} className="block text-xs font-medium text-ink">
-                Item found
+                <Tx>Item found</Tx>
               </label>
               <input
                 id={`walkdown-description-${rowId}`}
                 name="description"
-                placeholder="What was found during the walk-down…"
+                placeholder={tl("What was found during the walk-down…")}
                 className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
               />
             </div>
 
             <div className="w-full sm:w-40">
               <label htmlFor={`walkdown-location-${rowId}`} className="block text-xs font-medium text-ink">
-                Location / ITP area
+                <Tx>Location / ITP area</Tx>
               </label>
               <input
                 id={`walkdown-location-${rowId}`}
@@ -145,7 +148,7 @@ export function RecordWalkdownForm({
 
             <div className="w-full sm:w-48">
               <label htmlFor={`walkdown-party-${rowId}`} className="block text-xs font-medium text-ink">
-                Responsible party
+                <Tx>Responsible party</Tx>
               </label>
               <select
                 id={`walkdown-party-${rowId}`}
@@ -153,7 +156,7 @@ export function RecordWalkdownForm({
                 defaultValue=""
                 className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
               >
-                <option value="">Unassigned</option>
+                <option value=""><Tx>Unassigned</Tx></option>
                 {projectParties.map((party) => (
                   <option key={party.id} value={party.id}>
                     {party.name}
@@ -165,7 +168,7 @@ export function RecordWalkdownForm({
             <input type="hidden" name="row_key" value={rowId} />
             <div className="w-full sm:w-28">
               <label htmlFor={`walkdown-priority-${rowId}`} className="block text-xs font-medium text-ink">
-                Priority
+                <Tx>Priority</Tx>
               </label>
               <select
                 id={`walkdown-priority-${rowId}`}
@@ -173,15 +176,15 @@ export function RecordWalkdownForm({
                 defaultValue="B"
                 className="mt-1 min-h-11 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
               >
-                <option value="A">A - critical</option>
-                <option value="B">B - major</option>
-                <option value="C">C - minor</option>
+                <option value="A"><Tx>A - critical</Tx></option>
+                <option value="B"><Tx>B - major</Tx></option>
+                <option value="C"><Tx>C - minor</Tx></option>
               </select>
             </div>
 
             <div className="w-full sm:w-52">
               <label htmlFor={`walkdown-photo-${rowId}`} className="block text-xs font-medium text-ink">
-                Photo
+                <Tx>Photo</Tx>
               </label>
               <input
                 id={`walkdown-photo-${rowId}`}
@@ -196,7 +199,7 @@ export function RecordWalkdownForm({
 
             <div className="w-full sm:w-36">
               <label htmlFor={`walkdown-due-${rowId}`} className="block text-xs font-medium text-ink">
-                Due date
+                <Tx>Due date</Tx>
               </label>
               <input
                 id={`walkdown-due-${rowId}`}
@@ -213,7 +216,7 @@ export function RecordWalkdownForm({
                 className="text-xs text-muted hover:text-danger"
                 aria-label={`Remove item ${index + 1}`}
               >
-                Remove
+                <Tx>Remove</Tx>
               </button>
             )}
           </div>
@@ -222,7 +225,7 @@ export function RecordWalkdownForm({
 
       <div className="mt-3 flex items-center gap-3">
         <button type="button" onClick={addRow} className="text-sm text-burgundy hover:underline">
-          + Add another item
+          <Tx>+ Add another item</Tx>
         </button>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Recording…" : "Record walk-down"}
@@ -233,7 +236,7 @@ export function RecordWalkdownForm({
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
       {!pending && !state.error && state.addedCount ? (
         <p className="mt-2 text-sm text-success">
-          Recorded {state.addedCount} item{state.addedCount === 1 ? "" : "s"} from the walk-down.
+          <Tx>Recorded</Tx> {state.addedCount} <Tx>item</Tx>{state.addedCount === 1 ? "" : "s"} <Tx>from the walk-down.</Tx>
         </p>
       ) : null}
     </form>

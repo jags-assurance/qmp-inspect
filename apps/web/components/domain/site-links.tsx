@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Small row of links shown in the app footer, on the sign-in page and on the public pages: help,
@@ -6,23 +8,24 @@ import Link from "next/link";
  * (support, what's new) off for the signed-out pages, which only get the public ones.
  */
 export function SiteLinks({ signedIn, className = "" }: { signedIn: boolean; className?: string }) {
+  const tl = useTranslate();
   const link = "text-xs text-muted underline-offset-2 hover:text-ink hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-burgundy";
   return (
-    <nav aria-label="Help and legal" className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${className}`}>
+    <nav aria-label={tl("Help and legal")} className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${className}`}>
       {signedIn && (
         <Link href="/inspect/support" className={link}>
-          Help and support
+          <Tx>Help and support</Tx>
         </Link>
       )}
       <Link href="/privacy" className={link}>
-        Privacy notice
+        <Tx>Privacy notice</Tx>
       </Link>
       <Link href="/terms" className={link}>
-        Terms of use
+        <Tx>Terms of use</Tx>
       </Link>
       {signedIn && (
         <Link href="/inspect/whats-new" className={link}>
-          What&apos;s new
+          <Tx>What&apos;s new</Tx>
         </Link>
       )}
     </nav>

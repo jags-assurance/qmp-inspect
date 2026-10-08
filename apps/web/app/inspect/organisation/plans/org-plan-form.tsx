@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateOrgPlanAction, type PlanSettingsState } from "@/lib/plans/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: PlanSettingsState = { error: null };
 
@@ -22,6 +23,7 @@ export function OrgPlanForm({
   planTier: string;
   seatLimit: number | null;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateOrgPlanAction, initialState);
 
   return (
@@ -52,7 +54,7 @@ export function OrgPlanForm({
           min={0}
           step={1}
           defaultValue={seatLimit ?? ""}
-          placeholder="Unlimited"
+          placeholder={tl("Unlimited")}
           className="mt-1 w-32 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

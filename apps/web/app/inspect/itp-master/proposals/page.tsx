@@ -10,6 +10,8 @@ import {
 import { ProposalReviewForm } from "./proposal-review-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface ProposalWithSourceItp {
   id: string;
@@ -71,13 +73,14 @@ function DiffList({ label, items, tone }: { label: string; items: string[]; tone
             {x}
           </li>
         ))}
-        {items.length > 40 && <li className="text-muted">and {items.length - 40} more</li>}
+        {items.length > 40 && <li className="text-muted"><T>and</T> {items.length - 40} <T>more</T></li>}
       </ul>
     </div>
   );
 }
 
 export default async function ItpMasterProposalsPage() {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect/itps");
 
@@ -124,9 +127,9 @@ export default async function ItpMasterProposalsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">Master Library Proposals</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>Master Library Proposals</T></h1>
             <PageGuide
-              title="Master Library Proposals — how this works"
+              title={tl("Master Library Proposals — how this works")}
               points={[
                 "A proposal is raised from a project's own ITP once it's approved or client-accepted (\"Propose to master library\" on the ITP page) — either as a brand new template or an update to an existing one.",
                 "Only a JAGS Admin can approve or reject a pending proposal; other JAGS staff can see this queue but only get an \"Awaiting review by a JAGS Admin\" note instead of the review form.",
@@ -136,12 +139,11 @@ export default async function ItpMasterProposalsPage() {
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            Pending proposals to add a new master template, or update an existing one, from a
-            project&apos;s own ITP.
+            <T>Pending proposals to add a new master template, or update an existing one, from a project&apos;s own ITP.</T>
           </p>
         </div>
         <Link href="/inspect/itp-master" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
-          ← Library
+          <T>← Library</T>
         </Link>
       </div>
 
@@ -156,13 +158,13 @@ export default async function ItpMasterProposalsPage() {
                     : `Update existing: ${templateTitleById.get(proposal.target_template_id ?? "") ?? "Unknown template"}`}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
-                  From {proposal.itps ? `${proposal.itps.itp_number} — ${proposal.itps.title}` : "an ITP"} ·{" "}
+                  <T>From</T> {proposal.itps ? `${proposal.itps.itp_number} — ${proposal.itps.title}` : "an ITP"} ·{" "}
                   {new Date(proposal.created_at).toLocaleDateString("en-GB")}
                 </p>
               </div>
               {proposal.itps && (
                 <Link href={`/inspect/itps/${proposal.itps.id}`} className="text-sm text-burgundy hover:underline">
-                  View source ITP →
+                  <T>View source ITP →</T>
                 </Link>
               )}
             </div>
@@ -172,11 +174,11 @@ export default async function ItpMasterProposalsPage() {
               if (!d) return null;
               return (
                 <details className="mt-3 rounded-md border border-border px-3 py-2" open>
-                  <summary className="cursor-pointer select-none text-sm font-medium text-ink">Changes vs current template</summary>
+                  <summary className="cursor-pointer select-none text-sm font-medium text-ink"><T>Changes vs current template</T></summary>
                   {"newCount" in d ? (
-                    <p className="mt-2 text-xs text-muted">New template with {d.newCount} activities.</p>
+                    <p className="mt-2 text-xs text-muted"><T>New template with</T> {d.newCount} <T>activities.</T></p>
                   ) : d.added.length + d.removed.length + d.changed.length === 0 ? (
-                    <p className="mt-2 text-xs text-muted">No activity differences from the current template.</p>
+                    <p className="mt-2 text-xs text-muted"><T>No activity differences from the current template.</T></p>
                   ) : (
                     <>
                       <DiffList label="Added" items={d.added} tone="text-success" />
@@ -190,13 +192,13 @@ export default async function ItpMasterProposalsPage() {
             {isAdminStaff(session) ? (
               <ProposalReviewForm proposalId={proposal.id} />
             ) : (
-              <p className="mt-3 text-xs text-muted">Awaiting review by a JAGS Admin.</p>
+              <p className="mt-3 text-xs text-muted"><T>Awaiting review by a JAGS Admin.</T></p>
             )}
           </div>
         ))}
         {(proposals ?? []).length === 0 && (
           <p className="rounded-lg border border-border bg-surface p-6 text-center text-sm text-muted">
-            No pending proposals.
+            <T>No pending proposals.</T>
           </p>
         )}
       </div>

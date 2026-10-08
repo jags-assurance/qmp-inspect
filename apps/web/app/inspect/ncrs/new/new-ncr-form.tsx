@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateNcrState = { error: null };
 const initialDraftState: DraftNcrDescriptionState = {
@@ -81,6 +83,7 @@ export function NewNcrForm({
    *  the new record here instead of redirecting to the NCR's own page. */
   onCreated?: (created: { id: string; ncrNumber: string }) => void;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
   const [photoError, setPhotoError] = useState<string | null>(null);
   // Photos are compressed in the browser first: the Server Action body is capped (~4 MB), and phone
@@ -165,7 +168,7 @@ export function NewNcrForm({
       {inspectionRecordId && <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />}
       {checklistItemId && <input type="hidden" name="checklist_item_id" value={checklistItemId} />}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Details</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Details</Tx></h2>
 
         <div>
           <FormField label="Project" id="project_id" required error={state.fieldErrors?.project_id}>
@@ -176,7 +179,7 @@ export function NewNcrForm({
             onChange={(e) => setProjectId(e.target.value)}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">Select…</option>
+            <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.project_number} — {p.name}
@@ -187,7 +190,7 @@ export function NewNcrForm({
         </div>
 
         <fieldset>
-          <legend className="block text-sm font-medium text-ink">Severity</legend>
+          <legend className="block text-sm font-medium text-ink"><Tx>Severity</Tx></legend>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {NCR_SEVERITIES.filter((sv) => !lockSeverity || sv === severity).map((sv) => (
               <label
@@ -214,7 +217,7 @@ export function NewNcrForm({
             ))}
           </div>
           <p className="mt-1.5 text-xs text-muted">
-            {SEVERITY_HELP[severity]} Default: due in {DEFAULT_DAYS[severity]} days.
+            {SEVERITY_HELP[severity]} <Tx>Default: due in</Tx> {DEFAULT_DAYS[severity]} <Tx>days.</Tx>
           </p>
         </fieldset>
       </section>
@@ -222,18 +225,18 @@ export function NewNcrForm({
       <hr className="border-border" />
 
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Description</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Description</Tx></h2>
 
         <div className="rounded-md border border-border bg-off-white p-3">
           <label htmlFor="ai_notes" className="block text-sm font-medium text-ink">
-            Draft with AI (optional)
+            <Tx>Draft with AI (optional)</Tx>
           </label>
           <textarea
             id="ai_notes"
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Jot down factual notes — equipment, what was observed…"
+            placeholder={tl("Jot down factual notes — equipment, what was observed…")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           <button
@@ -253,15 +256,15 @@ export function NewNcrForm({
               a project hadn't been picked yet, or the notes box was still empty — looked broken
               rather than waiting on input. */}
           {!draftPending && !projectId && (
-            <p className="mt-1.5 text-xs text-muted">Select a project above first.</p>
+            <p className="mt-1.5 text-xs text-muted"><Tx>Select a project above first.</Tx></p>
           )}
           {!draftPending && projectId && !notes.trim() && (
-            <p className="mt-1.5 text-xs text-muted">Jot down some field notes above first.</p>
+            <p className="mt-1.5 text-xs text-muted"><Tx>Jot down some field notes above first.</Tx></p>
           )}
           {draftState.error && <p role="alert" className="mt-2 text-sm text-danger">{draftState.error}</p>}
           {aiOriginalDescription !== null && (
             <p className="mt-2">
-              <Badge tone="info">AI-assisted draft</Badge>
+              <Badge tone="info"><Tx>AI-assisted draft</Tx></Badge>
             </p>
           )}
         </div>
@@ -274,7 +277,7 @@ export function NewNcrForm({
             rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What was observed / not conforming…"
+            placeholder={tl("What was observed / not conforming…")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
@@ -287,7 +290,7 @@ export function NewNcrForm({
             rows={2}
             value={requirementNotMet}
             onChange={(e) => setRequirementNotMet(e.target.value)}
-            placeholder="Spec clause, drawing note, or ITP acceptance criteria not met…"
+            placeholder={tl("Spec clause, drawing note, or ITP acceptance criteria not met…")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
@@ -297,12 +300,12 @@ export function NewNcrForm({
       <hr className="border-border" />
 
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Assignment</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Assignment</Tx></h2>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="assigned_to" className="block text-sm font-medium text-ink">
-              Assigned to
+              <Tx>Assigned to</Tx>
             </label>
             <select
               id="assigned_to"
@@ -311,14 +314,14 @@ export function NewNcrForm({
               disabled={!projectId}
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
             >
-              <option value="">Unassigned</option>
+              <option value=""><Tx>Unassigned</Tx></option>
               {(peopleByProject[projectId] ?? []).map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.name}
                 </option>
               ))}
             </select>
-            {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
+            {!projectId && <p className="mt-1 text-xs text-muted"><Tx>Select a project first.</Tx></p>}
           </div>
           <div>
             <FormField label="Due date" error={state.fieldErrors?.due_date}>
@@ -339,7 +342,7 @@ export function NewNcrForm({
 
         <div>
           <label htmlFor="responsible_party_id" className="block text-sm font-medium text-ink">
-            Responsible party <span className="font-normal text-muted">(optional)</span>
+            <Tx>Responsible party</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <select
             id="responsible_party_id"
@@ -348,33 +351,33 @@ export function NewNcrForm({
             disabled={!projectId}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           >
-            <option value="">Not specified</option>
+            <option value=""><Tx>Not specified</Tx></option>
             {(partiesByProject[projectId] ?? []).map((party) => (
               <option key={party.id} value={party.id}>
                 {party.name} ({party.party_type})
               </option>
             ))}
           </select>
-          {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
+          {!projectId && <p className="mt-1 text-xs text-muted"><Tx>Select a project first.</Tx></p>}
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="location" className="block text-sm font-medium text-ink">
-            Location / area <span className="font-normal text-muted">(optional)</span>
+            <Tx>Location / area</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <input id="location" name="location" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
         </div>
         <div>
           <label htmlFor="equipment_tag" className="block text-sm font-medium text-ink">
-            Equipment tag <span className="font-normal text-muted">(optional)</span>
+            <Tx>Equipment tag</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <input id="equipment_tag" name="equipment_tag" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
         </div>
         <div>
           <label htmlFor="spec_reference" className="block text-sm font-medium text-ink">
-            Spec clause <span className="font-normal text-muted">(optional)</span>
+            <Tx>Spec clause</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <input id="spec_reference" name="spec_reference" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
         </div>
@@ -382,7 +385,7 @@ export function NewNcrForm({
 
       <div>
         <label htmlFor="ncr_photos" className="block text-sm font-medium text-ink">
-          Photos <span className="font-normal text-muted">(optional, compressed automatically)</span>
+          <Tx>Photos</Tx> <span className="font-normal text-muted"><Tx>(optional, compressed automatically)</Tx></span>
         </label>
         <input
           id="ncr_photos"
@@ -396,7 +399,7 @@ export function NewNcrForm({
 
       {duplicates.length > 0 && (
         <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
-          <p className="font-medium">Open NCRs already exist on this activity</p>
+          <p className="font-medium"><Tx>Open NCRs already exist on this activity</Tx></p>
           <ul className="mt-1 space-y-0.5 text-xs">
             {duplicates.map((d) => (
               <li key={d.id}>
@@ -407,7 +410,7 @@ export function NewNcrForm({
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs text-muted">Check it is not the same issue before raising another.</p>
+          <p className="mt-1 text-xs text-muted"><Tx>Check it is not the same issue before raising another.</Tx></p>
         </div>
       )}
 

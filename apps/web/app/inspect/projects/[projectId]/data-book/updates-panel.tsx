@@ -2,6 +2,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { DATA_BOOKS_TABLE } from "@/lib/databook/types";
 import { Badge } from "@/components/ui/badge";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const PAGE_SIZE = 50;
 
@@ -85,6 +87,7 @@ export async function DataBookUpdatesPanel({
   upd?: string;
   updn?: string;
 }) {
+  const tl = await getTranslator();
   const cat = (CATS.some((c) => c.key === upd) ? upd : "all") as "all" | Cat;
   const page = Math.max(1, Math.min(20, parseInt(updn ?? "1", 10) || 1));
   const limit = page * PAGE_SIZE;
@@ -153,23 +156,23 @@ export async function DataBookUpdatesPanel({
 
   return (
     <section id="updates" className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <h2 className="text-lg font-semibold text-ink">Data Book updates</h2>
-      <p className="mt-1 text-sm text-muted">Everything that changed on this project and affects the book, newest first.</p>
+      <h2 className="text-lg font-semibold text-ink"><T>Data Book updates</T></h2>
+      <p className="mt-1 text-sm text-muted"><T>Everything that changed on this project and affects the book, newest first.</T></p>
 
       {!latestCompiled ? (
-        <p className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted">No Data Book has been generated yet.</p>
+        <p className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted"><T>No Data Book has been generated yet.</T></p>
       ) : sinceCount > 0 ? (
         <p className="mt-3 rounded-md border border-warning/60 bg-warning/10 px-3 py-2 text-sm text-ink">
-          <strong>Book is out of date</strong> — {sinceCount} change{sinceCount === 1 ? "" : "s"} since it was last generated on{" "}
-          {new Date(latestCompiled).toLocaleString("en-GB")}. Regenerate to include them.
+          <strong><T>Book is out of date</T></strong> — {sinceCount} <T>change</T>{sinceCount === 1 ? "" : "s"} <T>since it was last generated on</T>{" "}
+          {new Date(latestCompiled).toLocaleString("en-GB")}<T>. Regenerate to include them.</T>
         </p>
       ) : (
         <p className="mt-3 rounded-md border border-success/60 bg-success/10 px-3 py-2 text-sm text-ink">
-          Book is up to date (last generated {new Date(latestCompiled).toLocaleString("en-GB")}).
+          <T>Book is up to date (last generated</T> {new Date(latestCompiled).toLocaleString("en-GB")}).
         </p>
       )}
 
-      <nav className="mt-4 flex flex-wrap gap-2" aria-label="Filter updates">
+      <nav className="mt-4 flex flex-wrap gap-2" aria-label={tl("Filter updates")}>
         {CATS.map((c) => (
           <a
             key={c.key}
@@ -184,7 +187,7 @@ export async function DataBookUpdatesPanel({
       </nav>
 
       {events.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">No updates recorded{cat === "all" ? "" : " in this category"} yet.</p>
+        <p className="mt-6 text-sm text-muted"><T>No updates recorded</T>{cat === "all" ? "" : " in this category"} <T>yet.</T></p>
       ) : (
         <div className="mt-5 space-y-5">
           {groups.map((g) => (
@@ -209,7 +212,7 @@ export async function DataBookUpdatesPanel({
                           {link && (
                             <>
                               {" · "}
-                              <a href={link} className="text-burgundy hover:underline">View record</a>
+                              <a href={link} className="text-burgundy hover:underline"><T>View record</T></a>
                             </>
                           )}
                         </p>
@@ -226,7 +229,7 @@ export async function DataBookUpdatesPanel({
       {hasMore && (
         <div className="mt-4">
           <a href={href(cat, page + 1)} className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-burgundy hover:bg-background">
-            Show more
+            <T>Show more</T>
           </a>
         </div>
       )}

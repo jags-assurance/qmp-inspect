@@ -11,6 +11,7 @@ import { TodayQueue } from "@/components/domain/today-queue";
 import { buildInspectorToday } from "@/lib/dashboard/today";
 import { AssignedToMe } from "@/components/domain/assigned-to-me";
 import type { AssignedActivity } from "@/lib/checklists/assigned-queries";
+import { T } from "@/components/domain/t";
 
 export interface OverdueHoldRow {
   id: string;
@@ -136,7 +137,7 @@ export function InspectorDashboard({
             href="/inspect/start-work"
             className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
           >
-            Start work
+            <T>Start work</T>
           </Link>
         </div>
       </div>
@@ -161,7 +162,7 @@ export function InspectorDashboard({
           <div className="flex items-center justify-between">
             <h2 className="font-medium text-ink"><Tx>Overdue hold points</Tx></h2>
             <span className="text-xs text-muted">
-              Showing {overdueHoldItems.length} of {overdueHoldPoints}, oldest first
+              <T>Showing</T> {overdueHoldItems.length} <T>of</T> {overdueHoldPoints}<T>, oldest first</T>
             </span>
           </div>
           <ul className="mt-3 divide-y divide-border">
@@ -176,7 +177,7 @@ export function InspectorDashboard({
                   </span>
                   <span className="text-xs text-muted">
                     {h.projectLabel} - {h.reason}
-                    {h.plannedDate ? ` (${h.plannedDate})` : ""} - {h.daysOpen}d
+                    {h.plannedDate ? ` (${h.plannedDate})` : ""} - {h.daysOpen}<T>d</T>
                   </span>
                 </Link>
               </li>
@@ -190,7 +191,7 @@ export function InspectorDashboard({
           <div className="flex items-center justify-between">
             <h2 className="font-medium text-ink"><Tx>NCRs assigned to me</Tx></h2>
             <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
-              All NCRs
+              <T>All NCRs</T>
             </Link>
           </div>
           <ul className="mt-3 divide-y divide-border">
@@ -271,14 +272,14 @@ export function InspectorDashboard({
       </div>
       {overdueHoldPoints > 0 && (
         <p className="mt-2 text-xs text-muted">
-          Oldest: {oldestHoldPointDays} day{oldestHoldPointDays === 1 ? "" : "s"}
+          <T>Oldest:</T> {oldestHoldPointDays} <T>day</T>{oldestHoldPointDays === 1 ? "" : "s"}
         </p>
       )}
 
       <div id="pending-actions" className="mt-8 scroll-mt-20 rounded-lg border border-border bg-surface p-5">
         <h2 className="font-medium text-ink"><Tx>My pending actions</Tx></h2>
         <p className="mt-1 text-sm text-muted">
-          Checklists not yet started, or still in progress, across every project you have access to.
+          <T>Checklists not yet started, or still in progress, across every project you have access to.</T>
         </p>
         <div className="mt-4">
           <PendingActionsTable all={pendingActions} today={pendingToday} overdue={pendingOverdue} />
@@ -286,9 +287,9 @@ export function InspectorDashboard({
 
         {pendingStandaloneAssignments.length > 0 && (
           <div className="mt-6 border-t border-border pt-4">
-            <h3 className="text-sm font-medium text-ink">Standalone assignments in progress</h3>
+            <h3 className="text-sm font-medium text-ink"><T>Standalone assignments in progress</T></h3>
             <p className="mt-1 text-xs text-muted">
-              FATs, witness inspections, specific tests and pre-shipment checks not yet finalized.
+              <T>FATs, witness inspections, specific tests and pre-shipment checks not yet finalized.</T>
             </p>
             <ul className="mt-3 space-y-2">
               {pendingStandaloneAssignments.map((a) => (

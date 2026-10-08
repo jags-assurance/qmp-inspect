@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProjectPickerForm, type ProjectOption } from "../vault/project-picker-form";
 import { DocumentsSection, loadDocuments, type DocSearchParams } from "./documents-section";
 import { PageGuide } from "@/components/domain/page-guide";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * Cross-project entry point for the four per-project "read about progress" pages (Reports &
@@ -27,6 +28,7 @@ export default async function ReportsDocumentsPage({
 }: {
   searchParams: Promise<DocSearchParams>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const sp = await searchParams;
   const projectId = sp.project === "all" ? undefined : sp.project;
@@ -96,14 +98,14 @@ export default async function ReportsDocumentsPage({
     <div>
       {selectedProject && (
         <Link href={`/inspect/projects/${selectedProject}`} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
+          <T>← Back to Project</T>
         </Link>
       )}
       <div className={selectedProject ? "mt-2" : undefined}>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink"><T>Reports &amp; Documents</T></h1>
           <PageGuide
-            title="Reports & Documents — how this works"
+            title={tl("Reports & Documents — how this works")}
             points={[
               "This page is purely a navigation hub — pick a project and it just links you into that project's own Reports, Data Book, Activity, KPIs and (JAGS staff only) Audit Log pages.",
               "Nothing here is filtered by module license or role beyond the project picker itself — each destination page applies its own RLS to decide what you actually see once you get there.",
@@ -112,7 +114,7 @@ export default async function ReportsDocumentsPage({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          Reports &amp; downloads, the Data Book, project activity and Client KPIs — pick a project below.
+          <T>Reports &amp; downloads, the Data Book, project activity and Client KPIs — pick a project below.</T>
         </p>
       </div>
 
@@ -120,7 +122,7 @@ export default async function ReportsDocumentsPage({
         {(session.isJagsStaff || isClientRole) && (
           <ReportsCard
             href="/inspect/handover"
-            title="Handover Portal"
+            title={tl("Handover Portal")}
             description="Issued handover certificates and Data Book packages, across every project."
           />
         )}
@@ -128,7 +130,7 @@ export default async function ReportsDocumentsPage({
 
       {attention.length > 0 && (
         <div className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-4">
-          <p className="font-medium text-ink">Needs attention ({attention.length})</p>
+          <p className="font-medium text-ink"><T>Needs attention (</T>{attention.length})</p>
           <ul className="mt-2 space-y-1 text-sm">
             {attention.map((a) => (
               <li key={a.key}>
@@ -146,7 +148,7 @@ export default async function ReportsDocumentsPage({
       {projects && projects.length > 0 ? (
         <ProjectPickerForm projects={projects} selectedProject={selectedProject} />
       ) : (
-        <p className="mt-6 text-sm text-muted">No projects available to you yet.</p>
+        <p className="mt-6 text-sm text-muted"><T>No projects available to you yet.</T></p>
       )}
 
       {selectedProject && selectedProjectRow && (
@@ -157,28 +159,28 @@ export default async function ReportsDocumentsPage({
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/reports`}
-              title="Reports & Downloads"
+              title={tl("Reports & Downloads")}
               description="Monthly report packs and ITP documents for your organisation."
             />
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/data-book`}
-              title="Data Book"
+              title={tl("Data Book")}
               description="Compile and issue the project's data book."
             />
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/activity`}
-              title="Activity"
+              title={tl("Activity")}
               description="A live timeline of inspections, sign-offs and NCRs on this project."
             />
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/kpis`}
-              title="Client KPIs"
+              title={tl("Client KPIs")}
               description="First-time pass rate, hold-point turnaround and more."
             />
             {session.isJagsStaff && (
               <ReportsCard
                 href={`/inspect/projects/${selectedProject}/audit-log`}
-                title="Audit Log"
+                title={tl("Audit Log")}
                 description="Who did what and when, across ITPs, NCRs, sign-offs and inspections."
               />
             )}

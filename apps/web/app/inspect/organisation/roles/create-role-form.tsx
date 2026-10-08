@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { createCustomRoleAction, type RbacActionState } from "@/lib/rbac/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: RbacActionState = { error: null };
 
@@ -20,6 +22,7 @@ export function CreateRoleForm({
    */
   lockedOrganizationId?: string | null;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createCustomRoleAction, initialState);
 
   return (
@@ -29,7 +32,7 @@ export function CreateRoleForm({
           <input
           name="name"
           required
-          placeholder="e.g. Project Coordinator"
+          placeholder={tl("e.g. Project Coordinator")}
           className="mt-1 w-56 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -43,10 +46,10 @@ export function CreateRoleForm({
             name="organization_id"
             className="mt-1 w-56 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">JAGS-global (any staff assignment)</option>
+            <option value=""><Tx>JAGS-global (any staff assignment)</Tx></option>
             {organizations.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name} (this client&apos;s own people)
+                {o.name} <Tx>(this client&apos;s own people)</Tx>
               </option>
             ))}
           </select>

@@ -11,6 +11,7 @@ import type { NcrSeverity, NcrStatus } from "@/lib/ncrs/types";
 import { isOverdue } from "./is-overdue";
 import { daysUntilDue } from "@/lib/ncrs/list-filters";
 import { NCR_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
+import { Tx } from "@/components/domain/tx";
 
 export interface NcrRegisterRow {
   id: string;
@@ -100,8 +101,8 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void, t
     render: (row) => (
       <div className="flex items-center gap-2">
         <Badge tone={STATUS_TONE[row.status]} showIcon>{STATUS_LABEL[row.status]}</Badge>
-        {isOverdue(row, tzOf(row)) && <Badge tone="danger">Overdue</Badge>}
-        {!isOverdue(row, tzOf(row)) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning">Due soon</Badge>}
+        {isOverdue(row, tzOf(row)) && <Badge tone="danger"><Tx>Overdue</Tx></Badge>}
+        {!isOverdue(row, tzOf(row)) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning"><Tx>Due soon</Tx></Badge>}
       </div>
     ),
   },
@@ -153,7 +154,7 @@ export function NcrsTable({
         render: (row) =>
           row.severity === "observation" && row.status !== "closed" ? (
             <Link href={`/inspect/ncrs/${row.id}#grade`} className="whitespace-nowrap text-xs font-medium text-burgundy hover:underline">
-              Grade to NCR
+              <Tx>Grade to NCR</Tx>
             </Link>
           ) : null,
       });

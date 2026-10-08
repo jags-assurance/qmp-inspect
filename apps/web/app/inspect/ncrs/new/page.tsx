@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { NewNcrForm } from "./new-ncr-form";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface ProjectRow {
   id: string;
@@ -46,6 +48,7 @@ export default async function NewNcrPage({
     description?: string;
   }>;
 }) {
+  const tl = await getTranslator();
   await requireSession();
   const params = await searchParams;
 
@@ -116,12 +119,12 @@ export default async function NewNcrPage({
   return (
     <div className="max-w-xl">
       <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
-        ← Back to NCR Register
+        <T>← Back to NCR Register</T>
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Raise NCR / Observation</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Raise NCR / Observation</T></h1>
         <PageGuide
-          title="Raise NCR / Observation — how this works"
+          title={tl("Raise NCR / Observation — how this works")}
           points={[
             "One form, one engine, for both — picking severity \"Observation\" instead of minor/major NCR is what routes it to the Observation Register instead of the NCR Register.",
             "Anyone with access to the project can raise one; the assignee and responsible-party pickers only offer real people with access to this project (access grants plus linked project parties), not free text.",
@@ -132,13 +135,11 @@ export default async function NewNcrPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Record a non-conformance or observation against a project — from a failed inspection, a
-        walkdown, or standalone.
+        <T>Record a non-conformance or observation against a project — from a failed inspection, a walkdown, or standalone.</T>
       </p>
       {params.inspection_record_id && (
         <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
-          Linked to inspection record — closing this NCR will notify the original inspector that
-          the activity is ready for re-inspection.
+          <T>Linked to inspection record — closing this NCR will notify the original inspector that the activity is ready for re-inspection.</T>
         </p>
       )}
       <NewNcrForm

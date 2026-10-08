@@ -8,6 +8,8 @@ import { HeicConversionError } from "@/lib/media/heic";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { prepareOfflinePhoto } from "@/lib/offline/photo-prepare";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * The file itself goes straight from the browser to the "inspection-evidence" Storage bucket;
@@ -15,6 +17,7 @@ import { notifyOutboxChanged } from "@/lib/offline/sync-client";
  * async function from a Client Component, not only via a <form>) to record where it landed.
  */
 export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
+  const tl = useTranslate();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -97,15 +100,15 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
 
   return (
     <div className="mt-4 border-t border-border pt-4">
-      <label className="block text-xs text-muted">Caption (optional)</label>
+      <label className="block text-xs text-muted"><Tx>Caption (optional)</Tx></label>
       <input
         value={caption}
         onChange={(e) => setCaption(e.target.value)}
         maxLength={200}
-        placeholder="What does this photo show?"
+        placeholder={tl("What does this photo show?")}
         className="mt-1 mb-3 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
       />
-      <label className="block text-xs text-muted">Upload photo</label>
+      <label className="block text-xs text-muted"><Tx>Upload photo</Tx></label>
       <input
         ref={inputRef}
         type="file"
@@ -116,7 +119,7 @@ export function PhotoUpload({ assignmentId }: { assignmentId: string }) {
         onChange={handleFileChange}
         className="mt-1 block text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
       />
-      {uploading && <p className="mt-1 text-xs text-muted">Uploading…</p>}
+      {uploading && <p className="mt-1 text-xs text-muted"><Tx>Uploading…</Tx></p>}
       {notice && <p className="mt-1 text-sm text-muted">{notice}</p>}
       {error && <p role="alert" className="mt-1 text-sm text-danger">{error}</p>}
     </div>

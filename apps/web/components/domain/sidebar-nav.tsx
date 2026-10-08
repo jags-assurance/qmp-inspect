@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { NavIcon } from "./nav-icons";
 import { useSidebarMobile } from "./sidebar-mobile-context";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const NAV_STATE_EVENT = "jags-nav-state";
 
@@ -175,8 +176,9 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
 }
 
 export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: boolean }) {
+  const tl = useTranslate();
   return (
-    <nav aria-label="Main" className="flex-1 space-y-0.5 px-3">
+    <nav aria-label={tl("Main")} className="flex-1 space-y-0.5 px-3">
       {items.map((item, i) => {
         const showHeading = item.group && item.group !== items[i - 1]?.group;
         return (

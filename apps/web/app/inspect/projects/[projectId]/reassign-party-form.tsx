@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { reassignSignoffPartyAction, type ReassignPartyState } from "@/lib/signoff/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: ReassignPartyState = { error: null };
 
@@ -18,7 +19,7 @@ export function ReassignPartyForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
-        Reassign
+        <Tx>Reassign</Tx>
       </button>
     );
   }
@@ -31,7 +32,7 @@ export function ReassignPartyForm({
         required
         className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
       >
-        <option value="">— choose new user —</option>
+        <option value=""><Tx>— choose new user —</Tx></option>
         {eligibleUsers.map((u) => (
           <option key={u.id} value={u.id}>
             {u.full_name} ({u.email})
@@ -42,7 +43,7 @@ export function ReassignPartyForm({
         {pending ? "Reassigning…" : "Confirm"}
       </button>
       <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
-        Cancel
+        <Tx>Cancel</Tx>
       </button>
       {state.error && <span className="text-danger">{state.error}</span>}
     </form>

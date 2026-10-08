@@ -11,6 +11,8 @@ import type { ItpDraftResult } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const EXTRACTION_LABEL: Record<string, string> = {
   done: "Ready",
@@ -90,6 +92,7 @@ export function NewItpFromAiForm({
   vaultDocuments: VaultDocumentOption[];
   disciplines: { code: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [genState, genFormAction, genPending] = useActionState(generateItpDraftAction, genInitialState);
   const [draft, setDraft] = useState<ItpDraftResult | null>(null);
   const [projectParties, setProjectParties] = useState<GenerateItpDraftState["projectParties"]>([]);
@@ -159,7 +162,7 @@ export function NewItpFromAiForm({
             }}
             className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">Select…</option>
+            <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.project_number} — {p.name}
@@ -171,15 +174,13 @@ export function NewItpFromAiForm({
 
         {projectId && (
           <div>
-            <p className="block text-sm font-semibold text-ink">Requirement documents from the vault</p>
+            <p className="block text-sm font-semibold text-ink"><Tx>Requirement documents from the vault</Tx></p>
             <p className="mt-1 text-xs text-muted">
-              Pick everything relevant — specs, standards, method statements, drawings notes. The AI
-              reads their actual text and covers every discipline they touch in one draft.
+              <Tx>Pick everything relevant — specs, standards, method statements, drawings notes. The AI reads their actual text and covers every discipline they touch in one draft.</Tx>
             </p>
             {projectVaultDocuments.length === 0 ? (
               <p className="mt-2 rounded-md border border-dashed border-border bg-off-white p-3 text-xs text-muted">
-                No documents in this project&apos;s vault yet — upload specs/standards under Document
-                Vault first, or describe the scope below instead.
+                <Tx>No documents in this project&apos;s vault yet — upload specs/standards under Document Vault first, or describe the scope below instead.</Tx>
               </p>
             ) : (
               <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2">
@@ -203,15 +204,14 @@ export function NewItpFromAiForm({
                           {doc.title}
                         </span>
                         <span className="ms-2 text-xs text-muted">
-                          {doc.folderName} · rev {doc.revision} ·{" "}
+                          {doc.folderName} <Tx>· rev</Tx> {doc.revision} ·{" "}
                           <span className={usable ? "text-success" : "text-muted"}>
                             {EXTRACTION_LABEL[doc.extractionStatus] ?? doc.extractionStatus}
                           </span>
                         </span>
                         {doc.extractionStatus === "unsupported" && (
                           <span className="mt-0.5 block text-xs text-muted">
-                            Only PDF, Word (.docx), or plain text/.md can be read for AI generation —
-                            re-upload this document as one of those to use it here.
+                            <Tx>Only PDF, Word (.docx), or plain text/.md can be read for AI generation — re-upload this document as one of those to use it here.</Tx>
                           </span>
                         )}
                       </label>
@@ -224,10 +224,9 @@ export function NewItpFromAiForm({
         )}
 
         <div>
-          <p className="block text-sm font-semibold text-ink">Activities per section</p>
+          <p className="block text-sm font-semibold text-ink"><Tx>Activities per section</Tx></p>
           <p className="mt-1 text-xs text-muted">
-            How thorough each of the 4 sections should be — the AI still decides exactly which
-            checks matter most, this just sets the target depth.
+            <Tx>How thorough each of the 4 sections should be — the AI still decides exactly which checks matter most, this just sets the target depth.</Tx>
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
             {COUNT_MODE_OPTIONS.map((opt) => (
@@ -259,14 +258,14 @@ export function NewItpFromAiForm({
                 onChange={(e) => setCustomCount(e.target.value)}
                 className="w-24 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
               />
-              <span className="text-xs text-muted">activities per section</span>
+              <span className="text-xs text-muted"><Tx>activities per section</Tx></span>
             </div>
           )}
         </div>
 
         <div>
           <label htmlFor="additional_instructions_visible" className="block text-sm font-semibold text-ink">
-            Additional instructions <span className="font-normal text-muted">(optional)</span>
+            <Tx>Additional instructions</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
           <textarea
             id="additional_instructions_visible"
@@ -281,9 +280,7 @@ export function NewItpFromAiForm({
               of asking the user to type it themselves. */}
           <input type="hidden" name="additional_instructions" value={combinedInstructions()} />
           <p className="mt-1.5 text-xs text-muted">
-            The AI drafts sections, activities, references, acceptance criteria and suggested
-            intervention levels per party for you to review and edit below — nothing is created
-            until you confirm.
+            <Tx>The AI drafts sections, activities, references, acceptance criteria and suggested intervention levels per party for you to review and edit below — nothing is created until you confirm.</Tx>
           </p>
         </div>
 
@@ -370,17 +367,16 @@ export function NewItpFromAiForm({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <span>
-              Draft for <span className="font-semibold text-ink">{project?.name ?? "the selected project"}</span>
+              <Tx>Draft for</Tx> <span className="font-semibold text-ink">{project?.name ?? "the selected project"}</span>
             </span>
-            <Badge tone="info">AI-assisted draft</Badge>
+            <Badge tone="info"><Tx>AI-assisted draft</Tx></Badge>
           </p>
           <p className="text-xs text-muted">
-            {draft.sections.length} sections · {totalActivities} activities total
+            {draft.sections.length} <Tx>sections ·</Tx> {totalActivities} <Tx>activities total</Tx>
           </p>
         </div>
         <p className="mt-1 text-xs text-muted">
-          Edit anything below directly, use <strong>+ Add activity</strong> to top up a section, or
-          describe a change and regenerate the whole draft instead of editing by hand.
+          <Tx>Edit anything below directly, use</Tx> <strong><Tx>+ Add activity</Tx></strong> <Tx>to top up a section, or describe a change and regenerate the whole draft instead of editing by hand.</Tx>
         </p>
         <form action={genFormAction} className="mt-3 space-y-2">
           <input type="hidden" name="project_id" value={projectId} />
@@ -418,8 +414,7 @@ export function NewItpFromAiForm({
 
         <div className="rounded-lg border border-border bg-off-white p-4">
           <p className="text-xs font-medium text-muted">
-            Auto-suggested from the org&apos;s numbering scheme and the source documents — review and edit
-            before creating.
+            <Tx>Auto-suggested from the org&apos;s numbering scheme and the source documents — review and edit before creating.</Tx>
           </p>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-4">
             <div>
@@ -429,7 +424,7 @@ export function NewItpFromAiForm({
                 required
                 value={itpNumber}
                 onChange={(e) => setItpNumber(e.target.value)}
-                placeholder="e.g. MER-JAGS-ITP-002"
+                placeholder={tl("e.g. MER-JAGS-ITP-002")}
                 className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy doc-id"
               />
               </FormField>
@@ -449,14 +444,14 @@ export function NewItpFromAiForm({
 
             <div>
               <label htmlFor="ai_applicable_standard" className="block text-sm font-semibold text-ink">
-                Applicable standard <span className="font-normal text-muted">(optional)</span>
+                <Tx>Applicable standard</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
               </label>
               <input
                 id="ai_applicable_standard"
                 name="applicable_standard"
                 value={applicableStandard}
                 onChange={(e) => setApplicableStandard(e.target.value)}
-                placeholder="e.g. IEC 61439"
+                placeholder={tl("e.g. IEC 61439")}
                 className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
               />
             </div>
@@ -481,21 +476,21 @@ export function NewItpFromAiForm({
               <div className="space-y-3 p-3">
                 {section.items.length === 0 && (
                   <p className="rounded-md border border-dashed border-border bg-off-white p-3 text-center text-xs text-muted">
-                    No activities in this section yet.
+                    <Tx>No activities in this section yet.</Tx>
                   </p>
                 )}
                 {section.items.map((item, itemIdx) => (
                   <div key={itemIdx} className="rounded-md border border-border bg-surface p-3">
                     <div className="flex items-start justify-between gap-2">
                       <span className="doc-id rounded bg-off-white px-2 py-1 text-xs font-medium text-ink">
-                        Item {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
+                        <Tx>Item</Tx> {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
                       </span>
                       <button
                         type="button"
                         onClick={() => removeItem(sectionIdx, itemIdx)}
                         className="text-xs font-medium text-danger hover:underline"
                       >
-                        Remove
+                        <Tx>Remove</Tx>
                       </button>
                     </div>
 
@@ -548,7 +543,7 @@ export function NewItpFromAiForm({
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { disciplineCode: e.target.value || null })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         >
-                          <option value="">No discipline</option>
+                          <option value=""><Tx>No discipline</Tx></option>
                           {disciplines.map((d) => (
                             <option key={d.code} value={d.code}>
                               {d.name}
@@ -564,9 +559,9 @@ export function NewItpFromAiForm({
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })}
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         >
-                          <option value={1}>Checklist</option>
-                          <option value={2}>Document upload</option>
-                          <option value={3}>Measurement record</option>
+                          <option value={1}><Tx>Checklist</Tx></option>
+                          <option value={2}><Tx>Document upload</Tx></option>
+                          <option value={3}><Tx>Measurement record</Tx></option>
                         </select>
                         </FormField>
                       </div>
@@ -596,7 +591,7 @@ export function NewItpFromAiForm({
                     {projectParties.length > 0 && interventionLevels.length > 0 && (
                       <div className="mt-3 rounded-md bg-off-white p-2">
                         <p className="text-xs font-medium text-muted">
-                          Sign-off level per party — the AI&apos;s suggestion is pre-selected; change or clear any of them before creating the ITP
+                          <Tx>Sign-off level per party — the AI&apos;s suggestion is pre-selected; change or clear any of them before creating the ITP</Tx>
                         </p>
                         <div className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
                           {projectParties.map((party) => {
@@ -619,7 +614,7 @@ export function NewItpFromAiForm({
                                   }}
                                   className="rounded border border-border bg-surface px-1.5 py-1 text-xs"
                                 >
-                                  <option value="">— None —</option>
+                                  <option value=""><Tx>— None —</Tx></option>
                                   {interventionLevels.map((l) => (
                                     <option key={l.code} value={l.code}>
                                       {l.label} ({l.code})
@@ -634,7 +629,7 @@ export function NewItpFromAiForm({
                     )}
                     {item.disciplineCode && !disciplineNameByCode.has(item.disciplineCode) && (
                       <p className="mt-2 text-xs text-warning">
-                        Unrecognised discipline code &quot;{item.disciplineCode}&quot; — pick one from the list above.
+                        <Tx>Unrecognised discipline code &quot;</Tx>{item.disciplineCode}<Tx>&quot; — pick one from the list above.</Tx>
                       </p>
                     )}
                   </div>
@@ -645,7 +640,7 @@ export function NewItpFromAiForm({
                   onClick={() => addItem(sectionIdx)}
                   className="w-full rounded-md border border-dashed border-border py-2 text-xs font-medium text-muted hover:border-burgundy hover:text-burgundy"
                 >
-                  + Add activity to this section
+                  <Tx>+ Add activity to this section</Tx>
                 </button>
               </div>
             </div>
@@ -671,7 +666,7 @@ export function NewItpFromAiForm({
             }}
             className="rounded-md border border-border px-3 py-2 text-sm text-ink hover:bg-off-white"
           >
-            Discard draft
+            <Tx>Discard draft</Tx>
           </button>
         </div>
       </form>

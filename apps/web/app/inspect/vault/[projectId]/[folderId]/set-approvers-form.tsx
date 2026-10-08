@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { setDocumentApproversAction, type SetDocumentApproversState } from "@/lib/vault/multi-approval-actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetDocumentApproversState = { error: null };
 
@@ -32,11 +33,9 @@ export function SetApproversForm({
 
   return (
     <form action={formAction} className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h3 className="text-sm font-semibold text-ink">Require specific approvers (optional)</h3>
+      <h3 className="text-sm font-semibold text-ink"><Tx>Require specific approvers (optional)</Tx></h3>
       <p className="mt-1 text-xs text-muted">
-        Pick a document still &ldquo;for review&rdquo; and choose exactly who must agree before it
-        counts as approved — leave nobody checked to keep the default (any permitted person can
-        approve it alone).
+        <Tx>Pick a document still &ldquo;for review&rdquo; and choose exactly who must agree before it counts as approved — leave nobody checked to keep the default (any permitted person can approve it alone).</Tx>
       </p>
 
       <div className="mt-3 flex flex-wrap items-end gap-3">

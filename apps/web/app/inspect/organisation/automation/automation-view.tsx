@@ -14,6 +14,8 @@ import {
   type AutomationRuleRow,
 } from "@/lib/automation/types";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationOption {
   id: string;
@@ -32,6 +34,7 @@ export async function AutomationRulesView({ searchParams, embedded }: {
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -74,9 +77,9 @@ export async function AutomationRulesView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Automation rules</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Automation rules</T></Heading>
         <PageGuide
-          title="Automation rules — how this works"
+          title={tl("Automation rules — how this works")}
           points={[
             "Every notification elsewhere in this app fires because a person clicked something — these rules are the only time/schedule-driven automation: a background sweep (every ~15 minutes) checks for a stuck Hold, an overdue NCR, or an overdue punch item, or a register item nearing expiry, and sends a real notification without anyone having to notice first.",
             "A rule with no row here yet is ON by default at a sensible threshold — this page is for tuning or disabling, not required setup for a new organisation.",
@@ -86,8 +89,7 @@ export async function AutomationRulesView({ searchParams, embedded }: {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Configure which conditions automatically nudge your team, instead of relying on someone
-        noticing a stuck Hold or an overdue item on their own.
+        <T>Configure which conditions automatically nudge your team, instead of relying on someone noticing a stuck Hold or an overdue item on their own.</T>
       </p>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />

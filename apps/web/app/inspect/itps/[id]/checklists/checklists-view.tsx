@@ -14,6 +14,8 @@ import { ITP_STATUS_LABEL } from "../../itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
 import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
 import { filterByArchive, type ArchiveFilter } from "@/lib/checklists/template-ui-logic";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * Lists every checklist-type (evidence_type = 1) activity on an ITP, generates checklists for an
@@ -22,6 +24,7 @@ import { filterByArchive, type ArchiveFilter } from "@/lib/checklists/template-u
  * don't need to change.
  */
 export async function ChecklistsView({ id, embedded = false, archiveFilter = "active" }: { id: string; embedded?: boolean; archiveFilter?: ArchiveFilter }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -50,7 +53,7 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
     if (embedded) {
       return (
         <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">
-          ITP not found. It may have been removed or you may not have access.
+          <T>ITP not found. It may have been removed or you may not have access.</T>
         </div>
       );
     }
@@ -176,7 +179,7 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
         return template ? (
           <span className="doc-id text-muted">{template.checklist_number}</span>
         ) : (
-          <span className="text-muted">Not generated yet</span>
+          <span className="text-muted"><T>Not generated yet</T></span>
         );
       },
     },
@@ -198,7 +201,7 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
         const template = templateByItem.get(item.id);
         return template ? (
           <Link href={`/inspect/checklists/${template.id}`} className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline sm:min-h-0">
-            Open →
+            <T>Open →</T>
           </Link>
         ) : (
           session.isJagsStaff && libraryTemplates.length > 0 && <AttachLibraryTemplateForm itpItemId={item.id} libraryTemplates={libraryTemplates} />
@@ -212,7 +215,7 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
     <div>
       {!embedded && (
         <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        ← Back to ITP
+        <T>← Back to ITP</T>
       </Link>
       )}
       <div className={embedded ? "" : "mt-2"}>
@@ -221,10 +224,10 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Heading className="text-2xl font-semibold text-ink">
-            Checklists <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
+            <T>Checklists</T> <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
           </Heading>
           <PageGuide
-            title="ITP checklists — how this works"
+            title={tl("ITP checklists — how this works")}
             points={[
               "Lists every checklist-type (evidence_type = 1) activity on this ITP and lets you generate its checklist once the ITP is approved — other evidence types (document upload, measurement) are handled on the ITP page itself, not here.",
               "Generating checklists is available to JAGS staff, or to the same client/contractor party eligible to create this ITP's content, once the ITP is approved — approving the ITP itself is JAGS-only for a Full-Service or Self-Managed (\"Hybrid\") client; a Full Client-Managed client's own approve_itp permission holder can approve it themselves too.",
@@ -239,11 +242,11 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
       {itp.status !== "approved" && itp.status !== "client_accepted" && (
         <>
           <p className="mt-6 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-            Checklists are generated once this ITP is approved. Current status:{" "}
+            <T>Checklists are generated once this ITP is approved. Current status:</T>{" "}
             <Badge tone="neutral">{ITP_STATUS_LABEL[itp.status] ?? itp.status}</Badge>
           </p>
-          <section className="mt-4" aria-label="Checklist preview">
-            <h2 className="text-sm font-semibold text-ink">Checklist preview — review it with the ITP</h2>
+          <section className="mt-4" aria-label={tl("Checklist preview")}>
+            <h2 className="text-sm font-semibold text-ink"><T>Checklist preview — review it with the ITP</T></h2>
             <div className="mt-2">
               <ItpChecklistPreview items={await loadItpChecklistPreview(supabase, itp.id)} approved={false} />
             </div>
@@ -261,16 +264,16 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
         <p className="mt-6 text-sm text-muted">
           {archiveFilter === "archived" ? (
             <>
-              Showing archived checklists only.{" "}
+              <T>Showing archived checklists only.</T>{" "}
               <Link href={`/inspect/itps/${itp.id}/checklists`} className="font-medium text-burgundy hover:underline">
-                Back to active checklists
+                <T>Back to active checklists</T>
               </Link>
             </>
           ) : (
             <>
-              {archivedOnItp.length} archived checklist{archivedOnItp.length === 1 ? " is" : "s are"} hidden.{" "}
+              {archivedOnItp.length} <T>archived checklist</T>{archivedOnItp.length === 1 ? " is" : "s are"} <T>hidden.</T>{" "}
               <Link href={`/inspect/itps/${itp.id}/checklists?archived=archived`} className="font-medium text-burgundy hover:underline">
-                Show Archived
+                <T>Show Archived</T>
               </Link>
             </>
           )}

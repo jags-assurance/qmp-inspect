@@ -2,10 +2,13 @@
 
 import { useActionState, useState } from "react";
 import { rejectDocumentAction, type RejectDocumentState } from "@/lib/vault/multi-approval-actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: RejectDocumentState = { error: null };
 
 export function RejectDocumentButton({ documentId, projectId, folderId }: { documentId: string; projectId: string; folderId: string }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(rejectDocumentAction, initialState);
 
@@ -16,7 +19,7 @@ export function RejectDocumentButton({ documentId, projectId, folderId }: { docu
         onClick={() => setOpen(true)}
         className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-danger hover:bg-off-white"
       >
-        Reject
+        <Tx>Reject</Tx>
       </button>
     );
   }
@@ -30,8 +33,8 @@ export function RejectDocumentButton({ documentId, projectId, folderId }: { docu
         name="reason"
         required
         minLength={5}
-        placeholder="Reason for rejecting"
-        aria-label="Reason for rejecting"
+        placeholder={tl("Reason for rejecting")}
+        aria-label={tl("Reason for rejecting")}
         className="w-48 rounded-md border border-border bg-surface px-2 py-1 text-xs"
       />
       <button
@@ -42,7 +45,7 @@ export function RejectDocumentButton({ documentId, projectId, folderId }: { docu
         {pending ? "Rejecting…" : "Confirm reject"}
       </button>
       <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-        Cancel
+        <Tx>Cancel</Tx>
       </button>
       {state.error && <span className="w-full text-xs text-danger">{state.error}</span>}
     </form>

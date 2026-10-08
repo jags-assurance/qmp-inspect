@@ -4,6 +4,7 @@ import { vaultDocKind } from "@/lib/vault/doc-kind";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
+import { T } from "@/components/domain/t";
 
 export const DOC_PAGE_SIZE = 50;
 const GENERATED_PREFIX = "generated-documents:";
@@ -167,16 +168,15 @@ export function DocumentsSection({
   const inputCls = "w-full rounded-md border border-border bg-surface px-2 py-2 text-sm";
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-ink">Generated documents</h2>
+      <h2 className="text-lg font-semibold text-ink"><T>Generated documents</T></h2>
       <p className="mt-1 text-sm text-muted">
-        ITP PDFs, inspection reports, IRNs, NCRs, FAT reports and Data Books filed by the platform. Newest first.
-        Links are short-lived; reload the page for a fresh one.
+        <T>ITP PDFs, inspection reports, IRNs, NCRs, FAT reports and Data Books filed by the platform. Newest first. Links are short-lived; reload the page for a fresh one.</T>
       </p>
 
       <form method="get" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title" className={inputCls} aria-label="Search" />
         <select name="project" defaultValue={sp.project === "all" ? "all" : (selectedProject ?? "")} className={inputCls} aria-label="Project">
-          <option value="all">All projects</option>
+          <option value="all"><T>All projects</T></option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.project_number} - {p.name}
@@ -184,7 +184,7 @@ export function DocumentsSection({
           ))}
         </select>
         <select name="type" defaultValue={sp.type ?? ""} className={inputCls} aria-label="Type">
-          <option value="">All types</option>
+          <option value=""><T>All types</T></option>
           {TYPE_OPTIONS.map((t) => (
             <option key={t.key} value={t.key}>
               {t.label}
@@ -192,28 +192,27 @@ export function DocumentsSection({
           ))}
         </select>
         <select name="status" defaultValue={sp.status ?? ""} className={inputCls} aria-label="Status">
-          <option value="">Any status</option>
-          <option value="for_review">For review</option>
-          <option value="approved">Approved</option>
-          <option value="superseded">Superseded</option>
-          <option value="rejected">Rejected</option>
+          <option value=""><T>Any status</T></option>
+          <option value="for_review"><T>For review</T></option>
+          <option value="approved"><T>Approved</T></option>
+          <option value="superseded"><T>Superseded</T></option>
+          <option value="rejected"><T>Rejected</T></option>
         </select>
         <input type="date" name="from" defaultValue={sp.from ?? ""} className={inputCls} aria-label="From date" />
         <input type="date" name="to" defaultValue={sp.to ?? ""} className={inputCls} aria-label="To date" />
         <div className="flex gap-2 sm:col-span-3 lg:col-span-6">
           <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white">
-            Apply filters
+            <T>Apply filters</T>
           </button>
           <Link href="/inspect/reports-documents?project=all" className="rounded-md border border-border px-4 py-2 text-sm text-ink">
-            Reset
+            <T>Reset</T>
           </Link>
         </div>
       </form>
 
       {docs.rows.length === 0 ? (
         <p className="mt-4 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
-          No generated documents match. Documents appear here automatically once a PDF is requested from an ITP,
-          inspection, NCR, FAT or Data Book.
+          <T>No generated documents match. Documents appear here automatically once a PDF is requested from an ITP, inspection, NCR, FAT or Data Book.</T>
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
@@ -226,7 +225,7 @@ export function DocumentsSection({
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1 text-xs">
                   <span className="rounded bg-off-white px-2 py-0.5 text-ink">{d.typeLabel}</span>
-                  <span className="rounded bg-off-white px-2 py-0.5 text-ink">Rev {d.revision}</span>
+                  <span className="rounded bg-off-white px-2 py-0.5 text-ink"><T>Rev</T> {d.revision}</span>
                   <span className={`rounded px-2 py-0.5 ${STATUS_TONE[d.status] ?? "bg-gray-100 text-gray-700"}`}>
                     {d.status.replace("_", " ")}
                   </span>
@@ -236,21 +235,21 @@ export function DocumentsSection({
                 {d.url ? (
                   <>
                     <a href={d.url} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-burgundy">
-                      View
+                      <T>View</T>
                     </a>
                     <a href={d.url} download className="rounded-md border border-border px-3 py-2 text-burgundy">
-                      Download
+                      <T>Download</T>
                     </a>
                   </>
                 ) : (
-                  <span className="text-xs text-muted">File unavailable</span>
+                  <span className="text-xs text-muted"><T>File unavailable</T></span>
                 )}
                 {d.projectId && (
                   <Link
                     href={`/inspect/vault/${d.projectId}/document/${d.id}`}
                     className="rounded-md border border-border px-3 py-2 text-ink"
                   >
-                    Open
+                    <T>Open</T>
                   </Link>
                 )}
               </div>
@@ -263,17 +262,17 @@ export function DocumentsSection({
         <div className="mt-3 flex items-center justify-between text-sm">
           {docs.page > 1 ? (
             <Link href={pageHref(sp, docs.page - 1)} className="text-burgundy hover:underline">
-              Previous
+              <T>Previous</T>
             </Link>
           ) : (
             <span />
           )}
           <span className="text-muted">
-            Page {docs.page} of {lastPage} ({docs.total} documents)
+            <T>Page</T> {docs.page} <T>of</T> {lastPage} ({docs.total} <T>documents)</T>
           </span>
           {docs.page < lastPage ? (
             <Link href={pageHref(sp, docs.page + 1)} className="text-burgundy hover:underline">
-              Next
+              <T>Next</T>
             </Link>
           ) : (
             <span />

@@ -18,6 +18,8 @@ import {
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProjectFilter } from "./project-filter";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * Admin-only "Usage & Cost" view — a CEO-level strategy review flagged that this app has real
@@ -102,6 +104,7 @@ export default async function UsageAndCostPage({
 }: {
   searchParams: Promise<{ project?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
 
@@ -299,7 +302,7 @@ export default async function UsageAndCostPage({
             <span className="text-ink">
               <span className="doc-id">{row.project?.project_number ?? "—"}</span> — {row.project?.name ?? "Unknown project"}
             </span>
-            {row.projectId === topCostProjectId && row.aiCostUsd > 0 && <Badge tone="gold">Highest cost</Badge>}
+            {row.projectId === topCostProjectId && row.aiCostUsd > 0 && <Badge tone="gold"><T>Highest cost</T></Badge>}
           </span>
           <span className="block text-xs text-muted">{row.project?.organizations?.name ?? "—"}</span>
         </div>
@@ -341,9 +344,9 @@ export default async function UsageAndCostPage({
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">Usage &amp; Cost</h1>
+            <h1 className="text-2xl font-semibold text-ink"><T>Usage &amp; Cost</T></h1>
             <PageGuide
-              title="Usage & Cost — how this works"
+              title={tl("Usage & Cost — how this works")}
               points={[
                 "Admin-only, read-only cost-visibility reporting for the last 30 days — AI feature invocation counts with a $ cost ESTIMATE, and PDF render job counts/durations, filterable to one project.",
                 "The AI cost estimate uses Google's own published Gemini API list pricing (ai.google.dev/pricing) against the REAL input/output token counts Gemini reports for each call — not a flat per-call guess. It is still an estimate: actual billing depends on the real contract (e.g. Vertex AI committed-use pricing differs from the public API), and a model this app doesn't recognize, or a call logged before token tracking existed, shows as \"—\" rather than a misleading $0.00.",
@@ -354,8 +357,7 @@ export default async function UsageAndCostPage({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            AI feature invocations (with an estimated $ cost) and PDF render job volume, last {WINDOW_DAYS} days.
-            Read-only reporting; no billing or pricing-tier decisions are made here. Admin-only.
+            <T>AI feature invocations (with an estimated $ cost) and PDF render job volume, last</T> {WINDOW_DAYS} <T>days. Read-only reporting; no billing or pricing-tier decisions are made here. Admin-only.</T>
           </p>
         </div>
         {projectFilterOptions.length > 0 && <ProjectFilter projects={projectFilterOptions} />}
@@ -374,19 +376,19 @@ export default async function UsageAndCostPage({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">AI cost by model</h2>
-          <p className="mt-1 text-sm text-muted">Real token counts × Google&apos;s published Gemini API pricing.</p>
+          <h2 className="font-medium text-ink"><T>AI cost by model</T></h2>
+          <p className="mt-1 text-sm text-muted"><T>Real token counts × Google&apos;s published Gemini API pricing.</T></p>
           {costByModel.size === 0 ? (
-            <p className="mt-3 text-sm text-muted">No AI calls in this window.</p>
+            <p className="mt-3 text-sm text-muted"><T>No AI calls in this window.</T></p>
           ) : (
             <div className="overflow-x-auto">
             <table className="mt-3 w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-start text-xs uppercase text-muted">
-                  <th className="py-2 pe-2">Model</th>
-                  <th className="py-2 pe-2 text-end">Calls</th>
-                  <th className="py-2 pe-2 text-end">Tokens in / out</th>
-                  <th className="py-2 text-end">Est. cost</th>
+                  <th className="py-2 pe-2"><T>Model</T></th>
+                  <th className="py-2 pe-2 text-end"><T>Calls</T></th>
+                  <th className="py-2 pe-2 text-end"><T>Tokens in / out</T></th>
+                  <th className="py-2 text-end"><T>Est. cost</T></th>
                 </tr>
               </thead>
               <tbody>
@@ -411,18 +413,18 @@ export default async function UsageAndCostPage({
         </div>
 
         <div className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">AI cost by category</h2>
-          <p className="mt-1 text-sm text-muted">Which kind of AI work is driving the spend.</p>
+          <h2 className="font-medium text-ink"><T>AI cost by category</T></h2>
+          <p className="mt-1 text-sm text-muted"><T>Which kind of AI work is driving the spend.</T></p>
           {costByCategory.size === 0 ? (
-            <p className="mt-3 text-sm text-muted">No AI calls in this window.</p>
+            <p className="mt-3 text-sm text-muted"><T>No AI calls in this window.</T></p>
           ) : (
             <div className="overflow-x-auto">
             <table className="mt-3 w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-start text-xs uppercase text-muted">
-                  <th className="py-2 pe-2">Category</th>
-                  <th className="py-2 pe-2 text-end">Calls</th>
-                  <th className="py-2 text-end">Est. cost</th>
+                  <th className="py-2 pe-2"><T>Category</T></th>
+                  <th className="py-2 pe-2 text-end"><T>Calls</T></th>
+                  <th className="py-2 text-end"><T>Est. cost</T></th>
                 </tr>
               </thead>
               <tbody>
@@ -451,7 +453,7 @@ export default async function UsageAndCostPage({
             {selectedProjectId ? "Project cost detail" : "Cost by project — highest first"}
           </h2>
           {!selectedProjectId && allProjectRows.length > 0 && (
-            <span className="text-xs text-muted">{allProjectRows.length} project(s) with usage in this window</span>
+            <span className="text-xs text-muted">{allProjectRows.length} <T>project(s) with usage in this window</T></span>
           )}
         </div>
         {filteredProjectRows.length === 0 ? (
@@ -475,9 +477,9 @@ export default async function UsageAndCostPage({
 
         {selectedProjectId && filteredProjectRows[0] && (
           <div className="mt-4 border-t border-border pt-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted">AI cost by category, this project</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted"><T>AI cost by category, this project</T></p>
             {Object.keys(filteredProjectRows[0].aiByCategory).length === 0 ? (
-              <p className="mt-1 text-sm text-muted">No AI calls for this project in this window.</p>
+              <p className="mt-1 text-sm text-muted"><T>No AI calls for this project in this window.</T></p>
             ) : (
               <ul className="mt-1 space-y-0.5 text-sm">
                 {CATEGORY_ORDER.filter((c) => filteredProjectRows[0].aiByCategory[c]).map((category) => {
@@ -486,7 +488,7 @@ export default async function UsageAndCostPage({
                     <li key={category} className="flex items-center justify-between">
                       <span className="text-ink">{category}</span>
                       <span className="text-muted">
-                        {entry.calls} call{entry.calls === 1 ? "" : "s"} · {entry.costKnown ? formatUsd(entry.costUsd) : "—"}
+                        {entry.calls} <T>call</T>{entry.calls === 1 ? "" : "s"} · {entry.costKnown ? formatUsd(entry.costUsd) : "—"}
                       </span>
                     </li>
                   );
@@ -499,13 +501,12 @@ export default async function UsageAndCostPage({
 
       {!selectedProjectId && (orgWideAiCalls > 0 || portfolioWideJobTotal > 0) && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Org-wide / portfolio-wide</h2>
+          <h2 className="font-medium text-ink"><T>Org-wide / portfolio-wide</T></h2>
           <p className="mt-1 text-sm text-muted">
-            AI calls and render jobs with no single project to attribute to (e.g. a report-pack summary, or the
-            one-click portfolio summary PDF).
+            <T>AI calls and render jobs with no single project to attribute to (e.g. a report-pack summary, or the one-click portfolio summary PDF).</T>
           </p>
           <p className="mt-2 text-sm text-ink">
-            {orgWideAiCalls} AI call{orgWideAiCalls === 1 ? "" : "s"} · {portfolioWideJobTotal} render job
+            {orgWideAiCalls} <T>AI call</T>{orgWideAiCalls === 1 ? "" : "s"} · {portfolioWideJobTotal} <T>render job</T>
             {portfolioWideJobTotal === 1 ? "" : "s"}
           </p>
         </div>

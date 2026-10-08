@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { IRNS_TABLE } from "@/lib/checklists/db-types";
 import { InspectionsTable, INSPECTIONS_PAGE_SIZE, type InspectionListRow } from "./inspections-table";
+import { getTranslator } from "@/lib/i18n/server";
 
 type Params = {
   project?: string;
@@ -34,6 +35,7 @@ const NO_MATCH = "00000000-0000-0000-0000-000000000000";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function InspectionsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const tl = await getTranslator();
   await requireSession();
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
@@ -182,7 +184,7 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold text-ink"><T>Inspections</T></h1>
           <PageGuide
-            title="Inspections — how this works"
+            title={tl("Inspections — how this works")}
             points={[
               "Lists every inspection record you can access, newest first. Open one to see its checklist responses, photos, signature, NCRs and IRN.",
               "Result shows Pass, Fail, Conditional (partial) or In progress while the checklist is not yet completed.",
@@ -193,39 +195,39 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
           />
         </div>
         <Link href="/inspect/start-work">
-          <Button>Start work</Button>
+          <Button><T>Start work</T></Button>
         </Link>
       </div>
 
       <form method="get" className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <select name="project" defaultValue={sp.project ?? ""} className={inputCls} aria-label="Project">
-          <option value="">All projects</option>
+        <select name="project" defaultValue={sp.project ?? ""} className={inputCls} aria-label={tl("Project")}>
+          <option value=""><T>All projects</T></option>
           {(projects ?? []).map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
         </select>
-        <select name="result" defaultValue={sp.result ?? ""} className={inputCls} aria-label="Result">
-          <option value="">Any result</option>
-          <option value="pass">Pass</option>
-          <option value="fail">Fail</option>
-          <option value="partial">Conditional</option>
-          <option value="in_progress">In progress</option>
+        <select name="result" defaultValue={sp.result ?? ""} className={inputCls} aria-label={tl("Result")}>
+          <option value=""><T>Any result</T></option>
+          <option value="pass"><T>Pass</T></option>
+          <option value="fail"><T>Fail</T></option>
+          <option value="partial"><T>Conditional</T></option>
+          <option value="in_progress"><T>In progress</T></option>
         </select>
-        <select name="irn" defaultValue={sp.irn ?? ""} className={inputCls} aria-label="IRN status">
-          <option value="">Any IRN status</option>
-          <option value="issued">IRN issued</option>
-          <option value="none">No IRN</option>
-          <option value="void">IRN void</option>
+        <select name="irn" defaultValue={sp.irn ?? ""} className={inputCls} aria-label={tl("IRN status")}>
+          <option value=""><T>Any IRN status</T></option>
+          <option value="issued"><T>IRN issued</T></option>
+          <option value="none"><T>No IRN</T></option>
+          <option value="void"><T>IRN void</T></option>
         </select>
-        <input type="date" name="from" defaultValue={sp.from ?? ""} className={inputCls} aria-label="From date" />
-        <input type="date" name="to" defaultValue={sp.to ?? ""} className={inputCls} aria-label="To date" />
+        <input type="date" name="from" defaultValue={sp.from ?? ""} className={inputCls} aria-label={tl("From date")} />
+        <input type="date" name="to" defaultValue={sp.to ?? ""} className={inputCls} aria-label={tl("To date")} />
         <div className="flex gap-2">
-          <Button type="submit">Apply</Button>
+          <Button type="submit"><T>Apply</T></Button>
           {hasFilters && (
             <Link href="/inspect/inspections" className="inline-flex items-center text-sm text-burgundy hover:underline">
-              Clear
+              <T>Clear</T>
             </Link>
           )}
         </div>
@@ -235,11 +237,11 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
       <div className="mt-6">
         {rows.length === 0 && !hasFilters ? (
           <div className="rounded-lg border border-border bg-surface p-8 text-center text-sm text-muted">
-            No inspections recorded yet.{" "}
+            <T>No inspections recorded yet.</T>{" "}
             <Link href="/inspect/start-work" className="text-burgundy hover:underline">
-              Start work
+              <T>Start work</T>
             </Link>{" "}
-            to begin one.
+            <T>to begin one.</T>
           </div>
         ) : (
           <>

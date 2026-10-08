@@ -5,6 +5,8 @@ import { updateInterventionLevelAction, deleteInterventionLevelAction, type Inte
 import type { InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: InterventionLevelState = { error: null };
 
@@ -16,6 +18,7 @@ const initialState: InterventionLevelState = { error: null };
  *  guard as a plain error instead of letting a raw exception bubble up.
  */
 export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateInterventionLevelAction, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteInterventionLevelAction, initialState);
 
@@ -24,7 +27,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
       <form action={formAction} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
         <input type="hidden" name="id" value={level.id} />
         <div>
-          <label className="block text-xs text-muted">Code</label>
+          <label className="block text-xs text-muted"><Tx>Code</Tx></label>
           <span className="doc-id mt-1 block text-sm font-semibold text-ink">{level.code}</span>
         </div>
         <div>
@@ -49,7 +52,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
         </div>
         <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
           <input type="checkbox" name="is_blocking" defaultChecked={level.is_blocking} />
-          Blocking
+          <Tx>Blocking</Tx>
         </label>
         <div>
           <FormField label="Notice hrs">
@@ -58,7 +61,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
             type="number"
             min={0}
             defaultValue={level.default_notice_hours ?? ""}
-            placeholder="none"
+            placeholder={tl("none")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
           </FormField>

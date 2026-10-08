@@ -9,6 +9,7 @@ import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import { ITP_TABLE_PAGE_SIZE as PAGE_SIZE } from "./constants";
 import { ITP_PHASE_LABEL, ITP_PHASE_TONE, normalizeItpPhase } from "@/lib/itps/phase";
+import { Tx } from "@/components/domain/tx";
 
 export interface ItpRow {
   id: string;
@@ -67,7 +68,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
             <span className="flex items-start justify-between gap-2">
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                 <span className={`doc-id text-sm text-burgundy ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
-                <span className="text-xs text-muted">Rev {row.revision}{row.signTotal ? ` · ${progressLabel(row)} signed` : ""}</span>
+                <span className="text-xs text-muted"><Tx>Rev</Tx> {row.revision}{row.signTotal ? ` · ${progressLabel(row)} signed` : ""}</span>
               </span>
               <span className="shrink-0 whitespace-nowrap">
                 <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>

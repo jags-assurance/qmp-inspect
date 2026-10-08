@@ -8,6 +8,7 @@ import {
 } from "@/lib/handover/actions";
 import { MIN_REJECT_REASON_LENGTH } from "@/lib/handover/helpers";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RejectHandoverState = { error: null };
 
@@ -21,7 +22,7 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
   if (!expanded) {
     return (
       <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(true)}>
-        Reject package
+        <Tx>Reject package</Tx>
       </Button>
     );
   }
@@ -32,12 +33,11 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
     <form action={formAction} className="flex w-full flex-wrap items-end gap-2">
       <input type="hidden" name="certificate_id" value={certificateId} />
       <p className="w-full text-xs text-muted">
-        Rejecting certificate <span className="font-medium text-ink">{certificateNumber}</span> tells JAGS the package is not acceptable. They will correct it and
-        issue a new revision. A rejection cannot be undone by you, so check the reason carefully.
+        <Tx>Rejecting certificate</Tx> <span className="font-medium text-ink">{certificateNumber}</span> <Tx>tells JAGS the package is not acceptable. They will correct it and issue a new revision. A rejection cannot be undone by you, so check the reason carefully.</Tx>
       </p>
       <div className="w-full">
         <label htmlFor={reasonId} className="block text-xs font-medium text-ink">
-          Why are you rejecting this package?
+          <Tx>Why are you rejecting this package?</Tx>
         </label>
         <textarea
           id={reasonId}
@@ -53,13 +53,13 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
       </div>
       <label htmlFor={confirmId} className="flex w-full items-start gap-2 text-sm text-ink">
         <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4" />
-        <span>I confirm I am rejecting this handover package on behalf of the client.</span>
+        <span><Tx>I confirm I am rejecting this handover package on behalf of the client.</Tx></span>
       </label>
       <Button type="submit" size="sm" variant="primary" disabled={pending || !confirmed || reason.trim().length < MIN_REJECT_REASON_LENGTH}>
         {pending ? "Rejecting…" : "Reject package"}
       </Button>
       <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(false)} disabled={pending}>
-        Cancel
+        <Tx>Cancel</Tx>
       </Button>
       {state.error && (
         <p className="w-full text-sm text-danger" role="alert">
@@ -78,7 +78,7 @@ export function ReopenRejectionForm({ certificateId }: { certificateId: string }
   if (!expanded) {
     return (
       <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(true)}>
-        Reopen (rejected in error)
+        <Tx>Reopen (rejected in error)</Tx>
       </Button>
     );
   }
@@ -88,7 +88,7 @@ export function ReopenRejectionForm({ certificateId }: { certificateId: string }
       <input type="hidden" name="certificate_id" value={certificateId} />
       <div className="w-full sm:w-80">
         <label htmlFor={reasonId} className="block text-xs font-medium text-ink">
-          Reason for reopening (recorded in the audit log)
+          <Tx>Reason for reopening (recorded in the audit log)</Tx>
         </label>
         <input
           id={reasonId}

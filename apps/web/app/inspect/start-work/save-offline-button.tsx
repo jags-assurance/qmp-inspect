@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getLocalUserId } from "@/lib/offline/user";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * Asks the service worker to keep a copy of the listed checklist pages for this signed-in user, so
@@ -42,8 +43,8 @@ export function SaveOfflineButton({ urls }: { urls: string[] }) {
       >
         {state === "saving" ? "Saving…" : "Save these checklists for offline"}
       </button>
-      {state === "done" && <span className="text-muted">Saved on this device. They will open without signal until you sign out.</span>}
-      {state === "unavailable" && <span className="text-muted">Offline saving is not available in this browser.</span>}
+      {state === "done" && <span className="text-muted"><Tx>Saved on this device. They will open without signal until you sign out.</Tx></span>}
+      {state === "unavailable" && <span className="text-muted"><Tx>Offline saving is not available in this browser.</Tx></span>}
     </div>
   );
 }

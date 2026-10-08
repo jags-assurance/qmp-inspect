@@ -15,12 +15,14 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SortForm } from "./sort-form";
 import { ExportLink } from "@/components/domain/export-link";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function ItpsPage({
   searchParams,
 }: {
   searchParams: Promise<{ discipline?: string; project?: string; phase?: string; q?: string; page?: string; itp?: string; pane?: string; status?: string; sort?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = await searchParams;
   const STATUSES = ["draft", "under_review", "approved", "client_accepted", "superseded", "withdrawn"] as const;
@@ -198,7 +200,7 @@ export default async function ItpsPage({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink"><T>ITP Register</T></h1>
             <PageGuide
-              title="ITP Register — how this works"
+              title={tl("ITP Register — how this works")}
               points={[
                 "Every Inspection & Test Plan across your accessible projects — staff see all of them, others see only what RLS scopes to their organisation/project.",
                 "\"+ New ITP\" appears for JAGS staff always, and for a client or subcontractor/main-contractor login only if their project has opted them into ITP creation (or their organisation is Self-Managed/\"Hybrid\" or Full Client-Managed, either of which grants it org-wide for a client party).",
@@ -207,18 +209,18 @@ export default async function ItpsPage({
               ]}
             />
           </div>
-          <p className="mt-1 text-sm text-muted">Inspection & Test Plans across your projects.</p>
+          <p className="mt-1 text-sm text-muted"><T>Inspection & Test Plans across your projects.</T></p>
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`}>
-            <Button variant="outline">PDF</Button>
+            <Button variant="outline"><T>PDF</T></Button>
           </Link>
           <ExportLink href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`} asButton pendingLabel="Preparing…">
-            Excel
+            <T>Excel</T>
           </ExportLink>
           {canCreateItp && (
             <Link href="/inspect/itps/new">
-              <Button>+ New ITP</Button>
+              <Button><T>+ New ITP</T></Button>
             </Link>
           )}
         </div>
@@ -226,9 +228,9 @@ export default async function ItpsPage({
 
       {projectId && (
         <p className="mt-3 text-sm text-muted">
-          Filtered to one project.{" "}
+          <T>Filtered to one project.</T>{" "}
           <Link href="/inspect/itps" className="text-burgundy hover:underline">
-            Clear filter
+            <T>Clear filter</T>
           </Link>
         </p>
       )}
@@ -248,7 +250,7 @@ export default async function ItpsPage({
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tl("Filter by status")}>
         {[
           { val: "", label: "All", n: statusCounts.reduce((a, [, n]) => a + n, 0) },
           ...STATUSES.map((st) => ({ val: st as string, label: ITP_STATUS_LABEL[st], n: statusCounts.find(([k]) => k === st)?.[1] ?? 0 })),
@@ -273,9 +275,9 @@ export default async function ItpsPage({
 
       {(totalCount ?? 0) === 0 && !q && canCreateItp && (
         <div className="mt-4 rounded-lg border border-border bg-surface p-4 text-center text-sm text-muted">
-          No ITPs match these filters.{" "}
+          <T>No ITPs match these filters.</T>{" "}
           <Link href="/inspect/itps/new" className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline">
-            Create ITP
+            <T>Create ITP</T>
           </Link>
         </div>
       )}
@@ -286,7 +288,7 @@ export default async function ItpsPage({
         detailActions={
           itp ? (
             <Link href={`/inspect/itps/${itp}`} className="inline-flex min-h-9 items-center text-sm text-burgundy hover:underline">
-              Open full page →
+              <T>Open full page →</T>
             </Link>
           ) : undefined
         }
@@ -296,12 +298,12 @@ export default async function ItpsPage({
             <>
               <div className="mb-3 lg:hidden">
                 <Link href={backHref} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
-                  ← Back to list
+                  <T>← Back to list</T>
                 </Link>
               </div>
               <Suspense
                 key={itp}
-                fallback={<div className="h-64 animate-pulse rounded-lg border border-border bg-surface" aria-label="Loading ITP" />}
+                fallback={<div className="h-64 animate-pulse rounded-lg border border-border bg-surface" aria-label={tl("Loading ITP")} />}
               >
                 <ItpDetailView id={itp} embedded pane={pane} baseQuery={detailQuery} />
               </Suspense>

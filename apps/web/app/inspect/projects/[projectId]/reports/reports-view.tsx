@@ -9,6 +9,8 @@ import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { HANDOVER_CERTIFICATES_TABLE } from "@/lib/databook/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface HandoverAttentionRow {
   id: string;
@@ -62,6 +64,7 @@ interface ItpSummary {
  * notFound() if the project isn't visible to this user.
  */
 export async function ReportsView({ projectId, embedded = false }: { projectId: string; embedded?: boolean }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -118,13 +121,13 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
       render: (pack) =>
         pack.status === "completed" && pack.pdfUrl ? (
           <span className="flex gap-3">
-            <a href={pack.pdfUrl} className="text-burgundy underline">PDF</a>
-            {pack.xlsxUrl && <a href={pack.xlsxUrl} className="text-burgundy underline">Excel</a>}
+            <a href={pack.pdfUrl} className="text-burgundy underline"><T>PDF</T></a>
+            {pack.xlsxUrl && <a href={pack.xlsxUrl} className="text-burgundy underline"><T>Excel</T></a>}
           </span>
         ) : pack.status === "failed" ? (
           <span className="text-xs text-danger">{pack.errorMessage ?? "Failed"}</span>
         ) : (
-          <span className="text-xs text-muted">Preparing…</span>
+          <span className="text-xs text-muted"><T>Preparing…</T></span>
         ),
     },
   ];
@@ -133,14 +136,14 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
     <div>
       {!embedded && (
         <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
+          <T>← Back to Project</T>
         </Link>
       )}
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">Reports</Heading>
+          <Heading className="text-2xl font-semibold text-ink"><T>Reports</T></Heading>
           <PageGuide
-            title="Reports & Downloads — how this works"
+            title={tl("Reports & Downloads — how this works")}
             points={[
               "Display and download only — generating a new monthly report pack stays staff-only, done from the Reporting admin page, not from here.",
               "Reachable by any role with access to this project, since a subcontractor or TPI/lab can have reports across several client organisations' projects — no single org to scope a layout-level gate to.",
@@ -157,12 +160,11 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
       {(handoverAttentionRows ?? []).length > 0 && (
         <div className="mt-8 rounded-lg border-2 border-warning bg-warning/5 p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-medium text-ink">Needs attention — Handover</h2>
-            <Badge tone="warning">{(handoverAttentionRows ?? []).length} open</Badge>
+            <h2 className="font-medium text-ink"><T>Needs attention — Handover</T></h2>
+            <Badge tone="warning">{(handoverAttentionRows ?? []).length} <T>open</T></Badge>
           </div>
           <p className="mt-1 text-sm text-muted">
-            No package file is attached to these handover certificates — the client sees a warning
-            in their place of a download on the Handover Portal.
+            <T>No package file is attached to these handover certificates — the client sees a warning in their place of a download on the Handover Portal.</T>
           </p>
           <ul className="mt-3 space-y-1.5 text-sm">
             {(handoverAttentionRows ?? []).map((cert) => (
@@ -180,25 +182,23 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
             ))}
           </ul>
           <p className="mt-2 text-xs text-muted">
-            Resolved from the project&rsquo;s{" "}
+            <T>Resolved from the project&rsquo;s</T>{" "}
             <Link href={`/inspect/projects/${projectId}/data-book`} className="text-burgundy hover:underline">
-              Data Book
+              <T>Data Book</T>
             </Link>{" "}
-            page, where the Data Book this certificate belongs to can be re-compiled and its package
-            uploaded.
+            <T>page, where the Data Book this certificate belongs to can be re-compiled and its package uploaded.</T>
           </p>
         </div>
       )}
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">Monthly report packs</h2>
+        <h2 className="font-medium text-ink"><T>Monthly report packs</T></h2>
         <p className="mt-1 text-sm text-muted">
-          PDF + Excel summaries covering your organisation&rsquo;s inspections, NCRs and ITP completion,
-          generated by JAGS on a monthly basis.
+          <T>PDF + Excel summaries covering your organisation&rsquo;s inspections, NCRs and ITP completion, generated by JAGS on a monthly basis.</T>
         </p>
 
         {reportPacks.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">No report packs have been generated for your organisation yet.</p>
+          <p className="mt-4 text-sm text-muted"><T>No report packs have been generated for your organisation yet.</T></p>
         ) : (
           <div className="mt-4">
             <ResponsiveTable
@@ -215,13 +215,13 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
       </div>
 
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-        <h2 className="font-medium text-ink">ITP documents</h2>
+        <h2 className="font-medium text-ink"><T>ITP documents</T></h2>
         <p className="mt-1 text-sm text-muted">
-          Each Inspection & Test Plan has its own controlled A4 PDF, available from its page.
+          <T>Each Inspection & Test Plan has its own controlled A4 PDF, available from its page.</T>
         </p>
 
         {(itps ?? []).length === 0 ? (
-          <p className="mt-4 text-sm text-muted">No ITPs recorded for this project yet.</p>
+          <p className="mt-4 text-sm text-muted"><T>No ITPs recorded for this project yet.</T></p>
         ) : (
           <ul className="mt-4 space-y-2">
             {(itps ?? []).map((itp) => (
@@ -240,7 +240,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
                     {ITP_STATUS_LABEL[itp.status] ?? itp.status}
                   </Badge>
                   <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy underline">
-                    View / Download
+                    <T>View / Download</T>
                   </Link>
                 </span>
               </li>

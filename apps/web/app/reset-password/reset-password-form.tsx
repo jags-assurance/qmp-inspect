@@ -5,6 +5,7 @@ import { updatePasswordAction, type UpdatePasswordState } from "@/lib/auth/actio
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/domain/password-field";
 import { FormMessage } from "@/components/ui/form-message";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: UpdatePasswordState = { error: null };
 
@@ -15,7 +16,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
 
   return (
     <>
-      <h2 className="text-2xl font-semibold text-ink">Set a new password</h2>
+      <h2 className="text-2xl font-semibold text-ink"><Tx>Set a new password</Tx></h2>
       <p className="mt-1 text-sm text-muted">
         {isForced
           ? "For security, you need to set your own password before continuing — you're currently signed in with a temporary one."
@@ -41,7 +42,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
         />
 
         <p id="pw-hint" className="text-xs text-muted">
-          Use at least 10 characters, avoid common passwords and don&apos;t include your email. Both fields must match.
+          <Tx>Use at least 10 characters, avoid common passwords and don&apos;t include your email. Both fields must match.</Tx>
         </p>
         <FormMessage error={state.error} />
 

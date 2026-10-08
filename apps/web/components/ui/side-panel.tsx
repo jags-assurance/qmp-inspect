@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -42,6 +43,7 @@ export function SidePanel({
   width?: keyof typeof WIDTH_CLASS;
   guardUnsaved?: boolean;
 }) {
+  const tl = useTranslate();
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -174,7 +176,7 @@ export function SidePanel({
           <button
             type="button"
             onClick={requestClose}
-            aria-label="Close panel"
+            aria-label={tl("Close panel")}
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-lg text-muted hover:bg-off-white hover:text-ink"
           >
             ✕
@@ -185,7 +187,7 @@ export function SidePanel({
       </div>
       {confirmingDiscard && (
         <ConfirmDialog
-          title="Discard what you've typed?"
+          title={tl("Discard what you've typed?")}
           confirmLabel="Discard"
           cancelLabel="Keep editing"
           destructive
@@ -268,6 +270,7 @@ function setToastPaused(paused: boolean) {
  * with its own role="status" element often is not.
  */
 export function Toast({ message, onDismiss }: { message: ReactNode | null; onDismiss: () => void }) {
+  const tl = useTranslate();
   return (
     <div role="status" aria-live="polite" aria-atomic="true" className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2">
       {message ? (
@@ -285,7 +288,7 @@ export function Toast({ message, onDismiss }: { message: ReactNode | null; onDis
               setToastPaused(false);
               onDismiss();
             }}
-            aria-label="Dismiss"
+            aria-label={tl("Dismiss")}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-white/10"
           >
             ✕

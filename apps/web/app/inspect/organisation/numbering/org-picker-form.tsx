@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Tx } from "@/components/domain/tx";
 
 export interface OrgOption {
   id: string;
@@ -18,7 +19,7 @@ export function OrgPickerForm({ organizations, selectedOrgId }: { organizations:
     <form className="mt-6 max-w-xs">
       {section && <input type="hidden" name="section" value={section} />}
       <label htmlFor="org" className="block text-sm font-medium text-ink">
-        Organisation
+        <Tx>Organisation</Tx>
       </label>
       <select
         id="org"

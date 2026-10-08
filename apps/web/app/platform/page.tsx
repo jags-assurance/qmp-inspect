@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { requireSession } from "@/lib/auth/session";
+import { T } from "@/components/domain/t";
 
 const MODULES = [
   { key: "inspect", name: "QMP Inspect", active: true, href: "/inspect" },
@@ -27,10 +28,9 @@ export default async function PlatformHomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Welcome back, {firstName}</h1>
+      <h1 className="text-2xl font-semibold text-ink"><T>Welcome back,</T> {firstName}</h1>
       <p className="mt-1 text-sm text-muted">
-        Your Quality Management Platform. Licensed modules are active — the rest light up as
-        they&apos;re enabled for your organisation.
+        <T>Your Quality Management Platform. Licensed modules are active — the rest light up as they&apos;re enabled for your organisation.</T>
       </p>
 
       {/* Phone: the orbit diagram is laid out in fixed pixels and cannot fit a 390px screen, so the same
@@ -40,11 +40,11 @@ export default async function PlatformHomePage() {
           <li key={mod.key} className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
             <div className="min-w-0">
               <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{mod.name}</p>
-              <div className="mt-1">{mod.active ? <Badge tone="gold">Active</Badge> : <Badge tone="neutral">Not enabled</Badge>}</div>
+              <div className="mt-1">{mod.active ? <Badge tone="gold"><T>Active</T></Badge> : <Badge tone="neutral"><T>Not enabled</T></Badge>}</div>
             </div>
             {mod.active && mod.href && (
               <Link href={mod.href} className="inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-burgundy hover:underline">
-                Open →
+                <T>Open →</T>
               </Link>
             )}
           </li>
@@ -60,7 +60,7 @@ export default async function PlatformHomePage() {
 
         {/* Centre JA emblem */}
         <div className="flex h-[86px] w-[86px] items-center justify-center rounded-full border-4 border-gold bg-surface text-xl font-bold text-burgundy shadow-sm">
-          JA
+          <T>JA</T>
         </div>
 
         {MODULES.map((mod, i) => {
@@ -106,9 +106,9 @@ export default async function PlatformHomePage() {
               <div className="w-24 text-center leading-tight">
                 <div className="text-xs font-medium text-ink">{mod.name}</div>
                 {mod.active ? (
-                  <Badge tone="gold">Active</Badge>
+                  <Badge tone="gold"><T>Active</T></Badge>
                 ) : (
-                  <Badge tone="neutral">Not enabled</Badge>
+                  <Badge tone="neutral"><T>Not enabled</T></Badge>
                 )}
               </div>
               {mod.active && mod.href && (
@@ -116,7 +116,7 @@ export default async function PlatformHomePage() {
                   href={mod.href}
                   className="text-xs font-medium text-burgundy hover:underline"
                 >
-                  Open module →
+                  <T>Open module →</T>
                 </Link>
               )}
             </div>
@@ -126,10 +126,10 @@ export default async function PlatformHomePage() {
 
       <div className="mx-auto mt-2 hidden max-w-2xl items-center justify-center gap-6 text-xs text-muted md:flex">
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2 border-gold bg-burgundy" /> Active module
+          <span className="h-3 w-3 rounded-full border-2 border-gold bg-burgundy" /> <T>Active module</T>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2 border-border bg-surface" /> Not enabled
+          <span className="h-3 w-3 rounded-full border-2 border-border bg-surface" /> <T>Not enabled</T>
         </span>
       </div>
     </div>

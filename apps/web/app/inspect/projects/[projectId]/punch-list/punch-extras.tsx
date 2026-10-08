@@ -8,19 +8,22 @@ import {
   type WithdrawPunchState,
 } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const input = "rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy";
 
 /** Withdraw a manually raised item that was raised in error / is a duplicate. */
 export function WithdrawPunchItemForm({ projectId, punchItemId }: { projectId: string; punchItemId: string }) {
+  const tl = useTranslate();
   const [state, action, pending] = useActionState(withdrawPunchItemAction, { error: null } as WithdrawPunchState);
   return (
     <details className="text-xs">
-      <summary className="cursor-pointer font-medium text-muted hover:text-ink">Withdraw (raised in error / duplicate)</summary>
+      <summary className="cursor-pointer font-medium text-muted hover:text-ink"><Tx>Withdraw (raised in error / duplicate)</Tx></summary>
       <form action={action} className="mt-2 flex flex-col gap-2">
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="punch_item_id" value={punchItemId} />
-        <textarea name="reason" rows={2} required minLength={5} placeholder="Reason (required)" className={input} />
+        <textarea name="reason" rows={2} required minLength={5} placeholder={tl("Reason (required)")} className={input} />
         {state.error && <p role="alert" className="text-danger">{state.error}</p>}
         <Button type="submit" size="sm" variant="outline" disabled={pending}>
           {pending ? "Withdrawing…" : "Withdraw item"}
@@ -58,12 +61,12 @@ export function BulkPunchBar({
       {selectedIds.map((id) => (
         <input key={id} type="hidden" name="item_id" value={id} />
       ))}
-      <span className="font-medium text-ink">{selectedIds.length} selected</span>
+      <span className="font-medium text-ink">{selectedIds.length} <Tx>selected</Tx></span>
       <label>
-        Responsible party
+        <Tx>Responsible party</Tx>
         <select name="responsible_party_id" defaultValue="__keep" className={`mt-1 block ${input}`}>
-          <option value="__keep">Leave as is</option>
-          <option value="">Unassigned</option>
+          <option value="__keep"><Tx>Leave as is</Tx></option>
+          <option value=""><Tx>Unassigned</Tx></option>
           {parties.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -72,23 +75,23 @@ export function BulkPunchBar({
         </select>
       </label>
       <label>
-        Due date
+        <Tx>Due date</Tx>
         <input name="due_date" type="date" className={`mt-1 block ${input}`} />
       </label>
       <label>
-        Priority
+        <Tx>Priority</Tx>
         <select name="priority" defaultValue="" className={`mt-1 block ${input}`}>
-          <option value="">Leave as is</option>
-          <option value="A">A - critical</option>
-          <option value="B">B - major</option>
-          <option value="C">C - minor</option>
+          <option value=""><Tx>Leave as is</Tx></option>
+          <option value="A"><Tx>A - critical</Tx></option>
+          <option value="B"><Tx>B - major</Tx></option>
+          <option value="C"><Tx>C - minor</Tx></option>
         </select>
       </label>
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Applying…" : "Apply to selected"}
       </Button>
       {state.error && <span className="text-danger">{state.error}</span>}
-      {!state.error && state.updated != null && !pending && <span className="text-success">{state.updated} item(s) updated.</span>}
+      {!state.error && state.updated != null && !pending && <span className="text-success">{state.updated} <Tx>item(s) updated.</Tx></span>}
       {done?.error && <span className="text-danger">{done.error}</span>}
     </form>
   );

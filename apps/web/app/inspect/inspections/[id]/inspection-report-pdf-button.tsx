@@ -9,6 +9,7 @@ import {
   type InspectionReportPdfStatus,
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestInspectionReportPdfState = { error: null };
 
@@ -51,7 +52,7 @@ export function InspectionReportPdfButton({
             rel="noreferrer"
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
           >
-            View report →
+            <Tx>View report →</Tx>
           </a>
         )}
         {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
@@ -59,7 +60,7 @@ export function InspectionReportPdfButton({
             href={liveStatus.downloadUrl}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
           >
-            Download ↓
+            <Tx>Download ↓</Tx>
           </a>
         )}
         {completed && (
@@ -76,15 +77,15 @@ export function InspectionReportPdfButton({
         </form>
         )}
       </div>
-      {!completed && <p className="text-xs text-muted">The report can be generated once the inspection is completed.</p>}
+      {!completed && <p className="text-xs text-muted"><Tx>The report can be generated once the inspection is completed.</Tx></p>}
       {completed && liveStatus?.status === "completed" && signedAt && Date.parse(liveStatus.createdAt) < Date.parse(signedAt) && (
-        <p className="text-xs font-medium text-warning" role="status">This report was generated before the latest sign-off — regenerate it.</p>
+        <p className="text-xs font-medium text-warning" role="status"><Tx>This report was generated before the latest sign-off — regenerate it.</Tx></p>
       )}
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-      {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {polling && <p className="text-xs text-muted"><Tx>Rendering — the links above will appear automatically when ready…</Tx></p>}
       {timedOut && (
         <p className="text-xs text-danger">
-          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+          <Tx>Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.</Tx>
         </p>
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (

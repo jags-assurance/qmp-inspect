@@ -8,6 +8,8 @@ import {
 } from "@/lib/ncrs/taxonomy-actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initial: TaxonomyState = { error: null };
 const INPUT = "rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -30,13 +32,14 @@ function Message({ state }: { state: TaxonomyState }) {
 }
 
 export function AddCategoryForm({ organizationId }: { organizationId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addRootCauseCategoryAction, initial);
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <FormField label="New category">
-          <input name="label" required minLength={2} maxLength={80} placeholder="e.g. Permit-to-work gap" className={`mt-1 w-72 ${INPUT}`} />
+          <input name="label" required minLength={2} maxLength={80} placeholder={tl("e.g. Permit-to-work gap")} className={`mt-1 w-72 ${INPUT}`} />
         </FormField>
       </div>
       <div>
@@ -65,17 +68,18 @@ export function EditCategoryRow({
   isActive: boolean;
   used: number;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateRootCauseCategoryAction, initial);
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3 px-4 py-3">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="organization_id" value={organizationId} />
-      <input name="label" defaultValue={label} aria-label="Category name" required minLength={2} maxLength={80} className={`w-64 ${INPUT}`} />
-      <input name="sort_order" defaultValue={sortOrder} aria-label="Order" inputMode="numeric" className={`w-20 ${INPUT}`} />
+      <input name="label" defaultValue={label} aria-label={tl("Category name")} required minLength={2} maxLength={80} className={`w-64 ${INPUT}`} />
+      <input name="sort_order" defaultValue={sortOrder} aria-label={tl("Order")} inputMode="numeric" className={`w-20 ${INPUT}`} />
       <label className="flex items-center gap-1.5 text-xs text-ink">
-        <input type="checkbox" name="is_active" defaultChecked={isActive} /> Active
+        <input type="checkbox" name="is_active" defaultChecked={isActive} /> <Tx>Active</Tx>
       </label>
-      <span className="text-xs text-muted">{used} NCR{used === 1 ? "" : "s"}</span>
+      <span className="text-xs text-muted">{used} <Tx>NCR</Tx>{used === 1 ? "" : "s"}</span>
       <Button type="submit" variant="outline" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
       <div className="w-full"><Message state={state} /></div>
     </form>

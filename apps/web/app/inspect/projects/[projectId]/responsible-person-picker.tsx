@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setResponsiblePersonAction, type SetResponsiblePersonState } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetResponsiblePersonState = { error: null };
 
@@ -31,14 +32,14 @@ export function ResponsiblePersonPicker({
         disabled={pending}
         className="rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-burgundy"
       >
-        <option value="">— none set —</option>
+        <option value=""><Tx>— none set —</Tx></option>
         {eligibleUsers.map((u) => (
           <option key={u.id} value={u.id}>
             {u.full_name} ({u.email})
           </option>
         ))}
       </select>
-      {pending && <span className="text-xs text-muted">Saving…</span>}
+      {pending && <span className="text-xs text-muted"><Tx>Saving…</Tx></span>}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );

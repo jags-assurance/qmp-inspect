@@ -170,6 +170,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Custom Roles", href: "/inspect/settings?section=roles" },
               { label: "Teams", href: "/inspect/settings?section=teams" },
               { label: "Module Licensing", href: "/inspect/settings?section=module-licensing" },
+              { label: "Data Requests", href: "/inspect/organisation/data-requests" },
               { label: "Numbering", href: "/inspect/settings?section=numbering" },
               { label: "Brand Colors", href: "/inspect/settings?section=branding" },
               { label: "Automation Rules", href: "/inspect/settings?section=automation" },

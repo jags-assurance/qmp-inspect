@@ -10,6 +10,7 @@ import {
 } from "@/lib/itps/review-chain-actions";
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: ApproveReviewStepState = { error: null };
 const initialReassignState: ReassignReviewStepState = { error: null };
@@ -39,7 +40,7 @@ export function ReviewChainStatus({
   return (
     <div className="rounded-lg border border-info/40 bg-info/5 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-info">Review chain</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-info"><Tx>Review chain</Tx></p>
         {canActNow && (
           <form action={formAction}>
             <input type="hidden" name="itp_id" value={itpId} />
@@ -84,7 +85,7 @@ export function ReviewChainStatus({
           <input type="hidden" name="itp_id" value={itpId} />
           <input type="hidden" name="step_id" value={firstPending.id} />
           <div>
-            <FormField label={<>Reviewer is unavailable? Hand step {steps.findIndex((s) => s.id === firstPending.id) + 1} to</>}>
+            <FormField label={<><Tx>Reviewer is unavailable? Hand step</Tx> {steps.findIndex((s) => s.id === firstPending.id) + 1} <Tx>to</Tx></>}>
               <select
               name="new_reviewer_user_id"
               required
@@ -92,7 +93,7 @@ export function ReviewChainStatus({
               className="mt-1 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
             >
               <option value="" disabled>
-                Choose a reviewer
+                <Tx>Choose a reviewer</Tx>
               </option>
               {reassignOptions
                 .filter((o) => o.id !== firstPending.reviewerUserId)

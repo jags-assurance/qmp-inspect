@@ -34,6 +34,8 @@ import {
 import { PageGuide } from "@/components/domain/page-guide";
 import { LoadMore } from "@/components/domain/load-more";
 import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 // The three extract*Action/addExtracted*RowsAction pairs are typed against their own specific row
 // shapes (ExtractedCalibrationRow, etc.) for type safety inside lib/registers/actions.ts, but
@@ -64,6 +66,7 @@ export async function RegistersView({
   limit?: number;
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
+  const tl = await getTranslator();
   // One extra row per register tells us whether more exist without a count query.
   const fetchLimit = limit + 1;
   const session = await requireSession();
@@ -83,13 +86,12 @@ export async function RegistersView({
     // Say why instead of silently bouncing back to the hub.
     return (
       <div className="rounded-lg border border-border bg-surface p-5 text-sm">
-        <h2 className="text-base font-semibold text-ink">Registers aren&apos;t enabled for this organisation</h2>
+        <h2 className="text-base font-semibold text-ink"><T>Registers aren&apos;t enabled for this organisation</T></h2>
         <p className="mt-1 text-muted">
-          The Registers module (calibration, welder, material and personnel certificate registers) isn&apos;t licensed for {project.organizations?.name ?? "this organisation"}.
-          Ask your JAGS administrator to enable it.
+          <T>The Registers module (calibration, welder, material and personnel certificate registers) isn&apos;t licensed for</T> {project.organizations?.name ?? "this organisation"}<T>. Ask your JAGS administrator to enable it.</T>
         </p>
         <Link href={`/inspect/projects/${projectId}`} className="mt-3 inline-block text-burgundy hover:underline">
-          Back to the project
+          <T>Back to the project</T>
         </Link>
       </div>
     );
@@ -223,7 +225,7 @@ export async function RegistersView({
         <div className="flex flex-wrap items-center gap-2">
           <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Registers" : `${project.project_number} — Registers`}</Heading>
           <PageGuide
-            title="Registers — how this works"
+            title={tl("Registers — how this works")}
             points={[
               "Calibration, welder qualification, material approval and personnel certification records that ITP field execution auto-verifies against.",
               "Each status (valid / due soon / expired) is worked out from the entry's date every time it is shown, so it is never stale. Calibration warns 30 days ahead; welder and personnel certificates 90 days ahead.",
@@ -234,14 +236,13 @@ export async function RegistersView({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · {project.name}. These feed the auto-verification shown when inspecting
-          related ITP activities.
+          {project.organizations?.name} · {project.name}<T>. These feed the auto-verification shown when inspecting related ITP activities.</T>
         </p>
       </div>
 
       {attention.length > 0 ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm" role="status">
-          <span className="font-medium text-ink">Needs attention:</span>
+          <span className="font-medium text-ink"><T>Needs attention:</T></span>
           {attention.map((a) => (
             <span
               key={a.label}
@@ -250,16 +251,16 @@ export async function RegistersView({
               {a.count} {a.label}
             </span>
           ))}
-          <span className="text-xs text-muted">These hold up the Data Book until they are renewed, replaced or released.</span>
+          <span className="text-xs text-muted"><T>These hold up the Data Book until they are renewed, replaced or released.</T></span>
         </div>
       ) : (
         <p className="mt-4 text-sm text-success" role="status">
-          <span aria-hidden="true">✓ </span>Everything in the registers is currently valid{nextDue ? ` — next date to watch: ${nextDue.what} on ${new Date(nextDue.date).toLocaleDateString("en-GB")}` : ""}.
+          <span aria-hidden="true">✓ </span><T>Everything in the registers is currently valid</T>{nextDue ? ` — next date to watch: ${nextDue.what} on ${new Date(nextDue.date).toLocaleDateString("en-GB")}` : ""}.
         </p>
       )}
       {!access.canAdd && (
         <p className="mt-3 rounded-md bg-off-white px-3 py-2 text-xs text-muted">
-          You can view these registers. Only JAGS staff and this project&apos;s contractor, subcontractor and TPI/lab parties can add entries; only JAGS staff can edit or release them.
+          <T>You can view these registers. Only JAGS staff and this project&apos;s contractor, subcontractor and TPI/lab parties can add entries; only JAGS staff can edit or release them.</T>
         </p>
       )}
 

@@ -11,6 +11,8 @@ import { type ItpItemMeasurementRow } from "@/lib/itps/evidence-actions";
 import { ITP_ITEM_MEASUREMENTS_TABLE, ITP_ITEM_EVIDENCE_DOCUMENTS_TABLE } from "@/lib/itps/evidence-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
   1: "Checklist",
@@ -41,6 +43,7 @@ export async function StatusView({
    *  pane tab in place instead of navigating to the full page. */
   baseQuery?: string;
 }) {
+  const tl = await getTranslator();
   const paneHref = (pane: "details" | "checklists", fullHref: string) => {
     if (!embedded) return fullHref;
     const sp = new URLSearchParams(baseQuery);
@@ -68,7 +71,7 @@ export async function StatusView({
     if (embedded) {
       return (
         <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">
-          ITP not found. It may have been removed or you may not have access.
+          <T>ITP not found. It may have been removed or you may not have access.</T>
         </div>
       );
     }
@@ -268,17 +271,17 @@ export async function StatusView({
     <div>
       {!embedded && (
         <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        ← Back to ITP
+        <T>← Back to ITP</T>
       </Link>
       )}
       <div className={embedded ? "" : "mt-2"}>
         <p className="text-sm text-muted">{itp.projects?.name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Heading className="text-2xl font-semibold text-ink">
-            Completion roadmap <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
+            <T>Completion roadmap</T> <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
           </Heading>
           <PageGuide
-            title="Completion roadmap — how this works"
+            title={tl("Completion roadmap — how this works")}
             points={[
               "Read-only summary of where every activity actually stands — combines evidence completion (checklist result, linked document, or measurement results) with H/W/R/S sign-off completion in one place, across all evidence types.",
               "An activity is only \"Complete\" once its evidence is done AND every required sign-off is given — a still-open blocking level (e.g. Hold) shows as \"Blocked\" even if the evidence itself has passed.",
@@ -291,10 +294,7 @@ export async function StatusView({
       </div>
 
       <p className="mt-4 rounded-md border border-info/60 bg-info/10 px-3 py-2 text-xs text-info">
-        Document-upload activities are done once at least one evidence document is linked;
-        Measurement-record activities are done once every recorded measurement has a result and none
-        have failed. Both are recorded per-activity on the ITP page itself (&ldquo;Manage evidence
-        →&rdquo; below) — this page only summarises where each activity stands.
+        <T>Document-upload activities are done once at least one evidence document is linked; Measurement-record activities are done once every recorded measurement has a result and none have failed. Both are recorded per-activity on the ITP page itself (&ldquo;Manage evidence →&rdquo; below) — this page only summarises where each activity stands.</T>
       </p>
 
       <div className="mt-6 space-y-3">
@@ -388,7 +388,7 @@ export async function StatusView({
               <div className="border-t border-border px-4 pb-4 pt-3">
               {item.acceptance_criteria && (
                 <p className="mt-2 text-xs text-muted">
-                  <span className="font-medium text-ink">Acceptance criteria: </span>
+                  <span className="font-medium text-ink"><T>Acceptance criteria:</T> </span>
                   {item.acceptance_criteria}
                 </p>
               )}
@@ -396,14 +396,14 @@ export async function StatusView({
                 <p className="mt-1 text-xs text-muted">
                   {item.method && (
                     <>
-                      <span className="font-medium text-ink">Method: </span>
+                      <span className="font-medium text-ink"><T>Method:</T> </span>
                       {item.method}
                     </>
                   )}
                   {item.method && item.frequency && " · "}
                   {item.frequency && (
                     <>
-                      <span className="font-medium text-ink">Frequency: </span>
+                      <span className="font-medium text-ink"><T>Frequency:</T> </span>
                       {item.frequency}
                     </>
                   )}
@@ -412,7 +412,7 @@ export async function StatusView({
 
               <div className="mt-3 flex flex-wrap gap-4 text-xs">
                 <div>
-                  <span className="text-muted">Evidence ({EVIDENCE_LABEL[item.evidence_type]}): </span>
+                  <span className="text-muted"><T>Evidence (</T>{EVIDENCE_LABEL[item.evidence_type]}): </span>
                   <Badge tone={evidence.tone}>{evidence.label}</Badge>
                   {template ? (
                     <Link href={`/inspect/checklists/${template.id}`} className="ms-2 font-medium text-burgundy hover:underline">
@@ -424,7 +424,7 @@ export async function StatusView({
                     // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
                     // ITP is approved). Points there instead of leaving it unclickable.
                     <Link href={paneHref("checklists", `/inspect/itps/${itp.id}/checklists`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline">
-                      Generate checklist →
+                      <T>Generate checklist →</T>
                     </Link>
                   ) : (
                     // evidence_type 2/3: recording measurements or linking evidence documents
@@ -433,21 +433,21 @@ export async function StatusView({
                     // this roadmap page — same "roadmap links out, doesn't duplicate the form"
                     // pattern the Checklist link above already follows.
                     <Link href={paneHref("details", `/inspect/itps/${itp.id}`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline">
-                      Manage evidence →
+                      <T>Manage evidence →</T>
                     </Link>
                   )}
                 </div>
                 <div>
-                  <span className="text-muted">Sign-off: </span>
+                  <span className="text-muted"><T>Sign-off:</T> </span>
                   <span className="font-medium text-ink">
-                    {signedOff} of {required} complete
+                    {signedOff} <T>of</T> {required} <T>complete</T>
                   </span>
                 </div>
                 {expected.length > 0 && (
                   <div>
-                    <span className="text-muted">Expected records: </span>
+                    <span className="text-muted"><T>Expected records:</T> </span>
                     <span className="font-medium text-ink">
-                      {expectedReceived} of {expected.length} received
+                      {expectedReceived} <T>of</T> {expected.length} <T>received</T>
                     </span>
                   </div>
                 )}
@@ -455,7 +455,7 @@ export async function StatusView({
 
               {pendingParties.length > 0 && (
                 <p className="mt-2 text-xs text-muted">
-                  Waiting on:{" "}
+                  <T>Waiting on:</T>{" "}
                   {pendingParties
                     .map((p) => `${p.name} (${p.level}${p.isBlocking ? ", blocking" : ""} — ${p.status})`)
                     .join("; ")}
@@ -464,7 +464,7 @@ export async function StatusView({
 
               {!overallDone && missing.length > 0 && (
                 <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-2 py-1.5 text-xs text-warning">
-                  <span className="font-medium">Still needed: </span>
+                  <span className="font-medium"><T>Still needed:</T> </span>
                   {missing.join("; ")}.
                 </p>
               )}
@@ -472,7 +472,7 @@ export async function StatusView({
             </details>
           );
         })}
-        {items.length === 0 && <p className="text-sm text-muted">This ITP has no activities yet.</p>}
+        {items.length === 0 && <p className="text-sm text-muted"><T>This ITP has no activities yet.</T></p>}
       </div>
     </div>
   );

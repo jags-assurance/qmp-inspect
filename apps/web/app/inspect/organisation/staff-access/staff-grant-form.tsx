@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { addStaffGrantAction, type StaffAccessState } from "@/lib/staff-access/actions";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: StaffAccessState = { error: null };
 
@@ -32,6 +34,7 @@ export function StaffGrantForm({
   organizations: OrgOption[];
   projects: ProjectOption[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addStaffGrantAction, initialState);
   const [scopeType, setScopeType] = useState<"global" | "organization" | "project">("global");
   const [organizationId, setOrganizationId] = useState("");
@@ -64,9 +67,9 @@ export function StaffGrantForm({
           onChange={(e) => setScopeType(e.target.value as typeof scopeType)}
           className="mt-1 w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
-          <option value="global">Global (every client)</option>
-          <option value="organization">One organisation</option>
-          <option value="project">One project</option>
+          <option value="global"><Tx>Global (every client)</Tx></option>
+          <option value="organization"><Tx>One organisation</Tx></option>
+          <option value="project"><Tx>One project</Tx></option>
         </select>
         </FormField>
       </div>
@@ -81,7 +84,7 @@ export function StaffGrantForm({
             required
             className="mt-1 w-48 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           >
-            <option value="">— choose —</option>
+            <option value=""><Tx>— choose —</Tx></option>
             {organizations.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}
@@ -101,7 +104,7 @@ export function StaffGrantForm({
             disabled={!organizationId}
             className="mt-1 w-48 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50"
           >
-            <option value="">— choose —</option>
+            <option value=""><Tx>— choose —</Tx></option>
             {projectsInOrg.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -117,7 +120,7 @@ export function StaffGrantForm({
           <input
           name="role"
           required
-          placeholder="jags_inspector"
+          placeholder={tl("jags_inspector")}
           defaultValue="jags_inspector"
           className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
@@ -127,11 +130,11 @@ export function StaffGrantForm({
       {scopeType !== "global" && (
         <div className="w-full">
           <label className="flex items-center gap-2 text-xs text-muted">
-            <input type="checkbox" name="seat_override" /> Override seat limit if this organisation is full (audited)
+            <input type="checkbox" name="seat_override" /> <Tx>Override seat limit if this organisation is full (audited)</Tx>
           </label>
           <input
             name="seat_override_reason"
-            placeholder="Reason for the override (required if ticked)"
+            placeholder={tl("Reason for the override (required if ticked)")}
             className="mt-1 w-full max-w-md rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
         </div>

@@ -5,6 +5,7 @@ import { issueClearanceAction, type IssueClearanceState } from "@/lib/standalone
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: IssueClearanceState = { error: null };
 
@@ -12,6 +13,7 @@ const initialState: IssueClearanceState = { error: null };
  *  punch item(s) are actually closed. A clearance note is required so the close-out is a
  *  deliberate, recorded moment (who, when, why), not an automatic side-effect. */
 export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: string; canClear: boolean }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(issueClearanceAction, initialState);
 
   const { gateSubmit, dialog } = useConfirm();
@@ -33,7 +35,7 @@ export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: s
           minLength={5}
           maxLength={2000}
           rows={3}
-          placeholder="What was verified and how the punch items were closed out"
+          placeholder={tl("What was verified and how the punch items were closed out")}
           className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

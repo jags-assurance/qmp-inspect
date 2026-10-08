@@ -8,6 +8,8 @@ import { ApproveDocumentButton } from "./approve-document-button";
 import { RejectDocumentButton } from "./reject-document-button";
 import { bulkApproveDocumentsAction, type BulkApproveState } from "@/lib/vault/document-control-actions";
 import type { VaultDocKind, VaultFileType } from "@/lib/vault/doc-kind";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface VaultDocumentTableRow {
   id: string;
@@ -57,6 +59,7 @@ function canActOn(row: VaultDocumentTableRow, canApprove: boolean): boolean {
 }
 
 export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentTableRow[]; canApprove: boolean }) {
+  const tl = useTranslate();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
@@ -137,7 +140,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
     {
       key: "select",
       header: (
-        <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select all shown documents" className="size-4" />
+        <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label={tl("Select all shown documents")} className="size-4" />
       ),
       cardLabel: null,
       thClassName: "w-10",
@@ -174,7 +177,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
             </Link>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
               <span className="doc-id text-ink">{row.document_number ?? "—"}</span>
-              {row.document_reference && <span>Ref {row.document_reference}</span>}
+              {row.document_reference && <span><Tx>Ref</Tx> {row.document_reference}</span>}
               <Badge tone={row.kind.tone}>{row.kind.label}</Badge>
               <Badge tone={row.fileType.tone}>{row.fileType.label}</Badge>
             </div>
@@ -186,7 +189,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
       key: "rev",
       header: "Rev.",
       cardLabel: "Revision",
-      render: (row) => <span className="doc-id text-ink">Rev {row.revision}</span>,
+      render: (row) => <span className="doc-id text-ink"><Tx>Rev</Tx> {row.revision}</span>,
     },
     {
       key: "status",
@@ -202,8 +205,8 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
               </span>
             )}
             {row.approverProgress && row.status === "for_review" && (
-              <span className="text-xs text-muted" title="Named approvers required for this document">
-                {row.approverProgress[0]}/{row.approverProgress[1]} approvers agreed{named ? " (you are one)" : ""}
+              <span className="text-xs text-muted" title={tl("Named approvers required for this document")}>
+                {row.approverProgress[0]}/{row.approverProgress[1]} <Tx>approvers agreed</Tx>{named ? " (you are one)" : ""}
               </span>
             )}
           </div>
@@ -217,7 +220,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
       render: (row) => (
         <>
           <div>{row.document_date ? new Date(row.document_date).toLocaleDateString("en-GB") : "—"}</div>
-          <div>added {new Date(row.created_at).toLocaleDateString("en-GB")}</div>
+          <div><Tx>added</Tx> {new Date(row.created_at).toLocaleDateString("en-GB")}</div>
         </>
       ),
     },
@@ -260,64 +263,64 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search number, reference, title…"
-            aria-label="Search documents"
+            placeholder={tl("Search number, reference, title…")}
+            aria-label={tl("Search documents")}
             className={`${fieldCls} w-full sm:max-w-xs`}
           />
-          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status" className={fieldCls}>
-            <option value="">All statuses</option>
-            <option value="for_review">For review</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="superseded">Superseded</option>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={tl("Filter by status")} className={fieldCls}>
+            <option value=""><Tx>All statuses</Tx></option>
+            <option value="for_review"><Tx>For review</Tx></option>
+            <option value="approved"><Tx>Approved</Tx></option>
+            <option value="rejected"><Tx>Rejected</Tx></option>
+            <option value="superseded"><Tx>Superseded</Tx></option>
           </select>
-          <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Filter by type" className={fieldCls}>
-            <option value="">All types</option>
-            <option value="pdf">PDF</option>
-            <option value="photo">Photo / image</option>
-            <option value="other">Office / other files</option>
-            <option value="upload">Uploaded</option>
-            <option value="inspection_report">Inspection reports</option>
-            <option value="itp">ITPs</option>
-            <option value="ncr">NCRs</option>
-            <option value="ncr_closeout">NCR close-outs</option>
+          <select value={type} onChange={(e) => setType(e.target.value)} aria-label={tl("Filter by type")} className={fieldCls}>
+            <option value=""><Tx>All types</Tx></option>
+            <option value="pdf"><Tx>PDF</Tx></option>
+            <option value="photo"><Tx>Photo / image</Tx></option>
+            <option value="other"><Tx>Office / other files</Tx></option>
+            <option value="upload"><Tx>Uploaded</Tx></option>
+            <option value="inspection_report"><Tx>Inspection reports</Tx></option>
+            <option value="itp"><Tx>ITPs</Tx></option>
+            <option value="ncr"><Tx>NCRs</Tx></option>
+            <option value="ncr_closeout"><Tx>NCR close-outs</Tx></option>
           </select>
-          <select value={uploader} onChange={(e) => setUploader(e.target.value)} aria-label="Filter by uploader" className={fieldCls}>
-            <option value="">Anyone</option>
+          <select value={uploader} onChange={(e) => setUploader(e.target.value)} aria-label={tl("Filter by uploader")} className={fieldCls}>
+            <option value=""><Tx>Anyone</Tx></option>
             {uploaders.map((u) => (
               <option key={u} value={u}>
                 {u}
               </option>
             ))}
           </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort documents" className={fieldCls}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="number">Document no.</option>
-            <option value="title">Title A-Z</option>
-            <option value="status">Status</option>
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={tl("Sort documents")} className={fieldCls}>
+            <option value="newest"><Tx>Newest first</Tx></option>
+            <option value="oldest"><Tx>Oldest first</Tx></option>
+            <option value="number"><Tx>Document no.</Tx></option>
+            <option value="title"><Tx>Title A-Z</Tx></option>
+            <option value="status"><Tx>Status</Tx></option>
           </select>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
           <label className="inline-flex items-center gap-1">
-            From
+            <Tx>From</Tx>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={fieldCls} />
           </label>
           <label className="inline-flex items-center gap-1">
-            To
+            <Tx>To</Tx>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={fieldCls} />
           </label>
           <label className="inline-flex min-h-11 items-center gap-1.5 sm:min-h-0">
             <input type="checkbox" checked={showSuperseded} onChange={(e) => setShowSuperseded(e.target.checked)} />
-            Show superseded{supersededCount > 0 ? ` (${supersededCount})` : ""}
+            <Tx>Show superseded</Tx>{supersededCount > 0 ? ` (${supersededCount})` : ""}
           </label>
           {filtersActive && (
             <button type="button" onClick={clearFilters} className="text-burgundy hover:underline">
-              Clear filters
+              <Tx>Clear filters</Tx>
             </button>
           )}
           <span className="ms-auto" aria-live="polite">
-            {visible.length} of {rows.length} document{rows.length === 1 ? "" : "s"}
+            {visible.length} <Tx>of</Tx> {rows.length} <Tx>document</Tx>{rows.length === 1 ? "" : "s"}
           </span>
         </div>
       </div>
@@ -325,15 +328,15 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
       {selectedRows.length > 0 && projectId && (
         <div
           role="region"
-          aria-label="Bulk actions"
+          aria-label={tl("Bulk actions")}
           className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-off-white px-3 py-2 text-sm"
         >
-          <span className="font-medium text-ink">{selectedRows.length} selected</span>
+          <span className="font-medium text-ink">{selectedRows.length} <Tx>selected</Tx></span>
           <a
             href={`/api/vault/${projectId}/download-all?ids=${selectedRows.map((r) => r.id).join(",")}`}
             className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
           >
-            Download selected (.zip)
+            <Tx>Download selected (.zip)</Tx>
           </a>
           {selectedApprovable.length > 0 && (
             <form action={bulkAction} className="inline-flex">
@@ -352,11 +355,11 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
             </form>
           )}
           <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted hover:underline">
-            Clear selection
+            <Tx>Clear selection</Tx>
           </button>
           {bulkState.approved !== undefined && (
             <span className="text-xs text-muted" role="status">
-              Approved {bulkState.approved}
+              <Tx>Approved</Tx> {bulkState.approved}
               {bulkState.skipped && bulkState.skipped.length > 0 ? `; not approved: ${bulkState.skipped.join(" / ")}` : ""}
             </span>
           )}

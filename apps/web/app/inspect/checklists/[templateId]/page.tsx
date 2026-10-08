@@ -57,6 +57,8 @@ import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 // Kept in sync by hand with the same map on the project detail page and elsewhere in this app (no
 // shared lib for it — see that page's own comment on the same duplication).
@@ -75,6 +77,7 @@ const PARTY_TYPE_LABEL: Record<string, string> = {
  * extend it here, matching the ITP add-item pattern).
  */
 export default async function ChecklistFillPage({ params }: { params: Promise<{ templateId: string }> }) {
+  const tl = await getTranslator();
   const { templateId } = await params;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -561,7 +564,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       {/* Was linking to the full ITP page — most people reach this checklist FROM the ITP's
           Checklists list, so "back" now returns there instead of the much heavier ITP detail page. */}
       <Link href={`/inspect/itps/${itp.id}/checklists`} className="text-sm text-burgundy hover:underline">
-        ← Back to {itp.itp_number} checklists
+        <T>← Back to</T> {itp.itp_number} <T>checklists</T>
       </Link>
       <p className="mt-2 text-sm text-muted">
         {project.organizations?.name} · {project.name} ·{" "}
@@ -571,12 +574,12 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink">
-          Checklist <span className="doc-id text-lg text-muted">{template.checklist_number}</span>
+          <T>Checklist</T> <span className="doc-id text-lg text-muted">{template.checklist_number}</span>
         </h1>
-        {templateVersion !== null && <Badge tone="info">Version {templateVersion}</Badge>}
-        {archived && <Badge tone="warning">Archived</Badge>}
+        {templateVersion !== null && <Badge tone="info"><T>Version</T> {templateVersion}</Badge>}
+        {archived && <Badge tone="warning"><T>Archived</T></Badge>}
         <PageGuide
-          title="Checklist — how this works"
+          title={tl("Checklist — how this works")}
           points={[
             "Only JAGS staff, or the subcontractor/main contractor party actually performing the work, can start or answer this checklist — an independent verifier (TPI/lab) holding a sign-off point, or the client, is sign-off-only unless the project has opted the client into execution.",
             "A still-open blocking intervention level (e.g. Hold) on this activity stops the inspection from even starting, once the project has \"Hold blocks start\" enforcement on.",
@@ -592,31 +595,31 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {archived && (
         <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-          This checklist is archived: new inspections cannot be started from it and it is hidden from the start-work and checklist lists.
+          <T>This checklist is archived: new inspections cannot be started from it and it is hidden from the start-work and checklist lists.</T>
           {session.isJagsStaff ? " Restore it under \"Edit checklist template\" to use it again." : ""}
         </p>
       )}
 
       {aiDraft && <ConfirmAiChecklist templateId={template.id} canConfirm={session.isJagsStaff} />}
       {aiState === "confirmed" && (
-        <p className="mt-2 text-xs text-muted">AI-generated checklist, reviewed and confirmed by JAGS staff.</p>
+        <p className="mt-2 text-xs text-muted"><T>AI-generated checklist, reviewed and confirmed by JAGS staff.</T></p>
       )}
 
       {assignedToUserId && (
         <p className="mt-2 text-sm text-ink">
-          Assigned to {assignedToUserId === session.userId ? "you" : (assignedName ?? "a team member")}
+          <T>Assigned to</T> {assignedToUserId === session.userId ? "you" : (assignedName ?? "a team member")}
         </p>
       )}
       {showAssign && !archived && (
         <details className="mt-3 rounded-md border border-border bg-surface px-4 py-3">
-          <summary className="cursor-pointer text-sm font-medium text-ink">Assign to a person</summary>
+          <summary className="cursor-pointer text-sm font-medium text-ink"><T>Assign to a person</T></summary>
           <AssignActivityForm itpItemId={itpItem.id} templateId={template.id} currentAssigneeId={assignedToUserId} options={assigneeOptions} />
         </details>
       )}
 
       {!draft && canExecute && !archived && holdOpen && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          This activity has an open <Badge tone="danger">Hold</Badge> — held by{" "}
+          <T>This activity has an open</T> <Badge tone="danger"><T>Hold</T></Badge> <T>— held by</T>{" "}
           {openHoldHolders.length > 0 ? (
             openHoldHolders.map((h, i) => (
               <span key={i}>
@@ -627,16 +630,16 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           ) : (
             "a party on the intervention grid"
           )}
-          . They must release it on the{" "}
-          <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>{" "}
-          before the inspection can start.
+          <T>. They must release it on the</T>{" "}
+          <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline"><T>ITP page</T></Link>{" "}
+          <T>before the inspection can start.</T>
         </p>
       )}
 
       {!draft && canExecute && !archived && !itpApproved && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          This ITP hasn&apos;t been approved yet, so site inspections can&apos;t start. Work opens once it is approved on the{" "}
-          <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline">ITP page</Link>.
+          <T>This ITP hasn&apos;t been approved yet, so site inspections can&apos;t start. Work opens once it is approved on the</T>{" "}
+          <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline"><T>ITP page</T></Link>.
         </p>
       )}
 
@@ -666,11 +669,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
           ) : executingPartyNames.length > 0 ? (
             <>
-              Not started yet. This is{" "}
+              <T>Not started yet. This is</T>{" "}
               {executingPartyNames.map((p, i) => (
                 <span key={i}>
                   {i > 0 && ", "}
-                  <span className="font-medium text-ink">{p.partyName}</span>&apos;s ({p.partyType}) activity to run
+                  <span className="font-medium text-ink">{p.partyName}</span>&apos;s ({p.partyType}<T>) activity to run</T>
                 </span>
               ))}{" "}
               — {ownPartyLink ? "your organisation isn't assigned to it" : "a JAGS inspector can also run it"}.
@@ -695,7 +698,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {draft && draftGeofenceWarning && (
         <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-          {draftGeofenceWarning} This is a warning only; it is recorded with the inspection.
+          {draftGeofenceWarning} <T>This is a warning only; it is recorded with the inspection.</T>
         </p>
       )}
 
@@ -731,16 +734,16 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             photoSlot={
               <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-medium text-ink">
-                  Photo evidence <span className="text-danger">*</span>
+                  <T>Photo evidence</T> <span className="text-danger">*</span>
                 </h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  At least one photo or linked document (here or on an individual item above) is required to complete this inspection.
+                  <T>At least one photo or linked document (here or on an individual item above) is required to complete this inspection.</T>
                 </p>
                 <div className="mt-3">
                   <PhotoUpload projectId={project.id} inspectionRecordId={draft.id} photos={photos} readOnly={!canExecute} />
                 </div>
                 <div className="mt-4 border-t border-border pt-3">
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted">From Document Vault</h3>
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted"><T>From Document Vault</T></h3>
                   <div className="mt-2">
                     <InspectionEvidenceDocuments
                       inspectionRecordId={draft.id}
@@ -771,7 +774,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             }
             incompleteSlot={
               <p className="rounded-md bg-off-white p-4 text-sm text-muted">
-                Answer every item above (Yes / No / N-A) to complete this inspection.
+                <T>Answer every item above (Yes / No / N-A) to complete this inspection.</T>
               </p>
             }
           />
@@ -785,7 +788,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         // default, so answering and editing read as two distinct modes rather than one crowded page.
         <details className="mt-8 rounded-lg border border-border bg-surface">
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-ink">
-            Edit checklist template{templateVersion !== null ? ` (version ${templateVersion})` : ""}
+            <T>Edit checklist template</T>{templateVersion !== null ? ` (version ${templateVersion})` : ""}
           </summary>
           <TemplateItemsEditor
             templateId={template.id}
@@ -793,8 +796,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             blockedReason={editBlockReason}
           />
           <p className="border-t border-border px-4 py-2 text-xs text-muted">
-            &quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be
-            answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.
+            <T>&quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.</T>
           </p>
           <AddChecklistItemForm templateId={template.id} disabledReason={editBlockReason} />
           <TemplateLifecycleControls
@@ -809,7 +811,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {(pastRecords ?? []).length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-medium text-ink">Past inspections</h2>
+          <h2 className="text-sm font-medium text-ink"><T>Past inspections</T></h2>
           <ul className="mt-2 space-y-1">
             {(pastRecords ?? []).map((r) => (
               <li key={r.id} className="flex items-center gap-2 text-sm">

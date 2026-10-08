@@ -6,6 +6,8 @@ import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddPunchItemState = { error: null };
 
@@ -16,6 +18,7 @@ export function AddPunchItemForm({
   projectId: string;
   projectParties: { id: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addPunchItemAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   // Idempotency key per attempt: a double tap or a refresh-resubmit cannot add the item twice.
@@ -55,7 +58,7 @@ export function AddPunchItemForm({
           <input
           name="description"
           required
-          placeholder="What needs fixing before handover…"
+          placeholder={tl("What needs fixing before handover…")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -77,7 +80,7 @@ export function AddPunchItemForm({
           defaultValue=""
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">Unassigned</option>
+          <option value=""><Tx>Unassigned</Tx></option>
           {projectParties.map((party) => (
             <option key={party.id} value={party.id}>
               {party.name}
@@ -104,16 +107,16 @@ export function AddPunchItemForm({
           defaultValue="B"
           className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
-          <option value="A">A - critical</option>
-          <option value="B">B - major</option>
-          <option value="C">C - minor</option>
+          <option value="A"><Tx>A - critical</Tx></option>
+          <option value="B"><Tx>B - major</Tx></option>
+          <option value="C"><Tx>C - minor</Tx></option>
         </select>
         </FormField>
       </div>
 
       <div className="w-full sm:w-56">
         <label htmlFor="photos" className="block text-xs font-medium text-ink">
-          Photo (optional)
+          <Tx>Photo (optional)</Tx>
         </label>
         <MarkupFileInput
           id="photos"
@@ -132,7 +135,7 @@ export function AddPunchItemForm({
 
       {photoError && <p role="alert" className="w-full text-sm text-danger">{photoError}</p>}
       {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
-      {confirmed && <p role="status" className="w-full text-sm text-success">Punch item added.</p>}
+      {confirmed && <p role="status" className="w-full text-sm text-success"><Tx>Punch item added.</Tx></p>}
     </form>
   );
 }

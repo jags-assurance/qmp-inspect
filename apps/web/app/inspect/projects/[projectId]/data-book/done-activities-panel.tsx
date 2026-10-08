@@ -15,6 +15,8 @@ import {
   computePersonnelCertificationStatus,
   computeWelderStatus,
 } from "@/lib/registers/status";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const CAP = 200;
 const ITEM_FETCH_CAP = 3000;
@@ -69,7 +71,7 @@ function Empty({ text }: { text: string }) {
   return <p className="mt-4 rounded-md border border-border bg-background px-3 py-4 text-sm text-muted">{text}</p>;
 }
 function CapNote({ n }: { n: number }) {
-  return n >= CAP ? <p className="mt-2 text-xs text-muted">Showing latest {CAP}.</p> : null;
+  return n >= CAP ? <p className="mt-2 text-xs text-muted"><T>Showing latest</T> {CAP}.</p> : null;
 }
 function Th({ children }: { children: React.ReactNode }) {
   return <th className="whitespace-nowrap px-2 py-2 font-semibold">{children}</th>;
@@ -101,6 +103,7 @@ export async function DoneActivitiesPanel({
   disc?: string;
   status?: string;
 }) {
+  const tl = await getTranslator();
   const tab: TabKey = (TABS.find((t) => t.key === done)?.key ?? "activities") as TabKey;
   const supabase = await createSupabaseServerClient();
 
@@ -189,8 +192,8 @@ export async function DoneActivitiesPanel({
 
   return (
     <section id="done-activities" className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-      <h2 className="text-lg font-semibold text-ink">What was done — activity register</h2>
-      <p className="mt-1 text-sm text-muted">Everything completed on this project in one place.</p>
+      <h2 className="text-lg font-semibold text-ink"><T>What was done — activity register</T></h2>
+      <p className="mt-1 text-sm text-muted"><T>Everything completed on this project in one place.</T></p>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {[
@@ -207,7 +210,7 @@ export async function DoneActivitiesPanel({
         ))}
       </div>
 
-      <nav className="mt-4 flex flex-wrap gap-2" aria-label="Done sections">
+      <nav className="mt-4 flex flex-wrap gap-2" aria-label={tl("Done sections")}>
         {TABS.map((t) => (
           <a
             key={t.key}
@@ -226,20 +229,20 @@ export async function DoneActivitiesPanel({
           <form method="get" action="#done-activities" className="mt-4 flex flex-wrap items-end gap-2 text-sm">
             <input type="hidden" name="done" value="activities" />
             <label className="flex flex-col text-xs text-muted">
-              ITP
+              <T>ITP</T>
               <select name="itp" defaultValue={itp ?? ""} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink">
-                <option value="">All ITPs</option>
+                <option value=""><T>All ITPs</T></option>
                 {itpOptions.map((o) => (
                   <option key={o.id} value={o.id}>
-                    {o.itp_number} rev {o.revision}
+                    {o.itp_number} <T>rev</T> {o.revision}
                   </option>
                 ))}
               </select>
             </label>
             <label className="flex flex-col text-xs text-muted">
-              Discipline
+              <T>Discipline</T>
               <select name="disc" defaultValue={disc ?? ""} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink">
-                <option value="">All</option>
+                <option value=""><T>All</T></option>
                 {discOptions.map((d) => (
                   <option key={d} value={d}>
                     {d}
@@ -248,9 +251,9 @@ export async function DoneActivitiesPanel({
               </select>
             </label>
             <label className="flex flex-col text-xs text-muted">
-              Status
+              <T>Status</T>
               <select name="status" defaultValue={status ?? ""} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink">
-                <option value="">All</option>
+                <option value=""><T>All</T></option>
                 {(Object.keys(STATUS_META) as ActStatus[]).map((s) => (
                   <option key={s} value={s}>
                     {STATUS_META[s].label}
@@ -259,11 +262,11 @@ export async function DoneActivitiesPanel({
               </select>
             </label>
             <button type="submit" className="rounded-md bg-burgundy px-3 py-1.5 text-sm font-semibold text-white">
-              Apply
+              <T>Apply</T>
             </button>
             {(itp || disc || status) && (
               <a href={tabHref("activities")} className="py-1.5 text-sm text-burgundy hover:underline">
-                Clear
+                <T>Clear</T>
               </a>
             )}
           </form>
@@ -274,14 +277,14 @@ export async function DoneActivitiesPanel({
               <Table
                 head={
                   <>
-                    <Th>ITP</Th>
-                    <Th>Item</Th>
-                    <Th>Activity</Th>
-                    <Th>Disc.</Th>
-                    <Th>Levels</Th>
-                    <Th>State</Th>
-                    <Th>Record</Th>
-                    <Th>Date</Th>
+                    <Th><T>ITP</T></Th>
+                    <Th><T>Item</T></Th>
+                    <Th><T>Activity</T></Th>
+                    <Th><T>Disc.</T></Th>
+                    <Th><T>Levels</T></Th>
+                    <Th><T>State</T></Th>
+                    <Th><T>Record</T></Th>
+                    <Th><T>Date</T></Th>
                   </>
                 }
               >
@@ -291,7 +294,7 @@ export async function DoneActivitiesPanel({
                       <a href={`/inspect/itps/${it.itp_sections.itps.id}`} className="text-burgundy hover:underline">
                         {it.itp_sections.itps.itp_number}
                       </a>{" "}
-                      <span className="text-xs text-muted">rev {it.itp_sections.itps.revision}</span>
+                      <span className="text-xs text-muted"><T>rev</T> {it.itp_sections.itps.revision}</span>
                     </td>
                     <td className="whitespace-nowrap px-2 py-2">
                       {it.itp_sections.section_number}.{it.item_number}
@@ -318,7 +321,7 @@ export async function DoneActivitiesPanel({
                   </tr>
                 ))}
               </Table>
-              {filtered.length > CAP && <p className="mt-2 text-xs text-muted">Showing first {CAP} of {filtered.length} matching activities. Narrow with filters.</p>}
+              {filtered.length > CAP && <p className="mt-2 text-xs text-muted"><T>Showing first</T> {CAP} <T>of</T> {filtered.length} <T>matching activities. Narrow with filters.</T></p>}
             </>
           )}
         </>
@@ -329,7 +332,7 @@ export async function DoneActivitiesPanel({
           <Empty text="No inspections have been completed yet." />
         ) : (
           <>
-            <Table head={<><Th>Record</Th><Th>ITP</Th><Th>Activity</Th><Th>Date</Th><Th>Result</Th><Th>IRN</Th></>}>
+            <Table head={<><Th><T>Record</T></Th><Th><T>ITP</T></Th><Th><T>Activity</T></Th><Th><T>Date</T></Th><Th><T>Result</T></Th><Th><T>IRN</T></Th></>}>
               {insps.slice(0, CAP).map((r) => {
                 const irn = liveIrnOf(r);
                 const voided = !irn && irnsOf(r).length > 0;
@@ -360,7 +363,7 @@ export async function DoneActivitiesPanel({
           <Empty text="No NCRs raised on this project." />
         ) : (
           <>
-            <Table head={<><Th>NCR</Th><Th>Severity</Th><Th>Status</Th><Th>Description</Th><Th>Closed</Th></>}>
+            <Table head={<><Th><T>NCR</T></Th><Th><T>Severity</T></Th><Th><T>Status</T></Th><Th><T>Description</T></Th><Th><T>Closed</T></Th></>}>
               {(ncrRes.data ?? []).map((n) => (
                 <tr key={n.id} className="align-top">
                   <td className="whitespace-nowrap px-2 py-2">
@@ -386,7 +389,7 @@ export async function DoneActivitiesPanel({
           <Empty text="No punch items have been verified closed yet." />
         ) : (
           <>
-            <Table head={<><Th>Item</Th><Th>Location</Th><Th>Verification</Th><Th>Closed</Th></>}>
+            <Table head={<><Th><T>Item</T></Th><Th><T>Location</T></Th><Th><T>Verification</T></Th><Th><T>Closed</T></Th></>}>
               {(punchRes.data ?? []).map((p) => (
                 <tr key={p.id} className="align-top">
                   <td className="min-w-[12rem] px-2 py-2">
@@ -424,7 +427,7 @@ async function RegistersSection({ projectId }: { projectId: string }) {
   if (rows.length === 0) return <Empty text="No valid register entries yet." />;
   return (
     <>
-      <Table head={<><Th>Type</Th><Th>Entry</Th><Th>Detail</Th><Th>Valid until</Th></>}>
+      <Table head={<><Th><T>Type</T></Th><Th><T>Entry</T></Th><Th><T>Detail</T></Th><Th><T>Valid until</T></Th></>}>
         {rows.map((r, i) => (
           <tr key={i} className="align-top">
             <td className="whitespace-nowrap px-2 py-2"><Badge tone="success">{r.kind}</Badge></td>
@@ -436,7 +439,7 @@ async function RegistersSection({ projectId }: { projectId: string }) {
           </tr>
         ))}
       </Table>
-      <p className="mt-2 text-xs text-muted">Each register shows its latest {CAP} entries; expired entries are excluded.</p>
+      <p className="mt-2 text-xs text-muted"><T>Each register shows its latest</T> {CAP} <T>entries; expired entries are excluded.</T></p>
     </>
   );
 }

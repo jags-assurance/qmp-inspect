@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import type { DataBookReadiness } from "@/lib/databook/readiness";
+import { T } from "@/components/domain/t";
 
 type Chip = "complete" | "partial" | "none" | "blocked";
 
@@ -117,18 +118,18 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
   return (
     <section id="index" aria-labelledby="index-h" className="scroll-mt-24 rounded-lg border border-border bg-surface p-4">
       <h2 id="index-h" className="text-base font-medium text-ink">
-        Index
+        <T>Index</T>
       </h2>
-      <p className="mt-0.5 text-xs text-muted">Live status of every section of the book. Click a row to jump to it or open its source.</p>
+      <p className="mt-0.5 text-xs text-muted"><T>Live status of every section of the book. Click a row to jump to it or open its source.</T></p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
           <thead className="text-start text-xs uppercase tracking-wide text-muted">
             <tr>
-              <th scope="col" className="w-12 py-1.5 pe-2 font-medium">No.</th>
-              <th scope="col" className="py-1.5 pe-2 font-medium">Section</th>
-              <th scope="col" className="py-1.5 pe-2 font-medium">Status</th>
+              <th scope="col" className="w-12 py-1.5 pe-2 font-medium"><T>No.</T></th>
+              <th scope="col" className="py-1.5 pe-2 font-medium"><T>Section</T></th>
+              <th scope="col" className="py-1.5 pe-2 font-medium"><T>Status</T></th>
               <th scope="col" className="w-14 py-1.5 pe-2 text-end font-medium">%</th>
-              <th scope="col" className="w-16 py-1.5 text-end font-medium">Open</th>
+              <th scope="col" className="w-16 py-1.5 text-end font-medium"><T>Open</T></th>
             </tr>
           </thead>
           {parts.map((part) => (
@@ -151,11 +152,11 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
                     <td className="py-2 text-end">
                       {row.href.startsWith("#") ? (
                         <a href={row.href} className="text-burgundy hover:underline" aria-label={`Jump to ${row.title}`}>
-                          Jump ↓
+                          <T>Jump ↓</T>
                         </a>
                       ) : (
                         <Link href={row.href} className="text-burgundy hover:underline" aria-label={`Open source for ${row.title}`}>
-                          Open →
+                          <T>Open →</T>
                         </Link>
                       )}
                     </td>

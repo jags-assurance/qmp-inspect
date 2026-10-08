@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { reopenPunchItemAction, type ReopenPunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ReopenPunchItemState = { error: null };
 
@@ -16,6 +18,7 @@ export function ReopenPunchItemForm({
   punchItemId: string;
   label?: string;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(reopenPunchItemAction, initialState);
   const [expanded, setExpanded] = useState(false);
   const [reason, setReason] = useState("");
@@ -42,7 +45,7 @@ export function ReopenPunchItemForm({
         rows={2}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="Why is this being reopened?"
+        placeholder={tl("Why is this being reopened?")}
         className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
       />
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
@@ -55,7 +58,7 @@ export function ReopenPunchItemForm({
           onClick={() => setExpanded(false)}
           className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white"
         >
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

@@ -1,3 +1,4 @@
+import { T } from "@/components/domain/t";
 // Shared loading skeletons for route-level loading.tsx files. Server-component safe (no state), same
 // look as the existing per-section skeletons (animate-pulse blocks on the off-white tone), so a new
 // section's loading.tsx is two lines instead of a copy of the markup.
@@ -8,7 +9,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <div aria-busy="true" role="status" aria-label="Loading">
       {children}
-      <span className="sr-only">Loading</span>
+      <span className="sr-only"><T>Loading</T></span>
     </div>
   );
 }

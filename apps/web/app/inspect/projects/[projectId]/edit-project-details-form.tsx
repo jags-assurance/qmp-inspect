@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { updateProjectDetailsAction, type UpdateProjectDetailsState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
 import { TimeZoneOptions } from "@/components/domain/timezone-options";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: UpdateProjectDetailsState = { error: null };
 
@@ -24,6 +26,7 @@ const inputClass = "mt-1 min-h-11 w-full rounded-md border border-border bg-surf
 
 /** Collapsible "Edit details" form for the project's descriptive fields (admin / self-managed only). */
 export function EditProjectDetailsForm({ project }: { project: EditableProject }) {
+  const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(updateProjectDetailsAction, initialState);
 
@@ -41,37 +44,37 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
         <form action={formAction} className="mt-2 grid gap-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
           <input type="hidden" name="project_id" value={project.id} />
           <label className="text-sm text-ink">
-            Project number *
+            <Tx>Project number *</Tx>
             <input name="project_number" required maxLength={60} defaultValue={project.project_number} className={inputClass} />
           </label>
           <label className="text-sm text-ink">
-            Project name *
+            <Tx>Project name *</Tx>
             <input name="name" required maxLength={200} defaultValue={project.name} className={inputClass} />
           </label>
           <label className="text-sm text-ink">
-            Site location
+            <Tx>Site location</Tx>
             <input name="site_location" defaultValue={project.site_location ?? ""} className={inputClass} />
           </label>
           <label className="text-sm text-ink">
-            Country
+            <Tx>Country</Tx>
             <input name="country" defaultValue={project.country ?? ""} className={inputClass} />
           </label>
           <label className="text-sm text-ink">
-            Contract number
+            <Tx>Contract number</Tx>
             <input name="contract_number" defaultValue={project.contract_number ?? ""} className={inputClass} />
           </label>
           <label className="text-sm text-ink">
-            Site time zone
-            <input name="timezone" list="project-timezones" maxLength={64} placeholder="e.g. Asia/Dubai" defaultValue={project.timezone ?? ""} className={inputClass} />
+            <Tx>Site time zone</Tx>
+            <input name="timezone" list="project-timezones" maxLength={64} placeholder={tl("e.g. Asia/Dubai")} defaultValue={project.timezone ?? ""} className={inputClass} />
             <TimeZoneOptions />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm text-ink">
-              Start date
+              <Tx>Start date</Tx>
               <input type="date" name="start_date" defaultValue={project.start_date ?? ""} className={inputClass} />
             </label>
             <label className="text-sm text-ink">
-              End date
+              <Tx>End date</Tx>
               <input type="date" name="end_date" defaultValue={project.end_date ?? ""} className={inputClass} />
             </label>
           </div>
@@ -79,7 +82,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
             <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save details"}
             </Button>
-            {state.saved && !state.error && <span className="text-sm text-success">Saved.</span>}
+            {state.saved && !state.error && <span className="text-sm text-success"><Tx>Saved.</Tx></span>}
             {state.error && <span role="alert" className="text-sm text-danger">{state.error}</span>}
           </div>
         </form>

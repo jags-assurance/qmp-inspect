@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { formatDateOnly, formatSiteDateTime } from "@/lib/ncrs/site-date";
 import { SignOffWalkdownButton } from "./signoff-walkdown-button";
+import { T } from "@/components/domain/t";
 
 interface WalkdownRow {
   id: string;
@@ -30,20 +31,20 @@ export async function WalkdownsPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h2 className="font-medium text-ink">Recent walkdowns</h2>
+      <h2 className="font-medium text-ink"><T>Recent walkdowns</T></h2>
       <ul className="mt-2 divide-y divide-border text-sm">
         {data.map((w) => (
           <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <div>
               <span className="font-medium text-ink">{w.area || "Walkdown"}</span>{" "}
               <span className="text-muted">
-                {formatDateOnly(w.walked_on)} · {w.item_count} item{w.item_count === 1 ? "" : "s"}
+                {formatDateOnly(w.walked_on)} · {w.item_count} <T>item</T>{w.item_count === 1 ? "" : "s"}
               </span>
-              {w.signed_off_at && <span className="ms-2 text-xs text-success">Signed off {formatSiteDateTime(w.signed_off_at)}</span>}
+              {w.signed_off_at && <span className="ms-2 text-xs text-success"><T>Signed off</T> {formatSiteDateTime(w.signed_off_at)}</span>}
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/inspect/projects/${projectId}/punch-list/walkdowns/${w.id}`} className="text-xs font-medium text-burgundy hover:underline">
-                Report
+                <T>Report</T>
               </Link>
               {!w.signed_off_at && (w.created_by === session.userId || isAdminStaff(session)) && (
                 <SignOffWalkdownButton projectId={projectId} walkdownId={w.id} />

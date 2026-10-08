@@ -49,7 +49,7 @@ export function Watchlist<T extends { id: string }>({
           <Tx>See all</Tx> {total} →
         </Link>
       )}
-      {hidden > 0 && !seeAllHref && <p className="mt-2 text-xs text-muted">Showing the {items.length} most recent of {total}.</p>}
+      {hidden > 0 && !seeAllHref && <p className="mt-2 text-xs text-muted"><Tx>Showing the</Tx> {items.length} <Tx>most recent of</Tx> {total}.</p>}
     </div>
   );
 }

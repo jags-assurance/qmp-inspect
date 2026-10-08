@@ -20,12 +20,14 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { applyNcrFilters, applyNcrSort, SORT_OPTIONS, type NcrListParams } from "@/lib/ncrs/list-filters";
 import { STATUS_LABEL } from "./ncr-shared";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function NcrsPage({
   searchParams,
 }: {
   searchParams: Promise<{ discipline?: string; page?: string } & NcrListParams>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const sp = await searchParams;
   const { discipline: disciplineId, project: projectId, page: pageParam } = sp;
@@ -155,7 +157,7 @@ export default async function NcrsPage({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink"><T>NCR Register</T></h1>
             <PageGuide
-              title="NCR Register — how this works"
+              title={tl("NCR Register — how this works")}
               points={[
                 "Lists every minor/major NCR (observations are excluded — they have their own register) with server-side search, pagination and a discipline filter.",
                 "Anyone with project access can raise an NCR via \"+ Raise NCR\" — raising one always also creates a matching project punch-list item, since every NCR must be closed out before handover regardless of severity.",
@@ -170,38 +172,38 @@ export default async function NcrsPage({
               ? "Minor and major non-conformances across every project you have access to."
               : "Minor and major non-conformances on your organisation's projects."}{" "}
             <Link href="/inspect/observations" className="text-burgundy hover:underline">
-              See observations →
+              <T>See observations →</T>
             </Link>
             {session.isJagsStaff && (
               <>
                 {" "}
                 <Link href="/inspect/ncrs/scorecard" className="text-burgundy hover:underline">
-                  Vendor scorecard →
+                  <T>Vendor scorecard →</T>
                 </Link>
               </>
             )}
           </p>
         </div>
         <Link href="/inspect/ncrs/new">
-          <Button>+ Raise NCR</Button>
+          <Button><T>+ Raise NCR</T></Button>
         </Link>
       </div>
 
       {projectId && (
         <p className="mt-3 text-sm text-muted">
-          Filtered to one project.{" "}
+          <T>Filtered to one project.</T>{" "}
           <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
-            Clear filter
+            <T>Clear filter</T>
           </Link>
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2" aria-label="Filter by status">
+      <div className="mt-4 flex flex-wrap gap-2" aria-label={tl("Filter by status")}>
         <Link href={hrefWith({ status: undefined, overdue: undefined })} className={chip(!sp.status && !sp.overdue)}>
-          All ({total})
+          <T>All (</T>{total})
         </Link>
         <Link href={hrefWith({ status: "active", overdue: undefined })} className={chip(sp.status === "active")}>
-          Active ({open})
+          <T>Active (</T>{open})
         </Link>
         {(["open", "in_progress", "pending_verification", "closed"] as const).map((st) => (
           <Link key={st} href={hrefWith({ status: st, overdue: undefined })} className={chip(sp.status === st)}>
@@ -209,7 +211,7 @@ export default async function NcrsPage({
           </Link>
         ))}
         <Link href={hrefWith({ overdue: "1", status: undefined })} className={chip(sp.overdue === "1")}>
-          Overdue ({overdue})
+          <T>Overdue (</T>{overdue})
         </Link>
       </div>
 
@@ -218,23 +220,23 @@ export default async function NcrsPage({
         {sp.status && <input type="hidden" name="status" value={sp.status} />}
         {sp.overdue && <input type="hidden" name="overdue" value={sp.overdue} />}
         <label className="text-xs text-muted">
-          Severity
+          <T>Severity</T>
           <select name="severity" defaultValue={sp.severity ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            <option value="">Any</option>
-            <option value="major_ncr">Major NCR</option>
-            <option value="minor_ncr">Minor NCR</option>
+            <option value=""><T>Any</T></option>
+            <option value="major_ncr"><T>Major NCR</T></option>
+            <option value="minor_ncr"><T>Minor NCR</T></option>
           </select>
         </label>
         <label className="text-xs text-muted">
-          Assignee
+          <T>Assignee</T>
           <select name="assignee" defaultValue={sp.assignee ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            <option value="">Anyone</option>
-            <option value="me">Assigned to me</option>
-            <option value="unassigned">Unassigned</option>
+            <option value=""><T>Anyone</T></option>
+            <option value="me"><T>Assigned to me</T></option>
+            <option value="unassigned"><T>Unassigned</T></option>
           </select>
         </label>
         <label className="text-xs text-muted">
-          Sort
+          <T>Sort</T>
           <select name="sort" defaultValue={sp.sort ?? "newest"} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -244,15 +246,15 @@ export default async function NcrsPage({
           </select>
         </label>
         <Button type="submit" variant="outline">
-          Apply
+          <T>Apply</T>
         </Button>
         {filtersActive && (
           <Link href="/inspect/ncrs" className="min-h-9 py-2 text-sm text-burgundy hover:underline">
-            Clear all
+            <T>Clear all</T>
           </Link>
         )}
         <a href={`/inspect/ncrs/export${exportQs.toString() ? `?${exportQs}` : ""}`} className="ms-auto min-h-9 py-2 text-sm text-burgundy hover:underline">
-          Export CSV
+          <T>Export CSV</T>
         </a>
       </form>
 

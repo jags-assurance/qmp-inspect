@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateItpApprovalWorkflowAction, type ItpApprovalWorkflowState } from "@/lib/itp-approval-workflow/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: ItpApprovalWorkflowState = { error: null };
 
@@ -37,7 +38,7 @@ export function ItpApprovalWorkflowForm({
           defaultValue={requiredReviewerUserId ?? ""}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">— Unrestricted (any JAGS staff) —</option>
+          <option value=""><Tx>— Unrestricted (any JAGS staff) —</Tx></option>
           {staff.map((s) => (
             <option key={s.id} value={s.id}>
               {s.full_name} ({s.email})
@@ -54,7 +55,7 @@ export function ItpApprovalWorkflowForm({
           defaultValue={requiredApproverUserId ?? ""}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">— Unrestricted (any JAGS staff) —</option>
+          <option value=""><Tx>— Unrestricted (any JAGS staff) —</Tx></option>
           {staff.map((s) => (
             <option key={s.id} value={s.id}>
               {s.full_name} ({s.email})

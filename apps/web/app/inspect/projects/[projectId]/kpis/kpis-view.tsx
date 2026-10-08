@@ -22,6 +22,8 @@ import { KpiDrilldown } from "./kpi-drilldown";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 import { getDataBookReadiness } from "@/lib/databook/readiness-cached";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 function formatPercent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value)}%`;
@@ -226,6 +228,7 @@ function MonthlyTrendChart({ points }: { points: MonthlyTrendPoint[] }) {
 // or anything resembling the internal Power BI command centre — nothing it reads or renders here
 // does.
 export async function KpisView({ projectId, embedded = false }: { projectId: string; embedded?: boolean }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -317,14 +320,14 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       <RealtimeRefresh table="inspection_records" filter={`project_id=eq.${projectId}`} />
       {!embedded && (
         <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
+          <T>← Back to Project</T>
         </Link>
       )}
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">Quality performance</Heading>
+          <Heading className="text-2xl font-semibold text-ink"><T>Quality performance</T></Heading>
           <PageGuide
-            title="Client KPIs — how this works"
+            title={tl("Client KPIs — how this works")}
             points={[
               "Client-facing quality metrics for this one project only: first-time pass rate, hold-point turnaround, NCR close-out time, data-book readiness (a proxy), inspection and ITP completion.",
               "Every number and chart here is computed live from this project's own recorded ITPs, inspections, NCRs, sign-offs and punch list — nothing is fabricated trend data or JAGS-internal cost/margin figures.",
@@ -413,10 +416,10 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
       {overdueItems.length > 0 && (
         <div className="rounded-lg border border-danger/40 bg-danger/5 p-4">
-          <h2 className="font-medium text-danger">Overdue — past due date</h2>
-          <div className="mt-1 flex gap-3 text-xs"><Link href="/inspect/ncrs" className="text-burgundy hover:underline">NCR register</Link><Link href={`/inspect/projects/${projectId}/punch-list`} className="text-burgundy hover:underline">Punch list</Link></div>
+          <h2 className="font-medium text-danger"><T>Overdue — past due date</T></h2>
+          <div className="mt-1 flex gap-3 text-xs"><Link href="/inspect/ncrs" className="text-burgundy hover:underline"><T>NCR register</T></Link><Link href={`/inspect/projects/${projectId}/punch-list`} className="text-burgundy hover:underline"><T>Punch list</T></Link></div>
           <p className="mt-1 text-sm text-muted">
-            {overdueItems.length} open item{overdueItems.length === 1 ? "" : "s"} (NCRs and punch list) past their due date.
+            {overdueItems.length} <T>open item</T>{overdueItems.length === 1 ? "" : "s"} <T>(NCRs and punch list) past their due date.</T>
           </p>
           <ul className="mt-3 space-y-2">
             {overdueItems.map((item) => (
@@ -429,7 +432,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
                   <span className="ml-2 text-muted">{item.description}</span>
                 </span>
                 <span className="tabular-nums text-xs font-semibold text-danger">
-                  {item.daysOverdue} day{item.daysOverdue === 1 ? "" : "s"} overdue
+                  {item.daysOverdue} <T>day</T>{item.daysOverdue === 1 ? "" : "s"} <T>overdue</T>
                 </span>
               </li>
             ))}
@@ -439,11 +442,10 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {openHolds.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Open Holds — how long work has actually been stopped</h2>
-          <Link href="/inspect/start-work" className="text-xs text-burgundy hover:underline">Open the start-work list</Link>
+          <h2 className="font-medium text-ink"><T>Open Holds — how long work has actually been stopped</T></h2>
+          <Link href="/inspect/start-work" className="text-xs text-burgundy hover:underline"><T>Open the start-work list</T></Link>
           <p className="mt-1 text-sm text-muted">
-            Every currently open blocking sign-off, ranked longest-waiting first — distinct from the average
-            hold-point turnaround above, which only reflects Holds that have already closed.
+            <T>Every currently open blocking sign-off, ranked longest-waiting first — distinct from the average hold-point turnaround above, which only reflects Holds that have already closed.</T>
           </p>
           <ul className="mt-3 space-y-2">
             {openHolds.map((hold) => (
@@ -451,10 +453,10 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
                 <span>
                   <span className="doc-id text-muted">{hold.itpNumber}</span>
                   <span className="ml-2 text-ink">{hold.activity}</span>
-                  <span className="ml-2 text-xs text-muted">— waiting on {hold.partyName}</span>
+                  <span className="ml-2 text-xs text-muted"><T>— waiting on</T> {hold.partyName}</span>
                 </span>
                 <span className="tabular-nums text-xs font-semibold text-ink">
-                  {hold.hoursOpen === null ? "—" : formatHours(hold.hoursOpen)} open
+                  {hold.hoursOpen === null ? "—" : formatHours(hold.hoursOpen)} <T>open</T>
                 </span>
               </li>
             ))}
@@ -464,8 +466,8 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {punchBySource.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Punch list by source</h2>
-          <p className="mt-1 text-sm text-muted">Where every punch list item actually came from — open vs. closed, by origin.</p>
+          <h2 className="font-medium text-ink"><T>Punch list by source</T></h2>
+          <p className="mt-1 text-sm text-muted"><T>Where every punch list item actually came from — open vs. closed, by origin.</T></p>
           <ol className="mt-4 space-y-3">
             {punchBySource.map((row) => {
               const total = row.openCount + row.closedCount;
@@ -477,7 +479,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
                     <div className="h-2 rounded-full bg-danger" style={{ width: `${openPct}%` }} />
                   </div>
                   <span className="w-28 shrink-0 text-right text-xs text-muted tabular-nums">
-                    {row.openCount} open / {row.closedCount} closed
+                    {row.openCount} <T>open /</T> {row.closedCount} <T>closed</T>
                   </span>
                 </li>
               );
@@ -488,9 +490,9 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {qualityByParty.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Quality by party</h2>
+          <h2 className="font-medium text-ink"><T>Quality by party</T></h2>
           <p className="mt-1 text-sm text-muted">
-            Sign-off completion rate and NCR count per project party, ranked by sign-off rate highest to lowest.
+            <T>Sign-off completion rate and NCR count per project party, ranked by sign-off rate highest to lowest.</T>
           </p>
           <ol className="mt-4 space-y-3">
             {qualityByParty.map((row, index) => (
@@ -504,7 +506,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
                   {row.percentage === null ? "—" : `${row.percentage}%`}
                 </span>
                 <span className="w-20 shrink-0 text-right text-xs text-muted">
-                  {row.ncrCount} NCR{row.ncrCount === 1 ? "" : "s"}
+                  {row.ncrCount} <T>NCR</T>{row.ncrCount === 1 ? "" : "s"}
                 </span>
               </li>
             ))}
@@ -514,8 +516,8 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {qualityByDiscipline.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Quality by discipline</h2>
-          <p className="mt-1 text-sm text-muted">First-time pass rate per discipline, ranked highest to lowest.</p>
+          <h2 className="font-medium text-ink"><T>Quality by discipline</T></h2>
+          <p className="mt-1 text-sm text-muted"><T>First-time pass rate per discipline, ranked highest to lowest.</T></p>
           <ol className="mt-4 space-y-3">
             {qualityByDiscipline.map((row, index) => (
               <li key={row.disciplineCode} className="flex items-center gap-3">
@@ -539,9 +541,9 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {itpCompletionRows.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Inspection completion by ITP</h2>
+          <h2 className="font-medium text-ink"><T>Inspection completion by ITP</T></h2>
           <p className="mt-1 text-sm text-muted">
-            Share of planned inspection items with a recorded result, per ITP. Ranked highest to lowest.
+            <T>Share of planned inspection items with a recorded result, per ITP. Ranked highest to lowest.</T>
           </p>
           <div className="mt-4 text-ink">
             <ItpCompletionChart rows={itpCompletionRows} />
@@ -551,8 +553,8 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {totalNcrs > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">NCRs by severity</h2>
-          <p className="mt-1 text-sm text-muted">{totalNcrs} NCR{totalNcrs === 1 ? "" : "s"} raised on this project to date.</p>
+          <h2 className="font-medium text-ink"><T>NCRs by severity</T></h2>
+          <p className="mt-1 text-sm text-muted">{totalNcrs} <T>NCR</T>{totalNcrs === 1 ? "" : "s"} <T>raised on this project to date.</T></p>
           <div className="mt-4">
             <NcrSeverityChart counts={ncrSeverityCounts} />
           </div>
@@ -561,17 +563,17 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       {monthlyTrends.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-          <h2 className="font-medium text-ink">Monthly trend</h2>
+          <h2 className="font-medium text-ink"><T>Monthly trend</T></h2>
           <p className="mt-1 text-sm text-muted">
-            NCRs raised and inspections completed per month, since this project began
+            <T>NCRs raised and inspections completed per month, since this project began</T>
             {monthlyTrends.length < 6 ? " — history so far, more months will appear over time" : " (last 6 months)"}.
           </p>
           <div className="mt-3 flex items-center gap-4 text-xs text-muted">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger" /> NCRs raised
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-danger" /> <T>NCRs raised</T>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-burgundy" /> Inspections completed
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-burgundy" /> <T>Inspections completed</T>
             </span>
           </div>
           <div className="mt-4 overflow-x-auto text-ink">
@@ -581,8 +583,8 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       )}
 
       <div className="mt-8">
-        <h2 className="font-medium text-ink">Open items</h2>
-        <p className="mt-1 text-sm text-muted">Open NCRs and observations, plus any failed inspection on this project.</p>
+        <h2 className="font-medium text-ink"><T>Open items</T></h2>
+        <p className="mt-1 text-sm text-muted"><T>Open NCRs and observations, plus any failed inspection on this project.</T></p>
         <div className="mt-3">
           <OpenItemsTable rows={kpis.openItems} />
         </div>

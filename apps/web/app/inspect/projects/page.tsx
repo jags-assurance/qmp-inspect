@@ -10,12 +10,14 @@ import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { OrgFilter } from "./org-filter";
 import { orgFilterOptionsFrom } from "@/lib/projects/open-counts";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function ProjectsPage({
   searchParams,
 }: {
   searchParams: Promise<{ org?: string; show?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const { org: selectedOrgId, show } = await searchParams;
   const showClosed = show === "all" || show === "closed";
@@ -44,7 +46,9 @@ export default async function ProjectsPage({
     return q;
   };
   const withClosedAt = "id, project_number, name, site_location, status, end_date, closed_at, organization_id, organizations(name)";
-  let { data: allVisible, error: projectsError } = await buildProjectsQuery(withClosedAt).returns<ProjectRow[]>();
+  const firstTry = await buildProjectsQuery(withClosedAt).returns<ProjectRow[]>();
+  const projectsError = firstTry.error;
+  let allVisible = firstTry.data;
   if (projectsError && isMissingSchemaError(projectsError)) {
     // closed_at (20261104000600) not applied yet: list the projects without the closed date.
     ({ data: allVisible } = await buildProjectsQuery(withClosedAt.replace(" closed_at,", "")).returns<ProjectRow[]>());
@@ -151,7 +155,7 @@ export default async function ProjectsPage({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink"><T>Projects</T></h1>
             <PageGuide
-              title="Projects — how this works"
+              title={tl("Projects — how this works")}
               points={[
                 "Every project you have access to, across every client — JAGS staff see everything they're granted; a client/contractor login sees only projects their organisation is engaged on.",
                 "\"+ New project\" is normally Admin-only; it also appears for anyone whose organisation is on the Self-Managed (Hybrid) or Full Client-Managed engagement tier, since both run their own program and create their own projects.",

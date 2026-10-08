@@ -7,6 +7,7 @@ import {
   DEFAULT_DATE_RANGE,
   parseDateRange,
 } from "@/lib/dates/date-range";
+import { Tx } from "@/components/domain/tx";
 
 /** Plain GET-style filter — mirrors project-filter.tsx: the page itself does all the real work (a
  *  server component reading ?range= from searchParams and applying it to the query), this just
@@ -20,7 +21,7 @@ export function DateRangeFilter({ paramName = "range" }: { paramName?: string })
 
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="font-medium text-ink">Date range</span>
+      <span className="font-medium text-ink"><Tx>Date range</Tx></span>
       <select
         value={current}
         onChange={(e) => {

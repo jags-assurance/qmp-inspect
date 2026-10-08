@@ -6,6 +6,8 @@ import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from 
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { RevisionCompare, type CompareRevisionRow } from "./revision-compare";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface DocumentRow {
   id: string;
@@ -42,6 +44,7 @@ export default async function VaultRevisionComparePage({
 }: {
   params: Promise<{ projectId: string; documentId: string }>;
 }) {
+  const tl = await getTranslator();
   await requireSession();
   const { projectId, documentId } = await params;
   const supabase = await createSupabaseServerClient();
@@ -111,13 +114,13 @@ export default async function VaultRevisionComparePage({
   return (
     <div>
       <Link href={`/inspect/vault/${projectId}/document/${documentId}`} className="text-sm text-burgundy hover:underline">
-        ← Back to {document.title}
+        <T>← Back to</T> {document.title}
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Compare revisions</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Compare revisions</T></h1>
         <PageGuide
-          title="Compare revisions — how this works"
+          title={tl("Compare revisions — how this works")}
           points={[
             "Groups every revision that shares this document's revision key (document_reference) — the same superseded-not-overwritten chain the vault folder page already tracks, not a new revision model.",
             "A document uploaded without a revision key has no siblings to compare against — pick one from the folder's revision-key column instead, or supersede it with a new upload first.",
@@ -125,7 +128,7 @@ export default async function VaultRevisionComparePage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        {document.document_number ?? document.title} · {revisions.length} revision{revisions.length === 1 ? "" : "s"} on record
+        {document.document_number ?? document.title} · {revisions.length} <T>revision</T>{revisions.length === 1 ? "" : "s"} <T>on record</T>
       </p>
 
       <div className="mt-6">

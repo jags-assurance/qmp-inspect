@@ -29,6 +29,8 @@ import { DoneActivitiesPanel } from "./done-activities-panel";
 import { DataBookUpdatesPanel } from "./updates-panel";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { TransmittalSection } from "@/components/domain/transmittal-section";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   draft: "neutral",
@@ -84,6 +86,7 @@ function Tick({ ok }: { ok: boolean }) {
 }
 
 export async function DataBookView({ projectId, embedded = false, sp = {} }: { projectId: string; embedded?: boolean; sp?: Record<string, string | undefined> }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -176,8 +179,8 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     return (
       <div className={embedded ? "" : "max-w-6xl"}>
         <div className="rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm text-ink" role="alert">
-          <p className="font-medium">The Data Book readiness could not be calculated right now.</p>
-          <p className="mt-1 text-muted">A data query failed, so no readiness figures are shown rather than showing figures that might be wrong. Reload the page to try again.</p>
+          <p className="font-medium"><T>The Data Book readiness could not be calculated right now.</T></p>
+          <p className="mt-1 text-muted"><T>A data query failed, so no readiness figures are shown rather than showing figures that might be wrong. Reload the page to try again.</T></p>
         </div>
       </div>
     );
@@ -333,7 +336,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       <RealtimeRefresh table="data_books" filter={`project_id=eq.${projectId}`} />
       {!embedded && (
         <Link href={base} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
+          <T>← Back to Project</T>
         </Link>
       )}
 
@@ -342,19 +345,19 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
         <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Data book" : `${project.project_number} — Data Book`}</Heading>
         <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted">
           <div className="flex gap-1">
-            <dt className="sr-only">Project</dt>
+            <dt className="sr-only"><T>Project</T></dt>
             <dd className="text-ink">{project.name}</dd>
           </div>
           <div className="flex gap-1">
-            <dt>Client:</dt>
+            <dt><T>Client:</T></dt>
             <dd className="text-ink">{project.organizations?.name ?? "—"}</dd>
           </div>
           <div className="flex gap-1">
-            <dt>Site:</dt>
+            <dt><T>Site:</T></dt>
             <dd className="text-ink">{[project.site_location, project.country].filter(Boolean).join(", ") || "—"}</dd>
           </div>
           <div className="flex gap-1">
-            <dt>Period:</dt>
+            <dt><T>Period:</T></dt>
             <dd className="text-ink">
               {formatDate(project.start_date)} – {formatDate(project.end_date)}
             </dd>
@@ -364,27 +367,26 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
 
       {latest?.status === "issued" && !projectCompleted && (
         <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-ink" role="status">
-          This project was re-opened after Data Book {latest.book_number} was issued ({statusText}). The issued handover still stands as it was certified;
-          start a new revision when the re-opened work is finished.
+          <T>This project was re-opened after Data Book</T> {latest.book_number} <T>was issued (</T>{statusText}<T>). The issued handover still stands as it was certified; start a new revision when the re-opened work is finished.</T>
         </div>
       )}
 
       {/* Status banner */}
-      <section id="status" aria-label="Data Book status" className="mt-4 scroll-mt-24 rounded-lg border border-border bg-surface p-4">
+      <section id="status" aria-label={tl("Data Book status")} className="mt-4 scroll-mt-24 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="w-full sm:min-w-[14rem] flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted">Book state</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted"><T>Book state</T></span>
               <Badge tone={bannerTone}>{latest ? STATUS_LABEL[latest.status] : "No book"}</Badge>
               {latest && (
                 <span className="text-xs text-muted">
-                  {latest.book_number} · Rev {latest.revision ?? 0}
+                  {latest.book_number} <T>· Rev</T> {latest.revision ?? 0}
                 </span>
               )}
             </div>
             <div className="mt-3">
               <div className="flex items-baseline justify-between text-sm">
-                <span className="text-ink">Readiness</span>
+                <span className="text-ink"><T>Readiness</T></span>
                 <span className="tabular-nums font-medium text-ink">{hasData ? `${readinessPct}%` : "No data yet"}</span>
               </div>
               <div
@@ -393,7 +395,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 aria-valuenow={readinessPct}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label="Data Book readiness"
+                aria-label={tl("Data Book readiness")}
               >
                 <div className={cn("h-full rounded-full transition-all", allGatesPass ? "bg-success" : "bg-gold")} style={{ width: `${readinessPct}%` }} />
               </div>
@@ -417,12 +419,12 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               />
             ) : (
               <a href="#generate" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">
-                Generate Data Book
+                <T>Generate Data Book</T>
               </a>
             )}
             {latestCert && (
               <Link href="/inspect/handover" className="text-sm text-burgundy hover:underline">
-                Handover certificate {latestCert.certificate_number} →
+                <T>Handover certificate</T> {latestCert.certificate_number} →
               </Link>
             )}
           </div>
@@ -430,12 +432,12 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       </section>
 
       <details className="mt-3 rounded-lg border border-border bg-surface px-4 py-2 text-sm">
-        <summary className="cursor-pointer font-medium text-ink focus:outline-none focus:ring-2 focus:ring-burgundy">How this works</summary>
+        <summary className="cursor-pointer font-medium text-ink focus:outline-none focus:ring-2 focus:ring-burgundy"><T>How this works</T></summary>
         <ul className="mt-2 list-disc space-y-1.5 ps-5 text-muted">
-          <li>A final book needs every category at 100%, zero open or unverified punch items, and a Completed project. Draft books can be generated at any time and are marked DRAFT.</li>
-          <li>JAGS staff can compile anyway (a &quot;Conditional Handover&quot;) with a required documented reason; still-open punch items are snapshotted on the record with the reason and approver.</li>
-          <li>Only JAGS staff can create a book, compile a draft, or issue a handover (a JAGS Admin for anything with an override). Books, certificates and packages are visible to JAGS staff and the client only.</li>
-          <li>&quot;Data-book readiness&quot; on the Client KPIs page is a proxy metric; this page computes it directly from the project&apos;s own records.</li>
+          <li><T>A final book needs every category at 100%, zero open or unverified punch items, and a Completed project. Draft books can be generated at any time and are marked DRAFT.</T></li>
+          <li><T>JAGS staff can compile anyway (a &quot;Conditional Handover&quot;) with a required documented reason; still-open punch items are snapshotted on the record with the reason and approver.</T></li>
+          <li><T>Only JAGS staff can create a book, compile a draft, or issue a handover (a JAGS Admin for anything with an override). Books, certificates and packages are visible to JAGS staff and the client only.</T></li>
+          <li><T>&quot;Data-book readiness&quot; on the Client KPIs page is a proxy metric; this page computes it directly from the project&apos;s own records.</T></li>
         </ul>
       </details>
 
@@ -446,7 +448,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           <DataBookIndex parts={parts} />
 
           {/* Ready to generate? */}
-          <Card id="gates" title="Ready to generate?" hint="Hard gates for a final book. Fix each red item at its source page.">
+          <Card id="gates" title={tl("Ready to generate?")} hint="Hard gates for a final book. Fix each red item at its source page.">
             <ul className="divide-y divide-border rounded-md border border-border">
               {gates.map((g) => (
                 <li key={g.label} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
@@ -456,7 +458,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                   <span className={cn("text-xs", g.ok ? "text-success" : "text-danger")}>{g.detail}</span>
                   {!g.ok && (
                     <Link href={g.href} className="text-xs font-medium text-burgundy hover:underline">
-                      Fix →
+                      <T>Fix →</T>
                     </Link>
                   )}
                   {!g.ok && g.fix && <span className="w-full ps-8 text-xs text-muted">{g.fix}</span>}
@@ -464,7 +466,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               ))}
             </ul>
             <details className="mt-3">
-              <summary className="cursor-pointer text-sm text-burgundy focus:outline-none focus:ring-2 focus:ring-burgundy">Category detail</summary>
+              <summary className="cursor-pointer text-sm text-burgundy focus:outline-none focus:ring-2 focus:ring-burgundy"><T>Category detail</T></summary>
               <div className="mt-2">
                 <ReadinessPanel readiness={readiness} />
               </div>
@@ -472,22 +474,22 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           </Card>
 
           {/* Generate */}
-          <Card id="generate" title="Generate">
+          <Card id="generate" title={tl("Generate")}>
             {!session.isJagsStaff && (
-              <p className="text-sm text-muted">Only JAGS staff can generate or compile a Data Book. You can view and download generated books below.</p>
+              <p className="text-sm text-muted"><T>Only JAGS staff can generate or compile a Data Book. You can view and download generated books below.</T></p>
             )}
             {session.isJagsStaff && books.length === 0 && (
               <div>
-                <p className="mb-3 text-sm text-muted">No Data Book exists for this project yet. Create one to start generating draft PDFs and, once every gate passes, a final book.</p>
+                <p className="mb-3 text-sm text-muted"><T>No Data Book exists for this project yet. Create one to start generating draft PDFs and, once every gate passes, a final book.</T></p>
                 <CreateDataBookForm projectId={projectId} />
               </div>
             )}
             {session.isJagsStaff && latest?.status === "draft" && (
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-md border border-border p-3">
-                  <h3 className="text-sm font-semibold text-ink">Generate draft book now</h3>
+                  <h3 className="text-sm font-semibold text-ink"><T>Generate draft book now</T></h3>
                   <p className="mt-1 text-xs text-muted">
-                    Produces a PDF stamped DRAFT — <strong>not issued</strong>. Safe to share for review; incomplete sections are shown as such.
+                    <T>Produces a PDF stamped DRAFT —</T> <strong><T>not issued</T></strong><T>. Safe to share for review; incomplete sections are shown as such.</T>
                   </p>
                   <div className="mt-3">
                     <DataBookPdfButton
@@ -504,7 +506,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                   </div>
                 </div>
                 <div className="rounded-md border border-border p-3">
-                  <h3 className="text-sm font-semibold text-ink">Generate final book</h3>
+                  <h3 className="text-sm font-semibold text-ink"><T>Generate final book</T></h3>
                   <p className="mt-1 text-xs text-muted">
                     {allGatesPass
                       ? "All gates pass. Compiling locks this book for review and issue."
@@ -526,36 +528,36 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
             )}
             {session.isJagsStaff && latest?.status === "compiled" && (
               <div>
-                <p className="mb-2 text-sm text-muted">Book {latest.book_number} is compiled and awaiting review. Issue the handover to finalise it.</p>
+                <p className="mb-2 text-sm text-muted"><T>Book</T> {latest.book_number} <T>is compiled and awaiting review. Issue the handover to finalise it.</T></p>
                 <IssueHandoverForm projectId={projectId} dataBookId={latest.id} bookNumber={latest.book_number} isConditional={latest.override_open_punch_items} />
                 {isAdmin && <WithdrawDataBookForm projectId={projectId} dataBookId={latest.id} />}
               </div>
             )}
             {session.isJagsStaff && latest?.status === "issued" && (
               <div>
-                <p className="mb-3 text-sm text-muted">The latest book is issued. Start a new book to produce a further revision.</p>
+                <p className="mb-3 text-sm text-muted"><T>The latest book is issued. Start a new book to produce a further revision.</T></p>
                 <CreateDataBookForm projectId={projectId} revisionOf={latest.book_number} />
                 <TransmittalSection entityType="data_book" entityId={latest.id} projectId={projectId} status={latest.status} />
               </div>
             )}
             {latest && (
               <p className="mt-3 text-xs text-muted">
-                Latest: {latest.book_number}
+                <T>Latest:</T> {latest.book_number}
                 {latest.compiled_at
                   ? ` · generated ${formatUtcDateTime(latest.compiled_at)} by ${(latest.compiled_by && compilerNames.get(latest.compiled_by)) || "—"}`
                   : ` · created ${formatUtcDateTime(latest.created_at)} (not yet compiled)`}
-                {" · "}Rev {latest.revision ?? 0}
+                {" · "}<T>Rev</T> {latest.revision ?? 0}
               </p>
             )}
           </Card>
 
           {/* Books and revisions */}
-          <Card id="books" title="Books and revisions">
+          <Card id="books" title={tl("Books and revisions")}>
             {books.length === 0 ? (
               <p className="text-sm text-muted">
-                No Data Book started for this project yet.{" "}
+                <T>No Data Book started for this project yet.</T>{" "}
                 {session.isJagsStaff ? (
-                  <a href="#generate" className="text-burgundy hover:underline">Create one →</a>
+                  <a href="#generate" className="text-burgundy hover:underline"><T>Create one →</T></a>
                 ) : (
                   "Ask JAGS staff to start one."
                 )}
@@ -573,7 +575,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                           <span className="doc-id text-sm font-medium text-ink">{book.book_number}</span>
                           <span className="ms-2 text-sm text-ink">{book.title}</span>
                           <p className="mt-0.5 text-xs text-muted">
-                            Rev {revision} · created {formatDate(book.created_at)}
+                            <T>Rev</T> {revision} <T>· created</T> {formatDate(book.created_at)}
                             {book.compiled_at && ` · compiled ${formatDate(book.compiled_at)}`}
                             {book.compiled_by && compilerNames.get(book.compiled_by) ? ` by ${compilerNames.get(book.compiled_by)}` : ""}
                           </p>
@@ -611,7 +613,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                       </ol>
                       {cert?.received_by_name && (
                         <p className="mt-1 text-xs text-muted">
-                          Received by {cert.received_by_name}
+                          <T>Received by</T> {cert.received_by_name}
                           {cert.received_by_company ? ` (${cert.received_by_company})` : ""}
                         </p>
                       )}
@@ -620,18 +622,18 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
                           {pdf?.status === "completed" && pdf.downloadUrl ? (
                             <>
-                              <span className="text-xs text-muted">PDF {formatUtcDate(pdf.createdAt)}</span>
+                              <span className="text-xs text-muted"><T>PDF</T> {formatUtcDate(pdf.createdAt)}</span>
                               {pdf.pdfUrl && (
-                                <a href={pdf.pdfUrl} target="_blank" rel="noreferrer" className="text-burgundy hover:underline">View ↗</a>
+                                <a href={pdf.pdfUrl} target="_blank" rel="noreferrer" className="text-burgundy hover:underline"><T>View ↗</T></a>
                               )}
-                              <a href={pdf.downloadUrl} className="text-burgundy hover:underline">Download ↓</a>
+                              <a href={pdf.downloadUrl} className="text-burgundy hover:underline"><T>Download ↓</T></a>
                             </>
                           ) : (
                             <>
                               <span className="text-xs text-muted">{pdf ? `PDF ${pdf.status}` : "PDF links load on demand."}</span>
                               {!pdf && (
                                 <Link href={`?${new URLSearchParams({ ...(Object.fromEntries(Object.entries(sp).filter(([, v]) => v !== undefined)) as Record<string, string>), pdfbook: book.id }).toString()}#books`} scroll={false} className="text-burgundy hover:underline">
-                                  Load PDF links
+                                  <T>Load PDF links</T>
                                 </Link>
                               )}
                             </>
@@ -642,14 +644,14 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                       {book.override_reason && (
                         <div className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
                           <p>
-                            <span className="font-medium">Conditional — compiled with open items outstanding.</span> {book.override_reason}
+                            <span className="font-medium"><T>Conditional — compiled with open items outstanding.</T></span> {book.override_reason}
                           </p>
                           {book.override_items && book.override_items.length > 0 && (
                             <ul className="mt-1.5 space-y-0.5">
                               {book.override_items.map((item) => (
                                 <li key={item.id}>
                                   • {item.description}
-                                  {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.responsible_party_name ?? "unassigned"}, due {item.due_date ? formatDate(item.due_date) : "no date set"}
+                                  {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.responsible_party_name ?? "unassigned"}<T>, due</T> {item.due_date ? formatDate(item.due_date) : "no date set"}
                                 </li>
                               ))}
                             </ul>
@@ -664,7 +666,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           </Card>
 
           {/* Project summary */}
-          <Card id="project-summary" title="Project summary">
+          <Card id="project-summary" title={tl("Project summary")}>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
               {[
                 ["Project", `${project.project_number} — ${project.name}`],
@@ -681,11 +683,11 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               ))}
             </dl>
             <div className="mt-4 border-t border-border pt-3">
-              <h3 className="text-xs uppercase tracking-wide text-muted">Project parties involved</h3>
+              <h3 className="text-xs uppercase tracking-wide text-muted"><T>Project parties involved</T></h3>
               {(parties ?? []).length === 0 ? (
                 <p className="mt-2 text-sm text-muted">
-                  No active project parties recorded.{" "}
-                  <Link href={base} className="text-burgundy hover:underline">Add parties →</Link>
+                  <T>No active project parties recorded.</T>{" "}
+                  <Link href={base} className="text-burgundy hover:underline"><T>Add parties →</T></Link>
                 </p>
               ) : (
                 <ul className="mt-2 flex flex-wrap gap-2">
@@ -701,17 +703,17 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           </Card>
 
           {/* What was done */}
-          <Card id="done" title="What was done">
+          <Card id="done" title={tl("What was done")}>
             <DoneActivitiesPanel projectId={projectId} done={sp.done} itp={sp.itp} disc={sp.disc} status={sp.status} />
           </Card>
 
-          <section id="disciplines" className="scroll-mt-24" aria-label="Breakdown by discipline">
+          <section id="disciplines" className="scroll-mt-24" aria-label={tl("Breakdown by discipline")}>
             <DisciplineBreakdownPanel rows={disciplineBreakdown} />
           </section>
 
-          <Card id="updates" title="Updates">
+          <Card id="updates" title={tl("Updates")}>
             {!session.isJagsStaff && (
-              <p className="mb-2 text-xs text-muted">Note: the full audit trail is visible to JAGS staff only; you may see Data Book entries only.</p>
+              <p className="mb-2 text-xs text-muted"><T>Note: the full audit trail is visible to JAGS staff only; you may see Data Book entries only.</T></p>
             )}
             <DataBookUpdatesPanel projectId={projectId} upd={sp.upd} updn={sp.updn} />
           </Card>

@@ -4,10 +4,12 @@ import { useActionState } from "react";
 import { createCustomVaultFolderAction, type CreateCustomVaultFolderState } from "@/lib/vault/folder-actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateCustomVaultFolderState = { error: null };
 
 export function AddCategoryForm({ projectId }: { projectId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createCustomVaultFolderAction, initialState);
 
   return (
@@ -17,7 +19,7 @@ export function AddCategoryForm({ projectId }: { projectId: string }) {
         <FormField label="Add a custom category">
           <input
           name="name"
-          placeholder="e.g. Site Photos"
+          placeholder={tl("e.g. Site Photos")}
           required
           maxLength={60}
           className="mt-1 w-56 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"

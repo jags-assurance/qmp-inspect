@@ -1,4 +1,5 @@
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
+import { T } from "@/components/domain/t";
 
 /**
  * The round-table ask: "a separate roadmap for permission and approval — accept, who will approve,
@@ -68,7 +69,7 @@ export function ItpApprovalRoadmap({
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="text-sm font-semibold text-ink">Approval &amp; acceptance roadmap</h3>
+      <h3 className="text-sm font-semibold text-ink"><T>Approval &amp; acceptance roadmap</T></h3>
       <ol className="mt-3 space-y-2.5">
         {stages.map((stage) => (
           <li key={stage.key} className="flex items-start gap-2.5">
@@ -87,7 +88,7 @@ export function ItpApprovalRoadmap({
             <div className="min-w-0">
               <p className={`text-sm ${stage.done || stage.current ? "font-medium text-ink" : "text-muted"}`}>
                 {stage.label}
-                {stage.current && <span className="ms-1.5 text-xs font-normal text-warning">— current stage</span>}
+                {stage.current && <span className="ms-1.5 text-xs font-normal text-warning"><T>— current stage</T></span>}
               </p>
               {stage.detail && <p className="text-xs text-muted">{stage.detail}</p>}
               {/* Full per-reviewer detail (with the "Approve step" action) lives in ReviewChainStatus
@@ -95,7 +96,7 @@ export function ItpApprovalRoadmap({
                   on the map without duplicating its actionable UI. */}
               {stage.key === "approved" && reviewSteps.length > 0 && (
                 <p className="text-xs text-muted">
-                  Review chain: {reviewSteps.filter((s) => s.status === "approved").length} of {reviewSteps.length} steps approved
+                  <T>Review chain:</T> {reviewSteps.filter((s) => s.status === "approved").length} <T>of</T> {reviewSteps.length} <T>steps approved</T>
                 </p>
               )}
             </div>
@@ -104,7 +105,7 @@ export function ItpApprovalRoadmap({
       </ol>
       {signoffTotal > 0 && (
         <p className="mt-3 border-t border-border pt-2.5 text-xs text-muted">
-          Intervention points: {signoffComplete} of {signoffTotal} signed off — details in section 3 below
+          <T>Intervention points:</T> {signoffComplete} <T>of</T> {signoffTotal} <T>signed off — details in section 3 below</T>
         </p>
       )}
     </div>

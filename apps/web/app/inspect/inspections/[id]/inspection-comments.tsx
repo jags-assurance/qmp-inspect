@@ -10,6 +10,7 @@ import {
 import { canEditComment, MAX_COMMENT_LENGTH, type CommentThread, type InspectionCommentRow } from "@/lib/inspection-comments/logic";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: InspectionCommentState = { error: null };
 const textareaClass = "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
@@ -31,16 +32,16 @@ export function InspectionComments({
 }) {
   return (
     <div id="comments" className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-medium text-ink">Comments</h2>
+      <h2 className="text-sm font-medium text-ink"><Tx>Comments</Tx></h2>
       {threads.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">No comments yet.</p>
+        <p className="mt-2 text-sm text-muted"><Tx>No comments yet.</Tx></p>
       ) : (
         <ul className="mt-3 space-y-4">
           {threads.map((t) => (
             <li key={t.root.id} className={`rounded-md border border-border p-3 ${t.root.resolved_at ? "bg-off-white" : ""}`}>
               <CommentBody comment={t.root} userId={userId} />
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                {t.root.resolved_at && <span className="text-xs font-medium text-success">Resolved {new Date(t.root.resolved_at).toLocaleString()}</span>}
+                {t.root.resolved_at && <span className="text-xs font-medium text-success"><Tx>Resolved</Tx> {new Date(t.root.resolved_at).toLocaleString()}</span>}
                 {isStaff && <ResolveToggle commentId={t.root.id} resolved={!!t.root.resolved_at} />}
               </div>
               {t.replies.length > 0 && (
@@ -62,7 +63,7 @@ export function InspectionComments({
           <CommentForm inspectionRecordId={inspectionRecordId} parentId={null} label="Add a comment" submitLabel="Post comment" rows={3} />
         </div>
       ) : (
-        <p className="mt-3 text-sm text-muted">This project is completed or cancelled, so new comments are closed.</p>
+        <p className="mt-3 text-sm text-muted"><Tx>This project is completed or cancelled, so new comments are closed.</Tx></p>
       )}
     </div>
   );
@@ -86,7 +87,7 @@ function CommentBody({ comment, userId }: { comment: InspectionCommentRow; userI
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{comment.body}</p>
           {editable && (
             <button type="button" onClick={() => setEditing(true)} className="mt-1 text-xs font-medium text-burgundy hover:underline">
-              Edit
+              <Tx>Edit</Tx>
             </button>
           )}
         </>
@@ -153,7 +154,7 @@ function EditForm({ comment, onDone }: { comment: InspectionCommentRow; onDone: 
           {pending ? "Saving…" : "Save"}
         </Button>
         <button type="button" onClick={onDone} className="text-sm text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

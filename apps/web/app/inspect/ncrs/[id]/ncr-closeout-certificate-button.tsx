@@ -9,6 +9,7 @@ import {
   type NcrCloseoutCertificateStatus,
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestNcrCloseoutCertificateState = { error: null };
 
@@ -43,7 +44,7 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
             rel="noreferrer"
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
           >
-            View certificate →
+            <Tx>View certificate →</Tx>
           </a>
         )}
         {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
@@ -51,7 +52,7 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
             href={liveStatus.downloadUrl}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
           >
-            Download ↓
+            <Tx>Download ↓</Tx>
           </a>
         )}
         <form action={formAction}>
@@ -67,10 +68,10 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
         </form>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-      {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
+      {polling && <p className="text-xs text-muted"><Tx>Rendering — the links above will appear automatically when ready…</Tx></p>}
       {timedOut && (
         <p className="text-xs text-danger">
-          Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.
+          <Tx>Still rendering after 2 minutes — try again shortly, or reload this page to check whether it finished anyway.</Tx>
         </p>
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (

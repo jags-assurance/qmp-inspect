@@ -12,6 +12,8 @@ import {
   type MarkupTool,
   type Pt,
 } from "@/lib/media/markup";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 type Outcome = { kind: "saved"; file: File } | { kind: "original" } | { kind: "cancel" };
 
@@ -38,6 +40,7 @@ async function loadBitmap(file: File): Promise<{ source: CanvasImageSource; widt
 }
 
 function MarkupEditor({ file, onDone }: { file: File; onDone: (o: Outcome) => void }) {
+  const tl = useTranslate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const baseRef = useRef<HTMLCanvasElement | null>(null);
   const [shapes, setShapes] = useState<MarkupShape[]>([]);
@@ -159,13 +162,13 @@ function MarkupEditor({ file, onDone }: { file: File; onDone: (o: Outcome) => vo
   );
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-label="Mark up photo">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-label={tl("Mark up photo")}>
       <div className="flex max-h-full w-full max-w-3xl flex-col gap-2 rounded-lg bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
           {toolBtn("pen", "Draw")}
           {toolBtn("arrow", "Arrow")}
           {toolBtn("circle", "Circle")}
-          <span className="mx-1 flex items-center gap-1" role="group" aria-label="Colour">
+          <span className="mx-1 flex items-center gap-1" role="group" aria-label={tl("Colour")}>
             {MARKUP_COLORS.map((c) => (
               <button
                 key={c}
@@ -184,7 +187,7 @@ function MarkupEditor({ file, onDone }: { file: File; onDone: (o: Outcome) => vo
             onClick={() => setShapes((prev) => prev.slice(0, -1))}
             className="min-h-10 rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-40"
           >
-            Undo
+            <Tx>Undo</Tx>
           </button>
           <button
             type="button"
@@ -192,12 +195,12 @@ function MarkupEditor({ file, onDone }: { file: File; onDone: (o: Outcome) => vo
             onClick={() => setShapes([])}
             className="min-h-10 rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-40"
           >
-            Clear
+            <Tx>Clear</Tx>
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto rounded-md bg-black/5">
           {failed ? (
-            <p className="p-6 text-sm text-danger">This photo could not be opened for marking up. You can still use it as it is.</p>
+            <p className="p-6 text-sm text-danger"><Tx>This photo could not be opened for marking up. You can still use it as it is.</Tx></p>
           ) : (
             <canvas
               ref={canvasRef}
@@ -209,14 +212,14 @@ function MarkupEditor({ file, onDone }: { file: File; onDone: (o: Outcome) => vo
               style={{ touchAction: "none" }}
             />
           )}
-          {!ready && !failed && <p className="p-6 text-sm text-muted">Loading photo…</p>}
+          {!ready && !failed && <p className="p-6 text-sm text-muted"><Tx>Loading photo…</Tx></p>}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" onClick={() => onDone({ kind: "cancel" })} className="min-h-10 rounded-md border border-border px-4 py-2 text-sm">
-            Discard photo
+            <Tx>Discard photo</Tx>
           </button>
           <button type="button" onClick={() => onDone({ kind: "original" })} className="min-h-10 rounded-md border border-border px-4 py-2 text-sm">
-            Use without marks
+            <Tx>Use without marks</Tx>
           </button>
           <button
             type="button"
@@ -327,7 +330,7 @@ export function MarkupFileInput(props: React.InputHTMLAttributes<HTMLInputElemen
     <>
       <label className="mb-1 flex items-center gap-2 text-xs text-muted">
         <input type="checkbox" checked={markupFirst} onChange={(e) => setMarkupFirst(e.target.checked)} />
-        Mark up each photo before adding
+        <Tx>Mark up each photo before adding</Tx>
       </label>
       <input {...rest} type="file" onChange={handleChange} />
       {dialog}

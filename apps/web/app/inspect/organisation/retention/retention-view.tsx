@@ -17,6 +17,8 @@ import {
   type RetentionFlagRow,
 } from "@/lib/retention/logic";
 import { RetentionSettingsForm, ReviewFlagForm } from "./retention-forms";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const DEFAULT_YEARS = 7;
 const SHOWN = 100;
@@ -27,6 +29,7 @@ const SHOWN = 100;
  * records a decision (keep / disposal approved) and that decision is the audit record.
  */
 export async function RetentionSettingsView({ searchParams, embedded }: { searchParams: { org?: string }; embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -68,9 +71,9 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Document retention</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Document retention</T></Heading>
         <PageGuide
-          title="Document retention — how this works"
+          title={tl("Document retention — how this works")}
           points={[
             "Set how many years this organisation's vault documents must be kept. Once a day a background sweep flags every document that is past that period.",
             "The clock starts when a document was approved, or uploaded if it was never approved.",
@@ -80,13 +83,13 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">Flag vault documents that have outlived their retention period so a person can decide what happens to them.</p>
+      <p className="mt-1 text-sm text-muted"><T>Flag vault documents that have outlived their retention period so a person can decide what happens to them.</T></p>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 
       {unavailable && (
         <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
-          Retention rules need the latest database update (migration 20261112000103). Ask a JAGS Admin to apply it.
+          <T>Retention rules need the latest database update (migration 20261112000103). Ask a JAGS Admin to apply it.</T>
         </p>
       )}
 
@@ -107,10 +110,10 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
             />
           </div>
 
-          <section className="mt-8" aria-label="Flagged documents">
-            <h3 className="text-sm font-semibold text-ink">Documents past retention</h3>
+          <section className="mt-8" aria-label={tl("Flagged documents")}>
+            <h3 className="text-sm font-semibold text-ink"><T>Documents past retention</T></h3>
             {flags.length === 0 ? (
-              <p className="mt-1 text-sm text-muted">No documents have been flagged for this organisation.</p>
+              <p className="mt-1 text-sm text-muted"><T>No documents have been flagged for this organisation.</T></p>
             ) : (
               <ul className="mt-2 divide-y divide-border rounded-md border border-border text-sm">
                 {flags.map((f) => (
@@ -126,16 +129,16 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
                           {REVIEW_OUTCOME_LABEL[f.review_outcome]}
                         </Badge>
                       ) : (
-                        <Badge showIcon tone="warning">Needs review</Badge>
+                        <Badge showIcon tone="warning"><T>Needs review</T></Badge>
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-muted">
-                      Retention of {f.retention_years} years ended {formatUtcDate(f.due_on)} ({daysPastDue(f.due_on, now)} days ago) · flagged {formatUtcDateTime(f.flagged_at)}
+                      <T>Retention of</T> {f.retention_years} <T>years ended</T> {formatUtcDate(f.due_on)} ({daysPastDue(f.due_on, now)} <T>days ago) · flagged</T> {formatUtcDateTime(f.flagged_at)}
                     </p>
                     {f.review_outcome ? (
                       <p className="mt-1 text-xs text-ink">
                         {f.users?.full_name ? `${f.users.full_name}: ` : ""}
-                        {REVIEW_OUTCOME_LABEL[f.review_outcome]} on {formatUtcDateTime(f.reviewed_at)}
+                        {REVIEW_OUTCOME_LABEL[f.review_outcome]} <T>on</T> {formatUtcDateTime(f.reviewed_at)}
                         {f.review_note ? ` — ${f.review_note}` : ""}
                       </p>
                     ) : (
@@ -145,7 +148,7 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
                 ))}
               </ul>
             )}
-            {flags.length >= SHOWN && <p className="mt-2 text-xs text-muted">Showing the first {SHOWN}.</p>}
+            {flags.length >= SHOWN && <p className="mt-2 text-xs text-muted"><T>Showing the first</T> {SHOWN}.</p>}
           </section>
         </>
       )}

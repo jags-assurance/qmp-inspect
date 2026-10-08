@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Tx } from "@/components/domain/tx";
 
 export interface CompareRevisionRow {
   id: string;
@@ -51,7 +52,7 @@ function RevisionColumn({
       >
         {revisions.map((r) => (
           <option key={r.id} value={r.id}>
-            Rev. {r.revision} — {new Date(r.createdAt).toLocaleDateString("en-GB")}
+            <Tx>Rev.</Tx> {r.revision} — {new Date(r.createdAt).toLocaleDateString("en-GB")}
           </option>
         ))}
       </select>
@@ -61,21 +62,21 @@ function RevisionColumn({
           <Badge tone={STATUS_TONE[revision.status] ?? "neutral"}>{STATUS_LABEL[revision.status] ?? revision.status}</Badge>
           <dl className="space-y-2 text-sm">
             <div>
-              <dt className="text-xs text-muted">Document No.</dt>
+              <dt className="text-xs text-muted"><Tx>Document No.</Tx></dt>
               <dd className="doc-id text-ink">{revision.documentNumber ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted">Title</dt>
+              <dt className="text-xs text-muted"><Tx>Title</Tx></dt>
               <dd className="text-ink">{revision.title}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted">Document date</dt>
+              <dt className="text-xs text-muted"><Tx>Document date</Tx></dt>
               <dd className="text-ink">
                 {revision.documentDate ? new Date(revision.documentDate).toLocaleDateString("en-GB") : "—"}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted">Uploaded</dt>
+              <dt className="text-xs text-muted"><Tx>Uploaded</Tx></dt>
               <dd className="text-ink">
                 {new Date(revision.createdAt).toLocaleDateString("en-GB")}
                 {revision.uploaderName ? ` by ${revision.uploaderName}` : ""}
@@ -83,7 +84,7 @@ function RevisionColumn({
             </div>
             {revision.notes && (
               <div>
-                <dt className="text-xs text-muted">Notes</dt>
+                <dt className="text-xs text-muted"><Tx>Notes</Tx></dt>
                 <dd className="text-ink">{revision.notes}</dd>
               </div>
             )}
@@ -95,10 +96,10 @@ function RevisionColumn({
               rel="noreferrer"
               className="inline-block rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface"
             >
-              Open file ↗
+              <Tx>Open file ↗</Tx>
             </a>
           ) : (
-            <p className="text-xs text-muted">File preview unavailable.</p>
+            <p className="text-xs text-muted"><Tx>File preview unavailable.</Tx></p>
           )}
         </div>
       )}
@@ -128,7 +129,7 @@ export function RevisionCompare({
   if (revisions.length < 2) {
     return (
       <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
-        This document has no other revisions to compare against yet.
+        <Tx>This document has no other revisions to compare against yet.</Tx>
       </p>
     );
   }

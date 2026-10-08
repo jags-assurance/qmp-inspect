@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { createLibraryTemplateAction, type LibraryTemplateFormState } from "@/lib/checklist-library/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: LibraryTemplateFormState = { error: null };
 
@@ -16,6 +18,7 @@ export function CreateTemplateForm({
    *  default), the template stays global/shared across every client. */
   organizations: { id: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createLibraryTemplateAction, initialState);
 
   return (
@@ -25,7 +28,7 @@ export function CreateTemplateForm({
           <input
           name="title"
           required
-          placeholder="e.g. Structural Steel Weld Inspection"
+          placeholder={tl("e.g. Structural Steel Weld Inspection")}
           className="mt-1 w-64 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -47,14 +50,14 @@ export function CreateTemplateForm({
       </div>
       <div>
         <label htmlFor="new_template_organization" className="block text-sm font-medium text-ink">
-          Client <span className="font-normal text-muted">(optional)</span>
+          <Tx>Client</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
         </label>
         <select
           id="new_template_organization"
           name="organization_id"
           className="mt-1 w-48 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">Global — shared with every client</option>
+          <option value=""><Tx>Global — shared with every client</Tx></option>
           {organizations.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
@@ -66,7 +69,7 @@ export function CreateTemplateForm({
         <FormField label="Description">
           <input
           name="description"
-          placeholder="Optional — what this template is for"
+          placeholder={tl("Optional — what this template is for")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

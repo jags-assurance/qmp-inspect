@@ -8,6 +8,8 @@ import { MonthlyReportPackForm } from "../numbering/monthly-report-pack-form";
 import { WeeklyReportPackForm } from "../numbering/weekly-report-pack-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const VIEWS: { name: string; covers: string }[] = [
   { name: "vw_powerbi_inspections_completed_vs_planned", covers: "Inspections completed vs planned, per project" },
@@ -39,6 +41,7 @@ export async function ReportingView({ searchParams, embedded }: {
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -64,9 +67,9 @@ export async function ReportingView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Reporting</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Reporting</T></Heading>
         <PageGuide
-          title="Reporting — how this works"
+          title={tl("Reporting — how this works")}
           points={[
             "Client report packs (below) generate a PDF + CSV for one organisation, aggregated across all of its projects — rendered in the background, the table updates automatically once done.",
             "Power BI (further down) is separate and JAGS-internal only — clients never get Power BI access; they receive the report packs above instead.",
@@ -75,7 +78,7 @@ export async function ReportingView({ searchParams, embedded }: {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Generate client-facing report packs for one organisation, or connect Power BI for JAGS-internal analytics.
+        <T>Generate client-facing report packs for one organisation, or connect Power BI for JAGS-internal analytics.</T>
       </p>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
@@ -83,13 +86,9 @@ export async function ReportingView({ searchParams, embedded }: {
       {selectedOrg && (
         <>
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Monthly client report pack</h2>
+            <h2 className="text-sm font-semibold text-ink"><T>Monthly client report pack</T></h2>
             <p className="mt-1 text-xs text-muted">
-              Generates a PDF + CSV report pack (R109) covering {selectedOrg.name}&rsquo;s
-              first-time pass rate, inspections completed, NCR summary and ITP completion,
-              aggregated across all of their projects (or the one project you choose) for the chosen month. Rendering happens
-              in the background — the table below updates automatically once it completes, no
-              reload needed.
+              <T>Generates a PDF + CSV report pack (R109) covering</T> {selectedOrg.name}<T>&rsquo;s first-time pass rate, inspections completed, NCR summary and ITP completion, aggregated across all of their projects (or the one project you choose) for the chosen month. Rendering happens in the background — the table below updates automatically once it completes, no reload needed.</T>
             </p>
             <div className="mt-4">
               <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={await isAiEnabledForOrg(supabase, selectedOrg.id)} projects={orgProjects ?? []} />
@@ -97,13 +96,9 @@ export async function ReportingView({ searchParams, embedded }: {
           </div>
 
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Weekly client report pack</h2>
+            <h2 className="text-sm font-semibold text-ink"><T>Weekly client report pack</T></h2>
             <p className="mt-1 text-xs text-muted">
-              The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month —
-              covers first-time pass rate, inspections completed, NCR summary and ITP
-              completion for the chosen week, aggregated across all of {selectedOrg.name}&rsquo;s
-              projects. Rendering happens in the background — the table below updates
-              automatically once it completes, no reload needed.
+              <T>The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month — covers first-time pass rate, inspections completed, NCR summary and ITP completion for the chosen week, aggregated across all of</T> {selectedOrg.name}<T>&rsquo;s projects. Rendering happens in the background — the table below updates automatically once it completes, no reload needed.</T>
             </p>
             <div className="mt-4">
               <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} projects={orgProjects ?? []} />
@@ -113,20 +108,16 @@ export async function ReportingView({ searchParams, embedded }: {
       )}
 
       <div className="mt-10 border-t border-border pt-8">
-        <h2 className="text-lg font-semibold text-ink">Power BI (JAGS-internal analytics)</h2>
+        <h2 className="text-lg font-semibold text-ink"><T>Power BI (JAGS-internal analytics)</T></h2>
         <p className="mt-1 text-sm text-muted">
-          Not an in-app page. Power BI Desktop connects directly to this project&apos;s Postgres
-          database over a dedicated, read-only login, live or on a refresh schedule of your
-          choosing — unrelated to any one organisation, so it stays visible regardless of the org
-          picked above.
+          <T>Not an in-app page. Power BI Desktop connects directly to this project&apos;s Postgres database over a dedicated, read-only login, live or on a refresh schedule of your choosing — unrelated to any one organisation, so it stays visible regardless of the org picked above.</T>
         </p>
 
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h3 className="font-medium text-ink">The six reporting views</h3>
+          <h3 className="font-medium text-ink"><T>The six reporting views</T></h3>
           <p className="mt-1 text-sm text-muted">
-            Every view carries <code className="doc-id text-xs">organization_id</code> and{" "}
-            <code className="doc-id text-xs">project_id</code> columns, so Power BI can slice by client
-            and project once connected.
+            <T>Every view carries</T> <code className="doc-id text-xs"><T>organization_id</T></code> <T>and</T>{" "}
+            <code className="doc-id text-xs"><T>project_id</T></code> <T>columns, so Power BI can slice by client and project once connected.</T>
           </p>
           <ul className="mt-3 space-y-2">
             {VIEWS.map((v) => (
@@ -139,65 +130,50 @@ export async function ReportingView({ searchParams, embedded }: {
         </div>
 
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h3 className="font-medium text-ink">Connecting Power BI Desktop</h3>
+          <h3 className="font-medium text-ink"><T>Connecting Power BI Desktop</T></h3>
           <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-ink">
-            <li>Power BI Desktop → <strong>Get Data</strong> → <strong>Database</strong> → <strong>PostgreSQL database</strong>.</li>
+            <li><T>Power BI Desktop →</T> <strong><T>Get Data</T></strong> → <strong><T>Database</T></strong> → <strong><T>PostgreSQL database</T></strong>.</li>
             <li>
-              Server and database come from Supabase Dashboard → <strong>Project Settings</strong> →{" "}
-              <strong>Database</strong> → Connection info.
+              <T>Server and database come from Supabase Dashboard →</T> <strong><T>Project Settings</T></strong> →{" "}
+              <strong><T>Database</T></strong> <T>→ Connection info.</T>
             </li>
             <li>
-              Data Connectivity mode: <strong>DirectQuery</strong> for a live connection with no manual
-              refresh — the intended mode. <strong>Import</strong> is a fallback if DirectQuery&apos;s
-              SQL limitations become a problem for a specific report.
+              <T>Data Connectivity mode:</T> <strong><T>DirectQuery</T></strong> <T>for a live connection with no manual refresh — the intended mode.</T> <strong><T>Import</T></strong> <T>is a fallback if DirectQuery&apos;s SQL limitations become a problem for a specific report.</T>
             </li>
             <li>
-              Credentials: <strong>Database</strong> authentication, user{" "}
-              <code className="doc-id text-xs">powerbi_reader</code>, password from wherever your team
-              keeps it — never the placeholder committed in the migration file.
+              <T>Credentials:</T> <strong><T>Database</T></strong> <T>authentication, user</T>{" "}
+              <code className="doc-id text-xs"><T>powerbi_reader</T></code><T>, password from wherever your team keeps it — never the placeholder committed in the migration file.</T>
             </li>
-            <li>In the Navigator, select only the six views above — that is all this role can see.</li>
+            <li><T>In the Navigator, select only the six views above — that is all this role can see.</T></li>
           </ol>
         </div>
 
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h3 className="font-medium text-ink">Sharing it on the web (Power BI Service)</h3>
+          <h3 className="font-medium text-ink"><T>Sharing it on the web (Power BI Service)</T></h3>
           <p className="mt-1 text-sm text-muted">
-            Desktop and the Power BI Service (app.powerbi.com) are two different things — connecting in
-            Desktop above does not by itself put anything on the web. To share a report with colleagues
-            who don&apos;t have Desktop:
+            <T>Desktop and the Power BI Service (app.powerbi.com) are two different things — connecting in Desktop above does not by itself put anything on the web. To share a report with colleagues who don&apos;t have Desktop:</T>
           </p>
           <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-ink">
-            <li>Build the report in Desktop (above), then <strong>Publish</strong> it to your workspace in the Power BI Service.</li>
+            <li><T>Build the report in Desktop (above), then</T> <strong><T>Publish</T></strong> <T>it to your workspace in the Power BI Service.</T></li>
             <li>
-              Supabase&apos;s Postgres isn&apos;t one of Power BI&apos;s pre-approved cloud data sources, so the Service
-              can&apos;t reach it directly — you need an{" "}
-              <strong>On-premises Data Gateway</strong> (despite the name, it also brokers a cloud database like this
-              one). Install it on any always-on machine your team controls, register it under your Power BI tenant,
-              then map the <code className="doc-id text-xs">powerbi_reader</code> data source to it in the Service&apos;s
-              dataset settings.
+              <T>Supabase&apos;s Postgres isn&apos;t one of Power BI&apos;s pre-approved cloud data sources, so the Service can&apos;t reach it directly — you need an</T>{" "}
+              <strong><T>On-premises Data Gateway</T></strong> <T>(despite the name, it also brokers a cloud database like this one). Install it on any always-on machine your team controls, register it under your Power BI tenant, then map the</T> <code className="doc-id text-xs"><T>powerbi_reader</T></code> <T>data source to it in the Service&apos;s dataset settings.</T>
             </li>
             <li>
-              Without the gateway, a <strong>DirectQuery</strong> report simply won&apos;t load once viewed in the
-              browser, and an <strong>Import</strong> report will publish fine but can never refresh on a schedule —
-              it stays frozen at whatever data was in Desktop when you published.
+              <T>Without the gateway, a</T> <strong><T>DirectQuery</T></strong> <T>report simply won&apos;t load once viewed in the browser, and an</T> <strong><T>Import</T></strong> <T>report will publish fine but can never refresh on a schedule — it stays frozen at whatever data was in Desktop when you published.</T>
             </li>
           </ol>
         </div>
 
         <div className="mt-6 rounded-lg border border-warning/40 bg-warning/5 p-5">
-          <h3 className="font-medium text-ink">Before sharing this with anyone</h3>
+          <h3 className="font-medium text-ink"><T>Before sharing this with anyone</T></h3>
           <p className="mt-1 text-sm text-ink">
-            The <code className="doc-id text-xs">powerbi_reader</code> password committed in the
-            migration is a placeholder, not a real secret. Reset it once, from Supabase Dashboard →{" "}
-            <strong>Database</strong> → <strong>Roles</strong>, before handing this connection to
-            anyone — including your own team.
+            <T>The</T> <code className="doc-id text-xs"><T>powerbi_reader</T></code> <T>password committed in the migration is a placeholder, not a real secret. Reset it once, from Supabase Dashboard →</T>{" "}
+            <strong><T>Database</T></strong> → <strong><T>Roles</T></strong><T>, before handing this connection to anyone — including your own team.</T>
           </p>
           <p className="mt-2 text-sm text-ink">
-            This role can only ever read the six views above — no other table, no writes. Isolation
-            for who sees which client&apos;s data comes entirely from who is allowed to hold the{" "}
-            <code className="doc-id text-xs">powerbi_reader</code> credential, not from row-level
-            security (a plain database login has no Supabase Auth session for RLS to key off).
+            <T>This role can only ever read the six views above — no other table, no writes. Isolation for who sees which client&apos;s data comes entirely from who is allowed to hold the</T>{" "}
+            <code className="doc-id text-xs"><T>powerbi_reader</T></code> <T>credential, not from row-level security (a plain database login has no Supabase Auth session for RLS to key off).</T>
           </p>
         </div>
       </div>

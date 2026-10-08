@@ -10,6 +10,7 @@ import {
 } from "@/lib/registers/manage-actions";
 import { LIFECYCLE_LABELS } from "@/lib/registers/lifecycle";
 import { CertificateUpload } from "./certificate-upload";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: ManageRegisterState = { error: null };
 const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy";
@@ -22,7 +23,7 @@ export function RegisterRowFlags({ verifiedAt, lifecycleStatus }: { verifiedAt?:
   if (!inactive && !unverified) return null;
   return (
     <span className="mt-1 flex flex-wrap gap-1">
-      {unverified && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-ink">Awaiting JAGS verification</span>}
+      {unverified && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-ink"><Tx>Awaiting JAGS verification</Tx></span>}
       {inactive && (
         <span className="rounded-full bg-muted/15 px-2 py-0.5 text-xs font-medium text-muted">
           {LIFECYCLE_LABELS[lifecycleStatus as keyof typeof LIFECYCLE_LABELS] ?? lifecycleStatus}
@@ -67,35 +68,35 @@ export function RegisterLifecycleActions({
 
       {kind === "calibration" && !inactive && (
         <details className="relative">
-          <summary className="cursor-pointer text-xs text-burgundy hover:underline">Recalibrate</summary>
+          <summary className="cursor-pointer text-xs text-burgundy hover:underline"><Tx>Recalibrate</Tx></summary>
           <form action={recalAction} className="mt-1 w-72 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="project_id" value={projectId} />
-            <p className="text-xs text-muted">Keeps the old certificate on record and adds the new one, so earlier inspections stay traceable.</p>
+            <p className="text-xs text-muted"><Tx>Keeps the old certificate on record and adds the new one, so earlier inspections stay traceable.</Tx></p>
             <label className="block text-xs font-medium text-ink">
-              New certificate number
+              <Tx>New certificate number</Tx>
               <input name="cert_number" required className={INPUT} />
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-xs font-medium text-ink">
-                Calibrated
+                <Tx>Calibrated</Tx>
                 <input name="cal_date" type="date" required className={INPUT} />
               </label>
               <label className="block text-xs font-medium text-ink">
-                Next due
+                <Tx>Next due</Tx>
                 <input name="due_date" type="date" required className={INPUT} />
               </label>
             </div>
             <label className="block text-xs font-medium text-ink">
-              As-found result (previous cycle)
+              <Tx>As-found result (previous cycle)</Tx>
               <select name="as_found_result" defaultValue="not_recorded" className={INPUT}>
-                <option value="not_recorded">Not recorded</option>
-                <option value="in_tolerance">In tolerance</option>
-                <option value="out_of_tolerance">Out of tolerance</option>
+                <option value="not_recorded"><Tx>Not recorded</Tx></option>
+                <option value="in_tolerance"><Tx>In tolerance</Tx></option>
+                <option value="out_of_tolerance"><Tx>Out of tolerance</Tx></option>
               </select>
             </label>
             <label className="block text-xs font-medium text-ink">
-              As-found notes (required if out of tolerance)
+              <Tx>As-found notes (required if out of tolerance)</Tx>
               <textarea name="as_found_notes" rows={2} className={INPUT} />
             </label>
             <CertificateUpload projectId={projectId} kind="calibration" label="New certificate (optional)" />
@@ -118,15 +119,15 @@ export function RegisterLifecycleActions({
           ) : (
             <>
               <label className="block text-xs font-medium text-ink">
-                Mark as
+                <Tx>Mark as</Tx>
                 <select name="lifecycle_status" defaultValue="retired" className={INPUT}>
-                  <option value="retired">Retired (no longer used)</option>
-                  <option value="superseded">Superseded (replaced)</option>
-                  <option value="withdrawn">Withdrawn (entered in error / rejected)</option>
+                  <option value="retired"><Tx>Retired (no longer used)</Tx></option>
+                  <option value="superseded"><Tx>Superseded (replaced)</Tx></option>
+                  <option value="withdrawn"><Tx>Withdrawn (entered in error / rejected)</Tx></option>
                 </select>
               </label>
               <label className="block text-xs font-medium text-ink">
-                Reason
+                <Tx>Reason</Tx>
                 <input name="reason" required className={INPUT} />
               </label>
             </>

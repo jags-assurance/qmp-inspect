@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Tx } from "@/components/domain/tx";
 
 export interface LibraryTemplateRow {
   id: string;
@@ -29,7 +30,7 @@ const COLUMNS: DataTableColumn<LibraryTemplateRow>[] = [
   {
     key: "client",
     header: "Client",
-    render: (row) => row.organizations?.name ?? <span className="text-muted">Global</span>,
+    render: (row) => row.organizations?.name ?? <span className="text-muted"><Tx>Global</Tx></span>,
   },
   { key: "description", header: "Description", render: (row) => row.description ?? "—" },
   {

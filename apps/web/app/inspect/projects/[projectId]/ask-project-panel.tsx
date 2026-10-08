@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { askProjectQuestionAction, type AskProjectQuestionState } from "@/lib/projects/actions";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AskProjectQuestionState = { error: null, answer: null, question: null };
 
@@ -19,6 +21,7 @@ interface Exchange {
  * isAiConfigured() is true (see the project hub page), matching R43's pattern everywhere else.
  */
 export function AskProjectPanel({ projectId }: { projectId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(askProjectQuestionAction, initialState);
   const [history, setHistory] = useState<Exchange[]>([]);
   const [inputKey, setInputKey] = useState(0);
@@ -34,9 +37,9 @@ export function AskProjectPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-      <h2 className="font-medium text-ink">Ask your project</h2>
+      <h2 className="font-medium text-ink"><Tx>Ask your project</Tx></h2>
       <p className="mt-1 text-sm text-muted">
-        Ask a question about this project — the answer is grounded in its own ITPs, open NCRs and recent inspection records.
+        <Tx>Ask a question about this project — the answer is grounded in its own ITPs, open NCRs and recent inspection records.</Tx>
       </p>
 
       {history.length > 0 && (
@@ -58,7 +61,7 @@ export function AskProjectPanel({ projectId }: { projectId: string }) {
             name="question"
             type="text"
             required
-            placeholder="e.g. What open NCRs are still blocking handover?"
+            placeholder={tl("e.g. What open NCRs are still blocking handover?")}
             className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           </FormField>

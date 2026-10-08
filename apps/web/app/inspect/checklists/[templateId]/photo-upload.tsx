@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
 import { usePhotoMarkup, MARKUP_PREF_KEY } from "@/components/domain/photo-markup";
+import { Tx } from "@/components/domain/tx";
 
 
 interface Photo {
@@ -123,7 +124,7 @@ export function PhotoUpload({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={url} alt={`Queued photo ${i + 1}`} className="aspect-square w-full rounded-md object-cover opacity-70" />
             <span className="absolute bottom-1 start-1 rounded bg-warning/90 px-1.5 py-0.5 text-xs font-medium text-white">
-              Queued
+              <Tx>Queued</Tx>
             </span>
           </div>
         ))}
@@ -145,7 +146,7 @@ export function PhotoUpload({
           </Button>
           <label className="mt-2 flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={markupFirst} onChange={(e) => toggleMarkup(e.target.checked)} />
-            Mark up each photo (draw, arrow, circle) before it is uploaded
+            <Tx>Mark up each photo (draw, arrow, circle) before it is uploaded</Tx>
           </label>
           {markupDialog}
           {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}

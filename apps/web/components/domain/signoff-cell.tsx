@@ -5,6 +5,8 @@ import { notifyPartyAction, proceedWithoutResponseAction, rejectSignoffAction, s
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
  *  the same notified_at + noticeHours the server already enforces (proceedWithoutResponseAction),
@@ -78,6 +80,7 @@ export function SignoffCell({
   /** S4-18: comment the party recorded with the sign-off. */
   signoffComment?: string | null;
 }) {
+  const tl = useTranslate();
   const [isPending, startTransition] = useTransition();
   const { ask, dialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +176,7 @@ export function SignoffCell({
             onClick={() => run(() => notifyPartyAction(progressId), "notified")}
             className={btn}
           >
-            Notify
+            <Tx>Notify</Tx>
           </button>
         )}
         {canRenotify && (
@@ -182,9 +185,9 @@ export function SignoffCell({
             disabled={isPending}
             onClick={() => run(() => notifyPartyAction(progressId), "notified")}
             className={btn}
-            title="Record another reminder (does not restart the notice period)"
+            title={tl("Record another reminder (does not restart the notice period)")}
           >
-            Re-notify
+            <Tx>Re-notify</Tx>
           </button>
         )}
         {canSignOff && (
@@ -209,12 +212,12 @@ export function SignoffCell({
             }
             className={btn}
           >
-            Sign off
+            <Tx>Sign off</Tx>
           </button>
         )}
         {!canSignOff && (optimisticStatus === "pending" || optimisticStatus === "notified") && !canSignOffForThisParty && (
-          <span className="text-xs text-muted" title="Only this party's own login (or JAGS staff) can sign off">
-            Awaiting party
+          <span className="text-xs text-muted" title={tl("Only this party's own login (or JAGS staff) can sign off")}>
+            <Tx>Awaiting party</Tx>
           </span>
         )}
         {canSignOff && (
@@ -223,9 +226,9 @@ export function SignoffCell({
             disabled={isPending}
             onClick={() => setReasonFor("comment")}
             className={btn}
-            title="Sign off and record a comment with it"
+            title={tl("Sign off and record a comment with it")}
           >
-            Sign with comment
+            <Tx>Sign with comment</Tx>
           </button>
         )}
         {canSignOff && (
@@ -234,9 +237,9 @@ export function SignoffCell({
             disabled={isPending}
             onClick={() => setReasonFor("reject")}
             className={btn}
-            title="Return this release with a reason; the inspector is told what to fix"
+            title={tl("Return this release with a reason; the inspector is told what to fix")}
           >
-            Reject
+            <Tx>Reject</Tx>
           </button>
         )}
         {canProceed && (
@@ -246,23 +249,23 @@ export function SignoffCell({
             onClick={() => setReasonFor("proceed")}
             className={btn}
           >
-            Proceed
+            <Tx>Proceed</Tx>
           </button>
         )}
         {canWithdraw && reasonFor === null && (
           <button type="button" disabled={isPending} onClick={() => setReasonFor("withdraw")} className={btn}>
-            Withdraw
+            <Tx>Withdraw</Tx>
           </button>
         )}
       </div>
       {rejectionReason && optimisticStatus !== "signed_off" && (
         <span className="max-w-44 rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger" title={rejectionReason}>
-          Rejected: {rejectionReason.length > 80 ? `${rejectionReason.slice(0, 80)}…` : rejectionReason}
+          <Tx>Rejected:</Tx> {rejectionReason.length > 80 ? `${rejectionReason.slice(0, 80)}…` : rejectionReason}
         </span>
       )}
       {signoffComment && optimisticStatus === "signed_off" && (
         <span className="max-w-44 text-xs text-muted" title={signoffComment}>
-          Comment: {signoffComment.length > 80 ? `${signoffComment.slice(0, 80)}…` : signoffComment}
+          <Tx>Comment:</Tx> {signoffComment.length > 80 ? `${signoffComment.slice(0, 80)}…` : signoffComment}
         </span>
       )}
       {reasonFor && (
@@ -311,10 +314,10 @@ export function SignoffCell({
               }}
               className={btn}
             >
-              Confirm
+              <Tx>Confirm</Tx>
             </button>
             <button type="button" onClick={() => { setReasonFor(null); setReason(""); }} className={btn}>
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </div>
         </div>

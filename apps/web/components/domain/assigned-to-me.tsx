@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { AssignedActivity } from "@/lib/checklists/assigned-queries";
+import { T } from "@/components/domain/t";
 
 /** "Assigned to me" queue section (Start work page and inspector dashboard). Renders nothing when empty unless told to. */
 export function AssignedToMe({ items, showEmpty = false }: { items: AssignedActivity[]; showEmpty?: boolean }) {
@@ -7,13 +8,13 @@ export function AssignedToMe({ items, showEmpty = false }: { items: AssignedActi
   return (
     <div className="mt-6 rounded-lg border border-border bg-surface p-4" id="assigned-to-me">
       <div className="flex items-center justify-between">
-        <h2 className="font-medium text-ink">Assigned to me ({items.length})</h2>
+        <h2 className="font-medium text-ink"><T>Assigned to me (</T>{items.length})</h2>
         <Link href="/inspect/start-work?assigned=me" className="text-sm text-burgundy hover:underline">
-          Open in Start work
+          <T>Open in Start work</T>
         </Link>
       </div>
       {items.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">Nothing is assigned to you right now.</p>
+        <p className="mt-3 text-sm text-muted"><T>Nothing is assigned to you right now.</T></p>
       ) : (
         <ul className="mt-3 divide-y divide-border">
           {items.slice(0, 8).map((a) => (

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { uploadVaultDocumentAction } from "@/lib/vault/actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface VaultPickerDocument {
   id: string;
@@ -120,6 +122,7 @@ export function VaultFilePicker({
   allowPendingUploads?: boolean;
   onSelectionChange?: (ids: string[]) => void;
 }) {
+  const tl = useTranslate();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -221,8 +224,8 @@ export function VaultFilePicker({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by title, reference or folder…"
-          aria-label="Search vault files"
+          placeholder={tl("Search by title, reference or folder…")}
+          aria-label={tl("Search vault files")}
           disabled={disabled}
           className="min-h-11 w-full flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
@@ -230,11 +233,11 @@ export function VaultFilePicker({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            aria-label="Filter by status"
+            aria-label={tl("Filter by status")}
             disabled={disabled}
             className="min-h-11 rounded-md border border-border bg-surface px-2 text-sm outline-none focus:border-burgundy"
           >
-            <option value="all">All statuses</option>
+            <option value="all"><Tx>All statuses</Tx></option>
             {statuses.map((s) => (
               <option key={s} value={s}>
                 {STATUS_META[s]?.label ?? s}
@@ -245,7 +248,7 @@ export function VaultFilePicker({
       </div>
 
       <div className="max-h-80 overflow-y-auto rounded-md border border-border bg-surface">
-        {groups.length === 0 && <p className="px-3 py-3 text-sm text-muted">No files match.</p>}
+        {groups.length === 0 && <p className="px-3 py-3 text-sm text-muted"><Tx>No files match.</Tx></p>}
         {groups.map(([folderName, docs]) => {
           const pickable = docs.filter(selectable);
           const allOn = pickable.length > 0 && pickable.every((d) => selected.has(d.id));
@@ -267,7 +270,7 @@ export function VaultFilePicker({
                   </span>
                   <span className="min-w-0 truncate text-sm font-semibold text-ink">{folderName}</span>
                   <span className="shrink-0 text-xs text-muted">
-                    {docs.length} file{docs.length === 1 ? "" : "s"}
+                    {docs.length} <Tx>file</Tx>{docs.length === 1 ? "" : "s"}
                     {selCount > 0 ? ` · ${selCount} selected` : ""}
                   </span>
                 </button>
@@ -309,7 +312,7 @@ export function VaultFilePicker({
                             <span className="block text-ink [overflow-wrap:anywhere]">{d.title}</span>
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
                               {d.documentReference && <span>{d.documentReference}</span>}
-                              {d.revision && <span>Rev {d.revision}</span>}
+                              {d.revision && <span><Tx>Rev</Tx> {d.revision}</span>}
                               {date && <span>{date}</span>}
                               <span className={`rounded-full px-2 py-0.5 font-medium ${meta.className}`}>
                                 {isNew && statusOf(d) === "for_review" ? "For review — pending approval" : meta.label}
@@ -347,7 +350,7 @@ export function VaultFilePicker({
           {selected.size === 0 ? "No files selected yet." : `${selected.size} file${selected.size === 1 ? "" : "s"} selected.`}
         </p>
         {selectedDocs.length > 0 && (
-          <ul className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Selected files">
+          <ul className="mt-1.5 flex flex-wrap gap-1.5" aria-label={tl("Selected files")}>
             {selectedDocs.map((d) => (
               <li
                 key={d.id}
@@ -466,13 +469,13 @@ function InlineUpload({
         disabled={disabled}
         className="flex min-h-11 w-full items-center gap-2 px-3 text-start text-sm font-medium text-burgundy"
       >
-        <span aria-hidden="true">{open ? "−" : "+"}</span> Upload new file(s)
+        <span aria-hidden="true">{open ? "−" : "+"}</span> <Tx>Upload new file(s)</Tx>
       </button>
       {open && (
         <div className="space-y-2 border-t border-border p-3">
           <div>
             <label htmlFor="vault-upload-folder" className="block text-xs text-muted">
-              Save into folder
+              <Tx>Save into folder</Tx>
             </label>
             <select
               id="vault-upload-folder"
@@ -490,7 +493,7 @@ function InlineUpload({
           </div>
           <div>
             <label htmlFor="vault-upload-files" className="block text-xs text-muted">
-              Files (PDF, Word, Excel, CSV, TXT or images, max 25 MB each)
+              <Tx>Files (PDF, Word, Excel, CSV, TXT or images, max 25 MB each)</Tx>
             </label>
             <input
               ref={inputRef}

@@ -9,6 +9,8 @@ import { untypedFrom } from "@/lib/supabase/untyped";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationRow {
   id: string;
@@ -40,6 +42,7 @@ const ENGAGEMENT_SCOPE_LABEL: Record<string, string> = {
  * against whatever organisations already exist.
  */
 export async function ClientOrganisationsView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
@@ -74,9 +77,9 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Client organisations</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Client organisations</T></Heading>
         <PageGuide
-          title="Client organisations — how this works"
+          title={tl("Client organisations — how this works")}
           points={[
             "Admin-only — creating and viewing the list of tenant organisations is an account-administration action, same boundary as Staff Access and Numbering.",
             "A new organisation starts with no projects, no AI consent, and JAGS-led branding — those are set up separately from this page (New project, Branding, Numbering).",
@@ -86,10 +89,7 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Every client this platform works with is an organisation (tenant) here — projects, ITPs,
-        staff access grants and everything else are always scoped to one of these. Create a new one
-        below when onboarding a real new client; each new organisation starts with no projects, no
-        AI consent, and JAGS-led branding until you set those up separately.
+        <T>Every client this platform works with is an organisation (tenant) here — projects, ITPs, staff access grants and everything else are always scoped to one of these. Create a new one below when onboarding a real new client; each new organisation starts with no projects, no AI consent, and JAGS-led branding until you set those up separately.</T>
       </p>
 
       <NewOrganizationForm />
@@ -97,7 +97,7 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
       <div className="mt-8 space-y-3">
         {(organizations ?? []).length === 0 && (
           <p className="rounded-md border border-dashed border-border bg-off-white p-4 text-sm text-muted">
-            No client organisations yet — create the first one above.
+            <T>No client organisations yet — create the first one above.</T>
           </p>
         )}
         {(organizations ?? []).map((org) => (
@@ -107,11 +107,11 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                 <p className="text-sm font-medium text-ink">{org.name}</p>
                 <p className="text-xs text-muted">
                   /{org.slug} · {ENGAGEMENT_MODE_LABEL[org.engagement_mode] ?? org.engagement_mode} ·{" "}
-                  {projectCountByOrg.get(org.id) ?? 0} project{(projectCountByOrg.get(org.id) ?? 0) === 1 ? "" : "s"}
+                  {projectCountByOrg.get(org.id) ?? 0} <T>project</T>{(projectCountByOrg.get(org.id) ?? 0) === 1 ? "" : "s"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {!org.is_active && <Badge tone="neutral">Inactive</Badge>}
+                {!org.is_active && <Badge tone="neutral"><T>Inactive</T></Badge>}
                 <Badge tone={org.engagement_scope === "self_managed" || org.engagement_scope === "client_managed" ? "gold" : "neutral"}>
                   {ENGAGEMENT_SCOPE_LABEL[org.engagement_scope] ?? org.engagement_scope}
                 </Badge>
@@ -122,9 +122,9 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
             </div>
             <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
             <div className="mt-3 text-xs text-muted">
-              <p className="font-medium text-ink">AI consent history</p>
+              <p className="font-medium text-ink"><T>AI consent history</T></p>
               {(consentHistoryByOrg.get(org.id) ?? []).length === 0 ? (
-                <p>No consent changes recorded.</p>
+                <p><T>No consent changes recorded.</T></p>
               ) : (
                 <ul className="mt-1 space-y-0.5">
                   {(consentHistoryByOrg.get(org.id) ?? []).map((h) => (

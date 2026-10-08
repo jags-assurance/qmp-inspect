@@ -39,6 +39,8 @@ import { INTERVENTION_LEVEL_TYPES_TABLE, sortLevels, type InterventionLevelTypeR
 import { NOTICE_PERIOD_CONFIGS_TABLE, type NoticePeriodConfigRow } from "@/lib/signoff/db-types";
 import { LocationPresetsSettings } from "./location-presets-settings";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -108,6 +110,7 @@ export async function ProjectOverviewView({
   /** Counts the workspace page already computed for its tab badges; when given, they are not queried again. */
   knownCounts?: { openNcrsAndObservations: number; openPunchOutstanding: number; openPunchOpen: number };
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -322,7 +325,7 @@ export async function ProjectOverviewView({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-ink">{project.name}</h1>
             <PageGuide
-              title="Project hub — how this works"
+              title={tl("Project hub — how this works")}
               points={[
                 "The entry point into everything scoped to this project — ITPs, NCRs, registers, punch list, data book, reports, and every party engaged on it.",
                 "Adding parties is normally Admin-only; on a Self-Managed (Hybrid) or Full Client-Managed organisation's project, that org's own non-staff users get a second, separate form to add their own parties.",
@@ -371,18 +374,17 @@ export async function ProjectOverviewView({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-off-white px-3 py-2">
-        <span className="text-sm font-medium text-ink">Responsible Person:</span>
+        <span className="text-sm font-medium text-ink"><T>Responsible Person:</T></span>
         {project.responsible_person ? (
           <span className="text-sm text-ink">
             {project.responsible_person.full_name}{" "}
             <span className="text-muted">({project.responsible_person.email})</span>
           </span>
         ) : (
-          <span className="text-sm text-muted">Not set</span>
+          <span className="text-sm text-muted"><T>Not set</T></span>
         )}
         <span className="w-full text-xs text-muted">
-          The one named person to go to for this project overall — who the client and parties contact first. It is separate from
-          the Hold / Witness / Review assignments, which are per activity.
+          <T>The one named person to go to for this project overall — who the client and parties contact first. It is separate from the Hold / Witness / Review assignments, which are per activity.</T>
         </span>
       </div>
       {isAdminStaff(session) && (
@@ -401,18 +403,18 @@ export async function ProjectOverviewView({
       </div>
       {(project.status === "completed" || project.status === "cancelled") && (
         <p className="mt-3 rounded-md border border-border bg-off-white px-3 py-2 text-sm text-muted">
-          This project is {project.status}. {(openNcrCount ?? 0) + (openPunchAnyCount ?? 0) > 0 && `${openNcrCount ?? 0} NCR(s) and ${openPunchAnyCount ?? 0} punch item(s) are still open. `}
+          <T>This project is</T> {project.status}. {(openNcrCount ?? 0) + (openPunchAnyCount ?? 0) > 0 && `${openNcrCount ?? 0} NCR(s) and ${openPunchAnyCount ?? 0} punch item(s) are still open. `}
           {project.status === "completed" && (
             <Link className="text-burgundy hover:underline" href={`/inspect/projects/${project.id}?tab=data-book`}>
-              Open the Data Book
+              <T>Open the Data Book</T>
             </Link>
           )}
         </p>
       )}
-      <nav aria-label="Other modules" className="mt-3 flex flex-wrap gap-2 text-sm">
-        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/start-work?project=${project.id}`}>Start work</Link>
-        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/inspections?project=${project.id}`}>Inspections</Link>
-        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/vault?project=${project.id}`}>Vault</Link>
+      <nav aria-label={tl("Other modules")} className="mt-3 flex flex-wrap gap-2 text-sm">
+        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/start-work?project=${project.id}`}><T>Start work</T></Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/inspections?project=${project.id}`}><T>Inspections</T></Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/vault?project=${project.id}`}><T>Vault</T></Link>
       </nav>
 
       {/* The workspace tab bar (see page.tsx) — replaces the two grids of section cards that used to
@@ -424,11 +426,11 @@ export async function ProjectOverviewView({
       <div className="mt-8 rounded-lg border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-medium text-ink">Project parties</h2>
-            <p className="mt-1 text-sm text-muted">Every organisation engaged on this project.</p>
+            <h2 className="font-medium text-ink"><T>Project parties</T></h2>
+            <p className="mt-1 text-sm text-muted"><T>Every organisation engaged on this project.</T></p>
             {(assignedClientTeams ?? []).length > 0 && (
               <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                Client team{assignedClientTeams!.length > 1 ? "s" : ""} assigned:
+                <T>Client team</T>{assignedClientTeams!.length > 1 ? "s" : ""} <T>assigned:</T>
                 {(assignedClientTeams ?? []).map((a, i) => (
                   <Badge key={i} tone="info">
                     {a.client_teams?.name ?? "Unknown team"}
@@ -455,7 +457,7 @@ export async function ProjectOverviewView({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-ink">
                   {party.name}
-                  {!party.is_active && <span className="ms-2 text-xs text-muted">(inactive)</span>}
+                  {!party.is_active && <span className="ms-2 text-xs text-muted"><T>(inactive)</T></span>}
                 </span>
                 <span className="flex items-center gap-2">
                   <Badge tone={party.onboarded_by === "client" ? "info" : "neutral"}>
@@ -507,7 +509,7 @@ export async function ProjectOverviewView({
               )}
             </li>
           ))}
-          {(parties ?? []).length === 0 && <li className="text-sm text-muted">No parties recorded on this project yet.</li>}
+          {(parties ?? []).length === 0 && <li className="text-sm text-muted"><T>No parties recorded on this project yet.</T></li>}
         </ul>
         {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} />}
         {canAddSelfManagedParty && <AddSelfManagedPartyForm projectId={project.id} />}
@@ -515,12 +517,9 @@ export async function ProjectOverviewView({
 
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Checklist execution settings</h2>
+          <h2 className="font-medium text-ink"><T>Checklist execution settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            By default only the performing contractor (subcontractor/main contractor) self-inspects
-            and fills in checklists — a client-type party only holds independent sign-off points.
-            Turning this on lets a client-type party on THIS project also execute checklists,
-            without changing behaviour on any other project.
+            <T>By default only the performing contractor (subcontractor/main contractor) self-inspects and fills in checklists — a client-type party only holds independent sign-off points. Turning this on lets a client-type party on THIS project also execute checklists, without changing behaviour on any other project.</T>
           </p>
           <AllowClientExecutionToggle projectId={project.id} allowClientExecution={project.allow_client_execution} />
         </div>
@@ -534,12 +533,9 @@ export async function ProjectOverviewView({
 
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">ITP creation settings</h2>
+          <h2 className="font-medium text-ink"><T>ITP creation settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            By default only JAGS staff create ITPs. Turning this on lets an active client-type party
-            on THIS project also create and build out draft ITPs from scratch — JAGS still reviews
-            and approves every ITP regardless of who created it; a client can only edit their own
-            ITPs while they remain in draft.
+            <T>By default only JAGS staff create ITPs. Turning this on lets an active client-type party on THIS project also create and build out draft ITPs from scratch — JAGS still reviews and approves every ITP regardless of who created it; a client can only edit their own ITPs while they remain in draft.</T>
           </p>
           <AllowClientItpCreationToggle
             projectId={project.id}
@@ -554,15 +550,9 @@ export async function ProjectOverviewView({
 
       {isAdminStaff(session) && (
         <div className="mt-4 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Standalone Assignment execution settings</h2>
+          <h2 className="font-medium text-ink"><T>Standalone Assignment execution settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            By default only JAGS staff can run a Standalone Assignment (FAT/witness inspection/
-            specific test/pre-shipment) on this project, on any engagement tier. Turning this on
-            lets an active subcontractor or main-contractor party on THIS project run one
-            themselves too — the equipment they supplied is routinely something they&apos;re best
-            placed to test. This works independently of the Full Client-Managed tier&apos;s own
-            run_standalone_assignment permission (Organisation → Custom roles), which is separate
-            and grants the same right to the client&apos;s own people instead.
+            <T>By default only JAGS staff can run a Standalone Assignment (FAT/witness inspection/ specific test/pre-shipment) on this project, on any engagement tier. Turning this on lets an active subcontractor or main-contractor party on THIS project run one themselves too — the equipment they supplied is routinely something they&apos;re best placed to test. This works independently of the Full Client-Managed tier&apos;s own run_standalone_assignment permission (Organisation → Custom roles), which is separate and grants the same right to the client&apos;s own people instead.</T>
           </p>
           <AllowContractorStandaloneAssignmentToggle
             projectId={project.id}
@@ -583,10 +573,9 @@ export async function ProjectOverviewView({
 
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Site location (geofence)</h2>
+          <h2 className="font-medium text-ink"><T>Site location (geofence)</T></h2>
           <p className="mt-1 text-sm text-muted">
-            Optional. When set, starting an inspection with live GPS shows a warning if the inspector is farther than the radius from
-            this point. It never blocks work, and the distance is recorded with the inspection. Leave blank to switch it off.
+            <T>Optional. When set, starting an inspection with live GPS shows a warning if the inspector is farther than the radius from this point. It never blocks work, and the distance is recorded with the inspection. Leave blank to switch it off.</T>
           </p>
           <SiteGeofenceSettings
             projectId={project.id}
@@ -599,13 +588,9 @@ export async function ProjectOverviewView({
 
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Hold-point enforcement</h2>
+          <h2 className="font-medium text-ink"><T>Hold-point enforcement</T></h2>
           <p className="mt-1 text-sm text-muted">
-            On by default: an open Hold on an activity stops field work from starting at all, not
-            just from being marked complete (R71 — &quot;a hold point must wait&quot;). Turn this off for
-            THIS project only if its process doesn&apos;t need the software to enforce the hold at
-            start time — the assigned party still has to sign off before the inspection can be
-            completed either way.
+            <T>On by default: an open Hold on an activity stops field work from starting at all, not just from being marked complete (R71 — &quot;a hold point must wait&quot;). Turn this off for THIS project only if its process doesn&apos;t need the software to enforce the hold at start time — the assigned party still has to sign off before the inspection can be completed either way.</T>
           </p>
           <EnforceHoldBlocksStartToggle
             projectId={project.id}
@@ -616,12 +601,9 @@ export async function ProjectOverviewView({
 
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink">Notice period overrides</h2>
+          <h2 className="font-medium text-ink"><T>Notice period overrides</T></h2>
           <p className="mt-1 text-sm text-muted">
-            How long an originator waits for a response before a level can be marked &ldquo;notified&rdquo; /
-            proceed-without-response applies (R25). Set one value here per intervention level for
-            THIS project, instead of overriding every individual activity — leave blank to keep
-            using the organisation&apos;s own default for that level.
+            <T>How long an originator waits for a response before a level can be marked &ldquo;notified&rdquo; / proceed-without-response applies (R25). Set one value here per intervention level for THIS project, instead of overriding every individual activity — leave blank to keep using the organisation&apos;s own default for that level.</T>
           </p>
           <NoticePeriodSettings
             projectId={project.id}

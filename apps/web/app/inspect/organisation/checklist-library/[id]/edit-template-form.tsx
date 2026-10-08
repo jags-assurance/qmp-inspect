@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { updateLibraryTemplateAction, type LibraryTemplateFormState } from "@/lib/checklist-library/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: LibraryTemplateFormState = { error: null };
 
@@ -28,6 +30,7 @@ export function EditTemplateForm({
   disciplines: { id: string; name: string }[];
   organizations: { id: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateLibraryTemplateAction, initialState);
 
   return (
@@ -61,7 +64,7 @@ export function EditTemplateForm({
       </div>
       <div>
         <label htmlFor="edit_template_organization" className="block text-sm font-medium text-ink">
-          Client <span className="font-normal text-muted">(optional)</span>
+          <Tx>Client</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
         </label>
         <select
           id="edit_template_organization"
@@ -69,7 +72,7 @@ export function EditTemplateForm({
           defaultValue={organizationId ?? ""}
           className="mt-1 w-48 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">Global — shared with every client</option>
+          <option value=""><Tx>Global — shared with every client</Tx></option>
           {organizations.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
@@ -82,7 +85,7 @@ export function EditTemplateForm({
           <input
           name="description"
           defaultValue={description ?? ""}
-          placeholder="Optional — what this template is for"
+          placeholder={tl("Optional — what this template is for")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

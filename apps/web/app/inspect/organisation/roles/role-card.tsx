@@ -18,6 +18,7 @@ import {
 } from "@/lib/rbac/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tx } from "@/components/domain/tx";
 
 const deleteInitial: RbacActionState = { error: null };
 const toggleInitial: RbacActionState = { error: null };
@@ -70,10 +71,10 @@ export function RoleCard({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-ink">{role.name}</p>
             <Badge tone="neutral">
-              {role.grantedPermissions.size} permission{role.grantedPermissions.size === 1 ? "" : "s"}
+              {role.grantedPermissions.size} <Tx>permission</Tx>{role.grantedPermissions.size === 1 ? "" : "s"}
             </Badge>
             <Badge tone="neutral">
-              {role.assignments.length} assignment{role.assignments.length === 1 ? "" : "s"}
+              {role.assignments.length} <Tx>assignment</Tx>{role.assignments.length === 1 ? "" : "s"}
             </Badge>
           </div>
           <p className="text-xs text-muted">{role.organizationName ?? "JAGS-global"}</p>
@@ -88,7 +89,7 @@ export function RoleCard({
       {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
 
       <div className="mt-3">
-        <p className="text-xs font-medium text-muted">Permissions</p>
+        <p className="text-xs font-medium text-muted"><Tx>Permissions</Tx></p>
         <div className="mt-1 flex flex-wrap gap-2">
           {PERMISSION_KEYS.map((key) => {
             const granted = role.grantedPermissions.has(key);
@@ -122,18 +123,18 @@ export function RoleCard({
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
-        <p className="text-xs font-medium text-muted">Assigned to</p>
+        <p className="text-xs font-medium text-muted"><Tx>Assigned to</Tx></p>
         <div className="mt-1 space-y-1">
           {role.assignments.map((a) => (
             <AssignmentRow key={a.id} assignmentId={a.id} userName={a.userName} userEmail={a.userEmail} projectName={a.projectName} />
           ))}
-          {role.assignments.length === 0 && <p className="text-xs text-muted">No one holds this role yet.</p>}
+          {role.assignments.length === 0 && <p className="text-xs text-muted"><Tx>No one holds this role yet.</Tx></p>}
         </div>
 
         <form action={assignAction} className="mt-2 flex flex-wrap items-end gap-2">
           <input type="hidden" name="role_id" value={role.id} />
           <select name="user_id" required className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy">
-            <option value="">— choose person —</option>
+            <option value=""><Tx>— choose person —</Tx></option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name} ({u.email})
@@ -141,10 +142,10 @@ export function RoleCard({
             ))}
           </select>
           <select name="project_id" className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy">
-            <option value="">Org/platform-wide</option>
+            <option value=""><Tx>Org/platform-wide</Tx></option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} only
+                {p.name} <Tx>only</Tx>
               </option>
             ))}
           </select>

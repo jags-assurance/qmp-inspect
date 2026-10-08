@@ -8,13 +8,14 @@ import { translateText } from "../dictionary";
 const source = readFileSync(join(__dirname, "..", "dictionary.ts"), "utf8");
 const body = source.slice(source.indexOf("const AR"), source.indexOf("const DICTIONARIES"));
 const entries = [...body.matchAll(/^\s{2}(?:"((?:[^"\\]|\\.)*)"|([A-Za-z]\w*)):\s*(?:\n\s*)?"((?:[^"\\]|\\.)*)",\s*$/gm)].map((m) => ({
-  key: (m[1] ?? m[2]) as string,
-  value: m[3] as string,
+  // Unescape \" and friends so the strings match what translateText receives.
+  key: m[1] !== undefined ? (JSON.parse(`"${m[1]}"`) as string) : (m[2] as string),
+  value: JSON.parse(`"${m[3]}"`) as string,
 }));
 
 describe("Arabic dictionary integrity", () => {
   it("parses a plausible number of entries", () => {
-    expect(entries.length).toBeGreaterThan(150);
+    expect(entries.length).toBeGreaterThan(1500);
   });
   it("has no empty keys or values", () => {
     for (const e of entries) {
@@ -35,7 +36,7 @@ describe("Arabic dictionary integrity", () => {
   });
   it("translates every parsed key for ar and never alters English", () => {
     for (const e of entries) {
-      expect(translateText("ar", e.key)).toBe(e.value.replace(/\\"/g, '"'));
+      expect(translateText("ar", e.key)).toBe(e.value);
       expect(translateText("en", e.key)).toBe(e.key);
     }
   });

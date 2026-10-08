@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { createItpAction, type CreateItpState } from "@/lib/itps/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateItpState = { error: null };
 
@@ -12,6 +14,7 @@ export function NewItpForm({
 }: {
   projects: { id: string; project_number: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createItpAction, initialState);
 
   return (
@@ -23,7 +26,7 @@ export function NewItpForm({
           required
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
-          <option value="">Select…</option>
+          <option value=""><Tx>Select…</Tx></option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.project_number} — {p.name}
@@ -35,12 +38,12 @@ export function NewItpForm({
 
       <div>
         <label htmlFor="itp_number" className="block text-sm font-medium text-ink">
-          ITP number <span className="font-normal text-muted">(optional — auto-generated if left blank)</span>
+          <Tx>ITP number</Tx> <span className="font-normal text-muted"><Tx>(optional — auto-generated if left blank)</Tx></span>
         </label>
         <input
           id="itp_number"
           name="itp_number"
-          placeholder="Leave blank to auto-generate, e.g. MER-JAGS-ITP-002"
+          placeholder={tl("Leave blank to auto-generate, e.g. MER-JAGS-ITP-002")}
           aria-invalid={state.fieldErrors?.itp_number ? true : undefined}
           aria-describedby={state.fieldErrors?.itp_number ? "itp_number-err" : undefined}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy doc-id"
@@ -64,7 +67,7 @@ export function NewItpForm({
         <FormField label="Applicable standard">
           <input
           name="applicable_standard"
-          placeholder="e.g. IEC 61439"
+          placeholder={tl("e.g. IEC 61439")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
@@ -75,7 +78,7 @@ export function NewItpForm({
           <textarea
           name="scope"
           rows={3}
-          placeholder="What work this plan covers, e.g. Structural concrete — foundations, Block A"
+          placeholder={tl("What work this plan covers, e.g. Structural concrete — foundations, Block A")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

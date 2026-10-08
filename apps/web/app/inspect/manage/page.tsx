@@ -8,6 +8,8 @@ import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itps-table";
 import { PageGuide } from "@/components/domain/page-guide";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export const metadata: Metadata = { title: "Manage" };
 
@@ -26,6 +28,7 @@ export const metadata: Metadata = { title: "Manage" };
  * redirects them straight back — mirrors the "Numbering"/"Brand Colors" self-managed-only pages.
  */
 export default async function ManageHubPage() {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (session.isJagsStaff) redirect("/inspect");
 
@@ -160,9 +163,9 @@ export default async function ManageHubPage() {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Manage — {org.name}</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>Manage —</T> {org.name}</h1>
         <PageGuide
-          title="Manage — how this works"
+          title={tl("Manage — how this works")}
           points={[
             "Only shown to Self-Managed and Full Client-Managed client organisations, and only for your own org — JAGS staff never see this page, they use the ordinary nav instead.",
             "\"Needs your action\" surfaces exactly what's waiting on you: submitting your own draft ITPs, generating checklists once an ITP you can create for is approved, accepting an ITP if you're the client party, and — Full Client-Managed only, and only if you hold the approve_itp custom permission — approving an ITP yourself.",
@@ -172,17 +175,15 @@ export default async function ManageHubPage() {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        {isClientManaged ? "Full Client-Managed" : "Self-Managed"} organisation — a single place for
-        what your own team runs day to day. JAGS still Closes every NCR and Issues every IRN — that
-        independent check never moves to this side, by design.
+        {isClientManaged ? "Full Client-Managed" : "Self-Managed"} <T>organisation — a single place for what your own team runs day to day. JAGS still Closes every NCR and Issues every IRN — that independent check never moves to this side, by design.</T>
         {!isClientManaged && " JAGS also still Approves every ITP on this tier."}
       </p>
 
       <section className="mt-6">
-        <h2 className="text-lg font-semibold text-ink">Needs your action</h2>
+        <h2 className="text-lg font-semibold text-ink"><T>Needs your action</T></h2>
         {actionQueue.length === 0 ? (
           <p className="mt-2 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-            Nothing waiting on you right now.
+            <T>Nothing waiting on you right now.</T>
           </p>
         ) : (
           <div className="mt-2 overflow-x-auto rounded-lg border border-border bg-surface">
@@ -203,10 +204,10 @@ export default async function ManageHubPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-ink">Your projects</h2>
+        <h2 className="text-lg font-semibold text-ink"><T>Your projects</T></h2>
         {(projects ?? []).length === 0 ? (
           <p className="mt-2 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-            No projects yet — <Link href="/inspect/projects/new" className="text-burgundy hover:underline">create one</Link>.
+            <T>No projects yet —</T> <Link href="/inspect/projects/new" className="text-burgundy hover:underline"><T>create one</T></Link>.
           </p>
         ) : (
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -215,12 +216,12 @@ export default async function ManageHubPage() {
                 <p className="doc-id text-sm text-muted">{project.project_number}</p>
                 <p className="font-medium text-ink">{project.name}</p>
                 <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-burgundy">
-                  <Link href={`/inspect/projects/${project.id}`} className="hover:underline">Parties</Link>
-                  <Link href={`/inspect/projects/${project.id}/kpis`} className="hover:underline">KPIs</Link>
-                  <Link href={`/inspect/projects/${project.id}/reports`} className="hover:underline">Reports</Link>
-                  <Link href={`/inspect/projects/${project.id}/registers`} className="hover:underline">Registers</Link>
-                  <Link href={`/inspect/projects/${project.id}/punch-list`} className="hover:underline">Punch List</Link>
-                  <Link href={`/inspect/projects/${project.id}/data-book`} className="hover:underline">Data Book</Link>
+                  <Link href={`/inspect/projects/${project.id}`} className="hover:underline"><T>Parties</T></Link>
+                  <Link href={`/inspect/projects/${project.id}/kpis`} className="hover:underline"><T>KPIs</T></Link>
+                  <Link href={`/inspect/projects/${project.id}/reports`} className="hover:underline"><T>Reports</T></Link>
+                  <Link href={`/inspect/projects/${project.id}/registers`} className="hover:underline"><T>Registers</T></Link>
+                  <Link href={`/inspect/projects/${project.id}/punch-list`} className="hover:underline"><T>Punch List</T></Link>
+                  <Link href={`/inspect/projects/${project.id}/data-book`} className="hover:underline"><T>Data Book</T></Link>
                 </div>
               </div>
             ))}
@@ -229,23 +230,23 @@ export default async function ManageHubPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-ink">Organisation settings</h2>
+        <h2 className="text-lg font-semibold text-ink"><T>Organisation settings</T></h2>
         <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Link href="/inspect/organisation/client-teams" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink">Client Teams</p>
-            <p className="mt-1 text-sm text-muted">Group your own people by team</p>
+            <p className="font-medium text-ink"><T>Client Teams</T></p>
+            <p className="mt-1 text-sm text-muted"><T>Group your own people by team</T></p>
           </Link>
           <Link href="/inspect/organisation/roles" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink">Custom Roles</p>
-            <p className="mt-1 text-sm text-muted">Delegate permissions within your org</p>
+            <p className="font-medium text-ink"><T>Custom Roles</T></p>
+            <p className="mt-1 text-sm text-muted"><T>Delegate permissions within your org</T></p>
           </Link>
           <Link href="/inspect/organisation/numbering" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink">Numbering</p>
-            <p className="mt-1 text-sm text-muted">Your own document numbering format</p>
+            <p className="font-medium text-ink"><T>Numbering</T></p>
+            <p className="mt-1 text-sm text-muted"><T>Your own document numbering format</T></p>
           </Link>
           <Link href="/inspect/organisation/branding" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink">Brand Colors</p>
-            <p className="mt-1 text-sm text-muted">Accent colour on your generated PDFs</p>
+            <p className="font-medium text-ink"><T>Brand Colors</T></p>
+            <p className="mt-1 text-sm text-muted"><T>Accent colour on your generated PDFs</T></p>
           </Link>
         </div>
       </section>

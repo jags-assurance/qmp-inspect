@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { toneClassForLevelIndex } from "@/lib/intervention-levels/types";
+import { T } from "@/components/domain/t";
 
 export interface HwrsLevel {
   code: string;
@@ -79,15 +80,15 @@ function PointChip({
         {blocking && <span aria-hidden>●</span>}
       </span>
       {overdue ? (
-        <Badge tone="danger">Overdue {fmtDuration(elapsedH - (level?.noticeHours ?? 48))}</Badge>
+        <Badge tone="danger"><T>Overdue</T> {fmtDuration(elapsedH - (level?.noticeHours ?? 48))}</Badge>
       ) : bucket === "signed_off" ? (
         <Badge tone={point.status === "proceeded_no_response" ? "info" : "success"}>
           {point.status === "proceeded_no_response" ? "Proceeded" : "Signed off"}
         </Badge>
       ) : bucket === "notified" ? (
-        <Badge tone="warning">Notified{point.notifiedAt ? ` · ${fmtDuration(elapsedH)}` : ""}</Badge>
+        <Badge tone="warning"><T>Notified</T>{point.notifiedAt ? ` · ${fmtDuration(elapsedH)}` : ""}</Badge>
       ) : (
-        <Badge tone="neutral">Pending</Badge>
+        <Badge tone="neutral"><T>Pending</T></Badge>
       )}
     </span>
   );
@@ -169,16 +170,16 @@ export function HwrsSection({
 
   return (
     <section className="mt-4 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">3. Intervention points — {levels.map((l) => l.code).join(" / ") || "H/W/R/S"}</h2>
+      <h2 className="text-sm font-semibold text-ink"><T>3. Intervention points —</T> {levels.map((l) => l.code).join(" / ") || "H/W/R/S"}</h2>
       <p className="mt-1 text-xs text-muted">
-        Every activity carries sign-off points per project party. Blocking levels hold work until cleared.
+        <T>Every activity carries sign-off points per project party. Blocking levels hold work until cleared.</T>
       </p>
 
       {/* Legend */}
       <div className="mt-3">
-        <p className="text-xs font-medium text-muted">Levels in this organisation</p>
+        <p className="text-xs font-medium text-muted"><T>Levels in this organisation</T></p>
         {levels.length === 0 ? (
-          <p className="mt-1 text-sm text-muted">No intervention levels are configured.</p>
+          <p className="mt-1 text-sm text-muted"><T>No intervention levels are configured.</T></p>
         ) : (
           <ul className="mt-1.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {levels.map((l, i) => (
@@ -190,7 +191,7 @@ export function HwrsSection({
                 <div className="min-w-0">
                   <p className="break-words text-sm font-medium text-ink">{l.label}</p>
                   <p className="text-xs text-muted">
-                    {l.isBlocking ? "Blocking" : "Non-blocking"} · {l.noticeHours}h notice
+                    {l.isBlocking ? "Blocking" : "Non-blocking"} · {l.noticeHours}<T>h notice</T>
                   </p>
                 </div>
               </li>
@@ -201,30 +202,30 @@ export function HwrsSection({
 
       {points.length === 0 ? (
         <p className="mt-4 rounded-md border border-dashed border-border p-4 text-center text-sm text-muted">
-          No sign-off points on this ITP yet. Assign H/W/R/S levels to project parties on the activities and they will appear here.
+          <T>No sign-off points on this ITP yet. Assign H/W/R/S levels to project parties on the activities and they will appear here.</T>
         </p>
       ) : (
         <>
           {/* Summary strip */}
           <div className="mt-4">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-medium text-muted">Summary</p>
+              <p className="text-xs font-medium text-muted"><T>Summary</T></p>
               {overdueTotal > 0 ? (
-                <Badge tone="danger">{overdueTotal} overdue</Badge>
+                <Badge tone="danger">{overdueTotal} <T>overdue</T></Badge>
               ) : (
-                <Badge tone="success">Nothing overdue</Badge>
+                <Badge tone="success"><T>Nothing overdue</T></Badge>
               )}
             </div>
             <div className="mt-1.5 overflow-x-auto rounded-md border border-border">
               <table className="w-full min-w-[480px] text-start text-xs">
                 <thead className="bg-off-white text-muted">
                   <tr>
-                    <th className="px-2 py-1.5 font-medium">Level</th>
-                    <th className="px-2 py-1.5 text-end font-medium">Points</th>
-                    <th className="px-2 py-1.5 text-end font-medium">Signed off</th>
-                    <th className="px-2 py-1.5 text-end font-medium">Notified</th>
-                    <th className="px-2 py-1.5 text-end font-medium">Pending</th>
-                    <th className="px-2 py-1.5 text-end font-medium">Overdue</th>
+                    <th className="px-2 py-1.5 font-medium"><T>Level</T></th>
+                    <th className="px-2 py-1.5 text-end font-medium"><T>Points</T></th>
+                    <th className="px-2 py-1.5 text-end font-medium"><T>Signed off</T></th>
+                    <th className="px-2 py-1.5 text-end font-medium"><T>Notified</T></th>
+                    <th className="px-2 py-1.5 text-end font-medium"><T>Pending</T></th>
+                    <th className="px-2 py-1.5 text-end font-medium"><T>Overdue</T></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -251,18 +252,18 @@ export function HwrsSection({
 
           {/* What is blocking */}
           <div className="mt-4">
-            <p className="text-xs font-medium text-muted">Blocking work right now ({blockers.length})</p>
+            <p className="text-xs font-medium text-muted"><T>Blocking work right now (</T>{blockers.length})</p>
             {blockers.length === 0 ? (
-              <p className="mt-1 text-sm text-muted">No blocking points are outstanding.</p>
+              <p className="mt-1 text-sm text-muted"><T>No blocking points are outstanding.</T></p>
             ) : (
               <div className="mt-1.5 overflow-x-auto rounded-md border border-border">
                 <table className="w-full min-w-[560px] text-start text-xs">
                   <thead className="bg-off-white text-muted">
                     <tr>
-                      <th className="px-2 py-1.5 font-medium">Activity</th>
-                      <th className="px-2 py-1.5 font-medium">Waiting on</th>
-                      <th className="px-2 py-1.5 font-medium">Status</th>
-                      <th className="px-2 py-1.5 font-medium">Since</th>
+                      <th className="px-2 py-1.5 font-medium"><T>Activity</T></th>
+                      <th className="px-2 py-1.5 font-medium"><T>Waiting on</T></th>
+                      <th className="px-2 py-1.5 font-medium"><T>Status</T></th>
+                      <th className="px-2 py-1.5 font-medium"><T>Since</T></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -281,7 +282,7 @@ export function HwrsSection({
                   </tbody>
                 </table>
                 {blockers.length > 25 && (
-                  <p className="border-t border-border px-2 py-1.5 text-xs text-muted">Showing 25 of {blockers.length}; see the activity view below.</p>
+                  <p className="border-t border-border px-2 py-1.5 text-xs text-muted"><T>Showing 25 of</T> {blockers.length}<T>; see the activity view below.</T></p>
                 )}
               </div>
             )}
@@ -289,7 +290,7 @@ export function HwrsSection({
 
           {/* Per-party */}
           <div className="mt-4">
-            <p className="text-xs font-medium text-muted">By party ({partyRows.length})</p>
+            <p className="text-xs font-medium text-muted"><T>By party (</T>{partyRows.length})</p>
             <div className="mt-1.5 space-y-1.5">
               {partyRows.map(({ id, party, ps }) => {
                 const open = ps.filter((p) => bucketOf(p.status) !== "signed_off").length;
@@ -300,8 +301,8 @@ export function HwrsSection({
                       <span className="min-w-0 break-words font-medium text-ink">{party?.name ?? "Unknown party"}</span>
                       {party && <span className="text-xs text-muted">{titleCase(party.partyType)}{party.isActive ? "" : " · inactive"}</span>}
                       <span className="ms-auto flex items-center gap-1.5 text-xs text-muted">
-                        {ps.length} points · {open} open
-                        {od > 0 && <Badge tone="danger">{od} overdue</Badge>}
+                        {ps.length} <T>points ·</T> {open} <T>open</T>
+                        {od > 0 && <Badge tone="danger">{od} <T>overdue</T></Badge>}
                       </span>
                     </summary>
                     <div className="overflow-x-auto border-t border-border">
@@ -331,15 +332,15 @@ export function HwrsSection({
 
           {/* Per-activity */}
           <div className="mt-4">
-            <p className="text-xs font-medium text-muted">By activity ({activities.length})</p>
+            <p className="text-xs font-medium text-muted"><T>By activity (</T>{activities.length})</p>
             <div className="mt-1.5 max-h-[32rem] overflow-auto rounded-md border border-border">
               <table className="w-full min-w-[640px] text-start text-xs">
                 <thead className="sticky top-0 bg-off-white text-muted">
                   <tr>
-                    <th className="px-2 py-1.5 font-medium">Activity</th>
-                    <th className="px-2 py-1.5 font-medium">Party</th>
-                    <th className="px-2 py-1.5 font-medium">Status</th>
-                    <th className="px-2 py-1.5 font-medium">Signed by</th>
+                    <th className="px-2 py-1.5 font-medium"><T>Activity</T></th>
+                    <th className="px-2 py-1.5 font-medium"><T>Party</T></th>
+                    <th className="px-2 py-1.5 font-medium"><T>Status</T></th>
+                    <th className="px-2 py-1.5 font-medium"><T>Signed by</T></th>
                   </tr>
                 </thead>
                 <tbody>

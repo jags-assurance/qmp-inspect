@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { SiteLinks } from "./site-links";
+import { T } from "@/components/domain/t";
 
 /** Plain page frame for the signed-out legal pages (privacy notice, terms of use). No session, no data. */
 export function PublicPageShell({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
@@ -8,7 +9,7 @@ export function PublicPageShell({ title, updated, children }: { title: string; u
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
       <header className="mb-6 border-b border-border pb-4">
         <Link href="/login" className="text-sm font-medium text-burgundy hover:underline">
-          ← Sign in
+          <T>← Sign in</T>
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-ink">{title}</h1>
         <p className="mt-1 text-xs text-muted">{updated}</p>
@@ -32,5 +33,5 @@ export function LegalSection({ heading, children }: { heading: string; children:
 
 /** A visible, unmistakable marker for text only the owner can supply. */
 export function OwnerFill({ children }: { children: ReactNode }) {
-  return <mark className="rounded bg-warning/20 px-1 text-ink">[OWNER TO FILL: {children}]</mark>;
+  return <mark className="rounded bg-warning/20 px-1 text-ink"><T>[OWNER TO FILL:</T> {children}]</mark>;
 }

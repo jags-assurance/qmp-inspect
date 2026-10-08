@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setEnforceHoldBlocksStartAction, type SetEnforceHoldBlocksStartState } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetEnforceHoldBlocksStartState = { error: null };
 
@@ -25,9 +26,9 @@ export function EnforceHoldBlocksStartToggle({
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
           disabled={pending}
         />
-        A Hold blocks starting the field inspection, not just completing it (R71)
+        <Tx>A Hold blocks starting the field inspection, not just completing it (R71)</Tx>
       </label>
-      {pending && <span className="text-xs text-muted">Saving…</span>}
+      {pending && <span className="text-xs text-muted"><Tx>Saving…</Tx></span>}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );

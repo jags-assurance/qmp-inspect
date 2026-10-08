@@ -7,6 +7,8 @@ import { BrandingForm } from "./branding-form";
 import { LogoUploadForm } from "./logo-upload-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface OrganizationOption {
   id: string;
@@ -23,6 +25,7 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
   searchParams: { org?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -89,9 +92,9 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Brand colors &amp; logo</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Brand colors &amp; logo</T></Heading>
         <PageGuide
-          title="Brand colors & logo — how this works"
+          title={tl("Brand colors & logo — how this works")}
           points={[
             "Admin-only for a Full-Managed org, same boundary as Numbering/engagement mode — but a Self-Managed or Full Client-Managed client can manage their own organisation's brand colors and logo directly here, scoped to just their own org with no picker.",
             "What actually shows a client's branding is the organisation's engagement mode (set under Numbering, JAGS Admin only): jags_led shows JAGS branding only regardless of what's uploaded here; co-branded shows both together; white-label replaces JAGS branding with the client's own.",
@@ -101,10 +104,7 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Override the default burgundy/gold theme and upload this organisation&rsquo;s own logo.
-        Applies wherever a page is scoped to this organisation (e.g. its projects), the app header,
-        and generated PDF reports — driven together by the organisation&rsquo;s configured
-        engagement mode (set under Numbering, JAGS Admin only).
+        <T>Override the default burgundy/gold theme and upload this organisation&rsquo;s own logo. Applies wherever a page is scoped to this organisation (e.g. its projects), the app header, and generated PDF reports — driven together by the organisation&rsquo;s configured engagement mode (set under Numbering, JAGS Admin only).</T>
       </p>
 
       {!restrictedToOwnOrg && (
@@ -119,9 +119,9 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}</h2>
             <p className="mt-1 text-xs text-muted">
-              Engagement mode: <span className="font-medium text-ink">{ENGAGEMENT_MODE_LABEL[selectedOrg.engagement_mode] ?? selectedOrg.engagement_mode}</span>
+              <T>Engagement mode:</T> <span className="font-medium text-ink">{ENGAGEMENT_MODE_LABEL[selectedOrg.engagement_mode] ?? selectedOrg.engagement_mode}</span>
               {selectedOrg.engagement_mode === "jags_led" && (
-                <span> — a logo uploaded below won&rsquo;t be shown anywhere until the engagement mode is changed to co-branded or white-label.</span>
+                <span> <T>— a logo uploaded below won&rsquo;t be shown anywhere until the engagement mode is changed to co-branded or white-label.</T></span>
               )}
             </p>
             <div className="mt-3">
@@ -136,11 +136,9 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
           </div>
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Logo</h2>
+            <h2 className="text-sm font-semibold text-ink"><T>Logo</T></h2>
             <p className="mt-1 text-xs text-muted">
-              Shown in the app header/sidebar and generated PDF reports for co-branded and
-              white-label engagements (see above). No logo means the JAGS-only branding you see
-              today, unchanged.
+              <T>Shown in the app header/sidebar and generated PDF reports for co-branded and white-label engagements (see above). No logo means the JAGS-only branding you see today, unchanged.</T>
             </p>
             <div className="mt-3">
               <LogoUploadForm organizationId={selectedOrg.id} currentLogoUrl={logoPreviewUrl} />

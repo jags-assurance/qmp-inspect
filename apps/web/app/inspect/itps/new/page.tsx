@@ -16,8 +16,11 @@ import { isAiConfigured } from "@/lib/ai/gate";
 import { aiEntryPointVisible } from "@/lib/ai/gate-decision";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function NewItpPage({ searchParams }: { searchParams: Promise<{ tab?: string; template?: string }> }) {
+  const tl = await getTranslator();
   const { tab: tabParam, template: templateParam } = await searchParams;
   const initialTab = tabParam === "template" || tabParam === "ai" ? tabParam : undefined;
   const session = await requireSession();
@@ -141,12 +144,12 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
     return (
       <div className="max-w-3xl">
         <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-          ← Back to ITP Register
+          <T>← Back to ITP Register</T>
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+          <h1 className="text-2xl font-semibold text-ink"><T>New ITP</T></h1>
           <PageGuide
-            title="New ITP — how this works"
+            title={tl("New ITP — how this works")}
             points={[
               "You're seeing this because your login is linked to an eligible client/contractor party on at least one project that's opted into ITP creation, or your organisation is Self-Managed/\"Hybrid\" or Full Client-Managed (both grant a client party org-wide eligibility).",
               "The manual flow creates a draft with the four standard sections — fully editable (add/rename/reorder) afterwards, not fixed to those four.",
@@ -158,10 +161,8 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          Creates a draft ITP with the four standard sections — add, rename or reorder them as
-          needed once it&apos;s created.
-          {aiConfigured ? " Or generate a first draft from your own vault documents." : ""} JAGS will
-          review and approve it once you submit it.
+          <T>Creates a draft ITP with the four standard sections — add, rename or reorder them as needed once it&apos;s created.</T>
+          {aiConfigured ? " Or generate a first draft from your own vault documents." : ""} <T>JAGS will review and approve it once you submit it.</T>
         </p>
         <ItpCreationTabs manual={<NewItpForm projects={projects} />} fromAi={fromAi} />
       </div>
@@ -171,12 +172,12 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
   return (
     <div className="max-w-3xl">
       <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-        ← Back to ITP Register
+        <T>← Back to ITP Register</T>
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">New ITP</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>New ITP</T></h1>
         <PageGuide
-          title="New ITP — how this works"
+          title={tl("New ITP — how this works")}
           points={[
             "Staff-only creation flow — build manually with the four standard sections (fully editable afterwards), start from a JAGS master template and customize it for this project, or generate a first draft from vault documents.",
             "Starting from a master template copies its current content into a brand-new project ITP — it doesn't stay linked to the master template afterwards.",
@@ -188,9 +189,7 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Creates a draft ITP with the four standard sections — add, rename or reorder them as
-        needed once it&apos;s created. Or start from a JAGS master template and customize it for
-        this project.
+        <T>Creates a draft ITP with the four standard sections — add, rename or reorder them as needed once it&apos;s created. Or start from a JAGS master template and customize it for this project.</T>
       </p>
       <ItpCreationTabs
         initialTab={initialTab}

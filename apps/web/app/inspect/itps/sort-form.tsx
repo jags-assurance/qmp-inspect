@@ -1,4 +1,5 @@
 "use client";
+import { Tx } from "@/components/domain/tx";
 
 const OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Newest first" },
@@ -15,7 +16,7 @@ export function SortForm({ current, params }: { current: string; params: Record<
         <input key={k} type="hidden" name={k} value={v} />
       ))}
       <label htmlFor="sort" className="block text-sm font-medium text-ink">
-        Sort by
+        <Tx>Sort by</Tx>
       </label>
       <select
         id="sort"

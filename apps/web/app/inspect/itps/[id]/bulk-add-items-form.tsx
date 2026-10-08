@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { bulkAddItpItemsAction, type BulkAddItemsState } from "@/lib/itps/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: BulkAddItemsState = { error: null };
 
@@ -35,7 +36,7 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
         onClick={() => setOpen(true)}
         className="w-full border-t border-border bg-off-white px-4 py-2 text-start text-xs font-medium text-muted hover:text-burgundy"
       >
-        + Paste many activities from a spreadsheet
+        <Tx>+ Paste many activities from a spreadsheet</Tx>
       </button>
     );
   }
@@ -49,9 +50,8 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
       {dialog}
       <input type="hidden" name="revision_reason" />
       <p className="text-xs text-muted">
-        Paste rows copied from Excel or Google Sheets — one activity per line, columns:{" "}
-        <strong>Item no. · Activity · Acceptance criteria · Reference/clause · Method · Frequency</strong>. Leave the item number blank to
-        number automatically. Sign-off levels are set afterwards in the grid.
+        <Tx>Paste rows copied from Excel or Google Sheets — one activity per line, columns:</Tx>{" "}
+        <strong><Tx>Item no. · Activity · Acceptance criteria · Reference/clause · Method · Frequency</Tx></strong><Tx>. Leave the item number blank to number automatically. Sign-off levels are set afterwards in the grid.</Tx>
       </p>
       <textarea
         name="rows"
@@ -71,9 +71,9 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
           {pending ? "Adding…" : "Add activities"}
         </button>
         <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
-          Close
+          <Tx>Close</Tx>
         </button>
-        {done && <span className="text-xs text-success">{state.added} activities added.</span>}
+        {done && <span className="text-xs text-success">{state.added} <Tx>activities added.</Tx></span>}
         {state.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>
     </form>

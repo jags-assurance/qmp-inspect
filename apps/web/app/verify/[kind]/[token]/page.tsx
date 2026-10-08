@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { formatUtcDate } from "@/lib/databook/db-errors";
 import { hasAnyHash } from "@/lib/verify/hash-match";
 import { FileChecker } from "./file-checker";
+import { T } from "@/components/domain/t";
 
 // Public verification page for QR codes printed on handover certificates and IRNs. No login: it
 // calls the verify_document() SECURITY DEFINER function with the unguessable token and shows ONLY
@@ -51,9 +52,9 @@ export default async function VerifyPage({ params }: { params: Promise<{ kind: s
 
   return (
     <main className="mx-auto max-w-md px-4 py-10">
-      <h1 className="text-xl font-semibold text-ink">Document verification</h1>
+      <h1 className="text-xl font-semibold text-ink"><T>Document verification</T></h1>
       {unavailable ? (
-        <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">Verification is not available right now. Try again later.</p>
+        <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink"><T>Verification is not available right now. Try again later.</T></p>
       ) : result?.valid ? (
         <div className="mt-4 rounded-lg border border-border bg-surface p-4">
           <p className={`text-sm font-semibold ${result.status === "void" || result.status === "superseded" ? "text-danger" : "text-success"}`}>
@@ -65,42 +66,42 @@ export default async function VerifyPage({ params }: { params: Promise<{ kind: s
               <dd className="doc-id font-medium text-ink">{result.number}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted">Status</dt>
+              <dt className="text-xs uppercase tracking-wide text-muted"><T>Status</T></dt>
               <dd className="text-ink">{STATUS_TEXT[result.status ?? ""] ?? result.status}</dd>
             </div>
             {result.issued_date && (
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted">Date</dt>
+                <dt className="text-xs uppercase tracking-wide text-muted"><T>Date</T></dt>
                 <dd className="text-ink">{formatUtcDate(result.issued_date)}</dd>
               </div>
             )}
             {result.conditional && (
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted">Type</dt>
-                <dd className="text-ink">Conditional handover (open items outstanding)</dd>
+                <dt className="text-xs uppercase tracking-wide text-muted"><T>Type</T></dt>
+                <dd className="text-ink"><T>Conditional handover (open items outstanding)</T></dd>
               </div>
             )}
             {result.package_sha256 && (
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted">Package SHA-256</dt>
+                <dt className="text-xs uppercase tracking-wide text-muted"><T>Package SHA-256</T></dt>
                 <dd className="break-all font-mono text-xs text-ink">{result.package_sha256}</dd>
               </div>
             )}
             {result.data_book_sha256 && (
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted">Data Book PDF SHA-256</dt>
+                <dt className="text-xs uppercase tracking-wide text-muted"><T>Data Book PDF SHA-256</T></dt>
                 <dd className="break-all font-mono text-xs text-ink">{result.data_book_sha256}</dd>
               </div>
             )}
           </dl>
-          <p className="mt-3 text-xs text-muted">Compare the fingerprint with your copy of the file to confirm it is unmodified. This is a tamper check, not a digital signature. Project details are only available to authorised users.</p>
+          <p className="mt-3 text-xs text-muted"><T>Compare the fingerprint with your copy of the file to confirm it is unmodified. This is a tamper check, not a digital signature. Project details are only available to authorised users.</T></p>
         </div>
       ) : null}
       {result?.valid && hasAnyHash(result) ? (
         <FileChecker known={{ pdf_sha256s: result.pdf_sha256s, data_book_sha256: result.data_book_sha256, package_sha256: result.package_sha256 }} />
       ) : null}
       {unavailable ? null : result?.valid ? null : (
-        <p className="mt-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">No document matches this code. Do not rely on a document that cannot be verified.</p>
+        <p className="mt-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"><T>No document matches this code. Do not rely on a document that cannot be verified.</T></p>
       )}
     </main>
   );

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updatePunchItemAction, type UpdatePunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: UpdatePunchItemState = { error: null };
 
@@ -24,7 +25,7 @@ export function EditPunchItemForm({
   if (!expanded) {
     return (
       <button type="button" onClick={() => setExpanded(true)} className="min-h-11 text-sm font-medium text-burgundy hover:underline">
-        Edit assignment, due date, priority
+        <Tx>Edit assignment, due date, priority</Tx>
       </button>
     );
   }
@@ -35,35 +36,35 @@ export function EditPunchItemForm({
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label className="text-xs font-medium text-ink">
-        Responsible party
+        <Tx>Responsible party</Tx>
         <select name="responsible_party_id" defaultValue={current.responsible_party_id ?? ""} className={field}>
-          <option value="">Unassigned</option>
+          <option value=""><Tx>Unassigned</Tx></option>
           {projectParties.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
       </label>
       <label className="text-xs font-medium text-ink">
-        Due date
+        <Tx>Due date</Tx>
         <input name="due_date" type="date" defaultValue={current.due_date ?? ""} className={field} />
       </label>
       <label className="text-xs font-medium text-ink">
-        Priority
+        <Tx>Priority</Tx>
         <select name="priority" defaultValue={current.priority} className={field}>
-          <option value="A">A - critical</option>
-          <option value="B">B - major</option>
-          <option value="C">C - minor</option>
+          <option value="A"><Tx>A - critical</Tx></option>
+          <option value="B"><Tx>B - major</Tx></option>
+          <option value="C"><Tx>C - minor</Tx></option>
         </select>
       </label>
       <label className="text-xs font-medium text-ink">
-        Location
+        <Tx>Location</Tx>
         <input name="location" maxLength={200} defaultValue={current.location ?? ""} className={field} />
       </label>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
         <button type="button" onClick={() => setExpanded(false)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

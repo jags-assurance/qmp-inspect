@@ -7,6 +7,7 @@ import {
   type AddMeasurementState,
   type SuggestMeasurementsState,
 } from "@/lib/standalone/actions";
+import { Tx } from "@/components/domain/tx";
 
 const suggestInitialState: SuggestMeasurementsState = { error: null, suggestions: null };
 
@@ -30,7 +31,7 @@ export function SuggestMeasurements({ assignmentId }: { assignmentId: string }) 
         >
           {pending ? "Thinking…" : "Suggest with AI"}
         </button>
-        <p className="text-xs text-muted">Drafts measurement/test parameters for this equipment — review each before adding.</p>
+        <p className="text-xs text-muted"><Tx>Drafts measurement/test parameters for this equipment — review each before adding.</Tx></p>
       </form>
 
       {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}
@@ -44,7 +45,7 @@ export function SuggestMeasurements({ assignmentId }: { assignmentId: string }) 
       )}
 
       {state.suggestions && state.suggestions.length === 0 && (
-        <p className="mt-2 text-xs text-muted">No suggestions came back — try adding a standard reference to the assignment.</p>
+        <p className="mt-2 text-xs text-muted"><Tx>No suggestions came back — try adding a standard reference to the assignment.</Tx></p>
       )}
     </div>
   );

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface MasterTemplateRow {
   id: string;
@@ -38,6 +40,7 @@ const COLUMNS: DataTableColumn<MasterTemplateRow>[] = [
 // the column config (which contains render functions) is defined here, already inside client code
 // — same pattern as apps/web/app/inspect/projects/projects-table.tsx.
 export function TemplatesTable({ rows }: { rows: MasterTemplateRow[] }) {
+  const tl = useTranslate();
   const [industry, setIndustry] = useState("");
   const [discipline, setDiscipline] = useState("");
   const [active, setActive] = useState("");
@@ -53,26 +56,26 @@ export function TemplatesTable({ rows }: { rows: MasterTemplateRow[] }) {
   return (
     <>
       <div className="mb-3 flex flex-wrap gap-2">
-        <select aria-label="Industry" value={industry} onChange={(e) => setIndustry(e.target.value)} className={sel}>
-          <option value="">All industries</option>
+        <select aria-label={tl("Industry")} value={industry} onChange={(e) => setIndustry(e.target.value)} className={sel}>
+          <option value=""><Tx>All industries</Tx></option>
           {industries.map((i) => (
             <option key={i} value={i}>
               {i}
             </option>
           ))}
         </select>
-        <select aria-label="Discipline" value={discipline} onChange={(e) => setDiscipline(e.target.value)} className={sel}>
-          <option value="">All disciplines</option>
+        <select aria-label={tl("Discipline")} value={discipline} onChange={(e) => setDiscipline(e.target.value)} className={sel}>
+          <option value=""><Tx>All disciplines</Tx></option>
           {disciplines.map((i) => (
             <option key={i} value={i}>
               {i}
             </option>
           ))}
         </select>
-        <select aria-label="Status" value={active} onChange={(e) => setActive(e.target.value)} className={sel}>
-          <option value="">Active and inactive</option>
-          <option value="active">Active only</option>
-          <option value="inactive">Inactive only</option>
+        <select aria-label={tl("Status")} value={active} onChange={(e) => setActive(e.target.value)} className={sel}>
+          <option value=""><Tx>Active and inactive</Tx></option>
+          <option value="active"><Tx>Active only</Tx></option>
+          <option value="inactive"><Tx>Inactive only</Tx></option>
         </select>
       </div>
     <DataTable

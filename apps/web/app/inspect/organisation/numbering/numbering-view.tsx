@@ -16,6 +16,7 @@ import { OrgPickerForm } from "./org-picker-form";
 import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
 
 interface OrganizationOption {
   id: string;
@@ -151,7 +152,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
           {!numberingOnly && (
             <>
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-semibold text-ink">Engagement mode</h2>
+                <h2 className="text-sm font-semibold text-ink"><T>Engagement mode</T></h2>
                 <div className="mt-3">
                   <EngagementModeForm
                     organizationId={selectedOrg.id}
@@ -161,7 +162,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
               </div>
 
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-semibold text-ink">Engagement scope</h2>
+                <h2 className="text-sm font-semibold text-ink"><T>Engagement scope</T></h2>
                 <div className="mt-3">
                   <EngagementScopeForm
                     key={`${selectedOrg.id}-${selectedOrg.engagement_scope}`}
@@ -173,10 +174,9 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
               </div>
 
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-semibold text-ink">Party sign-off sequencing (R67)</h2>
+                <h2 className="text-sm font-semibold text-ink"><T>Party sign-off sequencing (R67)</T></h2>
                 <p className="mt-1 text-xs text-muted">
-                  Controls whether non-blocking intervention levels (e.g. Witness, Review) must also
-                  clear in sort_order, the same way blocking levels like Hold already do.
+                  <T>Controls whether non-blocking intervention levels (e.g. Witness, Review) must also clear in sort_order, the same way blocking levels like Hold already do.</T>
                 </p>
                 <div className="mt-4">
                   <ItpSequencingModeForm
@@ -189,10 +189,9 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
           )}
 
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink">Document numbering formats</h2>
+            <h2 className="text-sm font-semibold text-ink"><T>Document numbering formats</T></h2>
             <p className="mt-1 text-xs text-muted">
-              Org-wide defaults per document type. Leave a type unconfigured to use the default
-              format: {"{project number}-JAGS-{TYPE}-{seq}"}.
+              <T>Org-wide defaults per document type. Leave a type unconfigured to use the default format:</T> {"{project number}-JAGS-{TYPE}-{seq}"}.
             </p>
             <div className="mt-4">
               {NUMBERING_DOC_TYPES.map((docType) => {
@@ -223,13 +222,9 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
           {!numberingOnly && (
             <>
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-                <h2 className="text-sm font-semibold text-ink">ITP approval workflow</h2>
+                <h2 className="text-sm font-semibold text-ink"><T>ITP approval workflow</T></h2>
                 <p className="mt-1 text-xs text-muted">
-                  By default, any JAGS staff login can submit an ITP for review or approve it once
-                  under review (R79). Pin either step to one specific person if this
-                  client&rsquo;s process requires a named reviewer or approver — leave a slot on
-                  &ldquo;Unrestricted&rdquo; to keep today&rsquo;s behaviour. A JAGS Admin can always
-                  act regardless of this setting.
+                  <T>By default, any JAGS staff login can submit an ITP for review or approve it once under review (R79). Pin either step to one specific person if this client&rsquo;s process requires a named reviewer or approver — leave a slot on &ldquo;Unrestricted&rdquo; to keep today&rsquo;s behaviour. A JAGS Admin can always act regardless of this setting.</T>
                 </p>
                 <div className="mt-4">
                   <ItpApprovalWorkflowForm
@@ -242,11 +237,11 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
               </div>
 
               <p className="mt-8 text-sm text-muted">
-                Looking for monthly/weekly client report packs? They moved to{" "}
+                <T>Looking for monthly/weekly client report packs? They moved to</T>{" "}
                 <Link href={`/inspect/organisation/reporting?org=${selectedOrg.id}`} className="text-burgundy hover:underline">
-                  Reporting
+                  <T>Reporting</T>
                 </Link>{" "}
-                (under Insights &amp; Usage) — same organisation, one click away.
+                <T>(under Insights &amp; Usage) — same organisation, one click away.</T>
               </p>
             </>
           )}

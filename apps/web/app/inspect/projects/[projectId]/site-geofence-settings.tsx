@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setSiteGeofenceAction, type SetSiteGeofenceState } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetSiteGeofenceState = { error: null };
 
@@ -23,22 +24,22 @@ export function SiteGeofenceSettings({
     <form action={formAction} className="mt-3 grid max-w-2xl gap-3 sm:grid-cols-3">
       <input type="hidden" name="project_id" value={projectId} />
       <label className="text-sm text-ink">
-        Latitude
+        <Tx>Latitude</Tx>
         <input name="site_latitude" defaultValue={latitude ?? ""} inputMode="decimal" placeholder="25.204800" className={input} />
       </label>
       <label className="text-sm text-ink">
-        Longitude
+        <Tx>Longitude</Tx>
         <input name="site_longitude" defaultValue={longitude ?? ""} inputMode="decimal" placeholder="55.270800" className={input} />
       </label>
       <label className="text-sm text-ink">
-        Radius (metres)
+        <Tx>Radius (metres)</Tx>
         <input name="site_radius_m" defaultValue={radiusM ?? ""} inputMode="numeric" placeholder="500" className={input} />
       </label>
       <div className="flex items-center gap-3 sm:col-span-3">
         <button type="submit" disabled={pending} className="min-h-10 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
           {pending ? "Saving…" : "Save site location"}
         </button>
-        {state.saved && <span className="text-xs text-success">Saved.</span>}
+        {state.saved && <span className="text-xs text-success"><Tx>Saved.</Tx></span>}
         {state.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>
     </form>

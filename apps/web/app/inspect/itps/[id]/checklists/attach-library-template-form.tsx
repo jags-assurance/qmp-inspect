@@ -5,6 +5,7 @@ import {
   attachLibraryTemplateToActivityAction,
   type AttachLibraryTemplateState,
 } from "@/lib/checklist-library/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: AttachLibraryTemplateState = { error: null };
 
@@ -32,7 +33,7 @@ export function AttachLibraryTemplateForm({
         onChange={(e) => setSelected(e.target.value)}
         className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
       >
-        <option value="">Attach library template…</option>
+        <option value=""><Tx>Attach library template…</Tx></option>
         {libraryTemplates.map((t) => (
           <option key={t.id} value={t.id}>
             {t.title}

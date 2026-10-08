@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { linkNcrDocumentAction, unlinkNcrDocumentAction, type NcrDocumentState } from "@/lib/ncrs/actions";
 import { VaultFilePicker, type VaultPickerDocument } from "@/components/domain/vault-file-picker";
+import { Tx } from "@/components/domain/tx";
 
 export interface NcrLinkedDocument {
   linkId: string;
@@ -43,7 +44,7 @@ export function NcrDocuments({
 
   return (
     <div className="space-y-2">
-      {documents.length === 0 && <p className="text-sm text-muted">No documents linked yet.</p>}
+      {documents.length === 0 && <p className="text-sm text-muted"><Tx>No documents linked yet.</Tx></p>}
       {documents.length > 0 && (
         <ul className="space-y-1.5">
           {documents.map((d) => (
@@ -69,7 +70,7 @@ export function NcrDocuments({
                   }
                   className="min-h-11 px-2 text-xs text-danger hover:underline disabled:opacity-60"
                 >
-                  Remove
+                  <Tx>Remove</Tx>
                 </button>
               )}
             </li>
@@ -83,14 +84,14 @@ export function NcrDocuments({
       )}
       {!readOnly && !open && (
         <button type="button" onClick={() => setOpen(true)} className={btn + " text-muted hover:bg-off-white"}>
-          + Link document from vault
+          <Tx>+ Link document from vault</Tx>
         </button>
       )}
       {!readOnly && open && (
         <form action={action} className="space-y-2 rounded-md border border-border bg-off-white p-3">
           <input type="hidden" name="ncr_id" value={ncrId} />
           {available.length === 0 ? (
-            <p className="text-sm text-muted">No approved files in this project&apos;s Document Vault are available to link.</p>
+            <p className="text-sm text-muted"><Tx>No approved files in this project&apos;s Document Vault are available to link.</Tx></p>
           ) : (
             <VaultFilePicker documents={available} projectId={projectId} />
           )}
@@ -108,7 +109,7 @@ export function NcrDocuments({
               {pending ? "Linking..." : "Link selected files"}
             </button>
             <button type="button" onClick={() => setOpen(false)} className={btn}>
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </div>
         </form>

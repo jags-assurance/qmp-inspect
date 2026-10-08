@@ -5,6 +5,8 @@ import { useActionState, useState } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { resolvePunchItemAction, type ResolvePunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ResolvePunchItemState = { error: null };
 
@@ -15,6 +17,7 @@ const initialState: ResolvePunchItemState = { error: null };
  * is two steps now instead of one.
  */
 export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: string; punchItemId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(resolvePunchItemAction, initialState);
   const [expanded, setExpanded] = useState(false);
   const [evidence, setEvidence] = useState("");
@@ -36,7 +39,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
         onClick={() => setExpanded(true)}
         className="text-sm font-medium text-burgundy hover:underline"
       >
-        Mark resolved
+        <Tx>Mark resolved</Tx>
       </button>
     );
   }
@@ -51,11 +54,11 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
         rows={2}
         value={evidence}
         onChange={(e) => setEvidence(e.target.value)}
-        placeholder="What was done to fix it (reference photo/record)…"
+        placeholder={tl("What was done to fix it (reference photo/record)…")}
         className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
       />
       <label className="text-xs font-medium text-ink">
-        Photos of the fix (required)
+        <Tx>Photos of the fix (required)</Tx>
         <MarkupFileInput name="closing_photos"  accept="image/*" capture="environment" multiple required className="mt-1 w-full text-xs" />
       </label>
       {photoError && <p role="alert" className="text-xs text-danger">{photoError}</p>}
@@ -69,7 +72,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
           onClick={() => setExpanded(false)}
           className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white"
         >
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

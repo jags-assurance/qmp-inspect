@@ -10,6 +10,7 @@ import {
 import type { ParsedLibraryItemRow } from "@/lib/checklist-library/types";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
 
 const parseInitialState: ParseImportState = { error: null, rows: null };
 const commitInitialState: CommitImportState = { error: null, addedCount: 0 };
@@ -80,9 +81,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
             className="block w-full text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-off-white file:px-3 file:py-1.5 file:text-xs file:font-medium"
           />
           <p className="text-xs text-muted">
-            Upload an .xlsx with the same columns as the downloaded template (Item Number,
-            Description, Acceptance Criteria, Evidence Type, Mandatory). Nothing is saved until you
-            review the parsed rows and confirm.
+            <Tx>Upload an .xlsx with the same columns as the downloaded template (Item Number, Description, Acceptance Criteria, Evidence Type, Mandatory). Nothing is saved until you review the parsed rows and confirm.</Tx>
           </p>
           {parseState.error && <p role="alert" className="text-xs text-danger">{parseState.error}</p>}
           <Button type="submit" size="sm" disabled={parsePending}>
@@ -97,8 +96,8 @@ export function ImportPanel({ templateId }: { templateId: string }) {
           <input type="hidden" name="rows_json" value={JSON.stringify(rows)} readOnly />
 
           <p className="text-xs font-medium text-ink">
-            {rows.length} row{rows.length === 1 ? "" : "s"} parsed
-            {invalidCount > 0 && <span className="text-danger"> — {invalidCount} need attention before importing</span>}
+            {rows.length} <Tx>row</Tx>{rows.length === 1 ? "" : "s"} <Tx>parsed</Tx>
+            {invalidCount > 0 && <span className="text-danger"> — {invalidCount} <Tx>need attention before importing</Tx></span>}
           </p>
 
           <div className="max-h-96 space-y-2 overflow-y-auto">
@@ -152,17 +151,17 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                         onChange={(e) => updateRow(index, { is_mandatory: e.target.checked })}
                         className="h-3 w-3"
                       />
-                      Mandatory
+                      <Tx>Mandatory</Tx>
                     </label>
                     <button type="button" onClick={() => removeRow(index)} className="text-xs font-medium text-danger hover:underline">
-                      Remove
+                      <Tx>Remove</Tx>
                     </button>
                   </div>
                 </div>
                 {row.validationError && <p role="alert" className="mt-1 text-xs text-danger">{row.validationError}</p>}
               </div>
             ))}
-            {rows.length === 0 && <p className="text-xs text-muted">Every parsed row has been removed.</p>}
+            {rows.length === 0 && <p className="text-xs text-muted"><Tx>Every parsed row has been removed.</Tx></p>}
           </div>
 
           {commitState.error && <p role="alert" className="text-xs text-danger">{commitState.error}</p>}
@@ -171,7 +170,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
               {commitPending ? "Importing…" : `Import ${rows.length} item${rows.length === 1 ? "" : "s"}`}
             </Button>
             <button type="button" onClick={() => setRows(null)} className="text-xs text-muted hover:underline">
-              Discard and re-upload
+              <Tx>Discard and re-upload</Tx>
             </button>
           </div>
         </form>

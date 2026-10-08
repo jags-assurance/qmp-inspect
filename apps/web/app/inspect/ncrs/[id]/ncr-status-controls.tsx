@@ -5,6 +5,7 @@ import { returnNcrForReworkAction, setNcrStatusAction, type NcrStatusState, type
 import { RETURN_REASON_MIN } from "@/lib/ncrs/rules";
 import { NEXT_STATUS, NEXT_STATUS_LABEL } from "../ncr-shared";
 import type { NcrStatus } from "@/lib/ncrs/types";
+import { Tx } from "@/components/domain/tx";
 
 const statusInitial: NcrStatusState = { error: null };
 const returnInitial: ReturnNcrState = { error: null };
@@ -52,7 +53,7 @@ export function NcrStatusButton({
       >
         {pending ? "Working…" : NEXT_STATUS_LABEL[status]}
       </button>
-      {blocked && <p className="max-w-xs text-end text-xs text-muted">Save root cause, corrective and preventive action first.</p>}
+      {blocked && <p className="max-w-xs text-end text-xs text-muted"><Tx>Save root cause, corrective and preventive action first.</Tx></p>}
       {state.error && <p role="alert" className="max-w-xs text-end text-xs text-danger">{state.error}</p>}
     </form>
   );
@@ -73,7 +74,7 @@ export function ReturnForReworkForm({ ncrId, onDone }: { ncrId: string; onDone?:
     <form action={formAction} className="mt-4 space-y-2 border-t border-border pt-4">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <label htmlFor={`return_reason_${ncrId}`} className="block text-sm font-medium text-ink">
-        Return for rework
+        <Tx>Return for rework</Tx>
       </label>
       <textarea
         id={`return_reason_${ncrId}`}

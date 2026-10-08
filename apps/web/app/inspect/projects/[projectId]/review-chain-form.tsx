@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { setProjectReviewChainAction, type SetReviewChainState } from "@/lib/itps/review-chain-actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetReviewChainState = { error: null };
 
@@ -25,10 +26,9 @@ export function ReviewChainForm({
 
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">ITP review chain (optional)</h2>
+      <h2 className="text-sm font-semibold text-ink"><Tx>ITP review chain (optional)</Tx></h2>
       <p className="mt-1 text-xs text-muted">
-        Leave blank to keep today&apos;s behaviour (any JAGS staff can Approve). Set an ordered list and
-        each reviewer must approve, in order, before the ITP auto-approves.
+        <Tx>Leave blank to keep today&apos;s behaviour (any JAGS staff can Approve). Set an ordered list and each reviewer must approve, in order, before the ITP auto-approves.</Tx>
       </p>
       <input type="hidden" name="project_id" value={projectId} />
       <div className="mt-3 space-y-2">
@@ -39,7 +39,7 @@ export function ReviewChainForm({
             defaultValue={initialChain[i]?.reviewerUserId ?? ""}
             className="w-full rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
           >
-            <option value="">— Step {i + 1}: none —</option>
+            <option value=""><Tx>— Step</Tx> {i + 1}<Tx>: none —</Tx></option>
             {staff.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.full_name}

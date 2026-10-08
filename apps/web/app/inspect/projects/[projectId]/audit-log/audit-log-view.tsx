@@ -10,6 +10,8 @@ import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
 import { getLatestAuditTrailPdf } from "@/lib/reports/actions";
 import { AuditTrailPdfButton } from "./audit-trail-pdf-button";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface ProjectSummary {
   id: string;
@@ -54,13 +56,14 @@ export async function AuditLogView({
   filters?: { cat?: string; actor?: string; limit?: string };
   embedded?: boolean;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) {
     return (
       <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">
-        The audit log is an internal governance record and is only available to JAGS staff.{" "}
+        <T>The audit log is an internal governance record and is only available to JAGS staff.</T>{" "}
         <Link href={`/inspect/projects/${projectId}`} className="text-burgundy hover:underline">
-          Back to the project
+          <T>Back to the project</T>
         </Link>
       </div>
     );
@@ -136,7 +139,7 @@ export async function AuditLogView({
             <span className="ms-1 text-xs text-muted">({event.actor.email})</span>
           </span>
         ) : (
-          <span className="text-xs text-muted">System</span>
+          <span className="text-xs text-muted"><T>System</T></span>
         ),
     },
     {
@@ -162,14 +165,14 @@ export async function AuditLogView({
     <div>
       {!embedded && (
         <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
+          <T>← Back to Project</T>
         </Link>
       )}
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">Audit Log</Heading>
+          <Heading className="text-2xl font-semibold text-ink"><T>Audit Log</T></Heading>
           <PageGuide
-            title="Audit Log — how this works"
+            title={tl("Audit Log — how this works")}
             points={[
               "Staff-only — other logins see a short explanation instead of the log.",
               "A reverse-chronological list of every recorded create, edit, approval and status-change event on this project, 50 at a time (use Show more).",
@@ -184,17 +187,17 @@ export async function AuditLogView({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <DateRangeFilter />
           <p className="text-xs text-muted">
-            Showing {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
+            <T>Showing</T> {fromIso ? `events since ${new Date(fromIso).toLocaleDateString("en-GB")}` : "all recorded events"}
             {hasMore ? ` (first ${limit}; use Show more)` : ""}
           </p>
         </div>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-2 rounded-md border border-border bg-surface p-3">
           <p className="max-w-md text-xs text-muted">
-            Export this view{filters.cat || filters.actor ? " with the current filters" : ""}. The CSV contains every matching event, not just the rows shown; the PDF lists up to 5,000. Exports are recorded in this log.
+            <T>Export this view</T>{filters.cat || filters.actor ? " with the current filters" : ""}<T>. The CSV contains every matching event, not just the rows shown; the PDF lists up to 5,000. Exports are recorded in this log.</T>
           </p>
           <div className="flex flex-wrap items-start gap-2">
             <a href={csvHref} className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white">
-              Export CSV ↓
+              <T>Export CSV ↓</T>
             </a>
             <AuditTrailPdfButton projectId={projectId} range={range} cat={filters.cat} actor={filters.actor} latest={latestPdf} />
           </div>
@@ -202,23 +205,23 @@ export async function AuditLogView({
         {embedded ? (
           <p className="mt-2 text-xs text-muted">
             <Link href={`/inspect/projects/${projectId}/audit-log`} className="text-burgundy hover:underline">
-              Open the full page
+              <T>Open the full page</T>
             </Link>{" "}
-            to filter by category and person.
+            <T>to filter by category and person.</T>
           </p>
         ) : (
           <form method="get" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
             {range && <input type="hidden" name="range" value={range} />}
-            <select name="cat" defaultValue={filters.cat ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label="Category">
-              <option value="">All categories</option>
+            <select name="cat" defaultValue={filters.cat ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label={tl("Category")}>
+              <option value=""><T>All categories</T></option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {humanize(c)}
                 </option>
               ))}
             </select>
-            <select name="actor" defaultValue={filters.actor ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label="Person">
-              <option value="">Everyone</option>
+            <select name="actor" defaultValue={filters.actor ?? ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm" aria-label={tl("Person")}>
+              <option value=""><T>Everyone</T></option>
               {actors.map(([id, name]) => (
                 <option key={id} value={id}>
                   {name}
@@ -226,7 +229,7 @@ export async function AuditLogView({
               ))}
             </select>
             <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white">
-              Apply
+              <T>Apply</T>
             </button>
           </form>
         )}
@@ -234,7 +237,7 @@ export async function AuditLogView({
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-5">
         {events.length === 0 ? (
-          <p className="text-sm text-muted">No audit events match. Try clearing the filters.</p>
+          <p className="text-sm text-muted"><T>No audit events match. Try clearing the filters.</T></p>
         ) : (
           <ResponsiveTable
             columns={auditColumns}
@@ -253,7 +256,7 @@ export async function AuditLogView({
               href={`/inspect/projects/${projectId}/audit-log?${moreParams.toString()}`}
               className="rounded-md border border-border px-4 py-2 text-sm text-burgundy"
             >
-              Show more
+              <T>Show more</T>
             </Link>
           </div>
         )}

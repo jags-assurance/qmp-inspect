@@ -6,6 +6,8 @@ import { SidePanel } from "@/components/ui/side-panel";
 import { loadItpPreviewAction, type ItpPreview } from "@/lib/itps/preview-actions";
 import { AcceptItpForm } from "./itps/[id]/accept-itp-form";
 import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
  * Review an ITP and accept it without leaving the dashboard: the full activity list with acceptance
@@ -14,6 +16,7 @@ import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
  * shows under the button when someone else's login isn't allowed.
  */
 export function ItpReviewPanel({ itpId, onClose }: { itpId: string | null; onClose: () => void }) {
+  const tl = useTranslate();
   const [loaded, setLoaded] = useState<{ id: string; preview: ItpPreview | null } | null>(null);
 
   useEffect(() => {
@@ -40,9 +43,9 @@ export function ItpReviewPanel({ itpId, onClose }: { itpId: string | null; onClo
       guardUnsaved={false}
     >
       {!ready ? (
-        <p className="mt-6 text-sm text-muted">Loading…</p>
+        <p className="mt-6 text-sm text-muted"><Tx>Loading…</Tx></p>
       ) : !preview ? (
-        <p className="mt-6 text-sm text-danger">Couldn&rsquo;t load this ITP. Open it from the ITPs page instead.</p>
+        <p className="mt-6 text-sm text-danger"><Tx>Couldn&rsquo;t load this ITP. Open it from the ITPs page instead.</Tx></p>
       ) : (
         <div className="mt-4">
           <div className="space-y-4">
@@ -59,25 +62,25 @@ export function ItpReviewPanel({ itpId, onClose }: { itpId: string | null; onClo
                         {item.activity}
                       </p>
                       {item.acceptanceCriteria && (
-                        <p className="mt-0.5 text-xs text-muted">Acceptance: {item.acceptanceCriteria}</p>
+                        <p className="mt-0.5 text-xs text-muted"><Tx>Acceptance:</Tx> {item.acceptanceCriteria}</p>
                       )}
                     </li>
                   ))}
-                  {section.items.length === 0 && <li className="px-3 py-2 text-xs text-muted">No activities.</li>}
+                  {section.items.length === 0 && <li className="px-3 py-2 text-xs text-muted"><Tx>No activities.</Tx></li>}
                 </ul>
               </section>
             ))}
-            {preview.sections.length === 0 && <p className="text-sm text-muted">This ITP has no sections yet.</p>}
+            {preview.sections.length === 0 && <p className="text-sm text-muted"><Tx>This ITP has no sections yet.</Tx></p>}
           </div>
-          <section className="mt-6" aria-label="Checklist">
-            <h3 className="text-sm font-semibold text-ink">Checklist that goes with this ITP</h3>
+          <section className="mt-6" aria-label={tl("Checklist")}>
+            <h3 className="text-sm font-semibold text-ink"><Tx>Checklist that goes with this ITP</Tx></h3>
             <div className="mt-2">
               <ItpChecklistPreview items={preview.checklists} approved={preview.status === "approved" || preview.status === "client_accepted"} />
             </div>
           </section>
           <div className="sticky bottom-0 -mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-5 py-3 sm:-mx-6 sm:px-6">
             <Link href={`/inspect/itps/${itpId}`} className="text-sm text-burgundy hover:underline">
-              Open full ITP page →
+              <Tx>Open full ITP page →</Tx>
             </Link>
             <AcceptItpForm itpId={itpId!} requiresChecklistReview={preview.checklists.some((c) => c.hasChecklist)} />
           </div>

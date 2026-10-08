@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
 import { cn } from "@/lib/cn";
+import { Tx } from "@/components/domain/tx";
 
 interface Photo {
   id: string;
@@ -101,7 +102,7 @@ export function ItemPhotoUpload({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt={`Queued photo ${i + 1}`} className="h-full w-full object-cover opacity-70" />
               <span className="absolute inset-x-0 bottom-0 bg-warning/90 text-center text-xs font-medium leading-tight text-white">
-                Queued
+                <Tx>Queued</Tx>
               </span>
             </div>
           ))}

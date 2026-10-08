@@ -6,6 +6,7 @@ import { addNcrPhotoAction } from "@/lib/ncrs/actions";
 import { compressImageFile } from "@/lib/media/compress-image";
 import { HeicConversionError } from "@/lib/media/heic";
 import { usePhotoMarkup, useMarkupPreference } from "@/components/domain/photo-markup";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * The file itself goes straight from the browser to the "inspection-evidence" Storage bucket;
@@ -77,10 +78,10 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
 
   return (
     <div className="mt-4 border-t border-border pt-4">
-      <label className="block text-xs text-muted">Upload photo evidence</label>
+      <label className="block text-xs text-muted"><Tx>Upload photo evidence</Tx></label>
       <label className="mt-1 flex items-center gap-2 text-xs text-muted">
         <input type="checkbox" checked={markupFirst} onChange={(e) => setMarkupFirst(e.target.checked)} />
-        Mark up each photo before upload
+        <Tx>Mark up each photo before upload</Tx>
       </label>
       {markupDialog}
       <input
@@ -92,7 +93,7 @@ export function NcrPhotoUpload({ ncrId, projectId, onUploaded }: { ncrId: string
         onChange={handleFileChange}
         className="mt-1 block text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
       />
-      {uploading && <p className="mt-1 text-xs text-muted">Uploading…</p>}
+      {uploading && <p className="mt-1 text-xs text-muted"><Tx>Uploading…</Tx></p>}
       {error && <p role="alert" className="mt-1 text-sm text-danger">{error}</p>}
     </div>
   );

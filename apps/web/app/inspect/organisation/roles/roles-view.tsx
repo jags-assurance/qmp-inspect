@@ -8,6 +8,8 @@ import { RoleCard, type RoleCardData } from "./role-card";
 import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface RoleRow {
   id: string;
@@ -41,6 +43,7 @@ interface AssignmentRow {
  * roles — there is no cross-org picker for them, and the create form is pre-scoped to their org.
  */
 export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
+  const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -133,9 +136,9 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">Custom roles</Heading>
+        <Heading className="text-2xl font-semibold text-ink"><T>Custom roles</T></Heading>
         <PageGuide
-          title="Custom roles — how this works"
+          title={tl("Custom roles — how this works")}
           points={[
             "A role is a named bundle of specific permissions from a fixed set (e.g. \"add a project party\", \"approve an ITP\") — pick exactly which ones when you create it.",
             "Assigning a role to someone ADDS to their access — it never replaces what their staff role, team lead status, or party type already grants them.",
@@ -148,9 +151,7 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Grant a specific person a bundle of real permissions without promoting them to Admin or
-        inventing a new hardcoded role — additional to whatever access they already have via staff
-        role, team lead, or party type, never a replacement.
+        <T>Grant a specific person a bundle of real permissions without promoting them to Admin or inventing a new hardcoded role — additional to whatever access they already have via staff role, team lead, or party type, never a replacement.</T>
         {admin
           ? " A JAGS-global role can be assigned to any JAGS staff member; a role scoped to one client organisation can be assigned to that client's own users too."
           : " Roles you create here are scoped to your own organisation only — your own people, your own projects. Which permissions you can self-grant depends on your org's engagement tier (Self-Managed vs Full Client-Managed)."}
@@ -178,7 +179,7 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
             isClientManagedOrg={!!role.organizationId && clientManagedOrgIds.has(role.organizationId)}
           />
         ))}
-        {roleCards.length === 0 && <p className="text-sm text-muted">No custom roles yet — create the first one above.</p>}
+        {roleCards.length === 0 && <p className="text-sm text-muted"><T>No custom roles yet — create the first one above.</T></p>}
       </div>
     </div>
   );

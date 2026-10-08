@@ -43,6 +43,8 @@ import { NarrativeEditor } from "@/components/domain/narrative-editor";
 import { isAiEnabledForProject } from "@/lib/ai/gate";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -52,6 +54,7 @@ const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> 
 
 /** Read-only view of a completed inspection record — traceability header, every response, photo evidence, the inspector's signature, and IRN issuance/status. */
 export default async function InspectionRecordPage({ params }: { params: Promise<{ id: string }> }) {
+  const tl = await getTranslator();
   const { id } = await params;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -228,13 +231,13 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         href={`/inspect/checklists/${record.checklist_template_id}`}
         className="text-sm text-burgundy hover:underline"
       >
-        ← Back to Checklist
+        <T>← Back to Checklist</T>
       </Link>
       {/* Certificate-style header band — traceability info at a glance, echoing the IRN layout below. */}
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <div className="flex flex-wrap items-start justify-between gap-4 bg-burgundy px-5 py-4 text-white">
           <div>
-            <p className="text-xs uppercase tracking-wide text-white/70">Inspection Record</p>
+            <p className="text-xs uppercase tracking-wide text-white/70"><T>Inspection Record</T></p>
             <h1 className="doc-id text-2xl font-semibold">{record.record_number}</h1>
           </div>
           <div className="flex items-center gap-3">
@@ -242,7 +245,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               {(record.overall_result ?? "In progress").toString().toUpperCase()}
             </Badge>
             <PageGuide
-              title="Inspection record — how this works"
+              title={tl("Inspection record — how this works")}
               points={[
                 "Read-only record of one completed inspection — every checklist response, photo evidence, the inspector's signature and any linked NCR/IRN.",
                 "A fail or partial result surfaces a \"Raise NCR →\" link pre-filled with this project, ITP item and inspection record — the NCR raised is linked back to this record both ways.",
@@ -275,31 +278,31 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 text-sm sm:grid-cols-4">
           <div>
-            <p className="text-xs text-muted">Activity</p>
+            <p className="text-xs text-muted"><T>Activity</T></p>
             <p className="mt-0.5 text-ink">{record.activity}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">Project</p>
+            <p className="text-xs text-muted"><T>Project</T></p>
             <p className="mt-0.5 text-ink">{record.project_name}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">ITP</p>
+            <p className="text-xs text-muted"><T>ITP</T></p>
             <p className="doc-id mt-0.5 text-ink">{record.itp_number}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">Date</p>
+            <p className="text-xs text-muted"><T>Date</T></p>
             <p className="mt-0.5 text-ink">{record.inspection_date}</p>
           </div>
           {record.location && (
             <div>
-              <p className="text-xs text-muted">Location</p>
+              <p className="text-xs text-muted"><T>Location</T></p>
               <p className="mt-0.5 text-ink">
                 {formatLocationForDisplay(record.location)}
                 {mapsUrl(record.location) && (
                   <>
                     {" "}
                     <a href={mapsUrl(record.location)!} target="_blank" rel="noreferrer" className="text-xs text-burgundy hover:underline">
-                      Open in maps
+                      <T>Open in maps</T>
                     </a>
                   </>
                 )}
@@ -307,24 +310,24 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             </div>
           )}
           <div>
-            <p className="text-xs text-muted">Inspector</p>
+            <p className="text-xs text-muted"><T>Inspector</T></p>
             <p className="mt-0.5 text-ink">{record.users?.full_name ?? "—"}</p>
           </div>
           {record.client_name && (
             <div>
-              <p className="text-xs text-muted">Client</p>
+              <p className="text-xs text-muted"><T>Client</T></p>
               <p className="mt-0.5 text-ink">{record.client_name}</p>
             </div>
           )}
           {record.applicable_standard && (
             <div>
-              <p className="text-xs text-muted">Applicable standard</p>
+              <p className="text-xs text-muted"><T>Applicable standard</T></p>
               <p className="mt-0.5 text-ink">{record.applicable_standard}</p>
             </div>
           )}
           {record.governing_drawing_reference && (
             <div>
-              <p className="text-xs text-muted">Governing drawing</p>
+              <p className="text-xs text-muted"><T>Governing drawing</T></p>
               <p className="doc-id mt-0.5 text-ink">
                 {record.governing_drawing_reference}
                 {record.governing_drawing_revision ? ` (Rev ${record.governing_drawing_revision})` : ""}
@@ -338,7 +341,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               href={`/inspect/checklists/${record.checklist_template_id}`}
               className="text-sm font-medium text-burgundy hover:underline"
             >
-              View checklist →
+              <T>View checklist →</T>
             </Link>
           </div>
         )}
@@ -346,14 +349,14 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       {staleWarning && (
         <p className="mt-6 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-          <span className="font-medium">Checklist changed since this inspection started.</span> {staleWarning}
+          <span className="font-medium"><T>Checklist changed since this inspection started.</T></span> {staleWarning}
         </p>
       )}
 
       {reviewSupported && record.overall_result && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-medium text-ink">Review</h2>
+            <h2 className="text-sm font-medium text-ink"><T>Review</T></h2>
             <Badge tone={reviewBadge.tone}>{reviewBadge.label}</Badge>
           </div>
           {reviewStatus ? (
@@ -361,10 +364,10 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               {reviewStatus === "approved" ? "Approved" : "Rejected"}
               {reviewerName ? ` by ${reviewerName}` : ""}
               {extra?.reviewed_at ? ` on ${new Date(extra.reviewed_at).toLocaleString()}` : ""}
-              {extra?.review_comment ? <span className="block text-muted">Comment: {extra.review_comment}</span> : null}
+              {extra?.review_comment ? <span className="block text-muted"><T>Comment:</T> {extra.review_comment}</span> : null}
             </p>
           ) : (
-            <p className="mt-2 text-sm text-muted">No review has been recorded for this inspection.</p>
+            <p className="mt-2 text-sm text-muted"><T>No review has been recorded for this inspection.</T></p>
           )}
           {session.isJagsStaff &&
             (blocker ? (
@@ -389,7 +392,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       {(record.overall_result === "fail" || record.overall_result === "partial" || (linkedNcrs ?? []).length > 0) && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Non-conformance</h2>
+          <h2 className="text-sm font-medium text-ink"><T>Non-conformance</T></h2>
           {(linkedNcrs ?? []).length > 0 ? (
             <ul className="mt-2 space-y-1">
               {(linkedNcrs ?? []).map((ncr) => (
@@ -400,8 +403,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                   <Badge tone={ncr.status === "closed" ? "success" : "warning"}>{ncr.status.replace("_", " ")}</Badge>
                   {ncr.status === "closed" && (
                     <span className="ms-2 text-xs text-muted">
-                      Closed — re-inspect this activity to confirm the fix, then issue the IRN from
-                      a passing record.
+                      <T>Closed — re-inspect this activity to confirm the fix, then issue the IRN from a passing record.</T>
                     </span>
                   )}
                 </li>
@@ -410,9 +412,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           ) : (
             <>
               <p className="mt-1 text-sm text-muted">
-                This inspection {record.overall_result === "fail" ? "failed" : "partially passed"} —
-                raise an NCR against the specific activity so the corrective-action trail is linked
-                back to this record.
+                <T>This inspection</T> {record.overall_result === "fail" ? "failed" : "partially passed"} <T>— raise an NCR against the specific activity so the corrective-action trail is linked back to this record.</T>
               </p>
               <Link
                 href={`/inspect/ncrs/new?project_id=${record.project_id}&itp_item_id=${record.itp_item_id}&inspection_record_id=${record.id}&description=${encodeURIComponent(
@@ -420,7 +420,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 )}`}
                 className="mt-3 inline-block rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
               >
-                Raise NCR →
+                <T>Raise NCR →</T>
               </Link>
             </>
           )}
@@ -429,7 +429,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       <div className="mt-6 rounded-lg border border-border bg-surface">
         <div className="border-b border-border px-4 py-3">
-          <h2 className="font-medium text-ink">Responses</h2>
+          <h2 className="font-medium text-ink"><T>Responses</T></h2>
         </div>
         <ul className="divide-y divide-border">
           {sortedResponses.map((r) => (
@@ -443,7 +443,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                   <span className="font-medium text-ink">
                     {numericValues.get(r.checklist_item_id)}
                     {numericSpecs.get(r.checklist_item_id)?.unit ? ` ${numericSpecs.get(r.checklist_item_id)?.unit}` : ""}
-                    {numericSpecs.get(r.checklist_item_id) && <span className="font-normal text-muted"> (limit: {describeSpec(numericSpecs.get(r.checklist_item_id)!)})</span>}
+                    {numericSpecs.get(r.checklist_item_id) && <span className="font-normal text-muted"> <T>(limit:</T> {describeSpec(numericSpecs.get(r.checklist_item_id)!)})</span>}
                   </span>
                 )}
                 {r.comment && <span className="text-muted">{r.comment}</span>}
@@ -467,7 +467,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               )}
             </li>
           ))}
-          {sortedResponses.length === 0 && <li className="px-4 py-6 text-center text-muted">No responses recorded.</li>}
+          {sortedResponses.length === 0 && <li className="px-4 py-6 text-center text-muted"><T>No responses recorded.</T></li>}
         </ul>
       </div>
 
@@ -487,13 +487,13 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       {record.notes && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Notes</h2>
+          <h2 className="text-sm font-medium text-ink"><T>Notes</T></h2>
           <p className="mt-1 text-sm text-muted">{record.notes}</p>
         </div>
       )}
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink">Photo evidence</h2>
+        <h2 className="text-sm font-medium text-ink"><T>Photo evidence</T></h2>
         <div className="mt-3">
           <PhotoGallery photos={photosWithUrls} />
         </div>
@@ -501,7 +501,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       {record.inspector_signature && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Inspector signature</h2>
+          <h2 className="text-sm font-medium text-ink"><T>Inspector signature</T></h2>
           {/* Captured as a canvas data URL — see components/domain/signature-pad.tsx. */}
           <div className="mt-2 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3">
             <img src={record.inspector_signature} alt="Inspector signature" className="h-28 w-auto" />
@@ -514,7 +514,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <div className="mt-3 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3 sm:ms-4">
               <img src={record.witness_signature} alt="Witness signature" className="h-28 w-auto" />
               <div className="mt-1 w-64 border-t border-ink/30 pt-1 text-xs text-muted">
-                Witness: {record.witness_name ?? "—"}
+                <T>Witness:</T> {record.witness_name ?? "—"}
               </div>
             </div>
           )}
@@ -522,16 +522,16 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       )}
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink">Inspection Release Note</h2>
+        <h2 className="text-sm font-medium text-ink"><T>Inspection Release Note</T></h2>
         {irn ? (
           <div className="mt-2">
             <p className="text-sm text-ink">
-              <span className="doc-id">{irn.irn_number}</span> · Released {irn.release_date}{" "}
-              {irn.voided_at && <Badge tone="danger">VOID</Badge>}
+              <span className="doc-id">{irn.irn_number}</span> <T>· Released</T> {irn.release_date}{" "}
+              {irn.voided_at && <Badge tone="danger"><T>VOID</T></Badge>}
             </p>
             {irn.voided_at ? (
               <p className="mt-1 text-sm text-danger">
-                Voided {new Date(irn.voided_at).toLocaleDateString()}: {irn.void_reason}
+                <T>Voided</T> {new Date(irn.voided_at).toLocaleDateString()}: {irn.void_reason}
               </p>
             ) : (
               <>
@@ -545,24 +545,24 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         ) : record.overall_result === "pass" || record.overall_result === "partial" ? (
           <div className="mt-2">
             {voidedIrns.length > 0 && (
-              <p className="mb-2 text-sm text-muted">The previous IRN was voided; a replacement can be issued.</p>
+              <p className="mb-2 text-sm text-muted"><T>The previous IRN was voided; a replacement can be issued.</T></p>
             )}
             {canIssueIrn ? (
               <IssueIrnForm inspectionRecordId={record.id} />
             ) : (
-              <p className="text-sm text-muted">Only JAGS staff or the party assigned to execute this activity can issue its IRN.</p>
+              <p className="text-sm text-muted"><T>Only JAGS staff or the party assigned to execute this activity can issue its IRN.</T></p>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-sm text-muted">An IRN can only be issued once this inspection has passed (or conditionally passed).</p>
+          <p className="mt-2 text-sm text-muted"><T>An IRN can only be issued once this inspection has passed (or conditionally passed).</T></p>
         )}
         {voidedIrns.length > 0 && (
           <div className="mt-4 border-t border-border pt-3">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-muted">IRN history</h3>
+            <h3 className="text-xs font-medium uppercase tracking-wide text-muted"><T>IRN history</T></h3>
             <ul className="mt-2 space-y-1 text-sm">
               {voidedIrns.map((v) => (
                 <li key={v.id}>
-                  <span className="doc-id">{v.irn_number}</span> <Badge tone="danger">VOID</Badge>{" "}
+                  <span className="doc-id">{v.irn_number}</span> <Badge tone="danger"><T>VOID</T></Badge>{" "}
                   <span className="text-danger">
                     {v.voided_at ? new Date(v.voided_at).toLocaleDateString() : ""}: {v.void_reason}
                   </span>
@@ -581,8 +581,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       {responseHistory.length > 0 && (
         <details className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
-          <summary className="cursor-pointer font-medium text-burgundy">Answer changes ({responseHistory.length})</summary>
-          <p className="mt-2 text-xs text-muted">Earlier values of answers that were changed while this inspection was in progress, newest first.</p>
+          <summary className="cursor-pointer font-medium text-burgundy"><T>Answer changes (</T>{responseHistory.length})</summary>
+          <p className="mt-2 text-xs text-muted"><T>Earlier values of answers that were changed while this inspection was in progress, newest first.</T></p>
           <ul className="mt-2 divide-y divide-border">
             {[...historyByItem.entries()].map(([itemId, list]) => {
               const label = sortedResponses.find((r) => r.checklist_item_id === itemId)?.checklist_items;
@@ -594,9 +594,9 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                   <ul className="mt-1 space-y-0.5 text-xs text-muted">
                     {list.map((h) => (
                       <li key={h.id}>
-                        was <span className="font-medium text-ink">{(h.old_result ?? "").toUpperCase() || "-"}</span>
+                        <T>was</T> <span className="font-medium text-ink">{(h.old_result ?? "").toUpperCase() || "-"}</span>
                         {h.old_numeric_value ? ` (${h.old_numeric_value})` : ""}
-                        {h.old_comment ? `, "${h.old_comment}"` : ""} - changed {new Date(h.changed_at).toLocaleString("en-GB")}
+                        {h.old_comment ? `, "${h.old_comment}"` : ""} <T>- changed</T> {new Date(h.changed_at).toLocaleString("en-GB")}
                         {h.changed_by_name ? ` by ${h.changed_by_name}` : ""}
                       </li>
                     ))}
@@ -610,16 +610,16 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       {amendments.length > 0 && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink">Amendment history</h2>
+          <h2 className="text-sm font-medium text-ink"><T>Amendment history</T></h2>
           <ul className="mt-2 divide-y divide-border text-sm">
             {amendments.map((a) => (
               <li key={a.id} className="py-2">
                 <p className="text-ink">
-                  Re-opened {new Date(a.amended_at).toLocaleString()} by {a.users?.full_name ?? "JAGS staff"}
+                  <T>Re-opened</T> {new Date(a.amended_at).toLocaleString()} <T>by</T> {a.users?.full_name ?? "JAGS staff"}
                 </p>
-                <p className="text-muted">Reason: {a.reason}</p>
+                <p className="text-muted"><T>Reason:</T> {a.reason}</p>
                 <p className="text-xs text-muted">
-                  Previous result: {(a.previous_overall_result ?? "—").toUpperCase()}
+                  <T>Previous result:</T> {(a.previous_overall_result ?? "—").toUpperCase()}
                   {a.previous_signed_by_name ? ` · signed by ${a.previous_signed_by_name}` : ""}
                   {a.previous_signed_at ? ` on ${new Date(a.previous_signed_at).toLocaleString()}` : ""}
                   {a.previous_review_status ? ` · previous review: ${a.previous_review_status}` : ""}
@@ -641,7 +641,7 @@ function PreviousAnswers({ amendmentId, responses }: { amendmentId: string; resp
   if (responses.length === 0) return null;
   return (
     <details className="mt-2 text-xs">
-      <summary className="cursor-pointer font-medium text-burgundy">Previous answers ({responses.length})</summary>
+      <summary className="cursor-pointer font-medium text-burgundy"><T>Previous answers (</T>{responses.length})</summary>
       <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-off-white" aria-label={`Answers before re-open ${amendmentId}`}>
         {responses.map((r) => (
           <li key={r.checklist_item_id} className="px-3 py-2">

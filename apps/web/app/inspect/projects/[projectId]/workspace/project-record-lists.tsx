@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 /**
  * Compact in-workspace lists for the three registers that are global pages elsewhere (NCRs,
@@ -24,7 +26,7 @@ function ListShell({ title, hint, fullHref, fullLabel, children, empty }: { titl
         </Link>
       </div>
       {empty ? (
-        <p className="mt-3 rounded-md bg-off-white px-3 py-4 text-sm text-muted">Nothing here yet.</p>
+        <p className="mt-3 rounded-md bg-off-white px-3 py-4 text-sm text-muted"><T>Nothing here yet.</T></p>
       ) : (
         <ul className="mt-3 divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">{children}</ul>
       )}
@@ -72,7 +74,7 @@ export async function NcrsTabView({ projectId, observations = false }: { project
             <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">{r.description}</span>
             <span className="text-xs text-muted sm:shrink-0">
               <span className="capitalize">{r.status.replace(/_/g, " ")}</span>
-              {r.due_date && <> · due {new Date(r.due_date).toLocaleDateString("en-GB")}</>}
+              {r.due_date && <> <T>· due</T> {new Date(r.due_date).toLocaleDateString("en-GB")}</>}
             </span>
           </Link>
         </li>
@@ -82,6 +84,7 @@ export async function NcrsTabView({ projectId, observations = false }: { project
 }
 
 export async function ItpsTabView({ projectId }: { projectId: string }) {
+  const tl = await getTranslator();
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("itps")
@@ -93,7 +96,7 @@ export async function ItpsTabView({ projectId }: { projectId: string }) {
   const rows = data ?? [];
   return (
     <ListShell
-      title="ITPs"
+      title={tl("ITPs")}
       hint="Inspection & Test Plans on this project."
       fullHref={`/inspect/itps?project=${projectId}`}
       fullLabel="Open the ITP Register"

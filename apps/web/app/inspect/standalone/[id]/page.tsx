@@ -27,6 +27,8 @@ import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { isAiEnabledForProject } from "@/lib/ai/gate";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface AssignmentDetail {
   id: string;
@@ -66,6 +68,7 @@ export default async function StandaloneAssignmentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const tl = await getTranslator();
   const { id } = await params;
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -167,7 +170,7 @@ export default async function StandaloneAssignmentDetailPage({
     <div>
       <RealtimeRefresh table="standalone_assignments" filter={`id=eq.${id}`} />
       <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
-        ← Back to Standalone Assignments
+        <T>← Back to Standalone Assignments</T>
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -175,7 +178,7 @@ export default async function StandaloneAssignmentDetailPage({
             <h1 className="doc-id text-2xl font-semibold text-ink">{assignment.assignment_number}</h1>
             <Badge tone={TYPE_TONE[assignment.assignment_type]}>{TYPE_LABEL[assignment.assignment_type]}</Badge>
             <PageGuide
-              title="Standalone assignment — how this works"
+              title={tl("Standalone assignment — how this works")}
               points={[
                 "Executing this assignment — measurements, photos, punch items, signatures, finalizing, evidence linking — is JAGS-staff-only by default; a person specifically granted the run_standalone_assignment permission (Full Client-Managed tier only), or an active subcontractor/main-contractor party on a project a JAGS Admin has opted into contractor-run assignments, can do all of it themselves too.",
                 "A \"conditional pass\" finalize creates a real project-wide punch-list item (not just the assignment's own internal punch tab) — the assignment stays \"conditional_open\" until every linked punch item is closed and clearance is explicitly issued.",

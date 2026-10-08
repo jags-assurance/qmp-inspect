@@ -6,6 +6,8 @@ import { compileDataBookAction, type CompileDataBookState } from "@/lib/databook
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 import { formatUtcDate } from "@/lib/databook/db-errors";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CompileDataBookState = { error: null };
 
@@ -45,6 +47,7 @@ export function CompileDataBookForm({
   outstanding?: string[];
   openPunchItems: OpenPunchItemPreview[];
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(compileDataBookAction, initialState);
   const [useOverride, setUseOverride] = useState(false);
   const [reason, setReason] = useState("");
@@ -70,7 +73,7 @@ export function CompileDataBookForm({
       <input type="hidden" name="override" value={useOverride ? "true" : "false"} />
 
       {!isReady && !isAdmin && (
-        <p className="text-xs text-muted">Not all gates are met. Only a JAGS Admin can compile with an override (Conditional Handover).</p>
+        <p className="text-xs text-muted"><Tx>Not all gates are met. Only a JAGS Admin can compile with an override (Conditional Handover).</Tx></p>
       )}
       {!isReady && isAdmin && (
         <label className="flex items-center gap-2 text-xs text-ink">
@@ -80,7 +83,7 @@ export function CompileDataBookForm({
             onChange={(e) => setUseOverride(e.target.checked)}
             className="h-4 w-4 rounded border-border"
           />
-          Compile anyway (override — outstanding items remain)
+          <Tx>Compile anyway (override — outstanding items remain)</Tx>
         </label>
       )}
 
@@ -89,13 +92,13 @@ export function CompileDataBookForm({
           {openPunchItems.length > 0 && (
             <div className="rounded-md border border-warning/40 bg-warning/5 p-2">
               <p className="text-xs font-medium text-ink">
-                This Conditional Handover will list {openPunchItems.length} open item{openPunchItems.length === 1 ? "" : "s"}:
+                <Tx>This Conditional Handover will list</Tx> {openPunchItems.length} <Tx>open item</Tx>{openPunchItems.length === 1 ? "" : "s"}:
               </p>
               <ul className="mt-1 space-y-0.5 text-xs text-ink">
                 {openPunchItems.map((item) => (
                   <li key={item.id}>
                     • {item.description}
-                    {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.project_parties?.name ?? "unassigned"}, due{" "}
+                    {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.project_parties?.name ?? "unassigned"}<Tx>, due</Tx>{" "}
                     {item.due_date ? formatUtcDate(item.due_date) : "no date set"}
                   </li>
                 ))}
@@ -108,7 +111,7 @@ export function CompileDataBookForm({
             rows={2}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason for compiling with open items outstanding…"
+            placeholder={tl("Reason for compiling with open items outstanding…")}
             className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
           />
         </>
@@ -138,18 +141,18 @@ export function CompileDataBookForm({
         }}
       >
         <p>
-          Compiling locks Data Book <strong>{bookNumber}</strong> for review and issue. Only a JAGS Admin can take it back to draft.
+          <Tx>Compiling locks Data Book</Tx> <strong>{bookNumber}</strong> <Tx>for review and issue. Only a JAGS Admin can take it back to draft.</Tx>
         </p>
         {useOverride && outstanding.length > 0 && (
           <div className="rounded-md border border-warning/40 bg-warning/5 p-2">
-            <p className="text-xs font-medium">This Conditional Handover carries these outstanding items:</p>
+            <p className="text-xs font-medium"><Tx>This Conditional Handover carries these outstanding items:</Tx></p>
             <ul className="mt-1 list-disc ps-4 text-xs">
               {outstanding.slice(0, 12).map((o) => (
                 <li key={o}>{o}</li>
               ))}
-              {outstanding.length > 12 && <li>… and {outstanding.length - 12} more</li>}
+              {outstanding.length > 12 && <li><Tx>… and</Tx> {outstanding.length - 12} <Tx>more</Tx></li>}
             </ul>
-            {reason.trim() && <p className="mt-1 text-xs">Reason: {reason.trim()}</p>}
+            {reason.trim() && <p className="mt-1 text-xs"><Tx>Reason:</Tx> {reason.trim()}</p>}
           </div>
         )}
       </ConfirmTypeDialog>

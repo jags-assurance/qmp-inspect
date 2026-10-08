@@ -7,8 +7,11 @@ import { NewAssignmentForm } from "./new-assignment-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { PageGuide } from "@/components/domain/page-guide";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function NewStandaloneAssignmentPage() {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -62,12 +65,12 @@ export default async function NewStandaloneAssignmentPage() {
   return (
     <div className="max-w-2xl">
       <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
-        ← Back to Assignments
+        <T>← Back to Assignments</T>
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">New assignment</h1>
+        <h1 className="text-2xl font-semibold text-ink"><T>New assignment</T></h1>
         <PageGuide
-          title="New assignment — how this works"
+          title={tl("New assignment — how this works")}
           points={[
             "Only JAGS staff can reach this page by default — booking/running a standalone FAT, witness inspection, specific test or pre-shipment check is JAGS staff's job, same boundary as ITP creation — unless your organisation is Full Client-Managed and you hold the run_standalone_assignment custom permission, or you're an active subcontractor/main-contractor party on a project that's specifically opted into contractor-run assignments.",
             "The project list above only shows projects you're actually eligible to create one on — for a subcontractor/main-contractor login, that's just the projects with contractor-run assignments turned on.",
@@ -77,8 +80,7 @@ export default async function NewStandaloneAssignmentPage() {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Set up a one-off FAT, witness inspection, specific test or pre-shipment check. The
-        assignment number is generated automatically once you save.
+        <T>Set up a one-off FAT, witness inspection, specific test or pre-shipment check. The assignment number is generated automatically once you save.</T>
       </p>
       <NewAssignmentForm projects={projects ?? []} disciplines={disciplines ?? []} presetsByProject={presetsByProject} />
     </div>

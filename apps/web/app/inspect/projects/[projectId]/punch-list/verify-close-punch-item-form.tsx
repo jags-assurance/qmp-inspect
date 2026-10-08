@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { closePunchItemAction, type ClosePunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: ClosePunchItemState = { error: null };
 
@@ -13,6 +15,7 @@ const initialState: ClosePunchItemState = { error: null };
  * control to someone who'd only find out it's blocked after submitting.
  */
 export function VerifyClosePunchItemForm({ projectId, punchItemId }: { projectId: string; punchItemId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(closePunchItemAction, initialState);
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState("");
@@ -24,7 +27,7 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId }: { projectId
         onClick={() => setExpanded(true)}
         className="text-sm font-medium text-burgundy hover:underline"
       >
-        Verify &amp; close
+        <Tx>Verify &amp; close</Tx>
       </button>
     );
   }
@@ -39,7 +42,7 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId }: { projectId
         rows={2}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Verification notes (what you checked to confirm the fix)…"
+        placeholder={tl("Verification notes (what you checked to confirm the fix)…")}
         className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
       />
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
@@ -52,7 +55,7 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId }: { projectId
           onClick={() => setExpanded(false)}
           className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white"
         >
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

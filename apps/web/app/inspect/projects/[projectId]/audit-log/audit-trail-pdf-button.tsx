@@ -9,6 +9,7 @@ import {
   type AuditTrailPdfStatus,
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestAuditTrailPdfState = { error: null };
 
@@ -40,12 +41,12 @@ export function AuditTrailPdfButton({
       <div className="flex flex-wrap gap-2">
         {liveStatus?.status === "completed" && liveStatus.pdfUrl && (
           <a href={liveStatus.pdfUrl} target="_blank" rel="noreferrer" className={linkCls}>
-            View PDF →
+            <Tx>View PDF →</Tx>
           </a>
         )}
         {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
           <a href={liveStatus.downloadUrl} className={linkCls}>
-            Download PDF ↓
+            <Tx>Download PDF ↓</Tx>
           </a>
         )}
         <form action={formAction}>
@@ -59,11 +60,11 @@ export function AuditTrailPdfButton({
         </form>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-      {polling && <p className="text-xs text-muted">Rendering — the links will appear automatically when ready…</p>}
-      {timedOut && <p className="text-xs text-danger">Still rendering after a few minutes — reload this page to check whether it finished.</p>}
+      {polling && <p className="text-xs text-muted"><Tx>Rendering — the links will appear automatically when ready…</Tx></p>}
+      {timedOut && <p className="text-xs text-danger"><Tx>Still rendering after a few minutes — reload this page to check whether it finished.</Tx></p>}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && <p className="text-xs text-muted">{jobStatusText(liveStatus)}</p>}
       {liveStatus?.status === "completed" && !polling && (
-        <p className="text-xs text-muted">Your last PDF export is shown; regenerate to apply the current filters. PDFs list at most 5,000 events and say so if cut; the CSV has no limit.</p>
+        <p className="text-xs text-muted"><Tx>Your last PDF export is shown; regenerate to apply the current filters. PDFs list at most 5,000 events and say so if cut; the CSV has no limit.</Tx></p>
       )}
     </div>
   );

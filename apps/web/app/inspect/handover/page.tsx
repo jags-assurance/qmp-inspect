@@ -16,6 +16,7 @@ import { CertificatePdfButton } from "./certificate-pdf-button";
 import { getHandoverCertificatePdfInfo } from "@/lib/handover/certificate-pdf";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
+import { getTranslator } from "@/lib/i18n/server";
 
 interface HandoverRow {
   id: string;
@@ -73,6 +74,7 @@ const SIGNATURE_COLUMNS = "ack_has_signature, ack_evidence_path, ack_evidence_na
 // package_storage_path; a certificate with none is a pre-fix legacy row and gets a red warning
 // banner rather than silently reading "Not yet available" as if that were normal.
 export default async function HandoverPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; page?: string }> }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const isClient = !session.isJagsStaff && session.grants.some((g) => g.role === "client");
   const onBehalfAllowed = isAdminStaff(session);
@@ -166,7 +168,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-ink"><T>Handover Portal</T></h1>
         <PageGuide
-          title="Handover Portal — how this works"
+          title={tl("Handover Portal — how this works")}
           points={[
             "Each card is a certificate for a compiled Data Book that's been issued to your organisation — you only ever see certificates for your own org's projects.",
             "Acknowledging receipt is a client-side action: enter your name (and optionally company), sign in the signature box, optionally attach a supporting file (for example a signed acceptance letter), add any comments, and confirm — that timestamp becomes the formal record that you received the package.",
@@ -178,28 +180,28 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        Issued Data Books and handover certificates for the projects you have access to.
+        <T>Issued Data Books and handover certificates for the projects you have access to.</T>
       </p>
 
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
         <div>
           <label htmlFor="handover_status" className="block text-xs font-medium text-ink">
-            Status
+            <T>Status</T>
           </label>
           <select id="handover_status" name="status" defaultValue={statusFilter} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm">
-            <option value="all">All</option>
-            <option value="awaiting">Awaiting acknowledgement</option>
-            <option value="acknowledged">Acknowledged</option>
+            <option value="all"><T>All</T></option>
+            <option value="awaiting"><T>Awaiting acknowledgement</T></option>
+            <option value="acknowledged"><T>Acknowledged</T></option>
           </select>
         </div>
         <div>
           <label htmlFor="handover_q" className="block text-xs font-medium text-ink">
-            Certificate number
+            <T>Certificate number</T>
           </label>
           <input id="handover_q" name="q" defaultValue={q} className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm" />
         </div>
         <button type="submit" className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm hover:bg-off-white">
-          Filter
+          <T>Filter</T>
         </button>
       </form>
 
@@ -216,13 +218,13 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
             <div key={cert.id} className="overflow-hidden rounded-lg border border-border bg-surface">
               <div className="flex flex-wrap items-start justify-between gap-4 bg-burgundy px-5 py-4 text-white">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-white/70">Handover Certificate</p>
+                  <p className="text-xs uppercase tracking-wide text-white/70"><T>Handover Certificate</T></p>
                   <h2 className="doc-id text-xl font-semibold">{cert.certificate_number}</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  {cert.superseded_at && <Badge tone="neutral">Superseded</Badge>}
-                  {cert.rejected_at && <Badge tone="danger">Rejected</Badge>}
-                  {cert.is_conditional && <Badge tone="warning">Conditional</Badge>}
+                  {cert.superseded_at && <Badge tone="neutral"><T>Superseded</T></Badge>}
+                  {cert.rejected_at && <Badge tone="danger"><T>Rejected</T></Badge>}
+                  {cert.is_conditional && <Badge tone="warning"><T>Conditional</T></Badge>}
                   {!cert.rejected_at && (
                     <Badge tone={cert.acknowledged_at ? "success" : "warning"}>
                       {cert.acknowledged_at ? "Acknowledged" : "Awaiting acknowledgment"}
@@ -237,12 +239,12 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                 </p>
                 <p className="mt-1 text-sm text-muted">
                   {cert.data_books?.projects?.organizations?.name} · {cert.data_books?.projects?.name} (
-                  {cert.data_books?.projects?.project_number}) · Issued {formatUtcDate(cert.issued_date)}
+                  {cert.data_books?.projects?.project_number}<T>) · Issued</T> {formatUtcDate(cert.issued_date)}
                   {session.isJagsStaff && projectId && (
                     <>
                       {" · "}
                       <Link href={`/inspect/projects/${projectId}/data-book`} className="text-burgundy hover:underline">
-                        Open Data Book
+                        <T>Open Data Book</T>
                       </Link>
                     </>
                   )}
@@ -251,7 +253,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                 {cert.is_conditional && (
                   <div className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
                     <p className="font-medium">
-                      Conditional Handover — issued with open items outstanding.
+                      <T>Conditional Handover — issued with open items outstanding.</T>
                     </p>
                     {cert.conditional_reason && <p className="mt-1 text-xs">{cert.conditional_reason}</p>}
                     {openItems.length > 0 && (
@@ -259,12 +261,11 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                         {openItems.slice(0, OPEN_ITEMS_SHOWN).map((item) => (
                           <li key={item.id}>
                             • {item.description}
-                            {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.responsible_party_name ?? "unassigned"},
-                            agreed due {item.due_date ? formatUtcDate(item.due_date) : "no date set"}
+                            {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.responsible_party_name ?? "unassigned"}<T>, agreed due</T> {item.due_date ? formatUtcDate(item.due_date) : "no date set"}
                           </li>
                         ))}
                         {openItems.length > OPEN_ITEMS_SHOWN && (
-                          <li className="text-muted">… and {openItems.length - OPEN_ITEMS_SHOWN} more open items (listed in the certificate PDF).</li>
+                          <li className="text-muted"><T>… and</T> {openItems.length - OPEN_ITEMS_SHOWN} <T>more open items (listed in the certificate PDF).</T></li>
                         )}
                       </ul>
                     )}
@@ -274,14 +275,14 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                   {pdfInfo?.url ? (
                     <span className="inline-flex flex-wrap items-center gap-3">
                       <a href={pdfInfo.url} target="_blank" rel="noreferrer" className="font-medium text-burgundy hover:underline">
-                        Handover certificate (PDF) →
+                        <T>Handover certificate (PDF) →</T>
                       </a>
-                      {pdfInfo.createdAt && <span className="text-xs text-muted">as of {formatUtcDateTime(pdfInfo.createdAt)}</span>}
-                      {pdfStale && <span className="text-xs font-medium text-warning">predates the acknowledgement{pdfInfo.inFlight ? " — updating…" : ""}</span>}
+                      {pdfInfo.createdAt && <span className="text-xs text-muted"><T>as of</T> {formatUtcDateTime(pdfInfo.createdAt)}</span>}
+                      {pdfStale && <span className="text-xs font-medium text-warning"><T>predates the acknowledgement</T>{pdfInfo.inFlight ? " — updating…" : ""}</span>}
                       {session.isJagsStaff && !pdfInfo.inFlight && <CertificatePdfButton dataBookId={cert.data_book_id} label="Regenerate" />}
                     </span>
                   ) : pdfInfo?.inFlight ? (
-                    <span className="text-muted">Handover certificate PDF is being prepared…</span>
+                    <span className="text-muted"><T>Handover certificate PDF is being prepared…</T></span>
                   ) : session.isJagsStaff ? (
                     <CertificatePdfButton dataBookId={cert.data_book_id} />
                   ) : null}
@@ -290,33 +291,32 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                   <>
                     <p className="mt-2 text-sm">
                       <a href={packageLinks.get(cert.id)} className="font-medium text-burgundy hover:underline">
-                        Download handover package →
+                        <T>Download handover package →</T>
                       </a>
                     </p>
                     {cert.package_sha256 && (
-                      <p className="mt-1 break-all font-mono text-xs text-muted" title="SHA-256 fingerprint of the exact certified file — compare this to any copy you receive elsewhere to verify it's unmodified.">
-                        SHA-256: {cert.package_sha256}
+                      <p className="mt-1 break-all font-mono text-xs text-muted" title={tl("SHA-256 fingerprint of the exact certified file — compare this to any copy you receive elsewhere to verify it's unmodified.")}>
+                        <T>SHA-256:</T> {cert.package_sha256}
                       </p>
                     )}
                     {cert.rendered_book_sha256 && (
-                      <p className="mt-1 break-all font-mono text-xs text-muted" title="SHA-256 of the Data Book PDF rendered at issue time.">
-                        Data Book PDF SHA-256: {cert.rendered_book_sha256}
+                      <p className="mt-1 break-all font-mono text-xs text-muted" title={tl("SHA-256 of the Data Book PDF rendered at issue time.")}>
+                        <T>Data Book PDF SHA-256:</T> {cert.rendered_book_sha256}
                       </p>
                     )}
                     {cert.verification_token && (
                       <p className="mt-1 text-xs text-muted">
-                        Anyone can confirm this certificate is genuine at{" "}
+                        <T>Anyone can confirm this certificate is genuine at</T>{" "}
                         <Link href={`/verify/certificate/${cert.verification_token}`} className="text-burgundy hover:underline" target="_blank">
-                          its verification page
+                          <T>its verification page</T>
                         </Link>{" "}
-                        (the QR code on the certificate PDF opens the same page).
+                        <T>(the QR code on the certificate PDF opens the same page).</T>
                       </p>
                     )}
                   </>
                 ) : (
                   <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-                    ⚠ No package file is attached to this certificate. Contact JAGS Assurance to resolve
-                    before relying on this handover as complete.
+                    <T>⚠ No package file is attached to this certificate. Contact JAGS Assurance to resolve before relying on this handover as complete.</T>
                   </p>
                 )}
               </div>
@@ -325,15 +325,15 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                 {cert.acknowledged_at ? (
                   <div className="text-sm text-success">
                     <p>
-                      Acknowledged by {cert.received_by_name ?? "—"}
-                      {cert.received_by_company ? `, ${cert.received_by_company}` : ""} on {formatUtcDateTime(cert.acknowledged_at)}
+                      <T>Acknowledged by</T> {cert.received_by_name ?? "—"}
+                      {cert.received_by_company ? `, ${cert.received_by_company}` : ""} <T>on</T> {formatUtcDateTime(cert.acknowledged_at)}
                       {cert.acknowledged_by && ackNames.get(cert.acknowledged_by)
                         ? ` · recorded by ${ackNames.get(cert.acknowledged_by)}${cert.acknowledged_on_behalf ? " (JAGS staff, on behalf of the client)" : ""}`
                         : cert.acknowledged_on_behalf
                           ? " · recorded by JAGS staff on behalf of the client"
                           : ""}
                     </p>
-                    {cert.ack_comment && <p className="mt-1 text-xs text-ink">Comment: {cert.ack_comment}</p>}
+                    {cert.ack_comment && <p className="mt-1 text-xs text-ink"><T>Comment:</T> {cert.ack_comment}</p>}
                     {(cert.ack_has_signature || cert.ack_evidence_path) && (
                       <p className="mt-1 text-xs text-ink">
                         {cert.ack_has_signature ? "Signed on the signature pad (shown on the certificate PDF)." : ""}
@@ -341,22 +341,22 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                         {cert.ack_evidence_path &&
                           (pathToUrl.get(cert.ack_evidence_path) ? (
                             <>
-                              Supporting file:{" "}
+                              <T>Supporting file:</T>{" "}
                               <a href={pathToUrl.get(cert.ack_evidence_path)} className="text-burgundy hover:underline" target="_blank" rel="noopener noreferrer">
                                 {cert.ack_evidence_name ?? "download"}
                               </a>
                             </>
                           ) : (
-                            <>Supporting file attached{cert.ack_evidence_name ? `: ${cert.ack_evidence_name}` : ""}.</>
+                            <><T>Supporting file attached</T>{cert.ack_evidence_name ? `: ${cert.ack_evidence_name}` : ""}.</>
                           ))}
                       </p>
                     )}
                   </div>
                 ) : cert.rejected_at ? (
                   <div className="w-full text-sm">
-                    <p className="font-medium text-danger">Rejected by the client on {formatUtcDateTime(cert.rejected_at)}.</p>
-                    {cert.rejection_reason && <p className="mt-1 whitespace-pre-line text-xs text-ink">Reason: {cert.rejection_reason}</p>}
-                    <p className="mt-1 text-xs text-muted">JAGS will correct the package and issue a new revision, which supersedes this certificate.</p>
+                    <p className="font-medium text-danger"><T>Rejected by the client on</T> {formatUtcDateTime(cert.rejected_at)}.</p>
+                    {cert.rejection_reason && <p className="mt-1 whitespace-pre-line text-xs text-ink"><T>Reason:</T> {cert.rejection_reason}</p>}
+                    <p className="mt-1 text-xs text-muted"><T>JAGS will correct the package and issue a new revision, which supersedes this certificate.</T></p>
                     {onBehalfAllowed && !cert.superseded_at && (
                       <div className="mt-2">
                         <ReopenRejectionForm certificateId={cert.id} />
@@ -364,9 +364,9 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                     )}
                   </div>
                 ) : !packageLinks.has(cert.id) ? (
-                  <p className="text-sm text-muted">Acknowledgement is unavailable until a package file is attached to this certificate.</p>
+                  <p className="text-sm text-muted"><T>Acknowledgement is unavailable until a package file is attached to this certificate.</T></p>
                 ) : cert.superseded_at ? (
-                  <p className="text-sm text-muted">This certificate was superseded by a later revision.</p>
+                  <p className="text-sm text-muted"><T>This certificate was superseded by a later revision.</T></p>
                 ) : isClient || onBehalfAllowed ? (
                   <div className="flex w-full flex-wrap items-start gap-2">
                     <AcknowledgeForm
@@ -380,7 +380,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                     {isClient && <RejectForm certificateId={cert.id} certificateNumber={cert.certificate_number} />}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted">Awaiting client acknowledgement.</p>
+                  <p className="text-sm text-muted"><T>Awaiting client acknowledgement.</T></p>
                 )}
               </div>
             </div>
@@ -393,20 +393,20 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
       </div>
 
       {pageCount > 1 && (
-        <nav className="mt-6 flex items-center justify-between text-sm" aria-label="Pagination">
+        <nav className="mt-6 flex items-center justify-between text-sm" aria-label={tl("Pagination")}>
           {page > 1 ? (
             <Link href={baseParams({ page: String(page - 1) })} className="text-burgundy hover:underline">
-              ← Newer
+              <T>← Newer</T>
             </Link>
           ) : (
             <span />
           )}
           <span className="text-muted">
-            Page {page} of {pageCount} · {total} certificates
+            <T>Page</T> {page} <T>of</T> {pageCount} · {total} <T>certificates</T>
           </span>
           {page < pageCount ? (
             <Link href={baseParams({ page: String(page + 1) })} className="text-burgundy hover:underline">
-              Older →
+              <T>Older →</T>
             </Link>
           ) : (
             <span />

@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 import { FormField } from "@/components/ui/form-field";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddWelderQualificationEntryState = { error: null };
 const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
 
 export function AddWelderQualificationForm({ projectId }: { projectId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addWelderQualificationEntryAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const wasPending = useRef(false);
@@ -60,7 +62,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
 
       <div className="w-32">
         <FormField label="Process">
-          <input name="process" placeholder="e.g. GTAW" className={inputClass} />
+          <input name="process" placeholder={tl("e.g. GTAW")} className={inputClass} />
         </FormField>
       </div>
 

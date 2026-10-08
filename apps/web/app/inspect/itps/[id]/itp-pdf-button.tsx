@@ -5,6 +5,7 @@ import { useActionState, useEffect, type ReactNode } from "react";
 import { requestItpPdfAction, getLatestItpPdf, type RequestItpPdfState, type ItpPdfStatus } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestItpPdfState = { error: null };
 
@@ -58,13 +59,13 @@ export function ItpPdfButton({
             rel="noreferrer"
             className="rounded-md border border-border bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy/90"
           >
-            View PDF →
+            <Tx>View PDF →</Tx>
           </a>
         )}
         <DropdownMenu label="⋯ More" align="end">
           {isReady && liveStatus?.downloadUrl && (
             <DropdownMenuItem>
-              <a href={liveStatus.downloadUrl}>Download PDF ↓</a>
+              <a href={liveStatus.downloadUrl}><Tx>Download PDF ↓</Tx></a>
             </DropdownMenuItem>
           )}
           <DropdownMenuItem>
@@ -79,11 +80,10 @@ export function ItpPdfButton({
         </DropdownMenu>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-      {polling && <p className="text-xs text-muted">Rendering — check &ldquo;⋯ More&rdquo; in a moment for the finished PDF…</p>}
+      {polling && <p className="text-xs text-muted"><Tx>Rendering — check &ldquo;⋯ More&rdquo; in a moment for the finished PDF…</Tx></p>}
       {timedOut && (
         <p className="text-xs text-danger">
-          Still rendering after 2 minutes — the PDF worker may be slow or stuck. Try &ldquo;Regenerate PDF&rdquo; again shortly, or
-          reload this page to check whether it finished anyway.
+          <Tx>Still rendering after 2 minutes — the PDF worker may be slow or stuck. Try &ldquo;Regenerate PDF&rdquo; again shortly, or reload this page to check whether it finished anyway.</Tx>
         </p>
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (

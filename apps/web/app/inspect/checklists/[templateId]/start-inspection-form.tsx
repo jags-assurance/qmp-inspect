@@ -7,6 +7,8 @@ import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { evaluateGeofence, type SiteGeofence } from "@/lib/checklists/geofence";
 import { parseCoordinates } from "@/lib/checklists/location";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: StartInspectionState = { error: null };
 
@@ -32,6 +34,7 @@ export function StartInspectionForm({
   /** Project site point + radius for the soft geofence warning (S4-17); null when not configured. */
   siteGeofence?: SiteGeofence | null;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
   // One location at a time: either a live GPS reading (latitude/longitude only) or one of this
   // project's own locations. Choosing one replaces the other — they are never combined.
@@ -123,10 +126,10 @@ export function StartInspectionForm({
       <input type="hidden" name="location_accuracy" value={source === "gps" && accuracy != null ? String(accuracy) : ""} />
 
       <p className="block text-sm font-medium text-ink">
-        Location <span className="text-danger">*</span> <span className="font-normal text-muted">(required to start)</span>
+        <Tx>Location</Tx> <span className="text-danger">*</span> <span className="font-normal text-muted"><Tx>(required to start)</Tx></span>
       </p>
       <p className="mt-0.5 text-xs text-muted">
-        Use your live location, or pick one of this project&apos;s own locations. Choosing one replaces the other.
+        <Tx>Use your live location, or pick one of this project&apos;s own locations. Choosing one replaces the other.</Tx>
       </p>
 
       <div className="mt-2 flex max-w-xl flex-wrap items-center gap-2">
@@ -142,14 +145,14 @@ export function StartInspectionForm({
         </button>
         {locationPresets.length > 0 && (
           <select
-            aria-label="Project location"
+            aria-label={tl("Project location")}
             value={presetChoice}
             onChange={(e) => choosePreset(e.target.value)}
             className={`min-w-48 flex-1 rounded-md border px-3 py-2 text-sm outline-none focus:border-burgundy ${
               source === "preset" ? "border-burgundy bg-burgundy/5" : "border-border bg-off-white"
             }`}
           >
-            <option value="">— Project location —</option>
+            <option value=""><Tx>— Project location —</Tx></option>
             {locationPresets.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -160,7 +163,7 @@ export function StartInspectionForm({
       </div>
       {locationPresets.length === 0 && (
         <p className="mt-1 text-xs text-muted">
-          No project locations are set up yet — an admin can add them in the project&apos;s location settings.
+          <Tx>No project locations are set up yet — an admin can add them in the project&apos;s location settings.</Tx>
         </p>
       )}
 
@@ -169,16 +172,16 @@ export function StartInspectionForm({
           <span className="font-medium">{source === "gps" ? "Live location (latitude, longitude):" : "Project location:"}</span>
           <span className="doc-id">{value}</span>
           <button type="button" onClick={clearLocation} className="text-xs text-burgundy hover:underline">
-            Clear
+            <Tx>Clear</Tx>
           </button>
         </p>
       ) : (
-        <p className="mt-2 text-xs text-muted">No location selected.</p>
+        <p className="mt-2 text-xs text-muted"><Tx>No location selected.</Tx></p>
       )}
-      {source === "gps" && accuracy != null && <p className="mt-1 text-xs text-muted">Accuracy about {Math.round(accuracy)} m.</p>}
+      {source === "gps" && accuracy != null && <p className="mt-1 text-xs text-muted"><Tx>Accuracy about</Tx> {Math.round(accuracy)} m.</p>}
       {geofence?.warning && (
         <p className="mt-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs text-ink" role="status">
-          {geofence.warning} You can still start; this is recorded with the inspection.
+          {geofence.warning} <Tx>You can still start; this is recorded with the inspection.</Tx>
         </p>
       )}
       {locationError && <p role="alert" className="mt-1 text-xs text-danger">{locationError}</p>}
@@ -190,7 +193,7 @@ export function StartInspectionForm({
       {queueError && <p role="alert" className="mt-2 text-sm text-danger">{queueError}</p>}
       {queued && (
         <p role="status" className="mt-2 text-sm text-muted">
-          Saved on this device. The inspection will start automatically when you are back online; reload this page then to begin answering.
+          <Tx>Saved on this device. The inspection will start automatically when you are back online; reload this page then to begin answering.</Tx>
         </p>
       )}
     </form>

@@ -12,6 +12,7 @@ import {
 import { FormMessage } from "@/components/ui/form-message";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: DeactivationState = { error: null, message: null };
 
@@ -50,14 +51,13 @@ export function OffboardByEmailForm() {
   const [state, formAction, pending] = useActionState(accountLifecycleByEmailAction, initialState);
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink">Offboard or restore an account</h2>
+      <h2 className="text-sm font-semibold text-ink"><Tx>Offboard or restore an account</Tx></h2>
       <p className="mt-1 text-xs text-muted">
-        Works on any account by email — JAGS staff or an external party user. Deactivating signs the person out, stops
-        them signing in again and removes every access grant (recorded, so Reactivate restores them).
+        <Tx>Works on any account by email — JAGS staff or an external party user. Deactivating signs the person out, stops them signing in again and removes every access grant (recorded, so Reactivate restores them).</Tx>
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="text-xs font-medium text-ink">
-          Email
+          <Tx>Email</Tx>
           <input
             name="email"
             type="email"
@@ -69,7 +69,7 @@ export function OffboardByEmailForm() {
           {pending ? "Working…" : "Deactivate"}
         </Button>
         <Button type="submit" name="intent" value="reactivate" disabled={pending} variant="outline">
-          Reactivate
+          <Tx>Reactivate</Tx>
         </Button>
       </div>
       <FormMessage error={state.error} success={state.message} className="mt-3" />
@@ -86,13 +86,12 @@ export function BulkOffboardForm() {
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
       {dialog}
-      <h2 className="text-sm font-semibold text-ink">Bulk offboard or restore accounts</h2>
+      <h2 className="text-sm font-semibold text-ink"><Tx>Bulk offboard or restore accounts</Tx></h2>
       <p className="mt-1 text-xs text-muted">
-        Paste up to 50 email addresses (one per line, or separated by commas). Each account is handled on its own with the same
-        safeguards as above; the result for every address is listed below.
+        <Tx>Paste up to 50 email addresses (one per line, or separated by commas). Each account is handled on its own with the same safeguards as above; the result for every address is listed below.</Tx>
       </p>
       <label className="mt-3 block text-xs font-medium text-ink">
-        Emails
+        <Tx>Emails</Tx>
         <textarea
           name="emails"
           rows={4}
@@ -118,7 +117,7 @@ export function BulkOffboardForm() {
           {pending ? "Working…" : "Deactivate all"}
         </Button>
         <Button type="submit" name="intent" value="reactivate" disabled={pending} variant="outline">
-          Reactivate all
+          <Tx>Reactivate all</Tx>
         </Button>
       </div>
       <FormMessage error={state.error} success={null} className="mt-3" />

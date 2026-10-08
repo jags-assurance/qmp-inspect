@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setAllowClientExecutionAction, type SetAllowClientExecutionState } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: SetAllowClientExecutionState = { error: null };
 
@@ -25,9 +26,9 @@ export function AllowClientExecutionToggle({
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
           disabled={pending}
         />
-        Allow client-type parties to execute checklists on this project
+        <Tx>Allow client-type parties to execute checklists on this project</Tx>
       </label>
-      {pending && <span className="text-xs text-muted">Saving…</span>}
+      {pending && <span className="text-xs text-muted"><Tx>Saving…</Tx></span>}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>
   );

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { EXPIRING_KIND_LABEL, getExpiringRegisterItems } from "@/lib/registers/expiring";
 import { describeDays } from "@/lib/registers/status";
+import { T } from "@/components/domain/t";
 
 /**
  * S3-12: dashboard widget listing calibrations, welder qualifications and personnel certificates that have
@@ -16,9 +17,9 @@ export async function ExpiringClearancesCard({ withinDays = 30 }: { withinDays?:
   return (
     <div className="mt-6 rounded-lg border border-border bg-surface p-4" data-testid="expiring-clearances">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-medium text-ink">Expiring clearances</h2>
+        <h2 className="font-medium text-ink"><T>Expiring clearances</T></h2>
         <span className="text-xs text-muted">
-          {total} lapsed or lapsing within {withinDays} days
+          {total} <T>lapsed or lapsing within</T> {withinDays} <T>days</T>
         </span>
       </div>
       <ul className="mt-3 divide-y divide-border text-sm">
@@ -38,7 +39,7 @@ export async function ExpiringClearancesCard({ withinDays = 30 }: { withinDays?:
           </li>
         ))}
       </ul>
-      {total > items.length && <p className="mt-2 text-xs text-muted">and {total - items.length} more</p>}
+      {total > items.length && <p className="mt-2 text-xs text-muted"><T>and</T> {total - items.length} <T>more</T></p>}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { T } from "@/components/domain/t";
 export default function Loading() {
   return (
     <div aria-busy="true" role="status" aria-label="Loading">
@@ -11,7 +12,7 @@ export default function Loading() {
           <div key={i} className="h-12 animate-pulse border-b border-border bg-off-white/60" />
         ))}
       </div>
-      <span className="sr-only">Loading</span>
+      <span className="sr-only"><T>Loading</T></span>
     </div>
   );
 }

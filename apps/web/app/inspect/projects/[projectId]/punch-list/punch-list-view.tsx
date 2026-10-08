@@ -16,6 +16,8 @@ import { LoadMore } from "@/components/domain/load-more";
 import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { countPunchByStatus, listHitCap } from "@/lib/projects/open-counts";
+import { T } from "@/components/domain/t";
+import { getTranslator } from "@/lib/i18n/server";
 
 // Outstanding (open / resolved) items are always loaded — they block the Data Book and are the
 // working set. Only the CLOSED history is windowed ("Load more"), newest first.
@@ -39,6 +41,7 @@ export async function PunchListView({
   /** The page's current query string, so "Load more" keeps ?tab= etc. */
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
@@ -151,7 +154,7 @@ export async function PunchListView({
           <div className="flex flex-wrap items-center gap-2">
             <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Punch list" : `${project.project_number} — Punch List`}</Heading>
             <PageGuide
-              title="Punch List — how this works"
+              title={tl("Punch List — how this works")}
               points={[
                 "Outstanding items across every source (NCRs, observations, walkdowns, manually added) — open, resolved and closed, all in one list.",
                 "Two-step close, not a bare status flip: anyone with project access can mark an item Resolved (evidence of the fix required) — then a JAGS Admin, or someone specifically granted permission, independently verifies and closes it.",
@@ -161,29 +164,29 @@ export async function PunchListView({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {project.organizations?.name} · {project.name}. {openCount} open item{openCount === 1 ? "" : "s"}{" "}
-            outstanding before this project&apos;s Data Book can compile without an override.
+            {project.organizations?.name} · {project.name}. {openCount} <T>open item</T>{openCount === 1 ? "" : "s"}{" "}
+            <T>outstanding before this project&apos;s Data Book can compile without an override.</T>
           </p>
         </div>
         <Link
           href={`/inspect/projects/${projectId}/guide`}
           className="shrink-0 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-off-white"
         >
-          ? Project Guide
+          <T>? Project Guide</T>
         </Link>
       </div>
 
       {openCount > 0 ? (
         <div role="status" className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
-          <strong>Data Book blocked:</strong> {reallyOpenCount} open and {resolvedCount} resolved-but-unverified item
-          {openCount === 1 ? "" : "s"} must be closed (verified) before the Data Book can compile.{" "}
+          <strong><T>Data Book blocked:</T></strong> {reallyOpenCount} <T>open and</T> {resolvedCount} <T>resolved-but-unverified item</T>
+          {openCount === 1 ? "" : "s"} <T>must be closed (verified) before the Data Book can compile.</T>{" "}
           <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
-            Open Data Book
+            <T>Open Data Book</T>
           </Link>
         </div>
       ) : (
         <p role="status" className="mt-4 rounded-md border border-border bg-off-white px-3 py-2 text-sm text-muted">
-          No outstanding punch items - this no longer blocks the Data Book.
+          <T>No outstanding punch items - this no longer blocks the Data Book.</T>
         </p>
       )}
 

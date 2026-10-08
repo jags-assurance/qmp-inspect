@@ -5,11 +5,14 @@ import { addSignatureAction, type AddSignatureState } from "@/lib/standalone/act
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { FormField } from "@/components/ui/form-field";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: AddSignatureState = { error: null };
 
 /** Plain HTML5 canvas + pointer events — no signature-pad package needed for this. */
 export function SignaturePad({ assignmentId }: { assignmentId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addSignatureAction, initialState);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
@@ -106,7 +109,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
             <input
             name="role"
             required
-            placeholder="e.g. Client witness"
+            placeholder={tl("e.g. Client witness")}
             className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
@@ -123,7 +126,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
       </div>
 
       <div>
-        <label className="block text-xs text-muted">Signature</label>
+        <label className="block text-xs text-muted"><Tx>Signature</Tx></label>
         <canvas
           ref={canvasRef}
           width={400}
@@ -135,11 +138,11 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
           className="mt-1 w-full touch-none rounded-md border border-border bg-off-white"
         />
         <button type="button" onClick={handleClear} className="mt-1 text-xs text-muted hover:text-ink">
-          Clear
+          <Tx>Clear</Tx>
         </button>
       </div>
 
-      {queued && <p className="text-sm text-muted">Saved on this device — it will be sent when you&apos;re back online.</p>}
+      {queued && <p className="text-sm text-muted"><Tx>Saved on this device — it will be sent when you&apos;re back online.</Tx></p>}
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <button

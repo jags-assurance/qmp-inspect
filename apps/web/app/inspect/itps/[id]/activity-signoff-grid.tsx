@@ -7,6 +7,7 @@ import { ActivityChecklistToggle, type ActivityChecklist } from "./activity-chec
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { cn } from "@/lib/cn";
+import { T } from "@/components/domain/t";
 
 export interface PartySignoffCell {
   party: { id: string; name: string; user_id: string | null };
@@ -101,11 +102,11 @@ export function ActivitySignoffGrid({
   isIssued: boolean;
 }) {
   if (rows.length === 0) {
-    return <p className="px-3 py-6 text-center text-muted">No activities in this section yet.</p>;
+    return <p className="px-3 py-6 text-center text-muted"><T>No activities in this section yet.</T></p>;
   }
 
   if (parties.length === 0) {
-    return <p className="px-3 py-6 text-center text-muted">No project parties configured for this project yet.</p>;
+    return <p className="px-3 py-6 text-center text-muted"><T>No project parties configured for this project yet.</T></p>;
   }
 
   return (
@@ -113,7 +114,7 @@ export function ActivitySignoffGrid({
       <table className="w-full min-w-max border-collapse text-sm">
         <thead>
           <tr className="border-b border-border bg-off-white/60 text-start text-xs text-muted">
-            <th className="sticky start-0 z-10 min-w-[240px] bg-off-white/60 px-4 py-2 font-medium">Activity</th>
+            <th className="sticky start-0 z-10 min-w-[240px] bg-off-white/60 px-4 py-2 font-medium"><T>Activity</T></th>
             {parties.map((party) => (
               <th key={party.id} className="min-w-28 px-3 py-2 text-center font-medium">
                 <span className="block max-w-32 truncate" title={party.name}>
@@ -166,9 +167,9 @@ export function ActivitySignoffGrid({
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
                   {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}
-                  {row.plannedDate && <Badge tone="neutral">Planned: {row.plannedDate}</Badge>}
+                  {row.plannedDate && <Badge tone="neutral"><T>Planned:</T> {row.plannedDate}</Badge>}
                   {row.noticeHoursOverride != null && (
-                    <Badge tone="neutral">Notice: {row.noticeHoursOverride}h</Badge>
+                    <Badge tone="neutral"><T>Notice:</T> {row.noticeHoursOverride}<T>h</T></Badge>
                   )}
                 </div>
               </td>

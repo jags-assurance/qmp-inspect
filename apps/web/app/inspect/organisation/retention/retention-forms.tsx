@@ -5,6 +5,7 @@ import { reviewRetentionFlagAction, saveRetentionSettingsAction, type RetentionS
 import { MAX_RETENTION_YEARS, MIN_RETENTION_YEARS } from "@/lib/retention/logic";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: RetentionState = { error: null };
 
@@ -23,11 +24,11 @@ export function RetentionSettingsForm({
       <input type="hidden" name="organization_id" value={organizationId} />
       <label className="flex items-center gap-2 text-sm text-ink">
         <input type="checkbox" name="enabled" defaultChecked={enabled} className="h-4 w-4" />
-        Flag documents that are past the retention period
+        <Tx>Flag documents that are past the retention period</Tx>
       </label>
       <div>
         <label htmlFor={`retention_years_${organizationId}`} className="block text-xs font-medium text-ink">
-          Retention period (years)
+          <Tx>Retention period (years)</Tx>
         </label>
         <input
           id={`retention_years_${organizationId}`}
@@ -43,8 +44,7 @@ export function RetentionSettingsForm({
         />
       </div>
       <p className="text-xs text-muted">
-        The clock starts when a document was approved (or uploaded, if it never was). Once a day the system flags every document past the period for a human
-        decision. <strong>It never deletes, hides or changes a document.</strong>
+        <Tx>The clock starts when a document was approved (or uploaded, if it never was). Once a day the system flags every document past the period for a human decision.</Tx> <strong><Tx>It never deletes, hides or changes a document.</Tx></strong>
       </p>
       <FormMessage error={state.error} success={state.success} />
       <Button type="submit" disabled={pending}>
@@ -62,7 +62,7 @@ export function ReviewFlagForm({ documentId }: { documentId: string }) {
       <input type="hidden" name="document_id" value={documentId} />
       <div>
         <label htmlFor={`outcome_${documentId}`} className="block text-xs font-medium text-ink">
-          Decision
+          <Tx>Decision</Tx>
         </label>
         <select
           id={`outcome_${documentId}`}
@@ -71,13 +71,13 @@ export function ReviewFlagForm({ documentId }: { documentId: string }) {
           onChange={(e) => setOutcome(e.target.value as "keep" | "dispose_approved")}
           className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm"
         >
-          <option value="keep">Keep</option>
-          <option value="dispose_approved">Approve disposal</option>
+          <option value="keep"><Tx>Keep</Tx></option>
+          <option value="dispose_approved"><Tx>Approve disposal</Tx></option>
         </select>
       </div>
       <div className="min-w-48 flex-1">
         <label htmlFor={`note_${documentId}`} className="block text-xs font-medium text-ink">
-          Note{outcome === "dispose_approved" ? " (required: who approved, and why)" : " (optional)"}
+          <Tx>Note</Tx>{outcome === "dispose_approved" ? " (required: who approved, and why)" : " (optional)"}
         </label>
         <input
           id={`note_${documentId}`}

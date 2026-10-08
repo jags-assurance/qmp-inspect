@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { Tx } from "@/components/domain/tx";
 
 /**
  * "I have reviewed the checklist" confirmation shown next to Approve / Accept. The submit button
@@ -19,7 +20,7 @@ export function ChecklistReviewAck({ checked, onChange }: { checked: boolean; on
         onChange={(e) => onChange(e.target.checked)}
         className="mt-1 h-4 w-4"
       />
-      <span>I have reviewed the checklist that goes with this ITP.</span>
+      <span><Tx>I have reviewed the checklist that goes with this ITP.</Tx></span>
     </label>
   );
 }

@@ -6,6 +6,7 @@ import {
   reactivateAllProjectPartiesAction,
   type BulkProjectPartiesState,
 } from "@/lib/projects/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: BulkProjectPartiesState = { error: null };
 
@@ -41,7 +42,7 @@ export function DeactivateAllPartiesControl({
           <form action={deactivateAction} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="project_id" value={projectId} />
             <span className="text-sm font-medium text-danger">
-              Deactivate every currently-active party&apos;s access on this project?
+              <Tx>Deactivate every currently-active party&apos;s access on this project?</Tx>
             </span>
             <button
               type="submit"
@@ -55,7 +56,7 @@ export function DeactivateAllPartiesControl({
               onClick={() => setConfirmingDeactivate(false)}
               className="text-sm text-muted hover:underline"
             >
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </form>
         ) : (
@@ -64,14 +65,14 @@ export function DeactivateAllPartiesControl({
             onClick={() => setConfirmingDeactivate(true)}
             className="w-fit rounded-md border border-danger px-3 py-1.5 text-sm text-danger hover:bg-danger/5"
           >
-            Deactivate all project access
+            <Tx>Deactivate all project access</Tx>
           </button>
         )
       ) : (
         confirmingReactivate ? (
           <form action={reactivateAction} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="project_id" value={projectId} />
-            <span className="text-sm font-medium text-ink">Reactivate every party on this project?</span>
+            <span className="text-sm font-medium text-ink"><Tx>Reactivate every party on this project?</Tx></span>
             <button
               type="submit"
               disabled={reactivatePending}
@@ -84,7 +85,7 @@ export function DeactivateAllPartiesControl({
               onClick={() => setConfirmingReactivate(false)}
               className="text-sm text-muted hover:underline"
             >
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </form>
         ) : (
@@ -93,7 +94,7 @@ export function DeactivateAllPartiesControl({
             onClick={() => setConfirmingReactivate(true)}
             className="w-fit rounded-md border border-burgundy px-3 py-1.5 text-sm text-burgundy hover:bg-burgundy/5"
           >
-            Reactivate all project access
+            <Tx>Reactivate all project access</Tx>
           </button>
         )
       )}

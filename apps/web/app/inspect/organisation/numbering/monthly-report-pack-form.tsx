@@ -16,6 +16,7 @@ import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: GenerateMonthlyReportPackState = { error: null };
 const summaryInitialState: GenerateReportSummaryState = { error: null, summary: null };
@@ -76,16 +77,16 @@ export function MonthlyReportPackForm({
         pack.status === "completed" && pack.pdfUrl ? (
           <span className="flex flex-wrap gap-3">
             <a href={pack.pdfUrl} target="_blank" rel="noreferrer" className="text-burgundy underline">
-              View PDF
+              <Tx>View PDF</Tx>
             </a>
             {pack.pdfDownloadUrl && (
               <a href={pack.pdfDownloadUrl} className="text-burgundy underline">
-                Download PDF
+                <Tx>Download PDF</Tx>
               </a>
             )}
             {pack.xlsxDownloadUrl && (
               <a href={pack.xlsxDownloadUrl} className="text-burgundy underline">
-                Download Excel
+                <Tx>Download Excel</Tx>
               </a>
             )}
           </span>
@@ -156,7 +157,7 @@ export function MonthlyReportPackForm({
         )}
 
         {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
-        {polling && <p className="w-full text-sm text-muted">{renderingLabel(inFlightPack)} — the table below updates automatically when ready…</p>}
+        {polling && <p className="w-full text-sm text-muted">{renderingLabel(inFlightPack)} <Tx>— the table below updates automatically when ready…</Tx></p>}
       </form>
 
       {aiConfigured && (
@@ -165,7 +166,7 @@ export function MonthlyReportPackForm({
           {summaryState.summary && (
             <div className="mt-3 rounded-md border border-border bg-off-white p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                AI executive summary — {MONTH_NAMES[month - 1]} {year} (display only, not embedded in the PDF)
+                <Tx>AI executive summary —</Tx> {MONTH_NAMES[month - 1]} {year} <Tx>(display only, not embedded in the PDF)</Tx>
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{summaryState.summary}</p>
             </div>
@@ -173,9 +174,9 @@ export function MonthlyReportPackForm({
         </>
       )}
 
-      <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted">Generated report packs</h3>
+      <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Generated report packs</Tx></h3>
       {reportPacks.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">No report packs generated yet for this organisation.</p>
+        <p className="mt-2 text-sm text-muted"><Tx>No report packs generated yet for this organisation.</Tx></p>
       ) : (
         <div className="mt-2">
           <ResponsiveTable

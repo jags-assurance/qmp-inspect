@@ -7,6 +7,8 @@ import {
   type AddLocationPresetState,
   type RemoveLocationPresetState,
 } from "@/lib/checklists/location-presets-actions";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialAddState: AddLocationPresetState = { error: null };
 const initialRemoveState: RemoveLocationPresetState = { error: null };
@@ -27,15 +29,14 @@ export function LocationPresetsSettings({
   projectId: string;
   presets: { id: string; name: string }[];
 }) {
+  const tl = useTranslate();
   const [addState, addAction, addPending] = useActionState(addLocationPresetAction, initialAddState);
 
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
-      <h2 className="font-medium text-ink">Preset inspection locations</h2>
+      <h2 className="font-medium text-ink"><Tx>Preset inspection locations</Tx></h2>
       <p className="mt-1 text-sm text-muted">
-        Named site zones/blocks inspectors can pick from a dropdown on the &quot;Start inspection&quot;
-        form, instead of retyping the same location every time. The free-text field always stays
-        available alongside this list.
+        <Tx>Named site zones/blocks inspectors can pick from a dropdown on the &quot;Start inspection&quot; form, instead of retyping the same location every time. The free-text field always stays available alongside this list.</Tx>
       </p>
 
       {presets.length > 0 && (
@@ -51,7 +52,7 @@ export function LocationPresetsSettings({
         <input type="hidden" name="project_id" value={projectId} />
         <input
           name="name"
-          placeholder="e.g. Block C, Level 2"
+          placeholder={tl("e.g. Block C, Level 2")}
           required
           className="w-full sm:min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
         />

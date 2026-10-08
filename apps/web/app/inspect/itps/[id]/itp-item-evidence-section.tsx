@@ -14,6 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 import type { VaultDocumentOption } from "./expected-record-form";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: EvidenceActionState = { error: null };
 
@@ -34,18 +36,18 @@ export function ItpItemMeasurementsSection({
 }) {
   return (
     <div className="border-t border-border px-3 py-3">
-      <h4 className="text-xs font-medium text-muted">Measurements</h4>
+      <h4 className="text-xs font-medium text-muted"><Tx>Measurements</Tx></h4>
       {measurements.length > 0 ? (
         <div className="overflow-x-auto">
         <table className="mt-2 w-full text-xs">
           <thead>
             <tr className="text-start text-muted">
-              <th className="pb-1 pe-2 font-medium">Description</th>
-              <th className="pb-1 pe-2 font-medium">Nominal</th>
-              <th className="pb-1 pe-2 font-medium">Tolerance</th>
-              <th className="pb-1 pe-2 font-medium">Actual</th>
-              <th className="pb-1 pe-2 font-medium">Unit</th>
-              <th className="pb-1 pe-2 font-medium">Result</th>
+              <th className="pb-1 pe-2 font-medium"><Tx>Description</Tx></th>
+              <th className="pb-1 pe-2 font-medium"><Tx>Nominal</Tx></th>
+              <th className="pb-1 pe-2 font-medium"><Tx>Tolerance</Tx></th>
+              <th className="pb-1 pe-2 font-medium"><Tx>Actual</Tx></th>
+              <th className="pb-1 pe-2 font-medium"><Tx>Unit</Tx></th>
+              <th className="pb-1 pe-2 font-medium"><Tx>Result</Tx></th>
               {canRecord && <th className="pb-1" />}
             </tr>
           </thead>
@@ -57,7 +59,7 @@ export function ItpItemMeasurementsSection({
         </table>
         </div>
       ) : (
-        <p className="mt-1.5 text-xs text-muted">No measurements recorded yet.</p>
+        <p className="mt-1.5 text-xs text-muted"><Tx>No measurements recorded yet.</Tx></p>
       )}
       {canRecord && <AddMeasurementForm itpItemId={itpItemId} />}
     </div>
@@ -73,6 +75,7 @@ function MeasurementRow({
   measurement: ItpItemMeasurementRow;
   canDelete: boolean;
 }) {
+  const tl = useTranslate();
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState(updateItpItemMeasurementAction, initialState);
 
@@ -87,39 +90,39 @@ function MeasurementRow({
               name="description"
               required
               defaultValue={measurement.description}
-              placeholder="What's being measured"
+              placeholder={tl("What's being measured")}
               className="min-w-[8rem] flex-1 rounded border border-border bg-surface px-2 py-1"
             />
             <input
               name="nominal_value"
               defaultValue={measurement.nominal_value ?? ""}
-              placeholder="Nominal e.g. 12.0"
+              placeholder={tl("Nominal e.g. 12.0")}
               className="w-24 rounded border border-border bg-surface px-2 py-1"
             />
             <input
               name="tolerance"
               defaultValue={measurement.tolerance ?? ""}
-              placeholder="Tolerance e.g. ±0.5"
+              placeholder={tl("Tolerance e.g. ±0.5")}
               className="w-24 rounded border border-border bg-surface px-2 py-1"
             />
             <input
               name="actual_value"
               defaultValue={measurement.actual_value ?? ""}
-              placeholder="Actual e.g. 11.8"
+              placeholder={tl("Actual e.g. 11.8")}
               className="w-24 rounded border border-border bg-surface px-2 py-1"
             />
-            <input name="unit" defaultValue={measurement.unit ?? ""} placeholder="mm" className="w-14 rounded border border-border bg-surface px-2 py-1" />
+            <input name="unit" defaultValue={measurement.unit ?? ""} placeholder={tl("mm")} className="w-14 rounded border border-border bg-surface px-2 py-1" />
             <select name="result" defaultValue={measurement.result ?? ""} className="rounded border border-border bg-surface px-2 py-1">
-              <option value="">No result yet</option>
-              <option value="pass">Pass</option>
-              <option value="fail">Fail</option>
+              <option value=""><Tx>No result yet</Tx></option>
+              <option value="pass"><Tx>Pass</Tx></option>
+              <option value="fail"><Tx>Fail</Tx></option>
             </select>
             {state.error && <p role="alert" className="w-full text-danger">{state.error}</p>}
             <Button type="submit" size="sm" disabled={pending}>
               {pending ? "Saving…" : "Save"}
             </Button>
             <button type="button" onClick={() => setEditing(false)} className="text-muted hover:underline">
-              Cancel
+              <Tx>Cancel</Tx>
             </button>
           </form>
         </td>
@@ -150,13 +153,13 @@ function MeasurementRow({
       {canDelete && (
         <td className="py-1 text-end whitespace-nowrap">
           <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
-            Edit
+            <Tx>Edit</Tx>
           </button>
           <form action={deleteItpItemMeasurementAction} className="inline">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
             <button type="submit" className="ms-2 text-xs text-danger hover:underline">
-              Remove
+              <Tx>Remove</Tx>
             </button>
           </form>
         </td>
@@ -166,13 +169,14 @@ function MeasurementRow({
 }
 
 function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addItpItemMeasurementAction, initialState);
   const [open, setOpen] = useState(false);
 
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="mt-2 text-xs font-medium text-burgundy hover:underline">
-        + Record measurement
+        <Tx>+ Record measurement</Tx>
       </button>
     );
   }
@@ -183,19 +187,19 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
       <input
         name="description"
         required
-        placeholder="What's being measured"
+        placeholder={tl("What's being measured")}
         className="w-full rounded border border-border bg-surface px-2 py-1"
       />
       <div className="flex gap-1.5">
-        <input name="nominal_value" placeholder="Nominal e.g. 12.0" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="tolerance" placeholder="Tolerance e.g. ±0.5" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="actual_value" placeholder="Actual e.g. 11.8" className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="unit" placeholder="mm" className="w-16 rounded border border-border bg-surface px-2 py-1" />
+        <input name="nominal_value" placeholder={tl("Nominal e.g. 12.0")} className="flex-1 rounded border border-border bg-surface px-2 py-1" />
+        <input name="tolerance" placeholder={tl("Tolerance e.g. ±0.5")} className="flex-1 rounded border border-border bg-surface px-2 py-1" />
+        <input name="actual_value" placeholder={tl("Actual e.g. 11.8")} className="flex-1 rounded border border-border bg-surface px-2 py-1" />
+        <input name="unit" placeholder={tl("mm")} className="w-16 rounded border border-border bg-surface px-2 py-1" />
       </div>
       <select name="result" defaultValue="" className="rounded border border-border bg-surface px-2 py-1">
-        <option value="">No result yet</option>
-        <option value="pass">Pass</option>
-        <option value="fail">Fail</option>
+        <option value=""><Tx>No result yet</Tx></option>
+        <option value="pass"><Tx>Pass</Tx></option>
+        <option value="fail"><Tx>Fail</Tx></option>
       </select>
       {state.error && <p role="alert" className="text-danger">{state.error}</p>}
       <div className="flex gap-2">
@@ -203,7 +207,7 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
           {pending ? "Adding…" : "Add"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>
@@ -249,7 +253,7 @@ export function ItpItemEvidenceDocumentsSection({
 
   return (
     <div className="border-t border-border px-3 py-3">
-      <h4 className="text-xs font-medium text-muted">Evidence documents</h4>
+      <h4 className="text-xs font-medium text-muted"><Tx>Evidence documents</Tx></h4>
       <ul className="mt-2 space-y-1.5">
         {documents.map((doc) => {
           const badge = doc.status ? STATUS_BADGE[doc.status] : undefined;
@@ -265,14 +269,14 @@ export function ItpItemEvidenceDocumentsSection({
                   <input type="hidden" name="itp_item_id" value={itpItemId} />
                   <input type="hidden" name="link_id" value={doc.id} />
                   <button type="submit" className="text-danger hover:underline">
-                    Unlink
+                    <Tx>Unlink</Tx>
                   </button>
                 </form>
               )}
             </li>
           );
         })}
-        {documents.length === 0 && <li className="text-xs text-muted">No evidence document linked yet.</li>}
+        {documents.length === 0 && <li className="text-xs text-muted"><Tx>No evidence document linked yet.</Tx></li>}
       </ul>
       {canLink && (
         <LinkDocumentForm
@@ -316,7 +320,7 @@ function LinkDocumentForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="mt-2 text-xs font-medium text-burgundy hover:underline">
-        + Link evidence document
+        <Tx>+ Link evidence document</Tx>
       </button>
     );
   }
@@ -331,7 +335,7 @@ function LinkDocumentForm({
           {pending ? "Linking…" : "Link selected files"}
         </Button>
         <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
-          Cancel
+          <Tx>Cancel</Tx>
         </button>
       </div>
     </form>

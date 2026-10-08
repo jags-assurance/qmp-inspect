@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { checkChecklistConsistencyAction, type CheckConsistencyState } from "@/lib/checklists/actions";
+import { Tx } from "@/components/domain/tx";
 
 const initialState: CheckConsistencyState = { error: null, flags: null };
 
@@ -18,7 +19,7 @@ export function ConsistencyCheck({ templateId, inspectionRecordId }: { templateI
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-ink">AI consistency check</h2>
+        <h2 className="text-sm font-medium text-ink"><Tx>AI consistency check</Tx></h2>
         <button
           type="submit"
           disabled={pending}
@@ -28,8 +29,7 @@ export function ConsistencyCheck({ templateId, inspectionRecordId }: { templateI
         </button>
       </div>
       <p className="mt-1 text-xs text-muted">
-        Advisory only — compares your responses against the acceptance criteria. It never blocks
-        completing the inspection.
+        <Tx>Advisory only — compares your responses against the acceptance criteria. It never blocks completing the inspection.</Tx>
       </p>
 
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
@@ -37,7 +37,7 @@ export function ConsistencyCheck({ templateId, inspectionRecordId }: { templateI
       {state.flags !== null && (
         <div className="mt-3">
           {state.flags.length === 0 ? (
-            <p className="text-sm text-success">No inconsistencies flagged.</p>
+            <p className="text-sm text-success"><Tx>No inconsistencies flagged.</Tx></p>
           ) : (
             <ul className="list-disc space-y-1 ps-5 text-sm text-warning">
               {state.flags.map((flag, i) => (

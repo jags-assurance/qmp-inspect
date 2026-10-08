@@ -30,6 +30,7 @@ import { FinalizeForm } from "./finalize-form";
 import { IssueClearanceForm } from "./issue-clearance-form";
 import { AssignmentEvidenceDocuments, type VaultDocumentOption } from "./assignment-evidence-documents";
 import type { StandaloneAssignmentEvidenceDocumentRow } from "@/lib/standalone/actions";
+import { Tx } from "@/components/domain/tx";
 
 interface Assignment {
   id: string;
@@ -152,7 +153,7 @@ export function AssignmentWorkspace({
           label="Status"
           value={
             isDraft ? (
-              <Badge tone="neutral">Draft</Badge>
+              <Badge tone="neutral"><Tx>Draft</Tx></Badge>
             ) : (
               <Badge tone={assignment.conclusion ? CONCLUSION_TONE[assignment.conclusion] : "neutral"}>
                 {assignment.conclusion ? CONCLUSION_LABEL[assignment.conclusion] : "Completed"}
@@ -166,7 +167,7 @@ export function AssignmentWorkspace({
       {isConditionalOpen && (
         <div className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
           <p className="font-medium">
-            {linkedTotalPunchCount - linkedOpenPunchCount} of {linkedTotalPunchCount} linked punch items closed
+            {linkedTotalPunchCount - linkedOpenPunchCount} <Tx>of</Tx> {linkedTotalPunchCount} <Tx>linked punch items closed</Tx>
             {linkedOpenPunchCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
           </p>
           <p className="mt-0.5 text-warning/90">
@@ -180,19 +181,19 @@ export function AssignmentWorkspace({
       <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
           <div>
-            <dt className="text-xs text-muted">Manufacturer</dt>
+            <dt className="text-xs text-muted"><Tx>Manufacturer</Tx></dt>
             <dd className="text-ink">{assignment.manufacturer ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted">Model</dt>
+            <dt className="text-xs text-muted"><Tx>Model</Tx></dt>
             <dd className="text-ink">{assignment.model ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted">Serial / tag</dt>
+            <dt className="text-xs text-muted"><Tx>Serial / tag</Tx></dt>
             <dd className="text-ink">{assignment.serial_tag ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted">Location</dt>
+            <dt className="text-xs text-muted"><Tx>Location</Tx></dt>
             <dd className="text-ink">{formatLocationForDisplay(assignment.location)}</dd>
           </div>
         </dl>
@@ -225,12 +226,12 @@ export function AssignmentWorkspace({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-start text-xs text-muted">
-                    <th className="px-3 py-2 font-medium">Description</th>
-                    <th className="px-3 py-2 font-medium">Nominal</th>
-                    <th className="px-3 py-2 font-medium">Tolerance</th>
-                    <th className="px-3 py-2 font-medium">Actual</th>
-                    <th className="px-3 py-2 font-medium">Unit</th>
-                    <th className="px-3 py-2 font-medium">Result</th>
+                    <th className="px-3 py-2 font-medium"><Tx>Description</Tx></th>
+                    <th className="px-3 py-2 font-medium"><Tx>Nominal</Tx></th>
+                    <th className="px-3 py-2 font-medium"><Tx>Tolerance</Tx></th>
+                    <th className="px-3 py-2 font-medium"><Tx>Actual</Tx></th>
+                    <th className="px-3 py-2 font-medium"><Tx>Unit</Tx></th>
+                    <th className="px-3 py-2 font-medium"><Tx>Result</Tx></th>
                     {canEdit && <th className="px-3 py-2 font-medium">&nbsp;</th>}
                   </tr>
                 </thead>
@@ -258,7 +259,7 @@ export function AssignmentWorkspace({
                             <input type="hidden" name="assignment_id" value={assignment.id} />
                             <input type="hidden" name="measurement_id" value={m.id} />
                             <button type="submit" className="text-xs text-danger hover:underline">
-                              Delete
+                              <Tx>Delete</Tx>
                             </button>
                           </form>
                         </td>
@@ -268,7 +269,7 @@ export function AssignmentWorkspace({
                   {measurements.length === 0 && (
                     <tr>
                       <td colSpan={canEdit ? 7 : 6} className="px-3 py-6 text-center text-muted">
-                        No measurements recorded yet.
+                        <Tx>No measurements recorded yet.</Tx>
                       </td>
                     </tr>
                   )}
@@ -292,7 +293,7 @@ export function AssignmentWorkspace({
                   canDelete={canAddEvidence}
                 />
               ))}
-              {photos.length === 0 && <p className="col-span-full text-center text-sm text-muted">No photos uploaded yet.</p>}
+              {photos.length === 0 && <p className="col-span-full text-center text-sm text-muted"><Tx>No photos uploaded yet.</Tx></p>}
             </div>
             {canAddEvidence && <PhotoUpload assignmentId={assignment.id} />}
           </div>
@@ -315,8 +316,8 @@ export function AssignmentWorkspace({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-start text-xs text-muted">
-                    <th className="px-3 py-2 font-medium">Description</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium"><Tx>Description</Tx></th>
+                    <th className="px-3 py-2 font-medium"><Tx>Status</Tx></th>
                     {canEditPunch && <th className="px-3 py-2 font-medium">&nbsp;</th>}
                   </tr>
                 </thead>
@@ -342,7 +343,7 @@ export function AssignmentWorkspace({
                   {punchItems.length === 0 && (
                     <tr>
                       <td colSpan={canEditPunch ? 3 : 2} className="px-3 py-6 text-center text-muted">
-                        No punch list items yet.
+                        <Tx>No punch list items yet.</Tx>
                       </td>
                     </tr>
                   )}
@@ -362,7 +363,7 @@ export function AssignmentWorkspace({
                     {sig.signatory_name} <span className="text-muted">— {sig.role}</span>
                   </p>
                   <p className="mt-1 text-xs text-muted">
-                    Signed {new Date(sig.signed_at).toLocaleString("en-GB")}
+                    <Tx>Signed</Tx> {new Date(sig.signed_at).toLocaleString("en-GB")}
                   </p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={sig.signature_data} alt={`Signature of ${sig.signatory_name}`} className="mt-2 h-24 w-full rounded bg-off-white object-contain" />
@@ -374,13 +375,13 @@ export function AssignmentWorkspace({
                       <input type="hidden" name="assignment_id" value={assignment.id} />
                       <input type="hidden" name="signature_id" value={sig.id} />
                       <button type="submit" className="mt-1 text-xs text-danger hover:underline">
-                        Delete
+                        <Tx>Delete</Tx>
                       </button>
                     </form>
                   )}
                 </div>
               ))}
-              {signatures.length === 0 && <p className="col-span-full text-center text-sm text-muted">No signatures captured yet.</p>}
+              {signatures.length === 0 && <p className="col-span-full text-center text-sm text-muted"><Tx>No signatures captured yet.</Tx></p>}
             </div>
             {canEdit && <SignaturePad assignmentId={assignment.id} />}
           </div>
@@ -399,7 +400,7 @@ export function AssignmentWorkspace({
         </div>
       )}
       {isDraft && !canEdit && (
-        <p className="mt-6 text-sm text-muted">This assignment is still in progress — someone with access to run it will finalize it.</p>
+        <p className="mt-6 text-sm text-muted"><Tx>This assignment is still in progress — someone with access to run it will finalize it.</Tx></p>
       )}
       {isConditionalOpen && canManage && canClose && (
         <div className="mt-6">
@@ -408,12 +409,12 @@ export function AssignmentWorkspace({
       )}
       {isConditionalOpen && !(canManage && canClose) && (
         <p className="mt-6 text-sm text-muted">
-          Conditionally passed — someone allowed to close punch items will issue clearance once the linked punch item(s) are closed.
+          <Tx>Conditionally passed — someone allowed to close punch items will issue clearance once the linked punch item(s) are closed.</Tx>
         </p>
       )}
       {assignment.status === "completed" && (
         <p className="mt-6 text-sm text-muted">
-          This assignment is finalized and read-only. Its conclusion was recorded as{" "}
+          <Tx>This assignment is finalized and read-only. Its conclusion was recorded as</Tx>{" "}
           <span className="font-medium text-ink">
             {assignment.conclusion ? CONCLUSION_LABEL[assignment.conclusion] : "—"}
           </span>
@@ -459,7 +460,7 @@ function PhotoTile({
           <input type="hidden" name="assignment_id" value={assignmentId} />
           <input type="hidden" name="photo_id" value={photo.id} />
           <button type="submit" className="mt-1 text-xs text-danger hover:underline">
-            Delete
+            <Tx>Delete</Tx>
           </button>
         </form>
       )}

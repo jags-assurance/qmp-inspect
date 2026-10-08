@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { updateOrgBrandColorsAction, type BrandingSettingsState } from "@/lib/branding/actions";
 import { Button } from "@/components/ui/button";
+import { Tx } from "@/components/domain/tx";
+import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: BrandingSettingsState = { error: null };
 
@@ -66,6 +68,7 @@ export function BrandingForm({
   brandExtraColors: string[];
   brandMultiColorMode: boolean;
 }) {
+  const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateOrgBrandColorsAction, initialState);
   const [primary, setPrimary] = useState(brandPrimaryColor ?? "");
   const [accent, setAccent] = useState(brandAccentColor ?? "");
@@ -88,12 +91,12 @@ export function BrandingForm({
         <ColorField id="brand_accent_color" name="brand_accent_color" label="Accent color (gold)" value={accent} defaultHex={DEFAULT_ACCENT} onChange={setAccent} />
 
         <div>
-          <span className="block text-xs text-muted">Live preview</span>
+          <span className="block text-xs text-muted"><Tx>Live preview</Tx></span>
           <div className="mt-1 flex items-center gap-2 rounded-md border border-border p-2">
-            <span className="h-8 w-8 rounded-full border border-border" style={{ background: p }} title="Primary" />
-            <span className="h-8 w-8 rounded-full border border-border" style={{ background: a }} title="Accent" />
+            <span className="h-8 w-8 rounded-full border border-border" style={{ background: p }} title={tl("Primary")} />
+            <span className="h-8 w-8 rounded-full border border-border" style={{ background: a }} title={tl("Accent")} />
             <span className="rounded-md px-3 py-1.5 text-xs font-medium text-white" style={{ background: p }}>
-              Sample button
+              <Tx>Sample button</Tx>
             </span>
           </div>
         </div>
@@ -101,14 +104,13 @@ export function BrandingForm({
 
       <label className="flex items-center gap-2 text-sm text-ink">
         <input type="checkbox" name="brand_multi_color_mode" checked={multiColor} onChange={(e) => setMultiColor(e.target.checked)} />
-        Use a multi-color combo instead (Microsoft/Google-style multi-color mark)
+        <Tx>Use a multi-color combo instead (Microsoft/Google-style multi-color mark)</Tx>
       </label>
 
       {multiColor && (
         <div className="rounded-md border border-border bg-off-white p-4">
           <p className="text-xs text-muted">
-            Add as many extra colors as you want — there&rsquo;s no fixed count. All of them together (primary, accent, then
-            these) become this organisation&rsquo;s brand mark (e.g. the sidebar badge) for its own users.
+            <Tx>Add as many extra colors as you want — there&rsquo;s no fixed count. All of them together (primary, accent, then these) become this organisation&rsquo;s brand mark (e.g. the sidebar badge) for its own users.</Tx>
           </p>
 
           <div className="mt-3 flex flex-wrap gap-4">
@@ -139,22 +141,22 @@ export function BrandingForm({
                 onClick={() => setExtras((prev) => [...prev, { key: extraColorKeySeq++, color: "" }])}
                 className="h-9 rounded-md border border-dashed border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white"
               >
-                + Add color
+                <Tx>+ Add color</Tx>
               </button>
             </div>
           </div>
 
           {extras.length > 0 && (
             <div className="mt-4">
-              <span className="block text-xs text-muted">Combo preview ({comboColors.length} colors)</span>
+              <span className="block text-xs text-muted"><Tx>Combo preview (</Tx>{comboColors.length} <Tx>colors)</Tx></span>
               <div className="mt-1 flex items-center gap-4 rounded-md border border-border p-2">
                 <div
                   aria-hidden
                   className="h-9 w-9 rounded-full border border-border"
                   style={{ background: `conic-gradient(${comboColors.join(", ")}, ${comboColors[0]})` }}
-                  title="How the sidebar badge will look"
+                  title={tl("How the sidebar badge will look")}
                 />
-                <span className="text-xs text-muted">This is exactly how the sidebar badge renders for this organisation&rsquo;s own users.</span>
+                <span className="text-xs text-muted"><Tx>This is exactly how the sidebar badge renders for this organisation&rsquo;s own users.</Tx></span>
               </div>
             </div>
           )}
@@ -162,8 +164,7 @@ export function BrandingForm({
       )}
 
       <p className="text-xs text-muted">
-        Leave Primary/Accent blank to fall back to the default JAGS palette ({DEFAULT_PRIMARY} / {DEFAULT_ACCENT}).
-        This overrides the in-app UI only — generated PDF reports keep the standard JAGS palette.
+        <Tx>Leave Primary/Accent blank to fall back to the default JAGS palette (</Tx>{DEFAULT_PRIMARY} / {DEFAULT_ACCENT}<Tx>). This overrides the in-app UI only — generated PDF reports keep the standard JAGS palette.</Tx>
       </p>
 
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
