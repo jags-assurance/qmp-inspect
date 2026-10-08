@@ -119,6 +119,7 @@ const ALL_GROUPS: SettingsNavGroup[] = [
       { key: "intervention-levels", label: "Intervention Levels" },
       { key: "plans", label: "Plans & Seats" },
       { key: "retention", label: "Document Retention" },
+      { key: "root-causes", label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
     ],
   },
 ];

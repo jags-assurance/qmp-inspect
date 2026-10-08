@@ -167,6 +167,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Intervention Levels", href: "/inspect/settings?section=intervention-levels" },
               { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
               { label: "Document Retention", href: "/inspect/settings?section=retention" },
+              { label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
             ],
           },
         ]
