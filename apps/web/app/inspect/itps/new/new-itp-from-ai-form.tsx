@@ -202,7 +202,7 @@ export function NewItpFromAiForm({
                           {doc.documentNumber ? `${doc.documentNumber} — ` : ""}
                           {doc.title}
                         </span>
-                        <span className="ml-2 text-xs text-muted">
+                        <span className="ms-2 text-xs text-muted">
                           {doc.folderName} · rev {doc.revision} ·{" "}
                           <span className={usable ? "text-success" : "text-muted"}>
                             {EXTRACTION_LABEL[doc.extractionStatus] ?? doc.extractionStatus}
@@ -287,7 +287,7 @@ export function NewItpFromAiForm({
           </p>
         </div>
 
-        {genState.error && <p className="text-sm text-danger">{genState.error}</p>}
+        {genState.error && <p role="alert" className="text-sm text-danger">{genState.error}</p>}
 
         <Button type="submit" disabled={genPending}>
           {genPending ? "Generating…" : "Generate draft"}
@@ -406,7 +406,7 @@ export function NewItpFromAiForm({
             >
               {genPending ? "Regenerating…" : "Regenerate with this feedback"}
             </button>
-            {genState.error && <p className="text-xs text-danger">{genState.error}</p>}
+            {genState.error && <p role="alert" className="text-xs text-danger">{genState.error}</p>}
           </div>
         </form>
       </div>
@@ -652,7 +652,7 @@ export function NewItpFromAiForm({
           ))}
         </div>
 
-        {createState.error && <p className="text-sm text-danger">{createState.error}</p>}
+        {createState.error && <p role="alert" className="text-sm text-danger">{createState.error}</p>}
 
         <div className="flex gap-3">
           <Button type="submit" disabled={createPending}>

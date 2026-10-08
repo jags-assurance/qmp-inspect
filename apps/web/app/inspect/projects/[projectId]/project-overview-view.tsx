@@ -452,7 +452,7 @@ export async function ProjectOverviewView({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-ink">
                   {party.name}
-                  {!party.is_active && <span className="ml-2 text-xs text-muted">(inactive)</span>}
+                  {!party.is_active && <span className="ms-2 text-xs text-muted">(inactive)</span>}
                 </span>
                 <span className="flex items-center gap-2">
                   <Badge tone={party.onboarded_by === "client" ? "info" : "neutral"}>

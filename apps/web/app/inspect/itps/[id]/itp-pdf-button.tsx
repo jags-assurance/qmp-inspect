@@ -78,7 +78,7 @@ export function ItpPdfButton({
           {extraActions}
         </DropdownMenu>
       </div>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — check &ldquo;⋯ More&rdquo; in a moment for the finished PDF…</p>}
       {timedOut && (
         <p className="text-xs text-danger">

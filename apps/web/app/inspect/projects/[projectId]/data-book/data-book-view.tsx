@@ -431,7 +431,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
 
       <details className="mt-3 rounded-lg border border-border bg-surface px-4 py-2 text-sm">
         <summary className="cursor-pointer font-medium text-ink focus:outline-none focus:ring-2 focus:ring-burgundy">How this works</summary>
-        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
+        <ul className="mt-2 list-disc space-y-1.5 ps-5 text-muted">
           <li>A final book needs every category at 100%, zero open or unverified punch items, and a Completed project. Draft books can be generated at any time and are marked DRAFT.</li>
           <li>JAGS staff can compile anyway (a &quot;Conditional Handover&quot;) with a required documented reason; still-open punch items are snapshotted on the record with the reason and approver.</li>
           <li>Only JAGS staff can create a book, compile a draft, or issue a handover (a JAGS Admin for anything with an override). Books, certificates and packages are visible to JAGS staff and the client only.</li>
@@ -459,7 +459,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                       Fix →
                     </Link>
                   )}
-                  {!g.ok && g.fix && <span className="w-full pl-8 text-xs text-muted">{g.fix}</span>}
+                  {!g.ok && g.fix && <span className="w-full ps-8 text-xs text-muted">{g.fix}</span>}
                 </li>
               ))}
             </ul>
@@ -571,7 +571,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <span className="doc-id text-sm font-medium text-ink">{book.book_number}</span>
-                          <span className="ml-2 text-sm text-ink">{book.title}</span>
+                          <span className="ms-2 text-sm text-ink">{book.title}</span>
                           <p className="mt-0.5 text-xs text-muted">
                             Rev {revision} · created {formatDate(book.created_at)}
                             {book.compiled_at && ` · compiled ${formatDate(book.compiled_at)}`}
@@ -692,7 +692,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                   {(parties ?? []).map((party) => (
                     <li key={party.id} className="rounded-md border border-border bg-off-white px-2.5 py-1 text-xs text-ink">
                       <span className="font-medium">{PARTY_TYPE_LABEL[party.party_type] ?? party.party_type}</span>
-                      <span className="ml-1.5 text-muted">{party.name}</span>
+                      <span className="ms-1.5 text-muted">{party.name}</span>
                     </li>
                   ))}
                 </ul>

@@ -58,8 +58,8 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
         Photos of the fix (required)
         <MarkupFileInput name="closing_photos"  accept="image/*" capture="environment" multiple required className="mt-1 w-full text-xs" />
       </label>
-      {photoError && <p className="text-xs text-danger">{photoError}</p>}
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {photoError && <p role="alert" className="text-xs text-danger">{photoError}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending || !evidence.trim()}>
           {pending ? "Submitting…" : "Confirm resolved"}

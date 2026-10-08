@@ -129,7 +129,7 @@ export default async function ManageHubPage() {
       key: "itp",
       header: "ITP",
       render: (row) => (
-        <div className="text-left">
+        <div className="text-start">
           <Link href={`/inspect/itps/${row.id}`} className="doc-id text-burgundy hover:underline">
             {row.itp_number}
           </Link>
@@ -192,7 +192,7 @@ export default async function ManageHubPage() {
               rowKey={(row) => row.id}
               caption="ITPs needing action"
               wrapperClassName=""
-              theadClassName="border-b border-border bg-off-white text-left text-xs uppercase tracking-wide text-muted"
+              theadClassName="border-b border-border bg-off-white text-start text-xs uppercase tracking-wide text-muted"
               headRowClassName=""
               thClassName="px-4 py-2"
               tdClassName="px-4 py-2"

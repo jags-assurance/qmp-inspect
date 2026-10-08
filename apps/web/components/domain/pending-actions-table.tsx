@@ -74,7 +74,7 @@ const columns: ResponsiveColumn<PendingActionItem>[] = [
     header: "Action",
     srOnlyHeader: true,
     cardLabel: null,
-    tdClassName: "text-right",
+    tdClassName: "text-end",
     render: (action) => (
       <Link href={`/inspect/checklists/${action.templateId}`} className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
         {action.status === "in_progress" ? "Continue →" : "Start →"}
@@ -133,8 +133,8 @@ export function PendingActionsTable({
           rowKey={(action) => action.templateId}
           caption="Pending actions"
           wrapperClassName="overflow-x-auto"
-          thClassName="py-2 pr-3 font-medium"
-          tdClassName="py-2 pr-3"
+          thClassName="py-2 pe-3 font-medium"
+          tdClassName="py-2 pe-3"
           cardClassName="px-1"
           emptyCellClassName="py-4 text-center text-sm text-muted"
           empty={

@@ -38,7 +38,7 @@ export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: s
         />
         </FormField>
       </div>
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       <Button type="submit" disabled={pending || !canClear} title={!canClear ? "Close the linked punch item(s) first" : undefined}>
         {pending ? "Issuing…" : "Issue clearance"}
       </Button>

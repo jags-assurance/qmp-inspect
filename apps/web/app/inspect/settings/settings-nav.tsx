@@ -74,7 +74,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
       </nav>
 
       <nav aria-label="Settings sections" className="hidden lg:mt-6 lg:block lg:w-60 lg:shrink-0">
-        <div className="sticky top-[73px] max-h-[calc(100vh-6rem)] space-y-5 overflow-y-auto pr-2">
+        <div className="sticky top-[73px] max-h-[calc(100vh-6rem)] space-y-5 overflow-y-auto pe-2">
           {groups.map((g) => (
             <div key={g.label}>
               <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted">{g.label}</p>
@@ -92,7 +92,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
                         )}
                       >
                         {item.label}
-                        {item.href ? <span aria-hidden="true" className="ml-1 text-muted">↗</span> : null}
+                        {item.href ? <span aria-hidden="true" className="ms-1 text-muted">↗</span> : null}
                       </Link>
                     </li>
                   );

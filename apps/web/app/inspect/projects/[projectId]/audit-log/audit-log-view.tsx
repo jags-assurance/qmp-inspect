@@ -133,7 +133,7 @@ export async function AuditLogView({
         event.actor ? (
           <span>
             {event.actor.full_name}
-            <span className="ml-1 text-xs text-muted">({event.actor.email})</span>
+            <span className="ms-1 text-xs text-muted">({event.actor.email})</span>
           </span>
         ) : (
           <span className="text-xs text-muted">System</span>
@@ -241,9 +241,9 @@ export async function AuditLogView({
             rows={events}
             rowKey={(event) => event.id}
             caption="Audit log events"
-            headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+            headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
             thClassName="py-2"
-            tdClassName="py-2 pr-3"
+            tdClassName="py-2 pe-3"
             rowClassName="border-b border-border last:border-0 align-top"
           />
         )}

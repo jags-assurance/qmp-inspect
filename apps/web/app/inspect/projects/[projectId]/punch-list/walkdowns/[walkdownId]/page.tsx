@@ -57,7 +57,7 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
   const summary = summariseWalkdown(rows);
 
   return (
-    <div className="max-w-4xl">
+    <div className="print-area max-w-4xl">
       <div className="flex items-center justify-between print:hidden">
         <Link href={`/inspect/projects/${projectId}/punch-list`} className="text-sm text-burgundy hover:underline">
           ← Back to punch list
@@ -78,26 +78,26 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
       </p>
 
       <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
-        <thead className="text-left text-xs text-muted">
+        <thead className="text-start text-xs text-muted">
           <tr>
-            <th className="py-1 pr-2">#</th>
-            <th className="py-1 pr-2">Description</th>
-            <th className="py-1 pr-2">Location</th>
-            <th className="py-1 pr-2">Responsible</th>
-            <th className="py-1 pr-2">Priority</th>
-            <th className="py-1 pr-2">Due</th>
+            <th className="py-1 pe-2">#</th>
+            <th className="py-1 pe-2">Description</th>
+            <th className="py-1 pe-2">Location</th>
+            <th className="py-1 pe-2">Responsible</th>
+            <th className="py-1 pe-2">Priority</th>
+            <th className="py-1 pe-2">Due</th>
             <th className="py-1">Status</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id} className="border-t border-border align-top">
-              <td className="py-1 pr-2">{i + 1}</td>
-              <td className="py-1 pr-2 text-ink">{r.description}</td>
-              <td className="py-1 pr-2">{r.location ?? "-"}</td>
-              <td className="py-1 pr-2">{r.project_parties?.name ?? "-"}</td>
-              <td className="py-1 pr-2">{r.priority ?? "-"}</td>
-              <td className="py-1 pr-2">{r.due_date ? formatDateOnly(r.due_date) : "-"}</td>
+              <td className="py-1 pe-2">{i + 1}</td>
+              <td className="py-1 pe-2 text-ink">{r.description}</td>
+              <td className="py-1 pe-2">{r.location ?? "-"}</td>
+              <td className="py-1 pe-2">{r.project_parties?.name ?? "-"}</td>
+              <td className="py-1 pe-2">{r.priority ?? "-"}</td>
+              <td className="py-1 pe-2">{r.due_date ? formatDateOnly(r.due_date) : "-"}</td>
               <td className="py-1">{r.withdrawn_at ? "withdrawn" : r.status}</td>
             </tr>
           ))}

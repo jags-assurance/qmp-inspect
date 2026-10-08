@@ -344,7 +344,7 @@ function MarkReceivedForm({
         <input ref={fileRef} type="file" className="w-full text-xs" />
       )}
 
-      {error && <p className="text-danger">{error}</p>}
+      {error && <p role="alert" className="text-danger">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={uploading}>
           {uploading ? "Saving…" : "Mark received"}
@@ -421,7 +421,7 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
           className="flex-1 rounded border border-border bg-surface px-2 py-1"
         />
       </div>
-      {error && <p className="text-danger">{error}</p>}
+      {error && <p role="alert" className="text-danger">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Adding…" : "Add"}

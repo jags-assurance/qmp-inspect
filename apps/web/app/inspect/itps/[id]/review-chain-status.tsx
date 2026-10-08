@@ -78,7 +78,7 @@ export function ReviewChainStatus({
           );
         })}
       </ol>
-      {state.error && <p className="mt-1.5 text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-1.5 text-xs text-danger">{state.error}</p>}
       {isAdminStaff && firstPending && reassignOptions.length > 0 && (
         <form action={reassignAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-info/20 pt-3">
           <input type="hidden" name="itp_id" value={itpId} />

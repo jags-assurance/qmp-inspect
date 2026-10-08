@@ -77,14 +77,14 @@ export function ImportPanel({ templateId }: { templateId: string }) {
             name="file"
             accept=".xlsx"
             required
-            className="block w-full text-sm text-ink file:mr-3 file:rounded-md file:border file:border-border file:bg-off-white file:px-3 file:py-1.5 file:text-xs file:font-medium"
+            className="block w-full text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-off-white file:px-3 file:py-1.5 file:text-xs file:font-medium"
           />
           <p className="text-xs text-muted">
             Upload an .xlsx with the same columns as the downloaded template (Item Number,
             Description, Acceptance Criteria, Evidence Type, Mandatory). Nothing is saved until you
             review the parsed rows and confirm.
           </p>
-          {parseState.error && <p className="text-xs text-danger">{parseState.error}</p>}
+          {parseState.error && <p role="alert" className="text-xs text-danger">{parseState.error}</p>}
           <Button type="submit" size="sm" disabled={parsePending}>
             {parsePending ? "Parsing…" : "Parse file"}
           </Button>
@@ -159,13 +159,13 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                     </button>
                   </div>
                 </div>
-                {row.validationError && <p className="mt-1 text-xs text-danger">{row.validationError}</p>}
+                {row.validationError && <p role="alert" className="mt-1 text-xs text-danger">{row.validationError}</p>}
               </div>
             ))}
             {rows.length === 0 && <p className="text-xs text-muted">Every parsed row has been removed.</p>}
           </div>
 
-          {commitState.error && <p className="text-xs text-danger">{commitState.error}</p>}
+          {commitState.error && <p role="alert" className="text-xs text-danger">{commitState.error}</p>}
           <div className="flex items-center gap-3">
             <Button type="submit" size="sm" disabled={commitPending || rows.length === 0 || invalidCount > 0}>
               {commitPending ? "Importing…" : `Import ${rows.length} item${rows.length === 1 ? "" : "s"}`}

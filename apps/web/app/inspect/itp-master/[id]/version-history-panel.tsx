@@ -57,7 +57,7 @@ export function VersionHistoryPanel({
                         <p className="text-xs font-medium text-ink">
                           {section.section_number}. {section.title}
                         </p>
-                        <ul className="mt-1 space-y-1 pl-3">
+                        <ul className="mt-1 space-y-1 ps-3">
                           {section.items.map((item) => (
                             <li key={item.id} className="text-xs text-muted">
                               <span className="doc-id">{item.item_number}</span> {item.activity}

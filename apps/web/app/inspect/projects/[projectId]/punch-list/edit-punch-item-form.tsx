@@ -59,7 +59,7 @@ export function EditPunchItemForm({
         Location
         <input name="location" maxLength={200} defaultValue={current.location ?? ""} className={field} />
       </label>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
         <button type="button" onClick={() => setExpanded(false)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white">

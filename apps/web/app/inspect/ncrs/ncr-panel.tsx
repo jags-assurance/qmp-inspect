@@ -118,7 +118,7 @@ export function NcrPanel() {
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
             <Link
               href={`/inspect/ncrs/${ncr.id}`}
-              className="ml-auto inline-flex min-h-11 items-center text-sm text-burgundy hover:underline"
+              className="ms-auto inline-flex min-h-11 items-center text-sm text-burgundy hover:underline"
             >
               Open full page →
             </Link>
@@ -393,7 +393,7 @@ export function NcrPanel() {
                             setTab("overview");
                             panel.open(o.id);
                           }}
-                          className="flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-off-white px-3 text-left text-sm hover:bg-surface"
+                          className="flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-off-white px-3 text-start text-sm hover:bg-surface"
                         >
                           <span className="doc-id text-ink">{o.ncr_number}</span>
                           <Badge tone={SEVERITY_TONE[o.severity]}>{SEVERITY_LABEL[o.severity]}</Badge>

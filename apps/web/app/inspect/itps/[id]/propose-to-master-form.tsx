@@ -39,7 +39,7 @@ export function ProposeToMasterForm({
   }
 
   return (
-    <form action={formAction} className="w-full max-w-md rounded-lg border border-border bg-surface p-4 text-left">
+    <form action={formAction} className="w-full max-w-md rounded-lg border border-border bg-surface p-4 text-start">
       <input type="hidden" name="source_itp_id" value={itpId} />
       <p className="text-sm font-medium text-ink">Propose to master library</p>
 
@@ -105,7 +105,7 @@ export function ProposeToMasterForm({
         </FormField>
       </div>
 
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
 
       <div className="mt-3 flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>

@@ -56,7 +56,7 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
       <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "Add level"}
       </Button>
-      {state.error && <p className="col-span-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="col-span-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

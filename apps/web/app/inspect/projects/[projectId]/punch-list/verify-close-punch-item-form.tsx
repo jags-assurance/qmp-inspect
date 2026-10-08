@@ -42,7 +42,7 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId }: { projectId
         placeholder="Verification notes (what you checked to confirm the fix)…"
         className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
       />
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending || !notes.trim()}>
           {pending ? "Closing…" : "Confirm close"}

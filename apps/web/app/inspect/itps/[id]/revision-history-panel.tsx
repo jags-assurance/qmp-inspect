@@ -84,7 +84,7 @@ function RevisionDiffBlock({ diff, olderRevision }: { diff: RevisionDiff; olderR
           {diff.changedItems.map((i) => (
             <li key={`ci-${i.id}`}>
               <span className="doc-id">{i.itemNumber}</span> {i.activity}
-              <ul className="ml-3 list-disc text-muted">
+              <ul className="ms-3 list-disc text-muted">
                 {i.changes.map((c) => (
                   <li key={c.field}>
                     {c.label}: <del>{c.before}</del> <ins className="no-underline font-medium text-ink">{c.after}</ins>
@@ -167,7 +167,7 @@ export function RevisionHistoryPanel({
                         <p className="text-xs font-medium text-ink">
                           {section.section_number}. {section.title}
                         </p>
-                        <ul className="mt-1 space-y-1.5 pl-3">
+                        <ul className="mt-1 space-y-1.5 ps-3">
                           {(section.items ?? []).map((item) => {
                             const change = changeSummary(item, previousItems.get(item.id), Boolean(older));
                             const detail = [
@@ -182,7 +182,7 @@ export function RevisionHistoryPanel({
                                 {item.acceptance_criteria ? ` — ${item.acceptance_criteria}` : ""}
                                 {" · "}
                                 {EVIDENCE_LABEL[item.evidence_type] ?? "Checklist"}
-                                {change && <span className="ml-1.5 rounded bg-warning/15 px-1 py-0.5 text-xs font-medium text-ink">{change}</span>}
+                                {change && <span className="ms-1.5 rounded bg-warning/15 px-1 py-0.5 text-xs font-medium text-ink">{change}</span>}
                                 {detail.length > 0 && <span className="block">{detail.join(" · ")}</span>}
                                 {(item.interventions ?? []).length > 0 && (
                                   <span className="block">

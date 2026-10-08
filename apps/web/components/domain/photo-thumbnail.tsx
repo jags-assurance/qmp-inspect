@@ -88,7 +88,7 @@ export function PhotoThumbnail({
           setOpen(true);
         }}
         aria-label={caption ? `Photo: ${caption}. Open to edit or delete` : "Open photo to edit caption or delete"}
-        className="block w-full text-left"
+        className="block w-full text-start"
       >
         {frame}
         {caption && <p className="mt-0.5 truncate text-xs text-muted">{caption}</p>}

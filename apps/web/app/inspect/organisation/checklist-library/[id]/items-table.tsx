@@ -18,7 +18,7 @@ function DeleteItemButton({ templateId, itemId }: { templateId: string; itemId: 
       <button type="submit" disabled={pending} className="text-xs font-medium text-danger hover:underline disabled:opacity-50">
         {pending ? "Removing…" : "Remove"}
       </button>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>
   );
 }
@@ -51,7 +51,7 @@ export function ItemsTable({
             header: "Delete",
             srOnlyHeader: true,
             cardLabel: null,
-            tdClassName: "text-right",
+            tdClassName: "text-end",
             render: (item: ChecklistLibraryItemRow) => <DeleteItemButton templateId={templateId} itemId={item.id} />,
           } satisfies ResponsiveColumn<ChecklistLibraryItemRow>,
         ]

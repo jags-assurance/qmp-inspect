@@ -55,7 +55,7 @@ export function CloudFolderSyncForm({
           </div>
         </div>
 
-        {saveState.error && <p className="text-sm text-danger">{saveState.error}</p>}
+        {saveState.error && <p role="alert" className="text-sm text-danger">{saveState.error}</p>}
 
         <div className="flex items-center gap-2">
           <Button type="submit" disabled={savePending}>
@@ -72,7 +72,7 @@ export function CloudFolderSyncForm({
           )}
         </div>
 
-        {clearState.error && <p className="text-sm text-danger">{clearState.error}</p>}
+        {clearState.error && <p role="alert" className="text-sm text-danger">{clearState.error}</p>}
       </form>
     </div>
   );

@@ -24,20 +24,20 @@ export function ItpChecklistPreview({ items, approved }: { items: ItpChecklistPr
             <details>
               <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm text-ink">
                 <span className="min-w-0">
-                  <span className="doc-id mr-1.5 text-muted">{i.sectionNumber}.{i.itemNumber}</span>
+                  <span className="doc-id me-1.5 text-muted">{i.sectionNumber}.{i.itemNumber}</span>
                   <span className="[overflow-wrap:anywhere]">{i.activity}</span>
                 </span>
                 <span className="shrink-0 text-xs text-muted">
                   {i.generated ? `${i.generated.number} · ${i.generated.lines.length} item${i.generated.lines.length === 1 ? "" : "s"}` : "to be generated"}
                 </span>
               </summary>
-              <ul className="mb-2 ml-1 mt-1 space-y-1 border-l-2 border-border pl-3 text-sm">
+              <ul className="mb-2 ms-1 mt-1 space-y-1 border-s-2 border-border ps-3 text-sm">
                 {(i.generated?.lines.length ? i.generated.lines.map((l) => ({ text: l.text, mandatory: l.mandatory })) : i.previewLines.map((t) => ({ text: t, mandatory: true }))).map((l, idx) => (
                   <li key={idx} className="flex gap-2 text-ink">
                     <span aria-hidden="true" className="text-muted">☐</span>
                     <span className="[overflow-wrap:anywhere]">
                       {l.text}
-                      {l.mandatory && <span className="ml-1 text-danger" title="Mandatory">*</span>}
+                      {l.mandatory && <span className="ms-1 text-danger" title="Mandatory">*</span>}
                     </span>
                   </li>
                 ))}

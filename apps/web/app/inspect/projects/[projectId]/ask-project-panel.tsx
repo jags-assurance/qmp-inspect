@@ -72,7 +72,7 @@ export function AskProjectPanel({ projectId }: { projectId: string }) {
         </button>
       </form>
 
-      {state.error && <p className="mt-2 text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}
     </div>
   );
 }

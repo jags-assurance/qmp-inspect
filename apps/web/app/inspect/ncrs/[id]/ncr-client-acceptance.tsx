@@ -51,7 +51,7 @@ export function ClientAcceptanceForm({ ncrId }: { ncrId: string }) {
           Reject disposition
         </button>
       </div>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

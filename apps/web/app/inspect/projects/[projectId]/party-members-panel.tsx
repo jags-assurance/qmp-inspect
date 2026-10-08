@@ -93,7 +93,7 @@ export function PartyMembersPanel({
           ? "Anyone added below gets this party's standard access automatically."
           : "Only the people listed below get access — nobody else is implied."}
       </p>
-      {modeState.error && <p className="mt-1 text-danger">{modeState.error}</p>}
+      {modeState.error && <p role="alert" className="mt-1 text-danger">{modeState.error}</p>}
 
       <ul className="mt-2 space-y-1">
         {extraMembers.length === 0 && <li className="text-muted">No additional members yet.</li>}
@@ -162,7 +162,7 @@ function RemoveMemberButton({ memberId }: { memberId: string }) {
       <button type="submit" disabled={pending} className="text-danger hover:underline disabled:opacity-50">
         {pending ? "Removing…" : "Remove"}
       </button>
-      {state.error && <span className="ml-1 text-danger">{state.error}</span>}
+      {state.error && <span className="ms-1 text-danger">{state.error}</span>}
     </form>
   );
 }

@@ -299,7 +299,7 @@ export function DrawingMarkupViewer({
                 </FormField>
               </div>
             )}
-            <div role="alert">{error && <p className="mt-2 text-sm text-danger">{error}</p>}</div>
+            <div role="alert">{error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}</div>
             <div className="mt-3 flex gap-2">
               <Button size="sm" onClick={handleSavePin} disabled={saving}>
                 {saving ? "Saving…" : "Drop pin"}

@@ -135,7 +135,7 @@ export function ItemPhotoUpload({
           </button>
         </>
       )}
-      {error && <p className="w-full text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="w-full text-xs text-danger">{error}</p>}
     </div>
   );
 }

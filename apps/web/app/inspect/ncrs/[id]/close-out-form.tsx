@@ -197,7 +197,7 @@ export function CloseOutForm({
           onChange={(e) => setFields((f) => ({ ...f, rootCause: e.target.value }))}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
         />
-        {suggestState.error && <p className="mt-1 text-xs text-danger">{suggestState.error}</p>}
+        {suggestState.error && <p role="alert" className="mt-1 text-xs text-danger">{suggestState.error}</p>}
         {aiOriginalRootCause !== null && (
           <p className="mt-1">
             <Badge tone="info">AI-assisted draft</Badge>
@@ -293,7 +293,7 @@ export function CloseOutForm({
         </div>
       )}
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       {!isClosed && (
         <div className="flex gap-3">
@@ -325,7 +325,7 @@ export function CloseOutForm({
         <input type="hidden" name="ncr_id" value={ncrId} />
         <label htmlFor="reopen_reason" className="block text-sm font-medium text-ink">Re-open this NCR</label>
         <textarea id="reopen_reason" name="reason" rows={2} required placeholder="Reason for re-opening (required)" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
-        {reopenState.error && <p className="text-sm text-danger">{reopenState.error}</p>}
+        {reopenState.error && <p role="alert" className="text-sm text-danger">{reopenState.error}</p>}
         <Button type="submit" variant="outline" disabled={reopenPending}>{reopenPending ? "Re-opening…" : "Re-open NCR"}</Button>
       </form>
     )}

@@ -99,7 +99,7 @@ export function RegisterLifecycleActions({
               <textarea name="as_found_notes" rows={2} className={INPUT} />
             </label>
             <CertificateUpload projectId={projectId} kind="calibration" label="New certificate (optional)" />
-            {recalState.error && <p className="text-xs text-danger">{recalState.error}</p>}
+            {recalState.error && <p role="alert" className="text-xs text-danger">{recalState.error}</p>}
             <button type="submit" disabled={recalibrating} className="rounded-md bg-burgundy px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
               {recalibrating ? "Saving…" : "Record recalibration"}
             </button>
@@ -131,7 +131,7 @@ export function RegisterLifecycleActions({
               </label>
             </>
           )}
-          {lifeState.error && <p className="text-xs text-danger">{lifeState.error}</p>}
+          {lifeState.error && <p role="alert" className="text-xs text-danger">{lifeState.error}</p>}
           <button type="submit" disabled={changing} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink disabled:opacity-50">
             {changing ? "Saving…" : inactive ? "Reactivate entry" : "Retire entry"}
           </button>

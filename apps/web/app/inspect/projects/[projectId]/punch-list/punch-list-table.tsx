@@ -261,7 +261,7 @@ export function PunchListTable({
           <input value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} placeholder="Contains…" className="min-h-11 w-36 rounded-md border border-border bg-surface px-2 text-sm text-ink" />
         </label>
         {overdueCount > 0 && <Badge tone="danger">{overdueCount} overdue</Badge>}
-        <div className="ml-auto flex gap-2">
+        <div className="no-print ms-auto flex gap-2">
           <button type="button" onClick={() => exportCsv(false)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
             Export filtered ({visibleRows.length})
           </button>
@@ -274,6 +274,11 @@ export function PunchListTable({
         </div>
       </div>
       {canVerifyClose && <BulkPunchBar projectId={projectId} selectedIds={selected} parties={projectParties} onDone={() => setSelected([])} />}
+      {/* Only .print-area survives @media print (globals.css): the heading + table, not the filters/buttons. */}
+      <div className="print-area">
+        <h1 className="mb-3 hidden text-xl font-semibold text-ink print:block">
+          Punch list · {visibleRows.length} item{visibleRows.length === 1 ? "" : "s"} · {new Date().toLocaleDateString("en-GB")}
+        </h1>
       <DataTable
         columns={columns}
         rows={visibleRows}
@@ -283,6 +288,7 @@ export function PunchListTable({
         searchKeys={(row) => `${row.description} ${row.location ?? ""} ${row.project_parties?.name ?? ""}`}
         emptyMessage={view === "all" && !partyFilter && !priorityFilter && !locationFilter ? "No punch list items yet. Use Record walk-down or Add punch item above." : "Nothing matches these filters."}
       />
+      </div>
       <SidePanel open={!!openRow} onClose={panel.close} title="Punch list item">
         {openRow && (
           <div className="mt-4 space-y-3 text-sm">

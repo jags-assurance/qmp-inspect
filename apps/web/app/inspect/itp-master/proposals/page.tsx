@@ -65,7 +65,7 @@ function DiffList({ label, items, tone }: { label: string; items: string[]; tone
       <p className={`text-xs font-medium ${tone}`}>
         {label} ({items.length})
       </p>
-      <ul className="mt-0.5 list-disc pl-5 text-xs text-ink">
+      <ul className="mt-0.5 list-disc ps-5 text-xs text-ink">
         {items.slice(0, 40).map((x, i) => (
           <li key={i} className="break-words">
             {x}

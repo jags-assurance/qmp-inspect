@@ -39,7 +39,7 @@ export async function WalkdownsPanel({ projectId }: { projectId: string }) {
               <span className="text-muted">
                 {formatDateOnly(w.walked_on)} · {w.item_count} item{w.item_count === 1 ? "" : "s"}
               </span>
-              {w.signed_off_at && <span className="ml-2 text-xs text-success">Signed off {formatSiteDateTime(w.signed_off_at)}</span>}
+              {w.signed_off_at && <span className="ms-2 text-xs text-success">Signed off {formatSiteDateTime(w.signed_off_at)}</span>}
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/inspect/projects/${projectId}/punch-list/walkdowns/${w.id}`} className="text-xs font-medium text-burgundy hover:underline">

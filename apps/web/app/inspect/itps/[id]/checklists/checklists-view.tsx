@@ -193,7 +193,7 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
       header: "Action",
       srOnlyHeader: true,
       cardLabel: null,
-      tdClassName: "text-right",
+      tdClassName: "text-end",
       render: (item) => {
         const template = templateByItem.get(item.id);
         return template ? (

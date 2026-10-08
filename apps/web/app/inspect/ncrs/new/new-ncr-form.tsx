@@ -168,11 +168,8 @@ export function NewNcrForm({
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Details</h2>
 
         <div>
-          <label htmlFor="project_id" className="block text-sm font-medium text-ink">
-            Project <span className="text-danger">*</span>
-          </label>
+          <FormField label="Project" id="project_id" required error={state.fieldErrors?.project_id}>
           <select
-            id="project_id"
             name="project_id"
             required
             value={projectId}
@@ -186,6 +183,7 @@ export function NewNcrForm({
               </option>
             ))}
           </select>
+          </FormField>
         </div>
 
         <fieldset>
@@ -260,7 +258,7 @@ export function NewNcrForm({
           {!draftPending && projectId && !notes.trim() && (
             <p className="mt-1.5 text-xs text-muted">Jot down some field notes above first.</p>
           )}
-          {draftState.error && <p className="mt-2 text-sm text-danger">{draftState.error}</p>}
+          {draftState.error && <p role="alert" className="mt-2 text-sm text-danger">{draftState.error}</p>}
           {aiOriginalDescription !== null && (
             <p className="mt-2">
               <Badge tone="info">AI-assisted draft</Badge>
@@ -269,11 +267,8 @@ export function NewNcrForm({
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-ink">
-            Description <span className="text-danger">*</span>
-          </label>
+          <FormField label="Description" id="description" required error={state.fieldErrors?.description}>
           <textarea
-            id="description"
             name="description"
             required
             rows={4}
@@ -282,6 +277,7 @@ export function NewNcrForm({
             placeholder="What was observed / not conforming…"
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
+          </FormField>
         </div>
 
         <div>
@@ -325,7 +321,7 @@ export function NewNcrForm({
             {!projectId && <p className="mt-1 text-xs text-muted">Select a project first.</p>}
           </div>
           <div>
-            <FormField label="Due date">
+            <FormField label="Due date" error={state.fieldErrors?.due_date}>
               <input
               name="due_date"
               type="date"
@@ -415,8 +411,8 @@ export function NewNcrForm({
         </div>
       )}
 
-      {photoError && <p className="text-sm text-danger">{photoError}</p>}
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {photoError && <p role="alert" className="text-sm text-danger">{photoError}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Raising…" : "Raise NCR"}

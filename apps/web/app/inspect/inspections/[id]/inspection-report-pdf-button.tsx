@@ -80,7 +80,7 @@ export function InspectionReportPdfButton({
       {completed && liveStatus?.status === "completed" && signedAt && Date.parse(liveStatus.createdAt) < Date.parse(signedAt) && (
         <p className="text-xs font-medium text-warning" role="status">This report was generated before the latest sign-off — regenerate it.</p>
       )}
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links above will appear automatically when ready…</p>}
       {timedOut && (
         <p className="text-xs text-danger">

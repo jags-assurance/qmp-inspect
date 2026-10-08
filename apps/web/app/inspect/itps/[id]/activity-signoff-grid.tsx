@@ -112,8 +112,8 @@ export function ActivitySignoffGrid({
     <div className="overflow-x-auto">
       <table className="w-full min-w-max border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border bg-off-white/60 text-left text-xs text-muted">
-            <th className="sticky left-0 z-10 min-w-[240px] bg-off-white/60 px-4 py-2 font-medium">Activity</th>
+          <tr className="border-b border-border bg-off-white/60 text-start text-xs text-muted">
+            <th className="sticky start-0 z-10 min-w-[240px] bg-off-white/60 px-4 py-2 font-medium">Activity</th>
             {parties.map((party) => (
               <th key={party.id} className="min-w-28 px-3 py-2 text-center font-medium">
                 <span className="block max-w-32 truncate" title={party.name}>
@@ -126,7 +126,7 @@ export function ActivitySignoffGrid({
         <tbody>
           {rows.map((row) => (
             <tr key={row.itemId} className="border-b border-border align-top last:border-0">
-              <td className="sticky left-0 z-10 bg-surface px-4 py-3">
+              <td className="sticky start-0 z-10 bg-surface px-4 py-3">
                 {canEditContent ? (
                   <ItemControls
                     itpId={itpId}
@@ -147,7 +147,7 @@ export function ActivitySignoffGrid({
                   />
                 ) : (
                   <p className="text-sm text-ink">
-                    <span className="doc-id mr-1.5 text-muted">{row.itemNumber}</span>
+                    <span className="doc-id me-1.5 text-muted">{row.itemNumber}</span>
                     {row.activity}
                   </p>
                 )}
@@ -176,7 +176,7 @@ export function ActivitySignoffGrid({
                 <td
                   key={party.id}
                   className={cn(
-                    "border-l border-border/60 px-3 py-3 text-center",
+                    "border-s border-border/60 px-3 py-3 text-center",
                     cellToneClass(intervention, !!intervention && blockingCodes.has(intervention))
                   )}
                 >

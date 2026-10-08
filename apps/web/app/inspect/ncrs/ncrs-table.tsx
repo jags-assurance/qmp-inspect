@@ -62,7 +62,7 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void) {
       <Link
         href={`/inspect/ncrs/${row.id}`}
         onClick={(e) => {
-          // Plain left-click opens the side panel; modified clicks keep the real link behaviour.
+          // Plain start-click opens the side panel; modified clicks keep the real link behaviour.
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
           e.preventDefault();
           openPanel(row.id);

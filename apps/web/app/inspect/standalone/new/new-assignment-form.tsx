@@ -210,7 +210,7 @@ export function NewAssignmentForm({
                 </option>
               ))}
             </select>
-            {locError && <p className="mt-1 text-xs text-danger">{locError}</p>}
+            {locError && <p role="alert" className="mt-1 text-xs text-danger">{locError}</p>}
             {/^-?\d/.test(location) && <p className="mt-1 text-xs text-muted">Live: {location}</p>}
           </div>
         </div>
@@ -260,7 +260,7 @@ export function NewAssignmentForm({
         </div>
       </fieldset>
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create assignment"}

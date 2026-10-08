@@ -98,7 +98,7 @@ export function ItemControls({
       <div>
         {dialog}
         <p className="text-sm text-ink">
-          <span className="doc-id mr-1.5 text-muted">{itemNumber}</span>
+          <span className="doc-id me-1.5 text-muted">{itemNumber}</span>
           {activity}
         </p>
         {acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{acceptanceCriteria}</p>}
@@ -143,7 +143,7 @@ export function ItemControls({
             </button>
           </form>
         </div>
-        {deleteState.error && <p className="mt-1 text-xs text-danger">{deleteState.error}</p>}
+        {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
       </div>
     );
   }
@@ -261,7 +261,7 @@ export function ItemControls({
           Cancel
         </button>
       </div>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>
   );
 }

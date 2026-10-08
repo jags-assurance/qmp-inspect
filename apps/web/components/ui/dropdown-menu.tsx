@@ -81,5 +81,5 @@ export function DropdownMenu({
 
 /** One row inside a DropdownMenu — same visual weight whether it wraps an <a>, a <Link>, or a form's submit button. */
 export function DropdownMenuItem({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={"block px-1 py-0.5 text-sm [&_a]:block [&_a]:w-full [&_a]:px-3 [&_a]:py-2 [&_a]:hover:bg-off-white [&_button]:w-full [&_button]:px-3 [&_button]:py-2 [&_button]:text-left [&_button]:hover:bg-off-white " + className}>{children}</div>;
+  return <div className={"block px-1 py-0.5 text-sm [&_a]:block [&_a]:w-full [&_a]:px-3 [&_a]:py-2 [&_a]:hover:bg-off-white [&_button]:w-full [&_button]:px-3 [&_button]:py-2 [&_button]:text-start [&_button]:hover:bg-off-white " + className}>{children}</div>;
 }

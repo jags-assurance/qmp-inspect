@@ -155,13 +155,13 @@ export function MonthlyReportPackForm({
           </button>
         )}
 
-        {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
         {polling && <p className="w-full text-sm text-muted">{renderingLabel(inFlightPack)} — the table below updates automatically when ready…</p>}
       </form>
 
       {aiConfigured && (
         <>
-          {summaryState.error && <p className="mt-2 text-sm text-danger">{summaryState.error}</p>}
+          {summaryState.error && <p role="alert" className="mt-2 text-sm text-danger">{summaryState.error}</p>}
           {summaryState.summary && (
             <div className="mt-3 rounded-md border border-border bg-off-white p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">
@@ -183,7 +183,7 @@ export function MonthlyReportPackForm({
             rows={reportPacks}
             rowKey={(pack) => pack.id}
             caption="Report packs"
-            headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+            headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
             thClassName="py-2"
             tdClassName="py-2"
           />

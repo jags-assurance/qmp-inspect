@@ -144,7 +144,7 @@ export function NumberingConfigRow({
         Sample: <span className="doc-id font-medium text-ink">{sample}</span>
       </p>
 
-      {state.error && <p className="col-span-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="col-span-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

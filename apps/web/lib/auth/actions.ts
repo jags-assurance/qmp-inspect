@@ -1,5 +1,6 @@
 "use server";
 
+import type { FieldErrors } from "@/lib/forms/field-errors";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -13,6 +14,8 @@ import { checkThrottle, clearAttempts, recordAttempt } from "./throttle";
 
 export interface SignInState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown next to the field; `error` stays the fallback. */
+  fieldErrors?: FieldErrors;
 }
 
 const TOO_MANY_ATTEMPTS = "Too many attempts. Wait a few minutes and try again, or use Forgot password.";
@@ -22,7 +25,13 @@ export async function signInAction(_prev: SignInState, formData: FormData): Prom
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    return { error: "Enter your email and password." };
+    return {
+      error: "Enter your email and password.",
+      fieldErrors: {
+        ...(email ? {} : { email: "Enter your email." }),
+        ...(password ? {} : { password: "Enter your password." }),
+      },
+    };
   }
 
   // App-level throttle (in addition to Supabase's own limits): refuse before even checking the

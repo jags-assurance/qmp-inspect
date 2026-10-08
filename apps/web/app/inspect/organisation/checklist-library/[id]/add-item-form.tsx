@@ -57,7 +57,7 @@ export function AddItemForm({ templateId }: { templateId: string }) {
         <input type="checkbox" name="is_mandatory" defaultChecked className="h-3.5 w-3.5" />
         Mandatory
       </label>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Adding…" : "Add item"}
       </Button>

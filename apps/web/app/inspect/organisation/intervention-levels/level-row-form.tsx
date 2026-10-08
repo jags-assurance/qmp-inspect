@@ -67,7 +67,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
           {pending ? "Saving…" : "Save"}
         </Button>
       </form>
-      {state.error && <p className="mt-1 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-1 text-sm text-danger">{state.error}</p>}
 
       <form action={deleteAction} className="mt-1.5">
         <input type="hidden" name="id" value={level.id} />
@@ -79,7 +79,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
           {deletePending ? "Removing…" : "Remove level"}
         </button>
       </form>
-      {deleteState.error && <p className="mt-1 text-sm text-danger">{deleteState.error}</p>}
+      {deleteState.error && <p role="alert" className="mt-1 text-sm text-danger">{deleteState.error}</p>}
     </div>
   );
 }

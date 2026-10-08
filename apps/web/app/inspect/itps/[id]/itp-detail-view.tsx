@@ -698,7 +698,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         return (
           <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
             <p className="font-medium">Before you submit for review</p>
-            <ul className="mt-1 list-disc pl-5 text-xs text-muted">
+            <ul className="mt-1 list-disc ps-5 text-xs text-muted">
               {warnings.map((w) => (
                 <li key={w}>{w}</li>
               ))}
@@ -1006,7 +1006,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                     {sortedItems.map((item) => (
                       <div key={item.id} className="border-b border-border px-4 py-3 last:border-0 bg-off-white/40">
                         <p className="mb-1.5 text-xs font-medium text-muted">
-                          <span className="doc-id mr-1">{item.item_number}</span>
+                          <span className="doc-id me-1">{item.item_number}</span>
                           {item.activity}
                         </p>
                         <div className="flex flex-wrap gap-1.5">

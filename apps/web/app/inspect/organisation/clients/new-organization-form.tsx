@@ -100,7 +100,7 @@ export function NewOrganizationForm() {
         </div>
       </div>
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       {state.created && !state.error && (
         <p role="status" className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
           ✓ Organisation “{state.created}” was created. It is at the top of the list below — next, add a project for it.

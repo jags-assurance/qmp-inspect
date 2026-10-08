@@ -62,7 +62,7 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
             href={hrefFor(row.id)}
             scroll={false}
             aria-current={cur(row.id)}
-            className={`-mx-2 -my-1.5 block min-w-0 rounded-md border-l-2 px-2 py-2 hover:bg-off-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-burgundy ${row.id === selectedId ? "border-burgundy bg-off-white" : "border-transparent"}`}
+            className={`-mx-2 -my-1.5 block min-w-0 rounded-md border-s-2 px-2 py-2 hover:bg-off-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-burgundy ${row.id === selectedId ? "border-burgundy bg-off-white" : "border-transparent"}`}
           >
             <span className="flex items-start justify-between gap-2">
               <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">

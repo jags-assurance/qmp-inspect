@@ -191,9 +191,9 @@ export function OfflineBanner() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch {
-      window.alert("Could not export the queue from this browser.");
+      void ask({ title: "Export failed", message: "Could not export the queue from this browser.", confirmLabel: "OK", cancelLabel: "Close" });
     }
-  }, []);
+  }, [ask]);
 
   const act = useCallback(async (fn: (id: string) => Promise<void>, id: string) => {
     await fn(id);

@@ -65,7 +65,7 @@ export function MasterAdminPanel({
             Applicable standard
             <input name="applicable_standard" defaultValue={standard ?? ""} className={field} />
           </label>
-          {metaState.error && <p className="text-sm text-danger sm:col-span-2">{metaState.error}</p>}
+          {metaState.error && <p role="alert" className="text-sm text-danger sm:col-span-2">{metaState.error}</p>}
           {metaState.ok && <p className="text-sm text-success sm:col-span-2">Saved.</p>}
           <div className="sm:col-span-2">
             <Button type="submit" disabled={metaPending}>
@@ -99,7 +99,7 @@ export function MasterAdminPanel({
         <Button type="submit" variant="outline" disabled={activePending} className="min-h-11">
           {activePending ? "Saving…" : isActive ? "Retire template" : "Reactivate template"}
         </Button>
-        {activeState.error && <p className="w-full text-sm text-danger">{activeState.error}</p>}
+        {activeState.error && <p role="alert" className="w-full text-sm text-danger">{activeState.error}</p>}
       </form>
     </div>
   );

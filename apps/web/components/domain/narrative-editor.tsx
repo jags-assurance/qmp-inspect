@@ -80,7 +80,7 @@ export function NarrativeEditor({
         Used as the PDF&apos;s conclusion paragraph once saved. Leave blank to use the automatic factual summary instead.
       </p>
 
-      {draftState.error && <p className="mt-2 text-xs text-danger">{draftState.error}</p>}
+      {draftState.error && <p role="alert" className="mt-2 text-xs text-danger">{draftState.error}</p>}
 
       <form action={saveFormAction} className="mt-3 space-y-2">
         <input type="hidden" name={recordIdFieldName} value={recordId} />
@@ -121,11 +121,11 @@ export function NarrativeEditor({
               {cleanupPending ? "Cleaning up…" : "Clean up wording"}
             </button>
           )}
-          {saveState.error && <p className="text-xs text-danger">{saveState.error}</p>}
+          {saveState.error && <p role="alert" className="text-xs text-danger">{saveState.error}</p>}
         </div>
       </form>
 
-      {cleanupState.error && <p className="mt-2 text-xs text-danger">{cleanupState.error}</p>}
+      {cleanupState.error && <p role="alert" className="mt-2 text-xs text-danger">{cleanupState.error}</p>}
 
       {showCleanupSuggestion && (
         <div className="mt-3 rounded-md border border-border bg-off-white p-3">

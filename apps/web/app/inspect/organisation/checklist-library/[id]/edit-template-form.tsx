@@ -90,7 +90,7 @@ export function EditTemplateForm({
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Saving…" : "Save details"}
       </Button>
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

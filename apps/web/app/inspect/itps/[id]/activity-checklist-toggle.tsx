@@ -34,7 +34,7 @@ export function ActivityChecklistToggle({ label, checklist }: { label: string; c
         <div className="basis-full rounded-md border border-border bg-surface px-3 py-2">
           <p className="text-xs font-semibold text-ink">
             {checklist.number ? `Checklist ${checklist.number}` : "Checklist — draft (generated when the ITP is approved)"}
-            <span className="ml-1.5 font-normal text-muted">
+            <span className="ms-1.5 font-normal text-muted">
               {checklist.lines.length} item{checklist.lines.length === 1 ? "" : "s"}
             </span>
           </p>
@@ -47,7 +47,7 @@ export function ActivityChecklistToggle({ label, checklist }: { label: string; c
                 <span className="[overflow-wrap:anywhere]">
                   {line.text}
                   {line.mandatory && (
-                    <span className="ml-1 text-danger" title="Mandatory">
+                    <span className="ms-1 text-danger" title="Mandatory">
                       *
                     </span>
                   )}

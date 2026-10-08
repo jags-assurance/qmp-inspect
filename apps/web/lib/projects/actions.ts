@@ -1,5 +1,6 @@
 "use server";
 
+import type { FieldErrors } from "@/lib/forms/field-errors";
 import { seatLimitMessage } from "@/lib/plans/seat-limit";
 import { parseSiteGeofenceForm } from "@/lib/checklists/geofence";
 import { clientRecipientIds } from "@/lib/handover/helpers";
@@ -23,6 +24,8 @@ import { NCRS_TABLE } from "@/lib/ncrs/types";
 
 export interface CreateProjectState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown next to the field; `error` stays the fallback. */
+  fieldErrors?: FieldErrors;
 }
 
 export async function createProjectAction(
@@ -49,11 +52,18 @@ export async function createProjectAction(
   const statusRaw = String(formData.get("status") ?? "active").trim();
   const status = ["draft", "active", "on_hold"].includes(statusRaw) ? statusRaw : "active";
   if (startDate && endDate && endDate < startDate) {
-    return { error: "The end date can't be before the start date." };
+    return { error: "The end date can't be before the start date.", fieldErrors: { end_date: "The end date can't be before the start date." } };
   }
 
   if (!organizationId || !projectNumber || !name) {
-    return { error: "Organisation, project number and name are required." };
+    return {
+      error: "Organisation, project number and name are required.",
+      fieldErrors: {
+        ...(organizationId ? {} : { organization_id: "Select an organisation." }),
+        ...(projectNumber ? {} : { project_number: "Project number is required." }),
+        ...(name ? {} : { name: "Project name is required." }),
+      },
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -126,6 +136,8 @@ export async function createProjectAction(
 
 export interface AddProjectPartyState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown next to the field; `error` stays the fallback. */
+  fieldErrors?: FieldErrors;
 }
 
 const VALID_PARTY_TYPES = ["subcontractor", "main_contractor", "tpi_lab", "vendor", "client", "jags"] as const;
@@ -187,7 +199,13 @@ export async function addProjectPartyAction(
     : "jags";
 
   if (!projectId || !partyType || !name) {
-    return { error: "Party type and name are required." };
+    return {
+      error: "Party type and name are required.",
+      fieldErrors: {
+        ...(partyType ? {} : { party_type: "Select a party type." }),
+        ...(name ? {} : { name: "Organisation / company name is required." }),
+      },
+    };
   }
   if (!VALID_PARTY_TYPES.includes(partyType as PartyType)) {
     return { error: "Invalid party type." };
@@ -217,7 +235,8 @@ export async function addProjectPartyAction(
     .limit(1)
     .maybeSingle<{ id: string }>();
   if (duplicate) {
-    return { error: `A ${partyType.replace(/_/g, " ")} party named "${name}" is already on this project.` };
+    const dupMsg = `A ${partyType.replace(/_/g, " ")} party named "${name}" is already on this project.`;
+    return { error: dupMsg, fieldErrors: { name: dupMsg } };
   }
   const limitError = await partyLimitError(supabase, projectId, partyType);
   if (limitError) return { error: limitError };

@@ -123,7 +123,7 @@ function MemberRow({
         )}
       </span>
       {(leadState.error || removeState.error) && (
-        <span className="ml-2 text-xs text-danger">{leadState.error ?? removeState.error}</span>
+        <span className="ms-2 text-xs text-danger">{leadState.error ?? removeState.error}</span>
       )}
     </li>
   );
@@ -225,7 +225,7 @@ function AssignedProjectRow({
           </button>
         </form>
       )}
-      {state.error && <span className="ml-2 text-xs text-danger">{state.error}</span>}
+      {state.error && <span className="ms-2 text-xs text-danger">{state.error}</span>}
     </li>
   );
 }

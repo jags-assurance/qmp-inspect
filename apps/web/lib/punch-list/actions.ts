@@ -1,5 +1,6 @@
 "use server";
 
+import type { FieldErrors } from "@/lib/forms/field-errors";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -214,6 +215,8 @@ async function verifierUserIds(callerClient: Supa, projectId: string, organizati
 
 export interface AddPunchItemState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown next to the field; `error` stays the fallback. */
+  fieldErrors?: FieldErrors;
   /** True after a successful add: the form resets and shows a confirmation. */
   added?: boolean;
 }
@@ -243,18 +246,24 @@ export async function addPunchItemAction(
   const requestId = String(formData.get("request_id") ?? "").trim().replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
 
   if (!projectId || !description) {
-    return { error: "Description is required." };
+    return { error: "Description is required.", fieldErrors: { description: "Description is required." } };
   }
-  if (description.length > PUNCH_MAX_DESCRIPTION) return { error: `Description is too long (max ${PUNCH_MAX_DESCRIPTION} characters).` };
-  if (location.length > PUNCH_MAX_LOCATION) return { error: `Location is too long (max ${PUNCH_MAX_LOCATION} characters).` };
-  if (!validDueDate(dueDate)) return { error: "Due date is not valid." };
+  if (description.length > PUNCH_MAX_DESCRIPTION) {
+    const msg = `Description is too long (max ${PUNCH_MAX_DESCRIPTION} characters).`;
+    return { error: msg, fieldErrors: { description: msg } };
+  }
+  if (location.length > PUNCH_MAX_LOCATION) {
+    const msg = `Location is too long (max ${PUNCH_MAX_LOCATION} characters).`;
+    return { error: msg, fieldErrors: { location: msg } };
+  }
+  if (!validDueDate(dueDate)) return { error: "Due date is not valid.", fieldErrors: { due_date: "Due date is not valid." } };
 
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!(await partyBelongsToProject(supabase, projectId, responsiblePartyId))) {
-    return { error: "The responsible party doesn't belong to this project." };
+    return { error: "The responsible party doesn't belong to this project.", fieldErrors: { responsible_party_id: "The responsible party doesn't belong to this project." } };
   }
   // A retried submit (double tap, refresh) with the same request id is a no-op, not a second item.
   if (requestId) {

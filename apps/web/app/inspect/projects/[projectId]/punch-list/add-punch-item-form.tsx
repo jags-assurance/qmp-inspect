@@ -51,7 +51,7 @@ export function AddPunchItemForm({
       <input type="hidden" name="request_id" value={requestId} />
 
       <div className="w-full sm:min-w-56 flex-1">
-        <FormField label="Description">
+        <FormField label="Description" error={state.fieldErrors?.description}>
           <input
           name="description"
           required
@@ -62,7 +62,7 @@ export function AddPunchItemForm({
       </div>
 
       <div className="w-full sm:w-40">
-        <FormField label="Location">
+        <FormField label="Location" error={state.fieldErrors?.location}>
           <input
           name="location"
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
@@ -71,7 +71,7 @@ export function AddPunchItemForm({
       </div>
 
       <div className="w-full sm:w-48">
-        <FormField label="Responsible party">
+        <FormField label="Responsible party" error={state.fieldErrors?.responsible_party_id}>
           <select
           name="responsible_party_id"
           defaultValue=""
@@ -88,7 +88,7 @@ export function AddPunchItemForm({
       </div>
 
       <div className="w-full sm:w-36">
-        <FormField label="Due date">
+        <FormField label="Due date" error={state.fieldErrors?.due_date}>
           <input
           name="due_date"
           type="date"
@@ -130,8 +130,8 @@ export function AddPunchItemForm({
         {pending ? "Adding…" : "+ Add punch item"}
       </Button>
 
-      {photoError && <p className="w-full text-sm text-danger">{photoError}</p>}
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {photoError && <p role="alert" className="w-full text-sm text-danger">{photoError}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
       {confirmed && <p role="status" className="w-full text-sm text-success">Punch item added.</p>}
     </form>
   );

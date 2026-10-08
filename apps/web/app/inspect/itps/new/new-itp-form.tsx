@@ -17,7 +17,7 @@ export function NewItpForm({
   return (
     <form action={formAction} className="mt-6 space-y-4">
       <div>
-        <FormField label="Project">
+        <FormField label="Project" error={state.fieldErrors?.project_id}>
           <select
           name="project_id"
           required
@@ -41,12 +41,17 @@ export function NewItpForm({
           id="itp_number"
           name="itp_number"
           placeholder="Leave blank to auto-generate, e.g. MER-JAGS-ITP-002"
+          aria-invalid={state.fieldErrors?.itp_number ? true : undefined}
+          aria-describedby={state.fieldErrors?.itp_number ? "itp_number-err" : undefined}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy doc-id"
         />
+        {state.fieldErrors?.itp_number && (
+          <p id="itp_number-err" role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors.itp_number}</p>
+        )}
       </div>
 
       <div>
-        <FormField label="Title">
+        <FormField label="Title" error={state.fieldErrors?.title}>
           <input
           name="title"
           required
@@ -76,7 +81,7 @@ export function NewItpForm({
         </FormField>
       </div>
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create ITP"}

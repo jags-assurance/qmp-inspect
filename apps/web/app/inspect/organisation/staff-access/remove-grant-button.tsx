@@ -18,7 +18,7 @@ export function RemoveGrantButton({ grantId }: { grantId: string }) {
       >
         {pending ? "Removing…" : "Remove"}
       </button>
-      {state.error && <span className="ml-2 text-xs text-danger">{state.error}</span>}
+      {state.error && <span className="ms-2 text-xs text-danger">{state.error}</span>}
     </form>
   );
 }

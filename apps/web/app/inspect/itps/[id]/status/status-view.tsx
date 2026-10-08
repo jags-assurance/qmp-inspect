@@ -372,10 +372,10 @@ export async function StatusView({
               <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 p-4 marker:content-none">
                 <div>
                   <p className="text-sm text-ink">
-                    <span className="doc-id mr-1.5 text-muted">{item.item_number}</span>
+                    <span className="doc-id me-1.5 text-muted">{item.item_number}</span>
                     {item.activity}
-                    <span className="ml-1.5 text-muted group-open:hidden">▸</span>
-                    <span className="ml-1.5 hidden text-muted group-open:inline">▾</span>
+                    <span className="ms-1.5 text-muted group-open:hidden">▸</span>
+                    <span className="ms-1.5 hidden text-muted group-open:inline">▾</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {item.sectionTitle}
@@ -415,7 +415,7 @@ export async function StatusView({
                   <span className="text-muted">Evidence ({EVIDENCE_LABEL[item.evidence_type]}): </span>
                   <Badge tone={evidence.tone}>{evidence.label}</Badge>
                   {template ? (
-                    <Link href={`/inspect/checklists/${template.id}`} className="ml-2 font-medium text-burgundy hover:underline">
+                    <Link href={`/inspect/checklists/${template.id}`} className="ms-2 font-medium text-burgundy hover:underline">
                       {evidence.label === "Not started" ? "Start inspection →" : "Open checklist →"}
                     </Link>
                   ) : item.evidence_type === 1 ? (
@@ -423,7 +423,7 @@ export async function StatusView({
                     // this page — the only place to actually generate one is the ITP's own
                     // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
                     // ITP is approved). Points there instead of leaving it unclickable.
-                    <Link href={paneHref("checklists", `/inspect/itps/${itp.id}/checklists`)} scroll={false} className="ml-2 font-medium text-burgundy hover:underline">
+                    <Link href={paneHref("checklists", `/inspect/itps/${itp.id}/checklists`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline">
                       Generate checklist →
                     </Link>
                   ) : (
@@ -432,7 +432,7 @@ export async function StatusView({
                     // ItpItemMeasurementsSection/ItpItemEvidenceDocumentsSection there), not on
                     // this roadmap page — same "roadmap links out, doesn't duplicate the form"
                     // pattern the Checklist link above already follows.
-                    <Link href={paneHref("details", `/inspect/itps/${itp.id}`)} scroll={false} className="ml-2 font-medium text-burgundy hover:underline">
+                    <Link href={paneHref("details", `/inspect/itps/${itp.id}`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline">
                       Manage evidence →
                     </Link>
                   )}

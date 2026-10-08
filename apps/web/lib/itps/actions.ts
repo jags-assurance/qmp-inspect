@@ -1,5 +1,6 @@
 "use server";
 
+import type { FieldErrors } from "@/lib/forms/field-errors";
 import { parseRequiredRegisters } from "./required-registers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -35,6 +36,8 @@ const DEFAULT_SECTIONS = [
 
 export interface CreateItpState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown next to the field; `error` stays the fallback. */
+  fieldErrors?: FieldErrors;
 }
 
 export async function createItpAction(_prev: CreateItpState, formData: FormData): Promise<CreateItpState> {
@@ -45,7 +48,13 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
   const scope = String(formData.get("scope") ?? "").trim();
 
   if (!projectId || !title) {
-    return { error: "Project and title are required." };
+    return {
+      error: "Project and title are required.",
+      fieldErrors: {
+        ...(projectId ? {} : { project_id: "Select a project." }),
+        ...(title ? {} : { title: "Title is required." }),
+      },
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -101,7 +110,7 @@ export async function createItpAction(_prev: CreateItpState, formData: FormData)
 
   if (error || !itp) {
     if (error?.code === "23505") {
-      return { error: "An ITP with that number already exists for this project." };
+      return { error: "An ITP with that number already exists for this project.", fieldErrors: { itp_number: "An ITP with that number already exists for this project." } };
     }
     return { error: "Could not create the ITP. Check you have permission and try again." };
   }

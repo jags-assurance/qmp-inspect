@@ -96,7 +96,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks, projects = 
           {pending ? "Queuing…" : polling ? renderingLabel(inFlightPack) : "Generate weekly report pack"}
         </Button>
 
-        {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
         {polling && <p className="w-full text-sm text-muted">{renderingLabel(inFlightPack)} — the table below updates automatically when ready…</p>}
       </form>
 
@@ -110,7 +110,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks, projects = 
             rows={weeklyReportPacks}
             rowKey={(pack) => pack.id}
             caption="Report packs"
-            headRowClassName="border-b border-border text-left text-xs uppercase text-muted"
+            headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
             thClassName="py-2"
             tdClassName="py-2"
           />

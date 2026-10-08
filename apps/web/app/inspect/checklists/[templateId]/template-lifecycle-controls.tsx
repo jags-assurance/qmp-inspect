@@ -130,7 +130,7 @@ export function TemplateLifecycleControls({
           {pending ? "Working…" : "Duplicate"}
         </Button>
       </form>
-      <div role="alert">{error && <p className="text-sm text-danger">{error}</p>}</div>
+      <div role="alert">{error && <p role="alert" className="text-sm text-danger">{error}</p>}</div>
     </div>
   );
 }

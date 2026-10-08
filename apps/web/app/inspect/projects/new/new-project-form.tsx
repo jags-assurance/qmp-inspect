@@ -48,6 +48,9 @@ export function NewProjectForm({
             </option>
           ))}
         </select>
+        {state.fieldErrors?.organization_id && (
+          <p role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors.organization_id}</p>
+        )}
         {organizations.length === 0 && (
           <p className="mt-1 text-xs text-muted">
             No client organisations exist yet — create one first.
@@ -56,7 +59,7 @@ export function NewProjectForm({
       </div>
 
       <div>
-        <FormField label="Project number">
+        <FormField label="Project number" error={state.fieldErrors?.project_number}>
           <input
           name="project_number"
           required
@@ -67,7 +70,7 @@ export function NewProjectForm({
       </div>
 
       <div>
-        <FormField label="Project name">
+        <FormField label="Project name" error={state.fieldErrors?.name}>
           <input
           name="name"
           required
@@ -102,7 +105,7 @@ export function NewProjectForm({
           </FormField>
         </div>
         <div>
-          <FormField label="End date (optional)">
+          <FormField label="End date (optional)" error={state.fieldErrors?.end_date}>
             <input name="end_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
           </FormField>
         </div>
@@ -138,7 +141,7 @@ export function NewProjectForm({
         </div>
       )}
 
-      {state.error && <p className="text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create project"}

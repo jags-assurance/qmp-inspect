@@ -15,7 +15,7 @@ export function IssueIrnForm({ inspectionRecordId }: { inspectionRecordId: strin
       <Button type="submit" disabled={pending}>
         {pending ? "Issuing…" : "Issue IRN"}
       </Button>
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
   );
 }
@@ -38,7 +38,7 @@ export function VoidIrnForm({ irnId }: { irnId: string }) {
         <Button type="submit" disabled={pending}>
           {pending ? "Voiding…" : "Void IRN"}
         </Button>
-        {state.error && <p className="text-sm text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       </form>
     </details>
   );

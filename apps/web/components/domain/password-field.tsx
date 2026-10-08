@@ -12,6 +12,7 @@ export function PasswordField({
   required = true,
   value,
   onChange,
+  error,
 }: {
   id: string;
   name: string;
@@ -20,6 +21,8 @@ export function PasswordField({
   required?: boolean;
   value?: string;
   onChange?: (value: string) => void;
+  /** Problem with this field (announced and linked via aria-describedby). */
+  error?: string | null;
 }) {
   const [visible, setVisible] = useState(false);
   const t = useTranslate();
@@ -38,16 +41,18 @@ export function PasswordField({
           type={visible ? "text" : "password"}
           required={required}
           autoComplete={autoComplete}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
           value={value}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 pr-10 text-sm outline-none focus:border-burgundy"
+          className="w-full rounded-md border border-border bg-surface ps-3 pe-10 py-2 text-sm outline-none focus:border-burgundy"
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? t("Hide password") : t("Show password")}
           aria-pressed={visible}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+          className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
         >
           {visible ? (
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
@@ -71,6 +76,11 @@ export function PasswordField({
           )}
         </button>
       </div>
+      {error && (
+        <p id={`${id}-err`} role="alert" className="mt-1 text-xs font-medium text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

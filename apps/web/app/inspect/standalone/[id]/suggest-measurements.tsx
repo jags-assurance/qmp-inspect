@@ -33,7 +33,7 @@ export function SuggestMeasurements({ assignmentId }: { assignmentId: string }) 
         <p className="text-xs text-muted">Drafts measurement/test parameters for this equipment — review each before adding.</p>
       </form>
 
-      {state.error && <p className="mt-2 text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}
 
       {state.suggestions && state.suggestions.length > 0 && (
         <ul className="mt-3 space-y-2">
@@ -86,7 +86,7 @@ function SuggestionRow({
           {added ? "Added" : pending ? "Adding…" : "+ Add"}
         </button>
       </form>
-      {state.error && <p className="w-full text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-danger">{state.error}</p>}
     </li>
   );
 }

@@ -62,7 +62,7 @@ export function OrgPlanForm({
         {pending ? "Saving…" : "Save plan"}
       </Button>
 
-      {state.error && <p className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

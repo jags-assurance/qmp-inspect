@@ -314,7 +314,7 @@ export async function VaultDocumentView({
         {revisions.length <= 1 ? (
           <p className="mt-1 text-sm text-muted">This is the only revision so far.</p>
         ) : (
-          <ol className="mt-2 space-y-2 border-l border-border pl-4">
+          <ol className="mt-2 space-y-2 border-s border-border ps-4">
             {revisions.map((r) => (
               <li key={r.id} className="text-sm">
                 <div className="flex flex-wrap items-center gap-2">

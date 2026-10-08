@@ -180,13 +180,13 @@ export function StartInspectionForm({
           {geofence.warning} You can still start; this is recorded with the inspection.
         </p>
       )}
-      {locationError && <p className="mt-1 text-xs text-danger">{locationError}</p>}
+      {locationError && <p role="alert" className="mt-1 text-xs text-danger">{locationError}</p>}
 
       <Button type="submit" disabled={pending || !value} className="mt-4">
         {pending ? "Starting…" : "Start inspection"}
       </Button>
-      {state.error && <p className="mt-2 text-sm text-danger">{state.error}</p>}
-      {queueError && <p className="mt-2 text-sm text-danger">{queueError}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
+      {queueError && <p role="alert" className="mt-2 text-sm text-danger">{queueError}</p>}
       {queued && (
         <p role="status" className="mt-2 text-sm text-muted">
           Saved on this device. The inspection will start automatically when you are back online; reload this page then to begin answering.

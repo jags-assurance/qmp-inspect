@@ -58,7 +58,7 @@ export function AuditTrailPdfButton({
           </button>
         </form>
       </div>
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       {polling && <p className="text-xs text-muted">Rendering — the links will appear automatically when ready…</p>}
       {timedOut && <p className="text-xs text-danger">Still rendering after a few minutes — reload this page to check whether it finished.</p>}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && <p className="text-xs text-muted">{jobStatusText(liveStatus)}</p>}

@@ -21,7 +21,7 @@ export function WithdrawPunchItemForm({ projectId, punchItemId }: { projectId: s
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="punch_item_id" value={punchItemId} />
         <textarea name="reason" rows={2} required minLength={5} placeholder="Reason (required)" className={input} />
-        {state.error && <p className="text-danger">{state.error}</p>}
+        {state.error && <p role="alert" className="text-danger">{state.error}</p>}
         <Button type="submit" size="sm" variant="outline" disabled={pending}>
           {pending ? "Withdrawing…" : "Withdraw item"}
         </Button>
