@@ -10,7 +10,7 @@ export function ScanSearchInput({ defaultValue }: { defaultValue: string }) {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
   return (
-    <div className="flex flex-1 flex-wrap items-start gap-2 sm:min-w-56">
+    <div className="flex flex-wrap items-start gap-2 sm:min-w-72 sm:flex-1">
       <input
         ref={inputRef}
         type="search"

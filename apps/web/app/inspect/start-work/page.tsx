@@ -213,8 +213,8 @@ export default async function StartWorkPage({
         <p className="mt-1 text-sm text-muted">
           <T>Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.</T>
         </p>
-        <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-<ScanSearchInput defaultValue={sp.q ?? ""} />
+        <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
+  <ScanSearchInput defaultValue={sp.q ?? ""} />
           <select name="project" defaultValue={projectFilter} aria-label={tl("Project")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
             <option value=""><T>All projects</T></option>
             {projectOptions.map(([id, name]) => (
