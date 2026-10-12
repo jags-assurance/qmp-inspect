@@ -173,7 +173,9 @@ export function DocumentsSection({
         <T>ITP PDFs, inspection reports, IRNs, NCRs, FAT reports and Data Books filed by the platform. Newest first. Links are short-lived; reload the page for a fresh one.</T>
       </p>
 
-      <form method="get" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Keyed on the filters: Reset is a client-side navigation, so without a remount the uncontrolled
+          selects kept showing the old Project/Type/Status values. */}
+      <form key={JSON.stringify(sp)} method="get" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title" className={inputCls} aria-label="Search" />
         <select name="project" defaultValue={sp.project === "all" ? "all" : (selectedProject ?? "")} className={inputCls} aria-label="Project">
           <option value="all"><T>All projects</T></option>
@@ -237,7 +239,9 @@ export function DocumentsSection({
                     <a href={d.url} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-burgundy">
                       <T>View</T>
                     </a>
-                    <a href={d.url} download className="rounded-md border border-border px-3 py-2 text-burgundy">
+                    {/* The download attribute is ignored on a cross-origin storage link; Supabase's own
+                        download parameter makes the file save instead of opening. */}
+                    <a href={`${d.url}${d.url.includes("?") ? "&" : "?"}download=`} download className="rounded-md border border-border px-3 py-2 text-burgundy">
                       <T>Download</T>
                     </a>
                   </>

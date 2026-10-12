@@ -68,7 +68,9 @@ export function ProjectStatusControl({
 
   const leavingClosed = isClosedStatus(status) && target !== null && target !== status;
   const closing = target === "completed" || target === "cancelled";
-  const needsPanel = target !== null && target !== status && (closing || leavingClosed);
+  // Putting a project on hold stops its field work, so it is confirmed too rather than saved on select.
+  const pausing = target === "on_hold";
+  const needsPanel = target !== null && target !== status && (closing || leavingClosed || pausing);
   const blockers = summary?.blockers ?? [];
 
   async function onChange(next: string) {
@@ -82,7 +84,7 @@ export function ProjectStatusControl({
       setLoadingSummary(true);
       setSummary(await getProjectCloseSummaryAction(projectId).catch(() => null));
       setLoadingSummary(false);
-    } else if (!isClosedStatus(status)) {
+    } else if (!isClosedStatus(status) && next !== "on_hold") {
       setAutoSubmit(true);
     }
   }
