@@ -37,3 +37,11 @@ export function assignmentNotification(activity: string, assignerName: string | 
     body: `${activity}${assignerName ? ` - assigned by ${assignerName}` : ""}`,
   };
 }
+
+/** Wording of the notice sent when someone is named to fix a failed (No) checklist item. */
+export function fixAssignmentNotification(itemDescription: string, assignerName: string | null): { title: string; body: string } {
+  return {
+    title: "You were asked to fix a failed checklist item",
+    body: `${itemDescription}${assignerName ? ` - assigned by ${assignerName}` : ""}`,
+  };
+}

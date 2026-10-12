@@ -29,6 +29,8 @@ export function ChecklistExecutionPanel({
   inspectionRecordId,
   items,
   initialResponses,
+  fixAssignments,
+  fixOptions,
   readOnly,
   registerVerification,
   personnelCertVerification,
@@ -55,6 +57,9 @@ export function ChecklistExecutionPanel({
   items: ChecklistItem[];
   /** Recorded readings of measured items, by item id. */
   numericValues?: Map<string, number>;
+  /** Who was named to fix each failed item (item id -> person), and who can be picked. */
+  fixAssignments?: Map<string, { id: string; name: string }>;
+  fixOptions?: { id: string; name: string }[];
   initialResponses: Map<string, { result: ChecklistResponseResult; comment: string | null; calibrationAssetId: string | null; materialId: string | null; welderId: string | null; updatedAt?: string | null; noNcrReason?: string | null }>;
   readOnly: boolean;
   registerVerification: RegisterVerificationResult | null;
@@ -190,6 +195,9 @@ export function ChecklistExecutionPanel({
             initialMaterialId={initialResponses.get(item.id)?.materialId ?? null}
             initialWelderId={initialResponses.get(item.id)?.welderId ?? null}
             initialUpdatedAt={initialResponses.get(item.id)?.updatedAt ?? null}
+            fixAssigneeId={fixAssignments?.get(item.id)?.id ?? null}
+            fixAssigneeName={fixAssignments?.get(item.id)?.name ?? null}
+            fixOptions={fixOptions}
             initialNoNcrReason={initialResponses.get(item.id)?.noNcrReason ?? null}
             hasNcr={hasNcr}
             materialOptions={materialOptions}
