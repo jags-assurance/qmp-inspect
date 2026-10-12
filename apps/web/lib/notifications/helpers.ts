@@ -11,6 +11,7 @@ import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { NOTIFICATIONS_TABLE, type NotificationRow } from "./types";
 import { sendNotificationEmail } from "./email";
+import { isUndeliverableAddress } from "./undeliverable";
 import { safeSitePath } from "./render";
 
 /**
@@ -85,6 +86,17 @@ async function sendNotificationEmailNow(
       .eq("id", n.recipientUserId)
       .maybeSingle<{ email: string }>();
     if (!recipient?.email) return;
+    if (isUndeliverableAddress(recipient.email)) {
+      // Test/demo address: never a real mailbox. Mark it skipped so the worker does not retry it either.
+      if (service) {
+        await service
+          .from("email_outbox" as never)
+          .update({ status: "skipped", last_error: "Skipped: test/demo recipient address (not a real mailbox)" } as never)
+          .eq("notification_id", n.id)
+          .eq("status", "pending");
+      }
+      return;
+    }
 
     await sendNotificationEmail({ toEmail: recipient.email, title: n.title, body: n.body, link: n.link });
 

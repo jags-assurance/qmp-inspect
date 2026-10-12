@@ -33,6 +33,16 @@ export function pastHeadStart(createdAt: string | null | undefined, now: number)
   return !Number.isFinite(at) || now - at >= NOTIFICATION_HEAD_START_MS;
 }
 
+/** Mirror of apps/web/lib/notifications/undeliverable.ts: reserved/test domains can never be a real mailbox. */
+export function isUndeliverableAddress(email: string | null | undefined): boolean {
+  const trimmed = (email ?? "").trim().toLowerCase();
+  const at = trimmed.lastIndexOf("@");
+  if (at < 0) return true;
+  const domain = trimmed.slice(at + 1);
+  if (!domain || !domain.includes(".")) return true;
+  return /\.(local|localhost|demo|test|invalid|example)$/.test(domain) || /^example\.[a-z]+$/.test(domain);
+}
+
 export type RecipientDecision = { send: true; email: string } | { send: false; reason: string };
 
 /** Decides whether (and where) to send; there is no email-preference column, so only is_active and an address matter. */
@@ -43,5 +53,6 @@ export function resolveRecipient(
   if (user && user.is_active === false) return { send: false, reason: "recipient user is inactive" };
   const email = rowEmail?.trim() || user?.email?.trim() || "";
   if (!email) return { send: false, reason: "no recipient email address" };
+  if (isUndeliverableAddress(email)) return { send: false, reason: "test/demo recipient address (not a real mailbox)" };
   return { send: true, email };
 }

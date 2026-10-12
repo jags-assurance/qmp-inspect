@@ -23,3 +23,12 @@ describe("worker notification emails", () => {
     expect(resolveRecipient(null, null).send).toBe(false);
   });
 });
+
+describe("fake recipient addresses", () => {
+  it("are skipped, real ones are sent", () => {
+    expect(resolveRecipient("client@meridian.demo", { email: "client@meridian.demo", is_active: true }).send).toBe(false);
+    expect(resolveRecipient(null, { email: "admin@jagsassurance.local", is_active: true }).send).toBe(false);
+    expect(resolveRecipient(null, { email: "qa@example.test", is_active: true }).send).toBe(false);
+    expect(resolveRecipient(null, { email: "harish.varri@hrud.ai", is_active: true })).toEqual({ send: true, email: "harish.varri@hrud.ai" });
+  });
+});
