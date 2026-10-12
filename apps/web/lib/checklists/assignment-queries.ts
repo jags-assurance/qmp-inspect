@@ -17,12 +17,29 @@ export async function loadAssigneeOptions(
   p: { itpItemId: string; projectId: string; organizationId: string }
 ): Promise<AssigneeOption[]> {
   const db = directoryClient(supabase);
-  const people = await projectPeople(supabase, p.projectId, p.organizationId);
+  // The project's people and the activity's party logins/members are independent reads, so they run
+  // together; only the staff lookup below needs both.
+  const [people, partyUserIds] = await Promise.all([
+    projectPeople(supabase, p.projectId, p.organizationId),
+    activityPartyUserIds(db, p.itpItemId),
+  ]);
   if (people.length === 0) return [];
+  const { data: staff } = await db
+    .from("users")
+    .select("id")
+    .in("id", people.map((x) => x.id))
+    .eq("is_jags_staff", true)
+    .returns<{ id: string }[]>();
+  const staffIds = new Set((staff ?? []).map((s) => s.id));
+  return people.filter((x) => staffIds.has(x.id) || partyUserIds.has(x.id));
+}
+
+/** Linked logins and team members of the activity's active parties. */
+async function activityPartyUserIds(db: ReturnType<typeof directoryClient>, itpItemId: string): Promise<Set<string>> {
   const { data: parties } = await db
     .from("activity_party_intervention")
     .select("project_parties(id, user_id, is_active)")
-    .eq("itp_item_id", p.itpItemId)
+    .eq("itp_item_id", itpItemId)
     .returns<{ project_parties: { id: string; user_id: string | null; is_active: boolean } | null }[]>();
   const partyUserIds = new Set<string>();
   const partyIds: string[] = [];
@@ -35,14 +52,7 @@ export async function loadAssigneeOptions(
     const { data: members } = await db.from(PROJECT_PARTY_MEMBERS_TABLE).select("user_id").in("project_party_id", partyIds);
     for (const m of (members ?? []) as { user_id: string | null }[]) if (m.user_id) partyUserIds.add(m.user_id);
   }
-  const { data: staff } = await db
-    .from("users")
-    .select("id")
-    .in("id", people.map((x) => x.id))
-    .eq("is_jags_staff", true)
-    .returns<{ id: string }[]>();
-  const staffIds = new Set((staff ?? []).map((s) => s.id));
-  return people.filter((x) => staffIds.has(x.id) || partyUserIds.has(x.id));
+  return partyUserIds;
 }
 
 /** Whether the viewer may assign this activity (mirrors assign_activity_to_user's caller rule). */

@@ -23,9 +23,11 @@ import { EvidenceMissingNotice } from "./evidence-missing-notice";
 import {
   checkPersonnelCertification,
   checkRegisterVerification,
+  fetchRequiredRegisters,
   listCalibrationOptions,
   listMaterialOptions,
   listWelderOptions,
+  pickRegisterKind,
   type RegisterVerificationResult,
 } from "@/lib/registers/verify";
 import { ChecklistExecutionPanel } from "./checklist-execution-panel";
@@ -40,7 +42,7 @@ import { ConfirmAiChecklist } from "./confirm-ai-checklist";
 import { AssignActivityForm } from "./assign-activity-form";
 import { templateReviewState } from "@/lib/checklists/ai-review-logic";
 import { loadAssigneeOptions, viewerCanAssign } from "@/lib/checklists/assignment-queries";
-import { getNoticeCheck } from "@/lib/signoff/notice-check";
+import { getNoticeChecksForActivity } from "@/lib/signoff/notice-check";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PhotoUpload } from "./photo-upload";
 import { CompleteInspectionForm } from "./complete-inspection-form";
@@ -135,32 +137,100 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // projects.allow_client_execution (piece 4 of the teams/delegation work — see
   // lib/checklists/execution-parties.ts, also used by lib/checklists/actions.ts so the UI and the
   // actual server-side gate can never drift apart), in which case client joins the executing set too.
-  // Perf: neither query depends on the other's result — both only need project.id/itpItem.id,
-  // already in hand — so run them together instead of two sequential round trips on this page,
-  // the single most-visited one in the app (every checklist fill hits it).
-  const [EXECUTING_PARTY_TYPES, { data: stakeholderParties }] = await Promise.all([
+  // Perf: every read in this batch needs only the template row above (project.id, itpItem.id,
+  // templateId) and the session — none consumes another's result — so they all start together
+  // instead of as three batches in sequence on this page, the single most-visited one in the app
+  // (every checklist fill hits it). The one dependent read, the viewer's party memberships, is
+  // chained straight onto the stakeholder read whose party ids it needs.
+  const [
+    EXECUTING_PARTY_TYPES,
+    { stakeholderParties, memberRows },
+    { data: ownPartyLink },
+    { data: items, error: itemsError },
+    { data: draftRecords, error: draftError },
+    { data: pastRecords },
+    numericSpecs,
+    { data: lifecycleRow, error: lifecycleError },
+    { data: aiRow, error: aiError },
+    { data: assignRow, error: assignError },
+    canAssign,
+  ] = await Promise.all([
     getExecutingPartyTypes(supabase, project.id),
+    (async () => {
+      const { data: stakeholderParties } = await supabase
+        .from("activity_party_intervention")
+        .select("project_parties(id, name, user_id, party_type, is_active)")
+        .eq("itp_item_id", itpItem.id)
+        .returns<{ project_parties: { id: string; name: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>();
+      // Team members of a party (project_party_members) act for it too - the server gate already counts them.
+      const stakeholderPartyIds = (stakeholderParties ?? []).map((r) => r.project_parties?.id).filter((v): v is string => !!v);
+      if (stakeholderPartyIds.length === 0) return { stakeholderParties, memberRows: null };
+      const { data: memberRows } = await supabase
+        .from(PROJECT_PARTY_MEMBERS_TABLE)
+        .select("project_party_id")
+        .eq("user_id", session.userId)
+        .in("project_party_id", stakeholderPartyIds)
+        .returns<{ project_party_id: string }[]>();
+      return { stakeholderParties, memberRows };
+    })(),
+    // Whether the viewer is linked to SOME project party at all — used to tell "you're a project
+    // party, just not this activity's" apart from "you have no party link on this project," since the
+    // former reads as a dead end otherwise (see the not-canExecute message below).
+    session.isJagsStaff
+      ? Promise.resolve({ data: null as { id: string } | null })
+      : supabase
+          .from("project_parties")
+          .select("id")
+          .eq("project_id", project.id)
+          .eq("user_id", session.userId)
+          .maybeSingle<{ id: string }>(),
     supabase
-      .from("activity_party_intervention")
-      .select("project_parties(id, name, user_id, party_type, is_active)")
-      .eq("itp_item_id", itpItem.id)
-      .returns<{ project_parties: { id: string; name: string; user_id: string | null; party_type: string; is_active: boolean } | null }[]>(),
+      .from(CHECKLIST_ITEMS_TABLE)
+      .select("id, item_number, description, is_mandatory, sort_order")
+      .eq("template_id", templateId)
+      .order("sort_order")
+      .returns<Pick<ChecklistItemRow, "id" | "item_number" | "description" | "is_mandatory" | "sort_order">[]>(),
+    supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, location, inspection_date, created_at")
+      .eq("checklist_template_id", templateId)
+      .is("overall_result", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .returns<Pick<InspectionRecordRow, "id" | "location" | "inspection_date" | "created_at">[]>(),
+    supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("id, record_number, overall_result, inspection_date")
+      .eq("checklist_template_id", templateId)
+      .not("overall_result", "is", null)
+      .order("created_at", { ascending: false })
+      .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>(),
+    loadNumericSpecsForTemplate(supabase, templateId),
+    // Version / archive state. Read separately from the main template query so the page still works
+    // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
+    supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("version, archived_at")
+      .eq("id", templateId)
+      .maybeSingle<{ version: number | null; archived_at: string | null }>(),
+    // AI review stage (20261114000102): absent columns (migration not applied) read as "not AI".
+    supabase
+      .from(CHECKLIST_TEMPLATES_TABLE)
+      .select("ai_generated, ai_confirmed_at")
+      .eq("id", templateId)
+      .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>(),
+    // Per-person assignment (20261114000101).
+    supabase
+      .from(ITP_ITEMS_UNTYPED_TABLE)
+      .select("assigned_to_user_id")
+      .eq("id", itpItem.id)
+      .maybeSingle<{ assigned_to_user_id: string | null }>(),
+    viewerCanAssign(supabase, { userId: session.userId, isStaff: session.isJagsStaff, itpItemId: itpItem.id, projectId: project.id }),
   ]);
   // is_active gates this the same way it now gates the server-side action (canExecuteItpItem
   // in lib/checklists/actions.ts) — a deactivated party shouldn't see live Yes/No/N-A buttons that the
   // server would reject anyway.
-  // Team members of a party (project_party_members) act for it too - the server gate already counts them.
-  const stakeholderPartyIds = (stakeholderParties ?? []).map((r) => r.project_parties?.id).filter((v): v is string => !!v);
-  const memberPartyIds = new Set<string>();
-  if (stakeholderPartyIds.length > 0) {
-    const { data: memberRows } = await supabase
-      .from(PROJECT_PARTY_MEMBERS_TABLE)
-      .select("project_party_id")
-      .eq("user_id", session.userId)
-      .in("project_party_id", stakeholderPartyIds)
-      .returns<{ project_party_id: string }[]>();
-    for (const m of memberRows ?? []) memberPartyIds.add(m.project_party_id);
-  }
+  const memberPartyIds = new Set((memberRows ?? []).map((m) => m.project_party_id));
   const isOwnParty = (row: { project_parties: { id: string; user_id: string | null } | null }) =>
     row.project_parties?.user_id === session.userId || (!!row.project_parties && memberPartyIds.has(row.project_parties.id));
   const isAssignedParty = (stakeholderParties ?? []).some(
@@ -192,83 +262,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         EXECUTING_PARTY_TYPES.has(row.project_parties.party_type)
     )?.project_parties?.id ?? null;
 
-  // Whether the viewer is linked to SOME project party at all — used to tell "you're a project
-  // party, just not this activity's" apart from "you have no party link on this project," since the
-  // former reads as a dead end otherwise (see the not-canExecute message below).
-  // Perf: none of these four filters only by templateId/project.id/session.userId — nothing here
-  // depends on another's result — so batch them instead of four sequential round trips.
-  const [{ data: ownPartyLink }, { data: items, error: itemsError }, { data: draftRecords, error: draftError }, { data: pastRecords }] = await Promise.all([
-    session.isJagsStaff
-      ? Promise.resolve({ data: null as { id: string } | null })
-      : supabase
-          .from("project_parties")
-          .select("id")
-          .eq("project_id", project.id)
-          .eq("user_id", session.userId)
-          .maybeSingle<{ id: string }>(),
-    supabase
-      .from(CHECKLIST_ITEMS_TABLE)
-      .select("id, item_number, description, is_mandatory, sort_order")
-      .eq("template_id", templateId)
-      .order("sort_order")
-      .returns<Pick<ChecklistItemRow, "id" | "item_number" | "description" | "is_mandatory" | "sort_order">[]>(),
-    supabase
-      .from(INSPECTION_RECORDS_TABLE)
-      .select("id, location, inspection_date, created_at")
-      .eq("checklist_template_id", templateId)
-      .is("overall_result", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .returns<Pick<InspectionRecordRow, "id" | "location" | "inspection_date" | "created_at">[]>(),
-    supabase
-      .from(INSPECTION_RECORDS_TABLE)
-      .select("id, record_number, overall_result, inspection_date")
-      .eq("checklist_template_id", templateId)
-      .not("overall_result", "is", null)
-      .order("created_at", { ascending: false })
-      .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>(),
-  ]);
-
   // A failed read must not render as "no items yet" or "no inspection in progress" (seen on dev under
   // load): the first hides the checklist, the second would offer Start inspection again.
   if (itemsError) throw new Error(`Could not load this checklist's items: ${itemsError.message}`);
   if (draftError) throw new Error(`Could not load this checklist's inspection in progress: ${draftError.message}`);
   const draft = draftRecords?.[0] ?? null;
-  // Perf: these reads are independent of each other, so they run together (one round trip's worth
-  // of latency instead of ~10 in sequence).
-  const [
-    numericSpecs,
-    numericValues,
-    unnotifiedWitness,
-    { data: lifecycleRow, error: lifecycleError },
-    { data: aiRow, error: aiError },
-    { data: assignRow, error: assignError },
-    canAssign,
-  ] = await Promise.all([
-    loadNumericSpecsForTemplate(supabase, templateId),
-    draft ? loadNumericValues(supabase, draft.id) : Promise.resolve(new Map<string, number>()),
-    draft && session.isJagsStaff ? unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : Promise.resolve([] as Awaited<ReturnType<typeof unnotifiedNonBlockingLevels>>),
-    // Version / archive state. Read separately from the main template query so the page still works
-    // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
-    supabase
-      .from(CHECKLIST_TEMPLATES_TABLE)
-      .select("version, archived_at")
-      .eq("id", templateId)
-      .maybeSingle<{ version: number | null; archived_at: string | null }>(),
-    // AI review stage (20261114000102): absent columns (migration not applied) read as "not AI".
-    supabase
-      .from(CHECKLIST_TEMPLATES_TABLE)
-      .select("ai_generated, ai_confirmed_at")
-      .eq("id", templateId)
-      .maybeSingle<{ ai_generated: boolean; ai_confirmed_at: string | null }>(),
-    // Per-person assignment (20261114000101).
-    supabase
-      .from(ITP_ITEMS_UNTYPED_TABLE)
-      .select("assigned_to_user_id")
-      .eq("id", itpItem.id)
-      .maybeSingle<{ assigned_to_user_id: string | null }>(),
-    viewerCanAssign(supabase, { userId: session.userId, isStaff: session.isJagsStaff, itpItemId: itpItem.id, projectId: project.id }),
-  ]);
   const templateVersion = lifecycleError ? null : (lifecycleRow?.version ?? null);
   const archived = lifecycleError ? false : !!lifecycleRow?.archived_at;
   const aiState = aiError || !aiRow ? "not_ai" : templateReviewState(aiRow);
@@ -276,7 +274,211 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const assignedToUserId = assignError ? null : (assignRow?.assigned_to_user_id ?? null);
   const showAssign = !assignError && canAssign;
   const showEditor = session.isJagsStaff;
-  const [assigneeOptions, [responseCount, recordCount, duplicateTargets]] = await Promise.all([
+
+  // Field execution (starting/answering/completing a checklist) is JAGS staff's job — the actual
+  // field officer running the inspection — either JAGS staff, or (R76) the performing contractor
+  // (subcontractor/main contractor) self-inspecting their own section. An independent verifier
+  // (TPI/lab), the client, or an unrelated party still can't — see EXECUTING_PARTY_TYPES above.
+  // Everyone with project access can still VIEW the checklist and its past results.
+  const canExecute = session.isJagsStaff || isAssignedParty;
+
+  // R71: "a hold point must wait" — a still-open Hold on this activity holds the physical work
+  // itself, not just its paperwork, so the "Start inspection" prompt is replaced with an explicit
+  // explanation rather than letting the field officer start filling in items that startInspectionAction
+  // (lib/checklists/actions.ts) will refuse to persist anyway once they hit "Start". Only computed
+  // when it would actually matter (no draft yet, otherwise-executable) to avoid the extra query on
+  // every page view.
+  const itpApproved = itp.status === "approved" || itp.status === "client_accepted";
+  // Whether the "Start inspection" block can render at all (an open Hold aside, which loadHoldState
+  // decides). The notice-period warning and the location presets are only shown inside it, so they
+  // are only read then — the notice check used to run on every view, draft or not.
+  const startFormPossible = !draft && canExecute && !archived && itpApproved && !aiDraft;
+
+  // Everything the in-progress inspection shows: responses, photos with their signed URLs, linked and
+  // pickable Vault documents, the NCR flag and the register-fed checks. Independent reads, so they
+  // run together; the two dependent steps are chained onto the one read each needs.
+  const loadDraftRows = (draftId: string) =>
+    Promise.all([
+      supabase
+        .from(CHECKLIST_RESPONSES_TABLE)
+        .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id, updated_at, no_ncr_reason")
+        .eq("inspection_record_id", draftId)
+        .returns<
+          (Pick<
+            ChecklistResponseRow,
+            "checklist_item_id" | "result" | "comment" | "calibration_asset_id" | "material_id" | "welder_id"
+          > & { updated_at: string; no_ncr_reason: string | null })[]
+        >(),
+      // Perf: one batched Storage call for every photo's signed URL on this checklist (across both
+      // the whole-inspection section and every item's own photos) instead of each <PhotoThumbnail>
+      // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
+      (async () => {
+        const { data: photoRows } = await supabase
+          .from(INSPECTION_PHOTOS_TABLE)
+          .select("id, storage_path, caption, checklist_item_id")
+          .eq("inspection_record_id", draftId)
+          .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>();
+        const photoUrls = await getSignedPhotoUrls(
+          supabase,
+          "inspection-evidence",
+          (photoRows ?? []).map((p) => p.storage_path)
+        );
+        return { photoRows, photoUrls };
+      })(),
+      supabase
+        .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
+        .select("id, vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
+        .eq("inspection_record_id", draftId)
+        .returns<{ id: string; vault_document_id: string; checklist_item_id: string | null; vault_documents: { title: string; document_reference: string | null; status: string } | null }[]>(),
+      supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .select("id, title, document_reference, revision, status, created_at, storage_path, vault_folders!inner(project_id, name)")
+        .eq("vault_folders.project_id", project.id)
+        .in("status", ["approved", "for_review", "rejected"])
+        .order("title")
+        .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; status: string; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
+      supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("inspection_record_id", draftId),
+      supabase
+        .from("vault_folders")
+        .select("id, folder_key, name")
+        .eq("project_id", project.id)
+        .order("name")
+        .returns<{ id: string; folder_key: string; name: string }[]>(),
+      // R92-R100: register-fed auto-verification — a soft-stop assist, not a hard block. Computed
+      // once per checklist (the same itp_items row backs every checklist_items row here), then shown
+      // inline on every response row below. The activity's required_registers is read once for both
+      // checks (each used to read it itself), and since it and the activity text alone decide the
+      // register kind (pickRegisterKind, the kind checkRegisterVerification reports), that kind's
+      // picker options load alongside the checks instead of after them.
+      (async () => {
+        const requiredRegisters = await fetchRequiredRegisters(supabase, itpItem.id);
+        const registerKind = pickRegisterKind(itpItem.reference_spec, itpItem.acceptance_criteria, requiredRegisters);
+        return Promise.all([
+          checkRegisterVerification(supabase, {
+            projectId: project.id,
+            itpItemReferenceSpec: itpItem.reference_spec,
+            itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+            requiredRegisters,
+          }),
+          checkPersonnelCertification(supabase, {
+            projectId: project.id,
+            executingProjectPartyId,
+            executingUserId: session.userId,
+            itpItemReferenceSpec: itpItem.reference_spec,
+            itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
+            requiredRegisters,
+          }),
+          registerKind === "calibration" ? listCalibrationOptions(supabase, project.id) : Promise.resolve([]),
+          registerKind === "material" ? listMaterialOptions(supabase, project.id) : Promise.resolve([]),
+          registerKind === "welder" ? listWelderOptions(supabase, project.id) : Promise.resolve([]),
+        ]);
+      })(),
+    ]);
+
+  const loadHoldState = async () => {
+    const holdOpen =
+      !draft && canExecute && itpApproved && project.enforce_hold_blocks_start ? !(await canCompleteInspection(itpItem.id)) : false;
+
+    // Named "who's holding this" instead of the old generic "the assigned party must release it" —
+    // found live: nobody could tell from this message alone which specific party/person to go chase.
+    // Re-derives which levels are blocking + which rows on this activity are still open, the same way
+    // canCompleteInspection itself does internally (that helper only ever returns a boolean).
+    let openHoldHolders: { partyName: string; partyType: string; levelCode: string }[] = [];
+    if (holdOpen) {
+      const { data: blockingLevels } = await supabase
+        .from(INTERVENTION_LEVEL_TYPES_TABLE)
+        .select("code")
+        .eq("organization_id", project.organization_id)
+        .eq("is_blocking", true)
+        .returns<{ code: string }[]>();
+      const blockingCodes = (blockingLevels ?? []).map((l) => l.code);
+
+      if (blockingCodes.length > 0) {
+        const { data: openRows } = await supabase
+          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+          .select("intervention, project_parties(name, party_type)")
+          .eq("itp_item_id", itpItem.id)
+          .in("intervention", blockingCodes)
+          .neq("status", "signed_off")
+          .returns<{ intervention: string; project_parties: { name: string; party_type: string } | null }[]>();
+
+        openHoldHolders = (openRows ?? [])
+          .filter((r) => r.project_parties)
+          .map((r) => ({
+            partyName: r.project_parties!.name,
+            partyType: PARTY_TYPE_LABEL[r.project_parties!.party_type] ?? r.project_parties!.party_type,
+            levelCode: r.intervention,
+          }));
+      }
+    }
+    return { holdOpen, openHoldHolders };
+  };
+
+  // Notice period: warn (never block) when the activity's planned date is closer than its hold/witness notice requires.
+  const loadNoticeWarning = async (): Promise<string | null> => {
+    try {
+      // Every intervention code this activity actually has (not a hardcoded "H"), checked in one batch.
+      const checks = await getNoticeChecksForActivity(supabase, {
+        itpItemId: itpItem.id,
+        projectId: project.id,
+        organizationId: project.organization_id,
+      });
+      const messages: string[] = [];
+      for (const check of checks) {
+        if ((check.status === "short_notice" || check.status === "overdue") && check.message && !messages.includes(check.message)) messages.push(check.message);
+      }
+      return messages.length > 0 ? messages.join(" ") : null;
+    } catch {
+      // Best-effort — the warning is advisory.
+      return null;
+    }
+  };
+
+  // S4-17: site geofence (start form) and the soft warning stored on the draft. Best-effort: the
+  // columns exist only after migration 20261110000200, so errors just mean "not configured".
+  const loadGeofence = async () => {
+    let siteGeofence: SiteGeofence | null = null;
+    let draftGeofenceWarning: string | null = null;
+    if ((!draft && canExecute && itpApproved) || draft) {
+      // The project's site and the draft's own reading don't depend on each other, so read both at once.
+      const [{ data: siteRow }, { data: geo }] = await Promise.all([
+        supabase
+          .from("projects")
+          .select("site_latitude, site_longitude, site_radius_m")
+          .eq("id", project.id)
+          .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>(),
+        draft
+          ? supabase
+              .from(INSPECTION_RECORDS_TABLE)
+              .select("location_geofence_status, location_distance_m, location_accuracy_m")
+              .eq("id", draft.id)
+              .maybeSingle<{ location_geofence_status: string | null; location_distance_m: number | null; location_accuracy_m: number | null }>()
+          : Promise.resolve({ data: null }),
+      ]);
+      siteGeofence = siteRow ? siteGeofenceFromProject(siteRow) : null;
+      if (geo?.location_geofence_status === "outside" && siteGeofence) {
+        draftGeofenceWarning = `Started about ${formatDistance(Number(geo.location_distance_m ?? 0))} from the project site (limit ${formatDistance(siteGeofence.radiusM)}).`;
+      }
+    }
+    return { siteGeofence, draftGeofenceWarning };
+  };
+
+  // Perf: the second and last batch. Everything left needs only the first batch's results (the draft,
+  // the viewer's rights, the template's state) and nothing from within this batch, so it all runs
+  // together instead of the ~15 sequential steps it used to take.
+  const [
+    numericValues,
+    unnotifiedWitness,
+    assigneeOptions,
+    [responseCount, recordCount, duplicateTargets],
+    draftRows,
+    { holdOpen, openHoldHolders },
+    noticeWarning,
+    { siteGeofence, draftGeofenceWarning },
+    locationPresets,
+  ] = await Promise.all([
+    draft ? loadNumericValues(supabase, draft.id) : Promise.resolve(new Map<string, number>()),
+    draft && session.isJagsStaff ? unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : Promise.resolve([] as Awaited<ReturnType<typeof unnotifiedNonBlockingLevels>>),
     showAssign
       ? loadAssigneeOptions(supabase, { itpItemId: itpItem.id, projectId: project.id, organizationId: project.organization_id })
       : Promise.resolve([] as Awaited<ReturnType<typeof loadAssigneeOptions>>),
@@ -287,9 +489,18 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           archived ? Promise.resolve([]) : loadDuplicateTargets(supabase, project.id, itpItem.id),
         ])
       : Promise.resolve([0, 0, []] as [number, number, Awaited<ReturnType<typeof loadDuplicateTargets>> | never[]]),
+    draft ? loadDraftRows(draft.id) : Promise.resolve(null),
+    loadHoldState(),
+    startFormPossible ? loadNoticeWarning() : Promise.resolve(null),
+    loadGeofence(),
+    // Shown only on the Start form, and not while a Hold is open (read alongside the Hold check).
+    startFormPossible
+      ? getLocationPresetsForProject(supabase, project.organization_id, project.id)
+      : Promise.resolve([] as Awaited<ReturnType<typeof getLocationPresetsForProject>>),
   ]);
   const editBlockReason = itemEditBlockReason({ archived, responseCount });
   const assignedName = assigneeOptions.find((o) => o.id === assignedToUserId)?.name ?? null;
+  const locationPresetNames = holdOpen ? [] : locationPresets.map((p) => p.name);
 
   let responseByItem = new Map<
     string,
@@ -323,43 +534,16 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const itemDocuments = new Map<string, import("./item-documents").ItemLinkedDocument[]>();
   let hasNcr = false;
 
-  if (draft) {
-    const [{ data: responses }, { data: photoRows }, { data: evidenceDocRows }, { data: rawVaultDocuments }, { count: ncrCount }, { data: rawVaultFolders }] = await Promise.all([
-      supabase
-        .from(CHECKLIST_RESPONSES_TABLE)
-        .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id, updated_at, no_ncr_reason")
-        .eq("inspection_record_id", draft.id)
-        .returns<
-          (Pick<
-            ChecklistResponseRow,
-            "checklist_item_id" | "result" | "comment" | "calibration_asset_id" | "material_id" | "welder_id"
-          > & { updated_at: string; no_ncr_reason: string | null })[]
-        >(),
-      supabase
-        .from(INSPECTION_PHOTOS_TABLE)
-        .select("id, storage_path, caption, checklist_item_id")
-        .eq("inspection_record_id", draft.id)
-        .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>(),
-      supabase
-        .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
-        .select("id, vault_document_id, checklist_item_id, vault_documents(title, document_reference, status)")
-        .eq("inspection_record_id", draft.id)
-        .returns<{ id: string; vault_document_id: string; checklist_item_id: string | null; vault_documents: { title: string; document_reference: string | null; status: string } | null }[]>(),
-      supabase
-        .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, title, document_reference, revision, status, created_at, storage_path, vault_folders!inner(project_id, name)")
-        .eq("vault_folders.project_id", project.id)
-        .in("status", ["approved", "for_review", "rejected"])
-        .order("title")
-        .returns<{ id: string; title: string; document_reference: string | null; revision: string | null; status: string; created_at: string; storage_path: string | null; vault_folders: { name: string } | null }[]>(),
-      supabase.from("ncrs").select("id", { count: "exact", head: true }).eq("inspection_record_id", draft.id),
-      supabase
-        .from("vault_folders")
-        .select("id, folder_key, name")
-        .eq("project_id", project.id)
-        .order("name")
-        .returns<{ id: string; folder_key: string; name: string }[]>(),
-    ]);
+  if (draftRows) {
+    const [
+      { data: responses },
+      { photoRows, photoUrls },
+      { data: evidenceDocRows },
+      { data: rawVaultDocuments },
+      { count: ncrCount },
+      { data: rawVaultFolders },
+      registerChecks,
+    ] = draftRows;
     hasNcr = !!ncrCount;
     vaultFolderOptions = (rawVaultFolders ?? []).map((f) => ({ id: f.id, key: f.folder_key, name: f.name }));
     for (const d of evidenceDocRows ?? []) {
@@ -404,14 +588,6 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
         },
       ])
     );
-    // Perf: one batched Storage call for every photo's signed URL on this checklist (across both
-    // the whole-inspection section and every item's own photos) instead of each <PhotoThumbnail>
-    // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
-    const photoUrls = await getSignedPhotoUrls(
-      supabase,
-      "inspection-evidence",
-      (photoRows ?? []).map((p) => p.storage_path)
-    );
     const withUrl = (p: Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">) => ({
       ...p,
       url: photoUrls.get(p.storage_path) ?? null,
@@ -426,133 +602,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     }
     hasEvidencePhoto = (photoRows ?? []).length > 0 || evidenceDocuments.length > 0;
 
-    // R92-R100: register-fed auto-verification — a soft-stop assist, not a hard block. Computed
-    // once per checklist (the same itp_items row backs every checklist_items row here), then shown
-    // inline on every response row below. Genuinely parallel (not just labeled that way): neither
-    // check consumes the other's result, so run them together.
-    [registerVerification, personnelCertVerification] = await Promise.all([
-      checkRegisterVerification(supabase, {
-        projectId: project.id,
-        itpItemReferenceSpec: itpItem.reference_spec,
-        itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
-        itpItemId: itpItem.id,
-      }),
-      checkPersonnelCertification(supabase, {
-        projectId: project.id,
-        executingProjectPartyId,
-        executingUserId: session.userId,
-        itpItemReferenceSpec: itpItem.reference_spec,
-        itpItemAcceptanceCriteria: itpItem.acceptance_criteria,
-        itpItemId: itpItem.id,
-      }),
-    ]);
-
-    if (registerVerification?.kind === "calibration") {
-      calibrationOptions = await listCalibrationOptions(supabase, project.id);
-    } else if (registerVerification?.kind === "material") {
-      materialOptions = await listMaterialOptions(supabase, project.id);
-    } else if (registerVerification?.kind === "welder") {
-      welderOptions = await listWelderOptions(supabase, project.id);
-    }
+    [registerVerification, personnelCertVerification, calibrationOptions, materialOptions, welderOptions] = registerChecks;
   }
-
-  // Field execution (starting/answering/completing a checklist) is JAGS staff's job — the actual
-  // field officer running the inspection — either JAGS staff, or (R76) the performing contractor
-  // (subcontractor/main contractor) self-inspecting their own section. An independent verifier
-  // (TPI/lab), the client, or an unrelated party still can't — see EXECUTING_PARTY_TYPES above.
-  // Everyone with project access can still VIEW the checklist and its past results.
-  const canExecute = session.isJagsStaff || isAssignedParty;
-
-  // R71: "a hold point must wait" — a still-open Hold on this activity holds the physical work
-  // itself, not just its paperwork, so the "Start inspection" prompt is replaced with an explicit
-  // explanation rather than letting the field officer start filling in items that startInspectionAction
-  // (lib/checklists/actions.ts) will refuse to persist anyway once they hit "Start". Only computed
-  // when it would actually matter (no draft yet, otherwise-executable) to avoid the extra query on
-  // every page view.
-  const itpApproved = itp.status === "approved" || itp.status === "client_accepted";
-  const holdOpen =
-    !draft && canExecute && itpApproved && project.enforce_hold_blocks_start ? !(await canCompleteInspection(itpItem.id)) : false;
-
-  // Named "who's holding this" instead of the old generic "the assigned party must release it" —
-  // found live: nobody could tell from this message alone which specific party/person to go chase.
-  // Re-derives which levels are blocking + which rows on this activity are still open, the same way
-  // canCompleteInspection itself does internally (that helper only ever returns a boolean).
-  // Notice period: warn (never block) when the activity's planned date is closer than its hold/witness notice requires.
-  let noticeWarning: string | null = null;
-  try {
-    // Loop over the intervention codes this activity actually has (not a hardcoded "H").
-    const { data: progressCodes } = await supabase
-      .from("activity_signoff_progress")
-      .select("intervention")
-      .eq("itp_item_id", itpItem.id)
-      .returns<{ intervention: string }[]>();
-    const codes = [...new Set((progressCodes ?? []).map((r) => r.intervention))];
-    const messages: string[] = [];
-    const checks = await Promise.all(codes.map((code) => getNoticeCheck(supabase, itpItem.id, code)));
-    for (const check of checks) {
-      if ((check.status === "short_notice" || check.status === "overdue") && check.message && !messages.includes(check.message)) messages.push(check.message);
-    }
-    if (messages.length > 0) noticeWarning = messages.join(" ");
-  } catch {
-    // Best-effort — the warning is advisory.
-  }
-
-  let openHoldHolders: { partyName: string; partyType: string; levelCode: string }[] = [];
-  if (holdOpen) {
-    const { data: blockingLevels } = await supabase
-      .from(INTERVENTION_LEVEL_TYPES_TABLE)
-      .select("code")
-      .eq("organization_id", project.organization_id)
-      .eq("is_blocking", true)
-      .returns<{ code: string }[]>();
-    const blockingCodes = (blockingLevels ?? []).map((l) => l.code);
-
-    if (blockingCodes.length > 0) {
-      const { data: openRows } = await supabase
-        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-        .select("intervention, project_parties(name, party_type)")
-        .eq("itp_item_id", itpItem.id)
-        .in("intervention", blockingCodes)
-        .neq("status", "signed_off")
-        .returns<{ intervention: string; project_parties: { name: string; party_type: string } | null }[]>();
-
-      openHoldHolders = (openRows ?? [])
-        .filter((r) => r.project_parties)
-        .map((r) => ({
-          partyName: r.project_parties!.name,
-          partyType: PARTY_TYPE_LABEL[r.project_parties!.party_type] ?? r.project_parties!.party_type,
-          levelCode: r.intervention,
-        }));
-    }
-  }
-
-  // S4-17: site geofence (start form) and the soft warning stored on the draft. Best-effort: the
-  // columns exist only after migration 20261110000200, so errors just mean "not configured".
-  let siteGeofence: SiteGeofence | null = null;
-  let draftGeofenceWarning: string | null = null;
-  if ((!draft && canExecute && itpApproved) || draft) {
-    const { data: siteRow } = await supabase
-      .from("projects")
-      .select("site_latitude, site_longitude, site_radius_m")
-      .eq("id", project.id)
-      .maybeSingle<{ site_latitude: number | null; site_longitude: number | null; site_radius_m: number | null }>();
-    siteGeofence = siteRow ? siteGeofenceFromProject(siteRow) : null;
-    if (draft) {
-      const { data: geo } = await supabase
-        .from(INSPECTION_RECORDS_TABLE)
-        .select("location_geofence_status, location_distance_m, location_accuracy_m")
-        .eq("id", draft.id)
-        .maybeSingle<{ location_geofence_status: string | null; location_distance_m: number | null; location_accuracy_m: number | null }>();
-      if (geo?.location_geofence_status === "outside" && siteGeofence) {
-        draftGeofenceWarning = `Started about ${formatDistance(Number(geo.location_distance_m ?? 0))} from the project site (limit ${formatDistance(siteGeofence.radiusM)}).`;
-      }
-    }
-  }
-
-  const locationPresetNames =
-    !draft && canExecute && itpApproved && !holdOpen
-      ? (await getLocationPresetsForProject(supabase, project.organization_id, project.id)).map((p) => p.name)
-      : [];
 
   // For the "Not started yet, your organisation doesn't hold a role here" message: names whichever
   // party actually executes this specific activity (a subcontractor/main contractor — or client, if
@@ -572,7 +623,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
   return (
     <div className="max-w-3xl">
-      <RealtimeRefresh table="checklist_responses" />
+      {/* Scoped to the draft's own answers: unfiltered, every answer saved on ANY checklist re-ran
+          this whole page (layout included) for every viewer who had one open. The app only ever
+          upserts answers (a filtered subscription gets no DELETE events), so the filter loses no
+          event that changes this view. */}
+      <RealtimeRefresh table="checklist_responses" filter={draft ? `inspection_record_id=eq.${draft.id}` : undefined} />
       {/* Was linking to the full ITP page — most people reach this checklist FROM the ITP's
           Checklists list, so "back" now returns there instead of the much heavier ITP detail page. */}
       <Link href={`/inspect/itps/${itp.id}/checklists`} className="text-sm text-burgundy hover:underline">

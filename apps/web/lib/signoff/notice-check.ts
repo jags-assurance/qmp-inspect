@@ -149,3 +149,60 @@ export async function getNoticeCheck(supabase: Client, itpItemId: string, interv
   }
   return evaluateNotice(item?.planned_date ?? null, required, label, new Date(), timeZone);
 }
+
+/**
+ * getNoticeCheck for every intervention code the activity has a sign-off row for, in one round trip:
+ * the codes, the activity's planned date / override, the project's notice configs, the organisation's
+ * level defaults and the project time zone are each read once, in parallel, instead of up to four
+ * sequential reads per code (each re-reading the same activity and project). The caller passes the
+ * project and organisation it already resolved for this activity. Same precedence and result per code
+ * as getNoticeCheck, in the order the codes are first seen.
+ */
+export async function getNoticeChecksForActivity(
+  supabase: Client,
+  ctx: { itpItemId: string; projectId: string; organizationId: string }
+): Promise<NoticeCheck[]> {
+  const [{ data: progressCodes }, { data: item }, { data: configs }, { data: levels }, { data: tzRow, error: tzError }] = await Promise.all([
+    supabase
+      .from("activity_signoff_progress")
+      .select("intervention")
+      .eq("itp_item_id", ctx.itpItemId)
+      .returns<{ intervention: string }[]>(),
+    supabase
+      .from("itp_items")
+      .select("planned_date, notice_hours_override")
+      .eq("id", ctx.itpItemId)
+      .maybeSingle<{ planned_date: string | null; notice_hours_override: number | null }>(),
+    // One row per (project, intervention) at most, so the whole project's set is tiny.
+    supabase
+      .from(NOTICE_PERIOD_CONFIGS_TABLE)
+      .select("intervention, hours")
+      .eq("project_id", ctx.projectId)
+      .returns<{ intervention: string; hours: number | null }[]>(),
+    // One row per (organisation, code) at most.
+    supabase
+      .from(INTERVENTION_LEVEL_TYPES_TABLE)
+      .select("code, label, default_notice_hours")
+      .eq("organization_id", ctx.organizationId)
+      .returns<{ code: string; label: string | null; default_notice_hours: number | null }[]>(),
+    // Project time zone (projects.timezone, migration 20261104000500); a read error just means server-local.
+    supabase.from("projects").select("timezone").eq("id", ctx.projectId).maybeSingle<{ timezone: string | null }>(),
+  ]);
+  const codes = [...new Set((progressCodes ?? []).map((r) => r.intervention))];
+  const configHours = new Map((configs ?? []).map((c) => [c.intervention, c.hours]));
+  const levelByCode = new Map((levels ?? []).map((l) => [l.code, l]));
+  const timeZone = tzError ? null : (tzRow?.timezone ?? null);
+  const now = new Date();
+  return codes.map((intervention) => {
+    let hours: number | null = item?.notice_hours_override ?? null;
+    if (hours == null) hours = configHours.get(intervention) ?? null;
+    let label = intervention === "H" ? "Hold" : intervention === "W" ? "Witness" : "Intervention";
+    if (hours == null) {
+      const lt = levelByCode.get(intervention);
+      hours = lt?.default_notice_hours ?? null;
+      if (lt?.label) label = lt.label;
+    }
+    const required = hours ?? DEFAULT_NOTICE_PERIOD_HOURS[intervention] ?? 24;
+    return evaluateNotice(item?.planned_date ?? null, required, label, now, timeZone);
+  });
+}
