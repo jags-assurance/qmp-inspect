@@ -95,7 +95,7 @@ export function getGeminiModel(feature: AiFeature): string {
 // audit-trail log tell two drafts of the same feature apart if the prompt was later revised, per the
 // client's "store prompt version" requirement. Not tied to package/app versioning.
 export const PROMPT_VERSIONS: Record<AiFeature, string> = {
-  itp_draft: "itp-draft-v1",
+  itp_draft: "itp-draft-v2",
   checklist_generation: "checklist-items-v1",
   ncr_description_draft: "ncr-description-v1",
   checklist_consistency_check: "consistency-check-v1",
@@ -403,6 +403,12 @@ export class GeminiProvider implements AiProvider {
       "  upload, 3 = a measurement/test-result record), and discipline_code.",
       `- discipline_code must be one of: ${disciplinesList || "(no disciplines configured)"}, or null if the`,
       "  activity is genuinely cross-discipline/general.",
+      "- KEEP THE TEXT SHORT: field officers scan this on a tablet and will not read paragraphs.",
+      "  activity: a short action phrase, at most 12 words. acceptance_criteria: the measurable",
+      "  value or pass condition in one line, at most 25 words (use a short ';'-separated list for",
+      "  two or three values; no background, no restating the clause). method: at most 12 words.",
+      "  frequency: a few words (e.g. 'Each pour', '10% sample'). reference_spec: document number",
+      "  and clause only. Intervention reasons: at most 8 words. Plain words, no filler.",
       "- For each activity, suggest a per-party intervention (H = Hold: work must stop until that",
       "  party signs off; W = Witness: that party is notified and may attend, but a wait period can",
       "  auto-release it; R = Review: reviews records/evidence, no site presence implied;",
@@ -514,8 +520,9 @@ export class GeminiProvider implements AiProvider {
       "item must be answerable Yes / No / N-A on its own — no compound items.",
       "",
       "RULES:",
-      "- 5-12 items. Concise, specific, field-checkable — not a restatement of the activity as one",
-      "  item.",
+      "- 5-10 items. Each item text is ONE short check, at most 12 words, starting with a verb or",
+      "  the thing being checked (e.g. \"Cable gland torque to spec\"). Field officers scan this on",
+      "  a tablet; no explanations, no clause quotes, not a restatement of the activity.",
       "- Cover the acceptance criteria comprehensively: if it states a tolerance, a required",
       "  document, or a sequence of steps, each becomes its own checkable item.",
       "- Mark an item mandatory:true only if failing it should fail the inspection; mandatory:false",
