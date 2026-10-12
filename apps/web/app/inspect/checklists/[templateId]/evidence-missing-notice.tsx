@@ -29,14 +29,15 @@ export function EvidenceMissingNotice({
   const reasonOk = reason.trim().length >= MIN_REASON;
 
   function takePhoto() {
+    document.querySelector("#photo-evidence-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
     document.querySelector<HTMLInputElement>("#photo-input-camera")?.click();
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md bg-warning/10 p-4 text-sm text-ink">
-        <p><Tx>Attach at least one evidence photo or linked document (★ required, above) before completing this inspection.</Tx></p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <div className="rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
+        <p><Tx>Evidence required before you can complete this inspection.</Tx></p>
+        <div className="mt-2 flex flex-wrap gap-2">
           <Button type="button" onClick={takePhoto} className="min-h-11">
             <Tx>Take a photo</Tx>
           </Button>

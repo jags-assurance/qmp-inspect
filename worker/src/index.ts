@@ -21,7 +21,7 @@ import { alertPermanentJobFailure, sweepUnnotifiedFailedJobs } from "./jobs/jobF
 import { runAutomationSweep } from "./automation";
 import { dropBreadcrumb, scrubEvent } from "./observability/scrub";
 import { isRpcMissing, replicaId, sweepLeaseSeconds, type RpcError } from "./jobs/claim";
-import { sweepTransmittalOutbox } from "./emailOutbox";
+import { sweepNotificationOutbox, sweepTransmittalOutbox } from "./emailOutbox";
 import { runRetentionSweep } from "./retention";
 import { runOrphanPhotoSweep } from "./orphanPhotos";
 import type {
@@ -281,6 +281,7 @@ async function pollOnce(cycle: number): Promise<void> {
 
   if (cycle % EMAIL_OUTBOX_EVERY_N_CYCLES === 0) {
     await sweepTransmittalOutbox().catch((err) => reportError("[worker] Transmittal email sweep failed:", err));
+    await sweepNotificationOutbox().catch((err) => reportError("[worker] Notification email sweep failed:", err));
   }
 
   const job = await claimNextPendingJob();
