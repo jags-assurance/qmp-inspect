@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { resolveUploadRevision } from "@/lib/vault/revision";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { VAULT_EXTRACT_MAX_BYTES, VAULT_MAX_UPLOAD_BYTES, vaultFileTooLargeMessage } from "@/lib/vault/limits";
@@ -147,12 +148,9 @@ export async function uploadVaultDocumentCore(
       folder_id: folderId,
       title,
       document_reference: documentReference || null,
-      // No revision given (batch uploads): continue from the previous one, else start at 0.
-      revision:
-        revision ||
-        (previousLatest?.revision !== undefined && Number.isFinite(Number.parseInt(previousLatest.revision, 10))
-          ? String(Number.parseInt(previousLatest.revision, 10) + 1)
-          : "0"),
+      // No revision given (batch uploads, or the form's untouched "0" on a new revision): continue
+      // from the previous one (A -> B, 2 -> 3), else start at 0.
+      revision: resolveUploadRevision(revision ?? "", previousLatest?.revision),
       document_date: documentDate || null,
       storage_path: storagePath,
       file_size: fileSize ? Number(fileSize) : null,

@@ -98,16 +98,28 @@ export default async function StartWorkPage({
   // ONE batched query for "awaiting hold release": pending/notified sign-off rows for the shown
   // activities, intersected with the organisation's blocking level codes (one more small query).
   const itemIds = [...new Set((templates ?? []).map((t) => t.itp_item_id))];
-  const [{ data: openProgress }, { data: blockingLevels }] = await Promise.all([
+  // A level assigned on the grid with no progress row yet still holds (same rule as
+  // canCompleteInspection, which the checklist page uses): without it an activity showed as ready
+  // here but its checklist then refused to start.
+  type ProgressRow = { itp_item_id: string; project_party_id: string; intervention: string; status: string };
+  type AssignedRow = { itp_item_id: string; project_party_id: string; intervention: string };
+  const [{ data: progressRows }, { data: assignedRows }, { data: blockingLevels }] = await Promise.all([
     itemIds.length
       ? supabase
           .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-          .select("itp_item_id, intervention")
+          .select("itp_item_id, project_party_id, intervention, status")
           .in("itp_item_id", itemIds)
-          .in("status", ["pending", "notified"])
           .limit(10000)
-          .returns<{ itp_item_id: string; intervention: string }[]>()
-      : Promise.resolve({ data: [] as { itp_item_id: string; intervention: string }[] }),
+          .returns<ProgressRow[]>()
+      : Promise.resolve({ data: [] as ProgressRow[] }),
+    itemIds.length
+      ? supabase
+          .from("activity_party_intervention")
+          .select("itp_item_id, project_party_id, intervention")
+          .in("itp_item_id", itemIds)
+          .limit(10000)
+          .returns<AssignedRow[]>()
+      : Promise.resolve({ data: [] as AssignedRow[] }),
     supabase
       .from(INTERVENTION_LEVEL_TYPES_TABLE)
       .select("organization_id, code")
@@ -115,8 +127,14 @@ export default async function StartWorkPage({
       .returns<{ organization_id: string; code: string }[]>(),
   ]);
   const blockingKeys = new Set((blockingLevels ?? []).map((l) => `${l.organization_id}:${l.code}`));
+  const signedOff = new Set(
+    (progressRows ?? []).filter((r) => r.status === "signed_off").map((r) => `${r.itp_item_id}:${r.project_party_id}:${r.intervention}`)
+  );
   const openByItem = new Map<string, string[]>();
-  for (const pr of openProgress ?? []) openByItem.set(pr.itp_item_id, [...(openByItem.get(pr.itp_item_id) ?? []), pr.intervention]);
+  for (const r of [...(progressRows ?? []), ...(assignedRows ?? [])]) {
+    if (signedOff.has(`${r.itp_item_id}:${r.project_party_id}:${r.intervention}`)) continue;
+    openByItem.set(r.itp_item_id, [...(openByItem.get(r.itp_item_id) ?? []), r.intervention]);
+  }
 
   const activities = (templates ?? [])
     .filter((t) => {
