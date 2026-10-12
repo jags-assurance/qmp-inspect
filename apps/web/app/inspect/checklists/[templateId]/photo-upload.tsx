@@ -39,6 +39,7 @@ export function PhotoUpload({
   // own local object URL rather than via PhotoThumbnail (which fetches from Storage by path).
   const [queuedPreviews, setQueuedPreviews] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   // Optional markup (annotate) step before upload. The preference is a per-device convenience only.
   const { markup, dialog: markupDialog } = usePhotoMarkup();
@@ -111,6 +112,7 @@ export function PhotoUpload({
     router.refresh();
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";
+    if (cameraRef.current) cameraRef.current.value = "";
   }
 
   return (
@@ -141,9 +143,23 @@ export function PhotoUpload({
             className="hidden"
             id="photo-input"
           />
-          <Button type="button" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()}>
-            {uploading ? "Uploading…" : "+ Add photo"}
-          </Button>
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+            id="photo-input-camera"
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="min-h-12">
+              {uploading ? "Uploading…" : "Take photo"}
+            </Button>
+            <Button type="button" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()} className="min-h-12">
+              <Tx>Upload from gallery</Tx>
+            </Button>
+          </div>
           <label className="mt-2 flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={markupFirst} onChange={(e) => toggleMarkup(e.target.checked)} />
             <Tx>Mark up each photo (draw, arrow, circle) before it is uploaded</Tx>

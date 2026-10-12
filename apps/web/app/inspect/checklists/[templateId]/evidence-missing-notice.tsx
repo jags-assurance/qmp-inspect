@@ -29,12 +29,7 @@ export function EvidenceMissingNotice({
   const reasonOk = reason.trim().length >= MIN_REASON;
 
   function takePhoto() {
-    const input = document.querySelector<HTMLInputElement>("#photo-evidence-section input[type=file]");
-    if (!input) return;
-    input.setAttribute("capture", "environment");
-    input.click();
-    // Don't leave capture-only behaviour on the input for later "choose from gallery" uses.
-    setTimeout(() => input.removeAttribute("capture"), 1000);
+    document.querySelector<HTMLInputElement>("#photo-input-camera")?.click();
   }
 
   return (

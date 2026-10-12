@@ -268,7 +268,7 @@ function UploadForm({
         type="file"
         accept={ACCEPT}
         disabled={busy}
-        className="block w-full text-sm"
+        className="block w-full cursor-pointer rounded-md border border-dashed border-border bg-surface p-3 text-sm text-muted file:me-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-burgundy file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
       />
       <p className="text-xs text-muted">
         <Tx>It is saved to the Document Vault folder &ldquo;Checklists &amp; Forms&rdquo; and linked to this item now; it shows &ldquo;Pending vault approval&rdquo; until approved there.</Tx>
