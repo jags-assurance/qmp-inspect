@@ -1,0 +1,15 @@
+MATERIAL SUBMITTAL SCHEDULE
+Document No: THP-MAT-E-002   Revision: A   Date: 2026-09-20
+Client: Test Harbour Power   Project: THP-2026-001 Switchroom Electrical Fit-out
+
+Item 1  LV switchboard MSB-04, 1600 A, Icw 50 kA 1 s, IP42, form 4b. Type-tested to IEC 61439-2.
+        Required: type test certificate, routine test report, GA drawing. Status: Approved.
+Item 2  XLPE/SWA/PVC 0.6/1 kV copper cable, sizes per THP-DWG-E-101. Required: mill certificate (CoC)
+        per drum, drum number, batch number. Status: Approved.
+Item 3  Hot-dip galvanised cable tray 300 mm and 600 mm, with supports. Required: galvanising
+        certificate. Status: Approved with comments (thickness >= 85 microns to be verified on site).
+Item 4  Compression lugs and glands with earth tags. Required: manufacturer data sheet. Status: Approved.
+Item 5  Earth electrode, copper-bonded rod 16 mm x 2.4 m, and 120 mm2 Cu cable. Status: Approved.
+
+Receiving inspection: every item is checked on arrival against this schedule. Items without the
+required certificate are recorded as Quarantined on the Material register until released.

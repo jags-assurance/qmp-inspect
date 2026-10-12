@@ -27,6 +27,12 @@ function isClientFile(source: string): boolean {
   return /^["']use client["']/.test(stripped);
 }
 
+/** True when the first real statement of the file is the "use server" directive (comments skipped). */
+function isServerActionFile(source: string): boolean {
+  const stripped = source.replace(/^(\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*/, "");
+  return /^["']use server["']/.test(stripped);
+}
+
 const files = DIRS.flatMap((d) => walk(path.join(ROOT, d)));
 const sources = new Map(files.map((f) => [f, fs.readFileSync(f, "utf8")]));
 const clientFiles = new Set(files.filter((f) => isClientFile(sources.get(f)!)));
@@ -71,6 +77,24 @@ describe("server/client boundary", () => {
         // Allowed: a module that defines the hook (it re-exports for client callers).
         if (/export function use[A-Z]/.test(src)) continue;
         offenders.push(path.relative(ROOT, f));
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  // Next.js rejects a "use server" module that exports anything but an async function, but only at
+  // runtime, when one of its actions is invoked: "A 'use server' file can only export async functions"
+  // (error code E352). Real outage: lib/itps/actions.ts exported a const array, and "Generate draft"
+  // on New ITP crashed with "Something went wrong" (digest ...@E352) because that page bundles it.
+  it("'use server' files export only async functions (and types)", () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = sources.get(f)!;
+      if (!isServerActionFile(src)) continue;
+      for (const m of src.matchAll(/^export\s+(?!type\b|interface\b|async\s+function\b|declare\b)(.*)$/gm)) {
+        const rest = m[1];
+        if (/^const\s+\w+\s*(?::[^=]+)?=\s*async\b/.test(rest)) continue;
+        offenders.push(`${path.relative(ROOT, f)}: export ${rest.slice(0, 60)}`);
       }
     }
     expect(offenders).toEqual([]);

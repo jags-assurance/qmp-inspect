@@ -399,7 +399,7 @@ export class GeminiProvider implements AiProvider {
       "  the required document-number + clause format), acceptance_criteria (specific,",
       "  measurable where the source gives a tolerance or value — don't invent numbers the source",
       "  doesn't state), method (how it's checked/tested), frequency (how often/what sample),",
-      "  evidence_type (1 = checklist he inspector fills in on site, 2 = document/certificate",
+      "  evidence_type (1 = checklist the inspector fills in on site, 2 = document/certificate",
       "  upload, 3 = a measurement/test-result record), and discipline_code.",
       `- discipline_code must be one of: ${disciplinesList || "(no disciplines configured)"}, or null if the`,
       "  activity is genuinely cross-discipline/general.",

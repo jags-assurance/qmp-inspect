@@ -3,6 +3,15 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 import { securityHeaders } from "./lib/security/headers";
 
 const nextConfig: NextConfig = {
+  // pdf-parse (vault text extraction, lib/vault/extract-text.ts) runs pdfjs-dist, which loads
+  // pdf.worker.mjs from its own directory at runtime. Bundled into .next/server/chunks that file is
+  // missing, so every PDF failed with "Setting up fake worker failed: Cannot find module
+  // .../chunks/pdf.worker.mjs" and showed "Could not be read" (no PDF could feed the AI ITP draft).
+  // Kept external, they load from node_modules; the tracing include makes sure the worker is deployed.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
+  outputFileTracingIncludes: {
+    "/**": ["../../node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs", "../../node_modules/.pnpm/pdf-parse@*/node_modules/pdf-parse/dist/**/*.mjs"],
+  },
   experimental: {
     // Server Actions default to a 1 MB body; forms that post photos (NCR raise, punch add/resolve) need
     // more. 4 MB stays under the ~4.5 MB serverless request cap on Vercel — the forms compress photos

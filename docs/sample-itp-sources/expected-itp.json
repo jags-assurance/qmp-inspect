@@ -1,0 +1,25 @@
+{
+  "_about": "What a good AI ITP draft from the THP-2026-001 sample documents must contain. Used by verify-draft.mjs. 'match' = regexes (any) on activity + acceptance text that identify the activity; 'values' = each regex must appear in its acceptance criteria/method; 'refs' = regex the reference must match; 'evidence' = acceptable evidence types (1 checklist, 2 document, 3 measurement); 'intervention' = at least one suggested intervention of these codes.",
+  "knownDocuments": ["THP-SPEC-E-001", "THP-ES-200", "THP-MS-E-003", "THP-DWG-E-101", "THP-MAT-E-002", "THP-PCS-001"],
+  "knownStandards": ["IEC 61439", "IEC 60364"],
+  "activities": [
+    { "id": "A01", "required": true,  "name": "Receiving inspection of MSB-04 against submittal", "match": ["nameplate", "receiving", "MSB-04.*(submittal|deliver)"], "values": ["1600\\s*A"], "refs": "SPEC-E-001.*3\\.1|MAT-E-002|3\\.1", "evidence": [1, 2], "intervention": ["R", "S", "H", "W"] },
+    { "id": "A02", "required": true,  "name": "Cable drum / CoC (mill certificate) check", "match": ["drum", "mill certificate", "\\bCoC\\b", "cable.*(certificate|material)"], "values": ["CoC|mill certificate|certificate"], "refs": "3\\.2|MAT-E-002", "evidence": [1, 2], "intervention": ["R", "S", "H", "W"] },
+    { "id": "A03", "required": true,  "name": "Switchboard positioning and levelling", "match": ["level", "plinth", "anchor", "position"], "values": ["2\\s*mm"], "refs": "5\\.1|DWG-E-101", "evidence": [1, 3], "intervention": ["S", "R", "W", "H"] },
+    { "id": "A04", "required": true,  "name": "Cable tray / containment installation", "match": ["tray", "containment"], "values": ["1\\.5\\s*m", "40\\s*%"], "refs": "4\\.1", "evidence": [1, 3], "intervention": ["S", "R", "W", "H"] },
+    { "id": "A05", "required": true,  "name": "Cable installation: bend radius and segregation", "match": ["bend", "segregat", "cable (pull|install|laying)"], "values": ["12", "300\\s*mm"], "refs": "4\\.2", "evidence": [1, 3], "intervention": ["S", "R", "W", "H"] },
+    { "id": "A06", "required": false, "name": "Cable identification at both ends", "match": ["identif", "cable (tag|label|number)"], "values": [], "refs": "4\\.3", "evidence": [1], "intervention": [] },
+    { "id": "A07", "required": true,  "name": "Terminations and torque", "match": ["torque", "termination", "lug"], "values": ["torque"], "refs": "5\\.2|5\\.3|4\\.5", "evidence": [1, 3], "intervention": ["W", "S", "R", "H"] },
+    { "id": "A08", "required": true,  "name": "Earth electrode resistance", "match": ["electrode", "earth pit", "fall.of.potential"], "values": ["1\\s*(ohm|Ω)"], "refs": "6\\.2|4\\.3", "evidence": [3], "intervention": ["H"] },
+    { "id": "A09", "required": true,  "name": "Protective conductor continuity", "match": ["continuity"], "values": ["0\\.5\\s*(ohm|Ω)"], "refs": "6\\.3|4\\.2", "evidence": [3], "intervention": ["R", "W", "H", "S"] },
+    { "id": "A10", "required": true,  "name": "Insulation resistance test F1-F4", "match": ["insulation resistance", "\\bIR\\b", "megger"], "values": ["1000\\s*V", "100\\s*(M|meg)"], "refs": "7\\.1|4\\.1", "evidence": [3], "intervention": ["H"] },
+    { "id": "A11", "required": true,  "name": "Polarity and phase rotation", "match": ["polarity", "phase rotation", "phase sequence"], "values": [], "refs": "7\\.2", "evidence": [3, 1], "intervention": ["R", "W", "H", "S"] },
+    { "id": "A12", "required": true,  "name": "Earth fault loop impedance (Zs)", "match": ["loop impedance", "\\bZs\\b"], "values": ["Table 2|0\\.16|0\\.40"], "refs": "7\\.3|Table 2|ES-200", "evidence": [3], "intervention": ["R", "W", "H", "S"] },
+    { "id": "A13", "required": true,  "name": "RCD trip times", "match": ["RCD", "residual current"], "values": ["300\\s*ms", "40\\s*ms"], "refs": "7\\.4|4\\.4", "evidence": [3], "intervention": ["R", "W", "H", "S"] },
+    { "id": "A14", "required": true,  "name": "Protection settings (secondary injection)", "match": ["protection", "secondary injection", "relay", "MCCB setting"], "values": ["PCS-001|coordination"], "refs": "7\\.5|PCS-001", "evidence": [3, 2], "intervention": ["W"] },
+    { "id": "A15", "required": true,  "name": "Switchboard functional test", "match": ["functional", "interlock"], "values": [], "refs": "7\\.6", "evidence": [1, 3], "intervention": ["W"] },
+    { "id": "A16", "required": true,  "name": "First energisation: voltage, balance", "match": ["first energi[sz]", "energi[sz]ation (check|test)", "voltage (balance|check|imbalance)", "phase imbalance"], "values": ["415", "6\\s*%"], "refs": "7\\.7", "evidence": [3], "intervention": ["H"] },
+    { "id": "A17", "required": false, "name": "Labelling (circuit charts, arc-flash)", "match": ["label", "circuit chart", "arc.flash"], "values": [], "refs": "8\\.1", "evidence": [1], "intervention": [] },
+    { "id": "A18", "required": false, "name": "Handover dossier / calibration certificates", "match": ["dossier", "handover", "calibration certificate", "as-built"], "values": [], "refs": "8\\.2|3\\.1", "evidence": [2], "intervention": [] }
+  ]
+}

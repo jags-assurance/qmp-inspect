@@ -1,0 +1,295 @@
+{
+ "sections": [
+  {
+   "sectionNumber": 1,
+   "title": "Materials receiving",
+   "items": [
+    {
+     "itemNumber": "1.1",
+     "activity": "Receiving inspection of MSB-04 nameplate against approved submittal",
+     "referenceSpec": "THP-SPEC-E-009 cl. 2 / IEC 60947",
+     "acceptanceCriteria": "Nameplate 1600 A, Icw 50 kA 1 s, IP42 matches submittal; deviation raised as NCR",
+     "method": "Visual + document review",
+     "frequency": "Per delivery",
+     "evidenceType": 2,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Submittal review per THP-ES-200 2.3"
+      }
+     ]
+    },
+    {
+     "itemNumber": "1.2",
+     "activity": "Cable drum check: size, rating and mill certificate (CoC)",
+     "referenceSpec": "THP-SPEC-E-001 cl. 3.2 / 3.3",
+     "acceptanceCriteria": "Size per THP-DWG-E-101, 0.6/1 kV, CoC matches submittal; no CoC = quarantine",
+     "method": "Visual + document review",
+     "frequency": "Each drum",
+     "evidenceType": 2,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Material release"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "sectionNumber": 2,
+   "title": "Installation",
+   "items": [
+    {
+     "itemNumber": "2.1",
+     "activity": "MSB-04 positioning and levelling on plinth",
+     "referenceSpec": "THP-SPEC-E-001 cl. 5.1 / THP-DWG-E-101 note 1",
+     "acceptanceCriteria": "Level within 2 mm per metre; anchors as drawing",
+     "method": "Spirit level measurement",
+     "frequency": "Each section",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "S",
+       "reason": "Surveillance"
+      }
+     ]
+    },
+    {
+     "itemNumber": "2.2",
+     "activity": "Cable tray installation",
+     "referenceSpec": "THP-SPEC-E-001 cl. 4.1",
+     "acceptanceCriteria": "Supports <= 1.5 m centres, bonded both ends, fill <= 40 %",
+     "method": "Visual + tape",
+     "frequency": "Each run",
+     "evidenceType": 1,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-gfl",
+       "intervention": "S",
+       "reason": "Surveillance"
+      }
+     ]
+    },
+    {
+     "itemNumber": "2.3",
+     "activity": "Cable pulling: bend radius and segregation",
+     "referenceSpec": "THP-SPEC-E-001 cl. 4.2",
+     "acceptanceCriteria": "Bend radius >= 12 x D; power/control separation >= 300 mm",
+     "method": "Visual + tape",
+     "frequency": "Each cable",
+     "evidenceType": 1,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "S",
+       "reason": "Surveillance"
+      }
+     ]
+    },
+    {
+     "itemNumber": "2.4",
+     "activity": "Cable identification at both ends",
+     "referenceSpec": "THP-SPEC-E-001 cl. 4.3",
+     "acceptanceCriteria": "Cable number per schedule at both ends",
+     "method": "Visual",
+     "frequency": "Each cable",
+     "evidenceType": 1,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": []
+    },
+    {
+     "itemNumber": "2.5",
+     "activity": "Terminations: crimping and torque",
+     "referenceSpec": "THP-SPEC-E-001 cl. 5.2 / 5.3",
+     "acceptanceCriteria": "Torque to manufacturer value +/- 5 %, torque-marked, calibrated wrench",
+     "method": "Torque check",
+     "frequency": "First of each feeder",
+     "evidenceType": 1,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "W",
+       "reason": "First termination"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "sectionNumber": 3,
+   "title": "Earthing",
+   "items": [
+    {
+     "itemNumber": "3.1",
+     "activity": "Earth electrode resistance test before backfill",
+     "referenceSpec": "THP-SPEC-E-001 cl. 6.2 / THP-ES-200 2.1",
+     "acceptanceCriteria": "<= 10 ohm",
+     "method": "Earth tester",
+     "frequency": "EP-1",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": []
+    },
+    {
+     "itemNumber": "3.2",
+     "activity": "Protective conductor continuity",
+     "referenceSpec": "THP-SPEC-E-001 cl. 6.3",
+     "acceptanceCriteria": "Each protective conductor <= 0.5 ohm",
+     "method": "Low-resistance ohmmeter",
+     "frequency": "Each circuit",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Record review"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "sectionNumber": 4,
+   "title": "Testing and commissioning",
+   "items": [
+    {
+     "itemNumber": "4.2",
+     "activity": "Polarity and phase rotation",
+     "referenceSpec": "THP-SPEC-E-001 cl. 7.2",
+     "acceptanceCriteria": "Correct polarity; rotation L1-L2-L3 clockwise",
+     "method": "Phase rotation meter",
+     "frequency": "MSB-04 and each DB",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Review"
+      }
+     ]
+    },
+    {
+     "itemNumber": "4.3",
+     "activity": "Earth fault loop impedance at each DB",
+     "referenceSpec": "THP-SPEC-E-001 cl. 7.3 / THP-ES-200 Table 2",
+     "acceptanceCriteria": "Zs within THP-ES-200 Table 2 (0.16 to 0.40 ohm)",
+     "method": "Loop tester",
+     "frequency": "Each DB",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Review"
+      }
+     ]
+    },
+    {
+     "itemNumber": "4.4",
+     "activity": "RCD trip time test",
+     "referenceSpec": "THP-SPEC-E-001 cl. 7.4",
+     "acceptanceCriteria": "<= 300 ms at rated current; <= 40 ms at 5x",
+     "method": "RCD tester",
+     "frequency": "Each RCD",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Review"
+      }
+     ]
+    },
+    {
+     "itemNumber": "4.5",
+     "activity": "Protection settings verification by secondary injection",
+     "referenceSpec": "THP-SPEC-E-001 cl. 7.5 / THP-PCS-001",
+     "acceptanceCriteria": "Settings match coordination study THP-PCS-001",
+     "method": "Secondary injection",
+     "frequency": "Each relay/MCCB",
+     "evidenceType": 3,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-client",
+       "intervention": "W",
+       "reason": "48 h notice"
+      },
+      {
+       "projectPartyId": "party-bv",
+       "intervention": "W",
+       "reason": "48 h notice"
+      }
+     ]
+    },
+    {
+     "itemNumber": "4.6",
+     "activity": "Functional test of switchboard",
+     "referenceSpec": "THP-SPEC-E-001 cl. 7.6",
+     "acceptanceCriteria": "All breakers, interlocks, indication, emergency trip operate correctly",
+     "method": "Functional test",
+     "frequency": "Once",
+     "evidenceType": 1,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-client",
+       "intervention": "W",
+       "reason": "Client witness"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "sectionNumber": 5,
+   "title": "Handover",
+   "items": [
+    {
+     "itemNumber": "5.1",
+     "activity": "Labelling: circuit charts and arc-flash labels",
+     "referenceSpec": "THP-SPEC-E-001 cl. 8.1",
+     "acceptanceCriteria": "Labels fitted before energisation",
+     "method": "Visual",
+     "frequency": "Each board",
+     "evidenceType": 1,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": []
+    },
+    {
+     "itemNumber": "5.2",
+     "activity": "Handover dossier and calibration certificates",
+     "referenceSpec": "THP-SPEC-E-001 cl. 8.2",
+     "acceptanceCriteria": "Test records, calibration certificates, as-builts, signed ITP",
+     "method": "Document review",
+     "frequency": "Once",
+     "evidenceType": 2,
+     "disciplineCode": "ELE",
+     "suggestedInterventions": [
+      {
+       "projectPartyId": "party-jags",
+       "intervention": "R",
+       "reason": "Dossier review"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "suggestedTitle": "LV Switchroom Electrical Installation & Testing - THP-2026-001",
+ "suggestedApplicableStandard": "IEC 60364"
+}
