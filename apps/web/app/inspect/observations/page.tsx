@@ -81,7 +81,7 @@ export default async function ObservationsPage({
 
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
   const nowMs = new Date().getTime();
-  const [stats, { data: observations, count: totalCount }] = await Promise.all([
+  const [stats, { data: observations, count: totalCount, error: observationsError }] = await Promise.all([
     loadRegisterStats(
       supabase,
       { observations: true, projectId, itpItemIds: itpItemIdFilter, todayIso, nowMs },
@@ -98,6 +98,8 @@ export default async function ObservationsPage({
       ,
   ]);
 
+  // A failed read showed "No observations raised yet." under cards that counted 11 (seen on dev).
+  if (observationsError) throw new Error(`Could not load the observation register: ${observationsError.message}`);
   const rows = (observations ?? []) as NcrRegisterRow[];
   const { total, open, closed, overdue } = stats;
   const agingCounts = stats.aging;
