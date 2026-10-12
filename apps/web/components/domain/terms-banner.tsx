@@ -19,9 +19,9 @@ export function TermsBanner() {
   if (state.accepted || dismissed) return null;
 
   return (
-    <div role="region" aria-label={tl("Terms of use")} className="border-b border-border bg-off-white px-3 py-3 text-sm text-ink sm:px-6">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p className="min-w-0 flex-1">
+    <div role="region" aria-label={tl("Terms of use")} className="fixed bottom-4 end-4 z-40 max-w-md rounded-lg border border-border bg-surface p-4 text-sm text-ink shadow-lg">
+      <div className="flex flex-col gap-3">
+        <p className="min-w-0">
           <Tx>Please read and accept the</Tx>{" "}
           <Link href="/terms" className="font-medium text-burgundy underline" target="_blank" rel="noopener">
             <Tx>terms of use</Tx>

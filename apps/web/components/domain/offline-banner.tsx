@@ -272,9 +272,9 @@ export function OfflineBanner() {
       <>
       {dialog}
       {updateBar}
-      <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info">
+      <div role="status" className="fixed bottom-48 end-4 z-40 flex max-w-sm flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm text-ink shadow-lg">
         <span><Tx>Install QMP Inspect on this device for faster access in the field.</Tx></span>
-        <span className="flex shrink-0 gap-3">
+        <span className="flex shrink-0 gap-4 text-burgundy">
           <button
             type="button"
             className="font-medium underline"
