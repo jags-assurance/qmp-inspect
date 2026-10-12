@@ -197,7 +197,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   // former reads as a dead end otherwise (see the not-canExecute message below).
   // Perf: none of these four filters only by templateId/project.id/session.userId — nothing here
   // depends on another's result — so batch them instead of four sequential round trips.
-  const [{ data: ownPartyLink }, { data: items }, { data: draftRecords }, { data: pastRecords }] = await Promise.all([
+  const [{ data: ownPartyLink }, { data: items, error: itemsError }, { data: draftRecords, error: draftError }, { data: pastRecords }] = await Promise.all([
     session.isJagsStaff
       ? Promise.resolve({ data: null as { id: string } | null })
       : supabase
@@ -229,6 +229,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>(),
   ]);
 
+  // A failed read must not render as "no items yet" or "no inspection in progress" (seen on dev under
+  // load): the first hides the checklist, the second would offer Start inspection again.
+  if (itemsError) throw new Error(`Could not load this checklist's items: ${itemsError.message}`);
+  if (draftError) throw new Error(`Could not load this checklist's inspection in progress: ${draftError.message}`);
   const draft = draftRecords?.[0] ?? null;
   // Perf: these reads are independent of each other, so they run together (one round trip's worth
   // of latency instead of ~10 in sequence).
