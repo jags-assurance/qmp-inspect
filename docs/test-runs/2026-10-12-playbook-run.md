@@ -76,3 +76,19 @@ then delete Test Harbour Power; deactivate `thp.vendor@example.test` under Staff
 ## 6. Test data left on dev (and prod: same database) (remove per playbook section 4)
 
 Organisation **Test Harbour Power** (AI consent given); project **THP-2026-001** (Active) with 6 parties, a team, 3 NCRs, punch items and walk-down, vault documents 001–008, registers (PB-*), Data Book DB-QA-J01 and handover HC-QA-J01 (acknowledged), a login `thp.vendor@example.test`; extra photos on MER checklist CHK-1; inspection MER-JAGS-ITP-001-INSP-2; UITEST-001 INSP-4 left **in progress** with its IRN voided; one Meridian monthly report pack.
+
+## 7. After deploy (13 Oct, dev build `57ad936`)
+
+`dev` was fast-forwarded to this branch (18 commits) and rebuilt. Smoke-tested as Admin:
+
+- **Generate draft works** (HTTP 200, no crash). Using the 3 sample documents that were readable
+  (specification, method statement, material schedule) it produced 4 sections / 21 activities.
+  `verify-draft.mjs`: **PASS**, 100% of required activities covered, 97% detail accuracy, no invented
+  document references. Holds are on insulation resistance (JAGS + main contractor, TPI witness) and
+  first energisation; witness on protection settings and the functional test. Two small gaps: item 1.1
+  cites the submittal instead of stating "1600 A", item 2.2 omits the 40 % tray-fill limit.
+  Saved as `docs/test-runs/raw/ai-itp-draft-2026-10-13.json`.
+- **Inspections list** now shows rows (44); **ITP status chips** are labelled.
+- **Still to do:** the two sample PDFs uploaded before the fix still say "Could not be read" (re-upload
+  as new revisions to include the standard and drawing); apply migration `20261202000100`; re-run B3-B7,
+  C, D4, F2, F3 and M's button checks; the Admin delete button is now live (dev and prod share a database).
