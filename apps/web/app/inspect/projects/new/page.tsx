@@ -42,6 +42,14 @@ export default async function NewProjectPage() {
     if (organizations.length === 0) redirect("/inspect/projects");
   }
 
+  // Existing project numbers per organisation (RLS-scoped), so the form can suggest the next one.
+  const { data: existingProjects } = await supabase
+    .from("projects")
+    .select("organization_id, project_number")
+    .returns<{ organization_id: string; project_number: string }[]>();
+  const existingNumbersByOrg: Record<string, string[]> = {};
+  for (const p of existingProjects ?? []) (existingNumbersByOrg[p.organization_id] ??= []).push(p.project_number);
+
   let staffUsers: { id: string; full_name: string; email: string }[] = [];
   if (isAdminStaff(session)) {
     const { data } = await supabase
@@ -71,7 +79,7 @@ export default async function NewProjectPage() {
         />
       </div>
       <p className="mt-1 text-sm text-muted"><T>Set up a new project for a client organisation.</T></p>
-      <NewProjectForm organizations={organizations} allowCreateOrg={isAdminStaff(session)} staffUsers={staffUsers} />
+      <NewProjectForm organizations={organizations} allowCreateOrg={isAdminStaff(session)} staffUsers={staffUsers} existingNumbersByOrg={existingNumbersByOrg} />
     </div>
   );
 }

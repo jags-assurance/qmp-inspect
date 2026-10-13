@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { suggestProjectNumber } from "@/lib/projects/suggest-number";
 import { createProjectAction, type CreateProjectState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -15,6 +16,7 @@ export function NewProjectForm({
   organizations,
   allowCreateOrg = true,
   staffUsers = [],
+  existingNumbersByOrg = {},
 }: {
   organizations: { id: string; name: string }[];
   /** Hidden for a Self-Managed client creating their own project — they can't create a new
@@ -22,9 +24,22 @@ export function NewProjectForm({
   allowCreateOrg?: boolean;
   /** JAGS staff who can be named as the project's responsible person (Admin only). */
   staffUsers?: { id: string; full_name: string; email: string }[];
+  /** Project numbers already used, per organisation id; the next number is suggested from these. */
+  existingNumbersByOrg?: Record<string, string[]>;
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
+  const [projectNumber, setProjectNumber] = useState("");
+  // Once the user types their own number we stop overwriting it when they change the organisation.
+  const [numberEdited, setNumberEdited] = useState(false);
+
+  function onOrganisationChange(organizationId: string) {
+    if (numberEdited) return;
+    const org = organizations.find((o) => o.id === organizationId);
+    setProjectNumber(
+      org ? suggestProjectNumber(org.name, new Date().getFullYear(), existingNumbersByOrg[org.id] ?? []) : ""
+    );
+  }
 
   return (
     <form action={formAction} className="mt-6 space-y-4">
@@ -43,6 +58,7 @@ export function NewProjectForm({
           id="organization_id"
           name="organization_id"
           required
+          onChange={(e) => onOrganisationChange(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
           <option value=""><Tx>Select…</Tx></option>
@@ -67,10 +83,16 @@ export function NewProjectForm({
           <input
           name="project_number"
           required
+          value={projectNumber}
+          onChange={(e) => {
+            setProjectNumber(e.target.value);
+            setNumberEdited(true);
+          }}
           placeholder={tl("e.g. MER-2026-001")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
+        <p className="mt-1 text-xs text-muted"><Tx>Suggested from the organisation and year; you can change it.</Tx></p>
       </div>
 
       <div>
