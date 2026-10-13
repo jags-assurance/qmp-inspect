@@ -164,8 +164,7 @@ export async function PunchListView({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {project.organizations?.name} · {project.name}. {openCount} <T>open item</T>{openCount === 1 ? "" : "s"}{" "}
-            <T>outstanding before this project&apos;s Data Book can compile without an override.</T>
+            {project.organizations?.name} · {project.name}. {openCount} <T>open item</T>{openCount === 1 ? "" : "s"}
           </p>
         </div>
         <Link

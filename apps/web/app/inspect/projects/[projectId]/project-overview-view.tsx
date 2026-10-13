@@ -389,7 +389,7 @@ export async function ProjectOverviewView({
           <span className="text-sm text-muted"><T>Not set</T></span>
         )}
         <span className="w-full text-xs text-muted">
-          <T>The one named person to go to for this project overall — who the client and parties contact first. It is separate from the Hold / Witness / Review assignments, which are per activity.</T>
+          <T>First contact for this project. Separate from the per-activity Hold / Witness / Review assignments.</T>
         </span>
       </div>
       {isAdminStaff(session) && (
@@ -532,7 +532,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Checklist execution settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>By default only the performing contractor (subcontractor/main contractor) self-inspects and fills in checklists — a client-type party only holds independent sign-off points. Turning this on lets a client-type party on THIS project also execute checklists, without changing behaviour on any other project.</T>
+            <T>Off: only the performing contractor fills in checklists. On: client-type parties on THIS project can too.</T>
           </p>
           <AllowClientExecutionToggle projectId={project.id} allowClientExecution={project.allow_client_execution} />
         </div>
@@ -548,7 +548,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>ITP creation settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>By default only JAGS staff create ITPs. Turning this on lets an active client-type party on THIS project also create and build out draft ITPs from scratch — JAGS still reviews and approves every ITP regardless of who created it; a client can only edit their own ITPs while they remain in draft.</T>
+            <T>Off: only JAGS staff create ITPs. On: client-type parties on THIS project can create draft ITPs; JAGS still approves every ITP.</T>
           </p>
           <AllowClientItpCreationToggle
             projectId={project.id}
@@ -565,7 +565,7 @@ export async function ProjectOverviewView({
         <div className="mt-4 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Standalone Assignment execution settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>By default only JAGS staff can run a Standalone Assignment (FAT/witness inspection/ specific test/pre-shipment) on this project, on any engagement tier. Turning this on lets an active subcontractor or main-contractor party on THIS project run one themselves too — the equipment they supplied is routinely something they&apos;re best placed to test. This works independently of the Full Client-Managed tier&apos;s own run_standalone_assignment permission (Organisation → Custom roles), which is separate and grants the same right to the client&apos;s own people instead.</T>
+            <T>Off: only JAGS staff run Standalone Assignments here. On: active subcontractor / main-contractor parties on THIS project can too. Separate from the client run_standalone_assignment permission.</T>
           </p>
           <AllowContractorStandaloneAssignmentToggle
             projectId={project.id}
@@ -588,7 +588,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Site location (geofence)</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Optional. When set, starting an inspection with live GPS shows a warning if the inspector is farther than the radius from this point. It never blocks work, and the distance is recorded with the inspection. Leave blank to switch it off.</T>
+            <T>Optional. Warns (never blocks) if an inspector starts farther than the radius from this point. Leave blank to switch off.</T>
           </p>
           <SiteGeofenceSettings
             projectId={project.id}
@@ -603,7 +603,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Hold-point enforcement</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>On by default: an open Hold on an activity stops field work from starting at all, not just from being marked complete (R71 — &quot;a hold point must wait&quot;). Turn this off for THIS project only if its process doesn&apos;t need the software to enforce the hold at start time — the assigned party still has to sign off before the inspection can be completed either way.</T>
+            <T>On: an open Hold stops field work from starting. Off for THIS project: work can start, but the Hold must still be signed off before completion.</T>
           </p>
           <EnforceHoldBlocksStartToggle
             projectId={project.id}
@@ -616,7 +616,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Notice period overrides</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>How long an originator waits for a response before a level can be marked &ldquo;notified&rdquo; / proceed-without-response applies (R25). Set one value here per intervention level for THIS project, instead of overriding every individual activity — leave blank to keep using the organisation&apos;s own default for that level.</T>
+            <T>Wait time before proceed-without-response applies, per level for THIS project. Blank uses the organisation default.</T>
           </p>
           <NoticePeriodSettings
             projectId={project.id}

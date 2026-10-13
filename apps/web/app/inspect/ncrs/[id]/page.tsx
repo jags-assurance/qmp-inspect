@@ -121,25 +121,33 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             )}
             <h2 className="text-sm font-medium text-ink"><T>Description</T></h2>
             <p className="mt-1 text-sm text-ink">{ncr.description}</p>
+            {(ncr.requirement_not_met || (extendedAvailable && (ncr.location || ncr.equipment_tag || ncr.spec_reference || categoryLabel || ncr.disposition || ncr.cost_impact != null || ncr.schedule_impact_days != null)) || (ncr.reopen_count ?? 0) > 0) && (
+              <details className="group mt-3">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+                  <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+                  <T>Details</T>
+                </summary>
             {ncr.requirement_not_met && (
-              <>
-                <h2 className="mt-4 text-sm font-medium text-ink"><T>Requirement not met</T></h2>
-                <p className="mt-1 text-sm text-muted">{ncr.requirement_not_met}</p>
-              </>
-            )}
-            {extendedAvailable && (ncr.location || ncr.equipment_tag || ncr.spec_reference || categoryLabel || ncr.disposition || ncr.cost_impact != null || ncr.schedule_impact_days != null) && (
-              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
-                {ncr.location && (<div><dt className="text-muted"><T>Location</T></dt><dd className="text-ink">{ncr.location}</dd></div>)}
-                {ncr.equipment_tag && (<div><dt className="text-muted"><T>Equipment tag</T></dt><dd className="text-ink">{ncr.equipment_tag}</dd></div>)}
-                {ncr.spec_reference && (<div><dt className="text-muted"><T>Spec clause</T></dt><dd className="text-ink">{ncr.spec_reference}</dd></div>)}
-                {categoryLabel && (<div><dt className="text-muted"><T>Root-cause category</T></dt><dd className="text-ink">{categoryLabel}</dd></div>)}
-                {ncr.disposition && (<div><dt className="text-muted"><T>Disposition</T></dt><dd className="text-ink">{NCR_DISPOSITION_LABELS[ncr.disposition as NcrDisposition] ?? ncr.disposition}</dd></div>)}
-                {ncr.cost_impact != null && (<div><dt className="text-muted"><T>Cost impact</T></dt><dd className="text-ink">{Number(ncr.cost_impact).toLocaleString("en-GB")}</dd></div>)}
-                {ncr.schedule_impact_days != null && (<div><dt className="text-muted"><T>Schedule impact</T></dt><dd className="text-ink">{ncr.schedule_impact_days} <T>day(s)</T></dd></div>)}
-              </dl>
-            )}
-            {(ncr.reopen_count ?? 0) > 0 && (
-              <p className="mt-3 text-xs text-muted"><T>Re-opened</T> {ncr.reopen_count} <T>time(s)</T>{ncr.last_reopen_reason ? `; last reason: ${ncr.last_reopen_reason}` : ""}.</p>
+                <>
+                  <h2 className="mt-4 text-sm font-medium text-ink"><T>Requirement not met</T></h2>
+                  <p className="mt-1 text-sm text-muted">{ncr.requirement_not_met}</p>
+                </>
+              )}
+              {extendedAvailable && (ncr.location || ncr.equipment_tag || ncr.spec_reference || categoryLabel || ncr.disposition || ncr.cost_impact != null || ncr.schedule_impact_days != null) && (
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                  {ncr.location && (<div><dt className="text-muted"><T>Location</T></dt><dd className="text-ink">{ncr.location}</dd></div>)}
+                  {ncr.equipment_tag && (<div><dt className="text-muted"><T>Equipment tag</T></dt><dd className="text-ink">{ncr.equipment_tag}</dd></div>)}
+                  {ncr.spec_reference && (<div><dt className="text-muted"><T>Spec clause</T></dt><dd className="text-ink">{ncr.spec_reference}</dd></div>)}
+                  {categoryLabel && (<div><dt className="text-muted"><T>Root-cause category</T></dt><dd className="text-ink">{categoryLabel}</dd></div>)}
+                  {ncr.disposition && (<div><dt className="text-muted"><T>Disposition</T></dt><dd className="text-ink">{NCR_DISPOSITION_LABELS[ncr.disposition as NcrDisposition] ?? ncr.disposition}</dd></div>)}
+                  {ncr.cost_impact != null && (<div><dt className="text-muted"><T>Cost impact</T></dt><dd className="text-ink">{Number(ncr.cost_impact).toLocaleString("en-GB")}</dd></div>)}
+                  {ncr.schedule_impact_days != null && (<div><dt className="text-muted"><T>Schedule impact</T></dt><dd className="text-ink">{ncr.schedule_impact_days} <T>day(s)</T></dd></div>)}
+                </dl>
+              )}
+              {(ncr.reopen_count ?? 0) > 0 && (
+                <p className="mt-3 text-xs text-muted"><T>Re-opened</T> {ncr.reopen_count} <T>time(s)</T>{ncr.last_reopen_reason ? `; last reason: ${ncr.last_reopen_reason}` : ""}.</p>
+              )}
+              </details>
             )}
             {detail.canEditDetails && (
               <EditNcrDetailsForm
@@ -159,7 +167,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             <p className="mt-1 text-sm text-muted">
               {isClosed
                 ? `Closed ${ncr.closed_at ? formatSiteDateTime(ncr.closed_at, siteTz) : ""}.`
-                : "Assign an owner and due date, then work through root cause, corrective and preventive action before closing."}
+                : "Assign an owner and due date, then complete root cause, corrective and preventive action."}
             </p>
             {!isClosed && (
               <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">

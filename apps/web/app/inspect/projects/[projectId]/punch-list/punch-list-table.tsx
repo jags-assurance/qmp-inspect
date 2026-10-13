@@ -189,7 +189,15 @@ export function PunchListTable({
       header: "Pri.",
       render: (row) => <Badge tone={row.priority === "A" ? "danger" : row.priority === "B" ? "warning" : "neutral"}>{row.priority}</Badge>,
     },
-    { key: "description", header: "Description", render: (row) => row.description },
+    {
+      key: "description",
+      header: "Description",
+      render: (row) => (
+        <span className="line-clamp-2 max-w-xs [overflow-wrap:anywhere]" title={row.description}>
+          {row.description}
+        </span>
+      ),
+    },
     {
       key: "source",
       header: "Source",

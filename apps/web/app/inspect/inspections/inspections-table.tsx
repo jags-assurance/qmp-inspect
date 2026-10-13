@@ -54,7 +54,7 @@ const columns: DataTableColumn<InspectionListRow>[] = [
     render: (r) => (
       <div>
         <span className="doc-id">{r.itp_number}</span>
-        <div className="text-muted">{r.activity}</div>
+        <div className="line-clamp-1 max-w-xs text-muted" title={r.activity}>{r.activity}</div>
       </div>
     ),
   },

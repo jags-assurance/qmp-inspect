@@ -82,7 +82,15 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void, t
     header: "Severity",
     render: (row) => <Badge tone={SEVERITY_TONE[row.severity]}>{SEVERITY_LABEL[row.severity]}</Badge>,
   },
-  { key: "description", header: "Description", render: (row) => row.description },
+  {
+    key: "description",
+    header: "Description",
+    render: (row) => (
+      <span className="line-clamp-1 max-w-xs [overflow-wrap:anywhere]" title={row.description}>
+        {row.description}
+      </span>
+    ),
+  },
   {
     key: "discipline",
     header: "Discipline",

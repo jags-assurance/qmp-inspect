@@ -169,8 +169,8 @@ export default async function NcrsPage({
           </div>
           <p className="mt-1 text-sm text-muted">
             {session.isJagsStaff
-              ? "Minor and major non-conformances across every project you have access to."
-              : "Minor and major non-conformances on your organisation's projects."}{" "}
+              ? "Minor and major NCRs across your projects."
+              : "Minor and major NCRs on your projects."}{" "}
             <Link href="/inspect/observations" className="text-burgundy hover:underline">
               <T>See observations →</T>
             </Link>

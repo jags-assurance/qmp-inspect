@@ -191,7 +191,7 @@ export default async function StartWorkPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        <T>Choose the workflow that best matches the engagement. Both options take you to the real creation form — nothing is created until you submit it there.</T>
+        <T>Choose a workflow. Nothing is created until you submit the form.</T>
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -229,7 +229,7 @@ export default async function StartWorkPage({
       <section className="mt-10" aria-labelledby="activities-heading">
         <h2 id="activities-heading" className="text-lg font-semibold text-ink"><T>Activities ready for site work</T></h2>
         <p className="mt-1 text-sm text-muted">
-          <T>Activities on approved ITPs. An open Hold on an activity is shown when you open it — the inspection can start once it is released.</T>
+          <T>Activities on approved ITPs. Open Holds show when you open one.</T>
         </p>
         <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
   <ScanSearchInput defaultValue={sp.q ?? ""} />
@@ -355,6 +355,11 @@ function WorkModeCard({
         <p className="mt-2 text-sm text-muted">{description}</p>
       </div>
 
+      <details className="group flex-1 px-5 py-3">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Details</T>
+        </summary>
       <ul className="flex-1 space-y-2 px-5 py-4 text-sm text-ink">
         {bullets.map((b) => (
           <li key={b} className="flex items-start gap-2">
@@ -368,6 +373,8 @@ function WorkModeCard({
         <span className={emphasized ? "text-burgundy" : "text-[color:var(--color-burgundy-dark)]"}>★</span>{" "}
         {bestFor}
       </p>
+
+      </details>
 
       <div className="px-5 pb-5">
         <Link

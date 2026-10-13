@@ -122,8 +122,8 @@ export default async function ObservationsPage({
           </div>
           <p className="mt-1 text-sm text-muted">
             {session.isJagsStaff
-              ? "Observations across every project you have access to."
-              : "Observations on your organisation's projects."}{" "}
+              ? "Observations across your projects."
+              : "Observations on your projects."}{" "}
             <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
               <T>See NCRs →</T>
             </Link>
