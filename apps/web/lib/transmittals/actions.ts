@@ -8,6 +8,7 @@ import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/
 import { requireSession } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { sendEmail } from "@/lib/notifications/email";
+import { isUndeliverableAddress } from "@/lib/notifications/undeliverable";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { isMissingDbObject } from "@/lib/databook/db-errors";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE } from "@/lib/vault/types";
@@ -111,6 +112,12 @@ export async function sendTransmittalAction(_prev: SendTransmittalState, formDat
     message: String(formData.get("message") ?? ""),
   });
   if (!input.ok) return { error: input.error };
+  // Reserved/test domains (.demo, .test, example.com ...) can never receive mail: refuse now rather than
+  // log a transmittal whose delivery is guaranteed to fail (the notification emailer skips them too).
+  const undeliverable = input.recipients.filter((email) => isUndeliverableAddress(email));
+  if (undeliverable.length > 0) {
+    return { error: `${undeliverable.join(", ")} ${undeliverable.length === 1 ? "is a test or placeholder address that" : "are test or placeholder addresses that"} cannot receive email. Use a real address.` };
+  }
 
   if (!process.env.RESEND_API_KEY || !isServiceRoleConfigured()) {
     return { error: "Email delivery is not configured on this server (RESEND_API_KEY and SUPABASE_SERVICE_ROLE_KEY are required)." };
