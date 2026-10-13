@@ -382,7 +382,7 @@ export async function VaultDocumentView({
         )}
       </section>
 
-      {session.isJagsStaff && document.status === "approved" && (
+      {session.isJagsStaff && (
         <TransmittalSection entityType="vault_document" entityId={documentId} projectId={projectId} status={document.status} />
       )}
 

@@ -271,6 +271,13 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
   const statusText = (project.status ?? "unknown").replace(/_/g, " ");
 
   // Hard gates for a FINAL book. Each carries what is missing and where to fix it.
+  const CORE_GATE_LABELS = new Set([
+    "ITPs approved or accepted",
+    "Inspection records with issued IRN",
+    "Checklists completed",
+    "ITP activities inspected and passed",
+    "Hold and witness points signed off",
+  ]);
   const categoryGates = [
     { label: "ITPs approved or accepted", cat: readiness.itps, href: `${base}/workspace` },
     { label: "Inspection records with issued IRN", cat: readiness.inspectionRecords, href: "/inspect/inspections" },
@@ -285,7 +292,8 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     { label: "Hold and witness points signed off", cat: readiness.holdPoints, href: `${base}/workspace` },
   ].map((g) => ({
     label: g.label,
-    ok: g.cat.percentage === 100,
+    // A core category with nothing in it is "not started", not "complete".
+    ok: g.cat.percentage === 100 && !(CORE_GATE_LABELS.has(g.label) && g.cat.total === 0),
     detail: g.cat.total === 0 ? "No items yet" : `${g.cat.ready} of ${g.cat.total} (${g.cat.percentage}%)`,
     missing: g.cat.total - g.cat.ready,
     href: g.href,
@@ -510,7 +518,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                   <p className="mt-1 text-xs text-muted">
                     {allGatesPass
                       ? "All gates pass. Compiling locks this book for review and issue."
-                      : "Gates are not all met. Staff may compile anyway with a documented override reason."}
+                      : "Gates are not all met. A JAGS Admin may compile anyway with a documented override reason."}
                   </p>
                   <div className="mt-3">
                     <CompileDataBookForm

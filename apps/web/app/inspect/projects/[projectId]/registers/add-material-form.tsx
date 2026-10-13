@@ -75,7 +75,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
         <FormField label="Approval status">
           <select
           name="approval_status"
-          defaultValue="A"
+          defaultValue={isStaff ? "A" : "C"}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         >
           {MATERIAL_APPROVAL_STATUSES.map((status) => (

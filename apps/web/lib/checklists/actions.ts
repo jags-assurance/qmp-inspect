@@ -1699,7 +1699,12 @@ async function issueIrnForRecord(
     }
     irnNumber = String(row.out_number);
   } else if (!(rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(rpc.error.message ?? ""))) {
-    if (rpc.error.code === "42501") return { error: "You are not allowed to issue an IRN for this inspection." };
+    if (rpc.error.code === "42501") {
+      // The database gates (open Hold, inspection not passed) also raise 42501 with a readable message; show it.
+      const m = rpc.error.message ?? "";
+      if (/Hold|passed|conditionally/i.test(m)) return { error: m };
+      return { error: "You are not allowed to issue an IRN for this inspection." };
+    }
     console.error("[irn] issue_irn failed", rpc.error.code, rpc.error.message, rpc.error.details);
     // 23505: that IRN number already exists in the project (the per-ITP counter fell behind the
     // numbers already issued), not a permissions problem; saying so shortens the support round trip.

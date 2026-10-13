@@ -97,6 +97,7 @@ export default async function ProjectsPage({
         .select("project_id, status")
         .in("project_id", projectIds)
         .neq("status", "closed")
+        .neq("severity", "observation")
         .returns<{ project_id: string; status: string }[]>(),
       supabase
         .from(PUNCH_LIST_ITEMS_TABLE)

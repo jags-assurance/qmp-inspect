@@ -335,8 +335,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   };
   const noItems = allItemIds.length === 0;
   const [
-    { data: interventions },
-    { data: signoffs },
+    { data: interventions, error: interventionsError },
+    { data: signoffs, error: signoffsError },
     { data: expectedRecords },
     { data: measurements },
     { data: evidenceDocuments },
@@ -346,7 +346,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     checklistPreview,
   ] = await Promise.all([
     noItems
-      ? Promise.resolve({ data: [] as { itp_item_id: string; project_party_id: string; intervention: string }[] })
+      ? Promise.resolve({ data: [] as { itp_item_id: string; project_party_id: string; intervention: string }[], error: null })
       : supabase
           .from("activity_party_intervention")
           .select("itp_item_id, project_party_id, intervention")
@@ -358,6 +358,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
             ActivitySignoffProgressRow,
             "id" | "itp_item_id" | "project_party_id" | "intervention" | "status" | "notified_at" | "updated_at"
           >[],
+          error: null,
         })
       : supabase
           .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
@@ -405,6 +406,10 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         : hasPermission(session.userId, "approve_itp", itp.projects?.id),
     loadItpChecklistPreview(supabase, itp.id),
   ]);
+
+  // A failed read must not render as an empty H/W/R/S grid or sign-off state.
+  if (interventionsError) throw new Error(`Could not load the ITP intervention grid: ${interventionsError.message}`);
+  if (signoffsError) throw new Error(`Could not load the ITP sign-off progress: ${signoffsError.message}`);
 
   const expectedRecordsByItem = new Map<string, ActivityExpectedRecordRow[]>();
   for (const record of expectedRecords ?? []) {

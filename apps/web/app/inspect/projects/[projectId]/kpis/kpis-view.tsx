@@ -329,7 +329,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
           <PageGuide
             title={tl("Client KPIs — how this works")}
             points={[
-              "Client-facing quality metrics for this one project only: first-time pass rate, hold-point turnaround, NCR close-out time, data-book readiness (a proxy), inspection and ITP completion.",
+              "Client-facing quality metrics for this one project only: first-time pass rate, hold-point turnaround, NCR close-out time, data-book readiness, inspection and ITP completion.",
               "Every number and chart here is computed live from this project's own recorded ITPs, inspections, NCRs, sign-offs and punch list — nothing is fabricated trend data or JAGS-internal cost/margin figures.",
               "\"Open Holds\" (currently blocked, ranked by how long they've been waiting) is distinct from \"Hold-point turnaround\" above, which only averages Holds that have already closed.",
               "Reachable by any role with access to this project — no staff-only gate.",

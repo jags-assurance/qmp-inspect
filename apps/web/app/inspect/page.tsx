@@ -305,14 +305,30 @@ export default async function InspectDashboardPage() {
   type AwaitingAcceptanceRow = { id: string; itp_number: string; title: string; projects: { name: string } | null };
   const loadItpsAwaitingAcceptance = async (): Promise<{ rows: AwaitingAcceptanceRow[]; total: number }> => {
     if (!isClientRole) return { rows: [], total: 0 };
-    const { data, count } = await supabase
-      .from("itps")
-      .select("id, itp_number, title, projects(name)", { count: "exact" })
-      .eq("status", "approved")
-      .order("created_at", { ascending: true })
-      .limit(5)
-      .returns<AwaitingAcceptanceRow[]>();
-    return { rows: data ?? [], total: count ?? (data ?? []).length };
+    // Only list ITPs this login can actually accept (mirrors canAccept on the ITP page and accept_itp()):
+    // the assigned acceptor when one is set, otherwise the linked client party of the project.
+    const [{ data: itps }, { data: myClientParties }] = await Promise.all([
+      supabase
+        .from("itps")
+        .select("id, itp_number, title, project_id, assigned_acceptor_user_id, projects(name)")
+        .eq("status", "approved")
+        .order("created_at", { ascending: true })
+        .returns<(AwaitingAcceptanceRow & { project_id: string; assigned_acceptor_user_id: string | null })[]>(),
+      supabase
+        .from("project_parties")
+        .select("project_id")
+        .eq("user_id", session.userId)
+        .eq("party_type", "client")
+        .returns<{ project_id: string }[]>(),
+    ]);
+    const myClientProjects = new Set((myClientParties ?? []).map((r) => r.project_id));
+    const acceptable = (itps ?? []).filter((i) =>
+      i.assigned_acceptor_user_id ? i.assigned_acceptor_user_id === session.userId : myClientProjects.has(i.project_id)
+    );
+    return {
+      rows: acceptable.slice(0, 5).map(({ id, itp_number, title, projects }) => ({ id, itp_number, title, projects })),
+      total: acceptable.length,
+    };
   };
 
   // Main Contractor "review subcontractor work" panel: a Main Contractor's real queue item is an
