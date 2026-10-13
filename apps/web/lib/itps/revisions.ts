@@ -156,6 +156,7 @@ export async function bumpRevisionIfIssued(
     }));
   }
   if (snapshotError) {
+    console.error("[itp-revisions] snapshot write failed", itpId, snapshotError);
     return { bumped: false, error: "Could not record revision history. The edit was not applied — try again." };
   }
 
