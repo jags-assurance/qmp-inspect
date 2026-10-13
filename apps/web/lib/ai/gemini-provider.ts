@@ -399,13 +399,8 @@ export class GeminiProvider implements AiProvider {
       "  the required document-number + clause format), acceptance_criteria (specific,",
       "  measurable where the source gives a tolerance or value — don't invent numbers the source",
       "  doesn't state), method (how it's checked/tested), frequency (how often/what sample),",
-<<<<<<< HEAD
-      "  evidence_type (1 = checklist the inspector fills in on site, 2 = document/certificate",
-      "  upload, 3 = a measurement/test-result record), and discipline_code.",
-=======
       "  evidence_type (1 = checklist the inspector fills in on site, 2 = document upload: certificates,",
       "  test reports and recorded readings/measurements go in as an uploaded document; never use 3), and discipline_code.",
->>>>>>> 02c7631 (ITP evidence: measurements are recorded as part of Document upload; Measurement type no longer offered for new activities (older ITPs keep it); AI uses checklist or document upload only)
       `- discipline_code must be one of: ${disciplinesList || "(no disciplines configured)"}, or null if the`,
       "  activity is genuinely cross-discipline/general.",
       "- KEEP THE TEXT SHORT: field officers scan this on a tablet and will not read paragraphs.",
