@@ -10,7 +10,7 @@ import { CHECKLIST_TEMPLATES_TABLE, type ChecklistTemplateRow } from "@/lib/chec
 import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types";
 import { GenerateChecklistsButton } from "./generate-button";
 import { AttachLibraryTemplateForm } from "./attach-library-template-form";
-import { ITP_STATUS_LABEL } from "../../itps-table";
+import { ITP_STATUS_LABEL } from "../../itp-status";
 import { PageGuide } from "@/components/domain/page-guide";
 import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
 import { filterByArchive, type ArchiveFilter } from "@/lib/checklists/template-ui-logic";

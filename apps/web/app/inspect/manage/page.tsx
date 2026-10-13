@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
-import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itps-table";
+import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "../itps/itp-status";
 import { PageGuide } from "@/components/domain/page-guide";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";

@@ -58,7 +58,8 @@ describe("server/client boundary", () => {
         for (const raw of m[1].split(",")) {
           const name = raw.trim().replace(/^type\s+.*/, "").split(/\s+as\s+/)[0];
           // Components (PascalCase) and hooks are fine to pass across; lower-case helpers are called directly.
-          if (name && /^[a-z]/.test(name) && !/^use[A-Z]/.test(name)) offenders.push(`${path.relative(ROOT, f)} imports ${name} from ${path.relative(ROOT, target)}`);
+          // ALL_CAPS constants too: they reach a server file as undefined (unlabelled ITP status chips).
+          if (name && (/^[a-z]/.test(name) || /^[A-Z][A-Z0-9_]+$/.test(name)) && !/^use[A-Z]/.test(name)) offenders.push(`${path.relative(ROOT, f)} imports ${name} from ${path.relative(ROOT, target)}`);
         }
       }
     }

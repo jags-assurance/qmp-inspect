@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "./itp-status";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
@@ -29,23 +30,6 @@ function progressLabel(row: ItpRow) {
 
 // Exported so other pages rendering the same ITP status enum (e.g.
 // app/inspect/itps/[id]/checklists/page.tsx) can reuse this instead of duplicating a copy.
-export const ITP_STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
-  draft: "neutral",
-  under_review: "warning",
-  approved: "gold",
-  client_accepted: "success",
-  superseded: "neutral",
-  withdrawn: "neutral",
-};
-
-export const ITP_STATUS_LABEL: Record<string, string> = {
-  draft: "Draft",
-  under_review: "Under review",
-  approved: "Approved",
-  client_accepted: "Client accepted",
-  superseded: "Superseded",
-  withdrawn: "Withdrawn",
-};
 
 function buildColumns(hrefFor: (id: string) => string, selectedId: string | null): DataTableColumn<ItpRow>[] {
   const cur = (id: string) => (id === selectedId ? "page" : undefined);

@@ -2,6 +2,7 @@
 import { formatLocationForDisplay } from "@/lib/checklists/location";
 
 import Link from "next/link";
+import { INSPECTIONS_PAGE_SIZE } from "./page-size";
 import { useMemo, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ import type { SupportedLocale } from "@/lib/i18n/direction";
 import { useServerDrivenTableParams } from "@/lib/hooks/use-server-driven-table-params";
 import { Tx } from "@/components/domain/tx";
 
-export const INSPECTIONS_PAGE_SIZE = 50;
 
 export interface InspectionListRow {
   id: string;

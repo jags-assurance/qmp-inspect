@@ -6,7 +6,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { Button } from "@/components/ui/button";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { IRNS_TABLE } from "@/lib/checklists/db-types";
-import { InspectionsTable, INSPECTIONS_PAGE_SIZE, type InspectionListRow } from "./inspections-table";
+import { InspectionsTable, type InspectionListRow } from "./inspections-table";
+import { INSPECTIONS_PAGE_SIZE } from "./page-size";
 import { getTranslator } from "@/lib/i18n/server";
 
 type Params = {
