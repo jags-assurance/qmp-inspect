@@ -12,6 +12,7 @@ import { Tx } from "@/components/domain/tx";
 export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
+  const strokeDrawn = useRef(false);
   const [hasStroke, setHasStroke] = useState(false);
 
   function getContext() {
@@ -45,6 +46,7 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
     ctx.strokeStyle = "#1a1a1a";
     ctx.lineTo(x, y);
     ctx.stroke();
+    strokeDrawn.current = true;
     if (!hasStroke) setHasStroke(true);
   }
 
@@ -52,13 +54,15 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
     if (!drawing.current) return;
     drawing.current = false;
     const canvas = canvasRef.current;
-    if (canvas && hasStroke) onChange(canvas.toDataURL("image/png"));
+    // strokeDrawn (a ref) rather than hasStroke: a fast stroke can end before the state update has re-rendered.
+    if (canvas && strokeDrawn.current) onChange(canvas.toDataURL("image/png"));
   }
 
   function handleClear() {
     const canvas = canvasRef.current;
     const ctx = getContext();
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokeDrawn.current = false;
     setHasStroke(false);
     onChange(null);
   }
