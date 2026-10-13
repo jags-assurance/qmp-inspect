@@ -1,5 +1,6 @@
 "use client";
 
+import { ActivityDetails } from "./activity-details";
 import { REGISTER_KINDS, REGISTER_KIND_LABEL } from "@/lib/itps/required-registers";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/confirm-dialog";
@@ -104,14 +105,7 @@ export function ItemControls({
           <span className="doc-id me-1.5 text-muted">{itemNumber}</span>
           {activity}
         </p>
-        {acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{acceptanceCriteria}</p>}
-        {(referenceSpec || method || frequency) && (
-          <p className="mt-0.5 text-xs text-muted">
-            {[referenceSpec ? `Ref: ${referenceSpec}` : null, method ? `Method: ${method}` : null, frequency ? `Frequency: ${frequency}` : null]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        )}
+        <ActivityDetails acceptanceCriteria={acceptanceCriteria} referenceSpec={referenceSpec} method={method} frequency={frequency} />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <button
             type="button"

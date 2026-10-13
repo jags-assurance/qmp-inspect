@@ -1,3 +1,4 @@
+import { ActivityDetails } from "./activity-details";
 import { Badge } from "@/components/ui/badge";
 import { InterventionSelect, type InterventionLevelOption } from "@/components/domain/intervention-select";
 import { SignoffCell } from "@/components/domain/signoff-cell";
@@ -114,7 +115,7 @@ export function ActivitySignoffGrid({
       <table className="w-full min-w-max border-collapse text-sm">
         <thead>
           <tr className="border-b border-border bg-off-white/60 text-start text-xs text-muted">
-            <th className="sticky start-0 z-10 min-w-[240px] bg-off-white/60 px-4 py-2 font-medium"><T>Activity</T></th>
+            <th className="sticky start-0 z-10 min-w-[240px] bg-off-white px-4 py-2 font-medium"><T>Activity</T></th>
             {parties.map((party) => (
               <th key={party.id} className="min-w-28 px-3 py-2 text-center font-medium">
                 <span className="block max-w-32 truncate" title={party.name}>
@@ -152,17 +153,8 @@ export function ActivitySignoffGrid({
                     {row.activity}
                   </p>
                 )}
-                {!canEditContent && row.acceptanceCriteria && <p className="mt-0.5 text-xs text-muted">{row.acceptanceCriteria}</p>}
-                {(row.referenceSpec || row.method || row.frequency) && (
-                  <p className="mt-0.5 text-xs text-muted">
-                    {[
-                      row.referenceSpec ? `Ref: ${row.referenceSpec}` : null,
-                      row.method ? `Method: ${row.method}` : null,
-                      row.frequency ? `Frequency: ${row.frequency}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
+                {!canEditContent && (
+                  <ActivityDetails acceptanceCriteria={row.acceptanceCriteria} referenceSpec={row.referenceSpec} method={row.method} frequency={row.frequency} />
                 )}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
