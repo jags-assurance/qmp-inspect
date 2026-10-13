@@ -1700,7 +1700,10 @@ async function issueIrnForRecord(
     irnNumber = String(row.out_number);
   } else if (!(rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(rpc.error.message ?? ""))) {
     if (rpc.error.code === "42501") return { error: "You are not allowed to issue an IRN for this inspection." };
-    console.error("[irn] issue_irn failed", rpc.error.message);
+    console.error("[irn] issue_irn failed", rpc.error.code, rpc.error.message, rpc.error.details);
+    // 23505: that IRN number already exists in the project (the per-ITP counter fell behind the
+    // numbers already issued), not a permissions problem; saying so shortens the support round trip.
+    if (rpc.error.code === "23505") return { error: "Could not issue the IRN: the next IRN number is already in use on this project. Ask a JAGS Admin to check the IRN numbering." };
     return { error: "Could not issue the IRN." };
   }
 

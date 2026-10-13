@@ -109,16 +109,17 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
     count = noneIds.length;
     const pageIds = noneIds.slice(offset, offset + INSPECTIONS_PAGE_SIZE);
     if (pageIds.length) {
-      const { data: pageRecs } = await supabase
+      const { data: pageRecs, error: pageError } = await supabase
         .from("inspection_records")
         .select("id, record_number, project_name, itp_number, activity, location, inspection_date, overall_result, users!inspection_records_inspector_id_fkey(full_name)")
         .in("id", pageIds)
         .returns<RecordQueryRow[]>();
+      if (pageError) throw new Error(`Could not load the inspections list: ${pageError.message}`);
       const order = new Map(pageIds.map((pid, i) => [pid, i]));
       recs = (pageRecs ?? []).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     }
   } else {
-    const [{ count: c }, { data: records }] = await Promise.all([
+    const [{ count: c }, { data: records, error: recordsError }] = await Promise.all([
       build(true),
       build(false)
         .order("inspection_date", { ascending: false })
@@ -126,6 +127,8 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
         .range(offset, offset + INSPECTIONS_PAGE_SIZE - 1)
         .returns<RecordQueryRow[]>(),
     ]);
+    // A failed row query used to render as an empty register beside a correct count.
+    if (recordsError) throw new Error(`Could not load the inspections list: ${recordsError.message}`);
     count = c;
     recs = records ?? [];
   }
