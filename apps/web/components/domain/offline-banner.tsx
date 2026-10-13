@@ -19,6 +19,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { STALE_QUEUE_DAYS, formatQueueAge, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { NoticeCard } from "./notice-stack";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -207,7 +208,9 @@ export function OfflineBanner() {
     const onInstall = (e: Event) => {
       e.preventDefault();
       try {
-        if (localStorage.getItem("qmp-install-dismissed")) return;
+        const at = Number(localStorage.getItem("qmp-install-dismissed"));
+        // Legacy value "1" parses as 1 (long ago), so old dismissals expire too.
+        if (at && Date.now() - at < 7 * 24 * 60 * 60 * 1000) return;
       } catch {
         // storage blocked: still offer the prompt
       }
@@ -272,12 +275,12 @@ export function OfflineBanner() {
       <>
       {dialog}
       {updateBar}
-      <div role="status" className="fixed bottom-48 end-4 z-40 flex max-w-sm flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm text-ink shadow-lg">
+      <NoticeCard role="status" className="flex flex-col gap-2">
         <span><Tx>Install QMP Inspect on this device for faster access in the field.</Tx></span>
-        <span className="flex shrink-0 gap-4 text-burgundy">
+        <span className="flex shrink-0 gap-2 text-burgundy">
           <button
             type="button"
-            className="font-medium underline"
+            className="min-h-11 px-3 font-medium underline"
             onClick={async () => {
               await installEvent.prompt();
               await installEvent.userChoice.catch(() => null);
@@ -288,10 +291,10 @@ export function OfflineBanner() {
           </button>
           <button
             type="button"
-            className="underline"
+            className="min-h-11 px-3 underline"
             onClick={() => {
               try {
-                localStorage.setItem("qmp-install-dismissed", "1");
+                localStorage.setItem("qmp-install-dismissed", String(Date.now()));
               } catch {
                 // ignore
               }
@@ -301,7 +304,7 @@ export function OfflineBanner() {
             <Tx>Not now</Tx>
           </button>
         </span>
-      </div>
+      </NoticeCard>
       </>
     );
   }

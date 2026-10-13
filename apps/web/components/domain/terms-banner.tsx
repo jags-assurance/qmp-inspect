@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { acceptTermsAction, type AcceptTermsState } from "@/lib/terms/actions";
+import { NoticeCard } from "@/components/domain/notice-stack";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -33,7 +34,7 @@ export function TermsBanner() {
   if (state.accepted || dismissed) return null;
 
   return (
-    <div role="region" aria-label={tl("Terms of use")} className="fixed bottom-4 end-4 z-40 max-w-md rounded-lg border border-border bg-surface p-4 text-sm text-ink shadow-lg">
+    <NoticeCard role="region" aria-label={tl("Terms of use")}>
       <div className="flex flex-col gap-3">
         <p className="min-w-0">
           <Tx>Please read and accept the</Tx>{" "}
@@ -76,6 +77,6 @@ export function TermsBanner() {
           {state.error}
         </p>
       )}
-    </div>
+    </NoticeCard>
   );
 }

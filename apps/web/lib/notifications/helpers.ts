@@ -13,6 +13,7 @@ import { NOTIFICATIONS_TABLE, type NotificationRow } from "./types";
 import { sendNotificationEmail } from "./email";
 import { isUndeliverableAddress } from "./undeliverable";
 import { safeSitePath } from "./render";
+import { loadEmailOrgBrand } from "./org-brand-email";
 
 /**
  * Writes one notification for one recipient, using the SAME supabase client/request context as the
@@ -65,7 +66,7 @@ export async function createNotification(
   if (!process.env.RESEND_API_KEY) return;
 
   const send = () =>
-    sendNotificationEmailNow(supabase, { id, recipientUserId: params.recipientUserId, title: params.title, body: params.body, link });
+    sendNotificationEmailNow(supabase, { id, organizationId: params.organizationId, recipientUserId: params.recipientUserId, title: params.title, body: params.body, link });
   try {
     after(send);
   } catch {
@@ -76,7 +77,7 @@ export async function createNotification(
 
 async function sendNotificationEmailNow(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  n: { id: string; recipientUserId: string; title: string; body?: string | null; link: string | null }
+  n: { id: string; organizationId?: string | null; recipientUserId: string; title: string; body?: string | null; link: string | null }
 ): Promise<void> {
   try {
     const service = isServiceRoleConfigured() ? createSupabaseServiceRoleClient() : null;
@@ -98,7 +99,7 @@ async function sendNotificationEmailNow(
       return;
     }
 
-    await sendNotificationEmail({ toEmail: recipient.email, title: n.title, body: n.body, link: n.link });
+    await sendNotificationEmail({ toEmail: recipient.email, title: n.title, body: n.body, link: n.link, brand: await loadEmailOrgBrand(n.organizationId) });
 
     if (service) {
       // Mark the outbox row sent so the worker doesn't send it again (the table may not exist yet).

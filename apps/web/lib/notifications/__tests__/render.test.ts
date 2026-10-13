@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeHtml, renderNotificationEmailHtml, safeSitePath } from "../render";
+import { escapeHtml, renderBrandedEmailHtml, renderNotificationEmailHtml, safeSitePath } from "../render";
 import { isTempPasswordExpired, tempPasswordExpiry, tempPasswordTtlMs, generateTempPassword } from "@/lib/projects/temp-password";
 import { closeOverrideReasonError, describeCloseBlockers } from "@/lib/projects/close-helpers";
 
@@ -11,7 +11,7 @@ describe("notification email rendering", () => {
       link: "/inspect/x?a=1&b=\"2\"",
       appUrl: "https://app.example/",
     });
-    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img");
     expect(html).toContain('href="https://app.example/inspect/x?a=1&amp;b=&quot;2&quot;"');
   });
@@ -19,8 +19,34 @@ describe("notification email rendering", () => {
     for (const l of ["https://evil.example", "//evil.example", "/\\evil", "javascript:alert(1)", "/a\nb"]) {
       expect(safeSitePath(l)).toBeNull();
     }
-    expect(renderNotificationEmailHtml({ title: "t", link: "https://evil.example", appUrl: "https://a" })).not.toContain("href");
+    expect(renderNotificationEmailHtml({ title: "t", link: "https://evil.example", appUrl: "https://a" })).not.toContain("evil.example");
     expect(escapeHtml("<&>\"'")).toBe("&lt;&amp;&gt;&quot;&#39;");
+  });
+});
+
+describe("branded email wrapper", () => {
+  it("has header, button, footer links and automated note", () => {
+    const html = renderNotificationEmailHtml({ title: "Hello", body: "Body", link: "/inspect/x", appUrl: "https://app.example/" });
+    expect(html).toContain("#6b1e2c");
+    expect(html).toContain("https://app.example/inspect/x");
+    expect(html).toContain("Help and support");
+    expect(html).toContain("/privacy");
+    expect(html).toContain("/terms");
+    expect(html).toContain("automated message");
+    expect(html).toContain("max-width:600px");
+  });
+  it("escapes org brand and title, and rejects unsafe URLs", () => {
+    const html = renderBrandedEmailHtml({
+      title: "<b>x</b>",
+      appUrl: "https://app.example",
+      absoluteLink: "javascript:alert(1)",
+      brand: { orgName: "<script>", orgLogoUrl: 'https://x/"onerror=1' },
+    });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<b>x");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("onerror=1");
+    expect(html).toContain("&lt;script&gt;");
   });
 });
 

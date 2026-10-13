@@ -15,6 +15,7 @@ import { UserMenu } from "./user-menu";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { TermsBanner } from "./terms-banner";
+import { NoticeStack } from "./notice-stack";
 import { Tx } from "@/components/domain/tx";
 
 export interface NavItem {
@@ -110,7 +111,8 @@ export async function AppShell({
         </header>
         <OfflineBanner />
         {showTermsBanner && <TermsBanner />}
-        <main id="main-content" tabIndex={-1} className="min-w-0 outline-none flex-1 bg-background p-3 sm:p-4 lg:p-6">{children}</main>
+        <main id="main-content" tabIndex={-1} className="min-w-0 outline-none flex-1 bg-background p-3 pb-[calc(0.75rem+var(--notice-h,0px))] sm:p-4 sm:pb-[calc(1rem+var(--notice-h,0px))] lg:p-6 lg:pb-[calc(1.5rem+var(--notice-h,0px))]">{children}</main>
+        <NoticeStack />
         <footer className="border-t border-border bg-surface px-3 py-3 sm:px-6">
           <SiteLinks signedIn />
         </footer>

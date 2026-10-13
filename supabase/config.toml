@@ -6,3 +6,23 @@
 #   npx supabase link --project-ref <your-project-ref>
 #   npx supabase db push
 project_id = "jags_assurance_project"
+
+[auth.email.template.invite]
+subject = "You have been invited to JAGS Assurance"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Reset your JAGS Assurance password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm your JAGS Assurance email"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your JAGS Assurance sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new JAGS Assurance email"
+content_path = "./supabase/templates/email_change.html"

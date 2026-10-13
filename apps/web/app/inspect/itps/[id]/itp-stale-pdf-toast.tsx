@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NoticeCard } from "@/components/domain/notice-stack";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -46,9 +47,9 @@ export function ItpStalePdfToast({ isStale, changedAt }: { isStale: boolean; cha
   if (!visible) return null;
 
   return (
-    <div
+    <NoticeCard
       role="status"
-      className="fixed bottom-4 right-4 z-40 max-w-sm rounded-md border border-warning/60 bg-warning/10 px-4 py-3 text-sm font-medium text-warning shadow-lg"
+      className="!border-warning/60 !bg-warning/10 font-medium !text-warning"
     >
       <div className="flex items-start gap-3">
         <span className="flex-1"><Tx>This ITP has changed since its PDF was last generated — use &ldquo;⋯ More → Regenerate PDF&rdquo; to pick up the latest state.</Tx></span>
@@ -61,6 +62,6 @@ export function ItpStalePdfToast({ isStale, changedAt }: { isStale: boolean; cha
           ✕
         </button>
       </div>
-    </div>
+    </NoticeCard>
   );
 }

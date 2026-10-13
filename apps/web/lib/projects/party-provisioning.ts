@@ -8,6 +8,10 @@ import { recordAuditEvent } from "@/lib/audit/log";
 import { discardSeatOverride, grantSeatOverride, isSeatLimitError, parseSeatOverride, seatLimitMessage } from "@/lib/plans/seat-limit";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { generateTempPassword, tempPasswordExpiry } from "./temp-password";
+import { sendEmail } from "@/lib/notifications/email";
+import { loadEmailOrgBrand } from "@/lib/notifications/org-brand-email";
+import { isUndeliverableAddress } from "@/lib/notifications/undeliverable";
+import { LOGIN_INVITE_SUBJECT, renderLoginInviteEmailHtml } from "./login-invite-email";
 
 export interface ProvisionPartyLoginState {
   error: string | null;
@@ -23,12 +27,14 @@ export interface ProvisionPartyLoginState {
   /** When the temporary password stops working (ISO). Shown next to it so the admin knows how long
    *  they have to hand it over. */
   expiresAt?: string | null;
+  /** Status of the sign-in-link email for a NEW account: "sent", "failed", or "not_configured" (no RESEND_API_KEY). Null when no account was created. */
+  emailStatus?: "sent" | "failed" | "not_configured" | null;
 }
 
 // Not exported: a "use server" file may only export async functions — see
 // provision-party-login-form.tsx, which defines its own copy of this shape as every other
 // useActionState initial-state constant in this app already does (e.g. reassign-party-form.tsx).
-const INITIAL_STATE: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null };
+const INITIAL_STATE: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null, emailStatus: null };
 
 /** Provisioning is rate limited per actor: this many credential-issuing events per hour. */
 const PROVISION_LIMIT_PER_HOUR = 20;
@@ -291,7 +297,31 @@ export async function provisionPartyLoginAction(
   );
 
   revalidatePath(`/inspect/projects/${party.project_id}`);
-  return { error: null, tempPassword, email: tempPassword ? email : null, expiresAt };
+  // Best-effort sign-in-link email for a NEW account. The temporary password is NOT in it.
+  let emailStatus: ProvisionPartyLoginState["emailStatus"] = null;
+  if (createdAccount) {
+    if (!process.env.RESEND_API_KEY || isUndeliverableAddress(email)) {
+      emailStatus = "not_configured";
+    } else {
+      try {
+        await sendEmail({
+          toEmail: email,
+          subject: LOGIN_INVITE_SUBJECT,
+          html: renderLoginInviteEmailHtml({
+            appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
+            loginEmail: email,
+            expiresAt,
+            brand: await loadEmailOrgBrand(organizationId),
+          }),
+        });
+        emailStatus = "sent";
+      } catch (err) {
+        console.error(`[provisioning] login email failed: ${err instanceof Error ? err.message : "unknown"}`);
+        emailStatus = "failed";
+      }
+    }
+  }
+  return { error: null, tempPassword, email: tempPassword ? email : null, expiresAt, emailStatus };
 }
 
 async function auditProvisioning(

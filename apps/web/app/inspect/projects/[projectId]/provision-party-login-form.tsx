@@ -39,15 +39,51 @@ export function ProvisionPartyLoginForm({
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(contactEmail ?? "");
 
-  if (state.tempPassword && state.email) {
+  // The one-time password is copied into component state the moment the action returns it, so the
+  // panel survives re-renders / page revalidation until the admin dismisses it. Memory only: never
+  // localStorage/sessionStorage, never logged.
+  const [held, setHeld] = useState<ProvisionPartyLoginState | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  if (state.tempPassword && state.email && held?.tempPassword !== state.tempPassword && dismissed !== state.tempPassword) {
+    setHeld(state);
+    setCopied(false);
+  }
+
+  if (held?.tempPassword && held.email) {
+    const copy = async () => {
+      try {
+        await navigator.clipboard.writeText(held.tempPassword ?? "");
+        setCopied(true);
+      } catch {
+        setCopied(false);
+      }
+    };
     return (
       <div className="mt-1 rounded-md border border-warning/40 bg-warning/5 px-2 py-1.5 text-xs">
-        <p className="font-medium text-ink"><Tx>Account created for</Tx> {state.email}</p>
+        <p className="font-medium text-ink"><Tx>Account created for</Tx> {held.email}</p>
+        <p className="mt-0.5 text-muted">
+          {held.emailStatus === "sent" ? (
+            <Tx>Email sent: a sign-in link was emailed (the password is not in the email).</Tx>
+          ) : held.emailStatus === "failed" ? (
+            <Tx>Email could not be sent. Share the sign-in link manually.</Tx>
+          ) : (
+            <Tx>Email not configured - share the sign-in link manually.</Tx>
+          )}
+        </p>
         <p className="mt-0.5 text-muted">
           <Tx>Temporary password (shown once — copy it now and share it directly with this person; they must change it on first sign-in</Tx>
-          {state.expiresAt ? `; it stops working on ${formatDateTime(state.expiresAt, "UTC")} UTC if unused` : ""}):
+          {held.expiresAt ? `; it stops working on ${formatDateTime(held.expiresAt, "UTC")} UTC if unused` : ""}):
         </p>
-        <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-xs text-ink">{state.tempPassword}</p>
+        <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-xs text-ink">{held.tempPassword}</p>
+        <div className="mt-1 flex gap-3">
+          <button type="button" onClick={copy} className="text-burgundy hover:underline">
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <button type="button" onClick={() => { setDismissed(held.tempPassword); setHeld(null); }} className="text-burgundy hover:underline">
+            <Tx>I have shared it</Tx>
+          </button>
+        </div>
       </div>
     );
   }
