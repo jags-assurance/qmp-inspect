@@ -34,6 +34,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { EditProjectDetailsForm } from "./edit-project-details-form";
 import { ProjectStatusControl } from "./project-status-control";
+import { DangerDelete } from "@/components/domain/danger-delete";
+import { deleteProjectAction, getProjectDeletePreviewAction } from "@/lib/projects/delete-actions";
 import { NoticePeriodSettings } from "./notice-period-settings";
 import { INTERVENTION_LEVEL_TYPES_TABLE, sortLevels, type InterventionLevelTypeRow } from "@/lib/intervention-levels/types";
 import { NOTICE_PERIOD_CONFIGS_TABLE, type NoticePeriodConfigRow } from "@/lib/signoff/db-types";
@@ -626,6 +628,16 @@ export async function ProjectOverviewView({
             configuredHours={noticePeriodConfigs}
           />
         </div>
+      )}
+
+      {isAdminStaff(session) && (
+        <DangerDelete
+          kind="project"
+          id={project.id}
+          confirmWord={project.project_number}
+          loadPreview={getProjectDeletePreviewAction}
+          action={deleteProjectAction}
+        />
       )}
     </div>
     </OrgBrandScope>

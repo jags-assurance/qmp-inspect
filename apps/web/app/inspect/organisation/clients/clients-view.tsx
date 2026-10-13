@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { NewOrganizationForm } from "./new-organization-form";
 import { AiConsentControl } from "./ai-consent-control";
+import { DangerDelete } from "@/components/domain/danger-delete";
+import { deleteOrganizationAction, getOrganizationDeletePreviewAction } from "@/lib/projects/delete-actions";
 import { describeConsentChange, groupConsentHistory, type AiConsentHistoryRow } from "@/lib/ai/consent-history";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
@@ -133,6 +135,13 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                 </ul>
               )}
             </div>
+            <DangerDelete
+              kind="organisation"
+              id={org.id}
+              confirmWord={org.name}
+              loadPreview={getOrganizationDeletePreviewAction}
+              action={deleteOrganizationAction}
+            />
           </div>
         ))}
       </div>
