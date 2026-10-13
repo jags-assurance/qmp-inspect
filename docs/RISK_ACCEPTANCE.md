@@ -66,5 +66,20 @@ immediately if any code ever extracts an archive at run time or if a patched `ex
 | Signature | [OWNER TO SIGN: not signed] |
 | Date signed | [OWNER TO FILL] |
 
+## RA-003: No CI pipeline (13 Oct 2026)
+
+| Field | Entry |
+|---|---|
+| ID | RA-003 |
+| Date raised | 13 Oct 2026 |
+| Finding | The company does not use CI. Nothing runs automatically on push or pull request, so a type error, lint failure or failing test can reach `dev` or `main` unnoticed. |
+| Severity | Medium |
+| Scope | All code in `apps/web`, `worker/` and `packages/` |
+| Mitigation | Before every push, run locally from `apps/web`: `npx tsc --noEmit`, `npm run lint` and `npx vitest run`. Push only when all three pass. |
+| Owner | The project owner |
+| Review date | 13 Apr 2027 (6 months) |
+| Status | Accepted by the project owner as a standing process risk (owner to sign below) |
+| Approver signature and date | [OWNER TO SIGN: not signed] |
+
 ## Closed
 - RA-001 and RA-002: closed by the puppeteer 25 upgrade (see above); `pnpm audit --prod` clean.

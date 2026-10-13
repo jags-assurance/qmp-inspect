@@ -96,15 +96,31 @@ Before any restore: take a fresh backup of the current state so nothing is lost 
 5. Check the Vercel and Railway logs for new errors for ten minutes, and `background_jobs` for rows stuck in `pending` or `processing` beyond a few minutes.
 6. Record the outcome and time in the incident log and tell the people who were told about the problem (templates in `docs/INCIDENT_RESPONSE.md`).
 
-### Rehearsal log
-A rollback that has never been tried is a guess. Rehearse each row once against a preview or staging deployment (never first on production), and again after any change to hosting. No rehearsal has been recorded yet.
+### Quick rollback steps
+**Web (Vercel instant rollback).** Vercel dashboard, the web project, Deployments. Pick the last healthy Production deployment (status Ready), open its menu, choose **Instant Rollback**. CLI: `vercel rollback <deployment-url-or-id>`. Afterwards promote the next good build, because auto-assignment to the production domain stays paused. Confirm `build` in `GET /api/health`.
 
-| Date | Rehearsed by | What was rehearsed (web / worker / compensating migration / PITR restore to new project) | Time taken | Result and problems found | Fixes made to this section |
-|---|---|---|---|---|---|
-| [OWNER TO FILL] | [OWNER TO FILL] | Web: instant rollback and roll-forward | | | |
-| [OWNER TO FILL] | [OWNER TO FILL] | Worker: Railway rollback, job reclaimed and a PDF rendered | | | |
-| [OWNER TO FILL] | [OWNER TO FILL] | Compensating migration on a copy of the database | | | |
-| [OWNER TO FILL] | [OWNER TO FILL] | Restore (PITR or daily backup) into a new project, `GET /api/health` ok | | | |
+**Worker (Railway).** Railway dashboard, the worker service, Deployments. Pick the previous good deployment and choose **Rollback** (or **Redeploy**). Roll all replicas back together.
+
+**Database: reverting recent migrations.** There is no down migration; write a new compensating migration (next free version) and apply it narrowly. Only `20261201000200` has a rollback note at the top of its file; for the others the steps below are derived from what each file changed.
+| Migration | How to revert |
+|---|---|
+| `20261201000100_checklist_item_fix_assignee.sql` | No rollback note in the file. It adds three `checklist_responses` columns, an index, the `assign_checklist_item_fix()` function and a replacement of `checklist_responses_touch()`. Leave the columns (they may hold data) and stop using them in the app; to remove the function: `drop function if exists public.assign_checklist_item_fix(uuid, uuid, uuid);`. Restore the earlier `checklist_responses_touch()` body from the latest earlier migration that defined it. |
+| `20261201000200_checklist_rls_perf.sql` | Follow its ROLLBACK NOTE (top of file): drop and recreate the two policies with the previous definitions it lists. |
+| `20261203000100_db_perf_fk_indexes_and_initplan.sql` | No rollback note. The indexes: `drop index if exists <name>;` for each `create index` line. The seven policies: recreate them with `auth.uid()` in place of `(select auth.uid())` (logic is otherwise unchanged). Neither change affects data; reverting is rarely needed. |
+| `20261203000100_inspection_signature_png_jpeg_only.sql` | No rollback note. It only re-creates `inspection_records_exec_guard()`. Revert by re-running that function from `20261102000500_execution_guards_v2.sql` (previous definition, signature check `data:image/%`). |
+| `20261204030100_organizations_delete_admin_only.sql` | No rollback note. `drop policy if exists organizations_staff_delete on public.organizations; create policy organizations_staff_delete on public.organizations for delete using (public.is_jags_staff());` (the previous definition, from `20260910100000_phase3_fix_organizations_write_select_leak.sql`). |
+Each file is run in the Supabase SQL editor (or as a new migration), one at a time, then run the "Verify after any rollback" list.
+
+**Point-in-time restore.** For wrongly changed or lost data, use Supabase Dashboard, Database, Backups, Point in Time (or the latest daily backup), restoring to a new project at a time just before the bad event; follow the "Backup and restore decision tree" above and restore storage per section 8.
+
+### Rollback rehearsal log
+A rollback that has never been tried is a guess. Rehearse each procedure once against a preview or staging deployment (never first on production). Add a row only after a real rehearsal; none has been recorded yet.
+
+| Date | Who | What was rehearsed | Result |
+|---|---|---|---|
+| | | | |
+| | | | |
+| | | | |
 
 ## 4. Background jobs
 Table `background_jobs`; a job is queued by the web app (insert allowed by RLS only for a user with access to the target record), the worker claims it and writes `result_storage_path` or an error. Per-organisation rate limit trigger applies.

@@ -9,6 +9,7 @@ import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/
 import { recordAuditEvent } from "@/lib/audit/log";
 import { getAppUrl } from "./app-url";
 import { checkPasswordPolicy } from "./password-policy";
+import { isPasswordPwned, PWNED_PASSWORD_MESSAGE } from "./pwned-password";
 import { mfaChallengePath, mfaEnabled, needsMfaChallenge } from "./mfa";
 import { safeNextPath } from "./safe-redirect";
 import { IDLE_LOGIN_PATH } from "./login-notices";
@@ -140,6 +141,7 @@ export async function updatePasswordAction(
   const policy = checkPasswordPolicy(password, { email: user.email });
   if (!policy.ok) return { error: policy.error };
   if (password !== confirmPassword) return { error: "Passwords don't match." };
+  if (await isPasswordPwned(password)) return { error: PWNED_PASSWORD_MESSAGE };
 
   const { error } = await supabase.auth.updateUser({ password });
   // A retry after a previous partial success (password changed, flag clear failed) re-submits the

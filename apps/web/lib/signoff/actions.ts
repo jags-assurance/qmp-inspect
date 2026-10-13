@@ -560,7 +560,15 @@ export async function signOffAction(progressId: string, onBehalfReason?: string,
   // to the plain sign-off when they are not there yet).
   let { data: signedRows, error } = await supabase
     .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-    .update({ ...signBase, signoff_comment: commentResult.value, rejected_at: null, rejected_by: null, rejection_reason: null })
+    .update({
+      ...signBase,
+      signoff_comment: commentResult.value,
+      rejected_at: null,
+      rejected_by: null,
+      rejection_reason: null,
+      // DB guard (20261205000100) requires this for a non-party sign-off; harmless for own-party sign-offs.
+      ...(authority.onBehalf ? { on_behalf_reason: authority.reason } : {}),
+    })
     .eq("id", progressId)
     .neq("status", "signed_off")
     .select("id");
