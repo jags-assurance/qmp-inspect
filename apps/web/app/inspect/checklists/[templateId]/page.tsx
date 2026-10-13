@@ -39,6 +39,8 @@ import { loadDuplicateTargets } from "@/lib/checklists/duplicate-targets";
 import { itemEditBlockReason, templateDeleteBlockReason } from "@/lib/checklists/template-ui-logic";
 import { StartInspectionForm } from "./start-inspection-form";
 import { ConfirmAiChecklist } from "./confirm-ai-checklist";
+import { untypedFrom } from "@/lib/supabase/untyped";
+import { projectPeople } from "@/lib/ncrs/recipients";
 import { AssignActivityForm } from "./assign-activity-form";
 import { templateReviewState } from "@/lib/checklists/ai-review-logic";
 import { loadAssigneeOptions, viewerCanAssign } from "@/lib/checklists/assignment-queries";
@@ -463,6 +465,28 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     return { siteGeofence, draftGeofenceWarning };
   };
 
+  // "Who fixes this?" for items answered No: who is named, and (for people who can execute) who can
+  // be picked - everyone with access to the project. Best-effort: a failure just hides the feature.
+  const loadFixAssignments = async () => {
+    const fixAssignments = new Map<string, { id: string; name: string }>();
+    let fixOptions: { id: string; name: string }[] = [];
+    if (!draft) return { fixAssignments, fixOptions };
+    try {
+      const { data: fixRows } = await untypedFrom(supabase, "checklist_responses")
+        .select("checklist_item_id, fix_assigned_to")
+        .eq("inspection_record_id", draft.id)
+        .not("fix_assigned_to", "is", null)
+        .returns<{ checklist_item_id: string; fix_assigned_to: string }[]>();
+      const people = canExecute || (fixRows ?? []).length > 0 ? await projectPeople(supabase, project.id, project.organization_id) : [];
+      const nameById = new Map(people.map((p) => [p.id, p.name]));
+      for (const r of fixRows ?? []) fixAssignments.set(r.checklist_item_id, { id: r.fix_assigned_to, name: nameById.get(r.fix_assigned_to) ?? "a team member" });
+      if (canExecute) fixOptions = people;
+    } catch {
+      // Column not migrated yet or lookup failed: the item simply shows no assignment.
+    }
+    return { fixAssignments, fixOptions };
+  };
+
   // Perf: the second and last batch. Everything left needs only the first batch's results (the draft,
   // the viewer's rights, the template's state) and nothing from within this batch, so it all runs
   // together instead of the ~15 sequential steps it used to take.
@@ -476,6 +500,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     noticeWarning,
     { siteGeofence, draftGeofenceWarning },
     locationPresets,
+    { fixAssignments, fixOptions },
   ] = await Promise.all([
     draft ? loadNumericValues(supabase, draft.id) : Promise.resolve(new Map<string, number>()),
     draft && session.isJagsStaff ? unnotifiedNonBlockingLevels(supabase, itpItem.id, draft.id) : Promise.resolve([] as Awaited<ReturnType<typeof unnotifiedNonBlockingLevels>>),
@@ -497,6 +522,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     startFormPossible
       ? getLocationPresetsForProject(supabase, project.organization_id, project.id)
       : Promise.resolve([] as Awaited<ReturnType<typeof getLocationPresetsForProject>>),
+    loadFixAssignments(),
   ]);
   const editBlockReason = itemEditBlockReason({ archived, responseCount });
   const assignedName = assigneeOptions.find((o) => o.id === assignedToUserId)?.name ?? null;
@@ -784,6 +810,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             }))}
             numericValues={numericValues}
             initialResponses={responseByItem}
+            fixAssignments={fixAssignments}
+            fixOptions={fixOptions}
             readOnly={!canExecute}
             registerVerification={registerVerification}
             personnelCertVerification={personnelCertVerification}

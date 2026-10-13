@@ -13,7 +13,21 @@ import { useTranslate } from "@/lib/i18n/locale-context";
  */
 export function TermsBanner() {
   const tl = useTranslate();
-  const [state, formAction, pending] = useActionState<AcceptTermsState, FormData>(acceptTermsAction, { error: null, accepted: false });
+  const [stale, setStale] = useState(false);
+  // A page left open across a deploy calls a server action id that no longer exists and the call throws;
+  // catch it here so the banner shows a reload prompt instead of the app error boundary.
+  const [state, formAction, pending] = useActionState<AcceptTermsState, FormData>(
+    async (prev) => {
+      try {
+        setStale(false);
+        return await acceptTermsAction(prev);
+      } catch {
+        setStale(true);
+        return { error: null, accepted: false };
+      }
+    },
+    { error: null, accepted: false }
+  );
   const [dismissed, setDismissed] = useState(false);
 
   if (state.accepted || dismissed) return null;
@@ -49,6 +63,14 @@ export function TermsBanner() {
           </button>
         </form>
       </div>
+      {stale && (
+        <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-danger">
+          <span><Tx>This page is out of date.</Tx></span>
+          <button type="button" onClick={() => window.location.reload()} className="min-h-11 rounded-md border border-border px-3 text-xs font-medium text-ink hover:bg-surface">
+            <Tx>Reload page</Tx>
+          </button>
+        </div>
+      )}
       {state.error && (
         <p role="alert" className="mt-2 text-xs text-danger">
           {state.error}

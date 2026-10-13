@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { enqueueOutboxItem, hasQueuedAnswerFor } from "@/lib/offline/db";
 import { notifyOutboxChanged, RESPONSE_SYNCED_EVENT, type ResponseSyncedDetail } from "@/lib/offline/sync-client";
 import { ItemPhotoUpload } from "./item-photo-upload";
+import { FixAssigneeForm } from "./fix-assignee-form";
 import { evidenceRequirementHint } from "@/lib/checklists/evidence-rules";
 import { describeSpec, evaluateNumeric, parseNumericInput, type NumericSpec } from "@/lib/checklists/numeric-response";
 import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
@@ -79,6 +80,9 @@ export function ResponseRow({
   vaultFolders = [],
   numeric = null,
   initialNumericValue = null,
+  fixAssigneeId = null,
+  fixAssigneeName = null,
+  fixOptions = [],
 }: {
   templateId: string;
   inspectionRecordId: string;
@@ -132,6 +136,10 @@ export function ResponseRow({
   /** S4-20: set for a measured item: the inspector types a number and the limits decide the result. */
   numeric?: NumericSpec | null;
   initialNumericValue?: number | null;
+  /** Who was named to fix this item (when answered No), their display name, and who can be picked. */
+  fixAssigneeId?: string | null;
+  fixAssigneeName?: string | null;
+  fixOptions?: { id: string; name: string }[];
 }) {
   const tl = useTranslate();
   const initialSplit = splitStoredComment(initialComment);
@@ -527,6 +535,31 @@ export function ResponseRow({
               initialDescription={`${itemNumber} ${description}: ${comment.trim()}`}
             />
           </p>
+        )}
+        {result === "no" && comment.trim() && (readOnly ? fixAssigneeName : true) && (
+          <div className="rounded-md border border-border bg-off-white px-3 py-2">
+            {readOnly ? (
+              <p className="text-xs text-ink">
+                <Tx>Assigned to</Tx> {fixAssigneeName}
+              </p>
+            ) : (
+              <>
+                {fixAssigneeName && (
+                  <p className="mb-1 text-xs text-ink">
+                    <Tx>Assigned to</Tx> {fixAssigneeName}
+                  </p>
+                )}
+                <FixAssigneeForm
+                  key={fixAssigneeId ?? "none"}
+                  templateId={templateId}
+                  inspectionRecordId={inspectionRecordId}
+                  checklistItemId={checklistItemId}
+                  currentAssigneeId={fixAssigneeId}
+                  options={fixOptions}
+                />
+              </>
+            )}
+          </div>
         )}
         {result === "no" && comment.trim() && !hasNcr && (
           <div>

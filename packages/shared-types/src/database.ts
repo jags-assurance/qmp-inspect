@@ -707,6 +707,9 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           no_ncr_reason: string | null
+          fix_assigned_to: string | null
+          fix_assigned_by: string | null
+          fix_assigned_at: string | null
         }
         Insert: {
           calibration_asset_id?: string | null
@@ -721,6 +724,9 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           no_ncr_reason?: string | null
+          fix_assigned_to?: string | null
+          fix_assigned_by?: string | null
+          fix_assigned_at?: string | null
         }
         Update: {
           calibration_asset_id?: string | null
@@ -735,6 +741,9 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           no_ncr_reason?: string | null
+          fix_assigned_to?: string | null
+          fix_assigned_by?: string | null
+          fix_assigned_at?: string | null
         }
         Relationships: [
           {

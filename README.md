@@ -46,10 +46,8 @@ pnpm build        # production build of apps/web
 pnpm check:migrations   # new migration files must have a 14-digit numeric version
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, the migration-name check
-and the build on every push to `main`/`dev` and on every pull request, and can also be started by
-hand (Actions > CI > Run workflow). The tenant-isolation RLS suite runs on pull requests and needs the
-`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` repository secrets.
+There is no CI pipeline (the company does not use CI). Before pushing, run `npx tsc`, `npm run lint` and
+`npx vitest run` locally.
 
 ## Applying the database schema to your Supabase project
 

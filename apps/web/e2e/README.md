@@ -134,9 +134,7 @@ one real sign-in per role. The suite uses one worker on purpose (shared dev site
 
 ## CI
 
-`.github/workflows/ci.yml` has an `e2e` job that runs only from **Actions -> CI -> Run workflow** with
-`run_e2e` ticked. It never sets `E2E_ALLOW_WRITES`, so the `05-*` write specs are skipped there. It reads `E2E_BASE_URL`, `E2E_PASSWORD` and the `E2E_*_EMAIL` values from repository
-secrets, writes the Markdown summary to the job summary and uploads the report as an artifact.
+There is no CI pipeline; run the e2e suite locally as described above. Before pushing, run `npx tsc`, `npm run lint` and `npx vitest run`.
 
 ## When a test fails
 

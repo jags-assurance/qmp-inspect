@@ -40,7 +40,7 @@ Never commit secrets; the service role key must exist only in Vercel server env 
 
 ## 3. Deploy checklist
 1. Apply new SQL migrations from `supabase/migrations/` in filename order, one file at a time, each idempotent. The ordered list of recent migrations still to apply (through `20261105…`, plus any `20261108…` from the Phase 6/7 batch) is in `docs/fixes/REMAINING.md` section A. The repo has 7 duplicate versions and 30 non-numeric names that `supabase db push` ignores or rejects; reconcile history with `docs/MIGRATION_REPAIR.md` before using `db push`. Never edit an applied migration; add a new one with a 14-digit numeric version (CI enforces this).
-2. Merge to the deploy branch. CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, the migration-name check and the build on every push to `main`/`dev` and every pull request; it should be green before Vercel promotes. Locally: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+2. Merge to the deploy branch. There is no CI; before pushing, run `npx tsc`, `npm run lint` and `npx vitest run` locally (and `pnpm build` if in doubt) and make sure they pass before Vercel promotes.
 3. **Redeploy the Railway worker after any change under `worker/` or any PDF template/layout change** (the worker holds the PDF code, fonts and the `qrcode` package; the web app does not).
 4. Smoke test: `GET /api/health` returns `status: ok`; log in, generate an ITP PDF, check the job reaches `completed`.
 
