@@ -1,72 +1,66 @@
-# Real-World Test Playbook run, 2026-10-12
+# Real-World Test Playbook run, 12–13 October 2026
 
-- **Environment:** dev, https://jags-qmp-client-dev.vercel.app (build `63515af`)
-- **Method:** automated, with Playwright and the seeded demo logins.
-- **Fixes:** the fixes below are on branch `claude/loving-planck-32yzrn` and are **not deployed yet**.
+- **Environment:** dev, https://jags-qmp-client-dev.vercel.app. Build `63515af` for most of the run; `b56b6f6` from 13 Oct.
+- **Method:** Playwright, driven by 6+ parallel agents using the seeded demo logins (one signed-in browser per role).
+- **Fixes:** all on branch `claude/loving-planck-32yzrn` (merged with `origin/main`). **None is deployed to dev yet**, so every "blocked by bug" below should be re-tested after a deploy.
+- **Raw evidence:** per-step rows with screenshots' names are in `docs/test-runs/raw/`.
 
-## 1. What was run
+## 1. Result by section
 
-| Playbook | How | Result |
+| Sec. | Result | Notes |
 |---|---|---|
-| A1, M5 to M8 (logins, landing pages) | `e2e/tests/01-login.spec.ts`, all 7 roles | 13 / 13 pass |
-| M1 to M7 (what each role must NOT reach) | `e2e/tests/02-access.spec.ts` | 47 / 47 pass |
-| K, L4 (every list page, every role) | `e2e/tests/03-list-pages.spec.ts` | 100 / 100 pass |
-| Read-only walk, per role (project > ITP > checklist > inspection > NCR > vault > handover) | `e2e/tests/04-walk.spec.ts` | Admin 10/10 on re-run. Other roles had failures caused by dev slowness, see 3.3 |
-| A2 create org, A2 AI consent, A4 create project | `e2e/scripts/itp-generation-run.mjs` | Pass |
-| B1 upload sample documents, script refusal | same script | Pass. All 5 files filed; `.sh` refused with the right message |
-| B1 text extraction ("Ready" for AI) | same script | **Fail**: both PDFs "Could not be read" (bug 1) |
-| B2 Generate draft | same script | **Fail**: page crashes, "Something went wrong" (bug 2) |
-| B3 to J, L1 to L3 | not run | Blocked by bug 2 until it is deployed (ITP actions); they also need multi-role writes |
+| A Admin setup | **Pass** | Branding, numbering, H/W/R/S levels, 5 parties and logins, a brand-new login forced to set a password, review chain, teams, staff access. |
+| B ITP from documents | **Blocked** | Vault uploads, extraction and the script refusal pass. Generate draft and every ITP-page action crash on dev (bug 2). New-revision numbering was wrong (fixed). |
+| C Party sign-off | **Blocked** | Needs an approved ITP on THP; ITP-page actions crash (bug 2). |
+| D Site execution | **Pass / partial** | Start work, assign, hold-blocks-start, register soft-stop, photos, signature and complete all pass. D4 (waive notice) and the ITP side of D8 blocked by bug 2. |
+| E NCR, punch, observations | **Pass** | Raise, respond, CAPA, close by a second person, withdraw, re-open, punch resolve/close/reopen, walk-down, observation with photo. |
+| F IRN and reports | **Partial** | F1, F4, F5 pass. F2 "Issue IRN" fails on the MER record; F3 bulk IRN blocked by an empty Inspections list (fixed; migration needed for F2). |
+| G Comments | **Pass** (G2 blocked) | G2 needs the ITP page. |
+| H Vault approvals | **Pass** | Two-approver flow, reject with reason, revisions, search/filter/zip. Transmittal log shows but the email fails on dev (config). |
+| I Registers | **Pass** | One minor gap (counts not on tabs), plus a contractor-approval issue (fixed). |
+| J Reports, Data Book, handover | **Pass / partial** | Compile with override, withdraw, issue handover, client acknowledges, certificate PDF with QR. Clean compile and final book blocked by open items. |
+| K Dashboards, KPIs | **Pass** with KPI definition differences | Every role's cards match their lists, except the in-progress inspections list (fixed). |
+| L Notifications, audit, search | **Partial** | Audit log and Ctrl+K pass. Bell click fails on the dashboard (bug 2 family). Emails not verifiable. |
+| M Negative checks | **Partial** | Menus and blocked addresses pass for all 7 roles. Inspector can open `/inspect/settings` (decision below). Button-level checks blocked by dev load. |
 
-Data created on dev:
-- organisation **Test Harbour Power** (AI consent given)
-- project **THP-2026-001**
-- vault documents THP-2026-001-JAGS-VAULT_DOCUMENT-001 to 005
+## 2. Bugs found and fixed (on the branch)
 
-Cleanup is per playbook section 4.
+| Commit | Bug |
+|---|---|
+| `38edf0d` | **Every PDF upload "Could not be read"**: `pdf.worker.mjs` missing from the server bundle (`next.config.ts`). |
+| `38edf0d` | **Generate draft / every ITP-page action crashed (E352)**: a "use server" file exported a constant. A new test fails on any non-function export from such a file. Probably also the cause of the bell-click failure (L1). |
+| `0d04e19` | New revision of an existing document was saved as Rev 0 instead of Rev B. |
+| `0d04e19` | Start work showed activities as ready that a Hold still blocked. |
+| `8e2615a`, `860dfb0` | Checklist page showed "no items yet" when a read failed; page needed about 25 sequential database steps (now about 7) and reloaded on every answer anywhere. |
+| `de1f96f` | "On hold" saved immediately with no confirmation; Reports & Documents Reset kept old filters; Download opened the file in the tab. |
+| `075a9ff` | Observation register showed "none raised" under load; "Raise NCR" button label on an observation. |
+| `67a134e` | Valid users bounced to "session ended" when the database was slow; a sign-in service outage showed "Invalid email or password" and counted toward the 5-attempt lockout. |
+| `1800d97` | **Inspections list showed no rows for anyone** (page-size constant arrived empty) and ITP status chips had no labels. Boundary test now rejects ALL_CAPS constant imports from client files. |
+| `368f0c8` | A contractor's new material entry showed "A — Approved" before any JAGS review. |
+| `62befc9` | **"Issue IRN" fails on MER-JAGS-ITP-001-INSP-2**. Likely cause: the IRN counter is behind an existing IRN, so every attempt collides. New migration `20261202000100_issue_irn_skip_used_numbers.sql` (**must be applied**). Not confirmed without database access. |
 
-## 2. Bugs found and fixed
+All commits: typecheck clean, lint 0 errors, 1,220 web + 215 worker tests, production build.
 
-### Bug 1: every PDF upload "Could not be read", so no PDF can feed the AI ITP draft
+## 3. Decisions for you
 
-- **Cause:** in the deployed bundle, pdf-parse's pdfjs-dist cannot load `pdf.worker.mjs`. The error is "Setting up fake worker failed: Cannot find module .next/server/chunks/pdf.worker.mjs".
-- **Reproduced:** in a local production build. DOCX and TXT were not affected.
-- **Fix:** `apps/web/next.config.ts`
-  - `serverExternalPackages: ["pdf-parse", "pdfjs-dist"]`
-  - `outputFileTracingIncludes` for the worker file
-- **Verified locally:** after the fix the same PDF extracts (`done`), and the worker is in the deploy trace of the vault upload page and the email-inbound route.
-- **After deploy:** re-upload the PDFs, or upload a new revision. Already-failed documents are not re-extracted.
+1. **Inspector can open `/inspect/settings`** (Teams and Client Teams sections). Code says deliberate (`settings/page.tsx:141`); playbook M5 says it must redirect.
+2. **Clients can't see their monthly report packs.** The database limits them to JAGS staff (`20260927010000_ncr_closeout_certificate_pdf_job.sql`). Opening them up would also expose organisation-wide packs to subcontractors, main contractors and TPIs of that organisation.
+3. **Punch items:** only a JAGS Admin or a "close punch item" permission can verify and close. The playbook says the Inspector.
+4. **KPI definitions** differ from the playbook table: "ITP completion" counts client-accepted ITPs / all ITPs (playbook: activities passed / activities in approved ITPs); "Inspections completed" counts records, not items; the monthly trend buckets by creation date, so an inspection completed in October can land in September; "NCR close-out time" includes withdrawn NCRs.
+5. **Activity feed** is built from current row state, not history, so re-opens, status changes and withdrawals are missing or shown as "closed" (the audit log has them all).
 
-### Bug 2: "Generate draft" crashes the New ITP page (Error ID `...@E352`)
+## 4. Still open / not verified
 
-- **Cause:** `apps/web/lib/itps/actions.ts` is a `"use server"` file and exported a constant array (`TRANSLATION_LANGUAGES`). Next.js only allows async-function exports there. It throws E352 when the page's actions load, so the action failed with HTTP 500 after about 4 s.
-- **Introduced:** 2026-10-07, commit `bcfab11`.
-- **Impact:** 11 app files import this module, so other ITP actions on those pages are likely affected too.
-- **Fix:** the constant is no longer exported.
-- **Guard:** a new check in `lib/__tests__/client-boundary.test.ts` fails on any non-function export from a `"use server"` file. It fails on the old code and passes with the fix.
+- **Dev must be redeployed** from this branch, and migration `20261202000100` applied, then re-test B2–B7, C, D4, D8 (ITP side), F2, F3 and M's button-level checks, and run `docs/sample-itp-sources` through `verify-draft.mjs`.
+- **AI draft quality is still unscored**: Generate draft has not produced a draft yet (the crash fixed in `38edf0d`). Run `ITP_RUN_CONFIRM=1 node apps/web/e2e/scripts/itp-generation-run.mjs`.
+- **Emails:** dev's email provider is in testing mode (only one address can receive); transmittals to fake addresses still fail rather than skip (`lib/transmittals/actions.ts`).
+- Not run: J Reject package / on-behalf acknowledgement, M wrong-password lockout (code: 5 per email per 15 min), D4, live bell updates without reload.
+- **Dev is slow under load**: checklist pages took 30–45 s before the speed fix; several agents were signed out or hit "Something went wrong". Measure again after the deploy.
 
-### Also fixed
+## 5. Playbook corrections
 
-- A typo in the ITP-draft AI prompt: "checklist he inspector".
+Wording in the playbook that doesn't match the app: D4 (the waive-notice form appears only for a Witness that has **not** been notified); M1 (`/inspect/itp-master` sends the client to the ITP register, not the dashboard); K2 (no "Today's schedule" or "New inspection" on the Inspector dashboard); L3 (client cannot open the Audit Log); I (field names: "Cert number", "Qualified WPS", "Awaiting JAGS verification"); I2 (counts are in the banner, not on tabs); E6 (Admin, not Inspector, closes); F5 (re-open takes a reason of 15+ characters, no confirm dialog); NCR numbers include "-JAGS-".
 
-## 3. Other findings (not code changes)
+## 6. Test data left on dev (remove per playbook section 4)
 
-1. **Playbook B2 is out of date.** A project whose organisation has no AI consent is simply not listed under "Generate from vault documents". No "AI is not available" message is shown for it. Testers must do the optional "Give AI consent" in A2 first. This is now noted in `docs/sample-itp-sources/README.md`.
-2. **Playbook 1.5:** the sample-documents folder now exists (`docs/sample-itp-sources/`).
-3. **Dev is slow.** Checklist pages took 35 to 45 s for every role, and one sign-in probe hit a network timeout. When a walk step passes the 45 s probe limit, the next steps in that role fail in under 100 ms as a cascade. On re-run the same steps passed (Admin 10/10), and `/api/health` answered in about 1 s with all checks ok. Worth a look at checklist page performance.
-
-## 4. Re-test after deploying the fixes
-
-```bash
-cd apps/web
-ITP_RUN_CONFIRM=1 node e2e/scripts/itp-generation-run.mjs   # B1 extraction + B2 + draft scoring
-```
-
-1. Re-upload the two PDFs first (new revisions), or delete and re-upload them, so they extract.
-2. Then score the draft:
-
-   ```bash
-   node ../../docs/sample-itp-sources/verify-draft.mjs e2e/.state/itp-generation/draft.json
-   ```
-
-3. Then continue the playbook by hand from B3.
+Organisation **Test Harbour Power** (AI consent given); project **THP-2026-001** (Active) with 6 parties, a team, 3 NCRs, punch items and walk-down, vault documents 001–008, registers (PB-*), Data Book DB-QA-J01 and handover HC-QA-J01 (acknowledged), a login `thp.vendor@example.test`; extra photos on MER checklist CHK-1; inspection MER-JAGS-ITP-001-INSP-2; UITEST-001 INSP-4 left **in progress** with its IRN voided; one Meridian monthly report pack.

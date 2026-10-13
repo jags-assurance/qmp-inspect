@@ -1,0 +1,31 @@
+| Step | Result | Evidence / notes |
+|---|---|---|
+| A3 brand colours | PASS | Accent #1a8fd0 saved, kept after reload; logo PNG uploaded (preview no longer "No logo uploaded") |
+| A3 numbering | PASS | Engagement mode Co-branded saved, kept after reload; ITP/NCR/Checklist/IRN formats shown ({project}-JAGS-{TYPE}-{seq}) |
+| A3 intervention levels | PASS | H 48h blocking, W 24h, R, S present; W set to 1h for C3 and kept |
+| A5 add parties | PASS | Client, Main Contractor, Subcontractor, TPI/Lab, JAGS added; each listed at once with "No login yet" |
+| A5 provision logins | PASS | Demo logins linked to the 4 external parties + JAGS: all "Access active". New account thp.vendor@example.test: "Account created for…" + one-time temp password; first sign-in forced to "Set a new password" and could not skip to /inspect; after setting it, lands on vendor dashboard |
+| A6 review chain | PASS | Step 1 Ravi Kapoor, step 2 Oliver Bennett; kept after reload |
+| A6 hold enforcement / notice / ITP creation | PASS | Enforce-hold ON (default), notice periods use org defaults, contractor ITP creation OFF |
+| A6 teams | PASS | "THP Electrical Team": Ravi Kapoor team lead, assigned to Switchroom Electrical Fit-out; kept after reload |
+| A6 staff access | PASS | Ravi Kapoor Global; Devika Rao Meridian Energy only (+ one Meridian project grant) |
+| B1 new revision (same reference) | FAIL → fixed | "Possible duplicate / new revision" notice shown; Rev A marked Superseded, nothing deleted. But the new upload was filed as **Rev 0** (not B): the form always sends its default "0" and the server could not increment letters. Fixed in lib/vault/revision.ts + test |
+| B2 Build from scratch (fallback) | BLOCKED (bug 2) | "Create ITP" → HTTP 500 → "Something went wrong" |
+| B3/B4 add activities + H/W/R/S | BLOCKED (bug 2) | On draft MER-2026-001-JAGS-ITP-001: "Add activity" → HTTP 500 → crash. Every ITP-page action (submit, return, approve, accept, sign-off, notify) imports the same broken module |
+| D1 Start work list + filters | PASS | Awaiting hold release 39 rows = "(39)"; Overdue 0=0; Assigned to me 0=0; Archived 0=0; Not started 63 + In progress 17 + Completed 14 = 94 rows |
+| D2 assign | PASS | Checklist MER-JAGS-ITP-001-CHK-2 assigned to Ravi Kapoor (was "Not assigned to a specific person"); shows under Assigned to me with "Assigned to you"; notification "Activity assigned to you – assigned by Oliver Bennett" |
+| D3 hold blocks start | PASS (release part BLOCKED) | No "Start inspection"; "Hold — held by … They must release it on the ITP page before the inspection can start." Releasing needs ITP-page sign-off (bug 2) |
+| Perf | FINDING | Checklist page takes ~40 s server render on dev (measured 39.9 s) |
+| D1/D3 consistency | FAIL → fixed | Start work listed ATL-JAGS-ITP-001-CHK-2 as ready (not "Awaiting hold release") but its checklist page says a Hold is open and won't start. Start work only counted pending/notified progress rows; a Hold assigned on the grid with no progress row was missed. Fixed in app/inspect/start-work/page.tsx (same rule as canCompleteInspection) |
+| D5 register soft-stop + answers | PASS | Amber "Material quarantined" banner; reason box present (pre-filled by an earlier tester → buttons enabled); "No" without comment not counted (0 of 1 answered); Yes → "1 of 1 answered, all mandatory done", "All changes saved" |
+| D6 photo | PASS (slow) | Gallery upload: storage 200 + action 200; thumbnails only appear after reload (page refresh takes ~40 s) |
+| Checklist page empty-state | FINDING | Once the page showed "This checklist has no items yet." (and the template editor "No items yet") though the item exists — reloads showed it again; a failed/slow items query renders as an empty checklist instead of an error. Also one "Something went wrong" (2261544242) on the same page, not reproducible |
+| D4 waive witness notice | BLOCKED | No checklist offered "Waive notice". Code offers it only when a Witness row is still *pending* (not notified) and the inspection is ready to complete; Notify / client Sign off are ITP-page actions (bug 2). Playbook wording (waive after Notify) doesn't match the code |
+| D7 sign + complete | PASS | Button disabled with no signature (and with only the printed name); in-app confirm "Complete and sign this inspection?"; first attempt correctly refused: "Item(s) 1 … need a photo or approved document attached to the item"; after item photo → MER-JAGS-ITP-001-INSP-2, banner "✓ PASS — Inspection passed", signature "Ravi Kapoor · 12/10/2026 7:19 PM". Note: record header shows Date 2026-09-10 / Inspector Oliver Bennett (from when the draft was started) |
+| D8 overdue holds | PARTIAL | Inspector + Admin dashboards: "Overdue hold points 74", lists match (panel shows 8 of 74 by design). ITP-side "Elapsed — still waiting" + release not checkable (bug 2) |
+| E1 raise NCR | PASS | THP-2026-001-JAGS-NCR-001 (Minor) with photo; "Draft with AI" filled the description (~12 s); punch item created (source NCR, Voltway) |
+| E2 contractor response | PASS | Voltway (sub) sees it under "NCRs assigned to you"; response saved and shown to staff; CAPA fields locked for the sub |
+| E3 CAPA | PASS | Root-cause category, root cause, corrective, preventive, verification saved (HTTP 200, kept after reload); raiser (Ravi) gets no close button: "Closing is done by a JAGS verifier after you send the NCR for verification" |
+| E4 close by second person | PASS | Admin "Verify and close NCR" → Closed; linked punch item "(closed)" at the same time |
+| E5 withdraw / re-open | PASS | NCR-002 raised and withdrawn: empty reason blocked ("Please fill out this field"), confirm "Withdraw this NCR?", history "withdrawn: <reason> – Oliver Bennett"; punch item closed with withdrawn flag (shown as "(closed)" on the NCR page). NCR-001 re-opened with reason |
+| E6 punch list | PASS (note) | Added item (Voltway, B, due 25/10); sub "Confirm resolved" disabled until evidence; resolved with photo → "Resolved — awaiting verification"; **Inspector cannot verify-close** ("JAGS Admin or close-punch-item permission, not the resolver") — playbook says Inspector; Admin closed ("Resolved by Sam Rourke; closed by Oliver Bennett"), reopened with reason ("Reopened: …"); walk-down recorded and signed off ("Signed off 12/10/2026") |
