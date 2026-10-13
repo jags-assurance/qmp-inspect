@@ -5,7 +5,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { PERSONNEL_CERTIFICATION_EXPIRING_DAYS } from "@/lib/registers/status";
 import { groupCertificatesByPerson } from "@/lib/registers/personnel";
 import type { PersonnelCertificationStatus } from "@/lib/registers/types";
-import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { CertificateLink, ExpiryDate, formatRegisterDate, RegisterRowActions, RegisterDetails } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
 import { Tx } from "@/components/domain/tx";
 
@@ -57,11 +57,22 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
         ),
     },
     { key: "certification_type", header: "Certification", render: (row) => row.certification_type },
-    { key: "cert_number", header: "Cert No.", render: (row) => row.cert_number ?? "—" },
     { key: "expiry_date", header: "Expiry", render: (row) => <ExpiryDate date={row.expiry_date} warnWithinDays={PERSONNEL_CERTIFICATION_EXPIRING_DAYS} /> },
     { key: "status", header: "Status", render: (row) => (<span><Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge><RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} /></span>) },
-    { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="personnel" id={row.id} hasFile={!!row.certificate_path} /> },
-    { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
+    {
+      key: "details",
+      header: "More",
+      render: (row) => (
+        <RegisterDetails
+          items={[
+            { label: "Cert No.", value: row.cert_number ?? "—" },
+            { label: "Issued", value: formatRegisterDate(row.issued_date) },
+            { label: "Certificate", value: <CertificateLink kind="personnel" id={row.id} hasFile={!!row.certificate_path} /> },
+            { label: "Notes", value: row.notes ?? "—" },
+          ]}
+        />
+      ),
+    },
   ];
   if (canManage) {
     columns.push({

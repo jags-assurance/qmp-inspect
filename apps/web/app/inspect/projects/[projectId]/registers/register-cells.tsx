@@ -321,3 +321,23 @@ export function RegisterRowActions({
     </div>
   );
 }
+
+/** Every non-essential field of a register row behind one small "Details" toggle (same look as the ITP activity details). */
+export function RegisterDetails({ items }: { items: { label: string; value: React.ReactNode }[] }) {
+  return (
+    <details className="group">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+        <Tx>Details</Tx>
+      </summary>
+      <dl className="mt-1.5 max-w-prose space-y-1 text-xs text-muted">
+        {items.map(({ label, value }) => (
+          <div key={label}>
+            <dt className="inline font-medium text-ink"><Tx>{label}</Tx>: </dt>
+            <dd className="inline [overflow-wrap:anywhere]">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}

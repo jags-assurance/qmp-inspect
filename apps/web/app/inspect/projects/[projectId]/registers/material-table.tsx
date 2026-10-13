@@ -8,9 +8,8 @@ import {
   type MaterialApprovalStatus,
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
-import { CertificateLink, formatRegisterDate, RegisterRowActions } from "./register-cells";
+import { CertificateLink, formatRegisterDate, RegisterRowActions, RegisterDetails } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
-import { Tx } from "@/components/domain/tx";
 
 export interface MaterialRegisterDisplayRow {
   id: string;
@@ -58,11 +57,9 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       render: (row) => (
         <span>
           {row.material_description}
-          {(row.supplier || row.quantity) && <span className="block text-xs text-muted">{[row.supplier, row.quantity].filter(Boolean).join(" · ")}</span>}
         </span>
       ),
     },
-    { key: "submittal_reference", header: "Submittal ref.", render: (row) => row.submittal_reference ?? "—" },
     {
       key: "approval_status",
       header: "Approval",
@@ -73,37 +70,37 @@ export function MaterialTable({ rows, projectId, canManage }: { rows: MaterialRe
       ),
     },
     {
-      key: "approved_date",
-      header: "Approved",
-      render: (row) => formatRegisterDate(row.approved_date),
-    },
-    {
-      key: "traceability",
-      header: "Traceability",
-      render: (row) => {
-        const parts = [
-          row.heat_number && `Heat ${row.heat_number}`,
-          row.batch_number && `Batch ${row.batch_number}`,
-          row.po_reference && `PO ${row.po_reference}`,
-          row.certificate_reference && `Cert ${row.certificate_reference}`,
-        ].filter(Boolean);
-        return parts.length > 0 ? <span className="text-xs">{parts.join(" · ")}</span> : "—";
-      },
-    },
-    {
       key: "receipt_status",
       header: "Receiving inspection",
       render: (row) => (
         <div>
           <Badge showIcon tone={RECEIPT_TONE[row.receipt_status]}>{MATERIAL_RECEIPT_STATUS_LABELS[row.receipt_status]}</Badge>
           <RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} />
-          {row.released_at && <p className="mt-1 text-xs text-muted"><Tx>Released</Tx> {formatRegisterDate(row.released_at)}</p>}
-          {row.disposition_notes && <p className="mt-1 text-xs text-muted">{row.disposition_notes}</p>}
         </div>
       ),
     },
-    { key: "certificate", header: "MTC / CoC", render: (row) => <CertificateLink kind="material" id={row.id} hasFile={!!row.certificate_path} /> },
-    { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
+    {
+      key: "details",
+      header: "More",
+      render: (row) => (
+        <RegisterDetails
+          items={[
+            { label: "Submittal ref.", value: row.submittal_reference ?? "—" },
+            { label: "Approved", value: formatRegisterDate(row.approved_date) },
+            { label: "Supplier", value: row.supplier ?? "—" },
+            { label: "Quantity", value: row.quantity ?? "—" },
+            { label: "Heat", value: row.heat_number ?? "—" },
+            { label: "Batch", value: row.batch_number ?? "—" },
+            { label: "PO", value: row.po_reference ?? "—" },
+            { label: "Cert ref.", value: row.certificate_reference ?? "—" },
+            { label: "Released", value: formatRegisterDate(row.released_at) },
+            { label: "Disposition", value: row.disposition_notes ?? "—" },
+            { label: "MTC / CoC", value: <CertificateLink kind="material" id={row.id} hasFile={!!row.certificate_path} /> },
+            { label: "Notes", value: row.notes ?? "—" },
+          ]}
+        />
+      ),
+    },
   ];
   if (canManage) {
     columns.push({

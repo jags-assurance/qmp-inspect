@@ -4,9 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { WELDER_EXPIRING_DAYS } from "@/lib/registers/status";
 import type { WelderQualificationStatus } from "@/lib/registers/types";
-import { CertificateLink, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { CertificateLink, ExpiryDate, RegisterRowActions, RegisterDetails } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
-import { Tx } from "@/components/domain/tx";
 
 export interface WelderQualificationDisplayRow {
   id: string;
@@ -47,25 +46,28 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
       render: (row) => (
         <span>
           {row.welder_identifier}
-          {row.wpq_number && <span className="block text-xs text-muted"><Tx>WPQ</Tx> {row.wpq_number}</span>}
         </span>
       ),
     },
-    {
-      key: "qualified_wps",
-      header: "Qualified WPS",
-      render: (row) => (
-        <span>
-          {row.qualified_wps}
-          {(row.process || row.position) && <span className="block text-xs text-muted">{[row.process, row.position].filter(Boolean).join(" · ")}</span>}
-        </span>
-      ),
-    },
-    { key: "qualified_ranges", header: "Ranges", render: (row) => row.qualified_ranges ?? "—" },
     { key: "expiry_date", header: "Expiry", render: (row) => <ExpiryDate date={row.expiry_date} warnWithinDays={WELDER_EXPIRING_DAYS} /> },
     { key: "status", header: "Status", render: (row) => (<span><Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge><RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} /></span>) },
-    { key: "certificate", header: "WPQ file", render: (row) => <CertificateLink kind="welder" id={row.id} hasFile={!!row.certificate_path} /> },
-    { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
+    {
+      key: "details",
+      header: "More",
+      render: (row) => (
+        <RegisterDetails
+          items={[
+            { label: "WPQ", value: row.wpq_number ?? "—" },
+            { label: "Qualified WPS", value: row.qualified_wps },
+            { label: "Process", value: row.process ?? "—" },
+            { label: "Position", value: row.position ?? "—" },
+            { label: "Ranges", value: row.qualified_ranges ?? "—" },
+            { label: "WPQ file", value: <CertificateLink kind="welder" id={row.id} hasFile={!!row.certificate_path} /> },
+            { label: "Notes", value: row.notes ?? "—" },
+          ]}
+        />
+      ),
+    },
   ];
   if (canManage) {
     columns.push({

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { CALIBRATION_DUE_SOON_DAYS } from "@/lib/registers/status";
 import type { CalibrationStatus } from "@/lib/registers/types";
-import { CertificateLink, formatRegisterDate, ExpiryDate, RegisterRowActions } from "./register-cells";
+import { CertificateLink, formatRegisterDate, ExpiryDate, RegisterRowActions, RegisterDetails } from "./register-cells";
 import { RegisterRowFlags } from "./register-lifecycle-actions";
 import { Tx } from "@/components/domain/tx";
 
@@ -50,21 +50,23 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
         </span>
       ),
     },
-    {
-      key: "cert_number",
-      header: "Cert No.",
-      render: (row) => (
-        <span>
-          <span className="doc-id">{row.cert_number}</span>
-          {row.calibration_lab && <span className="block text-xs text-muted">{row.calibration_lab}</span>}
-        </span>
-      ),
-    },
-    { key: "cal_date", header: "Cal. date", render: (row) => formatRegisterDate(row.cal_date) },
     { key: "due_date", header: "Due", render: (row) => <ExpiryDate date={row.due_date} warnWithinDays={CALIBRATION_DUE_SOON_DAYS} /> },
     { key: "status", header: "Status", render: (row) => (<span><Badge showIcon tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge><RegisterRowFlags verifiedAt={row.verified_at} lifecycleStatus={row.lifecycle_status} /></span>) },
-    { key: "certificate", header: "Certificate", render: (row) => <CertificateLink kind="calibration" id={row.id} hasFile={!!row.certificate_path} /> },
-    { key: "notes", header: "Notes", render: (row) => row.notes ?? "—" },
+    {
+      key: "details",
+      header: "More",
+      render: (row) => (
+        <RegisterDetails
+          items={[
+            { label: "Cert No.", value: <span className="doc-id">{row.cert_number}</span> },
+            { label: "Lab", value: row.calibration_lab ?? "—" },
+            { label: "Cal. date", value: formatRegisterDate(row.cal_date) },
+            { label: "Certificate", value: <CertificateLink kind="calibration" id={row.id} hasFile={!!row.certificate_path} /> },
+            { label: "Notes", value: row.notes ?? "—" },
+          ]}
+        />
+      ),
+    },
   ];
   if (canManage) {
     columns.push({
