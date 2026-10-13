@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createItpAction, type CreateItpState } from "@/lib/itps/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateItpState = { error: null };
@@ -16,6 +17,7 @@ export function NewItpForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createItpAction, initialState);
+  const [projectId, setProjectId] = useState("");
 
   return (
     <form action={formAction} className="mt-6 space-y-4">
@@ -24,6 +26,8 @@ export function NewItpForm({
           <select
           name="project_id"
           required
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
           <option value=""><Tx>Select…</Tx></option>
@@ -48,6 +52,7 @@ export function NewItpForm({
           aria-describedby={state.fieldErrors?.itp_number ? "itp_number-err" : undefined}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy doc-id"
         />
+        <NextNumberHint kind="itp" id={projectId} />
         {state.fieldErrors?.itp_number && (
           <p id="itp_number-err" role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors.itp_number}</p>
         )}

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { issueIrnAction, voidIrnAction, type IssueIrnState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: IssueIrnState = { error: null };
@@ -17,6 +18,7 @@ export function IssueIrnForm({ inspectionRecordId }: { inspectionRecordId: strin
       <Button type="submit" disabled={pending}>
         {pending ? "Issuing…" : "Issue IRN"}
       </Button>
+      <NextNumberHint kind="irn" id={inspectionRecordId} />
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
   );

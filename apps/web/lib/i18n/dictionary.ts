@@ -221,6 +221,7 @@ const AR: Record<string, string> = {
   "Applicable standard": "المعيار المطبق",
   "ITP number": "رقم خطة الفحص والاختبار",
   "Select…": "اختر…",
+  "Next number (assigned when saved):": "الرقم التالي (يُحدَّد عند الحفظ):",
   "Suggested from the organisation and year; you can change it.": "مقترح من المؤسسة والسنة؛ يمكنك تغييره.",
   Required: "مطلوب",
   Optional: "اختياري",

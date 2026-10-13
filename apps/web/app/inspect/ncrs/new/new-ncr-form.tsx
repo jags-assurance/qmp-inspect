@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: CreateNcrState = { error: null };
@@ -187,6 +188,7 @@ export function NewNcrForm({
             ))}
           </select>
           </FormField>
+          <NextNumberHint kind="ncr" id={projectId} />
         </div>
 
         <fieldset>
