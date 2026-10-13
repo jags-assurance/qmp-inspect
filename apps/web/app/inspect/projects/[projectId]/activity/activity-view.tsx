@@ -139,13 +139,13 @@ export async function ActivityView({
   const levelLabelByCode = new Map((levelTypes ?? []).map((l) => [l.code, l.label]));
 
   const [
-    { data: inspections },
-    { data: ncrs },
-    { data: itps },
-    { data: standaloneAssignments },
-    { data: dataBooks },
-    { data: punchItems },
-    { data: vaultFolders },
+    { data: inspections, error: inspectionsError },
+    { data: ncrs, error: ncrsError },
+    { data: itps, error: itpsError },
+    { data: standaloneAssignments, error: standaloneAssignmentsError },
+    { data: dataBooks, error: dataBooksError },
+    { data: punchItems, error: punchItemsError },
+    { data: vaultFolders, error: vaultFoldersError },
   ] = await Promise.all([
     supabase
       .from(INSPECTION_RECORDS_TABLE)
@@ -199,28 +199,34 @@ export async function ActivityView({
     supabase.from(VAULT_FOLDERS_TABLE).select("id").eq("project_id", projectId).returns<{ id: string }[]>(),
   ]);
 
+  // A failed read must not look like "no activity recorded" (the Sign-offs filter sometimes showed nothing).
+  const firstReadError = [inspectionsError, ncrsError, itpsError, standaloneAssignmentsError, dataBooksError, punchItemsError, vaultFoldersError].find(Boolean);
+  if (firstReadError) throw new Error(`Could not load the activity feed: ${firstReadError.message}`);
+
   const itpIds = (itps ?? []).map((itp) => itp.id);
 
   const signoffEvents: ActivityEvent[] = [];
   if (itpIds.length > 0) {
-    const { data: sections } = await supabase
+    const { data: sections, error: sectionsError } = await supabase
       .from("itp_sections")
       .select("id")
       .in("itp_id", itpIds)
       .returns<{ id: string }[]>();
+    if (sectionsError) throw new Error(`Could not load the activity feed: ${sectionsError.message}`);
     const sectionIds = (sections ?? []).map((s) => s.id);
 
     if (sectionIds.length > 0) {
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from("itp_items")
         .select("id, activity")
         .in("section_id", sectionIds)
         .returns<{ id: string; activity: string }[]>();
+      if (itemsError) throw new Error(`Could not load the activity feed: ${itemsError.message}`);
       const activityByItemId = new Map((items ?? []).map((i) => [i.id, i.activity]));
       const itemIds = [...activityByItemId.keys()];
 
       if (itemIds.length > 0) {
-        const { data: signoffs } = await supabase
+        const { data: signoffs, error: signoffsError } = await supabase
           .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
           .select("id, itp_item_id, project_party_id, intervention, status, notified_at, signed_off_at, proceeded_at")
           .in("itp_item_id", itemIds)
@@ -238,6 +244,7 @@ export async function ActivityView({
               proceeded_at: string | null;
             }[]
           >();
+        if (signoffsError) throw new Error(`Could not load the activity feed: ${signoffsError.message}`);
         const rows = signoffs ?? [];
 
         const partyIds = [...new Set(rows.map((r) => r.project_party_id))];

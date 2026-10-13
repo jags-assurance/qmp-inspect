@@ -1960,6 +1960,7 @@ const AR: Record<string, string> = {
   "Clear filters": "مسح عوامل التصفية",
   "document": "مستند",
   "Download selected (.zip)": "تنزيل المحدد (.zip)",
+  "Only approved documents can be downloaded. Select at least one approved document.": "يمكن تنزيل المستندات المعتمدة فقط. اختر مستندًا معتمدًا واحدًا على الأقل.",
   "Clear selection": "مسح التحديد",
   "Compare revisions": "مقارنة المراجعات",
   "revision": "مراجعة",

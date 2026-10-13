@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { createDrawingMarkupAction } from "@/lib/drawing-markups/actions";
 import { DRAWING_MARKUP_TYPE_LABELS, type DrawingMarkupRow, type DrawingMarkupType } from "@/lib/drawing-markups/types";
@@ -65,6 +66,7 @@ export function DrawingMarkupViewer({
   ncrOptions: NcrOption[];
 }) {
   const tl = useTranslate();
+  const router = useRouter();
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [pendingPin, setPendingPin] = useState<{ x: number; y: number } | null>(null);
   const [selectedMarkup, setSelectedMarkup] = useState<DrawingMarkupRow | null>(null);
@@ -169,6 +171,8 @@ export function DrawingMarkupViewer({
     setPendingPin(null);
     setLabel("");
     setLinkedNcrId("");
+    // Re-read the markups so the new pin shows without a manual reload.
+    router.refresh();
   }
 
   if (!isImage) {

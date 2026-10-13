@@ -109,6 +109,9 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
 
   const selectedRows = visible.filter((r) => selected.has(r.id));
   const selectedApprovable = selectedRows.filter((r) => canActOn(r, canApprove));
+  // The download route only zips approved documents for non-staff, so a selection with none approved would
+  // land on a raw JSON error page; say so here instead.
+  const selectedDownloadable = canApprove || selectedRows.some((r) => r.status === "approved");
   const allVisibleSelected = visible.length > 0 && visible.every((r) => selected.has(r.id));
   const projectId = rows[0]?.project_id;
   const folderId = rows[0]?.folder_id;
@@ -332,12 +335,18 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
           className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-off-white px-3 py-2 text-sm"
         >
           <span className="font-medium text-ink">{selectedRows.length} <Tx>selected</Tx></span>
-          <a
-            href={`/api/vault/${projectId}/download-all?ids=${selectedRows.map((r) => r.id).join(",")}`}
-            className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
-          >
-            <Tx>Download selected (.zip)</Tx>
-          </a>
+          {selectedDownloadable ? (
+            <a
+              href={`/api/vault/${projectId}/download-all?ids=${selectedRows.map((r) => r.id).join(",")}`}
+              className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
+            >
+              <Tx>Download selected (.zip)</Tx>
+            </a>
+          ) : (
+            <span className="text-xs text-muted" role="status">
+              <Tx>Only approved documents can be downloaded. Select at least one approved document.</Tx>
+            </span>
+          )}
           {selectedApprovable.length > 0 && (
             <form action={bulkAction} className="inline-flex">
               <input type="hidden" name="project_id" value={projectId} />

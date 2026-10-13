@@ -50,8 +50,25 @@ export function NotificationsBell({
     notificationsRef.current = notifications;
   }, [notifications]);
 
+  // A server refresh (the fallback below, or any navigation) delivers fresh props: adopt them. Adjusting state
+  // while rendering (rather than in an effect) is React's recommended way to resync state from changed props.
+  const [seenProps, setSeenProps] = useState({ initialNotifications, initialUnreadCount });
+  if (seenProps.initialNotifications !== initialNotifications || seenProps.initialUnreadCount !== initialUnreadCount) {
+    setSeenProps({ initialNotifications, initialUnreadCount });
+    setNotifications(initialNotifications);
+    setUnreadCount(initialUnreadCount ?? initialNotifications.filter((n) => !n.is_read).length);
+  }
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    // Realtime can fail to deliver (dropped socket, overloaded database). Until the channel reports SUBSCRIBED,
+    // fall back to refreshing the server-rendered list every minute and when the tab becomes visible again.
+    let live = false;
+    const refreshIfNotLive = () => {
+      if (!live && document.visibilityState === "visible") router.refresh();
+    };
+    const timer = window.setInterval(refreshIfNotLive, 60_000);
+    document.addEventListener("visibilitychange", refreshIfNotLive);
     const channel = supabase
       .channel(`notifications:${userId}`)
       .on(
@@ -76,12 +93,16 @@ export function NotificationsBell({
           setNotifications((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        live = status === "SUBSCRIBED";
+      });
 
     return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfNotLive);
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, router]);
 
   useEffect(() => {
     if (!open) return;
