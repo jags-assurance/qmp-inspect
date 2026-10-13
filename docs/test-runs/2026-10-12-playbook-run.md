@@ -61,6 +61,18 @@ All commits: typecheck clean, lint 0 errors, 1,220 web + 215 worker tests, produ
 
 Wording in the playbook that doesn't match the app: D4 (the waive-notice form appears only for a Witness that has **not** been notified); M1 (`/inspect/itp-master` sends the client to the ITP register, not the dashboard); K2 (no "Today's schedule" or "New inspection" on the Inspector dashboard); L3 (client cannot open the Audit Log); I (field names: "Cert number", "Qualified WPS", "Awaiting JAGS verification"); I2 (counts are in the banner, not on tabs); E6 (Admin, not Inspector, closes); F5 (re-open takes a reason of 15+ characters, no confirm dialog); NCR numbers include "-JAGS-".
 
-## 6. Test data left on dev (remove per playbook section 4)
+## 5b. Dev and production share one database
+
+Production (`jags-qmp-client.vercel.app`) runs the same build as dev (`b56b6f6`) and lists the same
+data: THP-2026-001 and the Test Harbour Power organisation are visible on prod. **All test data below is
+therefore live data.** Production was only read (one admin sign-in, project and organisation lists); the
+write scenario was not run there, as the playbook forbids it.
+
+Fix: commit `52f3bd2` adds a JAGS-Admin-only "Danger zone" delete (project page, and each organisation
+card). A project can be deleted only while Draft or Cancelled, by typing its number, with a preview of
+what goes; an organisation only once it has no projects. After deploy: Cancel THP-2026-001, delete it,
+then delete Test Harbour Power; deactivate `thp.vendor@example.test` under Staff Access.
+
+## 6. Test data left on dev (and prod: same database) (remove per playbook section 4)
 
 Organisation **Test Harbour Power** (AI consent given); project **THP-2026-001** (Active) with 6 parties, a team, 3 NCRs, punch items and walk-down, vault documents 001–008, registers (PB-*), Data Book DB-QA-J01 and handover HC-QA-J01 (acknowledged), a login `thp.vendor@example.test`; extra photos on MER checklist CHK-1; inspection MER-JAGS-ITP-001-INSP-2; UITEST-001 INSP-4 left **in progress** with its IRN voided; one Meridian monthly report pack.
