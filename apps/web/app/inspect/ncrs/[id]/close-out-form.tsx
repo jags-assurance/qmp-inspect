@@ -129,7 +129,8 @@ export function CloseOutForm({
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
           >
             <option value=""><Tx>Unassigned</Tx></option>
-            {people.map((person) => (
+            {/* Logins that cannot reassign only need to see the current assignee, not the whole user list. */}
+            {(canAssign ? people : people.filter((person) => person.id === assignedTo)).map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
               </option>

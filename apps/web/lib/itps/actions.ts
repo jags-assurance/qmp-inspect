@@ -1230,11 +1230,14 @@ export async function advanceItpStatusAction(
   }
 
   if (nextStatus === "under_review") {
-    const { data: sectionRows } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId).returns<{ id: string }[]>();
+    const { data: sectionRows, error: sectionReadError } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId).returns<{ id: string }[]>();
     const sectionIds = (sectionRows ?? []).map((r) => r.id);
-    const { count: activityCount } = sectionIds.length
+    const { count: activityCount, error: activityReadError } = sectionIds.length
       ? await supabase.from("itp_items").select("id", { count: "exact", head: true }).in("section_id", sectionIds)
-      : { count: 0 };
+      : { count: 0, error: null };
+    if (sectionReadError || activityReadError) {
+      return { error: "Could not check the ITP's activities right now (the database was busy). Try again." };
+    }
     if (!activityCount) {
       return { error: "Add at least one activity before submitting this ITP for review." };
     }
@@ -1546,7 +1549,7 @@ export async function returnItpToDraftAction(_prev: ReturnItpState, formData: Fo
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: itp } = await supabase
+  const { data: itp, error: itpReadError } = await supabase
     .from("itps")
     .select("status, itp_number, title, prepared_by, reviewed_by, project_id, projects(organization_id)")
     .eq("id", itpId)
@@ -1559,6 +1562,7 @@ export async function returnItpToDraftAction(_prev: ReturnItpState, formData: Fo
       project_id: string;
       projects: { organization_id: string } | null;
     }>();
+  if (itpReadError) return { error: "Could not read the ITP right now (the database was busy). Try again." };
   if (!itp) return { error: "ITP not found." };
   if (itp.status !== "under_review") return { error: "Only an ITP that is under review can be returned to its preparer." };
 

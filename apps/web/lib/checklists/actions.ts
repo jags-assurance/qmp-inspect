@@ -1062,7 +1062,7 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   // dispute or ISO audit. At least one photo OR one linked Vault document — attached to the
   // inspection as a whole, or to any individual item — is now required to complete, mirroring the
   // signature check just above.
-  const [{ count: photoCount }, { data: evidenceDocRows }, { data: itemPhotoRows }] = await Promise.all([
+  const [{ count: photoCount, error: photoCountError }, { data: evidenceDocRows, error: evidenceDocError }, { data: itemPhotoRows }] = await Promise.all([
     supabase.from(INSPECTION_PHOTOS_TABLE).select("id", { count: "exact", head: true }).eq("inspection_record_id", inspectionRecordId),
     supabase
       .from(INSPECTION_EVIDENCE_DOCUMENTS_TABLE)
@@ -1081,6 +1081,10 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       .not("checklist_item_id", "is", null)
       .returns<{ checklist_item_id: string | null }[]>(),
   ]);
+  // A failed evidence read must not read as "no evidence" (it told users with photos attached that none existed).
+  if (photoCountError || evidenceDocError) {
+    return { error: "Could not check the attached evidence right now (the database was busy). Try again." };
+  }
   // Only approved vault documents (or the signer's own for-review upload in Checklists & Forms) count; rejected never.
   const countableDocs: EvidenceDocLink[] = (evidenceDocRows ?? [])
     .map((r) => ({

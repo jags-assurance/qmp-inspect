@@ -129,7 +129,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
 
-  const { data: itp } = await supabase
+  const { data: itp, error: itpError } = await supabase
     .from("itps")
     .select(
       "*, projects(id, name, organization_id, allow_client_itp_creation, allow_contractor_itp_creation, organizations(name, engagement_scope))"
@@ -170,6 +170,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       } | null;
     }>();
 
+  // A failed read (statement timeout, connection error) is not "not found": surface it so the error page
+  // offers a retry instead of telling the user a valid ITP does not exist.
+  if (itpError) throw new Error(`Could not load the ITP: ${itpError.message}`);
   if (!itp) {
     if (embedded) {
       return (
@@ -227,8 +230,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
 
   const [
     latestPdf,
-    { data: sections },
-    { data: parties },
+    { data: sections, error: sectionsError },
+    { data: parties, error: partiesError },
     { data: noticeConfigs },
     { data: masterTemplates },
     disciplines,
@@ -323,6 +326,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
   // item ids that come out of the `sections` query first.
+  if (sectionsError) throw new Error(`Could not load the ITP sections: ${sectionsError.message}`);
+  if (partiesError) throw new Error(`Could not load the project parties: ${partiesError.message}`);
   const allItemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
 
   // Everything below needs only `allItemIds` (or nothing), so it runs as ONE parallel wave. These used
