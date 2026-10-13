@@ -145,14 +145,24 @@ export default async function VaultPage({
             >
               <T>My pending approvals</T>
             </Link>
-            <a
-              href={`/api/vault/${selectedProject}/download-all`}
-              className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
-            >
-              <T>Download approved (.zip)</T>
-            </a>
+            {totalDocs === 0 ? (
+              <span
+                aria-disabled="true"
+                title="Nothing to download yet"
+                className="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-border bg-off-white px-3 py-2 text-sm font-medium text-muted"
+              >
+                <T>Download approved (.zip)</T>
+              </span>
+            ) : (
+              <a
+                href={`/api/vault/${selectedProject}/download-all`}
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
+              >
+                <T>Download approved (.zip)</T>
+              </a>
+            )}
             <span className="text-sm text-muted">
-              {totalDocs} <T>current document</T>{totalDocs === 1 ? "" : "s"} · {pendingCount} <T>awaiting approval</T>
+              {totalDocs === 0 ? <T>No documents yet. Upload one into a folder below.</T> : <>{totalDocs} <T>current document</T>{totalDocs === 1 ? "" : "s"} · {pendingCount} <T>awaiting approval</T></>}
             </span>
           </div>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
