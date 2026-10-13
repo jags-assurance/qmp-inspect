@@ -560,8 +560,8 @@ export function NewItpFromAiForm({
                           className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
                         >
                           <option value={1}><Tx>Checklist</Tx></option>
-                          <option value={2}><Tx>Document upload</Tx></option>
-                          <option value={3}><Tx>Measurement record</Tx></option>
+                          <option value={2}><Tx>Document upload (certificate, test report, readings)</Tx></option>
+                          {item.evidenceType === 3 && <option value={3}><Tx>Measurement (older ITP)</Tx></option>}
                         </select>
                         </FormField>
                       </div>

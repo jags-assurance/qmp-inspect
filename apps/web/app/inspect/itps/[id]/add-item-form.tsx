@@ -121,8 +121,7 @@ export function AddItemForm({
           className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         >
           <option value="1"><Tx>Checklist</Tx></option>
-          <option value="2"><Tx>Document upload</Tx></option>
-          <option value="3"><Tx>Measurement</Tx></option>
+          <option value="2"><Tx>Document upload (certificate, test report, readings)</Tx></option>
         </select>
         </FormField>
       </div>

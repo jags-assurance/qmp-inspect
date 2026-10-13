@@ -200,8 +200,8 @@ export function ItemControls({
           className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
         >
           <option value="1"><Tx>Checklist</Tx></option>
-          <option value="2"><Tx>Document upload</Tx></option>
-          <option value="3"><Tx>Measurement</Tx></option>
+          <option value="2"><Tx>Document upload (certificate, test report, readings)</Tx></option>
+          {evidenceType === 3 && <option value="3"><Tx>Measurement (older ITP)</Tx></option>}
         </select>
         <select
           name="discipline_id"
