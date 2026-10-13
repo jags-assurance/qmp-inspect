@@ -2031,8 +2031,8 @@ const AR: Record<string, string> = {
   "Open module →": "فتح الوحدة ←",
   "Active module": "وحدة نشطة",
   "Set a new password": "تعيين كلمة مرور جديدة",
-  "Use at least 10 characters, avoid common passwords and don't include your email. Both fields must match.":
-    "استخدم 10 أحرف على الأقل، وتجنّب كلمات المرور الشائعة ولا تضمّن بريدك الإلكتروني. يجب أن يتطابق الحقلان.",
+  "Use at least 8 characters, avoid common passwords and don't include your email. Both fields must match.":
+    "استخدم 8 أحرف على الأقل، وتجنّب كلمات المرور الشائعة ولا تضمّن بريدك الإلكتروني. يجب أن يتطابق الحقلان.",
   "Check a file you hold": "تحقّق من ملف بحوزتك",
   "Choose your copy of the PDF. Its fingerprint is worked out on your device; the file is not uploaded.":
     "اختر نسختك من ملف PDF. تُحسب بصمته على جهازك؛ ولا يُرفع الملف.",

@@ -42,7 +42,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
         />
 
         <p id="pw-hint" className="text-xs text-muted">
-          <Tx>Use at least 10 characters, avoid common passwords and don&apos;t include your email. Both fields must match.</Tx>
+          <Tx>Use at least 8 characters, avoid common passwords and don&apos;t include your email. Both fields must match.</Tx>
         </p>
         <FormMessage error={state.error} />
 

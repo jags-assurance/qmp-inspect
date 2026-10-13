@@ -1,12 +1,12 @@
 // Password policy shared by the reset / forced-change flow. Pure, so it unit-tests without a server.
 //
 // Supabase Auth only enforces its own minimum length; JAGS issues temporary passwords to external
-// parties, so a stronger floor is applied here: at least 10 characters, not on a short list of the
+// parties, so a stronger floor is applied here: at least 8 characters, not on a short list of the
 // most common passwords, not made of one repeated character / a trivial sequence, and not derived
 // from the account's own email. Turning on Supabase's "Prevent use of leaked passwords" (Auth >
 // Policies, Pro plan) adds a HaveIBeenPwned check on top — see docs/SECURITY_HARDENING.md.
 
-export const MIN_PASSWORD_LENGTH = 10;
+export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 128;
 
 // Lower-cased. Includes the usual offenders plus product-flavoured guesses; matched after stripping
