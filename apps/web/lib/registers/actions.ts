@@ -292,8 +292,10 @@ export async function addMaterialEntryAction(
       project_id: projectId,
       material_description: materialDescription,
       submittal_reference: submittalReference || null,
-      approval_status: approvalStatus,
-      approved_date: approvedDate || null,
+      // A contractor's own row shows "A — Approved" by default in the form, before any JAGS review: only
+      // staff set the submittal approval, so theirs lands as "C" (not yet reviewed), like extracted rows.
+      approval_status: writer.isStaff ? approvalStatus : ("C" as const),
+      approved_date: writer.isStaff ? approvedDate || null : null,
       heat_number: heatNumber || null,
       batch_number: batchNumber || null,
       po_reference: poReference || null,
