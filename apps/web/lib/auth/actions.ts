@@ -3,6 +3,7 @@
 import type { FieldErrors } from "@/lib/forms/field-errors";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { recordAuditEvent } from "@/lib/audit/log";
@@ -44,6 +45,11 @@ export async function signInAction(_prev: SignInState, formData: FormData): Prom
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
+  // An auth-service outage or network failure is not a wrong password: say so, and don't count it
+  // toward the 5-per-email lockout (on dev under load, correct passwords were rejected this way).
+  if (error && (isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500)) {
+    return { error: "Sign-in is temporarily unavailable. Please try again in a moment." };
+  }
   if (error || !data?.user) {
     await recordAttempt("signin", email);
     // Same message for a wrong password, an unknown email, an unconfirmed or a deactivated account.

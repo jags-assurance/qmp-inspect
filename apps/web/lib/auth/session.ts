@@ -49,7 +49,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   if (!userId) return null;
   const user = { id: userId };
 
-  const [{ data: profile }, { data: grants }] = await Promise.all([
+  const [{ data: profile, error: profileError }, { data: grants, error: grantsError }] = await Promise.all([
     supabase
       .from("users")
       .select("id, email, full_name, is_jags_staff, staff_role, is_active")
@@ -69,6 +69,11 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       .returns<AccessGrant[]>(),
   ]);
 
+  // A failed read is not "signed out": returning null here sent valid users to
+  // /login?error=session_ended whenever the database was slow (seen on dev under load), and an empty
+  // grant list would hide every project from a staff user. Only a missing profile row means no session.
+  if (profileError && profileError.code !== "PGRST116") throw new Error(`Could not load your account: ${profileError.message}`);
+  if (grantsError) throw new Error(`Could not load your access grants: ${grantsError.message}`);
   if (!profile) return null;
   // A deactivated account has no session context (the RLS helpers already refuse it; this keeps the
   // UI from rendering a half-empty shell). proxy.ts also ends such a session.
