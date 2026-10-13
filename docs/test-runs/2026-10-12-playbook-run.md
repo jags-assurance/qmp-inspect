@@ -92,3 +92,15 @@ Organisation **Test Harbour Power** (AI consent given); project **THP-2026-001**
 - **Still to do:** the two sample PDFs uploaded before the fix still say "Could not be read" (re-upload
   as new revisions to include the standard and drawing); apply migration `20261202000100`; re-run B3-B7,
   C, D4, F2, F3 and M's button checks; the Admin delete button is now live (dev and prod share a database).
+
+## 8. F2 re-test after the issue_irn migration (13 Oct)
+
+The `issue_irn` migration was applied to the shared database. It was checked by calling `issue_irn` as a JAGS staff user inside a transaction that was always rolled back (the irns row count stayed at 17):
+
+- GSP-PLATFORM-7-JAGS-ITP-001: two IRNs issued in a row (`-IRN-1`, `-IRN-2`), so the counter now draws unused numbers.
+- MER-JAGS-ITP-001 and RFW-2026-001-JAGS-ITP-003: refused with "open Hold; must be signed off before an IRN can be issued". This is the intended rule, not the old duplicate-number failure.
+- itp-0003: refused because the inspection has not passed. Also intended.
+
+The duplicate-number failure no longer appears. Still open: B/C, D4, F3 and M button checks need the UI on the deployed site, and test-data cleanup is untouched (see below).
+
+Note: THP-2026-0011 (active) also exists next to THP-2026-001, along with the Test Harbour Power organisation and `thp.vendor@example.test`. Both projects are active, so the Danger-zone delete will refuse them until they are Cancelled.
