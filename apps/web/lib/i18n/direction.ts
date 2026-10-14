@@ -5,7 +5,7 @@
 // plumbing that makes an Arabic (or other right-to-left) locale lay out correctly: the <html lang dir>
 // attributes, and logical Tailwind utilities (ps/pe/ms/me, start/end, text-start/end) in the shell.
 
-export const SUPPORTED_LOCALES = ["en", "ar"] as const;
+export const SUPPORTED_LOCALES = ["en"] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 export const DEFAULT_LOCALE: SupportedLocale = "en";
 
@@ -48,5 +48,4 @@ export function htmlAttributesFor(value: string | null | undefined): { lang: Sup
 /** Display name of each locale in its own language, for the switcher. */
 export const LOCALE_LABELS: Record<SupportedLocale, string> = {
   en: "English",
-  ar: "العربية",
 };

@@ -1873,7 +1873,8 @@ const EMPTY_TRANSLATE_STATE: TranslateItpContentState = { error: null, translate
  * on the ITP page afterwards without another AI call. It never touches title/scope themselves — the
  * original stays authoritative. Falls back to display-only if the column is not there yet.
  */
-const TRANSLATION_LANGUAGES = ["French", "Arabic", "Spanish", "German", "Portuguese", "Chinese", "Hindi", "Urdu"] as const;
+// French is the only translation offered (the UI is English; no other languages). Canadian French is a later addition.
+const TRANSLATION_LANGUAGES = ["French"] as const;
 
 export async function translateItpContentAction(
   _prev: TranslateItpContentState,

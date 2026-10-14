@@ -13,14 +13,15 @@ describe("direction", () => {
   });
 
   it("normalises to a supported locale and defaults to English", () => {
-    expect(normalizeLocale("ar-SA")).toBe("ar");
+    expect(normalizeLocale("ar-SA")).toBe("en");
     expect(normalizeLocale("EN-us")).toBe("en");
     expect(normalizeLocale("fr")).toBe("en");
     expect(normalizeLocale(null)).toBe("en");
   });
 
   it("builds the <html> attributes", () => {
-    expect(htmlAttributesFor("ar")).toEqual({ lang: "ar", dir: "rtl" });
+    // Arabic is no longer offered: a stale cookie value falls back to English.
+    expect(htmlAttributesFor("ar")).toEqual({ lang: "en", dir: "ltr" });
     expect(htmlAttributesFor(undefined)).toEqual({ lang: "en", dir: "ltr" });
     // A supported-but-unknown value never produces rtl on an English page.
     expect(htmlAttributesFor("he")).toEqual({ lang: "en", dir: "ltr" });

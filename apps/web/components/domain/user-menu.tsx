@@ -127,6 +127,7 @@ export function UserMenu({
               ))}
             </ul>
           )}
+          {SUPPORTED_LOCALES.length > 1 && (
           <form action={setLocaleAction} className="flex items-center gap-2 border-t border-border px-4 py-2.5" aria-label={tl("Language")}>
             <span className="text-xs text-muted"><Tx>Language</Tx></span>
             {SUPPORTED_LOCALES.map((code) => (
@@ -143,6 +144,7 @@ export function UserMenu({
               </button>
             ))}
           </form>
+          )}
           <form action={signOutAction} className="border-t border-border">
             <button type="submit" role="menuitem" className="block w-full px-4 py-2.5 text-start text-sm font-medium text-danger hover:bg-off-white">
               <Tx>Sign out</Tx>
