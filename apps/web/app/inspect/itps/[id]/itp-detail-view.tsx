@@ -826,7 +826,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
 
         <ItpStalePdfToast isStale={isPdfStale} changedAt={latestChangeAt} />
 
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
+          <div className="flex flex-wrap items-center gap-2">
           <ItpPdfButton
             itpId={itp.id}
             latest={latestPdf}
@@ -857,24 +858,34 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
               {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
               <Link
                 href={`/inspect/itps/${itp.id}/checklists`}
-                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white"
               >
                 <T>Checklists →</T>
               </Link>
               <Link
                 href={`/inspect/itps/${itp.id}/status`}
-                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white"
               >
                 <T>Completion roadmap →</T>
               </Link>
               <Link
                 href={`/inspect/itps/${itp.id}/approval-roadmap`}
-                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white"
               >
                 <T>Approval roadmap →</T>
               </Link>
             </>
           )}
+          </div>
+          {(canSubmitForReview ||
+            (canApproveItp && itp.status === "under_review" && !hasActiveReviewChain) ||
+            (itp.status === "under_review" && (canApproveItp || session.isJagsStaff)) ||
+            (session.isJagsStaff && hasPendingSignoffs) ||
+            canAccept ||
+            canPropose) && (
+            <div className="border-t border-border pt-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted"><T>Next step</T></p>
+              <div className="mt-2 flex flex-wrap items-start gap-2">
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
           {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
@@ -887,7 +898,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {session.isJagsStaff && hasPendingSignoffs && (
             <form action={notifyAllPendingForItpAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
-              <button type="submit" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
+              <button type="submit" className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white">
                 <T>Notify all pending</T>
               </button>
             </form>
@@ -897,6 +908,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
               has reached approved/client_accepted, matching this file's existing status gating. */}
           {canPropose && (
             <ProposeToMasterForm itpId={itp.id} itpTitle={itp.title} masterTemplates={masterTemplates ?? []} />
+          )}
+              </div>
+            </div>
           )}
         </div>
       </div>
