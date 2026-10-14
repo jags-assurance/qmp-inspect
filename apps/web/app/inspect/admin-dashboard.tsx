@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
 import { Watchlist } from "@/components/ui/watchlist";
+import { MoreDetails } from "@/components/domain/more-details";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -393,13 +394,8 @@ export function AdminDashboard({
                 ),
               },
               {
-                key: "mode",
-                header: "Engagement mode",
-                render: (r) => <span className="text-muted">{ENGAGEMENT_MODE_LABEL[r.engagementMode] ?? r.engagementMode}</span>,
-              },
-              {
                 key: "activeProjects",
-                header: "Active projects",
+                header: "Projects",
                 render: (r) =>
                   r.activeProjects === 0 ? (
                     <span className="text-muted">0</span>
@@ -410,9 +406,21 @@ export function AdminDashboard({
                   ),
               },
               {
-                key: "ncrs",
-                header: "Open NCRs",
-                render: (r) => (r.openNcrs > 0 ? <Badge tone="danger">{r.openNcrs}</Badge> : <span className="text-muted">0</span>),
+                key: "health",
+                header: "Health",
+                render: (r) =>
+                  r.openNcrs > 0 ? <Badge tone="danger"><Tx>Needs attention</Tx></Badge> : <Badge tone="success"><Tx>On track</Tx></Badge>,
+              },
+              {
+                key: "details",
+                header: "",
+                render: (r) => (
+                  <MoreDetails className="mt-0">
+                    <p><Tx>Engagement mode:</Tx> {ENGAGEMENT_MODE_LABEL[r.engagementMode] ?? r.engagementMode}</p>
+                    <p><Tx>Active projects:</Tx> {r.activeProjects}</p>
+                    <p><Tx>Open NCRs:</Tx> {r.openNcrs}</p>
+                  </MoreDetails>
+                ),
               },
             ]}
           />

@@ -68,7 +68,7 @@ export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: str
       </div>
       {!hasSignature && (
         <p className="text-xs text-muted">
-          <Tx>Capture at least one signature under Witness Signatures before this can be finalized.</Tx>
+          <Tx>Add a witness signature first.</Tx>
         </p>
       )}
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}

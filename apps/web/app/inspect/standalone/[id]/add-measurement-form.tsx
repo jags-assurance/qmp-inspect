@@ -6,6 +6,7 @@ import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { addMeasurementAction, type AddMeasurementState } from "@/lib/standalone/actions";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { MoreDetails } from "@/components/domain/more-details";
 
 const initialState: AddMeasurementState = { error: null };
 
@@ -43,34 +44,10 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
         </FormField>
       </div>
       <div>
-        <FormField label="Nominal">
-          <input
-          name="nominal_value"
-          className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
-        </FormField>
-      </div>
-      <div>
-        <FormField label="Tolerance">
-          <input
-          name="tolerance"
-          className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
-        </FormField>
-      </div>
-      <div>
         <FormField label="Actual">
           <input
           name="actual_value"
           className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
-        </FormField>
-      </div>
-      <div>
-        <FormField label="Unit">
-          <input
-          name="unit"
-          className="mt-1 w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
       </div>
@@ -94,6 +71,34 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
       >
         {pending ? "Adding…" : "+ Add measurement"}
       </button>
+      <MoreDetails label="More fields (nominal, tolerance, unit)" bare className="w-full">
+        <div className="flex flex-wrap items-end gap-2">
+      <div>
+        <FormField label="Nominal">
+          <input
+          name="nominal_value"
+          className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+        />
+        </FormField>
+      </div>
+      <div>
+        <FormField label="Tolerance">
+          <input
+          name="tolerance"
+          className="mt-1 w-24 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+        />
+        </FormField>
+      </div>
+      <div>
+        <FormField label="Unit">
+          <input
+          name="unit"
+          className="mt-1 w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+        />
+        </FormField>
+      </div>
+        </div>
+      </MoreDetails>
       {queued && <p className="w-full text-sm text-muted"><Tx>Saved on this device — it will be sent when you&apos;re back online.</Tx></p>}
       {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>

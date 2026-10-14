@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import type { DataBookReadiness } from "@/lib/databook/readiness";
+import { MoreDetails } from "@/components/domain/more-details";
 import { T } from "@/components/domain/t";
 
 type Chip = "complete" | "partial" | "none" | "blocked";
@@ -120,8 +121,8 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
       <h2 id="index-h" className="text-base font-medium text-ink">
         <T>Index</T>
       </h2>
-      <p className="mt-0.5 text-xs text-muted"><T>Live status of every section of the book. Click a row to jump to it or open its source.</T></p>
-      <div className="mt-3 overflow-x-auto">
+      <MoreDetails label="Show all sections" bare className="mt-1">
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
           <thead className="text-start text-xs uppercase tracking-wide text-muted">
             <tr>
@@ -167,6 +168,7 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
           ))}
         </table>
       </div>
+      </MoreDetails>
     </section>
   );
 }

@@ -28,6 +28,7 @@ import { isAiEnabledForProject } from "@/lib/ai/gate";
 import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
+import { MoreDetails } from "@/components/domain/more-details";
 import { getTranslator } from "@/lib/i18n/server";
 
 interface AssignmentDetail {
@@ -233,6 +234,7 @@ export default async function StandaloneAssignmentDetailPage({
 
       {session.isJagsStaff && canManage && (
         <div className="mt-6">
+          <MoreDetails label="Report narrative (optional, AI-assisted)" bare>
           <NarrativeEditor
             recordIdFieldName="assignment_id"
             recordId={assignment.id}
@@ -242,6 +244,7 @@ export default async function StandaloneAssignmentDetailPage({
             draftAction={draftFatNarrativeAction}
             saveAction={saveFatNarrativeAction}
           />
+          </MoreDetails>
         </div>
       )}
     </div>

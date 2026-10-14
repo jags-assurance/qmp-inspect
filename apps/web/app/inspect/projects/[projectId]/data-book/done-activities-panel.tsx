@@ -189,12 +189,13 @@ export async function DoneActivitiesPanel({
         x.it.item_number.localeCompare(y.it.item_number, undefined, { numeric: true })
     );
 
+  const sp_open = done || itp || disc || status;
   const tabHref = (k: string) => `?done=${k}#done-activities`;
 
   return (
     <section id="done-activities" className="rounded-lg border border-border bg-surface p-4 sm:p-5">
       <h2 className="text-lg font-semibold text-ink"><T>What was done — activity register</T></h2>
-      <p className="mt-1 text-sm text-muted"><T>Everything completed on this project in one place.</T></p>
+      <p className="mt-1 text-sm text-muted"><T>Everything completed on this project.</T></p>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {[
@@ -211,7 +212,12 @@ export async function DoneActivitiesPanel({
         ))}
       </div>
 
-      <nav className="mt-4 flex flex-wrap gap-2" aria-label={tl("Done sections")}>
+      <details className="group mt-3" open={Boolean(sp_open)}>
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Show the lists</T>
+        </summary>
+      <nav className="mt-3 flex flex-wrap gap-2" aria-label={tl("Done sections")}>
         {TABS.map((t) => (
           <a
             key={t.key}
@@ -407,6 +413,7 @@ export async function DoneActivitiesPanel({
         ))}
 
       {tab === "registers" && <RegistersSection projectId={projectId} />}
+      </details>
     </section>
   );
 }

@@ -31,6 +31,7 @@ import { IssueClearanceForm } from "./issue-clearance-form";
 import { AssignmentEvidenceDocuments, type VaultDocumentOption } from "./assignment-evidence-documents";
 import type { StandaloneAssignmentEvidenceDocumentRow } from "@/lib/standalone/actions";
 import { Tx } from "@/components/domain/tx";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface Assignment {
   id: string;
@@ -170,11 +171,13 @@ export function AssignmentWorkspace({
             {linkedTotalPunchCount - linkedOpenPunchCount} <Tx>of</Tx> {linkedTotalPunchCount} <Tx>linked punch items closed</Tx>
             {linkedOpenPunchCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
           </p>
-          <p className="mt-0.5 text-warning/90">
-            {linkedOpenPunchCount > 0
-              ? "This assignment stays conditionally open until every linked punch item on the project punch list is closed."
-              : "All linked punch items are closed. Issue clearance below to complete this assignment."}
-          </p>
+          <MoreDetails label="Details">
+            <p>
+              {linkedOpenPunchCount > 0
+                ? "This assignment stays conditionally open until every linked punch item on the project punch list is closed."
+                : "All linked punch items are closed. Issue clearance below to complete this assignment."}
+            </p>
+          </MoreDetails>
         </div>
       )}
 

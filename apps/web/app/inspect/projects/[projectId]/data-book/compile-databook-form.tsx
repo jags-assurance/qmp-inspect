@@ -6,6 +6,7 @@ import { compileDataBookAction, type CompileDataBookState } from "@/lib/databook
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 import { formatUtcDate } from "@/lib/databook/db-errors";
+import { MoreDetails } from "@/components/domain/more-details";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -65,6 +66,14 @@ export function CompileDataBookForm({
     setConfirming(true);
   }
 
+  const renderItem = (item: OpenPunchItemPreview) => (
+    <li key={item.id}>
+      • {item.description}
+      {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.project_parties?.name ?? "unassigned"}<Tx>, due</Tx>{" "}
+      {item.due_date ? formatUtcDate(item.due_date) : "no date set"}
+    </li>
+  );
+
   return (
     <>
     <form ref={formRef} action={formAction} onSubmit={onSubmit} className="flex flex-col gap-2">
@@ -95,14 +104,13 @@ export function CompileDataBookForm({
                 <Tx>This Conditional Handover will list</Tx> {openPunchItems.length} <Tx>open item</Tx>{openPunchItems.length === 1 ? "" : "s"}:
               </p>
               <ul className="mt-1 space-y-0.5 text-xs text-ink">
-                {openPunchItems.map((item) => (
-                  <li key={item.id}>
-                    • {item.description}
-                    {item.location ? ` (${formatLocationForDisplay(item.location)})` : ""} — {item.project_parties?.name ?? "unassigned"}<Tx>, due</Tx>{" "}
-                    {item.due_date ? formatUtcDate(item.due_date) : "no date set"}
-                  </li>
-                ))}
+                {openPunchItems.slice(0, 3).map(renderItem)}
               </ul>
+              {openPunchItems.length > 3 && (
+                <MoreDetails label={`Show all (${openPunchItems.length})`} className="mt-1">
+                  <ul className="space-y-0.5 text-ink">{openPunchItems.slice(3).map(renderItem)}</ul>
+                </MoreDetails>
+              )}
             </div>
           )}
           <textarea

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import type { DataBookReadiness } from "@/lib/databook/readiness";
+import { MoreDetails } from "@/components/domain/more-details";
 import { T } from "@/components/domain/t";
 
 function ProgressBar({ percentage, tone }: { percentage: number; tone: "success" | "warning" }) {
@@ -95,15 +96,12 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-muted">
-        <T>Overall % = total items provided ÷ total items required, summed across every category above (handover certificate excluded — it&apos;s produced by compiling, not required to compile).</T>
-      </p>
-
-      {!readiness.isReady && (
-        <p className="mt-1 text-xs text-muted">
-          <T>Every category must reach 100% and the punch list must have zero open items before a Data Book can compile. A staff user can compile anyway with a documented override reason — see below.</T>
-        </p>
-      )}
+      <MoreDetails label="How this is calculated">
+        <p><T>Overall % = items provided ÷ items required across every category (handover certificate excluded).</T></p>
+        {!readiness.isReady && (
+          <p><T>Every category must reach 100% with zero open punch items to compile. Staff can compile anyway with a documented override reason.</T></p>
+        )}
+      </MoreDetails>
     </div>
   );
 }

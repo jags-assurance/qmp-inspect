@@ -33,7 +33,7 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
     <form action={formAction} className="flex w-full flex-wrap items-end gap-2">
       <input type="hidden" name="certificate_id" value={certificateId} />
       <p className="w-full text-xs text-muted">
-        <Tx>Rejecting certificate</Tx> <span className="font-medium text-ink">{certificateNumber}</span> <Tx>tells JAGS the package is not acceptable. They will correct it and issue a new revision. A rejection cannot be undone by you, so check the reason carefully.</Tx>
+        <Tx>Rejecting certificate</Tx> <span className="font-medium text-ink">{certificateNumber}</span> <Tx>tells JAGS the package is not acceptable. You cannot undo it.</Tx>
       </p>
       <div className="w-full">
         <label htmlFor={reasonId} className="block text-xs font-medium text-ink">

@@ -100,7 +100,7 @@ function LinkDocumentForm({
   if (availableDocuments.length === 0 && (!projectId || folders.length === 0)) {
     return (
       <p className="mt-3 text-xs text-muted">
-        <Tx>Upload the evidence document to the project&rsquo;s Document Vault first, then link it here.</Tx>
+        <Tx>Add the document to the Document Vault first.</Tx>
       </p>
     );
   }

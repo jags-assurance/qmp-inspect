@@ -157,7 +157,6 @@ export async function DataBookUpdatesPanel({
   return (
     <section id="updates" className="rounded-lg border border-border bg-surface p-4 sm:p-5">
       <h2 className="text-lg font-semibold text-ink"><T>Data Book updates</T></h2>
-      <p className="mt-1 text-sm text-muted"><T>Everything that changed on this project and affects the book, newest first.</T></p>
 
       {!latestCompiled ? (
         <p className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted"><T>No Data Book has been generated yet.</T></p>
@@ -172,7 +171,12 @@ export async function DataBookUpdatesPanel({
         </p>
       )}
 
-      <nav className="mt-4 flex flex-wrap gap-2" aria-label={tl("Filter updates")}>
+      <details className="group mt-3" open={Boolean(upd || updn)}>
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Show updates</T>
+        </summary>
+      <nav className="mt-3 flex flex-wrap gap-2" aria-label={tl("Filter updates")}>
         {CATS.map((c) => (
           <a
             key={c.key}
@@ -233,6 +237,7 @@ export async function DataBookUpdatesPanel({
           </a>
         </div>
       )}
+      </details>
     </section>
   );
 }

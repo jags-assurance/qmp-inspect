@@ -1,4 +1,5 @@
 import { formatLocationForDisplay } from "@/lib/checklists/location";
+import { MoreDetails } from "@/components/domain/more-details";
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -257,7 +258,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                     </p>
                     {cert.conditional_reason && <p className="mt-1 text-xs">{cert.conditional_reason}</p>}
                     {openItems.length > 0 && (
-                      <ul className="mt-1.5 space-y-0.5 text-xs">
+                      <MoreDetails label={`Show open items (${openItems.length})`} className="mt-1.5"><ul className="space-y-0.5 text-ink">
                         {openItems.slice(0, OPEN_ITEMS_SHOWN).map((item) => (
                           <li key={item.id}>
                             • {item.description}
@@ -265,9 +266,9 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                           </li>
                         ))}
                         {openItems.length > OPEN_ITEMS_SHOWN && (
-                          <li className="text-muted"><T>… and</T> {openItems.length - OPEN_ITEMS_SHOWN} <T>more open items (listed in the certificate PDF).</T></li>
+                          <li className="text-muted"><T>… and</T> {openItems.length - OPEN_ITEMS_SHOWN} <T>more open items (see the certificate PDF).</T></li>
                         )}
-                      </ul>
+                      </ul></MoreDetails>
                     )}
                   </div>
                 )}
@@ -294,6 +295,8 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                         <T>Download handover package →</T>
                       </a>
                     </p>
+                    {(cert.package_sha256 || cert.rendered_book_sha256 || cert.verification_token) && (
+                      <MoreDetails label="Verification details">
                     {cert.package_sha256 && (
                       <p className="mt-1 break-all font-mono text-xs text-muted" title={tl("SHA-256 fingerprint of the exact certified file — compare this to any copy you receive elsewhere to verify it's unmodified.")}>
                         <T>SHA-256:</T> {cert.package_sha256}
@@ -306,12 +309,12 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                     )}
                     {cert.verification_token && (
                       <p className="mt-1 text-xs text-muted">
-                        <T>Anyone can confirm this certificate is genuine at</T>{" "}
                         <Link href={`/verify/certificate/${cert.verification_token}`} className="text-burgundy hover:underline" target="_blank">
-                          <T>its verification page</T>
-                        </Link>{" "}
-                        <T>(the QR code on the certificate PDF opens the same page).</T>
+                          <T>Verification page</T>
+                        </Link>
                       </p>
+                    )}
+                      </MoreDetails>
                     )}
                   </>
                 ) : (

@@ -8,6 +8,7 @@ import {
   type SuggestMeasurementsState,
 } from "@/lib/standalone/actions";
 import { Tx } from "@/components/domain/tx";
+import { MoreDetails } from "@/components/domain/more-details";
 
 const suggestInitialState: SuggestMeasurementsState = { error: null, suggestions: null };
 
@@ -31,7 +32,9 @@ export function SuggestMeasurements({ assignmentId }: { assignmentId: string }) 
         >
           {pending ? "Thinking…" : "Suggest with AI"}
         </button>
-        <p className="text-xs text-muted"><Tx>Drafts measurement/test parameters for this equipment — review each before adding.</Tx></p>
+        <MoreDetails label="What is this?" className="">
+          <p><Tx>Drafts test parameters for this equipment. Review each before adding.</Tx></p>
+        </MoreDetails>
       </form>
 
       {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}

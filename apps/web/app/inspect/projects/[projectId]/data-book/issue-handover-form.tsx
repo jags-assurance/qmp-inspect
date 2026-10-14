@@ -7,6 +7,7 @@ import { sha256HexOfBlob } from "@/lib/databook/sha256-stream";
 import { uploadWithResume } from "@/lib/storage/upload-client";
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
+import { MoreDetails } from "@/components/domain/more-details";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -138,20 +139,6 @@ export function IssueHandoverForm({
     <>
       <form ref={formRef} onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
         <div>
-          <label htmlFor={`certificate_number_${dataBookId}`} className="block text-xs font-medium text-ink">
-            <Tx>Certificate reference (optional)</Tx>
-          </label>
-          <input
-            id={`certificate_number_${dataBookId}`}
-            name="certificate_number"
-            maxLength={60}
-            placeholder={tl("blank = next HC-###")}
-            disabled={pending}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
-          />
-        </div>
-
-        <div>
           <label htmlFor={`package_file_${dataBookId}`} className="block text-xs font-medium text-ink">
             <Tx>Package file</Tx>
           </label>
@@ -162,6 +149,23 @@ export function IssueHandoverForm({
             required
             disabled={pending}
             className="mt-1 block text-sm text-ink file:me-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-xs file:font-medium file:text-ink hover:file:bg-off-white disabled:opacity-50"
+          />
+        </div>
+
+        <div className="w-full">
+          <MoreDetails label="Optional: reference and notes" bare className="mt-0">
+            <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label htmlFor={`certificate_number_${dataBookId}`} className="block text-xs font-medium text-ink">
+            <Tx>Certificate reference (optional)</Tx>
+          </label>
+          <input
+            id={`certificate_number_${dataBookId}`}
+            name="certificate_number"
+            maxLength={60}
+            placeholder={tl("blank = next HC-###")}
+            disabled={pending}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
           />
         </div>
 
@@ -177,6 +181,10 @@ export function IssueHandoverForm({
             disabled={pending}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50"
           />
+        </div>
+
+            </div>
+          </MoreDetails>
         </div>
 
         <Button type="submit" size="sm" disabled={pending}>

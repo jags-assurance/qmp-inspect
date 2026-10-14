@@ -9,6 +9,7 @@ import { uploadWithResume } from "@/lib/storage/upload-client";
 import { Button } from "@/components/ui/button";
 import { ConfirmTypeDialog } from "@/components/domain/confirm-type-dialog";
 import { SignaturePad } from "@/components/domain/signature-pad";
+import { MoreDetails } from "@/components/domain/more-details";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -133,7 +134,7 @@ export function AcknowledgeForm({
         </p>
       )}
       <p className="w-full text-xs text-muted">
-        <Tx>Acknowledging as</Tx> <span className="font-medium text-ink">{userName ?? "you"}</span> <Tx>at the time you confirm. This is a formal acceptance of the handover package.</Tx>
+        <Tx>Acknowledging as</Tx> <span className="font-medium text-ink">{userName ?? "you"}</span> <Tx>when you confirm. This is a formal acceptance.</Tx>
       </p>
 
       <div className="w-full sm:w-auto">
@@ -161,10 +162,14 @@ export function AcknowledgeForm({
       </div>
 
       <div className="w-full">
+        <MoreDetails label="Add a comment (optional)" bare className="mt-0">
+      <div className="w-full">
         <label htmlFor={`ack_comment_${certificateId}`} className="block text-xs font-medium text-ink">
-          <Tx>Comments (optional, recorded with the acceptance)</Tx>
+          <Tx>Comment</Tx>
         </label>
         <textarea id={`ack_comment_${certificateId}`} name="ack_comment" rows={2} maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+      </div>
+        </MoreDetails>
       </div>
       {onBehalf && (
         <div className="w-full">
@@ -184,7 +189,7 @@ export function AcknowledgeForm({
             <SignaturePad onChange={setSignature} />
           </div>
           <label htmlFor={`ack_evidence_${certificateId}`} className="mt-3 block text-xs font-medium text-ink">
-            <Tx>Supporting file (optional, for example a signed acceptance letter or an email export)</Tx>
+            <Tx>Supporting file (optional)</Tx>
           </label>
           <input
             id={`ack_evidence_${certificateId}`}
@@ -198,7 +203,7 @@ export function AcknowledgeForm({
             className="mt-1 block w-full max-w-md text-sm text-ink file:me-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-sm"
           />
           <p className="mt-1 text-xs text-muted">
-            <Tx>Up to</Tx> {Math.round(ACK_EVIDENCE_MAX_BYTES / (1024 * 1024))} <Tx>MB. It is stored with the acknowledgement and cannot be changed afterwards.</Tx>
+            <Tx>Up to</Tx> {Math.round(ACK_EVIDENCE_MAX_BYTES / (1024 * 1024))} <Tx>MB. Cannot be changed afterwards.</Tx>
           </p>
         </div>
       )}

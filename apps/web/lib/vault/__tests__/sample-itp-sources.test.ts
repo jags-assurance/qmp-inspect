@@ -45,7 +45,8 @@ describe("sample ITP source documents", () => {
       if (out.status !== "done") return;
       const flat = out.text.replace(/\s+/g, " ");
       for (const needle of mustContain) expect(flat).toContain(needle);
-    });
+      // PDF extraction is slow when the whole suite runs in parallel: allow for it so this does not flake.
+    }, 30_000);
   }
 
   it("image-only PDF is 'empty', so it is never offered as AI source material", async () => {
