@@ -12,6 +12,7 @@ import { MobileSidebarToggle } from "./mobile-sidebar-toggle";
 import { IdleTimeout } from "./idle-timeout";
 import { CommandPalette } from "./command-palette";
 import { UserMenu } from "./user-menu";
+import { HeaderBreadcrumb } from "./header-breadcrumb";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
@@ -96,7 +97,7 @@ export async function AppShell({
         <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-3 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <MobileSidebarToggle />
-            <span className="text-sm text-muted">{breadcrumb}</span>
+            <HeaderBreadcrumb root={breadcrumb} navItems={navItems} />
           </div>
           <div className="flex flex-1 items-center justify-end gap-4">
             <CommandPalette navItems={navItems} />
