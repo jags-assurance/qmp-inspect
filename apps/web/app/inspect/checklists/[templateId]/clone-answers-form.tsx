@@ -23,7 +23,7 @@ export function CloneAnswersForm({ inspectionRecordId }: { inspectionRecordId: s
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Copying…" : "Pre-fill from last inspection"}
       </Button>
-      <span className="text-xs text-muted"><Tx>Copies Yes and N/A only. Failures and measured readings are never copied; review every answer.</Tx></span>
+      <span className="text-xs text-muted"><Tx>Copies Yes and N/A only. Check every answer.</Tx></span>
       {state.error && (
         <p role="alert" className="w-full text-xs text-danger">
           {state.error}
@@ -31,7 +31,7 @@ export function CloneAnswersForm({ inspectionRecordId }: { inspectionRecordId: s
       )}
       {!state.error && state.copied ? (
         <p role="status" className="w-full text-xs text-muted">
-          ✓ {state.copied} <Tx>answer</Tx>{state.copied === 1 ? "" : "s"} <Tx>copied. Check them before completing.</Tx>
+          ✓ {state.copied} <Tx>answer</Tx>{state.copied === 1 ? "" : "s"} <Tx>copied. Check them.</Tx>
         </p>
       ) : null}
     </form>

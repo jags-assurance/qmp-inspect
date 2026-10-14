@@ -182,7 +182,7 @@ export default async function DocumentTraceabilityPage({
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        <T>Look up any document number — an ITP, NCR or inspection report number — and see its full lineage: identity, revision history, related records and audit trail.</T>
+        <T>Look up any ITP, NCR or inspection number.</T>
       </p>
 
       <form className="mt-6 flex max-w-3xl flex-wrap gap-2 print:hidden">

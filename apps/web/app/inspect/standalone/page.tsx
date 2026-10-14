@@ -151,7 +151,7 @@ export default async function StandaloneAssignmentsPage({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            <T>One-off FATs, witness inspections, specific tests and pre-shipment checks — no ITP or data book required.</T>
+            <T>One-off FATs, witness inspections and tests, with no ITP needed.</T>
           </p>
         </div>
         {canRunStandaloneAssignment && (

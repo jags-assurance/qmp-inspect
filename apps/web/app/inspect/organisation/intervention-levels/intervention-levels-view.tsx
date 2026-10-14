@@ -9,6 +9,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationOption {
   id: string;
@@ -72,9 +73,10 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Every ITP activity&apos;s per-party sign-off level (Hold/Witness/Review/Surveillance by default) is now custom per organisation, not a fixed set. A</T> <strong><T>blocking</T></strong> <T>level (like Hold) stops an inspection completing until it&rsquo;s signed off; a non-blocking level doesn&rsquo;t. Default notice hours is how long the originator waits before a non-blocking level can &ldquo;proceed without response&rdquo; — leave blank for none.</T>
-      </p>
+      <p className="mt-1 text-sm text-muted"><T>Sign-off levels used on ITP activities.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Every ITP activity&apos;s per-party sign-off level (Hold/Witness/Review/Surveillance by default) is now custom per organisation, not a fixed set. A</T> <strong><T>blocking</T></strong> <T>level (like Hold) stops an inspection completing until it&rsquo;s signed off; a non-blocking level doesn&rsquo;t. Default notice hours is how long the originator waits before a non-blocking level can &ldquo;proceed without response&rdquo; — leave blank for none.</T></p>
+      </MoreDetails>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 

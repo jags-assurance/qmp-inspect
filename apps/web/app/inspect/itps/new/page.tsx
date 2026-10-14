@@ -161,8 +161,7 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          <T>Creates a draft ITP with the four standard sections — add, rename or reorder them as needed once it&apos;s created.</T>
-          {aiConfigured ? " Or generate a first draft from your own vault documents." : ""} <T>JAGS will review and approve it once you submit it.</T>
+          <T>Creates a draft ITP. JAGS reviews and approves it once you submit it.</T>
         </p>
         <ItpCreationTabs manual={<NewItpForm projects={projects} />} fromAi={fromAi} />
       </div>
@@ -189,7 +188,7 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        <T>Creates a draft ITP with the four standard sections — add, rename or reorder them as needed once it&apos;s created. Or start from a JAGS master template and customize it for this project.</T>
+        <T>Creates a draft ITP, from scratch or from a master template.</T>
       </p>
       <ItpCreationTabs
         initialTab={initialTab}

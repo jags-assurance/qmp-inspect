@@ -165,11 +165,6 @@ export default async function ProjectsPage({
               ]}
             />
           </div>
-          <p className="mt-1 text-sm text-muted">
-            <T>{session.isJagsStaff
-              ? "Every project across every client you have access to."
-              : "Projects your organisation is engaged on."}</T>
-          </p>
         </div>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
           {orgFilterOptions.length > 0 && <OrgFilter organizations={orgFilterOptions} />}
@@ -185,10 +180,10 @@ export default async function ProjectsPage({
         {closedCount > 0 && (
           <p className="mb-3 text-sm text-muted">
             {onlyClosed
-              ? "Showing closed (completed and cancelled) projects only."
+              ? "Closed projects only."
               : showClosed
-                ? "Showing all projects, including completed and cancelled."
-                : `${closedCount} closed (completed or cancelled) project${closedCount > 1 ? "s are" : " is"} hidden.`}{" "}
+                ? "All projects, including closed."
+                : `${closedCount} closed project${closedCount > 1 ? "s" : ""} hidden.`}{" "}
             {(
               [
                 { key: "", label: "Open only", active: !showClosed },

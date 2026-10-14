@@ -474,7 +474,7 @@ export function ResponseRow({
             <p id={`num-hint-${checklistItemId}`} className="mt-1 text-xs text-muted" aria-live="polite">
               {(() => {
                 const v = parseNumericInput(numericText);
-                if (v === null) return numericText.trim() ? "Enter a number." : "Type the reading, then leave the field to save it.";
+                if (v === null) return numericText.trim() ? "Enter a number." : "Type the reading to save it.";
                 return evaluateNumeric(v, numeric) === "yes" ? "✓ Within the limit." : "⚠ Outside the limit: this item fails and needs a comment.";
               })()}
             </p>
@@ -521,12 +521,12 @@ export function ResponseRow({
 
         {result === "no" && !comment.trim() && (
           <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
-            <Tx>Marked as No — add a comment below to save this response (required).</Tx>
+            <Tx>Add a comment to save this No.</Tx>
           </p>
         )}
         {result === "no" && comment.trim() && (
           <p className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
-            <span><Tx>Marked as No.</Tx></span>
+            <span><Tx>Marked No.</Tx></span>
             <RaiseNcrDrawer
               projectId={projectId}
               itpItemId={itpItemId}
@@ -564,7 +564,7 @@ export function ResponseRow({
         {result === "no" && comment.trim() && !hasNcr && (
           <div>
             <label htmlFor={`no-ncr-reason-${checklistItemId}`} className="block text-xs font-medium text-ink">
-              <Tx>No NCR raised? Reason (required to complete unless an NCR/observation is raised)</Tx>
+              <Tx>No NCR raised? Give a reason (needed to complete).</Tx>
             </label>
             <input
               id={`no-ncr-reason-${checklistItemId}`}
@@ -583,43 +583,52 @@ export function ResponseRow({
           </div>
         )}
 
-        <ItemPhotoUpload
-          projectId={projectId}
-          inspectionRecordId={inspectionRecordId}
-          checklistItemId={checklistItemId}
-          photos={photos}
-          readOnly={readOnly}
-        />
+        <div className="flex flex-wrap items-start gap-2">
+          <ItemPhotoUpload
+            projectId={projectId}
+            inspectionRecordId={inspectionRecordId}
+            checklistItemId={checklistItemId}
+            photos={photos}
+            readOnly={readOnly}
+          />
 
-        <ItemDocuments
-          projectId={projectId}
-          inspectionRecordId={inspectionRecordId}
-          checklistItemId={checklistItemId}
-          itemNumber={itemNumber}
-          documents={itemDocuments}
-          vaultOptions={vaultOptions}
-          vaultFolders={vaultFolders}
-          readOnly={readOnly}
-        />
+          <ItemDocuments
+            projectId={projectId}
+            inspectionRecordId={inspectionRecordId}
+            checklistItemId={checklistItemId}
+            itemNumber={itemNumber}
+            documents={itemDocuments}
+            vaultOptions={vaultOptions}
+            vaultFolders={vaultFolders}
+            readOnly={readOnly}
+          />
+        </div>
 
-        <label htmlFor={`comment-${checklistItemId}`} className="sr-only">
-          <Tx>Comment for item</Tx> {itemNumber}
-        </label>
-        <textarea
-          id={`comment-${checklistItemId}`}
-          rows={2}
-          disabled={readOnly}
-          defaultValue={comment}
-          maxLength={2000}
-          placeholder={result === "no" ? "Comment (required for No)" : "Comment (optional)"}
-          aria-required={result === "no"}
-          onBlur={(e) => {
-            const changed = e.target.value !== comment;
-            setComment(e.target.value);
-            if (changed || result === "no") save(result, e.target.value, overrideReason, calibrationAssetId);
-          }}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy disabled:opacity-60 sm:text-sm"
-        />
+        <details className="group" open={result === "no" || !!comment.trim()}>
+          <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+            <Tx>Comment</Tx>
+            {result === "no" && <span className="text-danger">*</span>}
+          </summary>
+          <label htmlFor={`comment-${checklistItemId}`} className="sr-only">
+            <Tx>Comment for item</Tx> {itemNumber}
+          </label>
+          <textarea
+            id={`comment-${checklistItemId}`}
+            rows={2}
+            disabled={readOnly}
+            defaultValue={comment}
+            maxLength={2000}
+            placeholder={result === "no" ? "Comment (required for No)" : "Comment (optional)"}
+            aria-required={result === "no"}
+            onBlur={(e) => {
+              const changed = e.target.value !== comment;
+              setComment(e.target.value);
+              if (changed || result === "no") save(result, e.target.value, overrideReason, calibrationAssetId);
+            }}
+            className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy disabled:opacity-60 sm:text-sm"
+          />
+        </details>
         {saveError && (
           <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-danger">
             <span>{saveError}</span>

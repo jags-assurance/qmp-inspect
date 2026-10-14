@@ -312,8 +312,12 @@ export async function VaultDocumentView({
       </div>
       )}
 
-      <section className="mt-8" aria-label={tl("Revision history")}>
-        <h3 className="text-sm font-semibold text-ink"><T>Revision history</T></h3>
+      <details className="group mt-8">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Revision history</T>
+        </summary>
+      <section className="mt-2" aria-label={tl("Revision history")}>
         {revisions.length <= 1 ? (
           <p className="mt-1 text-sm text-muted"><T>This is the only revision so far.</T></p>
         ) : (
@@ -340,9 +344,14 @@ export async function VaultDocumentView({
           </ol>
         )}
       </section>
+      </details>
 
-      <section className="mt-6" aria-label={tl("Where used")}>
-        <h3 className="text-sm font-semibold text-ink"><T>Where used</T></h3>
+      <details className="group mt-3">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Where used</T>
+        </summary>
+      <section className="mt-2" aria-label={tl("Where used")}>
         {usedCount === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>Not linked as evidence to any ITP, inspection or NCR yet.</T></p>
         ) : (
@@ -381,13 +390,18 @@ export async function VaultDocumentView({
           </ul>
         )}
       </section>
+      </details>
 
       {session.isJagsStaff && (
         <TransmittalSection entityType="vault_document" entityId={documentId} projectId={projectId} status={document.status} />
       )}
 
-      <section className="mt-6" aria-label={tl("Audit trail")}>
-        <h3 className="text-sm font-semibold text-ink"><T>Audit trail</T></h3>
+      <details className="group mt-3">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Audit trail</T>
+        </summary>
+      <section className="mt-2" aria-label={tl("Audit trail")}>
         {(auditRows ?? []).length === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>No recorded events.</T></p>
         ) : (
@@ -404,6 +418,7 @@ export async function VaultDocumentView({
           </ul>
         )}
       </section>
+      </details>
     </div>
   );
 }

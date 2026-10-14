@@ -6,25 +6,29 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { describeScopeChange, isEngagementScope, summarizeScopeChange } from "@/lib/numbering/scope-impact";
 import { Tx } from "@/components/domain/tx";
+import { MoreDetails } from "@/components/domain/more-details";
 
 const initialState: NumberingSettingsState = { error: null };
 
-const SCOPES: { value: string; label: string; description: string }[] = [
+const SCOPES: { value: string; label: string; short: string; description: string }[] = [
   {
     value: "full_service",
     label: "Full-Managed / End-to-End Execution",
+    short: "JAGS runs the project.",
     description:
       "JAGS runs the project. Individual projects can still be opted into client execution/ITP-creation via that project's own settings.",
   },
   {
     value: "self_managed",
     label: "Self-Managed (Hybrid)",
+    short: "Client creates ITPs; JAGS approves.",
     description:
       "This client's own teams create, submit and accept their own ITPs across every one of their projects — but a JAGS staff member still has to Approve each one. JAGS only provides the platform and standard monitoring otherwise. Applies org-wide, no per-project setup needed.",
   },
   {
     value: "client_managed",
     label: "Full Client-Managed",
+    short: "Client creates and approves its own ITPs.",
     description:
       "Everything Self-Managed gives, plus: the client's own people can Approve their own ITPs and create brand-new logins for their own team — both still permission-gated via that client's own Custom roles page, not automatic for every user. JAGS only does the one-time onboarding; no JAGS staff involvement day-to-day after that.",
   },
@@ -65,11 +69,16 @@ export function EngagementScopeForm({
             />
             <span>
               <span className="block text-sm font-medium text-ink">{scope.label}</span>
-              <span className="block text-xs text-muted">{scope.description}</span>
+              <span className="block text-xs text-muted">{scope.short}</span>
             </span>
           </label>
         ))}
       </div>
+      <MoreDetails className="mt-0">
+        {SCOPES.map((scope) => (
+          <p key={scope.value}><span className="font-medium text-ink">{scope.label}:</span> {scope.description}</p>
+        ))}
+      </MoreDetails>
 
       {impact && impact.direction !== "none" && isEngagementScope(selected) && (
         <div role="status" className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-ink">

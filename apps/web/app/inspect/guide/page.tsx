@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MoreDetails } from "@/components/domain/more-details";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Guide" };
@@ -291,8 +292,7 @@ export default async function AppGuidePage() {
         <p className="text-xs font-semibold uppercase tracking-wide text-burgundy">QMP Inspect — App Guide</p>
         <h1 className="mt-1 text-2xl font-semibold text-ink">How this application works</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          One place for what every module does, how the pieces connect end to end, and exactly what your own role is
-          responsible for.
+          What the app does and what your role is responsible for.
         </p>
 
         {roleContent && (
@@ -323,6 +323,7 @@ export default async function AppGuidePage() {
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Every role, at a glance</h2>
+        <MoreDetails bare label="Show" className="mt-2">
         <p className="mt-1 text-sm text-muted">
           Not just your own role — what everyone else on a project is responsible for too, so you know who to expect
           to see doing what.
@@ -346,6 +347,7 @@ export default async function AppGuidePage() {
             </div>
           ))}
         </div>
+      </MoreDetails>
       </section>
 
       <section className="mt-8">
@@ -355,6 +357,7 @@ export default async function AppGuidePage() {
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Every module, by stage</h2>
+        <MoreDetails bare label="Show" className="mt-2">
         {categories.map((category) => (
           <div key={category} className="mt-4">
             <p className="text-sm font-semibold text-ink">{category}</p>
@@ -372,20 +375,26 @@ export default async function AppGuidePage() {
             </div>
           </div>
         ))}
+      </MoreDetails>
       </section>
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">How an NCR moves through the system</h2>
+        <MoreDetails bare label="Show" className="mt-2">
         <NcrLifecycleDiagram />
+      </MoreDetails>
       </section>
 
       <section className="mt-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">How the punch list actually works</h2>
+        <MoreDetails bare label="Show" className="mt-2">
         <PunchListLifecycleDiagram />
+      </MoreDetails>
       </section>
 
       <section className="mt-8 rounded-lg border border-border bg-off-white p-4">
         <h2 className="text-sm font-semibold text-ink">The H / W / R / S sign-off levels</h2>
+        <MoreDetails bare label="Show" className="mt-2">
         <p className="mt-1 text-xs text-muted">
           These four are the defaults every organisation starts with — they&apos;re not hardcoded. An Admin can add a
           custom level for their own org (e.g. &quot;CQR — Client QA Review&quot;), and it appears on the grid automatically
@@ -419,6 +428,7 @@ export default async function AppGuidePage() {
           A non-staff login can only ever sign off its OWN party&apos;s cell — JAGS staff can sign off any party&apos;s cell on their
           behalf.
         </p>
+      </MoreDetails>
       </section>
 
       <section className="mt-8 rounded-lg border border-border bg-off-white p-4">

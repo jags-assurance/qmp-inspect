@@ -67,7 +67,6 @@ export function RaiseObservationPanel() {
         open={isOpen}
         onClose={panel.close}
         title={tl("Raise Observation")}
-        description="The register stays open behind this panel. After you raise it you stay here."
       >
         {loadError ? (
           <p className="mt-6 text-sm text-danger"><Tx>Couldn&rsquo;t load the project and people lists. Close and try again.</Tx></p>

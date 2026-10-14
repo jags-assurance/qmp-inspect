@@ -688,7 +688,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {archived && (
         <p className="mt-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
-          <T>This checklist is archived: new inspections cannot be started from it and it is hidden from the start-work and checklist lists.</T>
+          <T>This checklist is archived: no new inspections can start.</T>
           {session.isJagsStaff ? " Restore it under \"Edit checklist template\" to use it again." : ""}
         </p>
       )}
@@ -731,7 +731,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && canExecute && !archived && !itpApproved && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
-          <T>This ITP hasn&apos;t been approved yet, so site inspections can&apos;t start. Work opens once it is approved on the</T>{" "}
+          <T>This ITP is not approved yet, so inspections cannot start. Approve it on the</T>{" "}
           <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy hover:underline"><T>ITP page</T></Link>.
         </p>
       )}
@@ -759,7 +759,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       {!draft && !canExecute && !archived && (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted">
           {isSignoffOnlyParty ? (
-            "Not started yet. You hold an independent sign-off point on this activity (see the intervention grid on the ITP page) — the contractor performing the work fills in this checklist, and you'll be notified to sign off once it's ready."
+            "Not started. You hold a sign-off point here; the contractor fills in this checklist and you will be told when to sign off."
           ) : executingPartyNames.length > 0 ? (
             <>
               <T>Not started yet. This is</T>{" "}
@@ -772,9 +772,9 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
               — {ownPartyLink ? "your organisation isn't assigned to it" : "a JAGS inspector can also run it"}.
             </>
           ) : ownPartyLink ? (
-            "Not started yet. Your organisation doesn't hold a sign-off point on this specific activity, so a JAGS inspector or the party assigned to it will run this field inspection."
+            "Not started. A JAGS inspector or the assigned party will run it."
           ) : (
-            "Not started yet — a JAGS inspector or the party assigned to this activity will run this field inspection."
+            "Not started. A JAGS inspector or the assigned party will run it."
           )}
         </p>
       )}
@@ -782,10 +782,10 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       {draft && !canExecute && (
         <p className="mt-6 rounded-md border border-info/40 bg-info/10 p-4 text-sm text-info">
           {isSignoffOnlyParty
-            ? "This inspection is in progress. You hold an independent sign-off point on this activity, not the field-entry role — the responses below are read-only for you; you'll be notified to sign off once it's complete."
+            ? "In progress. Answers are read-only for you; you will be told when to sign off."
             : ownPartyLink
-              ? "This inspection is in progress. Your organisation doesn't hold a role on this specific activity, so the responses below are read-only — a JAGS inspector or the assigned party is running it."
-              : "This inspection is in progress, run by a JAGS inspector or the party assigned to this activity — the responses below are read-only for your login."}
+              ? "In progress. Answers are read-only for you."
+              : "In progress. Answers are read-only for you."}
         </p>
       )}
 
@@ -832,7 +832,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
                   <T>Photo evidence</T> <span className="text-danger">*</span>
                 </h2>
                 <p className="mt-0.5 text-xs text-muted">
-                  <T>At least one photo or linked document (here or on an individual item above) is required to complete this inspection.</T>
+                  <T>Add at least one photo or document, here or on an item, to complete.</T>
                 </p>
                 <div className="mt-3">
                   <PhotoUpload projectId={project.id} inspectionRecordId={draft.id} photos={photos} readOnly={!canExecute} />
@@ -869,7 +869,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             }
             incompleteSlot={
               <p className="rounded-md bg-off-white p-4 text-sm text-muted">
-                <T>Answer every item above (Yes / No / N-A) to complete this inspection.</T>
+                <T>Answer every item to complete.</T>
               </p>
             }
           />
@@ -891,7 +891,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             blockedReason={editBlockReason}
           />
           <p className="border-t border-border px-4 py-2 text-xs text-muted">
-            <T>&quot;Optional&quot; only drops the red asterisk on the field-answering view — every item still has to be answered, and a &quot;No&quot; still fails the whole inspection, the same as a mandatory item.</T>
+            <T>&quot;Optional&quot; only removes the red asterisk. Every item must still be answered.</T>
           </p>
           <AddChecklistItemForm templateId={template.id} disabledReason={editBlockReason} />
           <TemplateLifecycleControls
@@ -905,8 +905,8 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       )}
 
       {(pastRecords ?? []).length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-sm font-medium text-ink"><T>Past inspections</T></h2>
+        <details className="mt-8" open={!draft}>
+          <summary className="cursor-pointer text-sm font-medium text-ink"><T>Past inspections</T> ({(pastRecords ?? []).length})</summary>
           <ul className="mt-2 space-y-1">
             {(pastRecords ?? []).map((r) => (
               <li key={r.id} className="flex items-center gap-2 text-sm">
@@ -918,7 +918,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
               </li>
             ))}
           </ul>
-        </div>
+        </details>
       )}
     </div>
   );

@@ -30,7 +30,7 @@ export default async function PlatformHomePage() {
     <div>
       <h1 className="text-2xl font-semibold text-ink"><T>Welcome back,</T> {firstName}</h1>
       <p className="mt-1 text-sm text-muted">
-        <T>Your Quality Management Platform. Licensed modules are active — the rest light up as they&apos;re enabled for your organisation.</T>
+        <T>Your modules. Greyed ones are not enabled for your organisation.</T>
       </p>
 
       {/* Phone: the orbit diagram is laid out in fixed pixels and cannot fit a 390px screen, so the same

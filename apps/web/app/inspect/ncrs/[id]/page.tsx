@@ -169,17 +169,20 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             <p className="mt-1 text-sm text-muted">
               {isClosed
                 ? `Closed ${ncr.closed_at ? formatSiteDateTime(ncr.closed_at, siteTz) : ""}.`
-                : "Assign an owner and due date, then complete root cause, corrective and preventive action."}
+                : "Assign an owner and due date, then complete the action."}
             </p>
             {!isClosed && (
-              <div className="mt-3 rounded-md bg-warning/10 px-3 py-2 text-xs text-ink">
-                <p className="font-medium"><T>Closing this will also:</T></p>
-                <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted">
+              <details className="group mt-3">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+                  <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+                  <T>What closing does</T>
+                </summary>
+                <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-xs text-muted">
                   {closeConsequences.map((c) => (
                     <li key={c}>{c}</li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
             {ncr.severity !== "observation" && (
               <NcrClientAcceptancePanel
@@ -307,7 +310,11 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
           )}
 
           <div className="rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium text-ink"><T>Activity</T></h2>
+            <details className="group">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+              <T>Activity</T> ({history.length})
+            </summary>
             <ul className="mt-3 space-y-2">
               {history.map((h) => (
                 <li key={h.id} className="text-xs text-ink">
@@ -317,6 +324,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
               ))}
               {history.length === 0 && <li className="text-sm text-muted"><T>No activity recorded yet.</T></li>}
             </ul>
+            </details>
           </div>
         </div>
       </div>

@@ -28,10 +28,11 @@ export function ExternalApprovalForm({
   const [state, formAction, pending] = useActionState(recordExternalApprovalAction, initialState);
 
   return (
-    <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-ink"><Tx>External approval reference</Tx></h2>
-      <p className="mt-1 text-xs text-muted">
-        <Tx>Record a reference if the client approved this ITP in their own document-control system instead of accepting it here.</Tx>
+    <details className="group mt-6" open={!!reference}>
+      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><Tx>External approval reference</Tx></summary>
+      <div className="mt-2 rounded-lg border border-border bg-surface p-4">
+      <p className="text-xs text-muted">
+        <Tx>Use this if the client approved the ITP in their own system.</Tx>
       </p>
 
       {reference && (
@@ -65,6 +66,7 @@ export function ExternalApprovalForm({
         </button>
       </form>
       {state.error && <p role="alert" className="mt-1 text-xs text-danger">{state.error}</p>}
-    </div>
+      </div>
+    </details>
   );
 }

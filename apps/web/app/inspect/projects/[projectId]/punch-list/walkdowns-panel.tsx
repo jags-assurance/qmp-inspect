@@ -30,9 +30,13 @@ export async function WalkdownsPanel({ projectId }: { projectId: string }) {
   if (error || !data || data.length === 0) return null;
 
   return (
-    <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h2 className="font-medium text-ink"><T>Recent walkdowns</T></h2>
-      <ul className="mt-2 divide-y divide-border text-sm">
+    <details className="group mt-6">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+        <T>Recent walkdowns</T> ({data.length})
+      </summary>
+      <div className="mt-2 rounded-lg border border-border bg-surface p-4">
+      <ul className="divide-y divide-border text-sm">
         {data.map((w) => (
           <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <div>
@@ -53,6 +57,7 @@ export async function WalkdownsPanel({ projectId }: { projectId: string }) {
           </li>
         ))}
       </ul>
-    </div>
+      </div>
+    </details>
   );
 }

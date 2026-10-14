@@ -7,6 +7,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
+import { MoreDetails } from "@/components/domain/more-details";
 import { getTranslator } from "@/lib/i18n/server";
 
 /**
@@ -64,10 +65,15 @@ export async function ChecklistLibraryView({ embedded }: { embedded?: boolean })
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          {session.isJagsStaff
-            ? "JAGS-internal, reusable checklist and form templates, built independently of any specific project. Attach one to a checklist-type ITP activity to start that activity’s checklist from a proven set of check items instead of a blank one. Global templates are shared with every client; a template can also be scoped to one client so per-client variants never collide."
-            : "Checklist and form templates JAGS can start a checklist-type ITP activity from — global templates plus any built specifically for your organisation."}
+          <T>Reusable check items to start ITP checklists from.</T>
         </p>
+        <MoreDetails className="mt-1">
+          <p>
+            {session.isJagsStaff
+              ? "JAGS-internal, reusable checklist and form templates, built independently of any specific project. Attach one to a checklist-type ITP activity to start that activity’s checklist from a proven set of check items instead of a blank one. Global templates are shared with every client; a template can also be scoped to one client so per-client variants never collide."
+              : "Checklist and form templates JAGS can start a checklist-type ITP activity from — global templates plus any built specifically for your organisation."}
+          </p>
+        </MoreDetails>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">

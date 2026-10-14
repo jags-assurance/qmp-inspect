@@ -121,10 +121,9 @@ export function RevisionHistoryPanel({
   if (revisions.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-medium text-ink"><T>Revision history</T></h2>
-      <p className="mt-1 text-xs text-muted">
-        {revisions.length} <T>recorded</T> {revisions.length === 1 ? "revision" : "revisions"} <T>— the content each superseded, frozen at the moment it changed.</T>
+    <details className="group mt-4">
+      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Revision history</T> ({revisions.length})</summary>
+      <p className="mt-2 text-xs text-muted">
         {currentRevision !== undefined && (
           <>
             {" "}
@@ -203,6 +202,6 @@ export function RevisionHistoryPanel({
           );
         })}
       </ul>
-    </div>
+    </details>
   );
 }

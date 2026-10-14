@@ -114,7 +114,7 @@ export default async function ReportsDocumentsPage({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          <T>Reports &amp; downloads, the Data Book, project activity and Client KPIs — pick a project below.</T>
+          <T>Pick a project below.</T>
         </p>
       </div>
 
@@ -123,7 +123,7 @@ export default async function ReportsDocumentsPage({
           <ReportsCard
             href="/inspect/handover"
             title={tl("Handover Portal")}
-            description="Issued handover certificates and Data Book packages, across every project."
+            description="Issued handover certificates and Data Books."
           />
         )}
       </div>
@@ -160,7 +160,7 @@ export default async function ReportsDocumentsPage({
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/reports`}
               title={tl("Reports & Downloads")}
-              description="Monthly report packs and ITP documents for your organisation."
+              description="Monthly report packs and ITP documents."
             />
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/data-book`}
@@ -170,18 +170,18 @@ export default async function ReportsDocumentsPage({
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/activity`}
               title={tl("Activity")}
-              description="A live timeline of inspections, sign-offs and NCRs on this project."
+              description="Live timeline for this project."
             />
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/kpis`}
               title={tl("Client KPIs")}
-              description="First-time pass rate, hold-point turnaround and more."
+              description="Pass rates and turnaround."
             />
             {session.isJagsStaff && (
               <ReportsCard
                 href={`/inspect/projects/${selectedProject}/audit-log`}
                 title={tl("Audit Log")}
-                description="Who did what and when, across ITPs, NCRs, sign-offs and inspections."
+                description="Who did what and when."
               />
             )}
           </div>

@@ -7,6 +7,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationRow {
   id: string;
@@ -74,9 +75,10 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Each organisation&rsquo;s plan tier and optional seat cap. A seat is one distinct user holding an organisation- or project-scoped access grant for that client; leave the seat limit blank for unlimited. Exceeding the limit blocks the next staff-access grant for that organisation with a clear error, enforced by the database itself.</T>
-      </p>
+      <p className="mt-1 text-sm text-muted"><T>Plan tier and seat limit for each organisation.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Each organisation&rsquo;s plan tier and optional seat cap. A seat is one distinct user holding an organisation- or project-scoped access grant for that client; leave the seat limit blank for unlimited. Exceeding the limit blocks the next staff-access grant for that organisation with a clear error, enforced by the database itself.</T></p>
+      </MoreDetails>
 
       <div className="mt-6 space-y-4">
         {(organizations ?? []).map((org) => {

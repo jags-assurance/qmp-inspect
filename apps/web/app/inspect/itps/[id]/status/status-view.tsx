@@ -293,9 +293,12 @@ export async function StatusView({
         <p className="mt-1 text-sm text-muted">{itp.title}</p>
       </div>
 
-      <p className="mt-4 rounded-md border border-info/60 bg-info/10 px-3 py-2 text-xs text-info">
-        <T>Document-upload activities are done once at least one evidence document is linked; Measurement-record activities are done once every recorded measurement has a result and none have failed. Both are recorded per-activity on the ITP page itself (&ldquo;Manage evidence →&rdquo; below) — this page only summarises where each activity stands.</T>
-      </p>
+      <details className="group mt-4">
+        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>How activities count as done</T></summary>
+        <p className="mt-1.5 rounded-md border border-info/60 bg-info/10 px-3 py-2 text-xs text-info">
+          <T>Upload activities need one linked document; measurement activities need every result recorded and none failed. Evidence is added on the ITP page.</T>
+        </p>
+      </details>
 
       <div className="mt-6 space-y-3">
         {items.map((item) => {

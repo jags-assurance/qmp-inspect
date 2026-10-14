@@ -242,9 +242,6 @@ export default async function VaultFolderPage({
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Superseded revisions are hidden by default (tick &quot;Show superseded&quot; to see them) but are never deleted. An approved revision stays current until its replacement is approved.</T>
-      </p>
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <Link
           href={`/inspect/vault/${projectId}/pending`}

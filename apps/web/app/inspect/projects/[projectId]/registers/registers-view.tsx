@@ -236,7 +236,7 @@ export async function RegistersView({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · {project.name}<T>. These feed the auto-verification shown when inspecting related ITP activities.</T>
+          {project.organizations?.name} · {project.name}
         </p>
       </div>
 
@@ -251,7 +251,7 @@ export async function RegistersView({
               {a.count} {a.label}
             </span>
           ))}
-          <span className="text-xs text-muted"><T>These hold up the Data Book until they are renewed, replaced or released.</T></span>
+          <span className="text-xs text-muted"><T>These hold up the Data Book.</T></span>
         </div>
       ) : (
         <p className="mt-4 text-sm text-success" role="status">
@@ -260,11 +260,17 @@ export async function RegistersView({
       )}
       {!access.canAdd && (
         <p className="mt-3 rounded-md bg-off-white px-3 py-2 text-xs text-muted">
-          <T>You can view these registers. Only JAGS staff and this project&apos;s contractor, subcontractor and TPI/lab parties can add entries; only JAGS staff can edit or release them.</T>
+          <T>View only. Adding needs a contractor, subcontractor, TPI/lab party or JAGS staff.</T>
         </p>
       )}
 
-      <StatusLegend className="mt-4" />
+      <details className="group mt-4">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Status legend</T>
+        </summary>
+        <StatusLegend className="mt-2" />
+      </details>
       <RegistersTabs
         projectId={projectId}
         canAdd={access.canAdd}

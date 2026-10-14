@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateOrgBrandColorsAction, type BrandingSettingsState } from "@/lib/branding/actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { MoreDetails } from "@/components/domain/more-details";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: BrandingSettingsState = { error: null };
@@ -109,9 +110,9 @@ export function BrandingForm({
 
       {multiColor && (
         <div className="rounded-md border border-border bg-off-white p-4">
-          <p className="text-xs text-muted">
-            <Tx>Add as many extra colors as you want — there&rsquo;s no fixed count. All of them together (primary, accent, then these) become this organisation&rsquo;s brand mark (e.g. the sidebar badge) for its own users.</Tx>
-          </p>
+          <MoreDetails className="mt-0">
+            <p><Tx>Add as many extra colors as you want — there&rsquo;s no fixed count. All of them together (primary, accent, then these) become this organisation&rsquo;s brand mark (e.g. the sidebar badge) for its own users.</Tx></p>
+          </MoreDetails>
 
           <div className="mt-3 flex flex-wrap gap-4">
             {extras.map((extra, index) => (
@@ -163,9 +164,9 @@ export function BrandingForm({
         </div>
       )}
 
-      <p className="text-xs text-muted">
-        <Tx>Leave Primary/Accent blank to fall back to the default JAGS palette (</Tx>{DEFAULT_PRIMARY} / {DEFAULT_ACCENT}<Tx>). This overrides the in-app UI only — generated PDF reports keep the standard JAGS palette.</Tx>
-      </p>
+      <MoreDetails className="mt-0">
+        <p><Tx>Leave Primary/Accent blank to fall back to the default JAGS palette (</Tx>{DEFAULT_PRIMARY} / {DEFAULT_ACCENT}<Tx>). This overrides the in-app UI only — generated PDF reports keep the standard JAGS palette.</Tx></p>
+      </MoreDetails>
 
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 

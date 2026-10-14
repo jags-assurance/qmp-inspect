@@ -162,7 +162,7 @@ export function PhotoUpload({
           </div>
           <label className="mt-2 flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={markupFirst} onChange={(e) => toggleMarkup(e.target.checked)} />
-            <Tx>Mark up each photo (draw, arrow, circle) before it is uploaded</Tx>
+            <Tx>Mark up photos before upload</Tx>
           </label>
           {markupDialog}
           {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}

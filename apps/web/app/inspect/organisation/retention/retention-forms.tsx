@@ -6,6 +6,7 @@ import { MAX_RETENTION_YEARS, MIN_RETENTION_YEARS } from "@/lib/retention/logic"
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
+import { MoreDetails } from "@/components/domain/more-details";
 
 const initialState: RetentionState = { error: null };
 
@@ -43,9 +44,10 @@ export function RetentionSettingsForm({
           className="mt-1 w-28 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
       </div>
-      <p className="text-xs text-muted">
-        <Tx>The clock starts when a document was approved (or uploaded, if it never was). Once a day the system flags every document past the period for a human decision.</Tx> <strong><Tx>It never deletes, hides or changes a document.</Tx></strong>
-      </p>
+      <p className="text-xs text-muted"><strong><Tx>It never deletes, hides or changes a document.</Tx></strong></p>
+      <MoreDetails className="mt-0">
+        <p><Tx>The clock starts when a document was approved (or uploaded, if it never was). Once a day the system flags every document past the period for a human decision.</Tx></p>
+      </MoreDetails>
       <FormMessage error={state.error} success={state.success} />
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save retention rule"}

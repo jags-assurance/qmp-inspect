@@ -208,7 +208,7 @@ export function ExternalPartyDashboard({
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><Tx>Your organisation at a glance</Tx></h2>
           <p className="mt-1 text-sm text-muted">
-            <Tx>You manage this organisation&apos;s own settings, so its health sits first.</Tx>
+            <Tx>Your organisation at a glance.</Tx>
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Link href="/inspect/manage" className="rounded-md border border-border p-3 hover:bg-off-white">
@@ -242,7 +242,7 @@ export function ExternalPartyDashboard({
         <div className="mt-8">
           <h2 className="font-medium text-ink"><Tx>ITPs awaiting your acceptance</Tx></h2>
           <p className="mt-1 text-sm text-muted">
-            <Tx>JAGS has approved these — your acceptance is the last step before field work begins.</Tx>
+            <Tx>Your acceptance is the last step before work starts.</Tx>
           </p>
           <div className="mt-3">
             <DataTable
@@ -282,7 +282,7 @@ export function ExternalPartyDashboard({
       {workAwaitingReview.length > 0 && (
         <SignoffQueuePanel
           title={tl("Work awaiting your review")}
-          description="Activities where a subcontractor has already signed off their part, and your own sign-off on the same activity is still pending or notified."
+          description="Your sign-off follows a subcontractor&apos;s."
           rows={workAwaitingReview}
           levels={levels}
           footer={moreLink(workAwaitingReview.length, t.review, "/inspect/itps", "See all ITPs")}
@@ -295,7 +295,7 @@ export function ExternalPartyDashboard({
       <>
       <SignoffQueuePanel
         title={tl("Awaiting your sign-off")}
-        description="Points on your own party's column that still need a Notify or Sign off — only what your login is linked to, not the whole project."
+        description="Points on your party's column awaiting Notify or Sign off."
         rows={pendingSignoffs}
         levels={levels}
         emptyMessage="Nothing awaiting your sign-off right now. New hold and witness points appear here when JAGS notifies you."
@@ -310,7 +310,7 @@ export function ExternalPartyDashboard({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><Tx>NCRs assigned to you</Tx></h2>
           <p className="mt-1 text-sm text-muted">
-            <Tx>Non-conformances raised against your organisation that still need corrective action.</Tx>
+            <Tx>Raised against your organisation and still open.</Tx>
           </p>
           <ul className="mt-4 space-y-2">
             {ncrsAssignedToMe.map((ncr) => (
@@ -344,7 +344,7 @@ export function ExternalPartyDashboard({
       {punchAssignedToMe.length > 0 && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><Tx>Punch items assigned to you</Tx></h2>
-          <p className="mt-1 text-sm text-muted"><Tx>Open punch-list items where your party is responsible for the fix.</Tx></p>
+          <p className="mt-1 text-sm text-muted"><Tx>Punch-list items you need to fix.</Tx></p>
           <ul className="mt-4 space-y-2">
             {punchAssignedToMe.map((p) => (
               <li
@@ -455,10 +455,10 @@ export function ExternalPartyDashboard({
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><Tx>Your projects — reports &amp; documents</Tx></h2>
           <p className="mt-1 text-sm text-muted">
-            <Tx>Data books, PDF/Excel report packs and the live activity timeline for each project you have access to.</Tx>
+            <Tx>Data books, reports and activity per project.</Tx>
           </p>
           <ul className="mt-4 space-y-3">
-            {myProjects.map((project) => (
+            {myProjects.slice(0, 3).map((project) => (
               <li key={project.id} className="rounded-md border border-border p-3">
                 <p className="truncate text-sm font-medium text-ink">{project.name}</p>
                 <div className="mt-2 flex flex-wrap gap-3 text-sm">
@@ -496,6 +496,53 @@ export function ExternalPartyDashboard({
               </li>
             ))}
           </ul>
+          {myProjects.length > 3 && (
+            <details className="group mt-3">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+                <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+                <Tx>Show all</Tx> ({myProjects.length})
+              </summary>
+              <ul className="mt-3 space-y-3">
+            {myProjects.slice(3).map((project) => (
+              <li key={project.id} className="rounded-md border border-border p-3">
+                <p className="truncate text-sm font-medium text-ink">{project.name}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                  <Link
+                    href={`/inspect/projects/${project.id}?tab=punch-list`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    <Tx>Punch list →</Tx>
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/reports`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    <Tx>Reports &amp; downloads →</Tx>
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/data-book`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    <Tx>Data book →</Tx>
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/activity`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    <Tx>Activity →</Tx>
+                  </Link>
+                  <Link
+                    href={`/inspect/projects/${project.id}/kpis`}
+                    className="font-medium text-burgundy hover:underline"
+                  >
+                    <Tx>KPIs →</Tx>
+                  </Link>
+                </div>
+              </li>
+            ))}
+              </ul>
+            </details>
+          )}
         </div>
       )}
 
@@ -525,7 +572,7 @@ export function ExternalPartyDashboard({
 
       <TodayQueue
         emptyText="You are all caught up. Check Reports & documents below, or open Inspections to follow progress."
-        description="What needs your response, most urgent first. Accepting an ITP opens right here."
+        description="Most urgent first."
         items={buildExternalToday({
           acceptance: itpsAwaitingAcceptance,
           review: workAwaitingReview,

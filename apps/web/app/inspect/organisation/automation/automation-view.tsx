@@ -16,6 +16,7 @@ import {
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationOption {
   id: string;
@@ -88,9 +89,10 @@ export async function AutomationRulesView({ searchParams, embedded }: {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Configure which conditions automatically nudge your team, instead of relying on someone noticing a stuck Hold or an overdue item on their own.</T>
-      </p>
+      <p className="mt-1 text-sm text-muted"><T>Choose which conditions send automatic reminders.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Configure which conditions automatically nudge your team, instead of relying on someone noticing a stuck Hold or an overdue item on their own.</T></p>
+      </MoreDetails>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 

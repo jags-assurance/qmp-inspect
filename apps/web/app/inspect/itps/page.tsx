@@ -203,14 +203,14 @@ export default async function ItpsPage({
             <PageGuide
               title={tl("ITP Register — how this works")}
               points={[
-                "Every Inspection & Test Plan across your accessible projects — staff see all of them, others see only what RLS scopes to their organisation/project.",
-                "\"+ New ITP\" appears for JAGS staff always, and for a client or subcontractor/main-contractor login only if their project has opted them into ITP creation (or their organisation is Self-Managed/\"Hybrid\" or Full Client-Managed, either of which grants it org-wide for a client party).",
-                "The discipline filter is register-level: it shows every ITP that has at least one activity tagged with that discipline, not just activities within one ITP.",
-                "PDF and Excel export the current filtered view — every matching row, not just the current page.",
+                "You see the ITPs of your own projects.",
+                "\"+ New ITP\" shows only if you are allowed to create ITPs.",
+                "The discipline filter lists ITPs with at least one activity in that discipline.",
+                "PDF and Excel export every row of the current filter.",
               ]}
             />
           </div>
-          <p className="mt-1 text-sm text-muted"><T>Inspection & Test Plans across your projects.</T></p>
+          
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`}>
@@ -236,7 +236,12 @@ export default async function ItpsPage({
         </p>
       )}
 
-      <div className="mt-5 flex flex-wrap items-end gap-x-4 gap-y-3">
+      <details className="group mt-4">
+        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Filter &amp; sort</T>
+        </summary>
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
         <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
         <PhaseFilterForm selectedPhase={phase} />
         <SortForm
@@ -250,6 +255,7 @@ export default async function ItpsPage({
           }}
         />
       </div>
+      </details>
 
       <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tl("Filter by status")}>
         {[

@@ -9,6 +9,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationOption {
   id: string;
@@ -103,9 +104,10 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Override the default burgundy/gold theme and upload this organisation&rsquo;s own logo. Applies wherever a page is scoped to this organisation (e.g. its projects), the app header, and generated PDF reports — driven together by the organisation&rsquo;s configured engagement mode (set under Numbering, JAGS Admin only).</T>
-      </p>
+      <p className="mt-1 text-sm text-muted"><T>Logo and colours for this organisation.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Override the default burgundy/gold theme and upload this organisation&rsquo;s own logo. Applies wherever a page is scoped to this organisation (e.g. its projects), the app header, and generated PDF reports — driven together by the organisation&rsquo;s configured engagement mode (set under Numbering, JAGS Admin only).</T></p>
+      </MoreDetails>
 
       {!restrictedToOwnOrg && (
         <OrgPickerForm
@@ -137,9 +139,9 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
 
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink"><T>Logo</T></h2>
-            <p className="mt-1 text-xs text-muted">
-              <T>Shown in the app header/sidebar and generated PDF reports for co-branded and white-label engagements (see above). No logo means the JAGS-only branding you see today, unchanged.</T>
-            </p>
+            <MoreDetails className="mt-1">
+              <p><T>Shown in the app header/sidebar and generated PDF reports for co-branded and white-label engagements (see above). No logo means the JAGS-only branding you see today, unchanged.</T></p>
+            </MoreDetails>
             <div className="mt-3">
               <LogoUploadForm organizationId={selectedOrg.id} currentLogoUrl={logoPreviewUrl} />
             </div>

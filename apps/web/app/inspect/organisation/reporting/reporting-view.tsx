@@ -9,6 +9,7 @@ import { WeeklyReportPackForm } from "../numbering/weekly-report-pack-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
+import { MoreDetails } from "@/components/domain/more-details";
 import { getTranslator } from "@/lib/i18n/server";
 
 const VIEWS: { name: string; covers: string }[] = [
@@ -87,9 +88,9 @@ export async function ReportingView({ searchParams, embedded }: {
         <>
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink"><T>Monthly client report pack</T></h2>
-            <p className="mt-1 text-xs text-muted">
+            <MoreDetails className="mt-1"><p>
               <T>Generates a PDF + CSV report pack (R109) covering</T> {selectedOrg.name}<T>&rsquo;s first-time pass rate, inspections completed, NCR summary and ITP completion, aggregated across all of their projects (or the one project you choose) for the chosen month. Rendering happens in the background — the table below updates automatically once it completes, no reload needed.</T>
-            </p>
+            </p></MoreDetails>
             <div className="mt-4">
               <MonthlyReportPackForm organizationId={selectedOrg.id} initialPacks={reportPacks} aiConfigured={await isAiEnabledForOrg(supabase, selectedOrg.id)} projects={orgProjects ?? []} />
             </div>
@@ -97,9 +98,9 @@ export async function ReportingView({ searchParams, embedded }: {
 
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink"><T>Weekly client report pack</T></h2>
-            <p className="mt-1 text-xs text-muted">
+            <MoreDetails className="mt-1"><p>
               <T>The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month — covers first-time pass rate, inspections completed, NCR summary and ITP completion for the chosen week, aggregated across all of</T> {selectedOrg.name}<T>&rsquo;s projects. Rendering happens in the background — the table below updates automatically once it completes, no reload needed.</T>
-            </p>
+            </p></MoreDetails>
             <div className="mt-4">
               <WeeklyReportPackForm organizationId={selectedOrg.id} initialPacks={weeklyReportPacks} projects={orgProjects ?? []} />
             </div>
@@ -110,6 +111,10 @@ export async function ReportingView({ searchParams, embedded }: {
       <div className="mt-10 border-t border-border pt-8">
         <h2 className="text-lg font-semibold text-ink"><T>Power BI (JAGS-internal analytics)</T></h2>
         <p className="mt-1 text-sm text-muted">
+          <T>Connect Power BI to the read-only reporting views.</T>
+        </p>
+        <MoreDetails label="Setup steps" bare className="mt-2">
+        <p className="text-sm text-muted">
           <T>Not an in-app page. Power BI Desktop connects directly to this project&apos;s Postgres database over a dedicated, read-only login, live or on a refresh schedule of your choosing — unrelated to any one organisation, so it stays visible regardless of the org picked above.</T>
         </p>
 
@@ -176,6 +181,7 @@ export async function ReportingView({ searchParams, embedded }: {
             <code className="doc-id text-xs"><T>powerbi_reader</T></code> <T>credential, not from row-level security (a plain database login has no Supabase Auth session for RLS to key off).</T>
           </p>
         </div>
+        </MoreDetails>
       </div>
     </div>
   );

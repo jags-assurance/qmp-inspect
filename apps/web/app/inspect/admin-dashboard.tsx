@@ -155,7 +155,7 @@ export function AdminDashboard({
               ]}
             />
           </div>
-          <p className="mt-1 text-sm text-muted">{today} <Tx>· Portfolio status across every client you have access to.</Tx></p>
+          <p className="mt-1 text-sm text-muted">{today} <Tx>· Your clients at a glance.</Tx></p>
         </div>
         <Link
           href="/inspect/projects/new"
@@ -314,7 +314,7 @@ export function AdminDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-medium text-ink"><Tx>Master Library proposals awaiting review</Tx></h2>
-              <p className="mt-1 text-sm text-muted"><Tx>Submitted by staff, waiting on your decision.</Tx></p>
+              <p className="mt-1 text-sm text-muted"><Tx>Waiting for your decision.</Tx></p>
             </div>
             <Link href="/inspect/itp-master/proposals" className="text-sm font-medium text-burgundy hover:underline">
               <Tx>View all</Tx>{pendingProposalTotal > pendingProposals.length ? ` ${pendingProposalTotal}` : ""} →
@@ -362,11 +362,10 @@ export function AdminDashboard({
               ]}
             />
           </div>
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-xs">
             <Link href="/inspect/itp-master/proposals" className="text-burgundy hover:underline">
               <Tx>Open the full proposals queue →</Tx>
-            </Link>{" "}
-            <Tx>if you need to see the source ITP for one of these.</Tx>
+            </Link>
           </p>
         </div>
       )}
@@ -375,7 +374,7 @@ export function AdminDashboard({
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="font-medium text-ink"><Tx>Your organisations</Tx></h2>
         <p className="mt-1 text-sm text-muted">
-          <Tx>Visible here only because your access grants reach them — this list is the tenant isolation check made visible, with each client&apos;s real portfolio numbers.</Tx>
+          <Tx>Clients you have access to.</Tx>
         </p>
         <div className="mt-3">
           <DataTable

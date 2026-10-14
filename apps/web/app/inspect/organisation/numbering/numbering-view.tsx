@@ -17,6 +17,7 @@ import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workfl
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationOption {
   id: string;
@@ -139,8 +140,8 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
       </div>
       <p className="mt-1 text-sm text-muted">
         {numberingOnly
-          ? "Configure how each document type is numbered for your organisation."
-          : "One org-level engagement mode drives both branding and how every document type is numbered for that client."}
+          ? "How each document type is numbered."
+          : "Branding and numbering for each client."}
       </p>
 
       {!numberingOnly && (
@@ -175,9 +176,9 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
 
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-semibold text-ink"><T>Party sign-off sequencing (R67)</T></h2>
-                <p className="mt-1 text-xs text-muted">
-                  <T>Controls whether non-blocking intervention levels (e.g. Witness, Review) must also clear in sort_order, the same way blocking levels like Hold already do.</T>
-                </p>
+                <MoreDetails className="mt-1">
+                  <p><T>Controls whether non-blocking intervention levels (e.g. Witness, Review) must also clear in sort_order, the same way blocking levels like Hold already do.</T></p>
+                </MoreDetails>
                 <div className="mt-4">
                   <ItpSequencingModeForm
                     organizationId={selectedOrg.id}
@@ -190,9 +191,9 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
 
           <div className="mt-8 rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink"><T>Document numbering formats</T></h2>
-            <p className="mt-1 text-xs text-muted">
-              <T>Org-wide defaults per document type. Leave a type unconfigured to use the default format:</T> {"{project number}-JAGS-{TYPE}-{seq}"}.
-            </p>
+            <MoreDetails className="mt-1">
+              <p><T>Org-wide defaults per document type. Leave a type unconfigured to use the default format:</T> {"{project number}-JAGS-{TYPE}-{seq}"}.</p>
+            </MoreDetails>
             <div className="mt-4">
               {NUMBERING_DOC_TYPES.map((docType) => {
                 const config = configsByDocType.get(docType);
@@ -223,9 +224,9 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
             <>
               <div className="mt-8 rounded-lg border border-border bg-surface p-4">
                 <h2 className="text-sm font-semibold text-ink"><T>ITP approval workflow</T></h2>
-                <p className="mt-1 text-xs text-muted">
-                  <T>By default, any JAGS staff login can submit an ITP for review or approve it once under review (R79). Pin either step to one specific person if this client&rsquo;s process requires a named reviewer or approver — leave a slot on &ldquo;Unrestricted&rdquo; to keep today&rsquo;s behaviour. A JAGS Admin can always act regardless of this setting.</T>
-                </p>
+                <MoreDetails className="mt-1">
+                  <p><T>By default, any JAGS staff login can submit an ITP for review or approve it once under review (R79). Pin either step to one specific person if this client&rsquo;s process requires a named reviewer or approver — leave a slot on &ldquo;Unrestricted&rdquo; to keep today&rsquo;s behaviour. A JAGS Admin can always act regardless of this setting.</T></p>
+                </MoreDetails>
                 <div className="mt-4">
                   <ItpApprovalWorkflowForm
                     organizationId={selectedOrg.id}
@@ -237,11 +238,10 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
               </div>
 
               <p className="mt-8 text-sm text-muted">
-                <T>Looking for monthly/weekly client report packs? They moved to</T>{" "}
+                <T>Report packs:</T>{" "}
                 <Link href={`/inspect/organisation/reporting?org=${selectedOrg.id}`} className="text-burgundy hover:underline">
                   <T>Reporting</T>
                 </Link>{" "}
-                <T>(under Insights &amp; Usage) — same organisation, one click away.</T>
               </p>
             </>
           )}

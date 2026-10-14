@@ -98,7 +98,7 @@ export default async function VaultPendingApprovalsPage({ params }: { params: Pr
       </Link>
       <h1 className="mt-2 text-2xl font-semibold text-ink"><T>My pending approvals</T></h1>
       <p className="mt-1 text-sm text-muted">
-        <T>Documents across this project waiting for your approval, oldest first. Where specific approvers are named, every named approver must agree before the document becomes the controlled copy; rejecting needs a reason.</T>
+        <T>Waiting for you, oldest first. Rejecting needs a reason.</T>
       </p>
       <div className="mt-6">
         <VaultDocumentsTable rows={rows} canApprove={canApprove} />

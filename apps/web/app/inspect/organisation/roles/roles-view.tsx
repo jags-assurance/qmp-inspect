@@ -10,6 +10,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface RoleRow {
   id: string;
@@ -150,12 +151,13 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Grant a specific person a bundle of real permissions without promoting them to Admin or inventing a new hardcoded role — additional to whatever access they already have via staff role, team lead, or party type, never a replacement.</T>
+      <p className="mt-1 text-sm text-muted"><T>Give a person extra permissions on top of their normal access.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Grant a specific person a bundle of real permissions without promoting them to Admin or inventing a new hardcoded role — additional to whatever access they already have via staff role, team lead, or party type, never a replacement.</T>
         {admin
           ? " A JAGS-global role can be assigned to any JAGS staff member; a role scoped to one client organisation can be assigned to that client's own users too."
-          : " Roles you create here are scoped to your own organisation only — your own people, your own projects. Which permissions you can self-grant depends on your org's engagement tier (Self-Managed vs Full Client-Managed)."}
-      </p>
+          : " Roles you create here are scoped to your own organisation only — your own people, your own projects. Which permissions you can self-grant depends on your org's engagement tier (Self-Managed vs Full Client-Managed)."}</p>
+      </MoreDetails>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Custom roles" value={roleCards.length} />

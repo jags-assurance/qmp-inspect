@@ -85,7 +85,7 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
       </Link>
       <h1 className="mt-2 text-2xl font-semibold text-ink"><T>Vendor NCR scorecard</T></h1>
       <p className="mt-1 text-sm text-muted">
-        <T>Minor and major NCRs per responsible party. Withdrawn NCRs and observations are not counted. Worst first: most overdue, then most open.</T>
+        <T>Per responsible party, worst first. Withdrawn NCRs and observations are not counted.</T>
       </p>
       {scores.length === 0 ? (
         <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted"><T>No NCRs to score yet.</T></p>

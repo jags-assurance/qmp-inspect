@@ -80,7 +80,7 @@ export default async function NewStandaloneAssignmentPage() {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        <T>Set up a one-off FAT, witness inspection, specific test or pre-shipment check. The assignment number is generated automatically once you save.</T>
+        <T>Set up a one-off assignment. The number is created when you save.</T>
       </p>
       <NewAssignmentForm projects={projects ?? []} disciplines={disciplines ?? []} presetsByProject={presetsByProject} />
     </div>

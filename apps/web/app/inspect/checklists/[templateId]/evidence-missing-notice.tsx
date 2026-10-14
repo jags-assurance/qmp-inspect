@@ -36,7 +36,7 @@ export function EvidenceMissingNotice({
   return (
     <div className="space-y-4">
       <div className="rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
-        <p><Tx>Evidence required before you can complete this inspection.</Tx></p>
+        <p><Tx>Add a photo or document to complete.</Tx></p>
         <div className="mt-2 flex flex-wrap gap-2">
           <Button type="button" onClick={takePhoto} className="min-h-11">
             <Tx>Take a photo</Tx>
@@ -55,7 +55,7 @@ export function EvidenceMissingNotice({
             <Tx>Why is there no evidence to attach?</Tx>
           </label>
           <p className="mt-0.5 text-xs text-muted">
-            <Tx>Recorded on the inspection and in the audit log. Use only when nothing photographable or attachable exists for this activity.</Tx>
+            <Tx>Recorded in the audit log. Use only if nothing can be attached.</Tx>
           </p>
           <textarea
             id="no-evidence-reason"

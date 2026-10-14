@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { upsertAutomationRuleAction, type UpsertAutomationRuleState } from "@/lib/automation/actions";
 import { Button } from "@/components/ui/button";
+import { MoreDetails } from "@/components/domain/more-details";
 import { Badge } from "@/components/ui/badge";
 import type { AutomationRuleType } from "@/lib/automation/types";
 import { Tx } from "@/components/domain/tx";
@@ -40,7 +41,7 @@ export function RuleForm({
             <h3 className="text-sm font-semibold text-ink">{label}</h3>
             <Badge tone={isEnabled ? "success" : "neutral"}>{isEnabled ? "On" : "Off"}</Badge>
           </div>
-          <p className="mt-1 max-w-xl text-xs text-muted">{description}</p>
+          <MoreDetails className="mt-1"><p>{description}</p></MoreDetails>
         </div>
         <label className="flex items-center gap-2 text-sm text-ink">
           <input type="checkbox" name="enabled" checked={isEnabled} onChange={(e) => setIsEnabled(e.target.checked)} />

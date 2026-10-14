@@ -408,7 +408,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 <div className={cn("h-full rounded-full transition-all", allGatesPass ? "bg-success" : "bg-gold")} style={{ width: `${readinessPct}%` }} />
               </div>
               <p className="mt-1 text-xs text-muted">
-                {allGatesPass ? "All gates pass — ready for a final book." : `${failingGates.length} gate${failingGates.length === 1 ? "" : "s"} still open — see Ready to generate.`}
+                {allGatesPass ? "All gates pass." : `${failingGates.length} gate${failingGates.length === 1 ? "" : "s"} still open.`}
               </p>
             </div>
           </div>
@@ -442,10 +442,9 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       <details className="mt-3 rounded-lg border border-border bg-surface px-4 py-2 text-sm">
         <summary className="cursor-pointer font-medium text-ink focus:outline-none focus:ring-2 focus:ring-burgundy"><T>How this works</T></summary>
         <ul className="mt-2 list-disc space-y-1.5 ps-5 text-muted">
-          <li><T>A final book needs every category at 100%, zero open or unverified punch items, and a Completed project. Draft books can be generated at any time and are marked DRAFT.</T></li>
-          <li><T>JAGS staff can compile anyway (a &quot;Conditional Handover&quot;) with a required documented reason; still-open punch items are snapshotted on the record with the reason and approver.</T></li>
-          <li><T>Only JAGS staff can create a book, compile a draft, or issue a handover (a JAGS Admin for anything with an override). Books, certificates and packages are visible to JAGS staff and the client only.</T></li>
-          <li><T>&quot;Data-book readiness&quot; on the Client KPIs page is a proxy metric; this page computes it directly from the project&apos;s own records.</T></li>
+          <li><T>A final book needs every category at 100%, no open punch items and a Completed project. Drafts are always allowed.</T></li>
+          <li><T>JAGS staff can compile anyway (Conditional Handover) with a documented reason.</T></li>
+          <li><T>Only JAGS staff create, compile or issue; overrides need a JAGS Admin.</T></li>
         </ul>
       </details>
 
@@ -456,7 +455,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           <DataBookIndex parts={parts} />
 
           {/* Ready to generate? */}
-          <Card id="gates" title={tl("Ready to generate?")} hint="Hard gates for a final book. Fix each red item at its source page.">
+          <Card id="gates" title={tl("Ready to generate?")} hint="Fix each red item to unlock a final book.">
             <ul className="divide-y divide-border rounded-md border border-border">
               {gates.map((g) => (
                 <li key={g.label} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
@@ -484,11 +483,11 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           {/* Generate */}
           <Card id="generate" title={tl("Generate")}>
             {!session.isJagsStaff && (
-              <p className="text-sm text-muted"><T>Only JAGS staff can generate or compile a Data Book. You can view and download generated books below.</T></p>
+              <p className="text-sm text-muted"><T>Only JAGS staff can generate books. You can view and download them below.</T></p>
             )}
             {session.isJagsStaff && books.length === 0 && (
               <div>
-                <p className="mb-3 text-sm text-muted"><T>No Data Book exists for this project yet. Create one to start generating draft PDFs and, once every gate passes, a final book.</T></p>
+                <p className="mb-3 text-sm text-muted"><T>No Data Book yet. Create one to start.</T></p>
                 <CreateDataBookForm projectId={projectId} />
               </div>
             )}
@@ -497,7 +496,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 <div className="rounded-md border border-border p-3">
                   <h3 className="text-sm font-semibold text-ink"><T>Generate draft book now</T></h3>
                   <p className="mt-1 text-xs text-muted">
-                    <T>Produces a PDF stamped DRAFT —</T> <strong><T>not issued</T></strong><T>. Safe to share for review; incomplete sections are shown as such.</T>
+                    <T>PDF stamped DRAFT —</T> <strong><T>not issued</T></strong><T>.</T>
                   </p>
                   <div className="mt-3">
                     <DataBookPdfButton
@@ -517,8 +516,8 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                   <h3 className="text-sm font-semibold text-ink"><T>Generate final book</T></h3>
                   <p className="mt-1 text-xs text-muted">
                     {allGatesPass
-                      ? "All gates pass. Compiling locks this book for review and issue."
-                      : "Gates are not all met. A JAGS Admin may compile anyway with a documented override reason."}
+                      ? "Compiling locks this book for review."
+                      : "Gates not met. Only a JAGS Admin may override, with a reason."}
                   </p>
                   <div className="mt-3">
                     <CompileDataBookForm
@@ -536,14 +535,14 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
             )}
             {session.isJagsStaff && latest?.status === "compiled" && (
               <div>
-                <p className="mb-2 text-sm text-muted"><T>Book</T> {latest.book_number} <T>is compiled and awaiting review. Issue the handover to finalise it.</T></p>
+                <p className="mb-2 text-sm text-muted"><T>Book</T> {latest.book_number} <T>is awaiting review. Issue the handover to finalise.</T></p>
                 <IssueHandoverForm projectId={projectId} dataBookId={latest.id} bookNumber={latest.book_number} isConditional={latest.override_open_punch_items} />
                 {isAdmin && <WithdrawDataBookForm projectId={projectId} dataBookId={latest.id} />}
               </div>
             )}
             {session.isJagsStaff && latest?.status === "issued" && (
               <div>
-                <p className="mb-3 text-sm text-muted"><T>The latest book is issued. Start a new book to produce a further revision.</T></p>
+                <p className="mb-3 text-sm text-muted"><T>Issued. Start a new book for a further revision.</T></p>
                 <CreateDataBookForm projectId={projectId} revisionOf={latest.book_number} />
                 <TransmittalSection entityType="data_book" entityId={latest.id} projectId={projectId} status={latest.status} />
               </div>
@@ -721,7 +720,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
 
           <Card id="updates" title={tl("Updates")}>
             {!session.isJagsStaff && (
-              <p className="mb-2 text-xs text-muted"><T>Note: the full audit trail is visible to JAGS staff only; you may see Data Book entries only.</T></p>
+              <p className="mb-2 text-xs text-muted"><T>You see Data Book entries only.</T></p>
             )}
             <DataBookUpdatesPanel projectId={projectId} upd={sp.upd} updn={sp.updn} />
           </Card>

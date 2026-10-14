@@ -180,7 +180,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        <T>Issued Data Books and handover certificates for the projects you have access to.</T>
+        <T>Issued Data Books and handover certificates.</T>
       </p>
 
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2">

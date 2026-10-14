@@ -175,8 +175,8 @@ export default async function ManageHubPage() {
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        {isClientManaged ? "Full Client-Managed" : "Self-Managed"} <T>organisation — a single place for what your own team runs day to day. JAGS still Closes every NCR and Issues every IRN — that independent check never moves to this side, by design.</T>
-        {!isClientManaged && " JAGS also still Approves every ITP on this tier."}
+        {isClientManaged ? "Full Client-Managed" : "Self-Managed"} <T>organisation. JAGS still closes every NCR and issues every IRN.</T>
+        {!isClientManaged && " JAGS also still approves every ITP."}
       </p>
 
       <section className="mt-6">

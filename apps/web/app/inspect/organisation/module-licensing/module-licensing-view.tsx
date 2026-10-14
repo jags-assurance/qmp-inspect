@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationOption {
   id: string;
@@ -81,10 +82,11 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Turn individual feature modules on or off for a client organisation. Every module is</T>{" "}
-        <strong><T>licensed by default</T></strong> <T>— switch one off here only when a client should not have access to it. JAGS staff logins always see every module regardless of this setting, so support work is never blocked by a client&rsquo;s own licensing.</T>
-      </p>
+      <p className="mt-1 text-sm text-muted"><T>Switch modules on or off for a client.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Turn individual feature modules on or off for a client organisation. Every module is</T>{" "}
+        <strong><T>licensed by default</T></strong> <T>— switch one off here only when a client should not have access to it. JAGS staff logins always see every module regardless of this setting, so support work is never blocked by a client&rsquo;s own licensing.</T></p>
+      </MoreDetails>
 
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 

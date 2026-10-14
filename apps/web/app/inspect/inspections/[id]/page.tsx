@@ -547,20 +547,20 @@ export default async function InspectionRecordPage({ params }: { params: Promise
         ) : record.overall_result === "pass" || record.overall_result === "partial" ? (
           <div className="mt-2">
             {voidedIrns.length > 0 && (
-              <p className="mb-2 text-sm text-muted"><T>The previous IRN was voided; a replacement can be issued.</T></p>
+              <p className="mb-2 text-sm text-muted"><T>The previous IRN was voided. Issue a replacement.</T></p>
             )}
             {canIssueIrn ? (
               <IssueIrnForm inspectionRecordId={record.id} />
             ) : (
-              <p className="text-sm text-muted"><T>Only JAGS staff or the party assigned to execute this activity can issue its IRN.</T></p>
+              <p className="text-sm text-muted"><T>Only JAGS staff or the assigned party can issue the IRN.</T></p>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-sm text-muted"><T>An IRN can only be issued once this inspection has passed (or conditionally passed).</T></p>
+          <p className="mt-2 text-sm text-muted"><T>An IRN can be issued once the inspection has passed.</T></p>
         )}
         {voidedIrns.length > 0 && (
-          <div className="mt-4 border-t border-border pt-3">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-muted"><T>IRN history</T></h3>
+          <details className="mt-4 border-t border-border pt-3">
+            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted"><T>IRN history</T> ({voidedIrns.length})</summary>
             <ul className="mt-2 space-y-1 text-sm">
               {voidedIrns.map((v) => (
                 <li key={v.id}>
@@ -571,7 +571,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 </li>
               ))}
             </ul>
-          </div>
+          </details>
         )}
       </div>
 
@@ -584,7 +584,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       {responseHistory.length > 0 && (
         <details className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
           <summary className="cursor-pointer font-medium text-burgundy"><T>Answer changes (</T>{responseHistory.length})</summary>
-          <p className="mt-2 text-xs text-muted"><T>Earlier values of answers that were changed while this inspection was in progress, newest first.</T></p>
+          <p className="mt-2 text-xs text-muted"><T>Earlier answers, newest first.</T></p>
           <ul className="mt-2 divide-y divide-border">
             {[...historyByItem.entries()].map(([itemId, list]) => {
               const label = sortedResponses.find((r) => r.checklist_item_id === itemId)?.checklist_items;
@@ -611,8 +611,8 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       )}
 
       {amendments.length > 0 && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink"><T>Amendment history</T></h2>
+        <details className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <summary className="cursor-pointer text-sm font-medium text-ink"><T>Amendment history</T> ({amendments.length})</summary>
           <ul className="mt-2 divide-y divide-border text-sm">
             {amendments.map((a) => (
               <li key={a.id} className="py-2">
@@ -630,7 +630,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </li>
             ))}
           </ul>
-        </div>
+        </details>
       )}
     </div>
   );

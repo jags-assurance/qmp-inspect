@@ -29,7 +29,7 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="kind" value={kind} />
           <p className="text-xs text-muted">
-            <Tx>Paste CSV (with the header row from the template) or choose a .csv file. Dates can be YYYY-MM-DD or DD/MM/YYYY. All or nothing: if any line has a problem, nothing is imported. Imported entries are unverified until JAGS staff verify them.</Tx>
+            <Tx>Paste CSV or choose a file. If any line has a problem, nothing is imported.</Tx>
           </p>
           <textarea name="csv_text" rows={4} className="w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-xs outline-none focus:border-burgundy" aria-label={tl("CSV text")} />
           <input type="file" name="csv_file" accept=".csv,text/csv" className="block text-xs" aria-label={tl("CSV file")} />

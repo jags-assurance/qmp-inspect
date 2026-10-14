@@ -12,8 +12,7 @@ const MODES: { value: string; label: string; description: string }[] = [
   {
     value: "white_label",
     label: "White-label",
-    description:
-      "No JAGS branding on client-visible documents; a hidden JAGS-internal traceability reference is kept alongside every generated document number.",
+    description: "No JAGS branding on client documents.",
   },
 ];
 

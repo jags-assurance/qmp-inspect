@@ -71,7 +71,7 @@ export function EditMetadataForm({
       </label>
       {locked && (
         <p className="text-xs text-muted sm:col-span-2">
-          <Tx>Reference and revision are locked because this document is approved. Upload a new revision to change them.</Tx>
+          <Tx>Approved: reference and revision are locked.</Tx>
         </p>
       )}
       <div className="flex items-center gap-3 sm:col-span-2">

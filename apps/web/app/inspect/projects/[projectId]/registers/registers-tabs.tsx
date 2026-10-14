@@ -85,7 +85,7 @@ export function RegistersTabs({
             {canAdd && <ExtractRegisterPanel
               projectId={projectId}
               title={tl("Calibration Register")}
-              description="Extract instrument, certificate number, calibration date and due date from calibration certificate text."
+              description="Reads calibration certificate text."
               placeholder={"e.g. \"Instrument: Megger MIT430 insulation tester. Certificate CAL-2291. Calibrated 14 Mar 2026. Next due 13 Mar 2027.\""}
               fields={[
                 { key: "instrumentName", label: "Instrument" },
@@ -113,7 +113,7 @@ export function RegistersTabs({
             {canAdd && <ExtractRegisterPanel
               projectId={projectId}
               title={tl("Welder Qualification Register")}
-              description="Extract welder ID, process/position, qualified range and expiry from WPQ (welder performance qualification) text. A range or continuity record not confirmed in the source stays flagged as unconfirmed, never guessed."
+              description="Reads welder qualification (WPQ) text."
               placeholder={"e.g. \"Welder: M. Rahman. ID W-014. Process GTAW/SMAW. Position 6G. Record WPQ-014. Continuity log not attached.\""}
               fields={[
                 { key: "welderIdentifier", label: "Welder ID" },
@@ -141,7 +141,7 @@ export function RegistersTabs({
             {canAdd && <ExtractRegisterPanel
               projectId={projectId}
               title={tl("Material Register")}
-              description="Extract material description, submittal reference, heat/batch number and certificate reference from a submittal or certificate. Added rows land quarantined pending disposition — extraction never sets a release status; that stays a document-controller decision."
+              description="Reads a submittal or certificate. Rows are added pending a person's decision."
               placeholder={"e.g. \"LV cable 0.6/1 kV, batch CB-084. Certificate of Conformity CoC-1884. Approved submittal MS-071 Rev 2.\""}
               fields={[
                 { key: "materialDescription", label: "Material" },
@@ -163,9 +163,6 @@ export function RegistersTabs({
 
         {activeTab === "personnel" && (
           <section>
-            <p className="mt-1 text-sm text-muted">
-              <Tx>Whether the person performing/signing off an inspection holds a current qualification for that activity type (e.g. AWS CWI, ASNT NDT Level II, CSWIP 3.1).</Tx>
-            </p>
             {canAdd && (
               <div className="mt-3">
                 <AddPersonnelCertificationForm projectId={projectId} projectParties={projectParties} partyMembers={partyMembers} />

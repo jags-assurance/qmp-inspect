@@ -32,7 +32,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
     <form action={formAction} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
       <input type="hidden" name="project_id" value={projectId} />
       <p className="text-xs text-muted">
-        <Tx>Add someone who already has a JAGS Assurance account — including a contractor, subcontractor or vendor from outside your own organisation — to this project.</Tx>
+        <Tx>Add someone who already has an account.</Tx>
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>

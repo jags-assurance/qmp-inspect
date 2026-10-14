@@ -183,8 +183,8 @@ export function DrawingMarkupViewer({
         )}
         <p className="text-sm text-muted">
           {fileExtension(storagePath) === "pdf"
-            ? "PDF preview above. Pin-drop markup is available for image drawings only."
-            : `No in-browser preview for ${fileExtension(storagePath) || "this"} files (Word, Excel and similar open in their own app). Pin-drop markup is available for image drawings only.`}
+            ? "Pins can be dropped on image drawings only."
+            : `No preview for ${fileExtension(storagePath) || "this"} files; open or download to view.`}
         </p>
         {signedUrl && (
           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -339,7 +339,7 @@ export function DrawingMarkupViewer({
 
         {!pendingPin && !selectedMarkup && (
           <p className="text-sm text-muted">
-            <Tx>Click a point on the drawing to drop a labeled pin. Keyboard: focus the drawing, press Enter, then use the arrow keys to position the pin.</Tx>
+            <Tx>Click the drawing to drop a pin.</Tx>
           </p>
         )}
 

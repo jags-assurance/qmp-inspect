@@ -275,7 +275,7 @@ export function VaultUploadForm({
           className="sr-only"
         />
         <p className="mt-2 text-xs text-muted">
-          <Tx>Up to</Tx> {MAX_UPLOAD_MB} <Tx>MB each (large files upload in resumable chunks and carry on after a dropped connection). PDF, Word, Excel, images and plain text are all accepted; PDF, Word (.docx) and text also support AI drafting later.</Tx>
+          <Tx>Up to</Tx> {MAX_UPLOAD_MB} <Tx>MB each.</Tx>
         </p>
       </div>
 
@@ -315,7 +315,7 @@ export function VaultUploadForm({
 
       {isBatch && (
         <p className="text-xs text-muted">
-          {rows.length} <Tx>files: each becomes its own document, titled from its filename (renameable afterwards). A file whose name matches an existing document here is filed as that document&apos;s next revision. Date and notes apply to all.</Tx>
+          {rows.length} <Tx>files: each becomes its own document, titled from its filename.</Tx>
         </p>
       )}
 
@@ -336,7 +336,7 @@ export function VaultUploadForm({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <FormField label="Document reference (optional; the same reference files a new revision of that document)">
+              <FormField label="Document reference (optional)">
                 <input
                 name="document_reference"
                 defaultValue={prefill?.reference ?? ""}

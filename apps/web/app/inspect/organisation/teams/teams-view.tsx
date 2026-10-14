@@ -9,6 +9,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface StaffRow {
   id: string;
@@ -116,9 +117,10 @@ export async function TeamsView({ embedded }: { embedded?: boolean }) {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>JAGS-internal staff groupings — which staff belong to which team, who leads it, and which projects that team is responsible for. A team lead can manage their own team&apos;s membership and project assignments; a JAGS Admin can manage every team.</T>
-      </p>
+      <p className="mt-1 text-sm text-muted"><T>JAGS staff teams, leads and projects.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>JAGS-internal staff groupings — which staff belong to which team, who leads it, and which projects that team is responsible for. A team lead can manage their own team&apos;s membership and project assignments; a JAGS Admin can manage every team.</T></p>
+      </MoreDetails>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Teams" value={teamCards.length} />

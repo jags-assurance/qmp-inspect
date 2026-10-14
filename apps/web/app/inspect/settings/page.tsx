@@ -187,7 +187,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <div>
       <h1 className="text-2xl font-semibold text-ink"><T>Settings</T></h1>
       <p className="mt-1 text-sm text-muted">
-        {DESCRIPTIONS[current.key] ?? "Manage your organisation."} <T>Use the menu to switch section.</T>
+        {DESCRIPTIONS[current.key] ?? "Manage your organisation."}
       </p>
       <div className="lg:flex lg:gap-8">
         <SettingsNav groups={groups} active={current.key} />

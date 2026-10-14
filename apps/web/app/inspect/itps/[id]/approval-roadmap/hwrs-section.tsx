@@ -180,12 +180,12 @@ export function HwrsSection({
     <section className="mt-4 rounded-lg border border-border bg-surface p-4">
       <h2 className="text-sm font-semibold text-ink"><T>3. Intervention points —</T> {levels.map((l) => l.code).join(" / ") || "H/W/R/S"}</h2>
       <p className="mt-1 text-xs text-muted">
-        <T>Every activity carries sign-off points per project party. Blocking levels hold work until cleared.</T>
+        <T>Blocking levels hold work until cleared.</T>
       </p>
 
       {/* Legend */}
-      <div className="mt-3">
-        <p className="text-xs font-medium text-muted"><T>Levels in this organisation</T></p>
+      <details className="group mt-3">
+        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Levels in this organisation</T></summary>
         {levels.length === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>No intervention levels are configured.</T></p>
         ) : (
@@ -206,11 +206,11 @@ export function HwrsSection({
             ))}
           </ul>
         )}
-      </div>
+      </details>
 
       {points.length === 0 ? (
         <p className="mt-4 rounded-md border border-dashed border-border p-4 text-center text-sm text-muted">
-          <T>No sign-off points on this ITP yet. Assign H/W/R/S levels to project parties on the activities and they will appear here.</T>
+          <T>No sign-off points on this ITP yet.</T>
         </p>
       ) : (
         <>

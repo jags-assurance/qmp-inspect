@@ -187,8 +187,9 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
 
       <VersionHistoryPanel revisions={revisions ?? []} />
 
-      <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink"><T>Change log</T></h2>
+      <details className="group mt-6">
+        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Change log</T></summary>
+        <div className="mt-2 rounded-lg border border-border bg-surface p-4">
         {(auditRows ?? []).length === 0 ? (
           <p className="mt-1 text-xs text-muted"><T>No administrative changes recorded yet.</T></p>
         ) : (
@@ -204,7 +205,8 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
             ))}
           </ul>
         )}
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

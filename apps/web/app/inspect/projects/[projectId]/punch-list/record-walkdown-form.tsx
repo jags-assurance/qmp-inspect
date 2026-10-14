@@ -89,7 +89,7 @@ export function RecordWalkdownForm({
         <div>
           <h3 className="text-sm font-medium text-ink"><Tx>Record walk-down</Tx></h3>
           <p className="mt-0.5 text-xs text-muted">
-            <Tx>Log everything found during this walk-down as punch items — add a row for each item.</Tx>
+            <Tx>One row per item found.</Tx>
           </p>
         </div>
         <button

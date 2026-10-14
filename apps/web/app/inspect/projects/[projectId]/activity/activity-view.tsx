@@ -485,7 +485,7 @@ export async function ActivityView({
           />
         </div>
         <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · {project.name}<T>. A full chronological feed of everything recorded on this project — ITPs, sign-offs, inspections, NCRs, standalone assignments, data book and handover, punch list, and Document Vault uploads.</T>
+          {project.organizations?.name} · {project.name}<T>. Everything recorded on this project, newest first.</T>
         </p>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <DateRangeFilter />

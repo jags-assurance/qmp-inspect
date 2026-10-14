@@ -9,6 +9,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface OrganizationOption {
   id: string;
@@ -87,7 +88,10 @@ export async function ClientTeamsView({ searchParams, embedded }: {
       <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
         <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
-        <p className="mt-1 text-sm text-muted"><T>No organisation found.</T></p>
+        <p className="mt-1 text-sm text-muted"><T>This organisation&rsquo;s teams, leads and projects.</T></p>
+        <MoreDetails className="mt-1">
+          <p><T>No organisation found.</T></p>
+        </MoreDetails>
       </div>
     );
   }

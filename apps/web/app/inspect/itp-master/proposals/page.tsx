@@ -139,7 +139,7 @@ export default async function ItpMasterProposalsPage() {
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            <T>Pending proposals to add a new master template, or update an existing one, from a project&apos;s own ITP.</T>
+            <T>Pending proposals to add or update a master template.</T>
           </p>
         </div>
         <Link href="/inspect/itp-master" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">

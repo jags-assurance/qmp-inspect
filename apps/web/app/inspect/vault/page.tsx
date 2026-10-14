@@ -121,9 +121,6 @@ export default async function VaultPage({
             ]}
           />
         </div>
-        <p className="mt-1 text-sm text-muted">
-          <T>The controlled set of project documents, organised into fixed folders with revision tracking.</T>
-        </p>
       </div>
 
       <ProjectPickerForm projects={projects ?? []} selectedProject={selectedProject} />

@@ -389,7 +389,7 @@ export async function ProjectOverviewView({
           <span className="text-sm text-muted"><T>Not set</T></span>
         )}
         <span className="w-full text-xs text-muted">
-          <T>First contact for this project. Separate from the per-activity Hold / Witness / Review assignments.</T>
+          <T>First contact for this project.</T>
         </span>
       </div>
       {isAdminStaff(session) && (
@@ -440,7 +440,7 @@ export async function ProjectOverviewView({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-medium text-ink"><T>Project parties</T></h2>
-            <p className="mt-1 text-sm text-muted"><T>Every organisation engaged on this project.</T></p>
+            <p className="mt-1 text-sm text-muted"><T>Organisations on this project.</T></p>
             {(assignedClientTeams ?? []).length > 0 && (
               <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                 <T>Client team</T>{assignedClientTeams!.length > 1 ? "s" : ""} <T>assigned:</T>
@@ -528,11 +528,17 @@ export async function ProjectOverviewView({
         {canAddSelfManagedParty && <AddSelfManagedPartyForm projectId={project.id} />}
       </div>
 
+      {(isAdminStaff(session) || canAddSelfManagedParty) && (
+        <details className="group mt-8 rounded-lg border border-border bg-surface px-5 py-3">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+            <T>Project settings</T>
+          </summary>
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Checklist execution settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Off: only the performing contractor fills in checklists. On: client-type parties on THIS project can too.</T>
+            <T>Off: only the contractor fills in checklists. On: client parties can too.</T>
           </p>
           <AllowClientExecutionToggle projectId={project.id} allowClientExecution={project.allow_client_execution} />
         </div>
@@ -548,7 +554,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>ITP creation settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Off: only JAGS staff create ITPs. On: client-type parties on THIS project can create draft ITPs; JAGS still approves every ITP.</T>
+            <T>Off: only JAGS staff create ITPs. On: client parties can draft; JAGS still approves.</T>
           </p>
           <AllowClientItpCreationToggle
             projectId={project.id}
@@ -565,7 +571,7 @@ export async function ProjectOverviewView({
         <div className="mt-4 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Standalone Assignment execution settings</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Off: only JAGS staff run Standalone Assignments here. On: active subcontractor / main-contractor parties on THIS project can too. Separate from the client run_standalone_assignment permission.</T>
+            <T>Off: only JAGS staff run them. On: contractor parties can too.</T>
           </p>
           <AllowContractorStandaloneAssignmentToggle
             projectId={project.id}
@@ -588,7 +594,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Site location (geofence)</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Optional. Warns (never blocks) if an inspector starts farther than the radius from this point. Leave blank to switch off.</T>
+            <T>Optional. Warns if an inspector starts outside the radius.</T>
           </p>
           <SiteGeofenceSettings
             projectId={project.id}
@@ -603,7 +609,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Hold-point enforcement</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>On: an open Hold stops field work from starting. Off for THIS project: work can start, but the Hold must still be signed off before completion.</T>
+            <T>On: an open Hold stops work from starting. Off: it only blocks completion.</T>
           </p>
           <EnforceHoldBlocksStartToggle
             projectId={project.id}
@@ -616,7 +622,7 @@ export async function ProjectOverviewView({
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Notice period overrides</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Wait time before proceed-without-response applies, per level for THIS project. Blank uses the organisation default.</T>
+            <T>Blank uses the organisation default.</T>
           </p>
           <NoticePeriodSettings
             projectId={project.id}
@@ -628,6 +634,9 @@ export async function ProjectOverviewView({
             configuredHours={noticePeriodConfigs}
           />
         </div>
+      )}
+
+        </details>
       )}
 
       {isAdminStaff(session) && (

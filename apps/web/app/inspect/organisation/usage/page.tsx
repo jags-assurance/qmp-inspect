@@ -19,6 +19,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { ProjectFilter } from "./project-filter";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
+import { MoreDetails } from "@/components/domain/more-details";
 import { getTranslator } from "@/lib/i18n/server";
 
 /**
@@ -357,7 +358,7 @@ export default async function UsageAndCostPage({
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            <T>AI feature invocations (with an estimated $ cost) and PDF render job volume, last</T> {WINDOW_DAYS} <T>days. Read-only reporting; no billing or pricing-tier decisions are made here. Admin-only.</T>
+            <T>AI usage, estimated cost and PDF renders, last</T> {WINDOW_DAYS} <T>days.</T>
           </p>
         </div>
         {projectFilterOptions.length > 0 && <ProjectFilter projects={projectFilterOptions} />}
@@ -377,7 +378,7 @@ export default async function UsageAndCostPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>AI cost by model</T></h2>
-          <p className="mt-1 text-sm text-muted"><T>Real token counts × Google&apos;s published Gemini API pricing.</T></p>
+          <MoreDetails className="mt-1"><p><T>Real token counts × Google&apos;s published Gemini API pricing.</T></p></MoreDetails>
           {costByModel.size === 0 ? (
             <p className="mt-3 text-sm text-muted"><T>No AI calls in this window.</T></p>
           ) : (
@@ -414,7 +415,6 @@ export default async function UsageAndCostPage({
 
         <div className="rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>AI cost by category</T></h2>
-          <p className="mt-1 text-sm text-muted"><T>Which kind of AI work is driving the spend.</T></p>
           {costByCategory.size === 0 ? (
             <p className="mt-3 text-sm text-muted"><T>No AI calls in this window.</T></p>
           ) : (
@@ -502,9 +502,7 @@ export default async function UsageAndCostPage({
       {!selectedProjectId && (orgWideAiCalls > 0 || portfolioWideJobTotal > 0) && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Org-wide / portfolio-wide</T></h2>
-          <p className="mt-1 text-sm text-muted">
-            <T>AI calls and render jobs with no single project to attribute to (e.g. a report-pack summary, or the one-click portfolio summary PDF).</T>
-          </p>
+          <MoreDetails className="mt-1"><p><T>AI calls and render jobs with no single project to attribute to (e.g. a report-pack summary, or the one-click portfolio summary PDF).</T></p></MoreDetails>
           <p className="mt-2 text-sm text-ink">
             {orgWideAiCalls} <T>AI call</T>{orgWideAiCalls === 1 ? "" : "s"} · {portfolioWideJobTotal} <T>render job</T>
             {portfolioWideJobTotal === 1 ? "" : "s"}

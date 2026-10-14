@@ -36,7 +36,7 @@ export function LocationPresetsSettings({
     <div className="rounded-lg border border-border bg-surface p-5">
       <h2 className="font-medium text-ink"><Tx>Preset inspection locations</Tx></h2>
       <p className="mt-1 text-sm text-muted">
-        <Tx>Named site zones/blocks inspectors can pick from a dropdown on the &quot;Start inspection&quot; form, instead of retyping the same location every time. The free-text field always stays available alongside this list.</Tx>
+        <Tx>Zones inspectors can pick when starting an inspection.</Tx>
       </p>
 
       {presets.length > 0 && (

@@ -32,10 +32,14 @@ export function SetApproversForm({
   if (documentOptions.length === 0) return null;
 
   return (
-    <form action={formAction} className="mt-6 rounded-lg border border-border bg-surface p-4">
-      <h3 className="text-sm font-semibold text-ink"><Tx>Require specific approvers (optional)</Tx></h3>
-      <p className="mt-1 text-xs text-muted">
-        <Tx>Pick a document still &ldquo;for review&rdquo; and choose exactly who must agree before it counts as approved — leave nobody checked to keep the default (any permitted person can approve it alone).</Tx>
+    <details className="group mt-6">
+    <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+      <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+      <Tx>Require specific approvers (optional)</Tx>
+    </summary>
+    <form action={formAction} className="mt-2 rounded-lg border border-border bg-surface p-4">
+      <p className="text-xs text-muted">
+        <Tx>Tick who must all agree. Leave none ticked so any permitted person can approve alone.</Tx>
       </p>
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -77,5 +81,6 @@ export function SetApproversForm({
       </div>
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
+    </details>
   );
 }

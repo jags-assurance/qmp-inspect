@@ -245,12 +245,12 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
             <T>Checklists are generated once this ITP is approved. Current status:</T>{" "}
             <Badge tone="neutral">{ITP_STATUS_LABEL[itp.status] ?? itp.status}</Badge>
           </p>
-          <section className="mt-4" aria-label={tl("Checklist preview")}>
-            <h2 className="text-sm font-semibold text-ink"><T>Checklist preview — review it with the ITP</T></h2>
+          <details className="group mt-4" aria-label={tl("Checklist preview")}>
+            <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Checklist preview</T></summary>
             <div className="mt-2">
               <ItpChecklistPreview items={await loadItpChecklistPreview(supabase, itp.id)} approved={false} />
             </div>
-          </section>
+          </details>
         </>
       )}
 

@@ -279,7 +279,7 @@ export function InspectorDashboard({
       <div id="pending-actions" className="mt-8 scroll-mt-20 rounded-lg border border-border bg-surface p-5">
         <h2 className="font-medium text-ink"><Tx>My pending actions</Tx></h2>
         <p className="mt-1 text-sm text-muted">
-          <T>Checklists not yet started, or still in progress, across every project you have access to.</T>
+          <T>Checklists not started or in progress.</T>
         </p>
         <div className="mt-4">
           <PendingActionsTable all={pendingActions} today={pendingToday} overdue={pendingOverdue} />
@@ -289,7 +289,7 @@ export function InspectorDashboard({
           <div className="mt-6 border-t border-border pt-4">
             <h3 className="text-sm font-medium text-ink"><T>Standalone assignments in progress</T></h3>
             <p className="mt-1 text-xs text-muted">
-              <T>FATs, witness inspections, specific tests and pre-shipment checks not yet finalized.</T>
+              <T>Tests and checks not yet finalized.</T>
             </p>
             <ul className="mt-3 space-y-2">
               {pendingStandaloneAssignments.map((a) => (

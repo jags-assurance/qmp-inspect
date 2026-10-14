@@ -119,7 +119,7 @@ export function ExtractRegisterPanel({
                 className="w-full rounded-md border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-burgundy"
               />
               <p className="text-xs text-muted">
-                <Tx>Paste the certificate/document text (or the vault document&apos;s extracted text). A missing field stays blank — the AI never guesses a date, number, or range it can&apos;t actually find; you confirm every row below before anything is added.</Tx>
+                <Tx>Paste the text. You confirm every row before it is added.</Tx>
               </p>
               {extractState.error && <p role="alert" className="text-xs text-danger">{extractState.error}</p>}
               <Button type="submit" size="sm" disabled={extractPending || !sourceText.trim()}>

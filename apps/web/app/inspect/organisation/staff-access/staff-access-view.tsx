@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { MoreDetails } from "@/components/domain/more-details";
 
 interface StaffRow {
   id: string;
@@ -98,12 +99,15 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client&apos;s data —</T> <strong><T>Global</T></strong> <T>reaches every organisation (the default for a new staff account), while</T> <strong><T>Organisation</T></strong> <T>or</T> <strong><T>Project</T></strong> <T>narrows an Inspector to only the clients they actually work with. This is a permission boundary enforced by the database itself (Row-Level Security), not just this screen.</T>
-      </p>
-      <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
+      <p className="mt-1 text-sm text-muted"><T>Who on JAGS staff can see which client data.</T></p>
+      <MoreDetails className="mt-1">
+        <p><T>Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client&apos;s data —</T> <strong><T>Global</T></strong> <T>reaches every organisation (the default for a new staff account), while</T> <strong><T>Organisation</T></strong> <T>or</T> <strong><T>Project</T></strong> <T>narrows an Inspector to only the clients they actually work with. This is a permission boundary enforced by the database itself (Row-Level Security), not just this screen.</T></p>
+      </MoreDetails>
+      <MoreDetails label="How the access screens fit together" className="mt-2">
+      <p>
         <T>This is the first of four related Access &amp; Roles screens, read in order:</T> <strong><T>Staff Access</T></strong> <T>(this page) decides who has an account and which org/project they can reach at all;</T> <strong><T>Custom Roles</T></strong> <T>then decides what a specific person is additionally allowed to do on top of that;</T> <strong><T>Teams</T></strong> <T>groups staff so a team lead can delegate day-to-day actions on the projects their team is assigned to; and</T> <strong><T>Module Licensing</T></strong> <T>decides which modules exist for a client org&apos;s own people to be given any access to in the first place.</T>
       </p>
+      </MoreDetails>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Staff accounts" value={(staff ?? []).length} />

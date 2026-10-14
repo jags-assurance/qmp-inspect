@@ -177,15 +177,14 @@ export async function PunchListView({
 
       {openCount > 0 ? (
         <div role="status" className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
-          <strong><T>Data Book blocked:</T></strong> {reallyOpenCount} <T>open and</T> {resolvedCount} <T>resolved-but-unverified item</T>
-          {openCount === 1 ? "" : "s"} <T>must be closed (verified) before the Data Book can compile.</T>{" "}
+          <strong><T>Data Book blocked:</T></strong> {reallyOpenCount} <T>open,</T> {resolvedCount} <T>awaiting verification.</T>{" "}
           <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
             <T>Open Data Book</T>
           </Link>
         </div>
       ) : (
-        <p role="status" className="mt-4 rounded-md border border-border bg-off-white px-3 py-2 text-sm text-muted">
-          <T>No outstanding punch items - this no longer blocks the Data Book.</T>
+        <p role="status" className="mt-4 text-sm text-muted">
+          <T>No outstanding punch items.</T>
         </p>
       )}
 
@@ -196,7 +195,13 @@ export async function PunchListView({
 
       <WalkdownsPanel projectId={projectId} />
 
-      <StatusLegend className="mt-6" />
+      <details className="group mt-6">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Status legend</T>
+        </summary>
+        <StatusLegend className="mt-2" />
+      </details>
       <div className="mt-2">
         <PunchListTable
           projectId={projectId}

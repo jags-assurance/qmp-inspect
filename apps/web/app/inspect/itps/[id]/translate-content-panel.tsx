@@ -21,11 +21,13 @@ export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId:
   const [state, formAction, pending] = useActionState(translateItpContentAction, initialState);
 
   return (
-    <div className="mt-3 rounded-md border border-border bg-off-white p-3">
+    <details className="group mt-3">
+      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><Tx>Translate</Tx></summary>
+    <div className="mt-2 rounded-md border border-border bg-off-white p-3">
       <form action={formAction} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="target_language" value={TARGET_LANGUAGE} />
-        <p className="text-xs text-muted"><Tx>Show the title &amp; scope in French, alongside the original.</Tx></p>
+        <p className="text-xs text-muted"><Tx>Show title &amp; scope in French.</Tx></p>
         <button
           type="submit"
           disabled={pending}
@@ -56,5 +58,6 @@ export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId:
         </div>
       )}
     </div>
+    </details>
   );
 }

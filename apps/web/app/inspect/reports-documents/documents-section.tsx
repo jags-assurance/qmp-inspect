@@ -170,7 +170,7 @@ export function DocumentsSection({
     <section className="mt-8">
       <h2 className="text-lg font-semibold text-ink"><T>Generated documents</T></h2>
       <p className="mt-1 text-sm text-muted">
-        <T>ITP PDFs, inspection reports, IRNs, NCRs, FAT reports and Data Books filed by the platform. Newest first. Links are short-lived; reload the page for a fresh one.</T>
+        <T>Newest first. Links expire; reload for a fresh one.</T>
       </p>
 
       {/* Keyed on the filters: Reset is a client-side navigation, so without a remount the uncontrolled

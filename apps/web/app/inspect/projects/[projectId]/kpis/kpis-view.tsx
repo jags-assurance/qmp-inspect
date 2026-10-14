@@ -445,7 +445,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
           <h2 className="font-medium text-ink"><T>Open Holds — how long work has actually been stopped</T></h2>
           <Link href="/inspect/start-work" className="text-xs text-burgundy hover:underline"><T>Open the start-work list</T></Link>
           <p className="mt-1 text-sm text-muted">
-            <T>Every currently open blocking sign-off, ranked longest-waiting first — distinct from the average hold-point turnaround above, which only reflects Holds that have already closed.</T>
+            <T>Open blocking sign-offs, longest-waiting first.</T>
           </p>
           <ul className="mt-3 space-y-2">
             {openHolds.map((hold) => (
@@ -467,7 +467,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       {punchBySource.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink"><T>Punch list by source</T></h2>
-          <p className="mt-1 text-sm text-muted"><T>Where every punch list item actually came from — open vs. closed, by origin.</T></p>
+          <p className="mt-1 text-sm text-muted"><T>Punch list items by origin, open vs closed.</T></p>
           <ol className="mt-4 space-y-3">
             {punchBySource.map((row) => {
               const total = row.openCount + row.closedCount;
@@ -492,7 +492,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
         <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink"><T>Quality by party</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Sign-off completion rate and NCR count per project party, ranked by sign-off rate highest to lowest.</T>
+            <T>Sign-off rate and NCRs per party.</T>
           </p>
           <ol className="mt-4 space-y-3">
             {qualityByParty.map((row, index) => (
@@ -517,7 +517,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
       {qualityByDiscipline.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink"><T>Quality by discipline</T></h2>
-          <p className="mt-1 text-sm text-muted"><T>First-time pass rate per discipline, ranked highest to lowest.</T></p>
+          <p className="mt-1 text-sm text-muted"><T>First-time pass rate per discipline.</T></p>
           <ol className="mt-4 space-y-3">
             {qualityByDiscipline.map((row, index) => (
               <li key={row.disciplineCode} className="flex items-center gap-3">
@@ -543,7 +543,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
           <h2 className="font-medium text-ink"><T>Inspection completion by ITP</T></h2>
           <p className="mt-1 text-sm text-muted">
-            <T>Share of planned inspection items with a recorded result, per ITP. Ranked highest to lowest.</T>
+            <T>Inspection items with a result, per ITP.</T>
           </p>
           <div className="mt-4 text-ink">
             <ItpCompletionChart rows={itpCompletionRows} />
@@ -584,7 +584,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
 
       <div className="mt-8">
         <h2 className="font-medium text-ink"><T>Open items</T></h2>
-        <p className="mt-1 text-sm text-muted"><T>Open NCRs and observations, plus any failed inspection on this project.</T></p>
+        <p className="mt-1 text-sm text-muted"><T>Open NCRs, observations and failed inspections.</T></p>
         <div className="mt-3">
           <OpenItemsTable rows={kpis.openItems} />
         </div>

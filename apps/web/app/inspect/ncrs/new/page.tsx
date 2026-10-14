@@ -134,12 +134,9 @@ export default async function NewNcrPage({
           ]}
         />
       </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Record a non-conformance or observation against a project — from a failed inspection, a walkdown, or standalone.</T>
-      </p>
       {params.inspection_record_id && (
         <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
-          <T>Linked to inspection record — closing this NCR will notify the original inspector that the activity is ready for re-inspection.</T>
+          <T>Linked to an inspection record; closing notifies the inspector to re-inspect.</T>
         </p>
       )}
       <NewNcrForm

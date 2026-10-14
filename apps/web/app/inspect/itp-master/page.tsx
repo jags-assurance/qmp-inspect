@@ -45,7 +45,7 @@ export default async function ItpMasterLibraryPage() {
             />
           </div>
           <p className="mt-1 text-sm text-muted">
-            <T>JAGS-internal ITP templates, built up across projects. Never visible to clients. Content only enters the library through an approved proposal.</T>
+            <T>JAGS-internal ITP templates, never shown to clients.</T>
           </p>
         </div>
         <Link

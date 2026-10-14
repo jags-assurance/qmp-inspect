@@ -704,7 +704,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
           <p className="font-medium"><T>Revision</T> {itp.revision} <T>is awaiting approval</T></p>
           <p className="mt-0.5 text-xs text-muted">
-            <T>This ITP was changed after it was issued. The change is recorded in the revision history; someone other than the person who made it needs to approve the new revision.</T>
+            <T>Changed after issue; someone other than the editor must approve it.</T>
           </p>
           {canApproveItp && <ApproveRevisionForm itpId={itp.id} revision={itp.revision} />}
         </div>
@@ -729,8 +729,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 <li key={w}>{w}</li>
               ))}
             </ul>
-            <p className="mt-1 text-xs text-muted"><T>These don&apos;t block submission, but reviewers will usually expect them filled in.</T></p>
-          </div>
+                      </div>
         );
       })()}
       {itp.status === "draft" && itp.returned_reason && (
@@ -928,7 +927,13 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
           organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S
           list, so a custom level an admin adds shows up here too. */}
-      <InterventionLegend levels={levels} />
+      <details className="group mt-4">
+        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          <T>Sign-off level legend</T>
+        </summary>
+        <InterventionLegend levels={levels} />
+      </details>
 
       {canRecordExternalApproval && (
         <ExternalApprovalForm

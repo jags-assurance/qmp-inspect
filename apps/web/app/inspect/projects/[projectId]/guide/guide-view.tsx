@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
+import { MoreDetails } from "../../more-details";
 
 const PARTY_TYPE_LABEL: Record<string, string> = {
   client: "Client",
@@ -61,14 +62,16 @@ function PipelineBar({ segments }: { segments: { label: string; count: number; c
           ) : null
         )}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-        {segments.map((s) => (
-          <span key={s.label} className="inline-flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${s.colorClass}`} />
-            {s.label} ({s.count})
-          </span>
-        ))}
-      </div>
+      <MoreDetails label="Legend">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {segments.map((s) => (
+            <span key={s.label} className="inline-flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${s.colorClass}`} />
+              {s.label} ({s.count})
+            </span>
+          ))}
+        </div>
+      </MoreDetails>
     </div>
   );
 }
@@ -232,8 +235,7 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
           {project.project_number} <span className="font-normal text-muted">— {project.name}</span>
         </Heading>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Who&apos;s on this project, what&apos;s actually expected of them, and where the pipeline stands right now — for &quot;is
-          this project done yet, as a %,&quot; see the Data Book instead; this page is the people/roles map.
+Who is on this project and where it stands.
         </p>
       </div>
 
@@ -257,10 +259,7 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
           <p className="mt-2 text-sm text-ink">
             {PARTY_TYPE_RESPONSIBILITY[myParty!.party_type] ?? "See the App Guide for general role responsibilities."}
           </p>
-          <p className="mt-2 text-xs text-muted">
-            On the intervention grid, you can only sign off the &quot;{myParty!.name}&quot; column — every other party&apos;s pending
-            cell will show &quot;Awaiting party&quot; instead of a Sign off button for you.
-          </p>
+          <p className="mt-2 text-xs text-muted">You can only sign off the &quot;{myParty!.name}&quot; column.</p>
         </section>
       )}
 
@@ -289,10 +288,7 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
 
         <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-sm font-semibold text-ink">What&apos;s actually required here</h2>
-          <p className="mt-1 text-xs text-muted">
-            No single &quot;requirements&quot; field exists — the real requirements live in each ITP&apos;s applicable standard and
-            the Document Vault.
-          </p>
+          <p className="mt-1 text-xs text-muted">Requirements come from each ITP&apos;s standard and the Document Vault.</p>
           {standards.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {standards.map((s) => (
@@ -317,9 +313,6 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
 
       <section className="mt-4 rounded-lg border border-border bg-surface p-5">
         <h2 className="font-medium text-ink">Reports &amp; documents</h2>
-        <p className="mt-1 text-sm text-muted">
-          Data books, PDF/Excel report packs, and the live activity timeline for this project.
-        </p>
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
           <Link href={`/inspect/projects/${projectId}/reports`} className="font-medium text-burgundy hover:underline">
             Reports &amp; downloads →
@@ -351,7 +344,9 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
                   {p.user_id === session.userId && <Badge tone="gold">You</Badge>}
                   {!p.is_active && <Badge tone="neutral">Inactive</Badge>}
                 </div>
-                <p className="mt-1 text-xs text-muted">{PARTY_TYPE_RESPONSIBILITY[p.party_type] ?? ""}</p>
+                {PARTY_TYPE_RESPONSIBILITY[p.party_type] && (
+                  <MoreDetails label="Role">{PARTY_TYPE_RESPONSIBILITY[p.party_type]}</MoreDetails>
+                )}
               </div>
             </div>
           ))}
@@ -381,16 +376,13 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
             </div>
           </div>
         </div>
-        <p className="mt-4 text-sm text-muted">
-          See the{" "}
+        <p className="mt-4 flex gap-3 text-sm">
           <Link href={`/inspect/projects/${projectId}/punch-list`} className="font-medium text-burgundy hover:underline">
             Punch List →
-          </Link>{" "}
-          for individual items, or the{" "}
+          </Link>
           <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
             Data Book →
-          </Link>{" "}
-          for the overall readiness score.
+          </Link>
         </p>
       </section>
     </div>

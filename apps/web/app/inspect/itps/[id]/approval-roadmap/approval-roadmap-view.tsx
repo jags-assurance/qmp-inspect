@@ -263,7 +263,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink"><T>1. The plan — who approves, who accepts</T></h2>
-        <p className="mt-1 text-xs text-muted"><T>Set once, before the process starts — this is what everyone below is following.</T></p>
+        <p className="mt-1 text-xs text-muted"><T>Set before the process starts.</T></p>
 
         <div className="mt-3 space-y-3">
           <div>
@@ -320,7 +320,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
         {lifecycleExtra?.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
           <div className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
             <p className="font-medium"><T>Revision</T> {lifecycleExtra.revision} <T>is awaiting approval</T></p>
-            <p className="mt-0.5 text-xs text-muted"><T>The stages below show the originally issued ITP; the latest change still needs re-approval.</T></p>
+            <p className="mt-0.5 text-xs text-muted"><T>Stages show the issued ITP; the latest change needs re-approval.</T></p>
           </div>
         )}
         {reviewSteps.length > 0 && (
