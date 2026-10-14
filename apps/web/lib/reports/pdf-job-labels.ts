@@ -24,6 +24,14 @@ export function renderingLabel(job: PdfJobLabelInput | null | undefined): string
   return `Retrying (attempt ${Math.min(attempt + 1, MAX_PDF_JOB_ATTEMPTS)} of ${MAX_PDF_JOB_ATTEMPTS})…`;
 }
 
+/** Label for the Generate/Regenerate button: Generating… while a job is queued/processing, "Failed — Regenerate" after a failure. */
+export function generateButtonLabel(args: { submitting: boolean; polling: boolean; job: PdfJobLabelInput | null | undefined }): string {
+  if (args.submitting) return "Queuing…";
+  if (args.polling || args.job?.status === "pending" || args.job?.status === "processing") return "Generating…";
+  if (args.job?.status === "failed") return "Failed — Regenerate";
+  return args.job ? "Regenerate PDF" : "Generate PDF";
+}
+
 /** Status line for a non-completed, non-polling job. */
 export function jobStatusText(job: PdfJobLabelInput): string {
   switch (job.status) {

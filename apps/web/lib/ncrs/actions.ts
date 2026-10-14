@@ -24,7 +24,7 @@ import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
-import { unownedNcrRecipients, UNOWNED_NCR_TITLE } from "./unowned";
+import { unownedNcrRecipients, UNOWNED_NCR_TITLE, projectTeamLeadIds, pickWithdrawRecipients } from "./unowned";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
 import { hasPermission } from "@/lib/rbac/permissions";
@@ -401,8 +401,8 @@ export async function createNcrAction(
 
   // Best-effort: whoever this NCR is assigned to should hear about it without having to notice it
   // themselves on the register. Never blocks NCR creation, which has already succeeded.
-  const partyUser = await partyUserIdOf(supabase, responsiblePartyId);
-  for (const recipient of new Set([assignedTo || null, partyUser])) {
+  const partyRecipients = await partyUserIds(supabase, responsiblePartyId);
+  for (const recipient of new Set([assignedTo || null, ...partyRecipients])) {
     await notifySafe(
       supabase,
       {
@@ -771,18 +771,20 @@ export async function updateNcrAction(
       );
     }
     if (dParty && newParty) {
-      await notifySafe(
-        supabase,
-        {
-          organizationId: orgId,
-          projectId: current.project_id,
-          recipientUserId: await partyUserIdOf(supabase, newParty),
-          title: "NCR assigned to your organisation",
-          body: current.ncr_number,
-          link: `/inspect/ncrs/${ncrId}`,
-        },
-        session.userId
-      );
+      for (const recipient of await partyUserIds(supabase, newParty)) {
+        await notifySafe(
+          supabase,
+          {
+            organizationId: orgId,
+            projectId: current.project_id,
+            recipientUserId: recipient,
+            title: "NCR assigned to your organisation",
+            body: current.ncr_number,
+            link: `/inspect/ncrs/${ncrId}`,
+          },
+          session.userId
+        );
+      }
     }
   }
 
@@ -1705,9 +1707,9 @@ export async function withdrawNcrAction(_prev: WithdrawNcrState, formData: FormD
   const supabase = await createSupabaseServerClient();
   const { data: cur } = await supabase
     .from(NCRS_TABLE)
-    .select("status, raised_by, project_id, ncr_number, projects(organization_id)")
+    .select("status, raised_by, assigned_to, responsible_party_id, project_id, ncr_number, projects(organization_id)")
     .eq("id", ncrId)
-    .maybeSingle<{ status: string; raised_by: string | null; project_id: string; ncr_number: string; projects: { organization_id: string } | null }>();
+    .maybeSingle<{ status: string; raised_by: string | null; assigned_to: string | null; responsible_party_id: string | null; project_id: string; ncr_number: string; projects: { organization_id: string } | null }>();
   if (!cur) return { error: "NCR not found, or you don't have access to it." };
   const closer = await mayCloseNcr(session, cur.project_id);
   if (!canWithdrawNcr(cur.status, closer, cur.raised_by === session.userId)) {
@@ -1776,11 +1778,14 @@ export async function withdrawNcrAction(_prev: WithdrawNcrState, formData: FormD
       summary: `NCR ${cur.ncr_number} withdrawn: ${reason}${duplicateOf ? " (duplicate)" : ""}`,
       changes: { reason, duplicate_of_ncr_id: duplicateOf },
     });
-    await notifySafe(
-      supabase,
-      { organizationId: orgId, projectId: cur.project_id, recipientUserId: cur.raised_by, title: "NCR withdrawn", body: `${cur.ncr_number}: ${reason}`, link: `/inspect/ncrs/${ncrId}` },
+    // Raiser, owner (assignee + responsible party and its members) and the project's team leads.
+    const withdrawRecipients = pickWithdrawRecipients(
+      [cur.raised_by, cur.assigned_to, ...(await partyUserIds(supabase, cur.responsible_party_id)), ...(await projectTeamLeadIds(supabase, cur.project_id))],
       session.userId
     );
+    for (const recipient of withdrawRecipients) {
+      await notifySafe(supabase, { organizationId: orgId, projectId: cur.project_id, recipientUserId: recipient, title: "NCR withdrawn", body: `${cur.ncr_number}: ${reason}`, link: `/inspect/ncrs/${ncrId}` });
+    }
   }
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   revalidatePath("/inspect/ncrs");

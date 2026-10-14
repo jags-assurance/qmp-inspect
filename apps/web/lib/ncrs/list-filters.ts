@@ -6,6 +6,8 @@ export interface NcrListParams {
   severity?: string;
   project?: string;
   assignee?: string;
+  /** "none": open items with neither an assignee nor a responsible party. */
+  owner?: string;
   overdue?: string;
   sort?: string;
   q?: string;
@@ -26,6 +28,7 @@ export function applyNcrFilters(query: any, p: NcrListParams, userId: string, ti
   if (p.project) query = query.eq("project_id", p.project);
   if (p.assignee === "me") query = query.eq("assigned_to", userId);
   else if (p.assignee === "unassigned") query = query.is("assigned_to", null);
+  if (p.owner === "none") query = query.neq("status", "closed").is("assigned_to", null).is("responsible_party_id", null);
   if (p.overdue === "1") query = query.neq("status", "closed").lt("due_date", siteToday(new Date(), resolveSiteTimeZone(timeZone)));
   return query;
 }

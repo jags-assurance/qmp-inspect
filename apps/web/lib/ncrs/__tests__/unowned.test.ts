@@ -13,3 +13,14 @@ describe("pickUnownedNcrRecipients", () => {
     expect(pickUnownedNcrRecipients(["raiser"], ["admin1"], "raiser")).toEqual([]);
   });
 });
+
+import { pickWithdrawRecipients } from "../unowned";
+
+describe("pickWithdrawRecipients", () => {
+  it("combines raiser, owner, party members and leads without duplicates", () => {
+    expect(pickWithdrawRecipients(["raiser", "assignee", "m1", "lead", "m1", null, undefined], "actor")).toEqual(["raiser", "assignee", "m1", "lead"]);
+  });
+  it("never notifies the person withdrawing", () => {
+    expect(pickWithdrawRecipients(["actor", "raiser"], "actor")).toEqual(["raiser"]);
+  });
+});

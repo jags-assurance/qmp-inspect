@@ -1016,15 +1016,36 @@ export async function finalizeAssignmentAction(
 
   // A failed FAT/assignment must be tracked to resolution: raise a linked punch item (best-effort;
   // the assignment has no responsible party / due date of its own, so those are left for triage).
+  let failPunchMissing = false;
   if (conclusion === "fail") {
-    await createPunchItemFromSource({
-      projectId: assignment.project_id,
-      description: `Failed: ${assignment.equipment_description} (${assignment.assignment_number})`,
-      source: "manual",
-      sourceStandaloneAssignmentId: assignmentId,
-      priority: "A",
-      dedupe: true,
-    });
+    // M3: never finalize a failure silently without its punch item. Retry (dedupe makes this safe);
+    // if it still errors, undo the finalize when the DB allows it (admin), else say so loudly.
+    let punchError: string | null = "unknown";
+    for (let attempt = 0; attempt < 3 && punchError; attempt++) {
+      const failPunch = await createPunchItemFromSource({
+        projectId: assignment.project_id,
+        description: `Failed: ${assignment.equipment_description} (${assignment.assignment_number})`,
+        source: "manual",
+        sourceStandaloneAssignmentId: assignmentId,
+        priority: "A",
+        dedupe: true,
+      });
+      punchError = failPunch.error;
+    }
+    if (punchError) {
+      const { data: undone } = await supabase
+        .from(STANDALONE_ASSIGNMENTS)
+        .update({ status: "draft", conclusion: null, completed_at: null })
+        .eq("id", assignmentId)
+        .eq("status", "completed")
+        .select("id")
+        .returns<{ id: string }[]>();
+      if (undone && undone.length > 0) {
+        revalidatePath(`/inspect/standalone/${assignmentId}`);
+        return { error: "Could not create the linked punch-list item for this failure, so the assignment was not finalized. Try again." };
+      }
+      failPunchMissing = true;
+    }
   }
 
   await notifyAssignmentParties(supabase, {
@@ -1042,6 +1063,12 @@ export async function finalizeAssignmentAction(
   });
 
   revalidatePath(`/inspect/standalone/${assignmentId}`);
+  if (failPunchMissing) {
+    return {
+      error:
+        "The assignment was finalized as Failed, but its linked punch-list item could not be created. Ask an admin to reopen it and finalize again, or add the punch item manually on the Punch List.",
+    };
+  }
   return { error: null };
 }
 
@@ -1317,7 +1344,7 @@ export interface ReopenAssignmentState {
   error: string | null;
 }
 
-/** Admin-only: returns a completed assignment (e.g. a failed FAT being re-tested) to draft, with a recorded reason. */
+/** Admin-only: returns a completed or conditional-open assignment (e.g. a failed FAT being re-tested) to draft, with a recorded reason. */
 export async function reopenAssignmentAction(_prev: ReopenAssignmentState, formData: FormData): Promise<ReopenAssignmentState> {
   const session = await requireSession();
   if (!isAdminStaff(session)) return { error: "Only a JAGS admin can reopen a completed assignment." };
@@ -1341,11 +1368,28 @@ export async function reopenAssignmentAction(_prev: ReopenAssignmentState, formD
       clearance_number: null,
     })
     .eq("id", assignmentId)
-    .eq("status", "completed")
+    .in("status", ["completed", "conditional_open"])
     .select("id")
     .returns<{ id: string }[]>();
   if (error) return { error: "Could not reopen the assignment. Check you have permission and try again." };
-  if (!data || data.length === 0) return { error: "Only a completed assignment can be reopened." };
+  if (!data || data.length === 0) return { error: "Only a completed or conditionally open assignment can be reopened." };
+
+  // M2: same supersede rule as an inspection that is re-completed. The failure / conditional-pass punch
+  // items still untouched ("open") are withdrawn so a stale defect cannot block handover; items already
+  // being worked (any other status) are left exactly as they are, and nothing is deleted. A new finalize
+  // raises a fresh item (dedupe ignores closed ones). Best-effort, like the inspection path.
+  try {
+    const now = new Date().toISOString();
+    const note = `Superseded: assignment was reopened for re-test (${reason})`;
+    const { error: supersedeError } = await supabase
+      .from(PUNCH_LIST_ITEMS_TABLE)
+      .update({ status: "closed", closing_evidence: note, verification_notes: note, withdrawn_at: now, withdrawn_by: session.userId, withdrawn_reason: note, closed_by: session.userId, closed_at: now })
+      .eq("source_standalone_assignment_id", assignmentId)
+      .eq("status", "open");
+    if (supersedeError && !isMissingSchemaError(supersedeError)) console.error("[punch] standalone supersede failed", supersedeError.message);
+  } catch {
+    // Best-effort.
+  }
 
   await auditStandalone(supabase, assignmentId, session, "standalone_assignment", "reopened", "Assignment reopened to draft", { reason });
   revalidatePath(`/inspect/standalone/${assignmentId}`);

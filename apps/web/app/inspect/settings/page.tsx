@@ -22,6 +22,7 @@ import { CloudFolderSyncView } from "../organisation/cloud-sync/cloud-sync-view"
 import { InterventionLevelsSettingsView } from "../organisation/intervention-levels/intervention-levels-view";
 import { PlansSettingsView } from "../organisation/plans/plans-view";
 import { RetentionSettingsView } from "../organisation/retention/retention-view";
+import { SystemHealthView } from "../organisation/system-health/system-health-view";
 import { T } from "@/components/domain/t";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -43,6 +44,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "intervention-levels": "Hold, witness and review level definitions.",
   plans: "Plan limits and seats in use.",
   retention: "How long documents are kept, and the ones past that period.",
+  "system-health": "Which features are configured, worker activity and email queue.",
 };
 
 type Params = Record<string, string | string[] | undefined>;
@@ -69,6 +71,7 @@ const RENDERERS: Record<string, Render> = {
   "intervention-levels": (sp) => <InterventionLevelsSettingsView searchParams={asView(sp)} embedded />,
   plans: () => <PlansSettingsView embedded />,
   retention: (sp) => <RetentionSettingsView searchParams={asView(sp)} embedded />,
+  "system-health": () => <SystemHealthView embedded />,
 };
 
 /** Same grouping as the admin "Settings" tree in app/inspect/layout.tsx. Items with `href` are link-only. */
@@ -110,13 +113,14 @@ const ALL_GROUPS: SettingsNavGroup[] = [
     items: [
       { key: "insights", label: "Portfolio Insights" },
       { key: "usage", label: "Usage & Cost", href: "/inspect/organisation/usage" },
+      { key: "system-health", label: "System Health" },
       { key: "reporting", label: "Reporting" },
     ],
   },
   {
     label: "Sync & Traceability",
     items: [
-      { key: "cloud-sync", label: "Cloud Folder Sync" },
+      // Cloud Folder Sync hidden: it only stores a folder reference (nothing reads it yet). Renderer kept.
       { key: "traceability", label: "Document Traceability", href: "/inspect/organisation/traceability" },
       { key: "intervention-levels", label: "Intervention Levels" },
       { key: "plans", label: "Plans & Seats" },

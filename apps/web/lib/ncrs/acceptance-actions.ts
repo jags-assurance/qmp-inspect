@@ -8,6 +8,8 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
 import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
+import { partyUserIds, permissionHolderIds } from "@/lib/ncrs/recipients";
+import { projectTeamLeadIds } from "@/lib/ncrs/unowned";
 import { canRecordClientAcceptance, validateAcceptanceInput } from "@/lib/ncrs/acceptance";
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -32,6 +34,20 @@ async function isClientPartyUserForProject(supabase: Supabase, projectId: string
     .limit(1)
     .returns<{ id: string }[]>();
   return (members ?? []).length > 0;
+}
+
+/** Logins of every active client-type party of the project (primary login plus team members). */
+async function clientPartyUserIds(supabase: Supabase, projectId: string): Promise<string[]> {
+  const { data: parties } = await supabase
+    .from("project_parties")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("party_type", "client")
+    .eq("is_active", true)
+    .returns<{ id: string }[]>();
+  const out = new Set<string>();
+  for (const p of parties ?? []) for (const id of await partyUserIds(supabase, p.id)) out.add(id);
+  return [...out];
 }
 
 export interface ClientAcceptanceState {
@@ -86,6 +102,24 @@ export async function setClientAcceptanceRequiredAction(_prev: ClientAcceptanceS
       // Best-effort audit.
     }
   }
+  // Asking (or asking again) tells the client party that their acceptance is the thing holding this NCR.
+  if (required && cur.projects?.organization_id) {
+    try {
+      for (const recipientUserId of new Set(await clientPartyUserIds(supabase, cur.project_id))) {
+        if (recipientUserId === session.userId) continue;
+        await createNotification(supabase, {
+          organizationId: cur.projects.organization_id,
+          projectId: cur.project_id,
+          recipientUserId,
+          title: "Client acceptance required",
+          body: `${cur.ncr_number}: please review the disposition and accept or reject it.`,
+          link: `/inspect/ncrs/${ncrId}`,
+        });
+      }
+    } catch {
+      // Best-effort notifications.
+    }
+  }
   revalidatePath(`/inspect/ncrs/${ncrId}`);
   return { error: null, done: true };
 }
@@ -101,7 +135,7 @@ export async function recordClientAcceptanceAction(_prev: ClientAcceptanceState,
   const supabase = await createSupabaseServerClient();
   const { data: cur } = await supabase
     .from(NCRS_TABLE)
-    .select("status, project_id, ncr_number, raised_by, assigned_to, disposition, withdrawn_at, client_acceptance_required, projects(organization_id)")
+    .select("status, project_id, ncr_number, raised_by, assigned_to, responsible_party_id, disposition, withdrawn_at, client_acceptance_required, projects(organization_id)")
     .eq("id", ncrId)
     .maybeSingle<{
       status: string;
@@ -109,6 +143,7 @@ export async function recordClientAcceptanceAction(_prev: ClientAcceptanceState,
       ncr_number: string;
       raised_by: string | null;
       assigned_to: string | null;
+      responsible_party_id: string | null;
       disposition: string | null;
       withdrawn_at: string | null;
       client_acceptance_required: boolean | null;
@@ -159,7 +194,16 @@ export async function recordClientAcceptanceAction(_prev: ClientAcceptanceState,
         summary: `NCR ${cur.ncr_number}: client ${parsed.decision} the disposition${admin ? " (recorded by a JAGS admin)" : ""}${parsed.comment ? ` - ${parsed.comment}` : ""}`,
         changes: { decision: parsed.decision, comment: parsed.comment, on_behalf: admin },
       });
-      for (const recipientUserId of new Set([cur.raised_by, cur.assigned_to].filter((v): v is string => !!v && v !== session.userId))) {
+      // A rejection must reach whoever owns the NCR: raiser, assignee, responsible party members, team leads and closers.
+      const owners =
+        parsed.decision === "rejected"
+          ? [
+              ...(await partyUserIds(supabase, cur.responsible_party_id)),
+              ...(await projectTeamLeadIds(supabase, cur.project_id)),
+              ...(await permissionHolderIds(supabase, "close_ncr", cur.project_id)),
+            ]
+          : [];
+      for (const recipientUserId of new Set([cur.raised_by, cur.assigned_to, ...owners].filter((v): v is string => !!v && v !== session.userId))) {
         await createNotification(supabase, {
           organizationId: orgId,
           projectId: cur.project_id,

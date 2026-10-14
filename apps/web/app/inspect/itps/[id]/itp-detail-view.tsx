@@ -14,6 +14,8 @@ import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { AcceptItpForm } from "./accept-itp-form";
 import { ReviewChainStatus } from "./review-chain-status";
 import { getItpReviewProgress } from "@/lib/itps/review-chain";
+import { deactivatedApproverHint } from "@/lib/itps/lifecycle";
+import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE } from "@/lib/itp-approval-workflow/types";
 import { ReturnItpForm } from "./return-itp-form";
 import { ApproveRevisionForm } from "./approve-revision-form";
 import { BulkAddItemsForm } from "./bulk-add-items-form";
@@ -628,6 +630,19 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     session.isJagsStaff || (partyIsActive && !!partyUserId && partyUserId === session.userId);
 
   const hasActiveReviewChain = reviewSteps.length > 0 && reviewSteps.some((s) => s.status === "pending");
+  // M4: with no active chain, a deactivated required approver means only an Admin can approve. Say so.
+  let approverHint: string | null = null;
+  if (itp.status === "under_review" && !hasActiveReviewChain && !isAdminStaff(session) && itp.projects?.organization_id) {
+    const { data: wf } = await supabase
+      .from(ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE)
+      .select("required_approver_user_id")
+      .eq("organization_id", itp.projects.organization_id)
+      .maybeSingle<{ required_approver_user_id: string | null }>();
+    if (wf?.required_approver_user_id) {
+      const { data: approver } = await supabase.from("users").select("full_name, is_active").eq("id", wf.required_approver_user_id).maybeSingle<{ full_name: string; is_active: boolean | null }>();
+      approverHint = deactivatedApproverHint(approver);
+    }
+  }
 
   // Full Client-Managed tier's approval half: a non-staff person can Approve only when they hold
   // the approve_itp custom-role permission on this project — RLS (itps_u,
@@ -889,6 +904,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
           )}
+          {approverHint && <p role="status" className="max-w-sm text-xs text-amber-700">{approverHint}</p>}
           {itp.status === "under_review" && (canApproveItp || session.isJagsStaff) && <ReturnItpForm itpId={itp.id} />}
           {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
               activity_signoff_progress row for this ITP in one click. Stays staff-only even on a

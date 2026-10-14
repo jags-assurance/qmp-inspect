@@ -6,7 +6,8 @@ vi.mock("@/lib/auth/session", async () => (await import("@/lib/test-utils/mock-s
 vi.mock("next/cache", async () => (await import("@/lib/test-utils/mock-supabase")).nextCacheModule());
 const audit = vi.hoisted(() => ({ recordAuditEvent: vi.fn(async () => undefined) }));
 vi.mock("@/lib/audit/log", () => audit);
-vi.mock("@/lib/notifications/helpers", () => ({ createNotification: vi.fn(async () => undefined) }));
+const notif = vi.hoisted(() => ({ createNotification: vi.fn(async () => true) }));
+vi.mock("@/lib/notifications/helpers", () => notif);
 
 import { recordClientAcceptanceAction, setClientAcceptanceRequiredAction } from "../acceptance-actions";
 
@@ -147,5 +148,46 @@ describe("recordClientAcceptanceAction", () => {
     mock.on("ncrs", "update", { data: null });
     expect((await accept()).error).toMatch(/changed meanwhile/);
     expect(audit.recordAuditEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("acceptance notifications", () => {
+  beforeEach(() => {
+    notif.createNotification.mockClear();
+  });
+
+  it("tells every client party login that acceptance is required, again on each ask", async () => {
+    const mock = resetTestCtx(sessions.inspector());
+    mock.on("ncrs", "select", { data: ncr() });
+    mock.on("ncrs", "update", { data: [{ id: "ncr-1" }] });
+    mock.on("project_parties", "select", { data: [{ id: "party-1", user_id: "client-1" }] });
+    mock.on("project_party_members", "select", { data: [{ user_id: "client-2" }] });
+    const ask = () => setClientAcceptanceRequiredAction({ error: null }, formData({ ncr_id: "ncr-1", required: true }));
+    await ask();
+    const to = notif.createNotification.mock.calls.map((c) => (c as unknown as [unknown, { recipientUserId: string; link: string }])[1]);
+    expect(to.map((n) => n.recipientUserId).sort()).toEqual(["client-1", "client-2"]);
+    expect(to[0].link).toBe("/inspect/ncrs/ncr-1");
+    notif.createNotification.mockClear();
+    await ask();
+    expect(notif.createNotification).toHaveBeenCalled();
+  });
+
+  it("does not notify the client when acceptance is switched off", async () => {
+    const mock = resetTestCtx(sessions.inspector());
+    mock.on("ncrs", "select", { data: ncr() });
+    mock.on("ncrs", "update", { data: [{ id: "ncr-1" }] });
+    await setClientAcceptanceRequiredAction({ error: null }, formData({ ncr_id: "ncr-1" }));
+    expect(notif.createNotification).not.toHaveBeenCalled();
+  });
+
+  it("a rejection reaches the raiser and the assignee with the reason", async () => {
+    const mock = resetTestCtx(sessions.external({ userId: "client-1" }));
+    mock.on("ncrs", "select", { data: ncr({ assigned_to: "assignee-1" }) });
+    mock.on("ncrs", "update", { data: { id: "ncr-1" } });
+    mock.on("project_parties", "select", { data: [{ id: "party-1", user_id: "client-1" }] });
+    await recordClientAcceptanceAction({ error: null }, formData({ ncr_id: "ncr-1", decision: "rejected", comment: "Not acceptable" }));
+    const calls = notif.createNotification.mock.calls.map((c) => (c as unknown as [unknown, { recipientUserId: string; body: string }])[1]);
+    expect(calls.map((n) => n.recipientUserId)).toEqual(expect.arrayContaining(["inspector-9", "assignee-1"]));
+    expect(calls[0].body).toContain("Not acceptable");
   });
 });

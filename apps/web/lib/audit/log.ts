@@ -65,8 +65,12 @@ export async function recordAuditEvent(
     }
 
     // Function not deployed yet (migration pending): fall back to the original direct insert.
+    // A project-scoped event must carry its organisation (org-scoped views and RLS depend on it). The RPC
+    // above derives it; this legacy path derives it the same way. Genuinely platform-wide events (auth,
+    // staff grants: no project) keep organization_id NULL on purpose.
+    const organizationId = await resolveAuditOrganizationId(supabase, params.organizationId ?? null, params.projectId ?? null);
     const { error } = await supabase.from(AUDIT_LOG_TABLE).insert({
-      organization_id: params.organizationId ?? null,
+      organization_id: organizationId,
       project_id: params.projectId ?? null,
       entity_type: params.entityType,
       entity_id: params.entityId,
@@ -89,4 +93,15 @@ const RPC_MISSING_CODES = new Set(["42883", "42703", "42P01", "PGRST202", "PGRST
 
 interface RpcClient {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ error: { code?: string; message: string } | null }>;
+}
+
+/** The organisation an audit row belongs to: the explicit one, else the project's, else null (platform-wide). */
+export async function resolveAuditOrganizationId(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string | null,
+  projectId: string | null
+): Promise<string | null> {
+  if (organizationId || !projectId) return organizationId;
+  const { data } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle();
+  return (data as { organization_id: string | null } | null)?.organization_id ?? null;
 }

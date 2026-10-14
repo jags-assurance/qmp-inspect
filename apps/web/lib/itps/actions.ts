@@ -19,7 +19,7 @@ import { approvePermissionStrict, mayApproveItp, revisionApprovalRecipients } fr
 import { parseBulkActivityRows } from "@/lib/itps/bulk-import";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ITP_APPROVAL_WORKFLOW_CONFIGS_TABLE, type ItpApprovalWorkflowConfigRow } from "@/lib/itp-approval-workflow/types";
-import { startReviewChainForItp, getItpReviewProgress, archiveReviewChain, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
+import { startReviewChainForItp, resolveReviewChain, checkChainReviewers, chainProblemMessage, getItpReviewProgress, archiveReviewChain, ITP_REVIEW_PROGRESS_TABLE } from "@/lib/itps/review-chain";
 import { assertAiAllowed } from "@/lib/ai/gate";
 import { aiErrorMessage } from "@/lib/ai/config";
 import { logAiUsage } from "@/lib/ai/log";
@@ -1241,6 +1241,18 @@ export async function advanceItpStatusAction(
     if (!activityCount) {
       return { error: "Add at least one activity before submitting this ITP for review." };
     }
+
+    // M3: every reviewer on the chain that will apply must still be active and able to reach the project.
+    const { data: chainItp } = await supabase
+      .from("itps")
+      .select("project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ project_id: string; projects: { organization_id: string } | null }>();
+    if (chainItp?.projects?.organization_id) {
+      const chain = await resolveReviewChain(supabase, itpId, chainItp.project_id);
+      const problems = await checkChainReviewers(supabase, chainItp.project_id, chainItp.projects.organization_id, chain);
+      if (problems.length > 0) return { error: chainProblemMessage(problems) };
+    }
   }
 
   // No self-approval: the person who submitted the ITP for review can't also approve it. A JAGS Admin
@@ -1276,6 +1288,20 @@ export async function advanceItpStatusAction(
   if (!advancedRows?.length) {
     revalidatePath(`/inspect/itps/${itpId}`);
     return { error: "This ITP's status has already changed — refresh the page to see where it is now." };
+  }
+
+  // M2: the review chain is part of the submission. If a configured chain cannot be put in place, undo
+  // the submission rather than leaving an under_review ITP that anyone could approve with one click.
+  let chainStarted = false;
+  if (nextStatus === "under_review") {
+    const { data: chainItp } = await supabase.from("itps").select("project_id").eq("id", itpId).maybeSingle<{ project_id: string }>();
+    const started = await startReviewChainForItp(supabase, itpId, chainItp?.project_id ?? "");
+    if (started.error) {
+      await supabase.from("itps").update({ status: fromStatus, reviewed_by: null, reviewed_at: null } as never).eq("id", itpId).eq("status", "under_review");
+      revalidatePath(`/inspect/itps/${itpId}`);
+      return { error: started.error };
+    }
+    chainStarted = started.started;
   }
 
   let checklistNotice: string | null = null;
@@ -1323,8 +1349,6 @@ export async function advanceItpStatusAction(
         // right now and let startReviewChainForItp notify only the FIRST reviewer — the broad
         // "notify every JAGS staff member" fallback below is for projects with no chain configured,
         // where any staff member clicking the single Approve button is still the real mechanism.
-        const chainStarted = await startReviewChainForItp(supabase, itpId, itp?.project_id ?? "");
-
         const { data: submitter } = user
           ? await supabase.from("users").select("is_jags_staff").eq("id", user.id).maybeSingle<{ is_jags_staff: boolean }>()
           : { data: null };

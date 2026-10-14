@@ -300,6 +300,11 @@ export async function requestItpPdfAction(_prev: RequestItpPdfState, formData: F
   if (!itpId) return { error: "Missing ITP." };
 
   const supabase = await createSupabaseServerClient();
+  // Don't queue a second render while one for this ITP is already pending/processing (repeat clicks, two users).
+  if (await hasInFlightJob(supabase, "render_itp_pdf", "itp_id", itpId)) {
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: null, success: true };
+  }
   const { error } = await supabase.from(BACKGROUND_JOBS_TABLE).insert({
     job_type: "render_itp_pdf",
     payload: { itp_id: itpId, requested_by: session.userId } satisfies RenderItpPdfPayload,

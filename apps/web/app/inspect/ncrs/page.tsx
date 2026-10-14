@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
+import { registerStatsFromRows } from "@/lib/ncrs/register-stats";
 import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
 import { fetchProjectTimeZone, fetchProjectTimeZones } from "@/lib/projects/timezone";
 import { T } from "@/components/domain/t";
@@ -108,8 +109,25 @@ export default async function NcrsPage({
   // Server component: evaluated once per request, which is the intended "now".
   // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();
-  const [stats, { count: totalCount }, { data: ncrs }] = await Promise.all([
-    loadRegisterStats(
+  const fetchStatRows = () =>
+    fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
+      statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
+    );
+  // Staff only: open NCRs (not observations) that nobody owns, so they can be assigned.
+  const unownedCountPromise = session.isJagsStaff
+    ? supabase
+        .from(NCRS_TABLE)
+        .select("id", { count: "exact", head: true })
+        .neq("severity", "observation")
+        .neq("status", "closed")
+        .is("assigned_to", null)
+        .is("responsible_party_id", null)
+    : Promise.resolve({ count: 0 });
+  const [stats, { count: totalCount }, { data: ncrs }, { count: unownedCount }] = await Promise.all([
+    // The owner filter is not understood by the SQL aggregate, so a filtered view counts from its own rows.
+    sp.owner === "none"
+      ? fetchStatRows().then((r) => registerStatsFromRows(r, nowMs, siteToday(new Date(), resolveSiteTimeZone(filterTz))))
+      : loadRegisterStats(
       supabase,
       {
         observations: false,
@@ -121,15 +139,13 @@ export default async function NcrsPage({
         todayIso: siteToday(new Date(), resolveSiteTimeZone(filterTz)),
         nowMs,
       },
-      () =>
-        fetchAll<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">>((from, to) =>
-          statsQuery.order("id").range(from, to).returns<Pick<NcrRegisterRow, "status" | "due_date" | "created_at">[]>()
-        )
+      fetchStatRows
     ),
     countQuery,
     (applyNcrSort(tableQuery, sp.sort) as typeof tableQuery)
       .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
       .returns<NcrRegisterRow[]>(),
+    unownedCountPromise,
   ]);
 
   const rows = ncrs ?? [];
@@ -143,8 +159,8 @@ export default async function NcrsPage({
     return qs ? `/inspect/ncrs?${qs}` : "/inspect/ncrs";
   };
   const exportQs = new URLSearchParams();
-  for (const k of ["status", "severity", "project", "assignee", "overdue", "sort", "q"] as const) if (sp[k]) exportQs.set(k, sp[k]!);
-  const filtersActive = Boolean(sp.status || sp.severity || sp.assignee || sp.overdue || q || projectId || disciplineId);
+  for (const k of ["status", "severity", "project", "assignee", "owner", "overdue", "sort", "q"] as const) if (sp[k]) exportQs.set(k, sp[k]!);
+  const filtersActive = Boolean(sp.status || sp.severity || sp.assignee || sp.owner || sp.overdue || q || projectId || disciplineId);
   const chip = (active: boolean) =>
     "inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium " +
     (active ? "border-burgundy bg-burgundy text-white" : "border-border bg-surface text-ink hover:bg-off-white");
@@ -186,6 +202,15 @@ export default async function NcrsPage({
         </Link>
       </div>
 
+      {session.isJagsStaff && (unownedCount ?? 0) > 0 && (
+        <p className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink">
+          <T>NCRs without an owner:</T> <strong>{unownedCount}</strong>{" "}
+          <Link href={hrefWith({ owner: "none", status: undefined, overdue: undefined, assignee: undefined })} className="text-burgundy hover:underline">
+            <T>Show them so they can be assigned</T>
+          </Link>
+        </p>
+      )}
+
       {projectId && (
         <p className="mt-3 text-sm text-muted">
           <T>Filtered to one project.</T>{" "}
@@ -216,6 +241,7 @@ export default async function NcrsPage({
         {projectId && <input type="hidden" name="project" value={projectId} />}
         {sp.status && <input type="hidden" name="status" value={sp.status} />}
         {sp.overdue && <input type="hidden" name="overdue" value={sp.overdue} />}
+        {sp.owner && <input type="hidden" name="owner" value={sp.owner} />}
         <label className="text-xs text-muted">
           <T>Severity</T>
           <select name="severity" defaultValue={sp.severity ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">

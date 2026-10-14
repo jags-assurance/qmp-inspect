@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { createNotification } from "@/lib/notifications/helpers";
 import { sectionDeleteBlocker } from "@/lib/itps/guards";
-import { exitRequestError, isTerminalItpStatus } from "@/lib/itps/lifecycle";
+import { exitRequestError, isTerminalItpStatus, openWorkMessage, supersedeCreatesCycle } from "@/lib/itps/lifecycle";
 
 // S2-08: controlled exits for an ITP. A wrongly created draft can be deleted (only while nothing has been
 // done with it); an issued ITP can be marked superseded (replaced by another) or withdrawn, with a reason
@@ -15,6 +15,8 @@ import { exitRequestError, isTerminalItpStatus } from "@/lib/itps/lifecycle";
 
 export interface ItpExitState {
   error: string | null;
+  /** True when the refusal can be overridden by ticking the confirmation box (open inspections / NCRs). */
+  needsConfirm?: boolean;
 }
 
 const MISSING = new Set(["42703", "PGRST204", "23514"]);
@@ -44,7 +46,34 @@ export async function withdrawItpAction(_prev: ItpExitState, formData: FormData)
   if (mode === "superseded") {
     const { data: r } = await supabase.from("itps").select("id, itp_number, status").eq("id", replacementId).eq("project_id", itp.project_id).neq("status", "withdrawn").maybeSingle<{ id: string; itp_number: string; status: string }>();
     if (!r) return { error: "The replacement ITP must be on the same project and not withdrawn." };
+    if (r.status === "superseded") return { error: "The replacement ITP is itself superseded. Choose the ITP that is currently in force." };
+    // Cycle check (A supersedes B supersedes A): follow the replacement's own replacement links.
+    const links = new Map<string, string | null>();
+    let cur: string | null = r.id;
+    for (let i = 0; cur && i < 25 && !links.has(cur); i++) {
+      const res: { data: { superseded_by_itp_id: string | null } | null } = await supabase.from("itps").select("superseded_by_itp_id").eq("id", cur).maybeSingle<{ superseded_by_itp_id: string | null }>();
+      const next: string | null = res.data?.superseded_by_itp_id ?? null;
+      links.set(cur, next);
+      cur = next;
+    }
+    if (supersedeCreatesCycle(itpId, r.id, (id) => links.get(id) ?? null)) {
+      return { error: "That would create a loop: the replacement ITP is already replaced by this one (directly or through other ITPs)." };
+    }
     replacement = r;
+  }
+
+  // Open (draft) inspections and open NCRs on this ITP's activities: refuse unless explicitly confirmed.
+  if (formData.get("confirm_open_work") !== "1") {
+    const { data: sections } = await supabase.from("itp_sections").select("id").eq("itp_id", itpId).returns<{ id: string }[]>();
+    const sectionIds = (sections ?? []).map((x) => x.id);
+    const { data: items } = sectionIds.length ? await supabase.from("itp_items").select("id").in("section_id", sectionIds).returns<{ id: string }[]>() : { data: [] as { id: string }[] };
+    const itemIds = (items ?? []).map((x) => x.id);
+    if (itemIds.length) {
+      const { count: openInspections } = await supabase.from("inspection_records").select("id", { count: "exact", head: true }).in("itp_item_id", itemIds).is("overall_result", null);
+      const { count: openNcrs } = await supabase.from("ncrs").select("id", { count: "exact", head: true }).in("itp_item_id", itemIds).neq("status", "closed");
+      const msg = openWorkMessage(openInspections ?? 0, openNcrs ?? 0);
+      if (msg) return { error: msg, needsConfirm: true };
+    }
   }
 
   const { data: updated, error } = await supabase

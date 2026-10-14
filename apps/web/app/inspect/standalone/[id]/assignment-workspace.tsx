@@ -424,7 +424,7 @@ export function AssignmentWorkspace({
           .
         </p>
       )}
-      {assignment.status === "completed" && isAdmin && <ReopenForm assignmentId={assignment.id} />}
+      {(assignment.status === "completed" || assignment.status === "conditional_open") && isAdmin && <ReopenForm assignmentId={assignment.id} />}
     </div>
   );
 }

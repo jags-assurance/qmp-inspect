@@ -7,6 +7,7 @@ import {
   MATERIAL_REGISTER_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
+import { strictPercentage, isCategoryComplete } from "./readiness-math";
 import { fetchAllRows, fetchInChunks } from "./helpers";
 import { isRegisterRowCounted, type RegisterRowMeta } from "@/lib/registers/lifecycle";
 import { isTerminalItpStatus } from "@/lib/itps/lifecycle";
@@ -45,7 +46,7 @@ export interface DataBookReadiness {
    * Sum of every gating category's `ready` count divided by the sum of every gating category's
    * `total` count (handoverCertificate excluded — see above) — a single, disclosed formula, not an
    * average of percentages (which would weight a 1-item category the same as a 40-item one) and not
-   * a mystery number. Rounded to the nearest whole percent.
+   * a mystery number. Floored (never rounds up to 100 unless everything is ready).
    */
   overallPercentage: number;
   /** True only when every gating category is 100% AND there are zero open punch items — the R86 compile gate. */
@@ -83,7 +84,7 @@ export async function fetchCountedRegisterRows<T extends object>(
 }
 
 function toCategory(label: string, ready: number, total: number): ReadinessCategory {
-  return { label, ready, total, percentage: total === 0 ? 100 : Math.round((ready / total) * 100) };
+  return { label, ready, total, percentage: strictPercentage(ready, total) };
 }
 
 /**
@@ -328,7 +329,7 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
   ];
   const totalReady = gatingCategories.reduce((sum, c) => sum + c.ready, 0);
   const totalRequired = gatingCategories.reduce((sum, c) => sum + c.total, 0);
-  const overallPercentage = totalRequired === 0 ? 100 : Math.round((totalReady / totalRequired) * 100);
+  const overallPercentage = strictPercentage(totalReady, totalRequired);
 
   const openPunchItemCount = openPunchItems ?? 0;
 
@@ -347,6 +348,6 @@ export async function computeDataBookReadiness(projectId: string): Promise<DataB
     handoverCertificate: handoverCertificateCategory,
     openPunchItems: openPunchItemCount,
     overallPercentage,
-    isReady: gatingCategories.every((c) => c.percentage === 100) && openPunchItemCount === 0,
+    isReady: gatingCategories.every(isCategoryComplete) && openPunchItemCount === 0,
   };
 }

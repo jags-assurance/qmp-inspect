@@ -66,3 +66,28 @@ export function exitRequestError(args: { mode: string; reason: string; replaceme
   if (args.mode === "superseded" && (!args.replacementId || args.replacementId === args.itpId)) return "Choose the ITP that replaces this one.";
   return null;
 }
+
+/** Message shown before withdrawing/superseding an ITP that still has open inspections or NCRs; null when there is none. */
+export function openWorkMessage(openInspections: number, openNcrs: number): string | null {
+  if (openInspections <= 0 && openNcrs <= 0) return null;
+  const parts: string[] = [];
+  if (openInspections > 0) parts.push(`${openInspections} open (draft) inspection${openInspections === 1 ? "" : "s"}`);
+  if (openNcrs > 0) parts.push(`${openNcrs} open NCR${openNcrs === 1 ? "" : "s"}`);
+  return `This ITP still has ${parts.join(" and ")}. They stay on record but the ITP becomes read-only. Tick the confirmation box to withdraw or supersede it anyway.`;
+}
+
+/** True when following the replacement's own "superseded by" links leads back to this ITP (A -> B -> A). */
+export function supersedeCreatesCycle(itpId: string, replacementId: string, nextOf: (id: string) => string | null, maxHops = 25): boolean {
+  let cur: string | null = replacementId;
+  for (let i = 0; cur && i < maxHops; i++) {
+    if (cur === itpId) return true;
+    cur = nextOf(cur);
+  }
+  return false;
+}
+
+/** M4: hint shown when the organisation's required approver is deactivated, so only a JAGS Admin can approve. */
+export function deactivatedApproverHint(approver: { full_name: string; is_active: boolean | null } | null): string | null {
+  if (!approver || approver.is_active !== false) return null;
+  return `${approver.full_name}, the approver this organisation requires, is deactivated, so only a JAGS Admin can approve this ITP. Ask an Admin to approve it or to change the approval workflow.`;
+}

@@ -4,6 +4,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./sentry.server.config");
+    const { startupWarning } = await import("./lib/system-health/config");
+    const warning = startupWarning(process.env);
+    if (warning) console.warn(warning);
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {

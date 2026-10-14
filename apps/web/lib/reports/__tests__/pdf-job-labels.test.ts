@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderingLabel, jobStatusText, retryAttempt, isPdfStale } from "../pdf-job-labels";
+import { renderingLabel, jobStatusText, retryAttempt, isPdfStale, generateButtonLabel } from "../pdf-job-labels";
 
 describe("isPdfStale (S6-14)", () => {
   const rendered = "2026-11-08T10:00:00Z";
@@ -29,5 +29,16 @@ describe("pdf job labels", () => {
   it("shows a clear failure", () => {
     expect(jobStatusText({ status: "failed", errorMessage: "Attempt 2 failed, will retry: boom" })).toContain("PDF generation failed");
     expect(jobStatusText({ status: "pending" })).toBe("Queued…");
+  });
+});
+
+describe("generateButtonLabel", () => {
+  it("covers every state", () => {
+    expect(generateButtonLabel({ submitting: true, polling: false, job: null })).toBe("Queuing…");
+    expect(generateButtonLabel({ submitting: false, polling: true, job: null })).toBe("Generating…");
+    expect(generateButtonLabel({ submitting: false, polling: false, job: { status: "processing" } })).toBe("Generating…");
+    expect(generateButtonLabel({ submitting: false, polling: false, job: { status: "failed" } })).toBe("Failed — Regenerate");
+    expect(generateButtonLabel({ submitting: false, polling: false, job: { status: "completed" } })).toBe("Regenerate PDF");
+    expect(generateButtonLabel({ submitting: false, polling: false, job: null })).toBe("Generate PDF");
   });
 });

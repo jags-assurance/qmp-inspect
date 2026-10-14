@@ -129,3 +129,47 @@ export function formatQueueAge(createdAt: number, now: number = Date.now()): str
   if (hours < 48) return `${hours} h`;
   return `${Math.floor(hours / 24)} days`;
 }
+
+/** Shown instead of the raw server text when a queued completion is refused for the Witness-notice rule. */
+export const WITNESS_NOTICE_MESSAGE = "Notify the Witness party first (online), then retry.";
+
+/** True when a completion was refused because a Witness/review party was never notified. */
+export function isWitnessNoticeError(message: string | null | undefined): boolean {
+  return !!message && /^Notify the .+ party before completing/i.test(message.trim());
+}
+
+/**
+ * What a rejected/conflict ("needs review") item holds back within its group. Permanent failures
+ * hold only dependants: the inspection completion, later answers to the SAME checklist item, and
+ * everything after a failed start_inspection. Transient failures (backoff, auth, foreign user)
+ * keep holding the whole group so order is preserved while they retry.
+ */
+export interface GroupHold {
+  all: boolean;
+  completion: boolean;
+  keys: Set<string>;
+}
+export type GroupHolds = Map<string, GroupHold>;
+
+export function isPermanentFailure(status: string | undefined | null): boolean {
+  return status === "rejected" || status === "conflict";
+}
+
+export function recordHold(holds: GroupHolds, group: string, item: { kind: string; fields: Record<string, string> }, permanent: boolean): void {
+  if (!group) return;
+  const hold = holds.get(group) ?? { all: false, completion: false, keys: new Set<string>() };
+  hold.completion = true;
+  if (!permanent || item.kind === "start_inspection") hold.all = true;
+  const key = responseKey(item);
+  if (key) hold.keys.add(key);
+  holds.set(group, hold);
+}
+
+export function isItemHeld(holds: GroupHolds, group: string, item: { kind: string; fields: Record<string, string> }): boolean {
+  const hold = group ? holds.get(group) : undefined;
+  if (!hold) return false;
+  if (hold.all) return true;
+  if (item.kind === "complete_inspection") return hold.completion;
+  const key = responseKey(item);
+  return !!key && hold.keys.has(key);
+}

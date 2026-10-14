@@ -70,6 +70,12 @@ export function ItpExitControls({
             <textarea name="reason" required minLength={5} rows={2} className={INPUT} />
           </label>
           <p className="text-xs text-muted"><Tx>A withdrawn or superseded ITP becomes read-only, is kept for the record and no longer counts toward Data Book readiness.</Tx></p>
+          {exitState.needsConfirm && (
+            <label className="flex items-start gap-2 text-xs text-ink">
+              <input type="checkbox" name="confirm_open_work" value="1" className="mt-0.5" />
+              <span><Tx>I understand open inspections and NCRs stay open on a read-only ITP.</Tx></span>
+            </label>
+          )}
           {exitState.error && <p role="alert" className="text-xs text-danger">{exitState.error}</p>}
           <button type="submit" disabled={exiting} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink disabled:opacity-50">
             {exiting ? "Saving…" : "Confirm"}

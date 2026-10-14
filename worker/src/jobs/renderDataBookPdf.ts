@@ -1,3 +1,4 @@
+import { strictPercentage, isCategoryComplete } from "../readinessMath";
 import { getSharedBrowser } from "../browserPool";
 import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
@@ -55,7 +56,7 @@ function isStandaloneCleared(r: { status: string; conclusion: string | null; cle
 }
 
 function toCategory(label: string, ready: number, total: number): DataBookPdfCategory {
-  return { label, ready, total, percentage: total === 0 ? 100 : Math.round((ready / total) * 100) };
+  return { label, ready, total, percentage: strictPercentage(ready, total) };
 }
 
 /**
@@ -265,7 +266,7 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
   ];
   const totalReady = gatingCategories.reduce((sum, c) => sum + c.ready, 0);
   const totalRequired = gatingCategories.reduce((sum, c) => sum + c.total, 0);
-  const overallPercentage = totalRequired === 0 ? 100 : Math.round((totalReady / totalRequired) * 100);
+  const overallPercentage = strictPercentage(totalReady, totalRequired);
   const openPunchItemCount = openPunchItems ?? 0;
 
   return {
@@ -273,7 +274,7 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
     handoverCertificate: handoverCertificateCategory,
     openPunchItems: openPunchItemCount,
     overallPercentage,
-    isReady: gatingCategories.every((c) => c.percentage === 100) && openPunchItemCount === 0,
+    isReady: gatingCategories.every(isCategoryComplete) && openPunchItemCount === 0,
   };
 }
 

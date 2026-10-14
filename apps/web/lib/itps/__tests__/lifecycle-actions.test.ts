@@ -65,6 +65,45 @@ describe("withdrawItpAction / supersede", () => {
     expect(mock.writes()).toHaveLength(0);
   });
 
+  it("refuses a replacement that would create a loop (A -> B -> A)", async () => {
+    mock.on("itps", "select", (c) =>
+      c.columns?.includes("itp_number, title")
+        ? { data: itpRow() }
+        : c.columns === "superseded_by_itp_id"
+          ? { data: { superseded_by_itp_id: "itp-1" } }
+          : { data: { id: "itp-2", itp_number: "ITP-002", status: "approved" } }
+    );
+    const res = await exit({ mode: "superseded", superseded_by_itp_id: "itp-2" });
+    expect(res.error).toMatch(/loop/);
+    expect(mock.writes()).toHaveLength(0);
+  });
+
+  it("refuses a replacement that is itself superseded", async () => {
+    mock.on("itps", "select", (c) => (c.columns?.includes("itp_number, title") ? { data: itpRow() } : { data: { id: "itp-2", itp_number: "ITP-002", status: "superseded" } }));
+    const res = await exit({ mode: "superseded", superseded_by_itp_id: "itp-2" });
+    expect(res.error).toMatch(/itself superseded/);
+  });
+
+  describe("open inspections / NCRs", () => {
+    beforeEach(() => {
+      mock.on("itp_sections", "select", { data: [{ id: "sec-1" }] });
+      mock.on("itp_items", "select", { data: [{ id: "item-1" }] });
+      mock.on("inspection_records", "select", { data: [], count: 2 });
+      mock.on("ncrs", "select", { data: [], count: 1 });
+    });
+    it("refuses without confirmation and asks for it", async () => {
+      const res = await exit({});
+      expect(res.error).toMatch(/2 open \(draft\) inspections and 1 open NCR/);
+      expect(res.needsConfirm).toBe(true);
+      expect(mock.writes()).toHaveLength(0);
+    });
+    it("proceeds once the Admin confirms", async () => {
+      const res = await exit({ confirm_open_work: "1" });
+      expect(res.error).toBeNull();
+      expect(mock.writes("itps", "update")).toHaveLength(1);
+    });
+  });
+
   it("will not exit an ITP that is already terminal", async () => {
     mock.on("itps", "select", { data: itpRow({ status: "withdrawn" }) });
     const res = await exit({});

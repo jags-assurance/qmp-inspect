@@ -9,7 +9,7 @@ import {
   removeOutboxItem,
   type OutboxItem,
 } from "./db";
-import { MAX_SERVER_FAILURES, ORIGIN_REJECTED_MESSAGE, backoffMs, classifyHttpFailure, isOriginRejection, itemGroupKey, laterAnswersToRebase, mayReplayItem, responseKey } from "./policy";
+import { MAX_SERVER_FAILURES, ORIGIN_REJECTED_MESSAGE, backoffMs, classifyHttpFailure, isOriginRejection, isItemHeld, isPermanentFailure, isWitnessNoticeError, itemGroupKey, laterAnswersToRebase, mayReplayItem, recordHold, responseKey, WITNESS_NOTICE_MESSAGE, type GroupHolds } from "./policy";
 import { getLocalUserId } from "./user";
 
 const QUEUE_CHANGED_EVENT = "qmp-offline-queue-changed";
@@ -80,13 +80,13 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
   const currentUserId = await getLocalUserId();
   let synced = 0;
   let failed = 0;
-  const blockedInspections = new Set<string>();
+  const holds: GroupHolds = new Map();
 
   for (const item of items) {
     const group = itemGroupKey(item);
-    if (group && blockedInspections.has(group)) continue;
+    if (isItemHeld(holds, group, item)) continue;
     if (item.status && item.status !== "pending") {
-      if (group) blockedInspections.add(group);
+      recordHold(holds, group, item, isPermanentFailure(item.status));
       continue;
     }
 
@@ -99,12 +99,12 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
           "foreign"
         );
       }
-      if (group) blockedInspections.add(group);
+      recordHold(holds, group, item, false);
       continue;
     }
 
     if (item.nextAttemptAt && item.nextAttemptAt > Date.now()) {
-      if (group) blockedInspections.add(group);
+      recordHold(holds, group, item, false);
       continue;
     }
 
@@ -182,7 +182,7 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
       }
       if (body?.wrongUser) {
         await recordOutboxFailure(item.id, body.error ?? "Queued by a different user on this device.", "foreign");
-        if (group) blockedInspections.add(group);
+        recordHold(holds, group, item, false);
         failed++;
         continue;
       }
@@ -193,7 +193,7 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
           body?.error ?? "This answer was changed by someone else after you recorded it offline.",
           "conflict"
         );
-        if (group) blockedInspections.add(group);
+        recordHold(holds, group, item, true);
         failed++;
       } else if (klass === "too_large") {
         await recordOutboxFailure(
@@ -201,11 +201,15 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
           "This photo is too large to upload from the queue. Discard it and take it again (it will be compressed).",
           "rejected"
         );
-        if (group) blockedInspections.add(group);
+        recordHold(holds, group, item, true);
         failed++;
       } else if (klass === "rejected") {
-        await recordOutboxFailure(item.id, body?.error ?? `The server rejected this change (${response.status}).`, "rejected");
-        if (group) blockedInspections.add(group);
+        const message =
+          item.kind === "complete_inspection" && isWitnessNoticeError(body?.error)
+            ? WITNESS_NOTICE_MESSAGE
+            : (body?.error ?? `The server rejected this change (${response.status}).`);
+        await recordOutboxFailure(item.id, message, "rejected");
+        recordHold(holds, group, item, true);
         failed++;
       } else if (klass === "server") {
         // Our own handler failed (5xx): spend one unit of the budget and back off.
@@ -219,7 +223,7 @@ async function runSync(): Promise<{ synced: number; failed: number }> {
           exhausted ? "rejected" : "pending"
         );
         failed++;
-        if (group) blockedInspections.add(group);
+        recordHold(holds, group, item, exhausted);
       } else {
         // Gateway / captive portal / unparseable: not a server verdict, so the budget is untouched.
         await recordOutboxNetworkError(item.id, "No usable answer from the server. Will retry.");

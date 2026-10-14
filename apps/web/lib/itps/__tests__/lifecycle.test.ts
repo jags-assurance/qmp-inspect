@@ -3,6 +3,9 @@ import {
   approvePermissionStrict,
   canGenerateChecklistsForStatus,
   exitRequestError,
+  openWorkMessage,
+  supersedeCreatesCycle,
+  deactivatedApproverHint,
   isTerminalItpStatus,
   mayApproveItp,
   nextReviewRound,
@@ -108,5 +111,25 @@ describe("diffRevisions", () => {
     const d = diffRevisions({ sections_snapshot: [section("s1", [])] }, { sections_snapshot: [section("s2", [])] });
     expect(d.addedSections).toHaveLength(1);
     expect(d.removedSections).toHaveLength(1);
+  });
+});
+
+describe("withdraw / supersede guards and approver hint", () => {
+  it("openWorkMessage is null with nothing open and singular/plural otherwise", () => {
+    expect(openWorkMessage(0, 0)).toBeNull();
+    expect(openWorkMessage(1, 0)).toContain("1 open (draft) inspection. ");
+    expect(openWorkMessage(0, 3)).toMatch(/3 open NCRs/);
+  });
+  it("supersedeCreatesCycle detects direct and indirect loops", () => {
+    const next = (m: Record<string, string>) => (id: string) => m[id] ?? null;
+    expect(supersedeCreatesCycle("A", "B", next({ B: "A" }))).toBe(true);
+    expect(supersedeCreatesCycle("A", "B", next({ B: "C", C: "A" }))).toBe(true);
+    expect(supersedeCreatesCycle("A", "B", next({ B: "C" }))).toBe(false);
+    expect(supersedeCreatesCycle("A", "B", next({ B: "C", C: "B" }))).toBe(false);
+  });
+  it("deactivatedApproverHint only speaks for a deactivated approver", () => {
+    expect(deactivatedApproverHint(null)).toBeNull();
+    expect(deactivatedApproverHint({ full_name: "Sam", is_active: true })).toBeNull();
+    expect(deactivatedApproverHint({ full_name: "Sam", is_active: false })).toMatch(/Sam.*only a JAGS Admin/);
   });
 });

@@ -148,3 +148,41 @@ describe("laterAnswersToRebase", () => {
     expect(laterAnswersToRebase([photo], photo)).toEqual([]);
   });
 });
+
+import { isItemHeld, isPermanentFailure, isWitnessNoticeError, recordHold, type GroupHolds } from "../policy";
+
+describe("per-group hold policy", () => {
+  const ans = (rec: string, item: string) => ({ kind: "checklist_response", fields: { inspection_record_id: rec, checklist_item_id: item } });
+  const photo = { kind: "photo", fields: { inspection_record_id: "r1" } };
+  const complete = { kind: "complete_inspection", fields: { inspection_record_id: "r1" } };
+
+  it("a permanently rejected item holds only its dependants", () => {
+    const holds: GroupHolds = new Map();
+    recordHold(holds, "r1", { kind: "link_item_document", fields: { inspection_record_id: "r1" } }, true);
+    expect(isItemHeld(holds, "r1", photo)).toBe(false);
+    expect(isItemHeld(holds, "r1", ans("r1", "a"))).toBe(false);
+    expect(isItemHeld(holds, "r1", complete)).toBe(true);
+    expect(isItemHeld(holds, "r2", complete)).toBe(false);
+  });
+  it("a rejected answer holds later answers to the same item only", () => {
+    const holds: GroupHolds = new Map();
+    recordHold(holds, "r1", ans("r1", "a"), true);
+    expect(isItemHeld(holds, "r1", ans("r1", "a"))).toBe(true);
+    expect(isItemHeld(holds, "r1", ans("r1", "b"))).toBe(false);
+  });
+  it("a transient failure or failed start holds the whole group", () => {
+    const holds: GroupHolds = new Map();
+    recordHold(holds, "r1", photo, false);
+    expect(isItemHeld(holds, "r1", ans("r1", "z"))).toBe(true);
+    const h2: GroupHolds = new Map();
+    recordHold(h2, "r1", { kind: "start_inspection", fields: {} }, true);
+    expect(isItemHeld(h2, "r1", photo)).toBe(true);
+  });
+  it("classifies statuses and the witness notice message", () => {
+    expect(isPermanentFailure("rejected")).toBe(true);
+    expect(isPermanentFailure("conflict")).toBe(true);
+    expect(isPermanentFailure("auth")).toBe(false);
+    expect(isWitnessNoticeError("Notify the Witness party before completing this inspection (Sign-off tab on the ITP).")).toBe(true);
+    expect(isWitnessNoticeError("Something else")).toBe(false);
+  });
+});

@@ -143,35 +143,124 @@ export async function archiveReviewChain(
   }
 }
 
+export interface ChainReviewerProblem {
+  userId: string;
+  name: string;
+  reason: "not_found" | "deactivated" | "no_access";
+}
+
+/** Pure: which chain members can no longer review (missing, deactivated, or without access to the project). */
+export function chainReviewerProblems(
+  chain: { reviewerUserId: string; reviewerName: string }[],
+  users: { id: string; full_name: string; is_active: boolean | null }[],
+  reachableUserIds: Set<string>
+): ChainReviewerProblem[] {
+  const byId = new Map(users.map((u) => [u.id, u]));
+  const out: ChainReviewerProblem[] = [];
+  for (const m of chain) {
+    const u = byId.get(m.reviewerUserId);
+    const name = u?.full_name ?? m.reviewerName;
+    if (!u) out.push({ userId: m.reviewerUserId, name, reason: "not_found" });
+    else if (u.is_active === false) out.push({ userId: m.reviewerUserId, name, reason: "deactivated" });
+    else if (!reachableUserIds.has(m.reviewerUserId)) out.push({ userId: m.reviewerUserId, name, reason: "no_access" });
+  }
+  return out;
+}
+
+/** Admin-facing message listing who must be reassigned before the ITP can be submitted. */
+export function chainProblemMessage(problems: ChainReviewerProblem[]): string {
+  const why = { not_found: "no longer exists", deactivated: "is deactivated", no_access: "no longer has access to this project" } as const;
+  const list = problems.map((p) => `${p.name} (${why[p.reason]})`).join("; ");
+  return `This ITP's review chain can't start: ${list}. A JAGS Admin must replace ${problems.length === 1 ? "that reviewer" : "those reviewers"} in the review chain, then submit again.`;
+}
+
+/** The chain that applies to this ITP: its own override if set, else the project's. */
+export async function resolveReviewChain(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  itpId: string,
+  projectId: string
+): Promise<ReviewChainMember[]> {
+  const itpOverride = await getItpReviewChainOverride(supabase, itpId);
+  return itpOverride.length > 0 ? itpOverride : await getProjectReviewChain(supabase, projectId);
+}
+
+/** Checks every chain member is an active user who can still reach the project. Returns the problems found. */
+export async function checkChainReviewers(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  projectId: string,
+  organizationId: string,
+  chain: ReviewChainMember[]
+): Promise<ChainReviewerProblem[]> {
+  if (chain.length === 0) return [];
+  const ids = chain.map((m) => m.reviewerUserId);
+  const { data: users } = await supabase
+    .from("users")
+    .select("id, full_name, is_active")
+    .in("id", ids)
+    .returns<{ id: string; full_name: string; is_active: boolean | null }[]>();
+  const { data: grants } = await supabase
+    .from("access_grants")
+    .select("user_id")
+    .in("user_id", ids)
+    .or(`scope_type.eq.global,organization_id.eq.${organizationId},project_id.eq.${projectId}`)
+    .returns<{ user_id: string }[]>();
+  return chainReviewerProblems(chain, users ?? [], new Set((grants ?? []).map((g) => g.user_id)));
+}
+
+export interface StartReviewChainResult {
+  /** True when a chain was configured and its steps are now in place. */
+  started: boolean;
+  /** Set when a chain WAS configured but could not be put in place. The caller must not fall back to single-click approval. */
+  error?: string;
+}
+
 /**
  * Called from advanceItpStatusAction the moment an ITP moves draft -> under_review. Snapshots the
  * CURRENT chain onto this ITP — this specific ITP's own override if one was configured, else the
  * project's chain — a later edit to either one never retroactively changes an ITP already
- * mid-review. No-op (returns false) when neither is configured, so the caller can fall back to
- * today's plain single-click Approve behaviour unchanged.
+ * mid-review. Returns started=false (no error) only when neither is configured. When a chain is
+ * configured but the steps cannot be written, returns an error and leaves the previous steps intact
+ * (atomic RPC, or restore on failure) so the caller can undo the submission instead of silently
+ * degrading to single-click approval.
  */
 export async function startReviewChainForItp(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   itpId: string,
   projectId: string
-): Promise<boolean> {
-  const itpOverride = await getItpReviewChainOverride(supabase, itpId);
-  const chain = itpOverride.length > 0 ? itpOverride : await getProjectReviewChain(supabase, projectId);
-  if (chain.length === 0) return false;
+): Promise<StartReviewChainResult> {
+  const chain = await resolveReviewChain(supabase, itpId, projectId);
+  if (chain.length === 0) return { started: false };
 
-  // Start clean: a resubmission (or a double click) must never stack a second set of steps on top of
-  // an earlier one. A round that is still there (e.g. an Admin override approved the ITP part-way) is archived first.
+  // A round that is still there (e.g. an Admin override approved the ITP part-way) is archived first.
   await archiveReviewChain(supabase, itpId, "Review restarted");
-  await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
 
-  await supabase.from(ITP_REVIEW_PROGRESS_TABLE).insert(
-    chain.map((member) => ({
-      itp_id: itpId,
-      reviewer_user_id: member.reviewerUserId,
-      sort_order: member.sortOrder,
-      status: "pending" as const,
-    }))
-  );
+  const steps = chain.map((m) => ({ reviewer_user_id: m.reviewerUserId, sort_order: m.sortOrder }));
+  const failure = "The review chain could not be set up, so the ITP was not submitted. Try again; if it keeps failing contact an administrator.";
+
+  const { error: rpcError } = await supabase.rpc("replace_itp_review_steps" as never, { p_itp_id: itpId, p_steps: steps } as never);
+  if (rpcError) {
+    const missingFn = rpcError.code === "42883" || rpcError.code === "PGRST202";
+    if (!missingFn) return { started: false, error: failure };
+    // Function not migrated yet: delete + insert, restoring the previous steps if anything fails.
+    const { data: previous, error: readError } = await supabase
+      .from(ITP_REVIEW_PROGRESS_TABLE)
+      .select("reviewer_user_id, sort_order, status, reviewed_at")
+      .eq("itp_id", itpId)
+      .returns<{ reviewer_user_id: string; sort_order: number; status: string; reviewed_at: string | null }[]>();
+    if (readError) return { started: false, error: failure };
+    const { error: delError } = await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
+    if (delError) return { started: false, error: failure };
+    const { error: insError } = await supabase.from(ITP_REVIEW_PROGRESS_TABLE).insert(
+      steps.map((s) => ({ itp_id: itpId, ...s, status: "pending" as const }))
+    );
+    if (insError) {
+      if (previous?.length) {
+        await supabase.from(ITP_REVIEW_PROGRESS_TABLE).delete().eq("itp_id", itpId);
+        await supabase.from(ITP_REVIEW_PROGRESS_TABLE).insert(previous.map((p) => ({ ...p, itp_id: itpId })));
+      }
+      return { started: false, error: failure };
+    }
+  }
 
   // Best-effort: only the FIRST reviewer needs to act right now — later ones are notified as their
   // turn comes up in approveReviewStepAction (review-chain-actions.ts), not all at once (that's the
@@ -197,5 +286,5 @@ export async function startReviewChainForItp(
     // Best-effort — see doc comment above.
   }
 
-  return true;
+  return { started: true };
 }

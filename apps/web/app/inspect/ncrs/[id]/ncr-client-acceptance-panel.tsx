@@ -5,6 +5,7 @@ import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { dispositionSuggestsClientAcceptance } from "@/lib/ncrs/acceptance";
 import { formatSiteDateTime } from "@/lib/ncrs/site-date";
 import { ClientAcceptanceForm, ClientAcceptanceRequiredToggle } from "./ncr-client-acceptance";
+import { AUDIT_LOG_TABLE } from "@/lib/audit/types";
 import { T } from "@/components/domain/t";
 
 interface AcceptanceRow {
@@ -85,6 +86,24 @@ export async function NcrClientAcceptancePanel({
   }
   const canDecide = required && !isClosed && status !== "open" && !!disposition && (isAdminStaff(session) || isClientUser);
   const decided = row.client_acceptance_decision;
+  // When the client was last asked (latest "required" audit event); best-effort, the line is omitted if unreadable.
+  let askedAt: string | null = null;
+  if (required && !decided && !isClosed) {
+    try {
+      const { data: ev } = await supabase
+        .from(AUDIT_LOG_TABLE)
+        .select("created_at")
+        .eq("entity_type", "ncr")
+        .eq("entity_id", ncrId)
+        .eq("action", "client_acceptance_required")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .returns<{ created_at: string }[]>();
+      askedAt = ev?.[0]?.created_at ?? null;
+    } catch {
+      askedAt = null;
+    }
+  }
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
@@ -104,6 +123,7 @@ export async function NcrClientAcceptancePanel({
           ) : (
             <p className="text-muted">
               {disposition ? "Waiting for the client to accept the disposition. The NCR cannot be closed until they do." : "Record the disposition so the client can accept it."}
+              {disposition && askedAt ? ` Waiting for client acceptance since ${formatSiteDateTime(askedAt)}.` : ""}
             </p>
           )}
           {canDecide && <ClientAcceptanceForm ncrId={ncrId} />}
