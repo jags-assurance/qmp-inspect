@@ -35,9 +35,11 @@ export function onOutboxChanged(handler: () => void): () => void {
   return () => window.removeEventListener(QUEUE_CHANGED_EVENT, handler);
 }
 
-function buildFormData(item: OutboxItem): FormData {
+/** The multipart body replayed to POST /api/offline-sync. The route dispatches on `kind`, so it must travel with the fields. */
+export function buildFormData(item: OutboxItem): FormData {
   const formData = new FormData();
   for (const [key, value] of Object.entries(item.fields)) formData.set(key, value);
+  formData.set("kind", item.kind);
   // Real capture time (the item was recorded now-ish on the device, replayed hours later): the
   // server uses it for signed_at / photo timestamps instead of the sync time.
   formData.set("captured_at", new Date(item.createdAt).toISOString());

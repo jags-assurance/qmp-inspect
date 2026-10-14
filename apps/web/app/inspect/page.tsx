@@ -811,7 +811,9 @@ export default async function InspectDashboardPage() {
       items: OverdueHoldRow[];
     }> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase.rpc as any)("overdue_hold_points");
+      const { data, error } = await (supabase.rpc as any)("overdue_hold_points");
+      // A failed call must not read as "no overdue hold points" (a safety-relevant zero).
+      if (error) throw new Error(`Could not load overdue hold points: ${error.message}`);
       const rows = (data ?? []) as {
         id: string;
         itp_id: string | null;

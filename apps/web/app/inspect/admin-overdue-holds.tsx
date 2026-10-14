@@ -31,7 +31,8 @@ export const getOverdueHoldPoints = cache(async (): Promise<OverdueHoldPointItem
   // The function isn't in the generated Database type yet — same narrow, documented escape hatch
   // used for acknowledge_handover().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase.rpc as any)("overdue_hold_points");
+  const { data, error } = await (supabase.rpc as any)("overdue_hold_points");
+  if (error) throw new Error(`Could not load overdue hold points: ${error.message}`);
   return (
     (data ?? []) as {
       id: string;
