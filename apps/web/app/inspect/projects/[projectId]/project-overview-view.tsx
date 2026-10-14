@@ -631,13 +631,19 @@ export async function ProjectOverviewView({
       )}
 
       {isAdminStaff(session) && (
-        <DangerDelete
-          kind="project"
-          id={project.id}
-          confirmWord={project.project_number}
-          loadPreview={getProjectDeletePreviewAction}
-          action={deleteProjectAction}
-        />
+        <details className="group mt-6 border-t border-border pt-3">
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+            <T>Delete this project</T>
+          </summary>
+          <DangerDelete
+            kind="project"
+            id={project.id}
+            confirmWord={project.project_number}
+            loadPreview={getProjectDeletePreviewAction}
+            action={deleteProjectAction}
+          />
+        </details>
       )}
     </div>
     </OrgBrandScope>
