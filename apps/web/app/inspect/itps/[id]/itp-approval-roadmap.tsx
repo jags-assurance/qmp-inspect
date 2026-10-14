@@ -15,6 +15,8 @@ import { T } from "@/components/domain/t";
 export function ItpApprovalRoadmap({
   status,
   reviewSteps,
+  plannedReviewers = [],
+  clientPartyLabels = [],
   approvedByName,
   approvedAt,
   assignedAcceptorName,
@@ -25,6 +27,10 @@ export function ItpApprovalRoadmap({
 }: {
   status: "draft" | "under_review" | "approved" | "client_accepted";
   reviewSteps: ReviewProgressStep[];
+  /** Planned approver names in order, shown before the chain has a progress snapshot. */
+  plannedReviewers?: string[];
+  /** Active client parties (with contact names where known), listed while acceptance is open. */
+  clientPartyLabels?: string[];
   approvedByName: string | null;
   approvedAt: string | null;
   /** Name of this ITP's assigned acceptor, or null when acceptance is open to any linked client party. */
@@ -63,7 +69,9 @@ export function ItpApprovalRoadmap({
         ? `${clientAcceptedByName ?? "Client"}${clientAcceptedAt ? ` · ${new Date(clientAcceptedAt).toLocaleDateString("en-GB")}` : ""}`
         : assignedAcceptorName
           ? `Assigned to ${assignedAcceptorName}`
-          : "Open to any linked client party",
+          : clientPartyLabels.length > 0
+            ? `Any linked client party: ${clientPartyLabels.join("; ")}`
+            : "Open to any linked client party",
     },
   ];
 
@@ -94,10 +102,40 @@ export function ItpApprovalRoadmap({
               {/* Full per-reviewer detail (with the "Approve step" action) lives in ReviewChainStatus
                   below the button row — this is just enough of a summary to place the review chain
                   on the map without duplicating its actionable UI. */}
-              {stage.key === "approved" && reviewSteps.length > 0 && (
-                <p className="text-xs text-muted">
-                  <T>Review chain:</T> {reviewSteps.filter((s) => s.status === "approved").length} <T>of</T> {reviewSteps.length} <T>steps approved</T>
-                </p>
+              {stage.key === "approved" && (reviewSteps.length > 0 || (!pastReview && plannedReviewers.length > 0)) && (
+                <details className="group mt-0.5" open={stage.current}>
+                  <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+                    <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+                    {reviewSteps.length > 0 ? (
+                      <>
+                        <T>Approvers</T> {reviewSteps.filter((s) => s.status === "approved").length}/{reviewSteps.length}
+                      </>
+                    ) : (
+                      <T>Expected approvers</T>
+                    )}
+                  </summary>
+                  <ol className="mt-1 space-y-0.5 text-xs">
+                    {reviewSteps.length > 0
+                      ? reviewSteps.map((step) => (
+                          <li key={step.id} className="break-words text-ink">
+                            {step.sortOrder + 1}. {step.reviewerName}{" "}
+                            <span className={step.status === "approved" ? "font-medium text-success" : "text-muted"}>
+                              {step.status === "approved"
+                                ? `✓ ${step.reviewedAt ? new Date(step.reviewedAt).toLocaleDateString("en-GB") : "done"}`
+                                : "pending"}
+                            </span>
+                          </li>
+                        ))
+                      : plannedReviewers.map((name, i) => (
+                          <li key={`${i}-${name}`} className="break-words text-ink">
+                            {i + 1}. {name} <span className="text-muted">pending</span>
+                          </li>
+                        ))}
+                  </ol>
+                </details>
+              )}
+              {stage.key === "approved" && !pastReview && reviewSteps.length === 0 && plannedReviewers.length === 0 && (
+                <p className="text-xs text-muted"><T>Any JAGS staff member</T></p>
               )}
             </div>
           </li>

@@ -14,6 +14,8 @@ import {
   NOTICE_PERIOD_CONFIGS_TABLE,
   type ActivitySignoffProgressRow,
 } from "@/lib/signoff/db-types";
+import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
+import { partyContactNames } from "@/lib/itps/party-contacts";
 import { HwrsSection, type HwrsPoint } from "./hwrs-section";
 import { ItpReviewChainForm } from "../itp-review-chain-form";
 import { ItpAcceptorPicker } from "../itp-acceptor-picker";
@@ -75,6 +77,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     projectReviewChain,
     reviewSteps,
     { data: staffUsers },
+    { data: partyMembers },
   ] = await Promise.all([
     supabase
       .from("itp_sections")
@@ -83,9 +86,9 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
       .returns<{ id: string; itp_items: { id: string; item_number: string; activity: string }[] }[]>(),
     supabase
       .from("project_parties")
-      .select("id, party_type, name, user_id, is_active")
+      .select("id, party_type, name, user_id, is_active, contact_name")
       .eq("project_id", itp.project_id)
-      .returns<{ id: string; party_type: string; name: string; user_id: string | null; is_active: boolean }[]>(),
+      .returns<{ id: string; party_type: string; name: string; user_id: string | null; is_active: boolean; contact_name: string | null }[]>(),
     supabase
       .from(INTERVENTION_LEVEL_TYPES_TABLE)
       .select("code, label, sort_order, is_blocking, default_notice_hours")
@@ -102,6 +105,12 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     session.isJagsStaff
       ? supabase.from("users").select("id, full_name").eq("is_jags_staff", true).order("full_name").returns<{ id: string; full_name: string }[]>()
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    // Team members per party, in the same parallel batch (RLS limits this to what the viewer can see).
+    supabase
+      .from(PROJECT_PARTY_MEMBERS_TABLE)
+      .select("project_party_id, user_id, project_parties!inner(project_id)")
+      .eq("project_parties.project_id", itp.project_id)
+      .returns<{ project_party_id: string; user_id: string | null }[]>(),
   ]);
 
   const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
@@ -129,7 +138,14 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
     supabase
       .from("users")
       .select("id, full_name")
-      .in("id", [itp.approved_by, itp.client_accepted_by, itp.assigned_acceptor_user_id, ...(signoffs ?? []).map((r) => r.signed_off_by)].filter((v): v is string => Boolean(v)))
+      .in("id", [
+        itp.approved_by,
+        itp.client_accepted_by,
+        itp.assigned_acceptor_user_id,
+        ...(signoffs ?? []).map((r) => r.signed_off_by),
+        ...(parties ?? []).map((p) => p.user_id),
+        ...(partyMembers ?? []).map((m) => m.user_id),
+      ].filter((v): v is string => Boolean(v)))
       .returns<{ id: string; full_name: string }[]>()
   );
 
@@ -183,7 +199,31 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
       },
     ];
   });
-  const hwrsParties = (parties ?? []).map((p) => ({ id: p.id, name: p.name, partyType: p.party_type, isActive: p.is_active }));
+  // Names the viewer can already read (users RLS); anything unreadable is simply left out.
+  const peopleByParty = new Map<string, string[]>();
+  for (const p of parties ?? []) {
+    peopleByParty.set(
+      p.id,
+      partyContactNames({
+        contactName: p.contact_name,
+        linkedUserName: p.user_id ? nameById.get(p.user_id) : null,
+        memberNames: (partyMembers ?? []).filter((m) => m.project_party_id === p.id).map((m) => (m.user_id ? nameById.get(m.user_id) : null)),
+      })
+    );
+  }
+  const hwrsParties = (parties ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    partyType: p.party_type,
+    isActive: p.is_active,
+    people: peopleByParty.get(p.id) ?? [],
+  }));
+  const clientPartyLabels = (parties ?? [])
+    .filter((p) => p.party_type === "client" && p.is_active)
+    .map((p) => {
+      const people = peopleByParty.get(p.id) ?? [];
+      return people.length ? `${p.name} (${people.slice(0, 3).join(", ")})` : p.name;
+    });
 
   const clientPartyUsers = (parties ?? [])
     .filter((p) => p.party_type === "client" && p.is_active && p.user_id)
@@ -309,6 +349,8 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
         <ItpApprovalRoadmap
           status={itp.status}
           reviewSteps={reviewSteps}
+          plannedReviewers={plannedChain.map((m) => m.reviewerName)}
+          clientPartyLabels={clientPartyLabels}
           approvedByName={itp.approved_by ? nameById.get(itp.approved_by) ?? null : null}
           approvedAt={itp.approved_at}
           assignedAcceptorName={itp.assigned_acceptor_user_id ? nameById.get(itp.assigned_acceptor_user_id) ?? null : null}

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { toneClassForLevelIndex } from "@/lib/intervention-levels/types";
 import { T } from "@/components/domain/t";
+import { partyWithPeople } from "@/lib/itps/party-contacts";
 
 export interface HwrsLevel {
   code: string;
@@ -14,6 +15,8 @@ export interface HwrsParty {
   name: string;
   partyType: string;
   isActive: boolean;
+  /** Contact, linked login and team member names the viewer can read; empty when unknown. */
+  people?: string[];
 }
 
 export interface HwrsPoint {
@@ -163,6 +166,11 @@ export function HwrsSection({
     .map(([id, ps]) => ({ party: partyById.get(id), id, ps }))
     .sort((a, b) => (a.party?.name ?? "").localeCompare(b.party?.name ?? ""));
 
+  const partyLabel = (id: string) => {
+    const party = partyById.get(id);
+    return party ? partyWithPeople(party.name, party.people ?? []) : "Unknown party";
+  };
+
   const chipFor = (p: HwrsPoint) => {
     const entry = levelByCode.get(p.levelCode);
     return <PointChip point={p} level={entry?.level} levelIndex={entry?.index ?? 0} nowMs={nowMs} />;
@@ -272,7 +280,7 @@ export function HwrsSection({
                         <td className="max-w-[16rem] px-2 py-1.5">
                           <span className="doc-id text-muted">{p.itemNumber}</span> <span className="break-words text-ink">{p.activity}</span>
                         </td>
-                        <td className="px-2 py-1.5 text-ink">{partyById.get(p.partyId)?.name ?? "Unknown party"}</td>
+                        <td className="px-2 py-1.5 text-ink"><T>Waiting on</T> {partyLabel(p.partyId)}</td>
                         <td className="px-2 py-1.5">{chipFor(p)}</td>
                         <td className="whitespace-nowrap px-2 py-1.5 text-muted">
                           {p.notifiedAt ? fmtDate(p.notifiedAt) : "Not yet notified"}
@@ -300,6 +308,9 @@ export function HwrsSection({
                     <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2 text-sm">
                       <span className="min-w-0 break-words font-medium text-ink">{party?.name ?? "Unknown party"}</span>
                       {party && <span className="text-xs text-muted">{titleCase(party.partyType)}{party.isActive ? "" : " · inactive"}</span>}
+                      {party && (party.people?.length ?? 0) > 0 && (
+                        <span className="min-w-0 break-words text-xs text-ink">{party.people!.join(", ")}</span>
+                      )}
                       <span className="ms-auto flex items-center gap-1.5 text-xs text-muted">
                         {ps.length} <T>points ·</T> {open} <T>open</T>
                         {od > 0 && <Badge tone="danger">{od} <T>overdue</T></Badge>}
@@ -352,7 +363,9 @@ export function HwrsSection({
                             <span className="doc-id text-muted">{a.itemNumber}</span> <span className="break-words text-ink">{a.activity}</span>
                           </td>
                         )}
-                        <td className="px-2 py-1.5 text-ink">{partyById.get(p.partyId)?.name ?? "Unknown party"}</td>
+                        <td className="px-2 py-1.5 text-ink">
+                          {bucketOf(p.status) === "signed_off" ? partyLabel(p.partyId) : <><T>Waiting on</T> {partyLabel(p.partyId)}</>}
+                        </td>
                         <td className="px-2 py-1.5">{chipFor(p)}</td>
                         <td className="px-2 py-1.5 text-muted">
                           {p.signedOffAt ? `${p.signedOffByName ?? "—"} · ${fmtDate(p.signedOffAt)}` : p.proceededReason ?? ""}
