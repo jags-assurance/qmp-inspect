@@ -17,6 +17,7 @@ import {
 } from "@/lib/registers/status";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { displayItemNumber } from "@/lib/itps/item-number";
 
 const CAP = 200;
 const ITEM_FETCH_CAP = 3000;
@@ -297,7 +298,7 @@ export async function DoneActivitiesPanel({
                       <span className="text-xs text-muted"><T>rev</T> {it.itp_sections.itps.revision}</span>
                     </td>
                     <td className="whitespace-nowrap px-2 py-2">
-                      {it.itp_sections.section_number}.{it.item_number}
+                      {displayItemNumber(it.itp_sections.section_number, it.item_number)}
                     </td>
                     <td className="min-w-[12rem] px-2 py-2">{it.activity}</td>
                     <td className="px-2 py-2">{it.discipline?.code ?? "—"}</td>

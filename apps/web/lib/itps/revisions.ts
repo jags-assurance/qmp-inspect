@@ -28,21 +28,24 @@ interface SnapshotSectionRow {
 }
 
 async function buildSectionsSnapshot(supabase: SupabaseServerClient, itpId: string): Promise<ItpRevisionSnapshotSection[]> {
-  const { data: sections } = await supabase
+  const { data: sections, error: sectionsError } = await supabase
     .from("itp_sections")
     .select("id, section_number, title, sort_order, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, discipline_id, sort_order, reference_spec, method, frequency, notice_hours_override, governing_drawing_document_id)")
     .eq("itp_id", itpId)
     .order("section_number")
     .returns<SnapshotSectionRow[]>();
+  // An unreadable ITP must never be frozen as an empty snapshot.
+  if (sectionsError) throw new Error(`Could not read the ITP for its revision snapshot: ${sectionsError.message}`);
 
   const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((i) => i.id));
   const interventionsByItem = new Map<string, { project_party_id: string; party_name: string; intervention: string }[]>();
   if (itemIds.length > 0) {
-    const { data: levels } = await supabase
+    const { data: levels, error: levelsError } = await supabase
       .from("activity_party_intervention")
       .select("itp_item_id, project_party_id, intervention, project_parties(name)")
       .in("itp_item_id", itemIds)
       .returns<{ itp_item_id: string; project_party_id: string; intervention: string; project_parties: { name: string } | null }[]>();
+    if (levelsError) throw new Error(`Could not read the ITP levels for its revision snapshot: ${levelsError.message}`);
     for (const row of levels ?? []) {
       const list = interventionsByItem.get(row.itp_item_id) ?? [];
       list.push({ project_party_id: row.project_party_id, party_name: row.project_parties?.name ?? "", intervention: row.intervention });
@@ -129,12 +132,17 @@ export async function bumpRevisionIfIssued(
   // ITP. Where the row for the current revision already exists, it IS the frozen content (nothing
   // can change an issued ITP without passing through here), so keep its snapshot and append the
   // reason for moving on instead of inserting a duplicate.
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from(ITP_REVISIONS_TABLE)
     .select("id, reason")
     .eq("itp_id", itpId)
     .eq("revision", itp.revision)
     .maybeSingle<{ id: string; reason: string | null }>();
+  // Not knowing whether the row exists must not fall through to an insert (it would violate UNIQUE (itp_id, revision)).
+  if (existingError) {
+    console.error("[itp-revisions] could not look up the current revision row", itpId, existingError);
+    return { bumped: false, error: "Could not read the revision history right now (the database was busy). The edit was not applied — try again." };
+  }
 
   let snapshotError: unknown = null;
   if (existing) {
@@ -143,7 +151,13 @@ export async function bumpRevisionIfIssued(
       .update({ reason: `${existing.reason ?? "Issued"} → Rev ${itp.revision + 1}: ${reason}` })
       .eq("id", existing.id));
   } else {
-    const sections = await buildSectionsSnapshot(supabase, itpId);
+    let sections: Awaited<ReturnType<typeof buildSectionsSnapshot>>;
+    try {
+      sections = await buildSectionsSnapshot(supabase, itpId);
+    } catch (err) {
+      console.error("[itp-revisions] snapshot read failed", itpId, err);
+      return { bumped: false, error: "Could not read the ITP to record its revision history (the database was busy). The edit was not applied — try again." };
+    }
     ({ error: snapshotError } = await supabase.from(ITP_REVISIONS_TABLE).insert({
       itp_id: itpId,
       revision: itp.revision,

@@ -527,11 +527,13 @@ export async function saveChecklistResponseAction(formData: FormData): Promise<S
   // Field execution is JAGS staff's job, or (R76) the party assigned to this specific activity
   // self-inspecting — the RLS write policy alone (has_org_access) would let any party with project
   // access answer a checklist item, so the restriction is enforced here too.
-  const { data: record } = await supabase
+  const { data: record, error: recordError } = await supabase
     .from(INSPECTION_RECORDS_TABLE)
     .select("itp_item_id, project_id, overall_result, checklist_template_id")
     .eq("id", inspectionRecordId)
     .maybeSingle<Pick<InspectionRecordRow, "itp_item_id" | "project_id" | "overall_result" | "checklist_template_id">>();
+  // A transient failure is thrown (the browser then queues the photo and retries) rather than reported as "no permission".
+  if (recordError && isTransientDbError(recordError)) throw new Error("Database busy while checking the inspection.");
   if (!record || !(await canExecuteItpItem(supabase, record.itp_item_id))) {
     return { error: "Could not save — you don't have permission to record a response for this activity." };
   }
@@ -2040,6 +2042,12 @@ export interface PhotoActionResult {
 
 const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
 
+/** Database timeouts / connection trouble, as opposed to a rule refusing the request. */
+function isTransientDbError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === "57014" || /^(08|53|57)/.test(error.code ?? "") || /timeout|timed out|fetch failed|network/i.test(error.message ?? "");
+}
+
 async function loadOpenInspectionForPhoto(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   inspectionRecordId: string
@@ -2073,7 +2081,9 @@ export async function saveInspectionPhotoAction(input: {
   }
   const folder = input.storagePath.slice(0, input.storagePath.lastIndexOf("/"));
   const fileName = input.storagePath.slice(input.storagePath.lastIndexOf("/") + 1);
-  const { data: objs } = await supabase.storage.from("inspection-evidence").list(folder, { search: fileName, limit: 5 });
+  const { data: objs, error: listError } = await supabase.storage.from("inspection-evidence").list(folder, { search: fileName, limit: 5 });
+  // A failed listing must not read as "file not found": the client deletes the upload on a refusal.
+  if (listError) throw new Error("Storage busy while checking the uploaded photo.");
   const obj = (objs ?? []).find((o) => o.name === fileName);
   if (!obj) return { error: "The uploaded file could not be found in storage." };
   const meta = (obj.metadata ?? {}) as { size?: number; mimetype?: string };
@@ -2086,12 +2096,13 @@ export async function saveInspectionPhotoAction(input: {
     return { error: "Only image files can be attached as photo evidence." };
   }
   if (input.checklistItemId) {
-    const { data: item } = await supabase
+    const { data: item, error: itemError } = await supabase
       .from(CHECKLIST_ITEMS_TABLE)
       .select("id")
       .eq("id", input.checklistItemId)
       .eq("template_id", record.checklist_template_id ?? "")
       .maybeSingle<{ id: string }>();
+    if (itemError) throw new Error("Database busy while checking the checklist item.");
     if (!item) return { error: "That checklist item was not found." };
   }
 
@@ -2104,6 +2115,7 @@ export async function saveInspectionPhotoAction(input: {
     uploaded_by: user?.id ?? null,
     checklist_item_id: input.checklistItemId ?? null,
   });
+  if (error && isTransientDbError(error)) throw new Error("Database busy while recording the photo.");
   if (error) return { error: "Could not record the photo." };
   return { error: null };
 }

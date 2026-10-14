@@ -3,6 +3,7 @@
 import type { ItpChecklistPreviewItem } from "@/lib/checklists/preview";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { displayItemNumber } from "@/lib/itps/item-number";
 
 /**
  * Read-only "the checklist that goes with this ITP" — one collapsible entry per activity. Used
@@ -29,7 +30,7 @@ export function ItpChecklistPreview({ items, approved }: { items: ItpChecklistPr
             <details>
               <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm text-ink">
                 <span className="min-w-0">
-                  <span className="doc-id me-1.5 text-muted">{i.sectionNumber}.{i.itemNumber}</span>
+                  <span className="doc-id me-1.5 text-muted">{displayItemNumber(i.sectionNumber, i.itemNumber)}</span>
                   <span className="[overflow-wrap:anywhere]">{i.activity}</span>
                 </span>
                 <span className="shrink-0 text-xs text-muted">
