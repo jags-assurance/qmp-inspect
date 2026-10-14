@@ -1,3 +1,4 @@
+import { BreadcrumbTail } from "@/components/domain/breadcrumb-context";
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -137,6 +138,7 @@ export default async function ProjectWorkspacePage({
       <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="doc-id text-sm text-muted">{project.project_number}</p>
+          <BreadcrumbTail label={project.project_number} />
           <h1 className="text-xl font-semibold text-ink sm:text-2xl [overflow-wrap:anywhere]">{project.name}</h1>
           <p className="mt-0.5 text-sm text-muted">
             {project.organizations?.name ?? "—"}

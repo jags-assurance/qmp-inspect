@@ -1,3 +1,4 @@
+import { BreadcrumbTail } from "@/components/domain/breadcrumb-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
@@ -68,6 +69,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="doc-id text-2xl font-semibold text-ink">{ncr.ncr_number}</h1>
+            <BreadcrumbTail label={ncr.ncr_number} />
             <Badge tone={SEVERITY_TONE[ncr.severity]}>{SEVERITY_LABEL[ncr.severity]}</Badge>
             <Badge tone={STATUS_TONE[ncr.status]}>{STATUS_LABEL[ncr.status]}</Badge>
             {isOverdue(ncr, projectTz) && <Badge tone="danger"><T>Overdue</T></Badge>}

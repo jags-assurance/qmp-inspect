@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
+import { useBreadcrumbTail } from "./breadcrumb-context";
 
 function flatten(items: NavItem[]): NavItem[] {
   return items.flatMap((i) => [i, ...flatten(i.children ?? []), ...flatten(i.palette ?? [])]);
@@ -14,6 +15,7 @@ function flatten(items: NavItem[]): NavItem[] {
  */
 export function HeaderBreadcrumb({ root, navItems }: { root: string; navItems: NavItem[] }) {
   const pathname = usePathname() ?? "";
+  const tail = useBreadcrumbTail();
   const homeHref = pathname.startsWith("/platform") ? "/platform" : "/inspect";
   let best: NavItem | null = null;
   for (const item of flatten(navItems)) {
@@ -31,7 +33,13 @@ export function HeaderBreadcrumb({ root, navItems }: { root: string; navItems: N
       {section && (
         <>
           <span aria-hidden="true">›</span>
-          <span className="truncate font-medium text-ink">{section}</span>
+          <span className={tail ? "shrink-0" : "truncate font-medium text-ink"}>{section}</span>
+        </>
+      )}
+      {tail && (
+        <>
+          <span aria-hidden="true">›</span>
+          <span className="doc-id truncate font-medium text-ink">{tail}</span>
         </>
       )}
     </nav>

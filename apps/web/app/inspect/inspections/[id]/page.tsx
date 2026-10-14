@@ -1,3 +1,4 @@
+import { BreadcrumbTail } from "@/components/domain/breadcrumb-context";
 import { notFound } from "next/navigation";
 import { listResponseHistory, groupHistoryByItem } from "@/lib/checklists/response-history";
 import { loadNumericSpecsForTemplate, loadNumericValues } from "@/lib/checklists/numeric-spec-query";
@@ -239,6 +240,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           <div>
             <p className="text-xs uppercase tracking-wide text-white/70"><T>Inspection Record</T></p>
             <h1 className="doc-id text-2xl font-semibold">{record.record_number}</h1>
+            <BreadcrumbTail label={record.record_number} />
           </div>
           <div className="flex items-center gap-3">
             <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>

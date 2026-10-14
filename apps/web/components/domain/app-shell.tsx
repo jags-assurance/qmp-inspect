@@ -13,6 +13,7 @@ import { IdleTimeout } from "./idle-timeout";
 import { CommandPalette } from "./command-palette";
 import { UserMenu } from "./user-menu";
 import { HeaderBreadcrumb } from "./header-breadcrumb";
+import { BreadcrumbProvider } from "./breadcrumb-context";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
@@ -81,6 +82,7 @@ export async function AppShell({
   children: ReactNode;
 }) {
   return (
+    <BreadcrumbProvider>
     <SidebarMobileProvider>
       <IdleTimeout />
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"><Tx>Skip to main content</Tx></a>
@@ -118,6 +120,7 @@ export async function AppShell({
         </div>
       </div>
     </SidebarMobileProvider>
+    </BreadcrumbProvider>
   );
 }
 
