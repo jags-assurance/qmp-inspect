@@ -1,3 +1,4 @@
+import { FAST_POLL_MS, SLOW_POLL_MS, makeDueGate, nextPollDelayMs } from "./pollBackoff";
 import "dotenv/config";
 import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase";
@@ -67,7 +68,7 @@ function reportError(context: string, error: unknown): void {
   }
 }
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = FAST_POLL_MS;
 
 // Each job runs under a wall-clock budget from jobTimeoutMs() (jobs/retryPolicy.ts): 3 minutes for a
 // one-page render, much longer for a multi-pass Data Book. A hung/OOM'd Chromium render (or a network
@@ -76,20 +77,22 @@ const POLL_INTERVAL_MS = 3000;
 
 // Log queue depth / oldest-pending-job age this often (in poll cycles), not every single tick, so
 // a stuck queue is visible in Railway logs without spamming them.
-const OBSERVABILITY_LOG_EVERY_N_CYCLES = 20; // ~once a minute at POLL_INTERVAL_MS = 3000
+const OBSERVABILITY_EVERY_MS = 60_000;
 
 // The automation sweep (stuck Hold / overdue NCR / overdue punch item nudges) checks hour-scale
 // conditions, not this queue's own second-scale job backlog — running it every poll cycle would be
 // 20x more Supabase round trips than useful. ~15 minutes at POLL_INTERVAL_MS = 3000 is frequent
 // enough that a real automation_rules threshold_hours (minimum 1) is never meaningfully delayed.
-const AUTOMATION_SWEEP_EVERY_N_CYCLES = 300;
+const AUTOMATION_SWEEP_EVERY_MS = 15 * 60_000;
 
 // Transmittal emails the web app could not finish sending (S7-26) are retried about once a minute.
-const EMAIL_OUTBOX_EVERY_N_CYCLES = 20;
+const EMAIL_OUTBOX_EVERY_MS = 60_000;
 
 // Retention flagging (S6-18) is a daily job; it enforces its own 24 hour spacing, so this only decides
 // how often the gate is checked (~hourly) and lets it run shortly after a worker (re)start.
-const RETENTION_CHECK_EVERY_N_CYCLES = 1200;
+const RETENTION_CHECK_EVERY_MS = 60 * 60_000;
+
+const due = makeDueGate();
 
 async function processJob(job: BackgroundJobRow): Promise<void> {
   console.log(`[worker] Processing job ${job.id} (${job.job_type}, attempt ${job.attempts})`);
@@ -259,8 +262,9 @@ async function tryAcquireLease(name: string, ttlSeconds: number): Promise<boolea
   return data === true;
 }
 
-async function pollOnce(cycle: number): Promise<void> {
-  if (cycle % OBSERVABILITY_LOG_EVERY_N_CYCLES === 0) {
+/** One poll. Returns true when it found and ran a job. Sweeps are wall-clock gated (see pollBackoff.ts). */
+async function pollOnce(): Promise<boolean> {
+  if (due("observability", OBSERVABILITY_EVERY_MS)) {
     await logQueueHealth();
     await reclaimOrphanedJobs();
     // Catch-up for failures nobody was told about (orphans that ran out of attempts, a crash before the alert).
@@ -268,28 +272,29 @@ async function pollOnce(cycle: number): Promise<void> {
   }
 
   if (
-    cycle % AUTOMATION_SWEEP_EVERY_N_CYCLES === 0 &&
-    (await tryAcquireLease("automation_sweep", sweepLeaseSeconds(AUTOMATION_SWEEP_EVERY_N_CYCLES * POLL_INTERVAL_MS)))
+    due("automation", AUTOMATION_SWEEP_EVERY_MS) &&
+    (await tryAcquireLease("automation_sweep", sweepLeaseSeconds(AUTOMATION_SWEEP_EVERY_MS)))
   ) {
     await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
   }
 
-  if (cycle % RETENTION_CHECK_EVERY_N_CYCLES === 0) {
+  if (due("retention", RETENTION_CHECK_EVERY_MS)) {
     await runRetentionSweep().catch((err) => reportError("[worker] Retention sweep failed:", err));
     // Same hourly gate; orphan photo flagging enforces its own once-a-day spacing.
     await runOrphanPhotoSweep().catch((err) => reportError("[worker] Orphan photo sweep failed:", err));
-    if (await tryAcquireLease("notification_retention", sweepLeaseSeconds(RETENTION_CHECK_EVERY_N_CYCLES * POLL_INTERVAL_MS))) {
+    if (await tryAcquireLease("notification_retention", sweepLeaseSeconds(RETENTION_CHECK_EVERY_MS))) {
       await runNotificationRetentionSweep().catch((err) => reportError("[worker] Notification retention sweep failed:", err));
     }
   }
 
-  if (cycle % EMAIL_OUTBOX_EVERY_N_CYCLES === 0) {
+  if (due("email_outbox", EMAIL_OUTBOX_EVERY_MS)) {
     await sweepTransmittalOutbox().catch((err) => reportError("[worker] Transmittal email sweep failed:", err));
     await sweepNotificationOutbox().catch((err) => reportError("[worker] Notification email sweep failed:", err));
   }
 
   const job = await claimNextPendingJob();
   if (job) await processJobWithTimeout(job);
+  return Boolean(job);
 }
 
 async function main() {
@@ -304,14 +309,17 @@ async function main() {
   // be sitting there from before.
   await reclaimOrphanedJobs();
 
-  console.log(`[worker] Connected to Supabase. Polling background_jobs every ${POLL_INTERVAL_MS}ms.`);
+  console.log(`[worker] Connected to Supabase. Polling background_jobs every ${POLL_INTERVAL_MS}ms, backing off to ${SLOW_POLL_MS}ms when idle.`);
 
-  let cycle = 0;
+  let idlePolls = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    await pollOnce(cycle).catch((err) => reportError("[worker] Unexpected error in poll loop:", err));
-    cycle += 1;
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    const ranJob = await pollOnce().catch((err) => {
+      reportError("[worker] Unexpected error in poll loop:", err);
+      return false;
+    });
+    idlePolls = ranJob ? 0 : idlePolls + 1;
+    await new Promise((resolve) => setTimeout(resolve, nextPollDelayMs(idlePolls)));
   }
 }
 
