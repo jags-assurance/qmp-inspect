@@ -25,7 +25,27 @@ export function UserMenu({
 }) {
   const tl = useTranslate();
   const [open, setOpen] = useState(false);
+  const [canInstall, setCanInstall] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // The browser's install prompt is captured by OfflineBanner; offer it here as an account-menu entry.
+  useEffect(() => {
+    const check = () => setCanInstall(!!(window as unknown as { __qmpInstallPrompt?: unknown }).__qmpInstallPrompt);
+    check();
+    window.addEventListener("qmp-install-available", check);
+    return () => window.removeEventListener("qmp-install-available", check);
+  }, []);
+
+  async function installApp() {
+    const w = window as unknown as { __qmpInstallPrompt?: { prompt: () => Promise<void>; userChoice: Promise<unknown> } };
+    const ev = w.__qmpInstallPrompt;
+    setOpen(false);
+    if (!ev) return;
+    await ev.prompt();
+    await ev.userChoice.catch(() => null);
+    w.__qmpInstallPrompt = undefined;
+    setCanInstall(false);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +95,13 @@ export function UserMenu({
             <p className="truncate text-sm font-medium text-ink">{userName}</p>
             <p className="text-xs text-muted">{userRole}</p>
           </div>
+          {canInstall && (
+            <div className="border-b border-border py-1">
+              <button type="button" role="menuitem" onClick={installApp} className="block w-full px-4 py-2.5 text-start text-sm text-ink hover:bg-off-white">
+                <Tx>Install app on this device</Tx>
+              </button>
+            </div>
+          )}
           {links.length > 0 && (
             <ul className="py-1">
               {links.map((l) => (

@@ -19,7 +19,6 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { STALE_QUEUE_DAYS, formatQueueAge, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
-import { NoticeCard } from "./notice-stack";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -49,11 +48,6 @@ function describeItem(item: OutboxItem): string {
   return base;
 }
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
 /**
  * Real, live status: online/offline, syncing, n queued, n needing review. Reflects the actual
  * navigator.onLine state and the contents of the IndexedDB outbox (lib/offline/db.ts). Sync is
@@ -74,7 +68,6 @@ export function OfflineBanner() {
   const [reviewItems, setReviewItems] = useState<OutboxItem[]>([]);
   const [allItems, setAllItems] = useState<OutboxItem[]>([]);
   const [authBlocked, setAuthBlocked] = useState(false);
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   // The outbox lives in best-effort IndexedDB storage unless persistence is granted (iOS Safari can
   // evict it silently), so persistence is requested on every mount.
   const [storagePersisted, setStoragePersisted] = useState(true);
@@ -207,14 +200,9 @@ export function OfflineBanner() {
   useEffect(() => {
     const onInstall = (e: Event) => {
       e.preventDefault();
-      try {
-        const at = Number(localStorage.getItem("qmp-install-dismissed"));
-        // Legacy value "1" parses as 1 (long ago), so old dismissals expire too.
-        if (at && Date.now() - at < 7 * 24 * 60 * 60 * 1000) return;
-      } catch {
-        // storage blocked: still offer the prompt
-      }
-      setInstallEvent(e as BeforeInstallPromptEvent);
+      // The install entry lives in the account menu (components/domain/user-menu.tsx), not in a floating card.
+      (window as unknown as { __qmpInstallPrompt?: Event }).__qmpInstallPrompt = e;
+      window.dispatchEvent(new Event("qmp-install-available"));
     };
     window.addEventListener("beforeinstallprompt", onInstall);
     const onVisible = () => {
@@ -270,43 +258,7 @@ export function OfflineBanner() {
   const showStorageWarning = pendingCount > 0 && !storagePersisted;
 
   if (isOnline && pendingCount === 0) {
-    if (!installEvent) return <>{dialog}{updateBar}</>;
-    return (
-      <>
-      {dialog}
-      {updateBar}
-      <NoticeCard role="status" className="flex flex-col gap-2">
-        <span><Tx>Install QMP Inspect on this device for faster access in the field.</Tx></span>
-        <span className="flex shrink-0 gap-2 text-burgundy">
-          <button
-            type="button"
-            className="min-h-11 px-3 font-medium underline"
-            onClick={async () => {
-              await installEvent.prompt();
-              await installEvent.userChoice.catch(() => null);
-              setInstallEvent(null);
-            }}
-          >
-            <Tx>Install</Tx>
-          </button>
-          <button
-            type="button"
-            className="min-h-11 px-3 underline"
-            onClick={() => {
-              try {
-                localStorage.setItem("qmp-install-dismissed", String(Date.now()));
-              } catch {
-                // ignore
-              }
-              setInstallEvent(null);
-            }}
-          >
-            <Tx>Not now</Tx>
-          </button>
-        </span>
-      </NoticeCard>
-      </>
-    );
+    return <>{dialog}{updateBar}</>;
   }
 
   return (
