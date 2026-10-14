@@ -91,7 +91,7 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
         />
       </div>
       <p className="mt-1 text-sm text-muted">
-        <T>Every client this platform works with is an organisation (tenant) here — projects, ITPs, staff access grants and everything else are always scoped to one of these. Create a new one below when onboarding a real new client; each new organisation starts with no projects, no AI consent, and JAGS-led branding until you set those up separately.</T>
+        <T>Every client is an organisation here. Create one below when onboarding a new client; open an organisation to manage its AI consent or delete it.</T>
       </p>
 
       <NewOrganizationForm />
@@ -122,26 +122,32 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                 </Badge>
               </div>
             </div>
-            <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
-            <div className="mt-3 text-xs text-muted">
-              <p className="font-medium text-ink"><T>AI consent history</T></p>
-              {(consentHistoryByOrg.get(org.id) ?? []).length === 0 ? (
-                <p><T>No consent changes recorded.</T></p>
-              ) : (
-                <ul className="mt-1 space-y-0.5">
-                  {(consentHistoryByOrg.get(org.id) ?? []).map((h) => (
-                    <li key={h.id}>{describeConsentChange(h)}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <DangerDelete
-              kind="organisation"
-              id={org.id}
-              confirmWord={org.name}
-              loadPreview={getOrganizationDeletePreviewAction}
-              action={deleteOrganizationAction}
-            />
+            <details className="group mt-3 border-t border-border pt-3">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
+                <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+                <T>Manage AI consent, history and delete</T>
+              </summary>
+                <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
+                <div className="mt-3 text-xs text-muted">
+                  <p className="font-medium text-ink"><T>AI consent history</T></p>
+                  {(consentHistoryByOrg.get(org.id) ?? []).length === 0 ? (
+                    <p><T>No consent changes recorded.</T></p>
+                  ) : (
+                    <ul className="mt-1 space-y-0.5">
+                      {(consentHistoryByOrg.get(org.id) ?? []).map((h) => (
+                        <li key={h.id}>{describeConsentChange(h)}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <DangerDelete
+                  kind="organisation"
+                  id={org.id}
+                  confirmWord={org.name}
+                  loadPreview={getOrganizationDeletePreviewAction}
+                  action={deleteOrganizationAction}
+                />
+            </details>
           </div>
         ))}
       </div>
