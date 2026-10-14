@@ -1,3 +1,4 @@
+import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 import { NextResponse } from "next/server";
 import { safeStorageUploadMessage } from "@/lib/errors/safe-message";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
@@ -98,6 +99,11 @@ export async function POST(request: Request) {
   if (!checkSharedSecret(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
+
+  // Shared (all-instances) cap on the webhook itself, after the secret check so unauthenticated noise never
+  // touches the database. There is no user here, so the key is the webhook plus the caller's IP.
+  const limited = await sharedRateLimitResponse("emailInbound", "email-inbound", request);
+  if (limited) return limited;
 
   if (!isServiceRoleConfigured()) {
     return NextResponse.json(
