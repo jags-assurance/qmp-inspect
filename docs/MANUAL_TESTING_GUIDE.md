@@ -87,7 +87,7 @@ RLS-scoped numbers and a heading/panel that differ by who's logged in:
 | Client | "{Client org name} Dashboard" | ITPs awaiting your acceptance |
 | Subcontractor / Main contractor / TPI-lab | "{Party name} Dashboard" | Awaiting your sign-off |
 
-The four stat cards (Active projects / Active ITPs / Pending inspections / Open NCRs) are real
+The four stat cards (Active projects / Active ITPs / Inspections in progress / Open NCRs) are real
 counts for everyone, scoped by RLS to whatever that login can actually see — not the same fixed
 numbers regardless of role. Quickly confirm this by logging in as `client@meridian.demo` (see the
 acceptance panel) and then `contractor@gfl.demo` (see the sign-off panel instead) back to back.
@@ -159,7 +159,7 @@ This is the single most important thing to test — it's the whole point of the 
 1. Sidebar → **NCRs** → **+ Raise NCR**.
 2. Pick a project, severity (Observation / Minor NCR / Major NCR), description. Notice the
    **"Draft with AI"** panel above the description — same free-tier gate message as the ITP one.
-3. Submit. You land on the NCR detail page (number auto-generated like `MER-2026-001-NCR-002`).
+3. Submit. You land on the NCR detail page (number auto-generated like `MER-2026-001-JAGS-NCR-002`; the format comes from Settings > Numbering).
    Check the **Punch List** for that project — the NCR should have created a matching punch item
    automatically (source "NCR").
 4. Try clicking **Close NCR** immediately — it should refuse with "Root cause, corrective action
@@ -200,7 +200,7 @@ through from wherever a punch item/data-book link already appears (e.g. the KPI 
 2. **Data Book** (`/data-book`): shows a readiness percentage per category (ITPs approved, IRNs
    issued, NCRs closed, open punch items). It won't reach 100% until everything is genuinely done —
    that's intentional (R86). Try **+ New Data Book**; the "Compile" action will refuse unless
-   readiness is 100% and the punch list is clear, unless you check the staff-only override box and
+   readiness is 100% and the punch list is clear, unless a JAGS Admin ticks the override box (Admin only, with a written reason) and
    give a reason (R87 — a deliberate, logged exception, not a silent bypass).
 3. **Handover** (sidebar link, top-level): once a Data Book is compiled and issued, it shows up here
    for the client to see and acknowledge receipt of.
@@ -294,7 +294,7 @@ true (currently only settable directly in the database — there's no admin UI t
 2. Go to **Projects** — there is no **+ New project** button (the admin account has one). Try
    navigating directly to `/inspect/projects/new` anyway — you're redirected back to the projects
    list, not shown the form.
-3. Try navigating directly to `/inspect/organisation/numbering` — redirected to the dashboard.
+3. Try navigating directly to `/inspect/organisation/numbering` — redirected to the dashboard. `/inspect/settings` does open for an Inspector, but only the view-only **Client Teams** and **Teams** sections (no admin sections). The Master ITP Library is hidden from the menu but its address still opens (proposals are review-only).
 4. Try navigating directly to `/platform` — redirected to the dashboard, not shown the Orbit hub.
 5. Confirm the inspector *can* still do the operational work: open **ITPs** → **+ New ITP** is
    there, you can add activities, generate checklists, run a field inspection, raise an NCR, and
@@ -325,7 +325,7 @@ actually work with, via a real settings screen rather than a one-off script.
    or **Project**-scoped grant, then use **Remove** on a grant you no longer want — both are real
    database writes (try reloading the page after either action to confirm it persisted).
 4. The actual isolation this produces: log in as `inspector.scoped@jagsassurance.local` (Devika
-   Rao). The dashboard's "Your organisations" list shows **only Meridian Energy** — Northgate
+   Rao). The "Your organisations" list is on the admin dashboard only; for Devika, the organisation filter on **Projects** shows **only Meridian Energy** — Northgate
    Industries never appears, anywhere, even though it exists in the database (see section 3). She
    can still fully create/edit ITPs, activities, checklists, and everything else within Meridian —
    the scoping restricts *which clients*, not *what she can do* once inside one.

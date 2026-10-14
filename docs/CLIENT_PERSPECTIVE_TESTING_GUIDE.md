@@ -126,7 +126,7 @@ On item 2.1 (weld inspection), open the intervention grid and assign:
 
 Click **Notify** on the Delta cell, then **Sign off**. Click **Notify** on the client's Witness
 cell — only **Sign off** shows until the notice period (24h default) elapses; **Proceed** appears
-automatically once it does.
+automatically once it does. A Witness notice can also be waived *instead of* notified: while the Witness cell is still pending (before **Notify**), the checklist offers **Waive notice for this inspection** (written reason, at least 10 characters, kept on the audit trail). Once Notify has been clicked the waiver is no longer offered.
 
 Leave Aegis's and Global Assurance Labs's **Hold** cells un-signed for now — A8 deliberately tries
 to start the inspection while they're still open, to show the new Hold-blocks-work behaviour
@@ -394,12 +394,12 @@ app, gated by role and RLS, never by `engagement_scope`. Log in as Priya and con
 |---|---|
 | Client dashboard (stat cards, sign-off queue, NCRs assigned, quick links) | **Yes** — the exact same `ExternalPartyDashboard` every client role sees |
 | Project KPIs ("Quality performance": first-time pass rate, hold-point turnaround, NCR close-out, data-book readiness, quality by party/discipline, trends) | **Yes**, full view — the code literally calls this the client-facing KPI dashboard |
-| Reports page (monthly PDF/Excel packs, ITP PDFs) | **Yes**, viewing/downloading — not staff-gated |
+| Reports page (ITP PDFs, inspection reports, NCR close-out) | **Yes**, viewing/downloading. **Monthly/weekly report packs are JAGS-staff only** (the `background_jobs` read policy requires staff), so a client does not see them |
 | Registers (calibration, welder, material — incl. AI extraction) | **Yes**, no staff gate |
 | Punch list | **Yes**, RLS-scoped |
 | Data Book | **View only** — Create/Compile/Issue Conditional Handover stays JAGS-staff-only, same as any client |
 | Admin dashboard (org-wide portfolio across every project) | **No** — JAGS admin-staff only, always |
-| Power BI reporting page (raw SQL views) | **No** — admin-staff only; clients of any kind get the monthly report pack instead, never this page |
+| Power BI reporting page (raw SQL views) | **No** — admin-staff only; clients of any kind never get this page (and the monthly report packs are JAGS-only too) |
 
 So the one real takeaway: self-managed changes *who builds and executes the work*, not *who sees
 the numbers*. A self-managed client was already getting the same generous dashboard/KPI/reports/

@@ -197,7 +197,9 @@ chronological order, real events across every category:
   optional section)
 
 Every line here is backed by a real, already-recorded timestamp — nothing on this page is
-inferred or invented. If a category above is missing from your feed, it's because that specific
+inferred or invented. The feed is built from the *current state* of each record (created / closed
+timestamps), so events such as re-opens, status changes and withdrawals are not listed; the Audit Log
+(staff only) is the full history. If a category above is missing from your feed, it's because that specific
 action genuinely hasn't happened yet on this project, not because the feed is hiding it.
 
 ---

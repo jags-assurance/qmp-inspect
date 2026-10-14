@@ -94,7 +94,8 @@ Under **3. Testing & Commissioning**, add a second one:
 On item **1.1**'s row, use the dropdown under the **Ironhold Welding Services** column and
 pick **H** (Hold) → click **Notify** → click **Sign off**. Then on the **Crestline
 Construction** column, pick **W** (Witness) → click **Notify** (Proceed only appears after
-the 24h notice period — that's expected, not a bug).
+the 24h notice period — that's expected, not a bug. To skip the notice instead, use **Waive notice
+for this inspection** on the checklist *before* clicking Notify).
 
 ## 7. Approve the ITP
 
