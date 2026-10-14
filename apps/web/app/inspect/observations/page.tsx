@@ -14,7 +14,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { RaiseObservationPanel } from "./raise-observation-panel";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
-import type { ObservationStatRow } from "@/lib/ncrs/register-stats";
+import { registerStatsFromRows, type ObservationStatRow } from "@/lib/ncrs/register-stats";
 import { getTranslator } from "@/lib/i18n/server";
 
 /**
@@ -28,11 +28,12 @@ import { getTranslator } from "@/lib/i18n/server";
 export default async function ObservationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ discipline?: string; project?: string; q?: string; page?: string; owner?: string }>;
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, q, page: pageParam } = await searchParams;
+  const { discipline: disciplineId, project: projectId, q, page: pageParam, owner } = await searchParams;
+  const ownerNone = owner === "none";
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 
@@ -62,6 +63,7 @@ export default async function ObservationsPage({
       out = itpItemIdFilter.length === 0 ? out.eq("id", "00000000-0000-0000-0000-000000000000") : out.in("itp_item_id", itpItemIdFilter);
     }
     if (projectId) out = out.eq("project_id", projectId);
+    if (ownerNone) out = out.is("assigned_to", null).is("responsible_party_id", null);
     return out;
   };
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -82,7 +84,13 @@ export default async function ObservationsPage({
   const offset = (page - 1) * NCR_TABLE_PAGE_SIZE;
   const nowMs = new Date().getTime();
   const [stats, { data: observations, count: totalCount, error: observationsError }] = await Promise.all([
-    loadRegisterStats(
+    ownerNone
+      ? fetchAll<ObservationStatRow>((from, to) =>
+          baseFilters(supabase.from(NCRS_TABLE).select("status, due_date, created_at").eq("severity", "observation"))
+            .order("id")
+            .range(from, to)
+        ).then((r) => registerStatsFromRows(r, nowMs, todayIso))
+      : loadRegisterStats(
       supabase,
       { observations: true, projectId, itpItemIds: itpItemIdFilter, todayIso, nowMs },
       () =>
@@ -128,6 +136,15 @@ export default async function ObservationsPage({
         </div>
         <RaiseObservationPanel />
       </div>
+
+      {ownerNone && (
+        <p className="mt-3 text-sm text-muted">
+          <T>Showing observations without an owner.</T>{" "}
+          <Link href={projectId ? `/inspect/observations?project=${projectId}` : "/inspect/observations"} className="text-burgundy hover:underline">
+            <T>Clear filter</T>
+          </Link>
+        </p>
+      )}
 
       {projectId && (
         <p className="mt-3 text-sm text-muted">

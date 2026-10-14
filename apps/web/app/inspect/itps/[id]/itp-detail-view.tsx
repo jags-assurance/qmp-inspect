@@ -21,6 +21,7 @@ import { ApproveRevisionForm } from "./approve-revision-form";
 import { BulkAddItemsForm } from "./bulk-add-items-form";
 import { AdvanceStatusForm } from "./advance-status-form";
 import { ExternalApprovalForm } from "./external-approval-form";
+import { AcceptOnBehalfForm } from "./accept-on-behalf-form";
 import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
 import { loadItpChecklistPreview } from "@/lib/checklists/preview";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type ActivitySignoffProgressRow } from "@/lib/signoff/db-types";
@@ -959,6 +960,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           recordedAt={itp.external_approval_recorded_at}
         />
       )}
+      {isAdminStaff(session) && itp.status === "approved" && <AcceptOnBehalfForm itpId={itp.id} />}
 
       <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
       <ReviewHistoryPanel itpId={itp.id} />

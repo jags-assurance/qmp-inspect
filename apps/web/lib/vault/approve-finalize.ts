@@ -15,9 +15,19 @@ export type FinalizeOutcome = { kind: "approved" } | { kind: "not_awaiting_revie
  * approve second. `vault_approve_document` does both in one transaction. Until that migration is
  * applied this falls back to the previous two-step path (approve, then supersede best-effort).
  */
-export async function finalizeDocumentApproval(supabase: unknown, documentId: string, userId: string): Promise<FinalizeOutcome> {
+export async function finalizeDocumentApproval(
+  supabase: unknown,
+  documentId: string,
+  userId: string,
+  overrideReason?: string | null
+): Promise<FinalizeOutcome> {
   const db = supabase as Client;
-  const { data, error } = await db.rpc("vault_approve_document", { p_document_id: documentId, p_approved_by: userId });
+  const { data, error } = await db.rpc(
+    "vault_approve_document",
+    overrideReason
+      ? { p_document_id: documentId, p_approved_by: userId, p_override_reason: overrideReason }
+      : { p_document_id: documentId, p_approved_by: userId }
+  );
   if (!error) return data === true ? { kind: "approved" } : { kind: "not_awaiting_review" };
   if (!isMissingSchemaError(error)) {
     // 40001 = it stopped being "for review" between our read and write.
@@ -26,7 +36,12 @@ export async function finalizeDocumentApproval(supabase: unknown, documentId: st
 
   const { data: approvedRows, error: updateError } = await db
     .from(VAULT_DOCUMENTS_TABLE)
-    .update({ status: "approved", approved_by: userId, approved_at: new Date().toISOString() })
+    .update({
+      status: "approved",
+      approved_by: userId,
+      approved_at: new Date().toISOString(),
+      ...(overrideReason ? { approved_override_reason: overrideReason } : {}),
+    })
     .eq("id", documentId)
     .eq("status", "for_review")
     .select("id");

@@ -81,6 +81,7 @@ export function PunchListTable({
   projectId,
   rows,
   canVerifyClose,
+  isAdmin = false,
   currentUserId,
   projectParties,
   exportName,
@@ -95,6 +96,8 @@ export function PunchListTable({
   /** Whether THIS viewer can do the independent verify-and-close step (JAGS Admin, or a
    *  close_punch_item permission holder) — computed once on the server page, not re-derived here. */
   canVerifyClose: boolean;
+  /** JAGS Admin: may use the audited "Close as admin" override on an item they resolved. */
+  isAdmin?: boolean;
   /** "Mine" = items whose responsible party is the one linked to this viewer's own login. */
   currentUserId: string;
 }) {
@@ -397,7 +400,7 @@ export function PunchListTable({
                 </div>
                 {canVerifyClose ? (
                   <>
-                    <VerifyClosePunchItemForm projectId={projectId} punchItemId={openRow.id} />
+                    <VerifyClosePunchItemForm projectId={projectId} punchItemId={openRow.id} isAdmin={isAdmin} />
                     <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} label="Reject fix - send back to open" />
                   </>
                 ) : (

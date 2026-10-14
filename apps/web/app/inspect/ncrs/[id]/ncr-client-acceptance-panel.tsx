@@ -90,6 +90,18 @@ export async function NcrClientAcceptancePanel({
   let askedAt: string | null = null;
   if (required && !decided && !isClosed) {
     try {
+      // Preferred: the stored date (ncrs.client_acceptance_requested_at); falls back to the audit event.
+      const { data: stored, error: storedError } = await supabase
+        .from(NCRS_TABLE)
+        .select("client_acceptance_requested_at" as never)
+        .eq("id", ncrId)
+        .maybeSingle<{ client_acceptance_requested_at: string | null }>();
+      if (!storedError && stored?.client_acceptance_requested_at) askedAt = stored.client_acceptance_requested_at;
+    } catch {
+      askedAt = null;
+    }
+    try {
+      if (askedAt) throw new Error("have it");
       const { data: ev } = await supabase
         .from(AUDIT_LOG_TABLE)
         .select("created_at")
@@ -101,7 +113,7 @@ export async function NcrClientAcceptancePanel({
         .returns<{ created_at: string }[]>();
       askedAt = ev?.[0]?.created_at ?? null;
     } catch {
-      askedAt = null;
+      // Keep whatever was found (stored date), or none.
     }
   }
 

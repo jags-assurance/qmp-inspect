@@ -1,6 +1,15 @@
 import { supabase } from "./supabase";
 import { pastHeadStart, renderNotificationEmailHtml, resolveRecipient } from "./notificationEmail";
-import { MAX_TRANSMITTAL_ATTEMPTS, isTransmittalDue, outcomeAfterFailure, sanitizeEmailError } from "./transmittalEmailPolicy";
+import {
+  MAX_TRANSMITTAL_ATTEMPTS,
+  TRANSMITTAL_DOWNLOAD_TTL_SECONDS,
+  canSignTransmittal,
+  injectDownloadBlock,
+  isTransmittalDue,
+  outcomeAfterFailure,
+  renderDownloadBlock,
+  sanitizeEmailError,
+} from "./transmittalEmailPolicy";
 
 // email_outbox / document_transmittals aren't in the generated Database type (same documented escape
 // hatch as automation.ts and index.ts's background_jobs handle).
@@ -37,6 +46,51 @@ async function sendViaResend(row: OutboxRow, apiKey: string): Promise<void> {
 }
 
 /**
+ * Builds the download block for a transmittal at send time: a 7-day signed storage link for the issued
+ * document PDF plus the verify-page link. Returns "" when the document is no longer approved/issued or
+ * has no file. Throws (generic message, no path/URL) when signing fails so the attempt is retried. The
+ * signed URL exists only in memory for the send: never stored, logged or audited.
+ */
+async function buildDownloadBlock(transmittalId: string): Promise<string> {
+  const { data: t } = await db.from("document_transmittals").select("entity_type, entity_id").eq("id", transmittalId).maybeSingle();
+  if (!t) return "";
+  let bucket = "inspection-evidence";
+  let path: string | null = null;
+  let verifyPath: string | null = null;
+  let kind = "document";
+  if (t.entity_type === "vault_document") {
+    const { data: doc } = await db.from("vault_documents").select("status, storage_path").eq("id", t.entity_id).maybeSingle();
+    if (!doc || !canSignTransmittal("vault_document", doc.status)) return "";
+    path = doc.storage_path ?? null;
+  } else if (t.entity_type === "data_book") {
+    kind = "Data Book";
+    bucket = "generated-documents";
+    const { data: book } = await db.from("data_books").select("status").eq("id", t.entity_id).maybeSingle();
+    if (!book || !canSignTransmittal("data_book", book.status)) return "";
+    const { data: cert } = await db
+      .from("handover_certificates")
+      .select("rendered_book_path, package_storage_path, verification_token, rejected_at")
+      .eq("data_book_id", t.entity_id)
+      .is("superseded_at", null)
+      .maybeSingle();
+    if (cert) {
+      path = cert.rendered_book_path ?? cert.package_storage_path ?? null;
+      if (cert.verification_token && !cert.rejected_at) verifyPath = `/verify/certificate/${cert.verification_token}`;
+    }
+  } else {
+    return "";
+  }
+  let signedUrl: string | null = null;
+  if (path) {
+    const { data, error } = await db.storage.from(bucket).createSignedUrl(path, TRANSMITTAL_DOWNLOAD_TTL_SECONDS);
+    if (error || !data?.signedUrl) throw new Error("Could not create the document download link");
+    signedUrl = data.signedUrl as string;
+  }
+  const base = (process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
+  return renderDownloadBlock({ signedUrl, verifyUrl: verifyPath && base ? base + verifyPath : null, entityKind: kind });
+}
+
+/**
  * S7-26: sends transmittal emails the web app could not (or did not finish) sending, with backoff, and
  * mirrors the result onto the document_transmittals log row. Only rows with a transmittal_id are touched:
  * notification emails keep their own path. A no-op without RESEND_API_KEY. Returns how many were sent.
@@ -69,7 +123,9 @@ export async function sweepTransmittalOutbox(): Promise<number> {
     const now = Date.now();
     if (!isTransmittalDue({ status: row.status, attempts: row.attempts, nextAttemptAt: row.next_attempt_at }, now)) continue;
     try {
-      await sendViaResend(row, apiKey);
+      // Signed URL generated now (not stored in body_html), so a retry days later is never expired.
+      const block = await buildDownloadBlock(row.transmittal_id);
+      await sendViaResend({ ...row, body_html: injectDownloadBlock(row.body_html, block) }, apiKey);
       const sentAt = new Date().toISOString();
       // Conditioned on 'pending' so a send racing the web app's own after() path cannot be recorded twice.
       await db.from("email_outbox").update({ status: "sent", sent_at: sentAt, attempts: row.attempts + 1, last_error: null }).eq("id", row.id).eq("status", "pending");

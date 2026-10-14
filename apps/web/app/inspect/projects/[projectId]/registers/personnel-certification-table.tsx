@@ -41,7 +41,7 @@ const STATUS_LABEL: Record<PersonnelCertificationStatus, string> = {
 
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // same wrapper pattern as CalibrationTable/WelderQualificationTable.
-export function PersonnelCertificationTable({ rows, projectId, canManage }: { rows: PersonnelCertificationDisplayRow[]; projectId: string; canManage: boolean }) {
+export function PersonnelCertificationTable({ rows, projectId, canManage, editableIds = [] }: { rows: PersonnelCertificationDisplayRow[]; projectId: string; canManage: boolean; editableIds?: string[] }) {
   const columns: DataTableColumn<PersonnelCertificationDisplayRow>[] = [
     {
       key: "person",
@@ -74,13 +74,15 @@ export function PersonnelCertificationTable({ rows, projectId, canManage }: { ro
       ),
     },
   ];
-  if (canManage) {
+  if (canManage || editableIds.length > 0) {
     columns.push({
       key: "actions",
       header: "",
       render: (row) => (
         <RegisterRowActions
           kind="personnel"
+          visible={canManage || editableIds.includes(row.id)}
+          contributorOnly={!canManage}
           projectId={projectId}
           verifiedAt={row.verified_at}
           hasCertificate={!!row.certificate_path}

@@ -39,3 +39,30 @@ describe("transmittal email retry policy (S7-26)", () => {
     expect(msg.length).toBeLessThanOrEqual(500);
   });
 });
+
+import { TRANSMITTAL_DOWNLOAD_PLACEHOLDER, canSignTransmittal, injectDownloadBlock, renderDownloadBlock } from "../src/transmittalEmailPolicy";
+
+describe("download block (M5)", () => {
+  it("signs only approved documents and issued Data Books", () => {
+    expect(canSignTransmittal("vault_document", "approved")).toBe(true);
+    expect(canSignTransmittal("vault_document", "for_review")).toBe(false);
+    expect(canSignTransmittal("data_book", "issued")).toBe(true);
+    expect(canSignTransmittal("data_book", "compiled")).toBe(false);
+    expect(canSignTransmittal("other", "approved")).toBe(false);
+  });
+  it("renders signed and verify links, escaped, https only", () => {
+    const html = renderDownloadBlock({ signedUrl: "https://x.supabase.co/s?token=a&b=1", verifyUrl: "https://app.example.com/verify/certificate/abc", entityKind: "document" });
+    expect(html).toContain("token=a&amp;b=1");
+    expect(html).toContain("expires in 7 days");
+    expect(html).toContain("/verify/certificate/abc");
+    expect(renderDownloadBlock({ signedUrl: "javascript:alert(1)", verifyUrl: null, entityKind: "document" })).toBe("");
+  });
+  it("substitutes or removes the placeholder", () => {
+    const body = `<p>a</p>${TRANSMITTAL_DOWNLOAD_PLACEHOLDER}<p>b</p>`;
+    expect(injectDownloadBlock(body, "<i>x</i>")).toBe("<p>a</p><i>x</i><p>b</p>");
+    expect(injectDownloadBlock(body, "")).toBe("<p>a</p><p>b</p>");
+  });
+  it("redacts signed URLs from stored errors", () => {
+    expect(sanitizeEmailError("bad https://x.co/o/s?token=eyJabc.def rest")).toBe("bad [redacted-url] rest");
+  });
+});

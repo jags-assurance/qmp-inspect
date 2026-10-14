@@ -1786,6 +1786,58 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
   return { error: null };
 }
 
+/**
+ * JAGS Admin only: accepts an approved ITP on the client's behalf when the client has no login (or
+ * accepted by email / signed document). The database function accept_itp_on_behalf enforces the
+ * admin check, the approved status and the reference/reason minimums; this action adds the same
+ * side effects as acceptItpAction (checklists). Allowed even when a client login exists, but the
+ * record is labelled "accepted on behalf" everywhere.
+ */
+export async function acceptItpOnBehalfAction(_prev: AcceptItpState, formData: FormData): Promise<AcceptItpState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can accept an ITP on the client's behalf." };
+  const itpId = String(formData.get("itp_id") ?? "").trim();
+  const reference = String(formData.get("reference") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!itpId) return { error: "ITP not found." };
+  if (reference.length < 5) return { error: "Enter the external reference (email or signed document), at least 5 characters." };
+  if (reason.length < 10) return { error: "Enter a reason, at least 10 characters." };
+
+  const supabase = await createSupabaseServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in the generated Database type yet
+  const { error: rpcError } = await (supabase.rpc as any)("accept_itp_on_behalf", {
+    target_itp_id: itpId,
+    p_reference: reference,
+    p_reason: reason,
+  });
+  if (rpcError) {
+    return { error: safeDbMessage(rpcError, "Could not accept this ITP on the client's behalf.", "accept_itp_on_behalf") };
+  }
+
+  try {
+    const { data: itp } = await supabase
+      .from("itps")
+      .select("itp_number, project_id, projects(organization_id)")
+      .eq("id", itpId)
+      .maybeSingle<{ itp_number: string; project_id: string; projects: { organization_id: string } | null }>();
+    if (itp?.projects?.organization_id) {
+      await generateChecklistsForItp(supabase, {
+        itpId,
+        itpNumber: itp.itp_number,
+        projectId: itp.project_id,
+        organizationId: itp.projects.organization_id,
+        userId: session.userId,
+      });
+    }
+  } catch {
+    // The manual "Generate checklists" button still works.
+  }
+
+  revalidatePath(`/inspect/itps/${itpId}`);
+  revalidatePath("/inspect");
+  return { error: null };
+}
+
 export interface AssignItpAcceptorState {
   error: string | null;
 }

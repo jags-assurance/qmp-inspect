@@ -17,6 +17,7 @@ import {
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus } from "@/lib/registers/status";
 import { checkCertificateInput } from "@/lib/registers/certificate-input";
 import { certificateChange, recordCertificateReplacement } from "@/lib/registers/certificate-history";
+import { canEditRegisterRow, getRegisterAccess } from "@/lib/registers/permissions";
 import { isMissingDbObject, REGISTER_LIFECYCLE_STATUSES, type RegisterLifecycleStatus } from "@/lib/registers/lifecycle";
 
 export type RegisterKind = "calibration" | "welder" | "material" | "personnel";
@@ -57,6 +58,34 @@ async function requireStaff(): Promise<{ error: string | null; userId: string }>
   return { error: null, userId: session.userId };
 }
 
+/**
+ * Staff may edit any entry. A register contributor (contractor / subcontractor / TPI party) may edit or
+ * replace the certificate of an entry THEY created while it is not yet verified; verified entries and
+ * other people's entries stay staff-only. The database enforces the same rule (migration
+ * 20261208000800), this gives the clear message first.
+ */
+async function requireEditor(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  kind: RegisterKind,
+  id: string,
+  projectId: string
+): Promise<{ error: string | null; userId: string }> {
+  const session = await requireSession();
+  if (session.isJagsStaff) return { error: null, userId: session.userId };
+  const access = await getRegisterAccess(supabase, session, projectId);
+  if (!access.canEditOwnUnverified) return { error: "Only JAGS staff can edit or replace register entries.", userId: session.userId };
+  const { data: row } = await supabase
+    .from(TABLE_BY_KIND[kind])
+    .select("created_by, verified_at" as never)
+    .eq("id", id)
+    .eq("project_id", projectId)
+    .maybeSingle<{ created_by: string | null; verified_at: string | null }>();
+  if (!row) return { error: "That entry was not found, or you do not have access to it.", userId: session.userId };
+  if (row.verified_at) return { error: "This entry has been verified by JAGS staff, so only staff can change it now.", userId: session.userId };
+  if (!canEditRegisterRow(access, session.userId, row)) return { error: "You can only edit entries you added yourself. Ask JAGS staff to change this one.", userId: session.userId };
+  return { error: null, userId: session.userId };
+}
+
 async function audit(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   projectId: string,
@@ -76,7 +105,7 @@ async function audit(
 }
 
 /**
- * Edits one register entry (JAGS staff only). Only the fields shown in the edit form are accepted; the
+ * Edits one register entry (JAGS staff, or the contributor who added it while it is unverified). Only the fields shown in the edit form are accepted; the
  * status of a dated entry is recomputed from its date. For a material, changing the receipt status to
  * "released" is how it is released (the database stamps who and when).
  */
@@ -86,10 +115,9 @@ export async function updateRegisterEntryAction(_prev: ManageRegisterState, form
   const projectId = text(formData, "project_id");
   if (!id || !projectId || !(kind in TABLE_BY_KIND)) return { error: "Missing entry." };
 
-  const staff = await requireStaff();
-  if (staff.error) return { error: staff.error };
-
   const supabase = await createSupabaseServerClient();
+  const staff = await requireEditor(supabase, kind, id, projectId);
+  if (staff.error) return { error: staff.error };
   let patch: Record<string, unknown> = {};
   let summary = "";
 
@@ -211,7 +239,8 @@ export async function updateRegisterEntryAction(_prev: ManageRegisterState, form
 
 /**
  * S3-11: replaces (or attaches) just the certificate file of one register entry, with a reason. The previous
- * file is kept on record in register_certificate_history and stays in storage. JAGS staff only.
+ * file is kept on record in register_certificate_history and stays in storage. JAGS staff, or the
+ * contributor who added the entry while it is unverified.
  */
 export async function replaceRegisterCertificateAction(_prev: ManageRegisterState, formData: FormData): Promise<ManageRegisterState> {
   const kind = text(formData, "kind") as RegisterKind;
@@ -221,10 +250,9 @@ export async function replaceRegisterCertificateAction(_prev: ManageRegisterStat
   if (!id || !projectId || !(kind in TABLE_BY_KIND)) return { error: "Missing entry." };
   if (!text(formData, "certificate_path")) return { error: "Choose the new certificate file first." };
 
-  const staff = await requireStaff();
-  if (staff.error) return { error: staff.error };
-
   const supabase = await createSupabaseServerClient();
+  const staff = await requireEditor(supabase, kind, id, projectId);
+  if (staff.error) return { error: staff.error };
   const cert = await checkCertificateInput(supabase, projectId, text(formData, "certificate_path"));
   if (cert.error || !cert.path) return { error: cert.error ?? "The certificate file isn't valid." };
 

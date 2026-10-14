@@ -5,8 +5,10 @@ export interface ProjectCloseCounts {
   openPunch: number;
   overdueHolds: number;
   draftInspections: number;
-  /** Data books not yet issued (draft or compiled). Optional so older callers keep compiling. */
+  /** Legacy (no longer a blocker: draft/compiled books do not block completion). Optional so older callers keep compiling. */
   unissuedDataBooks?: number;
+  /** Issued handover certificates still awaiting the client's acknowledgement. */
+  unacknowledgedHandovers?: number;
   /** ITP revisions edited after approval and still waiting for approval. */
   pendingItpRevisions?: number;
 }
@@ -25,6 +27,8 @@ export function describeCloseBlockers(c: ProjectCloseCounts): string[] {
   if (c.draftInspections > 0) out.push(plural(c.draftInspections, "draft inspection", "draft inspections"));
   const books = c.unissuedDataBooks ?? 0;
   if (books > 0) out.push(plural(books, "unissued data book", "unissued data books"));
+  const handovers = c.unacknowledgedHandovers ?? 0;
+  if (handovers > 0) out.push(plural(handovers, "issued handover awaiting client acknowledgement", "issued handovers awaiting client acknowledgement"));
   const revisions = c.pendingItpRevisions ?? 0;
   if (revisions > 0) out.push(plural(revisions, "ITP revision awaiting approval", "ITP revisions awaiting approval"));
   return out;

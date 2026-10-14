@@ -102,3 +102,23 @@ describe("email content", () => {
     }
   });
 });
+
+import { TRANSMITTAL_DOWNLOAD_PLACEHOLDER, injectDownloadBlock, renderDownloadBlock } from "../logic";
+
+describe("download block (M5)", () => {
+  it("stores only a placeholder in the email body", () => {
+    const html = renderTransmittalEmailHtml({ entityLabel: "A", entityKind: "document", senderName: "S", message: null, linkPath: "/inspect/vault/p/document/d", appUrl: "https://app.example.com" });
+    expect(html).toContain(TRANSMITTAL_DOWNLOAD_PLACEHOLDER);
+    expect(html).not.toContain("token=");
+  });
+  it("renders escaped https links and drops unsafe ones", () => {
+    const block = renderDownloadBlock({ signedUrl: "https://x.supabase.co/s?token=a&b=1", verifyUrl: "https://app.example.com/verify/certificate/abc", entityKind: "document" });
+    expect(block).toContain("token=a&amp;b=1");
+    expect(block).toContain("expires in 7 days");
+    expect(renderDownloadBlock({ signedUrl: "javascript:alert(1)", verifyUrl: null, entityKind: "document" })).toBe("");
+  });
+  it("injects or strips the placeholder", () => {
+    expect(injectDownloadBlock(`a${TRANSMITTAL_DOWNLOAD_PLACEHOLDER}b`, "X")).toBe("aXb");
+    expect(injectDownloadBlock(`a${TRANSMITTAL_DOWNLOAD_PLACEHOLDER}b`, "")).toBe("ab");
+  });
+});

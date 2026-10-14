@@ -38,7 +38,7 @@ const STATUS_LABEL: Record<CalibrationStatus, string> = {
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // this wrapper exists so the Server Component page only ever passes plain, serializable row data
 // down, same pattern as ProjectsTable/PunchListTable.
-export function CalibrationTable({ rows, projectId, canManage }: { rows: CalibrationRegisterDisplayRow[]; projectId: string; canManage: boolean }) {
+export function CalibrationTable({ rows, projectId, canManage, editableIds = [] }: { rows: CalibrationRegisterDisplayRow[]; projectId: string; canManage: boolean; editableIds?: string[] }) {
   const columns: DataTableColumn<CalibrationRegisterDisplayRow>[] = [
     {
       key: "instrument_name",
@@ -68,13 +68,15 @@ export function CalibrationTable({ rows, projectId, canManage }: { rows: Calibra
       ),
     },
   ];
-  if (canManage) {
+  if (canManage || editableIds.length > 0) {
     columns.push({
       key: "actions",
       header: "",
       render: (row) => (
         <RegisterRowActions
           kind="calibration"
+          visible={canManage || editableIds.includes(row.id)}
+          contributorOnly={!canManage}
           projectId={projectId}
           verifiedAt={row.verified_at}
           hasCertificate={!!row.certificate_path}

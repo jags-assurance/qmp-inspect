@@ -123,7 +123,16 @@ export default async function NcrsPage({
         .is("assigned_to", null)
         .is("responsible_party_id", null)
     : Promise.resolve({ count: 0 });
-  const [stats, { count: totalCount }, { data: ncrs }, { count: unownedCount }] = await Promise.all([
+  const unownedObservationsPromise = session.isJagsStaff
+    ? supabase
+        .from(NCRS_TABLE)
+        .select("id", { count: "exact", head: true })
+        .eq("severity", "observation")
+        .neq("status", "closed")
+        .is("assigned_to", null)
+        .is("responsible_party_id", null)
+    : Promise.resolve({ count: 0 });
+  const [stats, { count: totalCount }, { data: ncrs }, { count: unownedCount }, { count: unownedObservationCount }] = await Promise.all([
     // The owner filter is not understood by the SQL aggregate, so a filtered view counts from its own rows.
     sp.owner === "none"
       ? fetchStatRows().then((r) => registerStatsFromRows(r, nowMs, siteToday(new Date(), resolveSiteTimeZone(filterTz))))
@@ -146,6 +155,7 @@ export default async function NcrsPage({
       .range(offset, offset + NCR_TABLE_PAGE_SIZE - 1)
       .returns<NcrRegisterRow[]>(),
     unownedCountPromise,
+    unownedObservationsPromise,
   ]);
 
   const rows = ncrs ?? [];
@@ -206,6 +216,15 @@ export default async function NcrsPage({
         <p className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink">
           <T>NCRs without an owner:</T> <strong>{unownedCount}</strong>{" "}
           <Link href={hrefWith({ owner: "none", status: undefined, overdue: undefined, assignee: undefined })} className="text-burgundy hover:underline">
+            <T>Show them so they can be assigned</T>
+          </Link>
+        </p>
+      )}
+
+      {session.isJagsStaff && (unownedObservationCount ?? 0) > 0 && (
+        <p className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink">
+          <T>Observations without an owner:</T> <strong>{unownedObservationCount}</strong>{" "}
+          <Link href={projectId ? `/inspect/observations?owner=none&project=${projectId}` : "/inspect/observations?owner=none"} className="text-burgundy hover:underline">
             <T>Show them so they can be assigned</T>
           </Link>
         </p>

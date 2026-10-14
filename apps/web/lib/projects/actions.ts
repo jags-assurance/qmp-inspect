@@ -1123,7 +1123,15 @@ export async function getProjectCloseSummaryAction(projectId: string): Promise<P
     supabase.from("punch_list_items").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "closed"),
     supabase.from("inspection_records").select("id", { count: "exact", head: true }).eq("project_id", projectId).is("overall_result", null),
     supabase.from("projects").select("project_number, name").eq("id", projectId).maybeSingle<{ project_number: string; name: string }>(),
-    supabase.from("data_books").select("id", { count: "exact", head: true }).eq("project_id", projectId).neq("status", "issued"),
+    // Mirrors projects_status_guard (20261208000300): only an issued handover still awaiting the client's
+    // acknowledgement blocks closing; draft/compiled books do not (they need the project Completed first).
+    supabase
+      .from("handover_certificates" as never)
+      .select("id, data_books!inner(project_id)" as never, { count: "exact", head: true })
+      .eq("data_books.project_id" as never, projectId as never)
+      .is("acknowledged_at" as never, null as never)
+      .is("rejected_at" as never, null as never)
+      .is("superseded_at" as never, null as never),
     supabase.from("itps").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("revision_needs_approval", true),
   ]);
   let overdueHolds = 0;
@@ -1140,7 +1148,7 @@ export async function getProjectCloseSummaryAction(projectId: string): Promise<P
     openPunch: punch.count ?? 0,
     overdueHolds,
     draftInspections: drafts.count ?? 0,
-    unissuedDataBooks: books.count ?? 0,
+    unacknowledgedHandovers: books.count ?? 0,
     pendingItpRevisions: revisions.count ?? 0,
   };
   return { ...counts, blockers: describeCloseBlockers(counts) };

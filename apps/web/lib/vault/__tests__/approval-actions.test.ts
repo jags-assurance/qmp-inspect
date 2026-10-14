@@ -217,3 +217,37 @@ describe("setDocumentApproversAction / bulkApproveDocumentsAction", () => {
     expect(mock.rpcCalls.filter((c) => c.name === "vault_approve_document")).toHaveLength(2);
   });
 });
+
+describe("segregation of duties (uploader cannot approve own document)", () => {
+  let mock: Mock;
+  beforeEach(() => {
+    mock = resetTestCtx(sessions.inspector());
+    mock.on("vault_document_approvers", "select", { data: [] });
+    mock.on("vault_documents", "select", { data: { id: "doc-1", uploaded_by: "inspector-1", status: "for_review" } });
+    mock.onRpc("has_custom_permission", { data: true });
+    mock.onRpc("vault_approve_document", { data: true });
+  });
+
+  it("refuses the uploader and writes nothing", async () => {
+    const res = await approve();
+    expect(res.error).toMatch(/uploaded this document, so someone else must approve/);
+    expect(mock.rpcCalls.map((c) => c.name)).not.toContain("vault_approve_document");
+  });
+
+  it("refuses an admin who uploaded it when no reason is given", async () => {
+    testCtx.session = sessions.admin();
+    mock.on("vault_documents", "select", { data: { id: "doc-1", uploaded_by: testCtx.session.userId, status: "for_review" } });
+    expect((await approve()).error).toMatch(/at least 10 characters/);
+    expect(mock.rpcCalls.map((c) => c.name)).not.toContain("vault_approve_document");
+  });
+
+  it("lets an admin approve their own upload with a reason, passed to the database", async () => {
+    testCtx.session = sessions.admin();
+    mock.on("vault_documents", "select", { data: { id: "doc-1", uploaded_by: testCtx.session.userId, status: "approved" } });
+    expect((await approve({ override_reason: "Client urgent, no other approver" })).error).toBeNull();
+    expect(mock.rpcCalls).toContainEqual({
+      name: "vault_approve_document",
+      args: { p_document_id: "doc-1", p_approved_by: testCtx.session.userId, p_override_reason: "Client urgent, no other approver" },
+    });
+  });
+});

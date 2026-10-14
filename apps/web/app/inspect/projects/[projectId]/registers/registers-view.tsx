@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
 import { refreshRegisterStatuses } from "@/lib/registers/refresh";
-import { getRegisterAccess } from "@/lib/registers/permissions";
+import { canEditRegisterRow, getRegisterAccess } from "@/lib/registers/permissions";
 import { computeCalibrationStatus, computePersonnelCertificationStatus, computeWelderStatus, daysUntil, todayInTimeZone } from "@/lib/registers/status";
 import { selectRegisterRows } from "@/lib/registers/verify";
 import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
@@ -275,6 +275,7 @@ export async function RegistersView({
         projectId={projectId}
         canAdd={access.canAdd}
         canManage={access.canManage}
+        editableIds={access.canManage ? [] : [...calibrationList, ...welderList, ...materialList, ...personnelList].filter((r) => canEditRegisterRow(access, session.userId, r as { created_by?: string | null; verified_at?: string | null })).map((r) => r.id)}
         calibrationRows={calibrationList}
         welderRows={welderList}
         materialRows={materialList}

@@ -6,7 +6,10 @@ import { describeSpec } from "@/lib/checklists/numeric-response";
 import { formatLocationForDisplay, mapsUrl } from "@/lib/checklists/location";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { listCorrectionRequestsForRecord } from "@/lib/checklists/correction-request-queries";
+import { directoryClient } from "@/lib/ncrs/recipients";
+import { RequestCorrectionForm, CorrectionRequestsPanel } from "./correction-requests";
 import { canExecuteItpItem } from "@/lib/checklists/execution-parties";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -100,6 +103,26 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
   if (!record) notFound();
   const canIssueIrn = await canExecuteItpItem(supabase, record.itp_item_id);
+  // Correction requests (M7): who may ask, and the list the viewer is allowed to see (RLS).
+  const correctionRows = await listCorrectionRequestsForRecord(supabase, record.id);
+  const requesterNames = new Map<string, string>();
+  if (correctionRows.length > 0) {
+    const { data: names } = await directoryClient(supabase)
+      .from("users")
+      .select("id, full_name")
+      .in("id", [...new Set(correctionRows.map((c) => c.requested_by))])
+      .returns<{ id: string; full_name: string | null }[]>();
+    for (const n of names ?? []) requesterNames.set(n.id, n.full_name ?? "Unknown");
+  }
+  const correctionViews = correctionRows.map((c) => ({
+    id: c.id,
+    reason: c.reason,
+    status: c.status,
+    requesterName: requesterNames.get(c.requested_by) ?? "Unknown",
+    createdAt: c.created_at,
+    resolutionNote: c.resolution_note,
+  }));
+  const missingSignature = Boolean(record.overall_result) && (!record.inspector_signature || !record.signed_at);
 
   // Real FK linkage now that createNcrAction persists it (see lib/ncrs/actions.ts) — surfaces any
   // NCR raised directly from this record, both ways, instead of relying on someone finding it by
@@ -247,6 +270,9 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>
               {(record.overall_result ?? "In progress").toString().toUpperCase()}
             </Badge>
+            {session.isJagsStaff && missingSignature && (
+              <Badge tone="warning"><T>Completed without a signature (legacy)</T></Badge>
+            )}
             <PageGuide
               title={tl("Inspection record — how this works")}
               points={[
@@ -587,6 +613,14 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           <ReopenInspectionForm inspectionRecordId={record.id} />
         </div>
       )}
+
+      {record.overall_result && canIssueIrn && !isAdminStaff(session) && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <RequestCorrectionForm inspectionRecordId={record.id} />
+        </div>
+      )}
+
+      <CorrectionRequestsPanel requests={correctionViews} canResolve={session.isJagsStaff} />
 
       {responseHistory.length > 0 && (
         <details className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">

@@ -7,6 +7,21 @@ export interface RegisterAccess {
   canAdd: boolean;
   /** May edit, release and delete entries: JAGS staff only. */
   canManage: boolean;
+  /**
+   * A contributor (not staff) may edit and replace the certificate of entries THEY created while those
+   * entries are not yet verified. Verified entries and everyone else's entries stay staff-only.
+   */
+  canEditOwnUnverified: boolean;
+}
+
+/** Whether this viewer may edit/replace this row (staff always; contributors only own + unverified). Pure. */
+export function canEditRegisterRow(
+  access: { canManage: boolean; canEditOwnUnverified: boolean },
+  viewerId: string | null | undefined,
+  row: { created_by?: string | null; verified_at?: string | null }
+): boolean {
+  if (access.canManage) return true;
+  return access.canEditOwnUnverified && !!viewerId && !!row.created_by && row.created_by === viewerId && !row.verified_at;
 }
 
 /**
@@ -19,8 +34,8 @@ export async function getRegisterAccess(
   session: { userId: string; isJagsStaff: boolean },
   projectId: string
 ): Promise<RegisterAccess> {
-  if (session.isJagsStaff) return { canAdd: true, canManage: true };
+  if (session.isJagsStaff) return { canAdd: true, canManage: true, canEditOwnUnverified: true };
   // The database function covers the party's primary contact AND its other members.
   const { data } = await supabase.rpc("is_register_contributor" as never, { target_project_id: projectId } as never);
-  return { canAdd: data === true, canManage: false };
+  return { canAdd: data === true, canManage: false, canEditOwnUnverified: data === true };
 }

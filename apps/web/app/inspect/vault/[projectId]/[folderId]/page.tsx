@@ -34,6 +34,7 @@ interface DocumentWithUploader {
   id: string;
   title: string;
   document_number: string | null;
+  uploaded_by?: string | null;
   document_reference: string | null;
   revision: string;
   document_date: string | null;
@@ -83,7 +84,7 @@ export default async function VaultFolderPage({
   // The newest `docLimit` documents (revision history included) PLUS every document still awaiting
   // review, so the approval queue is never hidden behind "Load more"; merged and de-duplicated below.
   const docColumns =
-    "id, title, document_number, document_reference, revision, document_date, status, rejection_reason, created_at, storage_path, users!uploaded_by(full_name)";
+    "id, title, document_number, document_reference, revision, document_date, status, rejection_reason, created_at, storage_path, uploaded_by, users!uploaded_by(full_name)";
   const [latestResult, reviewResult, totalResult] = await Promise.all([
     supabase
       .from(VAULT_DOCUMENTS_TABLE)
@@ -171,6 +172,7 @@ export default async function VaultFolderPage({
       rejection_reason: d.rejection_reason,
       created_at: d.created_at,
       uploader_name: d.users?.full_name ?? null,
+      uploaded_by: d.uploaded_by ?? null,
       kind: vaultDocKind({ storagePath: d.storage_path, title: d.title }),
       fileType: vaultFileType(d.storage_path),
       approverProgress: approvers
@@ -266,7 +268,7 @@ export default async function VaultFolderPage({
         list={
           <>
           <div className="mt-6">
-            <VaultDocumentsTable rows={rows} canApprove={canApprove} />
+            <VaultDocumentsTable rows={rows} canApprove={canApprove} viewerId={session.userId} isAdmin={isAdminStaff(session)} />
             <LoadMore
               window={docWindow}
               noun="documents (newest first; anything awaiting review is always shown)"

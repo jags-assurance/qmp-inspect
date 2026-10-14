@@ -13,10 +13,12 @@ import { untypedFrom } from "@/lib/supabase/untyped";
 import { isMissingDbObject } from "@/lib/databook/db-errors";
 import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE } from "@/lib/vault/types";
 import { DATA_BOOKS_TABLE } from "@/lib/databook/types";
+import { buildTransmittalDownloadBlock } from "./download";
 import {
   TRANSMITTALS_TABLE,
   buildTransmittalSubject,
   canTransmit,
+  injectDownloadBlock,
   renderTransmittalEmailHtml,
   transmittalLinkPath,
   validateTransmittalInput,
@@ -93,7 +95,10 @@ async function resolveEntity(
  * (the policy re-checks the document belongs to the project and is issued), and an email_outbox row per
  * recipient is written with the service role. The first send attempt runs in after(); anything that
  * fails stays 'pending' in the outbox and is retried by the worker (worker/src/emailOutbox.ts).
- * The email carries a link, not the file: opening it needs an account with access to the project.
+ * The stored body_html holds only a placeholder for the download block. On every send attempt (here
+ * and in the worker retry) a 7-day signed storage link and the verify-page link are generated with the
+ * service role and substituted in, so external recipients can open the PDF without an account and a
+ * retry days later never carries an expired link. The signed URL is never stored, logged or audited.
  */
 export async function sendTransmittalAction(_prev: SendTransmittalState, formData: FormData): Promise<SendTransmittalState> {
   const entityTypeRaw = String(formData.get("entity_type") ?? "");
@@ -184,7 +189,8 @@ export async function sendTransmittalAction(_prev: SendTransmittalState, formDat
   const sendAll = async () => {
     for (const r of rows) {
       try {
-        await sendEmail({ toEmail: r.recipient_email, subject, html });
+        const block = await buildTransmittalDownloadBlock(service, r.id, process.env.NEXT_PUBLIC_APP_URL ?? "");
+        await sendEmail({ toEmail: r.recipient_email, subject, html: injectDownloadBlock(html, block) });
         const sentAt = new Date().toISOString();
         await untypedFrom(service, "email_outbox").update({ status: "sent", sent_at: sentAt, attempts: 1 }).eq("transmittal_id", r.id);
         await untypedFrom(service, TRANSMITTALS_TABLE).update({ status: "sent", sent_at: sentAt, last_error: null }).eq("id", r.id);

@@ -162,7 +162,9 @@ export async function selectRegisterRows<T>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const run = (columns: string) => build((supabase as any).from(table).select(columns));
   const extra = extraColumns ? `, ${extraColumns}` : "";
-  let res = await run(`${baseColumns}, verified_at, lifecycle_status${extra}`);
+  // created_by (migration 20261208000800) lets the page show contributors their own unverified rows.
+  let res = await run(`${baseColumns}, verified_at, lifecycle_status, created_by${extra}`);
+  if (res.error && isMissingDbObject(res.error)) res = await run(`${baseColumns}, verified_at, lifecycle_status${extra}`);
   if (res.error && isMissingDbObject(res.error)) res = await run(baseColumns);
   return (res.data as T[] | null) ?? [];
 }

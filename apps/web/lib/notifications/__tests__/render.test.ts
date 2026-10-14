@@ -64,11 +64,11 @@ describe("temp password", () => {
 });
 
 describe("close helpers (new blockers)", () => {
-  it("lists unissued books and pending revisions and demands a reason", () => {
+  it("lists unacknowledged handovers and pending revisions and demands a reason", () => {
     const blockers = describeCloseBlockers({
-      openNcrs: 0, openPunch: 0, overdueHolds: 0, draftInspections: 0, unissuedDataBooks: 1, pendingItpRevisions: 2,
+      openNcrs: 0, openPunch: 0, overdueHolds: 0, draftInspections: 0, unacknowledgedHandovers: 1, pendingItpRevisions: 2,
     });
-    expect(blockers).toEqual(["1 unissued data book", "2 ITP revisions awaiting approval"]);
+    expect(blockers).toEqual(["1 issued handover awaiting client acknowledgement", "2 ITP revisions awaiting approval"]);
     expect(closeOverrideReasonError(blockers, "x")).toMatch(/reason/);
     expect(closeOverrideReasonError(blockers, "client signed off")).toBeNull();
     expect(closeOverrideReasonError([], "")).toBeNull();

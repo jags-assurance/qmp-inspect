@@ -24,6 +24,8 @@ export interface VaultDocumentTableRow {
   rejection_reason?: string | null;
   created_at: string;
   uploader_name: string | null;
+  /** Who uploaded this revision (segregation of duties: they cannot approve it themselves). */
+  uploaded_by?: string | null;
   /** What the document is (generated ITP/NCR/inspection report vs. an upload) and its file type — both colour-coded. */
   kind: VaultDocKind;
   fileType: VaultFileType;
@@ -58,7 +60,17 @@ function canActOn(row: VaultDocumentTableRow, canApprove: boolean): boolean {
   return canApprove || (row.approverProgress ? row.approverProgress[2] : false);
 }
 
-export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentTableRow[]; canApprove: boolean }) {
+export function VaultDocumentsTable({
+  rows,
+  canApprove,
+  viewerId,
+  isAdmin = false,
+}: {
+  rows: VaultDocumentTableRow[];
+  canApprove: boolean;
+  viewerId?: string;
+  isAdmin?: boolean;
+}) {
   const tl = useTranslate();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -108,7 +120,7 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
   }, [rows, query, status, type, uploader, from, to, sort, showSuperseded]);
 
   const selectedRows = visible.filter((r) => selected.has(r.id));
-  const selectedApprovable = selectedRows.filter((r) => canActOn(r, canApprove));
+  const selectedApprovable = selectedRows.filter((r) => canActOn(r, canApprove) && !(viewerId && r.uploaded_by === viewerId));
   // The download route only zips approved documents for non-staff, so a selection with none approved would
   // land on a raw JSON error page; say so here instead.
   const selectedDownloadable = canApprove || selectedRows.some((r) => r.status === "approved");
@@ -251,6 +263,8 @@ export function VaultDocumentsTable({ rows, canApprove }: { rows: VaultDocumentT
               folderId={row.folder_id}
               canApproveGenerally={canApprove}
               label={row.approverProgress ? "Agree" : "Approve"}
+              uploadedByMe={!!viewerId && row.uploaded_by === viewerId}
+              isAdmin={isAdmin}
             />
             <RejectDocumentButton documentId={row.id} projectId={row.project_id} folderId={row.folder_id} />
           </span>

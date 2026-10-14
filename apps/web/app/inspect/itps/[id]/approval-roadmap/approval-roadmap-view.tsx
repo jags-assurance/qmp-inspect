@@ -154,7 +154,7 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
   // Columns added after the generated types: returned-to-draft, revision awaiting approval, external approval.
   const { data: lifecycleExtra } = await supabase
     .from("itps" as never)
-    .select("revision, returned_reason, returned_at, revision_needs_approval, external_approval_reference, external_approval_recorded_at")
+    .select("revision, returned_reason, returned_at, revision_needs_approval, external_approval_reference, external_approval_recorded_at, accepted_on_behalf, accepted_on_behalf_reference")
     .eq("id" as never, id as never)
     .maybeSingle<{
       revision: number;
@@ -163,6 +163,8 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
       revision_needs_approval: boolean;
       external_approval_reference: string | null;
       external_approval_recorded_at: string | null;
+      accepted_on_behalf?: boolean | null;
+      accepted_on_behalf_reference?: string | null;
     }>();
   const formatWhen = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-GB") : null);
 
@@ -339,6 +341,14 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
               ))}
             </ol>
           </div>
+        )}
+        {lifecycleExtra?.accepted_on_behalf && (
+          <p className="mb-3 rounded-md border border-border bg-off-white/60 p-2 text-xs text-ink">
+            <T>Accepted on behalf of the client by</T>{" "}
+            {itp.client_accepted_by ? nameById.get(itp.client_accepted_by) ?? "a JAGS Admin" : "a JAGS Admin"}
+            {itp.client_accepted_at ? ` on ${formatWhen(itp.client_accepted_at)}` : ""}
+            {lifecycleExtra.accepted_on_behalf_reference ? ` (${lifecycleExtra.accepted_on_behalf_reference})` : ""}
+          </p>
         )}
         {lifecycleExtra?.external_approval_reference && (
           <p className="mb-3 text-xs text-muted">

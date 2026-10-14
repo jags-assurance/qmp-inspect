@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
+import { listOpenCorrectionRequestsForProject } from "@/lib/checklists/correction-request-queries";
 import { INSPECTION_RECORDS_TABLE } from "@/lib/checklists/db-types";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
@@ -463,6 +464,9 @@ export async function ActivityView({
   if (filters.cat) moreParams.set("cat", filters.cat);
   moreParams.set("limit", String(pageLimit + ACTIVITY_PAGE));
 
+  // Staff-only: open correction requests (site-execution M7) with a link to each inspection.
+  const openCorrections = (await requireSession()).isJagsStaff ? await listOpenCorrectionRequestsForProject(supabase, projectId) : [];
+
   const Heading = embedded ? "h2" : "h1";
   return (
     <div>
@@ -487,6 +491,23 @@ export async function ActivityView({
         <p className="mt-1 text-sm text-muted">
           {project.organizations?.name} · {project.name}<T>. Everything recorded on this project, newest first.</T>
         </p>
+        {openCorrections.length > 0 && (
+          <div className="mt-3 rounded-md border border-border bg-surface p-3 text-sm">
+            <p className="font-medium text-ink"><T>Correction requests</T> ({openCorrections.length})</p>
+            <ul className="mt-1 space-y-1">
+              {openCorrections.map((c) => (
+                <li key={c.id} className="text-xs text-muted">
+                  {c.inspection_record_id ? (
+                    <Link href={`/inspect/inspections/${c.inspection_record_id}`} className="text-burgundy hover:underline">{c.reason.slice(0, 120)}</Link>
+                  ) : (
+                    <span>{c.reason.slice(0, 120)}</span>
+                  )}{" "}
+                  - {new Date(c.created_at).toLocaleDateString("en-GB")}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <DateRangeFilter />
           <p className="text-xs text-muted">

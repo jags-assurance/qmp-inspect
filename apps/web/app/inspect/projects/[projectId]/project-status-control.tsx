@@ -139,7 +139,7 @@ export function ProjectStatusControl({
               ) : (
                 <p className="text-muted"><Tx>No open NCRs, punch items, overdue holds or draft inspections.</Tx></p>
               )}
-              {target === "completed" && <p className="mt-1 text-muted"><Tx>Make sure the Data Book has been compiled first. Closing blocks further edits by non-admins.</Tx></p>}
+              {target === "completed" && <p className="mt-1 text-muted"><Tx>Complete the project first, then compile and issue the Data Book. Closing blocks further edits by non-admins.</Tx></p>}
             </div>
           )}
           {leavingClosed && <p className="mt-1 text-xs text-muted"><Tx>Re-opening notifies the client and the responsible person. A reason is required.</Tx></p>}

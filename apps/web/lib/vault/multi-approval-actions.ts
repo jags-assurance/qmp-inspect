@@ -139,6 +139,26 @@ export async function approveDocumentAction(
 
   const supabase = await createSupabaseServerClient();
 
+  // Segregation of duties: whoever uploaded the current revision cannot approve it. A JAGS Admin may
+  // override, but only with a written reason, which is stored on the document and audited. The
+  // database trigger enforces the same rule; this check gives a clear message first.
+  const { data: uploadedDoc } = await supabase
+    .from(VAULT_DOCUMENTS_TABLE)
+    .select("uploaded_by")
+    .eq("id", documentId)
+    .maybeSingle<{ uploaded_by: string | null }>();
+  let overrideReason: string | null = null;
+  if (uploadedDoc?.uploaded_by && uploadedDoc.uploaded_by === session.userId) {
+    const reason = String(formData.get("override_reason") ?? "").trim();
+    if (!isAdminStaff(session)) {
+      return { error: "You uploaded this document, so someone else must approve it." };
+    }
+    if (reason.length < 10) {
+      return { error: "You uploaded this document. As a JAGS Admin you can approve it only with a reason of at least 10 characters." };
+    }
+    overrideReason = reason;
+  }
+
   // Never trust a client-posted flag: work out server-side whether this caller may approve outright.
   const canApproveGenerally =
     isAdminStaff(session) || (await hasPermission(session.userId, "approve_vault_document", projectId || undefined));
@@ -154,7 +174,7 @@ export async function approveDocumentAction(
     if (!canApproveGenerally) {
       return { error: "Only a JAGS Admin, or someone granted this permission, can approve a document." };
     }
-    const outcome = await finalizeDocumentApproval(supabase, documentId, session.userId);
+    const outcome = await finalizeDocumentApproval(supabase, documentId, session.userId, overrideReason);
     if (outcome.kind === "error") return { error: "Could not approve the document. Check you have permission and try again." };
     if (outcome.kind === "not_awaiting_review") return { error: "This document is no longer awaiting review (it may already be approved or superseded)." };
   } else {
@@ -179,7 +199,7 @@ export async function approveDocumentAction(
 
     const stillPending = approvers.filter((a) => a.id !== myRow.id && a.status !== "approved").length;
     if (stillPending === 0) {
-      const outcome = await finalizeDocumentApproval(supabase, documentId, session.userId);
+      const outcome = await finalizeDocumentApproval(supabase, documentId, session.userId, overrideReason);
       // "Not awaiting review" here means a concurrent approval already finalized it: nothing left to do.
       if (outcome.kind === "error") return { error: "Recorded your approval, but could not finalize the document — try again, it will retry automatically." };
     } else if (myRow.status === "approved") {
@@ -206,7 +226,7 @@ export async function approveDocumentAction(
         entityId: documentId,
         action: document?.status === "approved" ? "approved" : "approval_step_recorded",
         actorId: session.userId,
-        summary: `Document "${document?.title ?? documentId}" ${document?.status === "approved" ? "approved" : "approval step recorded"}`,
+        summary: `Document "${document?.title ?? documentId}" ${document?.status === "approved" ? "approved" : "approval step recorded"}${overrideReason ? ` — admin override of segregation of duties (approver also uploaded it). Reason: ${overrideReason}` : ""}`,
       });
     }
   } catch {

@@ -267,7 +267,13 @@ export function RegisterRowActions({
   verifiedAt,
   lifecycleStatus,
   hasCertificate = false,
+  visible = true,
+  contributorOnly = false,
 }: {
+  /** Hidden for rows the viewer may not touch. */
+  visible?: boolean;
+  /** A contributor editing their own unverified entry: Edit and certificate replace only. */
+  contributorOnly?: boolean;
   kind: RegisterKind;
   projectId: string;
   row: Record<string, string | null>;
@@ -279,8 +285,9 @@ export function RegisterRowActions({
   const [deleteState, deleteAction, deleting] = useActionState(deleteRegisterEntryAction, initialState);
   const [releaseState, releaseAction, releasing] = useActionState(updateRegisterEntryAction, initialState);
   const { gateSubmit, dialog } = useConfirm();
-  const canQuickRelease = kind === "material" && row.receipt_status !== "released" && row.receipt_status !== "on_hold" && (row.approval_status === "A" || row.approval_status === "B");
+  const canQuickRelease = !contributorOnly && kind === "material" && row.receipt_status !== "released" && row.receipt_status !== "on_hold" && (row.approval_status === "A" || row.approval_status === "B");
 
+  if (!visible) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
       {dialog}
@@ -299,7 +306,7 @@ export function RegisterRowActions({
         <Tx>Edit</Tx>
       </button>
       {row.id && <ReplaceCertificate kind={kind} projectId={projectId} id={row.id} hasFile={hasCertificate} />}
-      <form
+      {!contributorOnly && <form
         action={deleteAction}
         onSubmit={gateSubmit({
           title: "Delete this entry?",
@@ -314,8 +321,8 @@ export function RegisterRowActions({
         <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline disabled:opacity-50">
           {deleting ? "Deleting…" : "Delete"}
         </button>
-      </form>
-      {row.id && <RegisterLifecycleActions kind={kind} projectId={projectId} id={row.id} verifiedAt={verifiedAt} lifecycleStatus={lifecycleStatus} />}
+      </form>}
+      {!contributorOnly && row.id && <RegisterLifecycleActions kind={kind} projectId={projectId} id={row.id} verifiedAt={verifiedAt} lifecycleStatus={lifecycleStatus} />}
       {(deleteState.error || releaseState.error) && <span className="block max-w-xs whitespace-normal text-xs text-danger">{deleteState.error ?? releaseState.error}</span>}
       {editing && <EditDialog kind={kind} projectId={projectId} row={row} onClose={() => setEditing(false)} />}
     </div>

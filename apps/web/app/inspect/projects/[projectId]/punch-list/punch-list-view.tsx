@@ -207,6 +207,7 @@ export async function PunchListView({
           projectId={projectId}
           rows={rows}
           canVerifyClose={canVerifyClose}
+          isAdmin={isAdminStaff(session)}
           currentUserId={session.userId}
           projectParties={projectParties ?? []}
           exportName={`${project.project_number}-punch-list`}

@@ -36,6 +36,7 @@ export function RegistersTabs({
   projectId,
   canAdd,
   canManage,
+  editableIds = [],
   calibrationRows,
   welderRows,
   materialRows,
@@ -54,6 +55,8 @@ export function RegistersTabs({
   canAdd: boolean;
   /** May edit, release and delete (JAGS staff). */
   canManage: boolean;
+  /** Row ids a non-staff contributor may edit (their own, unverified). */
+  editableIds?: string[];
   calibrationRows: CalibrationRegisterDisplayRow[];
   welderRows: WelderQualificationDisplayRow[];
   materialRows: MaterialRegisterDisplayRow[];
@@ -98,7 +101,7 @@ export function RegistersTabs({
             />}
             <div className="mt-3">
               <RegisterCsvTools projectId={projectId} kind="calibration" canAdd={canAdd} />
-              <CalibrationTable rows={calibrationRows} projectId={projectId} canManage={canManage} />
+              <CalibrationTable editableIds={editableIds} rows={calibrationRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}
@@ -126,7 +129,7 @@ export function RegistersTabs({
             />}
             <div className="mt-3">
               <RegisterCsvTools projectId={projectId} kind="welder" canAdd={canAdd} />
-              <WelderQualificationTable rows={welderRows} projectId={projectId} canManage={canManage} />
+              <WelderQualificationTable editableIds={editableIds} rows={welderRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}
@@ -156,7 +159,7 @@ export function RegistersTabs({
             />}
             <div className="mt-3">
               <RegisterCsvTools projectId={projectId} kind="material" canAdd={canAdd} />
-              <MaterialTable rows={materialRows} projectId={projectId} canManage={canManage} />
+              <MaterialTable editableIds={editableIds} rows={materialRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}
@@ -170,7 +173,7 @@ export function RegistersTabs({
             )}
             <div className="mt-3">
               <RegisterCsvTools projectId={projectId} kind="personnel" canAdd={canAdd} />
-              <PersonnelCertificationTable rows={personnelCertRows} projectId={projectId} canManage={canManage} />
+              <PersonnelCertificationTable editableIds={editableIds} rows={personnelCertRows} projectId={projectId} canManage={canManage} />
             </div>
           </section>
         )}

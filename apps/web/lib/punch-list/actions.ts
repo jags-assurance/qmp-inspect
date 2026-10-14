@@ -479,12 +479,18 @@ export async function closePunchItemAction(
   const punchItemId = String(formData.get("punch_item_id") ?? "").trim();
   const projectId = String(formData.get("project_id") ?? "").trim();
   const verificationNotes = String(formData.get("verification_notes") ?? "").trim();
+  // Admin override (audit M8): lets a JAGS Admin close an item they resolved themselves, with a reason.
+  const overrideReason = String(formData.get("override_reason") ?? "").trim();
+  const isOverride = overrideReason.length > 0;
 
   if (!punchItemId || !projectId) {
     return { error: "Missing punch item." };
   }
   if (!verificationNotes) {
     return { error: "Verification notes are required before this item can be closed." };
+  }
+  if (isOverride && overrideReason.length < 10) {
+    return { error: "An override reason of at least 10 characters is required." };
   }
   if (verificationNotes.length > PUNCH_MAX_DESCRIPTION) {
     return { error: `Notes are too long (max ${PUNCH_MAX_DESCRIPTION} characters).` };
@@ -496,24 +502,29 @@ export async function closePunchItemAction(
     return { error: "Only a JAGS Admin, or someone granted this permission, can verify and close a punch item." };
   }
 
+  if (isOverride && !isAdminStaff(session)) {
+    return { error: "Only a JAGS Admin can close a punch item with an override reason." };
+  }
+
   const supabase = await createSupabaseServerClient();
 
   // The different-person rule is enforced INSIDE the UPDATE (no read-then-write gap): the row only
   // matches when resolved_by is NOT NULL and differs from the closer. An Admin who did the fix
-  // themselves still isn't an independent reviewer of it.
-  const { error, data } = await supabase
+  // themselves still isn't an independent reviewer of it, unless they use the audited override.
+  let closeQuery = supabase
     .from(PUNCH_LIST_ITEMS_TABLE)
     .update({
       status: "closed",
       verification_notes: verificationNotes,
       closed_by: session.userId,
       closed_at: new Date().toISOString(),
+      ...(isOverride ? { closed_override_reason: overrideReason } : {}),
     })
     .eq("id", punchItemId)
     .eq("status", "resolved")
-    .eq("project_id", projectId)
-    .not("resolved_by", "is", null)
-    .neq("resolved_by", session.userId)
+    .eq("project_id", projectId);
+  if (!isOverride) closeQuery = closeQuery.not("resolved_by", "is", null).neq("resolved_by", session.userId);
+  const { error, data } = await closeQuery
     .select("id, created_by, resolved_by, description")
     .returns<{ id: string; created_by: string | null; resolved_by: string | null; description: string }[]>();
 
@@ -547,8 +558,10 @@ export async function closePunchItemAction(
         entityId: punchItemId,
         action: "closed",
         actorId: session.userId,
-        summary: "Punch item verified and closed",
-        changes: { verification_notes: verificationNotes },
+        summary: isOverride ? "Punch item closed by admin override" : "Punch item verified and closed",
+        changes: isOverride
+          ? { verification_notes: verificationNotes, closed_override_reason: overrideReason }
+          : { verification_notes: verificationNotes },
       });
     }
   } catch {

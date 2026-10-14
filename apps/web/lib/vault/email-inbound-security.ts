@@ -81,3 +81,38 @@ export function validateAttachment(filename: string, contentType: string | null,
   if (type === "image/svg+xml") return "SVG attachments are not accepted.";
   return null;
 }
+
+/**
+ * Provider-reported SPF result, when the webhook includes the message headers (Postmark sends
+ * `Headers: [{Name, Value}]`, including Received-SPF). A fail/softfail means the From address was not
+ * sent by an authorised server: treat as spoofed. Missing headers are not a failure (provider-dependent).
+ */
+export function senderAuthenticationFailed(body: unknown): boolean {
+  const headers = (body as { Headers?: unknown } | null)?.Headers;
+  if (!Array.isArray(headers)) return false;
+  for (const h of headers) {
+    const name = String((h as { Name?: unknown })?.Name ?? "").toLowerCase();
+    const value = String((h as { Value?: unknown })?.Value ?? "").trim().toLowerCase();
+    if (name === "received-spf" && (value.startsWith("fail") || value.startsWith("softfail"))) return true;
+    if (name === "authentication-results" && /\b(spf|dkim)=fail\b/.test(value)) return true;
+  }
+  return false;
+}
+
+export type InboundDecision = { accept: true } | { accept: false; reason: string };
+
+/** Accept only recognised senders whose authentication did not fail; everything else is quarantined. */
+export function decideInbound(params: {
+  from: string;
+  partyEmails: string[];
+  extraAllowlist: string[];
+  body: unknown;
+}): InboundDecision {
+  if (!isSenderAllowed(params.from, params.partyEmails, params.extraAllowlist)) {
+    return { accept: false, reason: "Sender is not a recognised contact for this project" };
+  }
+  if (senderAuthenticationFailed(params.body)) {
+    return { accept: false, reason: "Sender failed SPF/DKIM authentication (possible spoofing)" };
+  }
+  return { accept: true };
+}

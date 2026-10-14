@@ -38,7 +38,7 @@ const STATUS_LABEL: Record<WelderQualificationStatus, string> = {
 // Functions (render) can't cross the server -> client boundary as props from a Server Component —
 // this wrapper exists so the Server Component page only ever passes plain, serializable row data
 // down, same pattern as ProjectsTable/PunchListTable.
-export function WelderQualificationTable({ rows, projectId, canManage }: { rows: WelderQualificationDisplayRow[]; projectId: string; canManage: boolean }) {
+export function WelderQualificationTable({ rows, projectId, canManage, editableIds = [] }: { rows: WelderQualificationDisplayRow[]; projectId: string; canManage: boolean; editableIds?: string[] }) {
   const columns: DataTableColumn<WelderQualificationDisplayRow>[] = [
     {
       key: "welder_identifier",
@@ -69,13 +69,15 @@ export function WelderQualificationTable({ rows, projectId, canManage }: { rows:
       ),
     },
   ];
-  if (canManage) {
+  if (canManage || editableIds.length > 0) {
     columns.push({
       key: "actions",
       header: "",
       render: (row) => (
         <RegisterRowActions
           kind="welder"
+          visible={canManage || editableIds.includes(row.id)}
+          contributorOnly={!canManage}
           projectId={projectId}
           verifiedAt={row.verified_at}
           hasCertificate={!!row.certificate_path}

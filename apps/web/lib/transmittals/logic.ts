@@ -114,10 +114,53 @@ export function buildTransmittalSubject(entityLabel: string): string {
   return `Document transmittal: ${label}`.slice(0, 300);
 }
 
+/** Signed download links last 7 days. */
+export const TRANSMITTAL_DOWNLOAD_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * Marker stored in email_outbox.body_html where the time-limited download block goes. The signed URL is
+ * NEVER stored: it is generated when the email is actually sent (first attempt and every retry, since a
+ * stored URL would expire), so retries days later still carry a working link. Keep in sync with
+ * worker/src/transmittalEmailPolicy.ts.
+ */
+export const TRANSMITTAL_DOWNLOAD_PLACEHOLDER = "<!--TRANSMITTAL_DOWNLOAD-->";
+
+/** Only https URLs are ever placed in the email. */
+function safeHttpsUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Download block (signed link + verify-page link). Empty string when there is nothing to show. */
+export function renderDownloadBlock(params: { signedUrl: string | null; verifyUrl: string | null; entityKind: string }): string {
+  const signed = safeHttpsUrl(params.signedUrl);
+  const verify = safeHttpsUrl(params.verifyUrl);
+  if (!signed && !verify) return "";
+  const parts: string[] = [];
+  if (signed) {
+    parts.push(
+      `<p><a href="${escapeHtml(signed)}">Download the ${escapeHtml(params.entityKind)} (PDF)</a></p>` +
+        `<p style="color:#5c5648;font-size:12px">This download link works without signing in and expires in 7 days. Do not forward it to people who should not have the document.</p>`
+    );
+  }
+  if (verify) parts.push(`<p><a href="${escapeHtml(verify)}">Verify this document's authenticity</a></p>`);
+  return parts.join("");
+}
+
+/** Replaces the placeholder (or removes it when there is no block). */
+export function injectDownloadBlock(html: string, block: string): string {
+  return html.split(TRANSMITTAL_DOWNLOAD_PLACEHOLDER).join(block);
+}
+
 /**
  * HTML body of the transmittal email. Everything user-influenced (label, sender, message) is escaped,
- * and the link is only ever a same-site path joined to the configured app URL. The link needs a
- * sign-in: recipients get access to the document through their account, never through an open URL.
+ * and the link is only ever a same-site path joined to the configured app URL. The in-app link needs a
+ * sign-in; external recipients use the time-limited download block that replaces the placeholder at send time.
  */
 export function renderTransmittalEmailHtml(params: {
   entityLabel: string;
@@ -134,8 +177,9 @@ export function renderTransmittalEmailHtml(params: {
   return (
     `<p>${escapeHtml(params.senderName)} has sent you the ${escapeHtml(params.entityKind)} <strong>${escapeHtml(params.entityLabel)}</strong>.</p>` +
     note +
+    TRANSMITTAL_DOWNLOAD_PLACEHOLDER +
     link +
-    `<p style="color:#5c5648;font-size:12px">You need to sign in to JAGS Assurance to open it. If you were not expecting this email you can ignore it.</p>`
+    `<p style="color:#5c5648;font-size:12px">The sign-in link above needs a JAGS Assurance account. If you were not expecting this email you can ignore it.</p>`
   );
 }
 

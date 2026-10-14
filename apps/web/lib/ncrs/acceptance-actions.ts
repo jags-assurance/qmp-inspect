@@ -81,6 +81,8 @@ export async function setClientAcceptanceRequiredAction(_prev: ClientAcceptanceS
       client_accepted_by: null,
       client_acceptance_decision: null,
       client_acceptance_comment: null,
+      // Asked (or asked again) stamps the date; turning it off clears it.
+      client_acceptance_requested_at: required ? new Date().toISOString() : null,
     })
     .eq("id", ncrId);
   if (error) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useOptimistic, useState, useTransition } from "react";
+import { requestCorrectionAction } from "@/lib/checklists/correction-request-actions";
 import { notifyPartyAction, proceedWithoutResponseAction, rejectSignoffAction, signOffAction, withdrawSignoffAction } from "@/lib/signoff/actions";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
@@ -85,7 +86,7 @@ export function SignoffCell({
   const { ask, dialog } = useConfirm();
   const [error, setError] = useState<string | null>(null);
   // Which action is collecting a mandatory written reason (proceed / withdraw) before it runs.
-  const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | "reject" | "comment" | null>(null);
+  const [reasonFor, setReasonFor] = useState<"proceed" | "withdraw" | "reject" | "comment" | "correction" | null>(null);
   const [reason, setReason] = useState("");
 
   // Real bug found live: clicking Notify/Sign off/Proceed didn't visibly change anything until the
@@ -138,6 +139,8 @@ export function SignoffCell({
 
   const btn = "min-h-8 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50";
   const canWithdraw = isJagsStaff && (optimisticStatus === "signed_off" || optimisticStatus === "proceeded_no_response");
+  // A party who recorded the sign-off cannot withdraw it (staff only): they ask for a correction instead.
+  const canRequestCorrection = !isJagsStaff && canSignOffForThisParty && optimisticStatus === "signed_off";
   const canRenotify = optimisticStatus === "notified" && canSignOffForThisParty;
 
   return (
@@ -252,6 +255,11 @@ export function SignoffCell({
             <Tx>Proceed</Tx>
           </button>
         )}
+        {canRequestCorrection && reasonFor === null && (
+          <button type="button" disabled={isPending} onClick={() => setReasonFor("correction")} className={btn}>
+            <Tx>Request correction</Tx>
+          </button>
+        )}
         {canWithdraw && reasonFor === null && (
           <button type="button" disabled={isPending} onClick={() => setReasonFor("withdraw")} className={btn}>
             <Tx>Withdraw</Tx>
@@ -282,16 +290,24 @@ export function SignoffCell({
                   ? "Why is this rejected? (at least 10 characters)"
                   : reasonFor === "comment"
                     ? "Comment to record with the sign-off"
-                    : "Reason for withdrawing sign-off"
+                    : reasonFor === "correction"
+                      ? "What needs correcting and why (at least 10 characters)"
+                      : "Reason for withdrawing sign-off"
             }
             className="w-full rounded border border-border bg-surface px-1.5 py-1 text-xs"
           />
           <div className="flex justify-center gap-1">
             <button
               type="button"
-              disabled={isPending || reason.trim().length < (reasonFor === "comment" ? 1 : reasonFor === "reject" ? 10 : 5)}
+              disabled={isPending || reason.trim().length < (reasonFor === "comment" ? 1 : reasonFor === "reject" || reasonFor === "correction" ? 10 : 5)}
               onClick={() => {
                 if (reasonFor === "proceed") return run(() => proceedWithoutResponseAction(progressId, reason), "proceeded_no_response");
+                if (reasonFor === "correction") {
+                  const fd = new FormData();
+                  fd.set("signoff_progress_id", progressId);
+                  fd.set("reason", reason);
+                  return run(() => requestCorrectionAction({ error: null }, fd), "signed_off");
+                }
                 if (reasonFor === "reject") return run(() => rejectSignoffAction(progressId, reason), "pending");
                 if (reasonFor === "comment") {
                   const text = reason;

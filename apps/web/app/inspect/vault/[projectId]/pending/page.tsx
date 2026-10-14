@@ -13,6 +13,7 @@ interface PendingDoc {
   folder_id: string;
   title: string;
   document_number: string | null;
+  uploaded_by?: string | null;
   document_reference: string | null;
   revision: string;
   document_date: string | null;
@@ -41,7 +42,7 @@ export default async function VaultPendingApprovalsPage({ params }: { params: Pr
   const { data: docs } = folderIds.length
     ? await supabase
         .from(VAULT_DOCUMENTS_TABLE)
-        .select("id, folder_id, title, document_number, document_reference, revision, document_date, status, created_at, storage_path, users!uploaded_by(full_name)")
+        .select("id, folder_id, title, document_number, document_reference, revision, document_date, status, created_at, storage_path, uploaded_by, users!uploaded_by(full_name)")
         .in("folder_id", folderIds)
         .eq("status", "for_review")
         .order("created_at", { ascending: true })
@@ -83,6 +84,7 @@ export default async function VaultPendingApprovalsPage({ params }: { params: Pr
       status: d.status,
       created_at: d.created_at,
       uploader_name: d.users?.full_name ?? null,
+      uploaded_by: d.uploaded_by ?? null,
       kind: vaultDocKind({ storagePath: d.storage_path, title: d.title }),
       fileType: vaultFileType(d.storage_path),
       approverProgress: approvers
@@ -101,7 +103,7 @@ export default async function VaultPendingApprovalsPage({ params }: { params: Pr
         <T>Waiting for you, oldest first. Rejecting needs a reason.</T>
       </p>
       <div className="mt-6">
-        <VaultDocumentsTable rows={rows} canApprove={canApprove} />
+        <VaultDocumentsTable rows={rows} canApprove={canApprove} viewerId={session.userId} isAdmin={isAdminStaff(session)} />
       </div>
       {rows.length === 0 && <p className="mt-3 text-sm text-muted"><T>Nothing is waiting for you. You are all caught up.</T></p>}
     </div>

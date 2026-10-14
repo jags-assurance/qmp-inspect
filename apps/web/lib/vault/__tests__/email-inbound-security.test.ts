@@ -40,3 +40,28 @@ describe("email-inbound security", () => {
     expect(validateAttachment("a.svg", "image/svg+xml", 10)).not.toBeNull();
   });
 });
+
+import { decideInbound, senderAuthenticationFailed } from "../email-inbound-security";
+
+describe("quarantine decision (M10)", () => {
+  const parties = ["site@contractor.example"];
+  const ok = { from: "Site <site@contractor.example>", partyEmails: parties, extraAllowlist: [] as string[], body: {} };
+  it("accepts a recognised sender", () => {
+    expect(decideInbound(ok)).toEqual({ accept: true });
+  });
+  it("quarantines an unknown sender", () => {
+    const d = decideInbound({ ...ok, from: "boss@evil.example" });
+    expect(d.accept).toBe(false);
+  });
+  it("quarantines a recognised sender whose SPF failed (spoof)", () => {
+    const body = { Headers: [{ Name: "Received-SPF", Value: "Fail (sender not authorised)" }] };
+    const d = decideInbound({ ...ok, body });
+    expect(d).toMatchObject({ accept: false });
+    expect(senderAuthenticationFailed(body)).toBe(true);
+  });
+  it("treats missing or passing auth headers as not failed", () => {
+    expect(senderAuthenticationFailed({})).toBe(false);
+    expect(senderAuthenticationFailed({ Headers: [{ Name: "Received-SPF", Value: "Pass" }] })).toBe(false);
+    expect(senderAuthenticationFailed({ Headers: [{ Name: "Authentication-Results", Value: "mx; dkim=fail; spf=pass" }] })).toBe(true);
+  });
+});

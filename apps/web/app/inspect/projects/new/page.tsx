@@ -22,7 +22,7 @@ export default async function NewProjectPage() {
   const supabase = await createSupabaseServerClient();
 
   if (isAdminStaff(session)) {
-    const { data } = await supabase.from("organizations").select("id, name").order("name");
+    const { data } = await supabase.from("organizations").select("id, name").eq("is_active", true).order("name");
     organizations = data ?? [];
   } else {
     const { data: grants } = await supabase

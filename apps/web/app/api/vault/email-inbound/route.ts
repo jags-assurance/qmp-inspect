@@ -13,7 +13,7 @@ import {
   MAX_ATTACHMENTS_PER_EMAIL,
   constantTimeEqual,
   extractWebhookSecret,
-  isSenderAllowed,
+  decideInbound,
   validateAttachment,
 } from "@/lib/vault/email-inbound-security";
 
@@ -159,14 +159,38 @@ export async function POST(request: Request) {
     partyEmails.push(...(linked ?? []).map((u) => u.email));
   }
   const extraAllowed = (process.env.VAULT_EMAIL_ALLOWED_SENDERS ?? "").split(",");
-  if (!isSenderAllowed(payload.from, partyEmails, extraAllowed)) {
-    console.warn(`[email-inbound] rejected sender for project ${projectId}`);
-    // 200 so the provider does not retry a message that will never be accepted.
-    return NextResponse.json({ ok: false, error: "Sender is not recognised for this project." }, { status: 200 });
+  const providerMessageId = typeof (body as { MessageID?: unknown })?.MessageID === "string" ? (body as { MessageID: string }).MessageID : null;
+  const decision = decideInbound({ from: payload.from, partyEmails, extraAllowlist: extraAllowed, body });
+  if (!decision.accept) {
+    // Quarantine: record the message (status 'quarantined') for admin review. Attachments are NEVER
+    // filed, uploaded or stored. 200 so the provider does not retry a message that will never be accepted.
+    console.warn(`[email-inbound] quarantined message for project ${projectId}`);
+    const quarantineId = providerMessageId ? `q-${providerMessageId}` : `q-${crypto.randomUUID()}`;
+    const { error: qError } = await supabase.from("inbound_email_messages" as never).insert({
+      message_id: quarantineId.slice(0, 200),
+      project_id: projectId,
+      sender: payload.from.slice(0, 320),
+      subject: payload.subject.slice(0, 300),
+      status: "quarantined",
+      quarantine_reason: decision.reason,
+      attachment_count: payload.attachments.length,
+    } as never);
+    if (qError && qError.code !== "23505") console.error(`[email-inbound] could not record quarantined message: ${qError.message}`);
+    await supabase.from("audit_log" as never).insert({
+      organization_id: project.organization_id,
+      project_id: projectId,
+      entity_type: "vault_email_inbound",
+      entity_id: projectId,
+      action: "email_quarantined",
+      actor_id: null,
+      summary: `Inbound email from ${payload.from.slice(0, 200) || "unknown sender"} quarantined (${decision.reason}); ${payload.attachments.length} attachment(s) not filed`,
+      changes: { message_id: providerMessageId, reason: decision.reason },
+    } as never);
+    return NextResponse.json({ ok: false, quarantined: true, error: "Sender is not recognised for this project; the message was quarantined." }, { status: 200 });
   }
 
   // Idempotency on the provider's MessageID: a retried delivery is acknowledged, not re-ingested.
-  const messageId = typeof (body as { MessageID?: unknown })?.MessageID === "string" ? (body as { MessageID: string }).MessageID : null;
+  const messageId = providerMessageId;
   if (messageId) {
     const { error: dupError } = await supabase
       .from("inbound_email_messages" as never)

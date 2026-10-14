@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { NewOrganizationForm } from "./new-organization-form";
 import { AiConsentControl } from "./ai-consent-control";
+import { OrganizationLifecycleControl } from "./organization-lifecycle-control";
 import { DangerDelete } from "@/components/domain/danger-delete";
 import { deleteOrganizationAction, getOrganizationDeletePreviewAction } from "@/lib/projects/delete-actions";
 import { describeConsentChange, groupConsentHistory, type AiConsentHistoryRow } from "@/lib/ai/consent-history";
@@ -75,36 +76,12 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
     projectCountByOrg.set(p.organization_id, (projectCountByOrg.get(p.organization_id) ?? 0) + 1);
   }
 
-  return (
-    <div className={embedded ? undefined : "max-w-4xl"}>
-      <SettingsBackLink embedded={embedded} />
-      <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Client organisations</T></Heading>
-        <PageGuide
-          title={tl("Client organisations — how this works")}
-          points={[
-            "Admin-only — creating and viewing the list of tenant organisations is an account-administration action, same boundary as Staff Access and Numbering.",
-            "A new organisation starts with no projects, no AI consent, and JAGS-led branding — those are set up separately from this page (New project, Branding, Numbering).",
-            "Everything else in the app (projects, ITPs, staff access grants, module licensing) is always scoped to one of these organisations, so this is the first step of onboarding a real client.",
-            "Engagement scope shown here as a badge is one of three tiers, set under Numbering (not here): Full-Managed (JAGS runs the whole ITP workflow), Self-Managed/\"Hybrid\" (the client builds, submits and accepts its own ITPs and can self-serve branding/numbering/custom roles, but JAGS still approves ITPs and provisions client logins), or Full Client-Managed (all of that, plus the client's own permission-granted people can approve their own ITPs and provision their own team's logins, with no JAGS involvement day to day).",
-          ]}
-        />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Every client is an organisation here. Create one below when onboarding a new client; open an organisation to manage its AI consent or delete it.</T>
-      </p>
+  const activeOrgs = (organizations ?? []).filter((o) => o.is_active);
+  const inactiveOrgs = (organizations ?? []).filter((o) => !o.is_active);
 
-      <NewOrganizationForm />
-
-      <div className="mt-8 space-y-3">
-        {(organizations ?? []).length === 0 && (
-          <p className="rounded-md border border-dashed border-border bg-off-white p-4 text-sm text-muted">
-            <T>No client organisations yet — create the first one above.</T>
-          </p>
-        )}
-        {(organizations ?? []).map((org) => (
+  const renderOrg = (org: OrganizationRow) => (
           <div key={org.id} className="rounded-lg border border-border bg-surface p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-ink">{org.name}</p>
                 <p className="text-xs text-muted">
@@ -125,8 +102,9 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
             <details className="group mt-3 border-t border-border pt-3">
               <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
                 <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-                <T>Manage AI consent, history and delete</T>
+                <T>Manage name, status, AI consent, history and delete</T>
               </summary>
+                <OrganizationLifecycleControl organizationId={org.id} name={org.name} isActive={org.is_active} />
                 <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
                 <div className="mt-3 text-xs text-muted">
                   <p className="font-medium text-ink"><T>AI consent history</T></p>
@@ -149,7 +127,45 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                 />
             </details>
           </div>
-        ))}
+  );
+
+  return (
+    <div className={embedded ? undefined : "max-w-4xl"}>
+      <SettingsBackLink embedded={embedded} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Heading className="text-2xl font-semibold text-ink"><T>Client organisations</T></Heading>
+        <PageGuide
+          title={tl("Client organisations — how this works")}
+          points={[
+            "Admin-only — creating and viewing the list of tenant organisations is an account-administration action, same boundary as Staff Access and Numbering.",
+            "A new organisation starts with no projects, no AI consent, and JAGS-led branding — those are set up separately from this page (New project, Branding, Numbering).",
+            "Everything else in the app (projects, ITPs, staff access grants, module licensing) is always scoped to one of these organisations, so this is the first step of onboarding a real client.",
+            "Engagement scope shown here as a badge is one of three tiers, set under Numbering (not here): Full-Managed (JAGS runs the whole ITP workflow), Self-Managed/\"Hybrid\" (the client builds, submits and accepts its own ITPs and can self-serve branding/numbering/custom roles, but JAGS still approves ITPs and provisions client logins), or Full Client-Managed (all of that, plus the client's own permission-granted people can approve their own ITPs and provision their own team's logins, with no JAGS involvement day to day).",
+          ]}
+        />
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        <T>Every client is an organisation here. Create one below when onboarding a new client; open an organisation to manage its AI consent or delete it.</T>
+      </p>
+
+      <NewOrganizationForm />
+
+      <div className="mt-8 space-y-3">
+        {activeOrgs.length === 0 && inactiveOrgs.length === 0 && (
+          <p className="rounded-md border border-dashed border-border bg-off-white p-4 text-sm text-muted">
+            <T>No client organisations yet — create the first one above.</T>
+          </p>
+        )}
+        {activeOrgs.map(renderOrg)}
+        {inactiveOrgs.length > 0 && (
+          <details className="group pt-2">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
+              <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+              <T>Inactive organisations</T> ({inactiveOrgs.length})
+            </summary>
+            <div className="mt-2 space-y-3">{inactiveOrgs.map(renderOrg)}</div>
+          </details>
+        )}
       </div>
     </div>
   );
