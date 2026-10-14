@@ -231,6 +231,16 @@ export async function provisionPartyLoginAction(
     return { ...INITIAL_STATE, error: "Could not link that account to this party, so nothing was created. Check with a JAGS Admin." };
   }
 
+  // Best effort: when the party has no contact name, copy the linked person's own name into it so every
+  // viewer (client, contractor, TPI) sees who is behind the party without needing to read the users table.
+  if (!party.contact_name?.trim()) {
+    const { data: linkedUser } = await serviceClient.from("users").select("full_name").eq("id", linkedUserId).maybeSingle<{ full_name: string | null }>();
+    const personName = linkedUser?.full_name?.trim();
+    if (personName && personName !== party.name) {
+      await serviceClient.from("project_parties").update({ contact_name: personName }).eq("id", projectPartyId);
+    }
+  }
+
   // Written with the service role after the permission check above — see this function's header.
   // Duplicate-tolerant (the user may already hold this project grant), and the seat-limit trigger
   // still applies.
