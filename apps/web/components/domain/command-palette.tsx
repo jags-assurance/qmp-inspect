@@ -51,7 +51,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         .finally(() => {
           if (seq === searchSeq.current) setSearching(false);
         });
-    }, 250);
+    }, 300);
     return () => clearTimeout(timer);
   }, [open, query]);
 

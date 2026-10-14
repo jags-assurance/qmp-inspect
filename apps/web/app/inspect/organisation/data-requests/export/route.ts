@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { getSessionContext, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
-import { rateLimitResponse } from "@/lib/api/rate-limit";
+import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 import { exportChunks, exportFilename, type ExportDb, type ExportTarget } from "@/lib/data-requests/export";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
   if (!isAdminStaff(session)) return new NextResponse("Only a JAGS Admin can export a user's data.", { status: 403 });
 
-  const limited = rateLimitResponse("export", session.userId);
+  const limited = await sharedRateLimitResponse("export", session.userId, req);
   if (limited) return limited;
 
   const userId = (req.nextUrl.searchParams.get("user_id") ?? "").trim();

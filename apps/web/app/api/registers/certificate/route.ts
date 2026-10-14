@@ -6,7 +6,7 @@ import {
   PERSONNEL_CERTIFICATIONS_TABLE,
   WELDER_QUALIFICATION_REGISTER_TABLE,
 } from "@/lib/registers/types";
-import { rateLimitResponse } from "@/lib/api/rate-limit";
+import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 
 const TABLES = {
   calibration: CALIBRATION_REGISTER_TABLE,
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in to open this file." }, { status: 401 });
-  const limited = rateLimitResponse("export", user.id);
+  const limited = await sharedRateLimitResponse("export", user.id, request);
   if (limited) return limited;
 
   const { data: entry } = await supabase

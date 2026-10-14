@@ -22,7 +22,8 @@ export interface RetentionFlagRow {
   review_outcome: RetentionReviewOutcome | null;
   review_note: string | null;
   reviewed_at: string | null;
-  vault_documents: { title: string; document_number: string | null; revision: string; status: string } | null;
+  disposed_at?: string | null;
+  vault_documents: { title: string; document_number: string | null; revision: string; status: string; storage_path?: string | null } | null;
   users: { full_name: string } | null;
 }
 
@@ -71,4 +72,32 @@ export function daysPastDue(dueOn: string, now: number): number {
   const due = Date.parse(`${dueOn}T00:00:00Z`);
   if (!Number.isFinite(due)) return 0;
   return Math.max(0, Math.floor((now - due) / 86_400_000));
+}
+
+/** The word an Admin must type before a stored file is removed. */
+export const DISPOSE_CONFIRMATION_WORD = "DISPOSE";
+
+export function isDisposalConfirmed(input: string | null | undefined): boolean {
+  return (input ?? "").trim() === DISPOSE_CONFIRMATION_WORD;
+}
+
+/**
+ * Where a vault row's file lives: worker-filed documents are stored as "generated-documents:<path>",
+ * everything else is a bare path in inspection-evidence. Returns null for an unusable path.
+ */
+export function resolveVaultStorageLocation(storagePath: string | null | undefined): { bucket: string; path: string } | null {
+  const raw = (storagePath ?? "").trim();
+  if (!raw || raw.includes("..")) return null;
+  const m = /^([a-z0-9_-]+):(.+)$/i.exec(raw);
+  if (m) return m[1] === "generated-documents" ? { bucket: m[1], path: m[2] } : null;
+  return { bucket: "inspection-evidence", path: raw };
+}
+
+export function disposeErrorMessage(message: string | null | undefined): string {
+  const m = (message ?? "").toLowerCase();
+  if (m.includes("admin")) return "Only a JAGS Admin can mark a document disposed.";
+  if (m.includes("not flagged")) return "This document is not flagged for retention review.";
+  if (m.includes("not been approved")) return "Disposal has not been approved for this document.";
+  if (m.includes("access")) return "You do not have access to this project.";
+  return "Could not record the disposal. Please try again.";
 }

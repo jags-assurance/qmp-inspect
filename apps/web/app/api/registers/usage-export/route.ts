@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { toCsv } from "@/lib/registers/csv";
 import { fetchRegisterUsage } from "@/lib/registers/usage";
 import { CALIBRATION_REGISTER_TABLE, MATERIAL_REGISTER_TABLE, WELDER_QUALIFICATION_REGISTER_TABLE } from "@/lib/registers/types";
-import { rateLimitResponse } from "@/lib/api/rate-limit";
+import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 
 const TABLES = { calibration: CALIBRATION_REGISTER_TABLE, welder: WELDER_QUALIFICATION_REGISTER_TABLE, material: MATERIAL_REGISTER_TABLE } as const;
 
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in to export." }, { status: 401 });
-  const limited = rateLimitResponse("export", user.id);
+  const limited = await sharedRateLimitResponse("export", user.id, request);
   if (limited) return limited;
 
   const { data: entry } = await supabase.from(TABLES[kind]).select("project_id").eq("id", id).maybeSingle<{ project_id: string }>();

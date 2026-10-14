@@ -16,7 +16,7 @@ import {
   daysPastDue,
   type RetentionFlagRow,
 } from "@/lib/retention/logic";
-import { RetentionSettingsForm, ReviewFlagForm } from "./retention-forms";
+import { DisposeDocumentForm, RetentionSettingsForm, ReviewFlagForm } from "./retention-forms";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 
@@ -50,19 +50,24 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
     setting = data ?? null;
 
     if (!unavailable) {
-      const { data: flagRows } = await untypedFrom(supabase, RETENTION_FLAGS_TABLE)
-        .select(
-          "document_id, organization_id, project_id, retention_years, reference_date, due_on, flagged_at, review_outcome, review_note, reviewed_at, vault_documents(title, document_number, revision, status), users:reviewed_by(full_name)"
-        )
-        .eq("organization_id", selectedOrg.id)
-        .order("reviewed_at", { ascending: true, nullsFirst: true })
-        .order("due_on", { ascending: true })
-        .limit(SHOWN)
-        .returns<RetentionFlagRow[]>();
-      flags = flagRows ?? [];
+      const base =
+        "document_id, organization_id, project_id, retention_years, reference_date, due_on, flagged_at, review_outcome, review_note, reviewed_at, users:reviewed_by(full_name)";
+      const load = (cols: string) =>
+        untypedFrom(supabase, RETENTION_FLAGS_TABLE)
+          .select(cols)
+          .eq("organization_id", selectedOrg.id)
+          .order("reviewed_at", { ascending: true, nullsFirst: true })
+          .order("due_on", { ascending: true })
+          .limit(SHOWN)
+          .returns<RetentionFlagRow[]>();
+      let res = await load(`${base}, disposed_at, vault_documents(title, document_number, revision, status)`);
+      // Disposal columns arrive with migration 20261210000400; keep the list working before it is applied.
+      if (res.error) res = await load(`${base}, vault_documents(title, document_number, revision, status)`);
+      flags = res.data ?? [];
     }
   }
   const awaiting = flags.filter((f) => !f.review_outcome);
+  const toDispose = flags.filter((f) => f.review_outcome === "dispose_approved" && !f.disposed_at);
   // Server component: evaluated once per request, which is the intended "now".
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
@@ -78,7 +83,7 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
             "Set how many years this organisation's vault documents must be kept. Once a day a background sweep flags every document that is past that period.",
             "The clock starts when a document was approved, or uploaded if it was never approved.",
             "Flagging is only a review list: nothing is ever deleted, hidden or changed automatically. An Admin decides to keep a document or to approve its disposal, with a note; that decision is recorded in the audit log.",
-            "Approving disposal does not remove the file. If a document must really be destroyed, that is done outside this system under your records policy.",
+            "Approving disposal does not remove the file. An Admin must then mark it disposed, typing a confirmation word, before the stored file is removed; the document record is kept. Nothing is disposed automatically.",
             "Admins of the organisation are notified when new documents are flagged.",
           ]}
         />
@@ -110,6 +115,26 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
             />
           </div>
 
+          <section className="mt-8" aria-label={tl("Dispose approved documents")}>
+            <h3 className="text-sm font-semibold text-ink"><T>Dispose approved documents</T></h3>
+            {toDispose.length === 0 ? (
+              <p className="mt-1 text-sm text-muted"><T>No documents are waiting to be disposed.</T></p>
+            ) : (
+              <ul className="mt-2 divide-y divide-border rounded-md border border-border text-sm">
+                {toDispose.map((f) => (
+                  <li key={f.document_id} className="px-3 py-3">
+                    <Link href={`/inspect/vault/${f.project_id}/document/${f.document_id}`} className="font-medium text-burgundy hover:underline">
+                      {f.vault_documents?.document_number ? `${f.vault_documents.document_number} — ` : ""}
+                      {f.vault_documents?.title ?? "Document"}
+                    </Link>
+                    <p className="mt-0.5 text-xs text-muted">{f.review_note}</p>
+                    <DisposeDocumentForm documentId={f.document_id} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           <section className="mt-8" aria-label={tl("Flagged documents")}>
             <h3 className="text-sm font-semibold text-ink"><T>Documents past retention</T></h3>
             {flags.length === 0 ? (
@@ -126,7 +151,7 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
                       </Link>
                       {f.review_outcome ? (
                         <Badge showIcon tone={f.review_outcome === "keep" ? "success" : "warning"}>
-                          {REVIEW_OUTCOME_LABEL[f.review_outcome]}
+                          {f.disposed_at ? "Disposed" : REVIEW_OUTCOME_LABEL[f.review_outcome]}
                         </Badge>
                       ) : (
                         <Badge showIcon tone="warning"><T>Needs review</T></Badge>

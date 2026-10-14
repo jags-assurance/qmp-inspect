@@ -26,7 +26,30 @@ export interface ResponseSyncedDetail {
  *  so OfflineBanner refreshes its count and, if online, attempts an immediate sync rather than
  *  waiting for the next online/offline transition. */
 export function notifyOutboxChanged() {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(QUEUE_CHANGED_EVENT));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(QUEUE_CHANGED_EVENT));
+    void registerBackgroundSync();
+  }
+}
+
+/** Tag the service worker listens for (public/sw.js). */
+export const BACKGROUND_SYNC_TAG = "qmp-sync";
+
+/**
+ * Asks the browser to wake the service worker when connectivity returns (Background Sync API, Chromium
+ * only; absent on Safari/iOS and Firefox, where this is a silent no-op). The worker does NOT replay the
+ * queue itself: it messages an open page, which runs the normal syncOutbox() (one replay path, so the
+ * ownership / ordering / hold rules and server idempotency keys apply unchanged). Best-effort only.
+ */
+export async function registerBackgroundSync(): Promise<void> {
+  try {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sync = (reg as ServiceWorkerRegistration & { sync?: { register(tag: string): Promise<void> } }).sync;
+    if (sync) await sync.register(BACKGROUND_SYNC_TAG);
+  } catch {
+    // Unsupported or denied: the page-level triggers (online, visibility, 60s timer) still apply.
+  }
 }
 
 export function onOutboxChanged(handler: () => void): () => void {

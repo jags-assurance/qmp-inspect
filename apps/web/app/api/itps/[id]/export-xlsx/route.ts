@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildItpWorkbook, OFFLINE_WORKBOOK_HEADERS, type OfflineWorkbookSourceSection } from "@/lib/itps/offline-workbook";
 import { stampUncontrolledCopyBanner } from "@/lib/itps/xlsx-uncontrolled-copy";
-import { rateLimitResponse } from "@/lib/api/rate-limit";
+import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 
 /**
  * R41 — "download an AI-drafted ITP... edit it offline... re-upload as a new validated revision."
@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
-  const limited = rateLimitResponse("export", user.id);
+  const limited = await sharedRateLimitResponse("export", user.id, request);
   if (limited) return limited;
 
   const { data: itp } = await supabase

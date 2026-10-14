@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { reviewRetentionFlagAction, saveRetentionSettingsAction, type RetentionState } from "@/lib/retention/actions";
-import { MAX_RETENTION_YEARS, MIN_RETENTION_YEARS } from "@/lib/retention/logic";
+import { markRetentionDisposedAction, reviewRetentionFlagAction, saveRetentionSettingsAction, type RetentionState } from "@/lib/retention/actions";
+import { DISPOSE_CONFIRMATION_WORD, MAX_RETENTION_YEARS, MIN_RETENTION_YEARS } from "@/lib/retention/logic";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
@@ -93,6 +93,31 @@ export function ReviewFlagForm({ documentId }: { documentId: string }) {
         {pending ? "Saving…" : "Record decision"}
       </Button>
       <FormMessage error={state.error} className="w-full" />
+    </form>
+  );
+}
+
+export function DisposeDocumentForm({ documentId }: { documentId: string }) {
+  const [state, formAction, pending] = useActionState(markRetentionDisposedAction, initialState);
+  return (
+    <form action={formAction} className="mt-2 flex flex-wrap items-end gap-2">
+      <input type="hidden" name="document_id" value={documentId} />
+      <div className="min-w-48 flex-1">
+        <label htmlFor={`confirm_${documentId}`} className="block text-xs font-medium text-ink">
+          <Tx>Type</Tx> {DISPOSE_CONFIRMATION_WORD} <Tx>to confirm. The stored file is permanently removed; the document record is kept.</Tx>
+        </label>
+        <input
+          id={`confirm_${documentId}`}
+          name="confirm"
+          autoComplete="off"
+          required
+          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
+        {pending ? "Removing…" : "Mark disposed"}
+      </Button>
+      <FormMessage error={state.error} success={state.success} className="w-full" />
     </form>
   );
 }

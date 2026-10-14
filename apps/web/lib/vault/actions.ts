@@ -37,6 +37,20 @@ export interface UploadVaultDocumentCoreParams {
 }
 
 /**
+ * Best-effort removal of an uploaded vault object whose database row could not be saved, so a failed
+ * save does not leave an orphaned file. Only objects under this project's own vault/<projectId>/
+ * prefix are ever removed. Never throws and never changes the caller's error.
+ */
+async function removeOrphanedVaultObject(supabase: SupabaseClient, projectId: string, storagePath: string): Promise<void> {
+  if (!storagePath.startsWith(`vault/${projectId}/`) || storagePath.includes("..")) return;
+  try {
+    await supabase.storage.from("inspection-evidence").remove([storagePath]);
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+/**
  * The actual record-and-supersede-and-extract logic, split out from uploadVaultDocumentAction so a
  * second, non-session caller can reuse it verbatim instead of re-implementing the storage
  * bucket/table/numbering logic — same split as completeInspectionCore in lib/checklists/actions.ts
@@ -163,6 +177,7 @@ export async function uploadVaultDocumentCore(
     .single<{ id: string }>();
 
   if (error || !document) {
+    await removeOrphanedVaultObject(supabase, projectId, storagePath);
     return { error: "Could not save the document record. Check you have permission and try again." };
   }
 

@@ -52,3 +52,19 @@ describe("helpers", () => {
     expect(daysPastDue("garbage", now)).toBe(0);
   });
 });
+
+describe("disposal helpers", () => {
+  it("needs the exact confirmation word", async () => {
+    const { isDisposalConfirmed } = await import("../logic");
+    expect(isDisposalConfirmed("DISPOSE")).toBe(true);
+    expect(isDisposalConfirmed(" DISPOSE ")).toBe(true);
+    for (const bad of ["dispose", "yes", "", null, undefined]) expect(isDisposalConfirmed(bad)).toBe(false);
+  });
+
+  it("resolves the bucket of a vault file and refuses unusable paths", async () => {
+    const { resolveVaultStorageLocation } = await import("../logic");
+    expect(resolveVaultStorageLocation("vault/p/a.pdf")).toEqual({ bucket: "inspection-evidence", path: "vault/p/a.pdf" });
+    expect(resolveVaultStorageLocation("generated-documents:ncrs/1/a.pdf")).toEqual({ bucket: "generated-documents", path: "ncrs/1/a.pdf" });
+    for (const bad of ["", null, "vault/../x", "other-bucket:x"]) expect(resolveVaultStorageLocation(bad)).toBeNull();
+  });
+});

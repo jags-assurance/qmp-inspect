@@ -17,6 +17,8 @@ import { BreadcrumbProvider } from "./breadcrumb-context";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
+import { OrgSwitcher } from "./org-switcher";
+import { setActiveOrganisationAction } from "@/lib/organizations/active-org-actions";
 import { Tx } from "@/components/domain/tx";
 
 export interface NavItem {
@@ -67,6 +69,7 @@ export async function AppShell({
   orgBranding = null,
   userMenuLinks = [],
   showTermsBanner = false,
+  orgSwitcher = null,
   children,
 }: {
   navItems: NavItem[];
@@ -79,6 +82,8 @@ export async function AppShell({
   userMenuLinks?: { label: string; href: string }[];
   /** One-time, dismissible "please accept the terms" notice (U7). Never blocks anything. */
   showTermsBanner?: boolean;
+  /** Only set for a user with grants in more than one organisation. */
+  orgSwitcher?: { options: { id: string; name: string }[]; activeId: string | null } | null;
   children: ReactNode;
 }) {
   return (
@@ -102,6 +107,9 @@ export async function AppShell({
             <HeaderBreadcrumb root={breadcrumb} navItems={navItems} />
           </div>
           <div className="flex flex-1 items-center justify-end gap-4">
+            {orgSwitcher && orgSwitcher.options.length > 1 && (
+              <OrgSwitcher options={orgSwitcher.options} activeId={orgSwitcher.activeId} action={setActiveOrganisationAction} />
+            )}
             <CommandPalette navItems={navItems} />
             {/* Streamed: the bell used to be fetched before ANYTHING rendered, adding a round-trip to every
                 page's first byte. The page now paints immediately and the bell fills in. */}

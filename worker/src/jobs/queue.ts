@@ -179,7 +179,7 @@ export async function markRetry(jobId: string, errorMessage: string, attempts: n
  * worker itself uses to give up on an in-process render — by then a live worker would already have
  * timed it out, so anything still 'processing' past that point can only be orphaned.
  */
-export async function reclaimOrphanedJobs(): Promise<void> {
+export async function reclaimOrphanedJobs(inFlightIds: ReadonlySet<string> = new Set()): Promise<void> {
   // A job is orphaned once it has been 'processing' longer than ITS OWN type's timeout (a live worker would
   // already have timed it out by then). Measure from started_at (set on claim); rows without it fall back to
   // created_at. If the column is missing (migration not applied yet) the first query errors and we use created_at.
@@ -204,7 +204,8 @@ export async function reclaimOrphanedJobs(): Promise<void> {
     return;
   }
   const now = Date.now();
-  const stale = (processing ?? []).filter((j) => orphanDecision(j, now) !== "keep");
+  // Jobs this very process is still running (or has parked) are never orphans, whatever started_at says.
+  const stale = (processing ?? []).filter((j) => !inFlightIds.has(j.id) && orphanDecision(j, now) !== "keep");
   if (stale.length === 0) return;
 
   for (const job of stale) {
@@ -230,6 +231,17 @@ export async function reclaimOrphanedJobs(): Promise<void> {
       console.error(`[worker] ${requeue ? "Requeued" : "Failed"} orphaned job ${job.id} (${job.job_type}) — stuck in 'processing' since ${job.started_at ?? job.created_at}.`);
     }
   }
+}
+
+/** Resets the orphan clock of jobs this process holds (parked behind the heavy slot, or just starting), so another replica's reaper leaves them alone. Best-effort. */
+export async function touchStartedAt(jobIds: string[]): Promise<void> {
+  if (jobIds.length === 0) return;
+  const { error } = (await supabase
+    .from("background_jobs" as never)
+    .update({ started_at: new Date().toISOString() } as never)
+    .in("id", jobIds)
+    .eq("status", "processing")) as unknown as { error: { message: string } | null };
+  if (error) console.warn("[worker] Could not refresh started_at heartbeat:", error.message);
 }
 
 /** Test hook: restores the module-level queue state (in-memory backoff map, RPC availability flag). */

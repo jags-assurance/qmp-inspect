@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { VAULT_FOLDERS_TABLE, VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { buildManifestCsv, sanitizeZipSegment, type ManifestRow } from "@/lib/vault/zip-helpers";
-import { rateLimitResponse } from "@/lib/api/rate-limit";
+import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 
 export const runtime = "nodejs";
 // A big project's pack is hundreds of files: allow the function to run for the platform maximum
@@ -62,7 +62,7 @@ function resolveStorageLocation(storagePath: string): { bucket: string; path: st
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   const session = await requireSession();
-  const limited = rateLimitResponse("bulkDownload", session.userId);
+  const limited = await sharedRateLimitResponse("bulkDownload", session.userId, request);
   if (limited) return limited;
   const { projectId } = await params;
   // ?ids=a,b,c : an explicit selection from the folder table (still RLS-scoped to this project's

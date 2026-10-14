@@ -125,6 +125,20 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// Background Sync (Chromium only): the browser fires this when connectivity returns, even if the tab is
+// in the background. The worker deliberately does NOT replay the outbox itself (that logic lives in the
+// app: user ownership, ordering/holds, photo preparation, baseline chaining; duplicating it here would
+// fork the business rules). It wakes any open page, which runs the normal sync. With no open page it
+// does nothing and the queue waits for the next app open. See docs/OFFLINE_SYNC.md.
+self.addEventListener("sync", (event) => {
+  if (event.tag !== "qmp-sync") return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) client.postMessage({ type: "QMP_SYNC" });
+    })
+  );
+});
+
 async function handleNavigation(event) {
   const request = event.request;
   const url = new URL(request.url);

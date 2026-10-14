@@ -19,6 +19,15 @@ import { ACTIVITY_SIGNOFF_PROGRESS_TABLE, type SignoffStatus } from "@/lib/signo
 import { NCRS_TABLE, type NcrRow } from "@/lib/ncrs/types";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
 import { fetchAll } from "@/lib/supabase/fetch-all";
+import {
+  buildMonthlyTrends,
+  buildPunchBySource,
+  buildQualityByParty,
+  type MonthlyCountRow,
+  type MonthlyTrendPoint,
+  type PartyRollupRow,
+  type PunchSourceRow,
+} from "./aggregates";
 import { fetchAllInChunks, loadItemsForSections, loadProjectItpIds, loadSectionsForItps } from "./queries";
 
 export interface OpenNcrItem {
@@ -114,65 +123,19 @@ export interface QualityByPartyRow {
  * 0/0 = 0%, and never shown as an all-zero row with nothing real behind it).
  */
 export async function computeQualityByParty(supabase: SupabaseClient, projectId: string): Promise<QualityByPartyRow[]> {
-  const itpIds = await loadProjectItpIds(supabase, projectId);
-  const sectionIds = (await loadSectionsForItps(supabase, itpIds)).map((sec) => sec.id);
-  const itemIds = (await loadItemsForSections<{ id: string }>(supabase, sectionIds, "id")).map((i) => i.id);
-
-  const [signoffRows, ncrRollupRows] = await Promise.all([
-    fetchAllInChunks<{ project_party_id: string; status: SignoffStatus }, string>(itemIds, (chunk, from, to) =>
-      supabase
-        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-        .select("project_party_id, status")
-        .in("itp_item_id", chunk)
-        .order("id")
-        .range(from, to)
-        .returns<{ project_party_id: string; status: SignoffStatus }[]>()
-    ),
-    fetchAll<{ responsible_party_id: string }>((from, to) =>
-      supabase
-        .from(NCRS_TABLE)
-        .select("responsible_party_id")
-        .eq("project_id", projectId)
-        .not("responsible_party_id", "is", null)
-        .order("id")
-        .range(from, to)
-        .returns<{ responsible_party_id: string }[]>()
-    ),
-  ]);
-
-  const totalsByParty = new Map<string, { total: number; signedOff: number }>();
-  for (const row of signoffRows) {
-    const entry = totalsByParty.get(row.project_party_id) ?? { total: 0, signedOff: 0 };
-    entry.total += 1;
-    if (row.status === "signed_off") entry.signedOff += 1;
-    totalsByParty.set(row.project_party_id, entry);
-  }
-
-  const ncrCountByParty = new Map<string, number>();
-  for (const row of ncrRollupRows) {
-    ncrCountByParty.set(row.responsible_party_id, (ncrCountByParty.get(row.responsible_party_id) ?? 0) + 1);
-  }
-
-  const partyIds = [...new Set([...totalsByParty.keys(), ...ncrCountByParty.keys()])];
-  if (partyIds.length === 0) return [];
+  // One SQL aggregate (kpi_party_rollup) instead of paging every ITP / section / item / sign-off row
+  // into memory. SECURITY INVOKER, so RLS scopes it exactly like the table reads it replaces.
+  const { data, error } = await supabase.rpc("kpi_party_rollup", { p_project_id: projectId });
+  if (error) throw new Error(`Could not load party rollup: ${error.message}`);
+  const rows = (data ?? []) as PartyRollupRow[];
+  if (rows.length === 0) return [];
 
   const { data: parties } = await supabase
     .from("project_parties")
     .select("id, name")
-    .in("id", partyIds)
+    .in("id", rows.map((r) => r.party_id))
     .returns<{ id: string; name: string }[]>();
-  const nameById = new Map((parties ?? []).map((p) => [p.id, p.name]));
-
-  return partyIds
-    .map((partyId) => {
-      const signoff = totalsByParty.get(partyId);
-      return {
-        partyName: nameById.get(partyId) ?? "Unknown party",
-        percentage: signoff ? Math.round((signoff.signedOff / signoff.total) * 100) : null,
-        ncrCount: ncrCountByParty.get(partyId) ?? 0,
-      };
-    })
-    .sort((a, b) => (b.percentage ?? -1) - (a.percentage ?? -1));
+  return buildQualityByParty(rows, new Map((parties ?? []).map((p) => [p.id, p.name])));
 }
 
 export interface DisciplinePassRateRow {
@@ -270,14 +233,7 @@ function average(values: number[]): number | null {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-export interface MonthlyTrendPoint {
-  /** First day of the month, ISO (UTC) — used as the bucket key. */
-  monthStart: string;
-  /** e.g. "Mar 2026". */
-  label: string;
-  ncrCount: number;
-  inspectionsCompletedCount: number;
-}
+export type { MonthlyTrendPoint } from "./aggregates";
 
 /**
  * Real per-project monthly trend of NCR volume and inspection-completion counts, over the last 6
@@ -300,67 +256,11 @@ export async function computeMonthlyTrends(
   projectId: string,
   projectCreatedAt: string
 ): Promise<MonthlyTrendPoint[]> {
-  const [ncrs, records] = await Promise.all([
-    fetchAll<{ created_at: string }>((from, to) =>
-      supabase.from(NCRS_TABLE).select("created_at").eq("project_id", projectId).order("id").range(from, to).returns<{ created_at: string }[]>()
-    ),
-    fetchAll<{ created_at: string; overall_result: "pass" | "fail" | "partial" | null }>((from, to) =>
-      supabase
-        .from("inspection_records")
-        .select("created_at, overall_result")
-        .eq("project_id", projectId)
-        .order("id")
-        .range(from, to)
-        .returns<{ created_at: string; overall_result: "pass" | "fail" | "partial" | null }[]>()
-    ),
-  ]);
-
-  const completedRecords = records.filter((r) => r.overall_result !== null);
-
-  const now = new Date();
-  const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const projectCreated = new Date(projectCreatedAt);
-  const projectMonthStart = new Date(Date.UTC(projectCreated.getUTCFullYear(), projectCreated.getUTCMonth(), 1));
-
-  // 6-month window, but never reaching back before the project existed.
-  const sixMonthsAgo = new Date(Date.UTC(currentMonthStart.getUTCFullYear(), currentMonthStart.getUTCMonth() - 5, 1));
-  const earliestMonthStart = sixMonthsAgo.getTime() > projectMonthStart.getTime() ? sixMonthsAgo : projectMonthStart;
-
-  const months: Date[] = [];
-  const cursor = new Date(earliestMonthStart);
-  while (cursor.getTime() <= currentMonthStart.getTime()) {
-    months.push(new Date(cursor));
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-  }
-
-  function monthKey(iso: string): string {
-    const d = new Date(iso);
-    return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
-  }
-
-  const ncrCountsByMonth = new Map<string, number>();
-  for (const ncr of ncrs) {
-    const key = monthKey(ncr.created_at);
-    ncrCountsByMonth.set(key, (ncrCountsByMonth.get(key) ?? 0) + 1);
-  }
-
-  const inspectionCountsByMonth = new Map<string, number>();
-  for (const record of completedRecords) {
-    const key = monthKey(record.created_at);
-    inspectionCountsByMonth.set(key, (inspectionCountsByMonth.get(key) ?? 0) + 1);
-  }
-
-  const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
-
-  return months.map((monthStart) => {
-    const key = `${monthStart.getUTCFullYear()}-${monthStart.getUTCMonth()}`;
-    return {
-      monthStart: monthStart.toISOString(),
-      label: monthFormatter.format(monthStart),
-      ncrCount: ncrCountsByMonth.get(key) ?? 0,
-      inspectionsCompletedCount: inspectionCountsByMonth.get(key) ?? 0,
-    };
-  });
+  // Per-month counts come from one SQL aggregate (kpi_monthly_counts) rather than every NCR and
+  // inspection row; bucketing is UTC, identical to the previous in-memory pass.
+  const { data, error } = await supabase.rpc("kpi_monthly_counts", { p_project_id: projectId });
+  if (error) throw new Error(`Could not load monthly trends: ${error.message}`);
+  return buildMonthlyTrends((data ?? []) as MonthlyCountRow[], projectCreatedAt);
 }
 
 function hoursBetween(startIso: string, endIso: string): number {
@@ -668,25 +568,11 @@ export async function computePunchListBySource(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<{ source: string; label: string; openCount: number; closedCount: number }[]> {
-  const { data } = await supabase
-    .from("punch_list_items")
-    .select("source, status")
-    .eq("project_id", projectId)
-    .returns<{ source: string; status: string }[]>();
-
-  const bySource = new Map<string, { openCount: number; closedCount: number }>();
-  for (const row of data ?? []) {
-    const entry = bySource.get(row.source) ?? { openCount: 0, closedCount: 0 };
-    // "Resolved but not yet verified" still counts as open here — it isn't truly closed until an
-    // independent verifier signs off (see resolvePunchItemAction/closePunchItemAction).
-    if (row.status !== "closed") entry.openCount += 1;
-    else entry.closedCount += 1;
-    bySource.set(row.source, entry);
-  }
-
-  return [...bySource.entries()]
-    .map(([source, counts]) => ({ source, label: PUNCH_LIST_SOURCE_LABEL[source] ?? source, ...counts }))
-    .sort((a, b) => b.openCount + b.closedCount - (a.openCount + a.closedCount));
+  // "Resolved but not yet verified" still counts as open (only status 'closed' is closed); the SQL
+  // aggregate (kpi_punch_by_source) applies that rule and is not subject to the 1000-row read cap.
+  const { data, error } = await supabase.rpc("kpi_punch_by_source", { p_project_id: projectId });
+  if (error) throw new Error(`Could not load punch list breakdown: ${error.message}`);
+  return buildPunchBySource((data ?? []) as PunchSourceRow[], PUNCH_LIST_SOURCE_LABEL);
 }
 
 export interface OpenHoldItem {

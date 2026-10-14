@@ -12,6 +12,7 @@ import { isLicensedIn } from "@/lib/module-licensing/license-map";
 import { loadOrgChrome } from "@/lib/organizations/chrome-cache";
 import type { ModuleKey } from "@/lib/module-licensing/types";
 import { brandComboColors } from "@/lib/branding/org-brand";
+import { ACTIVE_ORG_COOKIE, grantedOrgIds, resolveActiveOrgId } from "@/lib/organizations/active-org";
 import { loadNeedsTermsAcceptance } from "@/lib/terms/load";
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,15 @@ export default async function InspectLayout({ children }: { children: React.Reac
   // "own org" for a non-staff login, same lookup used everywhere else in this file/app
   // (client-teams/page.tsx, manage/page.tsx) — a non-staff user's access_grants are in practice all
   // scoped to the one org they belong to, so the first organization_id-bearing grant is that org.
-  const ownOrgId = session.isJagsStaff ? null : session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+  // A user with grants in several organisations can pick one (header switcher; the cookie is validated
+  // against the user's own grants); the default stays the first grant.
+  const cookieStore = await cookies();
+  const ownOrgId = session.isJagsStaff ? null : resolveActiveOrgId(session.grants, cookieStore.get(ACTIVE_ORG_COOKIE)?.value);
+  const grantedOrgs = session.isJagsStaff ? [] : grantedOrgIds(session.grants);
+  const orgNamesPromise =
+    grantedOrgs.length > 1
+      ? supabase.from("organizations").select("id, name").in("id", grantedOrgs).returns<{ id: string; name: string }[]>()
+      : Promise.resolve(null);
 
   // D-05: these lookups are independent of each other (none consumes another's result), so they all
   // start now instead of as four-plus serial round trips on the critical path of every navigation.
@@ -225,7 +234,12 @@ export default async function InspectLayout({ children }: { children: React.Reac
       : "JAGS Inspector"
     : (grant?.role ?? "Member");
 
-  const locale = normalizeLocale((await cookies()).get(LOCALE_COOKIE)?.value);
+  const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  const orgNames = (await orgNamesPromise)?.data ?? [];
+  const orgSwitcher =
+    grantedOrgs.length > 1
+      ? { options: grantedOrgs.map((id) => ({ id, name: orgNames.find((o) => o.id === id)?.name ?? "Organisation" })), activeId: ownOrgId }
+      : null;
   return (
     <AppShell
       navItems={localizeNavItems(navItems, locale)}
@@ -235,6 +249,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       breadcrumb="QMP Inspect"
       orgBranding={orgBranding}
       showTermsBanner={needsTerms}
+      orgSwitcher={orgSwitcher}
       userMenuLinks={[
         { label: "Dashboard", href: "/inspect" },
         ...(isAdminStaff(session) ? [{ label: "Settings", href: "/inspect/settings" }] : []),

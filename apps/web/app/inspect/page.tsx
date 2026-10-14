@@ -1,6 +1,8 @@
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
+type UntypedRpc = { rpc(fn: string): PromiseLike<{ data: unknown; error: { message: string } | null }> };
+import { sumOpenNcrs, type OpenNcrProjectRow } from "@/lib/kpis/aggregates";
 import {
   ACTIVITY_SIGNOFF_PROGRESS_TABLE,
   type ActivitySignoffProgressRow,
@@ -144,18 +146,13 @@ export default async function InspectDashboardPage() {
           .range(from, to)
           .returns<{ id: string; project_number: string; name: string; organization_id: string }[]>()
       ).then((data) => ({ data })),
-      // All open minor/major NCRs, but ONLY the two ids the per-organisation / per-project counts
-      // need — the full rows for the visible list come from the capped query right after.
-      fetchAll<{ id: string; project_id: string; projects: { organization_id: string } | null }>((from, to) =>
-        supabase
-          .from("ncrs")
-          .select("id, project_id, projects(organization_id)")
-          .neq("status", "closed")
-          .neq("severity", "observation")
-          .order("id")
-          .range(from, to)
-          .returns<{ id: string; project_id: string; projects: { organization_id: string } | null }[]>()
-      ).then((data) => ({ data })),
+      // Open minor/major NCR counts per project (with the project's organisation) from ONE SQL
+      // aggregate (kpi_open_ncrs_by_project, SECURITY INVOKER so RLS applies) instead of paging every
+      // open NCR row into the web server. The visible list comes from the capped query right after.
+      Promise.resolve((supabase as unknown as UntypedRpc).rpc("kpi_open_ncrs_by_project")).then((res) => {
+        if (res.error) throw new Error(`Could not load open NCR counts: ${res.error.message}`);
+        return { data: (res.data ?? []) as OpenNcrProjectRow[] };
+      }),
       // The 8 most recent, with everything the list and its side panel show.
       supabase
         .from("ncrs")
@@ -458,21 +455,14 @@ export default async function InspectDashboardPage() {
     if (!managesOwnOrg) return { managesOwnOrg, orgHealth: null };
     const todayIso = new Date().toISOString().slice(0, 10);
     // ONE light parties query (active parties, with or without a login) instead of two head counts on the same table.
-    const [partyRows, { count: openPunchItems }, { count: overdueNcrs }] = await Promise.all([
-      fetchAll<{ id: string; user_id: string | null }>((from, to) =>
-        supabase
-          .from("project_parties")
-          .select("id, user_id")
-          .eq("is_active", true)
-          .order("id")
-          .range(from, to)
-          .returns<{ id: string; user_id: string | null }[]>()
-      ),
+    const [{ count: activePartyCount }, { count: partiesWithLoginCount }, { count: openPunchItems }, { count: overdueNcrs }] = await Promise.all([
+      supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("project_parties").select("id", { count: "exact", head: true }).eq("is_active", true).not("user_id", "is", null),
       supabase.from("punch_list_items").select("id", { count: "exact", head: true }).neq("status", "closed"),
       supabase.from("ncrs").select("id", { count: "exact", head: true }).neq("status", "closed").neq("severity", "observation").lt("due_date", todayIso),
     ]);
-    const activeParties = partyRows.length;
-    const partiesWithLogin = partyRows.filter((r) => r.user_id !== null).length;
+    const activeParties = activePartyCount ?? 0;
+    const partiesWithLogin = partiesWithLoginCount ?? 0;
     return {
       managesOwnOrg,
       orgHealth: {
@@ -553,7 +543,8 @@ export default async function InspectDashboardPage() {
       await adminBatchPromise!;
     pendingProposals = proposals ?? [];
     pendingProposalTotal = proposalCount ?? pendingProposals.length;
-    openNcrTotal = openNcrs ?? (openNcrRows ?? []).length;
+    const openNcrSums = sumOpenNcrs(openNcrRows ?? []);
+    openNcrTotal = openNcrs ?? openNcrSums.total;
     // The real list behind the "Open NCRs" KPI tile (new purpose: less page-hopping) — same rows
     // the org-portfolio aggregation below already fetched, just kept in full instead of only
     // counted, so the tile can expand inline to the actual NCRs instead of only a number.
@@ -596,14 +587,8 @@ export default async function InspectDashboardPage() {
       list.push({ id: row.id, project_number: row.project_number, name: row.name });
       projectsByOrg.set(row.organization_id, list);
     }
-    const openNcrsByOrg = new Map<string, number>();
-    const openNcrsByProject = new Map<string, number>();
-    for (const row of openNcrRows ?? []) {
-      openNcrsByProject.set(row.project_id, (openNcrsByProject.get(row.project_id) ?? 0) + 1);
-      const orgId = row.projects?.organization_id;
-      if (!orgId) continue;
-      openNcrsByOrg.set(orgId, (openNcrsByOrg.get(orgId) ?? 0) + 1);
-    }
+    const openNcrsByOrg = openNcrSums.byOrg;
+    const openNcrsByProject = openNcrSums.byProject;
     orgPortfolio = (organizations ?? []).map((org) => {
       const projects = projectsByOrg.get(org.id) ?? [];
       return {

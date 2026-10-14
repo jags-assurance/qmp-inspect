@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { ACTIVE_ORG_COOKIE, resolveActiveOrgId } from "@/lib/organizations/active-org";
 import { Suspense, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -141,7 +143,7 @@ async function visibleKeys(): Promise<Set<string> | "all"> {
   const showTeamsNav = session.isJagsStaff && (await isLeadOfAnyTeam(supabase, session.userId));
   if (showTeamsNav) keys.add("teams");
 
-  const ownOrgId = session.isJagsStaff ? null : session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+  const ownOrgId = session.isJagsStaff ? null : resolveActiveOrgId(session.grants, (await cookies()).get(ACTIVE_ORG_COOKIE)?.value);
   let showClientTeamsNav = session.isJagsStaff;
   let isSelfManagedOrg = false;
   if (!showClientTeamsNav && ownOrgId) {

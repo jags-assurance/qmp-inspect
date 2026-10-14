@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { removeGeneratedFile, sourceHash } from "./generatedDocument";
 import { sealFooterSpan } from "./integritySeal";
 import { PermanentJobError } from "./jobAbort";
+import { decideIssuedRender, describeReprintCheck, mayRecordCertifiedHash } from "./dataBookFreeze";
 import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, fetchCountedRegisterRows, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
 import { setHtmlContentAndSettle } from "./renderHtml";
@@ -928,17 +929,16 @@ export async function renderDataBookPdf(
   const header = await loadDataBookRow(payload.data_book_id);
   await assertRequesterIsStaff(payload.requested_by);
 
-  // An issued book is a controlled record: do not re-render it (registers/people may have changed since
-  // issue) unless explicitly forced, in which case it is printed as a reprint of the same revision.
-  let reprint = false;
-  if (header.status === "issued") {
-    if (payload.force_regenerate !== true) {
-      const filed = await findFiledBookPath(header.project_id, header.book_number);
-      if (filed) return { resultStoragePath: filed };
-    } else {
-      reprint = true;
-    }
+  // An issued book is a controlled record (audit M2): once the certificate stores a hash the certified PDF
+  // is never replaced. Filed copy exists -> return it (backfilling a missing hash from its bytes); forced
+  // -> render a reprint to a NEW path, compare to the frozen snapshot, record mismatches, replace nothing.
+  const filedPath = header.status === "issued" ? await findFiledBookPath(header.project_id, header.book_number) : null;
+  const action = decideIssuedRender({ status: header.status, force: payload.force_regenerate === true, filedPath });
+  if (action === "return_filed" && filedPath) {
+    await backfillCertifiedHashFromFiled(header.id, filedPath);
+    return { resultStoragePath: filedPath };
   }
+  const reprint = action === "reprint";
 
   const { dataBook, data } = await buildDataBookHtml(payload.data_book_id, { reprint });
   const footerLabel = dataBookIssueLabel(dataBook.status, !!data.isConditional, reprint);
@@ -997,6 +997,9 @@ export async function renderDataBookPdf(
       throw err;
     }
     await recordIssuedBookHash(dataBook.id, storagePath, pdfBuffer);
+    await recordIssueSnapshot(dataBook.id, data);
+  } else if (reprint) {
+    await recordReprintCheck(dataBook, data, storagePath, pdfBuffer, payload.requested_by);
   }
 
   return { resultStoragePath: storagePath };
@@ -1015,6 +1018,92 @@ async function recordIssuedBookHash(dataBookId: string, storagePath: string, pdf
     .eq("data_book_id", dataBookId)
     .is("rendered_book_sha256", null);
   if (error) console.warn(`[renderDataBookPdf] Could not record the issued book hash for ${dataBookId}: ${error.message}`);
+}
+
+/** Hash of the printable content, independent of the reprint flag and the generation timestamp. */
+function frozenContentHash(data: DataBookPdfData): string {
+  return sourceHash({ ...data, generatedAt: null, reprint: false });
+}
+
+/** If a retry finds the filed copy but the certificate never got its hash (crash after filing), hash the filed bytes. */
+async function backfillCertifiedHashFromFiled(dataBookId: string, filedPath: string): Promise<void> {
+  try {
+    const { data: cert } = await supabase
+      .from("handover_certificates" as never)
+      .select("rendered_book_sha256")
+      .eq("data_book_id", dataBookId)
+      .maybeSingle<{ rendered_book_sha256: string | null }>();
+    if (!cert || !mayRecordCertifiedHash(cert.rendered_book_sha256)) return;
+    const { data: blob, error } = await supabase.storage.from("generated-documents").download(filedPath);
+    if (error || !blob) return;
+    const sha = createHash("sha256").update(Buffer.from(await blob.arrayBuffer())).digest("hex");
+    await supabase
+      .from("handover_certificates" as never)
+      .update({ rendered_book_path: filedPath, rendered_book_sha256: sha } as never)
+      .eq("data_book_id", dataBookId)
+      .is("rendered_book_sha256", null);
+  } catch (err) {
+    console.warn(`[renderDataBookPdf] Could not backfill the certified hash for ${dataBookId}:`, err instanceof Error ? err.message : err);
+  }
+}
+
+/** Stores readiness counts + content summary + content hash as certified at issue (write-once; best-effort until the migration is applied). */
+async function recordIssueSnapshot(dataBookId: string, data: DataBookPdfData): Promise<void> {
+  const { error } = await supabase.from("data_book_issue_snapshots" as never).upsert(
+    {
+      data_book_id: dataBookId,
+      content_hash: frozenContentHash(data),
+      as_of: data.issuedDate ?? null,
+      readiness: {
+        overallPercentage: data.overallPercentage,
+        isReady: data.isReady,
+        openPunchItems: data.openPunchItems,
+        categories: data.categories.map((c) => ({ label: c.label, ready: c.ready, total: c.total })),
+      },
+      content_summary: {
+        itps: data.itps.length,
+        calibrations: data.calibrations.length,
+        welders: data.welders.length,
+        materials: data.materials.length,
+        ncrs: data.ncrs.length,
+        punchItems: data.punchItems.length,
+      },
+    } as never,
+    { onConflict: "data_book_id", ignoreDuplicates: true }
+  );
+  if (error) console.warn(`[renderDataBookPdf] Could not store the issue snapshot for ${dataBookId}: ${error.message}`);
+}
+
+/** A reprint of an issued book never replaces anything: compare to the certified state and audit the outcome. */
+async function recordReprintCheck(dataBook: DataBookRow, data: DataBookPdfData, storagePath: string, pdf: Buffer, actorId: string | null | undefined): Promise<void> {
+  try {
+    const [{ data: cert }, { data: snap }, { data: project }] = await Promise.all([
+      supabase.from("handover_certificates" as never).select("rendered_book_sha256").eq("data_book_id", dataBook.id).maybeSingle<{ rendered_book_sha256: string | null }>(),
+      supabase.from("data_book_issue_snapshots" as never).select("content_hash").eq("data_book_id", dataBook.id).maybeSingle<{ content_hash: string }>(),
+      supabase.from("projects").select("organization_id").eq("id", dataBook.project_id).maybeSingle<{ organization_id: string }>(),
+    ]);
+    const check = describeReprintCheck({
+      certifiedSha: cert?.rendered_book_sha256 ?? null,
+      reprintSha: createHash("sha256").update(pdf).digest("hex"),
+      snapshotContentHash: snap?.content_hash ?? null,
+      reprintContentHash: frozenContentHash(data),
+    });
+    console.log(`[renderDataBookPdf] Reprint of issued ${dataBook.book_number} at ${storagePath}: content ${check.content}. ${check.note}`);
+    if (project?.organization_id) {
+      await supabase.from("audit_log" as never).insert({
+        organization_id: project.organization_id,
+        project_id: dataBook.project_id,
+        entity_type: "data_book",
+        entity_id: dataBook.id,
+        action: check.mismatch ? "databook_rerender_mismatch" : "databook_rerender",
+        actor_id: actorId ?? null,
+        summary: `${dataBook.book_number}: ${check.note}`,
+        changes: { reprint_path: storagePath, pdf_hash_vs_certified: check.pdf, content_vs_snapshot: check.content },
+      } as never);
+    }
+  } catch (err) {
+    console.warn(`[renderDataBookPdf] Reprint comparison failed for ${dataBook.id}:`, err instanceof Error ? err.message : err);
+  }
 }
 
 async function loadDataBookRow(dataBookId: string): Promise<DataBookRow> {

@@ -17,7 +17,10 @@ import { renderAuditTrailPdf } from "./jobs/renderAuditTrailPdf";
 import { closeSharedBrowser } from "./browserPool";
 import { jobAbortStorage, type JobAbortContext } from "./jobs/jobAbort";
 import { shouldRetry, MAX_JOB_ATTEMPTS, jobTimeoutMs } from "./jobs/retryPolicy";
-import { jobsTable, claimNextPendingJob, markCompleted, markFailed, markRetry, reclaimOrphanedJobs } from "./jobs/queue";
+import { jobsTable, claimNextPendingJob, markCompleted, markFailed, markRetry, reclaimOrphanedJobs, touchStartedAt } from "./jobs/queue";
+import {
+  admit, canClaim, jobClass, markFinished, markParked, markStarted, newSchedulerState, nextParked, parseConcurrency, type JobClass,
+} from "./jobs/jobConcurrency";
 import { alertPermanentJobFailure, sweepUnnotifiedFailedJobs } from "./jobs/jobFailureAlert";
 import { runAutomationSweep } from "./automation";
 import { dropBreadcrumb, scrubEvent } from "./observability/scrub";
@@ -262,39 +265,113 @@ async function tryAcquireLease(name: string, ttlSeconds: number): Promise<boolea
   return data === true;
 }
 
-/** One poll. Returns true when it found and ran a job. Sweeps are wall-clock gated (see pollBackoff.ts). */
-async function pollOnce(): Promise<boolean> {
-  if (due("observability", OBSERVABILITY_EVERY_MS)) {
-    await logQueueHealth();
-    await reclaimOrphanedJobs();
-    // Catch-up for failures nobody was told about (orphans that ran out of attempts, a crash before the alert).
-    await sweepUnnotifiedFailedJobs();
-  }
-
-  if (
-    due("automation", AUTOMATION_SWEEP_EVERY_MS) &&
-    (await tryAcquireLease("automation_sweep", sweepLeaseSeconds(AUTOMATION_SWEEP_EVERY_MS)))
-  ) {
-    await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
-  }
-
-  if (due("retention", RETENTION_CHECK_EVERY_MS)) {
-    await runRetentionSweep().catch((err) => reportError("[worker] Retention sweep failed:", err));
-    // Same hourly gate; orphan photo flagging enforces its own once-a-day spacing.
-    await runOrphanPhotoSweep().catch((err) => reportError("[worker] Orphan photo sweep failed:", err));
-    if (await tryAcquireLease("notification_retention", sweepLeaseSeconds(RETENTION_CHECK_EVERY_MS))) {
-      await runNotificationRetentionSweep().catch((err) => reportError("[worker] Notification retention sweep failed:", err));
+/** All periodic sweeps. Runs on its own timer, independent of job processing, so reminders, outbox
+ *  email and alerts keep flowing while a long Data Book renders. Each sweep is wall-clock gated and
+ *  lease-protected; an overlap guard stops a slow sweep from stacking on itself. */
+let sweeping = false;
+async function runSweeps(): Promise<void> {
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    if (due("observability", OBSERVABILITY_EVERY_MS)) {
+      await logQueueHealth();
+      await reclaimOrphanedJobs(inFlightIds());
+      // Catch-up for failures nobody was told about (orphans that ran out of attempts, a crash before the alert).
+      await sweepUnnotifiedFailedJobs();
     }
-  }
 
-  if (due("email_outbox", EMAIL_OUTBOX_EVERY_MS)) {
-    await sweepTransmittalOutbox().catch((err) => reportError("[worker] Transmittal email sweep failed:", err));
-    await sweepNotificationOutbox().catch((err) => reportError("[worker] Notification email sweep failed:", err));
-  }
+    if (
+      due("automation", AUTOMATION_SWEEP_EVERY_MS) &&
+      (await tryAcquireLease("automation_sweep", sweepLeaseSeconds(AUTOMATION_SWEEP_EVERY_MS)))
+    ) {
+      await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
+    }
 
+    if (due("retention", RETENTION_CHECK_EVERY_MS)) {
+      await runRetentionSweep().catch((err) => reportError("[worker] Retention sweep failed:", err));
+      // Same hourly gate; orphan photo flagging enforces its own once-a-day spacing.
+      await runOrphanPhotoSweep().catch((err) => reportError("[worker] Orphan photo sweep failed:", err));
+      if (await tryAcquireLease("notification_retention", sweepLeaseSeconds(RETENTION_CHECK_EVERY_MS))) {
+        await runNotificationRetentionSweep().catch((err) => reportError("[worker] Notification retention sweep failed:", err));
+      }
+    }
+
+    if (due("email_outbox", EMAIL_OUTBOX_EVERY_MS)) {
+      await sweepTransmittalOutbox().catch((err) => reportError("[worker] Transmittal email sweep failed:", err));
+      await sweepNotificationOutbox().catch((err) => reportError("[worker] Notification email sweep failed:", err));
+    }
+
+    // Keep parked jobs (claimed, waiting for the heavy slot) from looking orphaned to another replica.
+    await touchStartedAt(sched.parked.map((p) => p.id));
+  } catch (err) {
+    reportError("[worker] Sweep error:", err);
+  } finally {
+    sweeping = false;
+  }
+}
+
+const CONCURRENCY = parseConcurrency(process.env.WORKER_CONCURRENCY);
+const SWEEP_TICK_MS = 15_000;
+/** Longest a graceful shutdown waits for in-flight jobs before exiting. */
+const SHUTDOWN_GRACE_MS = 25_000;
+const sched = newSchedulerState(CONCURRENCY);
+const inflight = new Set<Promise<void>>();
+let shuttingDown = false;
+let wake: (() => void) | null = null;
+
+function inFlightIds(): Set<string> {
+  return new Set([...sched.running.keys(), ...sched.parked.map((p) => p.id)]);
+}
+
+function startJob(job: BackgroundJobRow, cls: JobClass): void {
+  markStarted(sched, job.id, cls);
+  const p = (async () => {
+    try {
+      await processJobWithTimeout(job);
+    } catch (err) {
+      reportError(`[worker] Job ${job.id} crashed outside its handler:`, err);
+    } finally {
+      markFinished(sched, job.id);
+      drainParked();
+      wake?.();
+    }
+  })();
+  inflight.add(p);
+  void p.finally(() => inflight.delete(p));
+}
+
+const parkedJobs = new Map<string, BackgroundJobRow>();
+function drainParked(): void {
+  if (shuttingDown) return;
+  for (;;) {
+    const next = nextParked(sched);
+    if (!next) return;
+    const job = parkedJobs.get(next.id);
+    parkedJobs.delete(next.id);
+    if (!job) {
+      sched.parked = sched.parked.filter((p) => p.id !== next.id);
+      continue;
+    }
+    // Fresh orphan clock: the job has been waiting since it was claimed.
+    void touchStartedAt([job.id]);
+    startJob(job, next.cls);
+  }
+}
+
+/** One claim attempt. Returns true when it claimed a job (started or parked). */
+async function claimOnce(): Promise<boolean> {
+  if (!canClaim(sched)) return false;
   const job = await claimNextPendingJob();
-  if (job) await processJobWithTimeout(job);
-  return Boolean(job);
+  if (!job) return false;
+  const cls = jobClass(job.job_type, job.payload);
+  if (admit(sched, job.id, cls) === "start") {
+    startJob(job, cls);
+  } else {
+    console.log(`[worker] Job ${job.id} (${job.job_type}) parked until the heavy-job slot is free.`);
+    markParked(sched, job.id, cls);
+    parkedJobs.set(job.id, job);
+  }
+  return true;
 }
 
 async function main() {
@@ -304,22 +381,39 @@ async function main() {
     process.exit(1);
   }
 
-  // Reclaim on startup too, not just periodically — the whole reason a job gets orphaned is a
-  // worker restart, so the moment right after one is exactly when a stale row is most likely to
-  // be sitting there from before.
+  // Reclaim on startup too: the whole reason a job gets orphaned is a worker restart.
   await reclaimOrphanedJobs();
 
-  console.log(`[worker] Connected to Supabase. Polling background_jobs every ${POLL_INTERVAL_MS}ms, backing off to ${SLOW_POLL_MS}ms when idle.`);
+  console.log(
+    `[worker] Connected to Supabase. Concurrency ${CONCURRENCY} (max one heavy job). Polling every ${POLL_INTERVAL_MS}ms, backing off to ${SLOW_POLL_MS}ms when idle; sweeps tick every ${SWEEP_TICK_MS}ms.`
+  );
+
+  // Sweeps are independent of the job loop.
+  void runSweeps();
+  setInterval(() => void runSweeps(), SWEEP_TICK_MS).unref?.();
 
   let idlePolls = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const ranJob = await pollOnce().catch((err) => {
+  while (!shuttingDown) {
+    const claimed = await claimOnce().catch((err) => {
       reportError("[worker] Unexpected error in poll loop:", err);
       return false;
     });
-    idlePolls = ranJob ? 0 : idlePolls + 1;
-    await new Promise((resolve) => setTimeout(resolve, nextPollDelayMs(idlePolls)));
+    if (claimed) {
+      idlePolls = 0;
+      continue; // try to fill the next free slot straight away
+    }
+    // At capacity there is nothing to poll for; sleep until a job finishes (or a short tick).
+    const full = !canClaim(sched);
+    idlePolls = full ? idlePolls : idlePolls + 1;
+    const delay = full ? 1000 : nextPollDelayMs(idlePolls);
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, delay);
+      wake = () => {
+        clearTimeout(t);
+        resolve();
+      };
+    });
+    wake = null;
   }
 }
 

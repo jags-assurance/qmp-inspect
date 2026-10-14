@@ -237,6 +237,12 @@ export function OfflineBanner() {
       if (navigator.onLine) attemptSync();
     });
 
+    // Background Sync wake-up from the service worker (Chromium): run the normal replay in this page.
+    const onWorkerMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === "QMP_SYNC") attemptSync();
+    };
+    if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", onWorkerMessage);
+
     const initialCheck = setTimeout(() => {
       setIsOnline(navigator.onLine);
       refreshCounts();
@@ -252,6 +258,7 @@ export function OfflineBanner() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       unsubscribe();
+      if ("serviceWorker" in navigator) navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
     };
   }, [attemptSync, refreshCounts]);
 

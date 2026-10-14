@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { ACTIVE_ORG_COOKIE, resolveActiveOrgId } from "@/lib/organizations/active-org";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -34,7 +36,7 @@ export default async function ManageHubPage() {
 
   const supabase = await createSupabaseServerClient();
 
-  const ownOrgId = session.grants.find((g) => g.organization_id)?.organization_id ?? null;
+  const ownOrgId = resolveActiveOrgId(session.grants, (await cookies()).get(ACTIVE_ORG_COOKIE)?.value);
   if (!ownOrgId) redirect("/inspect");
 
   const { data: org } = await supabase
