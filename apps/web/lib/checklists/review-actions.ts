@@ -21,7 +21,7 @@ export interface ReviewInspectionState {
 
 /**
  * Reviewer approve / reject for a completed inspection. Additive: stores review_status,
- * reviewed_by/at and a comment on the record and does not gate completion or IRN issue.
+ * reviewed_by/at and a comment on the record and does not gate completion. A rejection DOES block issuing a new IRN (issueIrnForRecord + the irns_issue_gates_guard trigger) until the inspection is re-reviewed as approved or re-opened.
  * JAGS staff only, and never the person who carried out or signed the inspection. A rejection needs
  * a reason and notifies the inspector. Re-opening the inspection clears the decision.
  */

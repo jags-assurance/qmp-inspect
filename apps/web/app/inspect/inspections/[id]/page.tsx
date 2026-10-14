@@ -24,6 +24,7 @@ import { PhotoGallery } from "./photo-gallery";
 import { groupLinkedDocumentsByItem, type LinkedDocumentRow } from "@/lib/checklists/linked-documents";
 import { IssueIrnForm, VoidIrnForm } from "./issue-irn-form";
 import { ReopenInspectionForm } from "./reopen-inspection-form";
+import { DiscardDraftForm } from "./discard-draft-form";
 import { ReviewInspectionForm } from "./review-inspection-form";
 import { InspectionComments } from "./inspection-comments";
 import { INSPECTION_COMMENTS_TABLE } from "@/lib/inspection-comments/db-types";
@@ -574,6 +575,12 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           </details>
         )}
       </div>
+
+      {!record.overall_result && (session.isJagsStaff || record.inspector_id === session.userId) && (
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <DiscardDraftForm inspectionRecordId={record.id} />
+        </div>
+      )}
 
       {session.isJagsStaff && record.overall_result && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">

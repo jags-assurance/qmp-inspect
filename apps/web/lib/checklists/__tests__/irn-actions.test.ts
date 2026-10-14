@@ -105,6 +105,15 @@ describe("issueIrnAction", () => {
     expect(mock.rpcCalls).toHaveLength(0);
   });
 
+  it("refuses a NEW IRN while the inspection is rejected on review, but not when approved/null", async () => {
+    mock.on("inspection_records", "select", (c) => (c.columns === "review_status" ? { data: { review_status: "rejected" } } : undefined));
+    expect((await issue()).error).toMatch(/rejected on review/);
+    expect(mock.rpcCalls).toHaveLength(0);
+    mock.on("inspection_records", "select", (c) => (c.columns === "review_status" ? { data: { review_status: "approved" } } : undefined));
+    expect((await issue()).error).toBeNull();
+    expect(mock.rpcCalls.map((r) => r.name)).toEqual(["issue_irn"]);
+  });
+
   it("refuses while the activity still has an open Hold", async () => {
     holds.canCompleteInspection.mockResolvedValue(false);
     expect((await issue()).error).toMatch(/open Hold/);

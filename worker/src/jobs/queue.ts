@@ -2,7 +2,8 @@
 // they can be unit-tested against a mocked Supabase client. index.ts is the poll loop and has process-level
 // side effects (it starts polling on import), which made these untestable in place. Behaviour is unchanged.
 import { supabase } from "../supabase";
-import { retryDelayMs, jobTimeoutMs, orphanAction, pickClaimable } from "./retryPolicy";
+import { retryDelayMs, pickClaimable } from "./retryPolicy";
+import { orphanDecision } from "./orphanPolicy";
 import { isRpcMissing, parseClaimRpcResult, type RpcError } from "./claim";
 import type { BackgroundJobRow } from "./types";
 
@@ -203,12 +204,12 @@ export async function reclaimOrphanedJobs(): Promise<void> {
     return;
   }
   const now = Date.now();
-  const stale = (processing ?? []).filter((j) => now - Date.parse(j.started_at ?? j.created_at) > jobTimeoutMs(j.job_type, j.payload));
+  const stale = (processing ?? []).filter((j) => orphanDecision(j, now) !== "keep");
   if (stale.length === 0) return;
 
   for (const job of stale) {
-    // Requeue while attempts remain: a redeploy must not silently lose an auto-queued certificate or close-out.
-    const requeue = orphanAction(job.attempts ?? 0) === "requeue";
+    // Requeue while attempts remain (capped): a redeploy must not silently lose an auto-queued certificate or close-out.
+    const requeue = orphanDecision(job, now) === "requeue";
     const { error: updateError } = (await supabase
       .from("background_jobs" as never)
       .update(

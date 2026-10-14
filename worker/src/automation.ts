@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { escalationTier, isDueSoon, siteDate } from "./escalation";
 import { isMissingSchemaError, isReminderSuppressed, reminderStep, FINAL_REMINDER_STEP, type ReminderStep } from "./reminderPolicy";
+import { firstNonEmptyLayer, reminderOutcome, type ReminderOutcome } from "./recipientPolicy";
 import { daysWaiting, isAckReminderDue, isFinalAckReminder, MAX_ACK_REMINDERS } from "./handoverReminderPolicy";
 
 // automation_rules/automation_notification_log/notifications aren't in the generated Database type
@@ -98,8 +99,9 @@ async function onlyActiveUsers(ids: Iterable<string>): Promise<string[]> {
   }
 }
 
-export async function notify(organizationId: string, projectId: string | null, recipientUserId: string, title: string, body: string, link: string): Promise<void> {
-  await supabase.from("notifications").insert({
+/** Writes one in-app notification. Returns true only when the row was really inserted; a refused insert is logged and returns false. */
+export async function notify(organizationId: string, projectId: string | null, recipientUserId: string, title: string, body: string, link: string): Promise<boolean> {
+  const { error } = await supabase.from("notifications").insert({
     organization_id: organizationId,
     project_id: projectId,
     recipient_user_id: recipientUserId,
@@ -107,6 +109,85 @@ export async function notify(organizationId: string, projectId: string | null, r
     body,
     link,
   });
+  if (error) {
+    console.error(`[automation] notification insert failed for ${recipientUserId}: ${error.message}`);
+    return false;
+  }
+  return true;
+}
+
+/** Every login behind the given project parties: the primary login plus party members (project_party_members). */
+export async function getPartyUserIds(partyIds: Array<string | null | undefined>): Promise<string[]> {
+  const ids = [...new Set(partyIds.filter((x): x is string => Boolean(x)))];
+  if (ids.length === 0) return [];
+  const out = new Set<string>();
+  try {
+    const { data: parties } = await db.from("project_parties").select("user_id").in("id", ids);
+    for (const p of (parties ?? []) as { user_id: string | null }[]) if (p.user_id) out.add(p.user_id);
+    const { data: members } = await db.from("project_party_members").select("user_id").in("project_party_id", ids).not("user_id", "is", null);
+    for (const m of (members ?? []) as { user_id: string | null }[]) if (m.user_id) out.add(m.user_id);
+  } catch {
+    // best-effort: fall through with whatever was read
+  }
+  return [...out];
+}
+
+/** Team leads (and other members) of the teams assigned to a project. */
+async function getProjectTeamUserIds(projectId: string): Promise<{ leads: string[]; members: string[] }> {
+  try {
+    const { data: assigns } = await db.from("team_project_assignments").select("team_id").eq("project_id", projectId);
+    const teamIds = ((assigns ?? []) as { team_id: string }[]).map((a) => a.team_id);
+    if (teamIds.length === 0) return { leads: [], members: [] };
+    const { data: rows } = await db.from("team_members").select("user_id, is_team_lead").in("team_id", teamIds);
+    const all = (rows ?? []) as { user_id: string; is_team_lead: boolean }[];
+    return { leads: all.filter((r) => r.is_team_lead).map((r) => r.user_id), members: all.filter((r) => !r.is_team_lead).map((r) => r.user_id) };
+  } catch {
+    return { leads: [], members: [] };
+  }
+}
+
+/**
+ * Last-resort recipients when an item has nobody directly responsible: the party's logins and members,
+ * then the project's team lead, then the project's JAGS team members and organisation admins. The first
+ * layer that still has an active user wins. Returns [] only when truly nobody exists.
+ */
+export async function resolveFallbackRecipients(organizationId: string, projectId: string, partyId: string | null | undefined): Promise<string[]> {
+  const team = await getProjectTeamUserIds(projectId);
+  const layers: Array<() => Promise<string[]>> = [
+    () => getPartyUserIds([partyId]),
+    async () => team.leads,
+    async () => [...team.members, ...(await getOrgAdminUserIds(organizationId))],
+  ];
+  for (const layer of layers) {
+    const active = firstNonEmptyLayer([await onlyActiveUsers(await layer())]);
+    if (active.length > 0) return active;
+  }
+  return [];
+}
+
+/**
+ * Notifies the active members of `recipients`, falling back (see resolveFallbackRecipients) when there are
+ * none. 'sent' only if at least one notification row was really written; otherwise 'no_recipient' (with a
+ * warning) or 'failed', and the caller must NOT record the reminder step as sent.
+ */
+async function deliverReminder(
+  organizationId: string,
+  projectId: string,
+  partyId: string | null | undefined,
+  recipients: Iterable<string>,
+  message: { title: string; body: string; link: string },
+  label: string
+): Promise<ReminderOutcome> {
+  let targets = await onlyActiveUsers(recipients);
+  if (targets.length === 0) targets = await resolveFallbackRecipients(organizationId, projectId, partyId);
+  let delivered = 0;
+  for (const userId of targets) {
+    if (await notify(organizationId, projectId, userId, message.title, message.body, message.link)) delivered += 1;
+  }
+  const outcome = reminderOutcome(targets.length, delivered);
+  if (outcome === "no_recipient") console.warn(`[automation] ${label}: no recipient could be found (project ${projectId}); reminder not recorded as sent, will retry next sweep.`);
+  else if (outcome === "failed") console.error(`[automation] ${label}: every notification insert failed; reminder not recorded as sent, will retry next sweep.`);
+  return outcome;
 }
 
 interface HoldRow {
@@ -165,9 +246,9 @@ async function sweepHoldElapsed(rule: AutomationRuleRow): Promise<number> {
     // Escalation: the party who owes the sign-off is nudged too, not only org admins.
     const recipients = new Set<string>(admins);
     if (row.project_parties?.user_id) recipients.add(row.project_parties.user_id);
-    for (const recipientId of recipients) {
-      await notify(rule.organization_id, itp.project_id, recipientId, title, body, link);
-    }
+    for (const memberId of await getPartyUserIds([row.project_party_id])) recipients.add(memberId);
+    const outcome = await deliverReminder(rule.organization_id, itp.project_id, row.project_party_id, recipients, { title, body, link }, `hold_elapsed ${row.id}`);
+    if (outcome !== "sent") continue;
     await recordSent(rule.id, row.id, FINAL_REMINDER_STEP);
     sent += 1;
   }
@@ -248,8 +329,7 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
       for (const admin of admins) recipients.add(admin);
     } else {
       if (ncr.assigned_to) recipients.add(ncr.assigned_to);
-      const partyUser = ncr.project_parties?.user_id;
-      if (partyUser) recipients.add(partyUser);
+      for (const id of await getPartyUserIds([ncr.responsible_party_id])) recipients.add(id);
       // Tier 2: those who verify/close; tier 3: organisation admins.
       if (tier >= 2) for (const holder of await getCloseNcrHolderIds(ncr.project_id)) recipients.add(holder);
       if (tier >= 3) for (const admin of admins) recipients.add(admin);
@@ -265,9 +345,8 @@ async function sweepNcrOverdue(rule: AutomationRuleRow): Promise<number> {
         ? `Due ${ncr.due_date}, awaiting verification.`
         : `Due ${ncr.due_date}, still open.`;
     const link = `/inspect/ncrs/${ncr.id}`;
-    for (const userId of await onlyActiveUsers(recipients)) {
-      await notify(rule.organization_id, ncr.project_id, userId, title, body, link);
-    }
+    const outcome = await deliverReminder(rule.organization_id, ncr.project_id, ncr.responsible_party_id, recipients, { title, body, link }, `ncr_overdue ${ncr.ncr_number}`);
+    if (outcome !== "sent") continue;
     await recordSent(rule.id, ncr.id, step);
     sent += 1;
   }
@@ -334,7 +413,7 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
     const step = reminderStep(dueSoon, tier);
     if (await alreadyNotifiedAtStep(rule.id, item.id, step, rule.repeat_hours)) continue;
     const recipients = new Set<string>();
-    const partyUser = item.project_parties?.user_id ?? null;
+    const partyUsers = await getPartyUserIds([item.responsible_party_id]);
     let body: string;
     if (item.status === "resolved") {
       // Fixed but unverified: the ball is with the verifiers, not the resolver's party.
@@ -345,17 +424,16 @@ async function sweepPunchOverdue(rule: AutomationRuleRow): Promise<number> {
         ? `${item.description} — due ${item.due_date}, awaiting verification.`
         : `${item.description} — due ${item.due_date}, resolved but still awaiting verification.`;
     } else {
-      if (partyUser) recipients.add(partyUser);
-      else if (item.created_by) recipients.add(item.created_by); // party has no login
+      for (const id of partyUsers) recipients.add(id);
+      if (partyUsers.length === 0 && item.created_by) recipients.add(item.created_by); // party has no login
       if (tier >= 2) for (const id of await getPunchVerifierUserIds(item.project_id)) recipients.add(id);
       if (tier >= 3) for (const admin of admins) recipients.add(admin);
       body = dueSoon ? `${item.description} — due ${item.due_date}.` : `${item.description} — due ${item.due_date}, still open.`;
     }
     const title = dueSoon ? "Punch item due soon" : tier >= 3 ? "Overdue punch item (escalated)" : "Overdue punch item";
     const link = `/inspect/projects/${item.project_id}/punch-list?item=${item.id}`;
-    for (const userId of await onlyActiveUsers(recipients)) {
-      await notify(rule.organization_id, item.project_id, userId, title, body, link);
-    }
+    const outcome = await deliverReminder(rule.organization_id, item.project_id, item.responsible_party_id, recipients, { title, body, link }, `punch_overdue ${item.id}`);
+    if (outcome !== "sent") continue;
     await recordSent(rule.id, item.id, step);
     sent += 1;
   }
@@ -453,18 +531,19 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
   if (items.length > 0) {
     const { data: parties } = await db
       .from("project_parties")
-      .select("project_id, user_id")
+      .select("id, project_id, user_id")
       .in("project_id", projectIds)
       .eq("is_active", true)
-      .in("party_type", ["main_contractor", "subcontractor", "tpi_lab"])
-      .not("user_id", "is", null);
-    for (const p of (parties ?? []) as { project_id: string; user_id: string }[]) {
-      performingPartyUsers.set(p.project_id, [...(performingPartyUsers.get(p.project_id) ?? []), p.user_id]);
+      .in("party_type", ["main_contractor", "subcontractor", "tpi_lab"]);
+    const partyRows = (parties ?? []) as { id: string; project_id: string; user_id: string | null }[];
+    for (const p of partyRows) {
+      // Primary login plus every party member, not only the primary login.
+      const users = [...(p.user_id ? [p.user_id] : []), ...(await getPartyUserIds([p.id]))];
+      performingPartyUsers.set(p.project_id, [...(performingPartyUsers.get(p.project_id) ?? []), ...users]);
     }
   }
 
   let sent = 0;
-  let admins: string[] | null = null;
   for (const item of items) {
     const days = daysUntilDate(item.expiryDate);
     // Items that lapsed long ago are old news, not a fresh alert (avoids a flood on the first sweep).
@@ -488,10 +567,8 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
     if (item.extraRecipient) recipients.add(item.extraRecipient);
     // The parties that must renew calibration / welder records (contractor, subcontractor, TPI/lab).
     for (const u of performingPartyUsers.get(item.projectId) ?? []) recipients.add(u);
-    if (recipients.size === 0) {
-      admins ??= await getOrgAdminUserIds(organizationId);
-      for (const a of admins) recipients.add(a);
-    }
+    let targets = await onlyActiveUsers(recipients);
+    if (targets.length === 0) targets = await resolveFallbackRecipients(organizationId, item.projectId, null);
 
     const title = days < 0 ? `Expired: ${item.label}` : days === 0 ? `Expires today: ${item.label}` : `Expiring in ${days} day${days === 1 ? "" : "s"}: ${item.label}`;
     const body = `${project?.name ?? "Project"} — expiry date ${item.expiryDate}. Renew or replace it before it is used on further inspections.`;
@@ -501,15 +578,17 @@ async function sweepRegisterExpiry(organizationId: string): Promise<number> {
       // release the claim when nobody could be notified.
       let delivered = 0;
       let lastErr: unknown = null;
-      for (const userId of recipients) {
+      for (const userId of targets) {
         try {
-          await notify(organizationId, item.projectId, userId, title, body, link);
-          delivered += 1;
+          if (await notify(organizationId, item.projectId, userId, title, body, link)) delivered += 1;
+          else lastErr = new Error("notification insert refused");
         } catch (err) {
           lastErr = err;
         }
       }
-      if (delivered === 0 && lastErr) throw lastErr;
+      const outcome = reminderOutcome(targets.length, delivered);
+      if (outcome === "no_recipient") throw new Error(`no recipient could be found for project ${item.projectId}`);
+      if (outcome === "failed") throw lastErr ?? new Error("all notification inserts failed");
       sent += 1;
     } catch (err) {
       // Release the claimed slot so the next sweep retries instead of silently losing the alert.

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { formatUtcDate } from "@/lib/databook/db-errors";
 import { hasAnyHash } from "@/lib/verify/hash-match";
+import { verifyBanner } from "@/lib/verify/status";
 import { FileChecker } from "./file-checker";
 import { T } from "@/components/domain/t";
 
@@ -33,6 +34,7 @@ const STATUS_TEXT: Record<string, string> = {
   superseded: "Superseded by a later revision",
   live: "Live — valid for release",
   void: "VOID — this release has been withdrawn",
+  rejected: "Rejected by the client — not accepted",
 };
 
 async function verify(kind: string, token: string): Promise<{ result: VerifyResult | null; unavailable: boolean }> {
@@ -50,11 +52,18 @@ export default async function VerifyPage({ params }: { params: Promise<{ kind: s
   const safeKind = kind === "certificate" || kind === "irn" ? kind : "";
   const { result, unavailable } = safeKind ? await verify(safeKind, token) : { result: { valid: false } as VerifyResult, unavailable: false };
 
+  const banner = verifyBanner(result);
   return (
     <main className="mx-auto max-w-md px-4 py-10">
       <h1 className="text-xl font-semibold text-ink"><T>Document verification</T></h1>
       {unavailable ? (
         <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink"><T>Verification is not available right now. Try again later.</T></p>
+      ) : banner === "rejected" ? (
+        <div className="mt-4 rounded-lg border border-danger bg-surface p-4">
+          <p className="text-sm font-semibold text-danger"><T>Rejected by the client</T></p>
+          <p className="mt-2 text-sm text-ink"><T>This handover certificate was rejected by the client and is not valid. Do not rely on it. A corrected certificate must be issued.</T></p>
+          {result?.number && <p className="doc-id mt-3 text-sm font-medium text-ink">{result.number}</p>}
+        </div>
       ) : result?.valid ? (
         <div className="mt-4 rounded-lg border border-border bg-surface p-4">
           <p className={`text-sm font-semibold ${result.status === "void" || result.status === "superseded" ? "text-danger" : "text-success"}`}>
@@ -100,7 +109,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ kind: s
       {result?.valid && hasAnyHash(result) ? (
         <FileChecker known={{ pdf_sha256s: result.pdf_sha256s, data_book_sha256: result.data_book_sha256, package_sha256: result.package_sha256 }} />
       ) : null}
-      {unavailable ? null : result?.valid ? null : (
+      {unavailable || banner === "rejected" ? null : result?.valid ? null : (
         <p className="mt-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger"><T>No document matches this code. Do not rely on a document that cannot be verified.</T></p>
       )}
     </main>

@@ -5,6 +5,7 @@ import { orgChromeTag } from "@/lib/organizations/chrome-logic";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { holdsOrgWideGrant } from "@/lib/organizations/org-wide-grant";
 import { ENGAGEMENT_MODES, type EngagementMode } from "@jags/shared-types";
 import { NUMBERING_CONFIGS_TABLE } from "./types";
 import type { NumberingDocType } from "./types";
@@ -190,6 +191,10 @@ export async function upsertNumberingConfigAction(
       .eq("id", organizationId)
       .maybeSingle<{ engagement_scope: string }>();
     if (org?.engagement_scope !== "self_managed" && org?.engagement_scope !== "client_managed") {
+      return { error: "Only a JAGS Admin can change this organisation's numbering settings." };
+    }
+    // The caller must belong to this organisation org-wide (a project-only grant is not enough).
+    if (!holdsOrgWideGrant(session, organizationId)) {
       return { error: "Only a JAGS Admin can change this organisation's numbering settings." };
     }
   }

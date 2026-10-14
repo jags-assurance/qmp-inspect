@@ -143,8 +143,10 @@ async function computeDataBookReadinessForWorker(projectId: string, asOf: Date):
   if (openPunchRes.error) throw new Error(`Data book render aborted — could not read punch_list_items: ${openPunchRes.error.message}`);
   const openPunchItems = openPunchRes.count;
 
-  const itpTotal = itps?.length ?? 0;
-  const itpReady = (itps ?? []).filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
+  // Superseded / withdrawn ITPs no longer count (same as apps/web readiness.ts and data_book_gate_failures()).
+  const liveItps = (itps ?? []).filter((itp) => itp.status !== "superseded" && itp.status !== "withdrawn");
+  const itpTotal = liveItps.length;
+  const itpReady = liveItps.filter((itp) => (itp.status === "approved" || itp.status === "client_accepted") && !itp.revision_needs_approval).length;
 
   // KEEP IN SYNC with apps/web/lib/databook/readiness.ts: latest COMPLETED record per itp_item, pass/partial only.
   const latestByItem = new Map<string, NonNullable<typeof inspectionRecords>[number]>();

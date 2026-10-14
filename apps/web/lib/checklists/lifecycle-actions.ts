@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { isTeamLeadForProject } from "@/lib/teams/helpers";
@@ -73,7 +74,7 @@ export async function reopenInspectionAction(_prev: ReopenInspectionState, formD
     draftQuery = record.checklist_template_id ? draftQuery.eq("checklist_template_id", record.checklist_template_id) : draftQuery;
     const { data: openDraft } = await draftQuery.maybeSingle<{ id: string; record_number: string }>();
     if (openDraft) {
-      return { error: `Can't re-open: an open draft inspection (${openDraft.record_number}) already exists for this checklist. Complete or discard it first.` };
+      return { error: `Can't re-open: an open draft inspection (${openDraft.record_number}) already exists for this checklist. Complete it, or use \"Discard this draft\" on that inspection, first.` };
     }
   }
 
@@ -275,4 +276,66 @@ export async function listInspectionAmendments(recordId: string): Promise<Inspec
     ({ data } = await untypedFrom(supabase, "inspection_record_amendments").select(base).eq("record_id", recordId).order("amended_at", { ascending: false }));
   }
   return (data ?? []) as InspectionAmendment[];
+}
+
+
+export interface DiscardDraftState {
+  error: string | null;
+}
+
+/**
+ * Discards an abandoned DRAFT inspection (overall_result null). Allowed to JAGS staff, the party assigned to
+ * execute the activity and the inspector who started it - enforced in the discard_inspection_draft RPC
+ * (SECURITY DEFINER, because RLS only lets staff delete). A short reason is required. Responses, evidence
+ * and history rows cascade; the photo files are then removed from storage. Audited with the photo count.
+ */
+export async function discardInspectionDraftAction(_prev: DiscardDraftState, formData: FormData): Promise<DiscardDraftState> {
+  const recordId = String(formData.get("inspection_record_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!recordId) return { error: "Missing inspection record." };
+  if (reason.length < 5) return { error: "Give a short reason for discarding the draft (at least 5 characters)." };
+
+  const session = await requireSession();
+  const supabase = await createSupabaseServerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated Database type yet
+  const rpc = await (supabase.rpc as any)("discard_inspection_draft", { p_record_id: recordId, p_reason: reason });
+  if (rpc.error) {
+    const message: string = rpc.error.message ?? "";
+    if (rpc.error.code === "42883" || rpc.error.code === "PGRST202" || /could not find the function/i.test(message)) {
+      return { error: "Discarding drafts needs a database update that has not been applied yet. Ask an admin to run the latest migrations." };
+    }
+    if (/completed inspection|Only JAGS staff|NCR or punch|completed or cancelled|not found|short reason/i.test(message)) return { error: message };
+    console.error("[discard-draft] failed", message);
+    return { error: "The draft could not be discarded. Nothing was changed - try again." };
+  }
+
+  const out = (rpc.data ?? {}) as { record_number?: string; project_id?: string; photo_paths?: string[] };
+  const paths = out.photo_paths ?? [];
+  let filesRemoved = true;
+  if (paths.length > 0) {
+    try {
+      const { error: removeError } = await supabase.storage.from("inspection-evidence").remove(paths);
+      if (removeError) filesRemoved = false;
+    } catch {
+      filesRemoved = false;
+    }
+  }
+
+  const { data: project } = out.project_id
+    ? await supabase.from("projects").select("organization_id").eq("id", out.project_id).maybeSingle<{ organization_id: string }>()
+    : { data: null };
+  await recordAuditEvent(supabase, {
+    organizationId: project?.organization_id ?? null,
+    projectId: out.project_id ?? null,
+    entityType: "inspection_record",
+    entityId: recordId,
+    action: "draft_discarded",
+    actorId: session.userId,
+    summary: `Draft inspection ${out.record_number ?? recordId} discarded - ${reason}${paths.length ? ` (${paths.length} photo file(s)${filesRemoved ? " removed" : " NOT removed from storage; needs clean-up"})` : ""}`,
+    changes: { photo_paths: filesRemoved ? undefined : paths },
+  });
+
+  revalidatePath("/inspect/inspections");
+  redirect("/inspect/inspections");
 }

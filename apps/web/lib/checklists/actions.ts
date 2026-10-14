@@ -1641,6 +1641,18 @@ async function issueIrnForRecord(
   if (record.overall_result !== "pass" && record.overall_result !== "partial") {
     return { error: "An IRN can only be issued from a passed (or conditionally passed) inspection." };
   }
+  {
+    // A reviewer rejection blocks NEW issue until corrected + re-reviewed (or re-opened, which clears it).
+    // Tolerant of the column not existing yet (older database): no row/error means no rejection to enforce.
+    const { data: reviewRow } = await supabase
+      .from(INSPECTION_RECORDS_TABLE)
+      .select("review_status")
+      .eq("id", inspectionRecordId)
+      .maybeSingle<{ review_status: string | null }>();
+    if (reviewRow?.review_status === "rejected") {
+      return { error: "This inspection was rejected on review. Correct it and have it re-reviewed (or re-open it) before issuing an IRN." };
+    }
+  }
   if (!(await canCompleteInspection(record.itp_item_id))) {
     return { error: "This activity has an open Hold — it must be signed off before an IRN can be issued." };
   }

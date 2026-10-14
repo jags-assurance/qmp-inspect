@@ -42,14 +42,14 @@ export async function createNotification(
     body?: string | null;
     link?: string | null;
   }
-): Promise<void> {
+): Promise<boolean> {
   // Only a same-site path is ever stored as a link (the bell navigates to it; the DB also checks).
   const link = safeSitePath(params.link);
   // Supplied here (not read back) so the immediate email path can mark the matching outbox row; the
   // caller usually isn't the recipient, so RLS would not let an INSERT ... RETURNING see the row.
   const id = randomUUID();
 
-  const { error } = await supabase.from(NOTIFICATIONS_TABLE).insert({
+  const row = {
     id,
     organization_id: params.organizationId,
     project_id: params.projectId ?? null,
@@ -57,13 +57,16 @@ export async function createNotification(
     title: params.title,
     body: params.body ?? null,
     link,
-  });
+  };
+  // One retry: the row id is fixed, so a retry after an ambiguous failure cannot create a duplicate.
+  let { error } = await supabase.from(NOTIFICATIONS_TABLE).insert(row);
+  if (error) ({ error } = await supabase.from(NOTIFICATIONS_TABLE).insert(row));
   if (error) {
     console.error(`[notifications] insert failed for ${params.recipientUserId}: ${error.message}`);
-    return;
+    return false;
   }
 
-  if (!process.env.RESEND_API_KEY) return;
+  if (!process.env.RESEND_API_KEY) return true;
 
   const send = () =>
     sendNotificationEmailNow(supabase, { id, organizationId: params.organizationId, recipientUserId: params.recipientUserId, title: params.title, body: params.body, link });
@@ -73,6 +76,7 @@ export async function createNotification(
     // Called outside a request scope (script / test): just run it inline.
     await send();
   }
+  return true;
 }
 
 async function sendNotificationEmailNow(

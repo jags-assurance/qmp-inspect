@@ -1279,6 +1279,7 @@ export async function advanceItpStatusAction(
   }
 
   let checklistNotice: string | null = null;
+  let sideEffectNotice: string | null = null;
   // Best-effort: fetched once and reused by every side-effect below (audit trail, submit-for-review
   // staff notification, initial-issue revision snapshot, client-acceptance notification) — none of
   // these block the status change itself, which has already succeeded (error was already checked above).
@@ -1361,7 +1362,21 @@ export async function advanceItpStatusAction(
       if (nextStatus === "approved") {
         // R101: revision 0's baseline snapshot is written the moment the document is first
         // genuinely "issued" — this is that moment.
-        await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
+        const snapshotError = await snapshotInitialIssue(supabase, itpId, user?.id ?? null);
+        if (snapshotError) {
+          sideEffectNotice = "ITP approved, but its revision-0 baseline could not be saved. It will be recorded automatically on the next edit; contact support if this persists.";
+          if (organizationId) {
+            await recordAuditEvent(supabase, {
+              organizationId,
+              projectId: itp?.project_id ?? null,
+              entityType: "itp",
+              entityId: itpId,
+              action: "approval_side_effect_failed",
+              actorId: user?.id ?? null,
+              summary: `ITP ${itp?.itp_number ?? itpId}: initial-issue snapshot failed after approval (${snapshotError.slice(0, 200)})`,
+            });
+          }
+        }
         await recordChecklistReviewTick(supabase, { itpId, decision: "approve", formData, actorId: user?.id ?? null });
         // Checklists for activities that don't have one yet (e.g. an AI draft by a client/contractor creator,
         // or activities pasted in): idempotent. "starter" mode falls back to a deterministic non-AI starter
@@ -1390,7 +1405,7 @@ export async function advanceItpStatusAction(
 
           for (const party of clientParty ?? []) {
             if (!party.user_id) continue;
-            await createNotification(supabase, {
+            const sent = await createNotification(supabase, {
               organizationId,
               projectId: itp.project_id,
               recipientUserId: party.user_id,
@@ -1398,16 +1413,29 @@ export async function advanceItpStatusAction(
               body: `${itp.itp_number} — ${itp.title}`,
               link: `/inspect/itps/${itpId}`,
             });
+            if (sent === false) {
+              sideEffectNotice = sideEffectNotice ?? "ITP approved, but the client could not be notified. Tell them it is ready for acceptance.";
+              await recordAuditEvent(supabase, {
+                organizationId,
+                projectId: itp.project_id,
+                entityType: "itp",
+                entityId: itpId,
+                action: "approval_side_effect_failed",
+                actorId: user?.id ?? null,
+                summary: `ITP ${itp.itp_number}: client acceptance notification failed after approval`,
+              });
+            }
           }
         }
       }
-    } catch {
-      // Best-effort — see comment above.
+    } catch (err) {
+      console.error("[itps] post-approval side effects failed", itpId, err);
+      sideEffectNotice = sideEffectNotice ?? "The status changed, but some follow-up steps (history snapshot or notifications) may not have completed. Please check the ITP.";
     }
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
-  return { error: null, notice: checklistNotice };
+  return { error: null, notice: [checklistNotice, sideEffectNotice].filter(Boolean).join(" ") || null };
 }
 
 export interface ApproveRevisionState {
@@ -1466,17 +1494,41 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
   // Freeze the approved content (the controlled copy for this revision), and, if the client had accepted
   // an earlier revision, send the ITP back to "approved" so the client has to accept THIS revision.
   // Both are best-effort around the approval itself, which has already succeeded.
+  // Not best-effort: if either write fails the approval is rolled back (flag set again) so the approver
+  // can simply press Approve again; both writes are idempotent.
   let reacceptanceRequired = false;
+  let followUpError: string | null = null;
   try {
-    await snapshotApprovedRevision(supabase, itpId, session.userId);
-    if (itp.status === "client_accepted") {
-      const { data: reset } = await supabase.from("itps").update({ status: "approved" } as never).eq("id", itpId).eq("status", "client_accepted").select("id");
-      reacceptanceRequired = !!reset?.length;
+    followUpError = await snapshotApprovedRevision(supabase, itpId, session.userId);
+    if (!followUpError && itp.status === "client_accepted") {
+      let resetResult = await supabase.from("itps").update({ status: "approved" } as never).eq("id", itpId).eq("status", "client_accepted").select("id");
+      if (resetResult.error) resetResult = await supabase.from("itps").update({ status: "approved" } as never).eq("id", itpId).eq("status", "client_accepted").select("id");
+      if (resetResult.error) followUpError = resetResult.error.message;
+      else reacceptanceRequired = !!resetResult.data?.length;
     }
-  } catch {
-    // Best-effort.
+  } catch (err) {
+    followUpError = err instanceof Error ? err.message : String(err);
+  }
+  if (followUpError) {
+    console.error("[itps] revision approval follow-up failed", itpId, followUpError);
+    await supabase.from("itps").update({ revision_needs_approval: true } as never).eq("id", itpId);
+    const orgId = itp.projects?.organization_id;
+    if (orgId) {
+      await recordAuditEvent(supabase, {
+        organizationId: orgId,
+        projectId: itp.project_id,
+        entityType: "itp",
+        entityId: itpId,
+        action: "revision_approval_failed",
+        actorId: session.userId,
+        summary: `${itp.itp_number} revision ${itp.revision} approval rolled back: ${followUpError.slice(0, 200)}`,
+      });
+    }
+    revalidatePath(`/inspect/itps/${itpId}`);
+    return { error: "The revision could not be fully approved (history snapshot or re-acceptance reset failed), so nothing was changed. Please press Approve again." };
   }
 
+  let notifyFailed = false;
   try {
     const organizationId = itp.projects?.organization_id;
     if (organizationId) {
@@ -1510,7 +1562,7 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
       });
       for (const recipient of recipients) {
         const isClient = recipient.role !== "changer";
-        await createNotification(supabase, {
+        const sent = await createNotification(supabase, {
           organizationId,
           projectId: itp.project_id,
           recipientUserId: recipient.userId,
@@ -1519,6 +1571,18 @@ export async function approveItpRevisionAction(_prev: ApproveRevisionState, form
             : `Your change to ${itp.itp_number} (revision ${itp.revision}) was approved`,
           body: `${itp.itp_number} — ${itp.title}`,
           link: `/inspect/itps/${itpId}`,
+        });
+        if (sent === false) notifyFailed = true;
+      }
+      if (notifyFailed) {
+        await recordAuditEvent(supabase, {
+          organizationId,
+          projectId: itp.project_id,
+          entityType: "itp",
+          entityId: itpId,
+          action: "approval_side_effect_failed",
+          actorId: session.userId,
+          summary: `${itp.itp_number} revision ${itp.revision}: approval notification failed for at least one recipient`,
         });
       }
     }

@@ -24,6 +24,7 @@ import { geminiProvider } from "@/lib/ai/gemini-provider";
 import { getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type GeminiTokenUsage } from "@/lib/ai/gemini-provider";
 import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { createNotification } from "@/lib/notifications/helpers";
+import { unownedNcrRecipients, UNOWNED_NCR_TITLE } from "./unowned";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { resolveQuickActionStatus } from "@/lib/ncrs/status-logic";
 import { hasPermission } from "@/lib/rbac/permissions";
@@ -414,6 +415,21 @@ export async function createNcrAction(
       },
       user?.id
     );
+  }
+
+  // An NCR with no assignee and no responsible party would otherwise notify nobody: tell the project's
+  // JAGS team lead (or admin staff) once so it gets an owner.
+  if (!assignedTo && !responsiblePartyId) {
+    for (const recipient of await unownedNcrRecipients(supabase, projectId, user?.id)) {
+      await notifySafe(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        recipientUserId: recipient,
+        title: UNOWNED_NCR_TITLE,
+        body: `${ncrNumber} - ${description}`,
+        link: `/inspect/ncrs/${ncr.id}`,
+      });
+    }
   }
 
   // Photos attached on the raise form (multipart, same rules as the punch list): uploaded only now

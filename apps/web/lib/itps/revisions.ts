@@ -70,25 +70,52 @@ async function buildSectionsSnapshot(supabase: SupabaseServerClient, itpId: stri
  * transition succeeds (advanceItpStatusAction); never increments itps.revision itself, since 0 is
  * already the starting value — only a later edit-after-issue bumps it.
  */
-export async function snapshotInitialIssue(supabase: SupabaseServerClient, itpId: string, userId: string | null): Promise<void> {
-  const { data: itp } = await supabase
-    .from("itps")
-    .select("id, revision, title, scope, applicable_standard")
-    .eq("id", itpId)
-    .maybeSingle<{ id: string; revision: number; title: string; scope: string | null; applicable_standard: string | null }>();
-  if (!itp) return;
+export async function snapshotInitialIssue(supabase: SupabaseServerClient, itpId: string, userId: string | null): Promise<string | null> {
+  return writeBaselineSnapshot(supabase, itpId, userId, "Initial issue");
+}
 
-  const sections = await buildSectionsSnapshot(supabase, itpId);
-  await supabase.from(ITP_REVISIONS_TABLE).insert({
-    itp_id: itpId,
-    revision: itp.revision,
-    title: itp.title,
-    scope: itp.scope,
-    applicable_standard: itp.applicable_standard,
-    sections_snapshot: sections,
-    reason: "Initial issue",
-    created_by: userId,
-  });
+/**
+ * Idempotent baseline write with one retry: skips when the row for the current revision already
+ * exists (so a re-run never hits UNIQUE (itp_id, revision)). Returns an error message, or null.
+ */
+async function writeBaselineSnapshot(supabase: SupabaseServerClient, itpId: string, userId: string | null, reason: string): Promise<string | null> {
+  let lastError: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { data: itp, error: itpError } = await supabase
+        .from("itps")
+        .select("id, revision, title, scope, applicable_standard")
+        .eq("id", itpId)
+        .maybeSingle<{ id: string; revision: number; title: string; scope: string | null; applicable_standard: string | null }>();
+      if (itpError) throw new Error(itpError.message);
+      if (!itp) return null;
+      const { data: existing, error: existingError } = await supabase
+        .from(ITP_REVISIONS_TABLE)
+        .select("id")
+        .eq("itp_id", itpId)
+        .eq("revision", itp.revision)
+        .maybeSingle<{ id: string }>();
+      if (existingError) throw new Error(existingError.message);
+      if (existing) return null;
+      const sections = await buildSectionsSnapshot(supabase, itpId);
+      const { error } = await supabase.from(ITP_REVISIONS_TABLE).insert({
+        itp_id: itpId,
+        revision: itp.revision,
+        title: itp.title,
+        scope: itp.scope,
+        applicable_standard: itp.applicable_standard,
+        sections_snapshot: sections,
+        reason,
+        created_by: userId,
+      });
+      if (!error) return null;
+      throw new Error(error.message);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error("[itp-revisions] baseline snapshot failed", itpId, lastError);
+    }
+  }
+  return lastError ?? "unknown error";
 }
 
 /**
@@ -241,24 +268,6 @@ async function notifyRevisionPending(
  * Freezes the content of revision `revision` at the moment it is approved (the controlled copy), unless a
  * history row for that revision already exists. Called by approveItpRevisionAction.
  */
-export async function snapshotApprovedRevision(supabase: SupabaseServerClient, itpId: string, userId: string | null): Promise<void> {
-  const { data: itp } = await supabase
-    .from("itps")
-    .select("id, revision, title, scope, applicable_standard")
-    .eq("id", itpId)
-    .maybeSingle<{ id: string; revision: number; title: string; scope: string | null; applicable_standard: string | null }>();
-  if (!itp) return;
-  const { data: existing } = await supabase.from(ITP_REVISIONS_TABLE).select("id").eq("itp_id", itpId).eq("revision", itp.revision).maybeSingle<{ id: string }>();
-  if (existing) return;
-  const sections = await buildSectionsSnapshot(supabase, itpId);
-  await supabase.from(ITP_REVISIONS_TABLE).insert({
-    itp_id: itpId,
-    revision: itp.revision,
-    title: itp.title,
-    scope: itp.scope,
-    applicable_standard: itp.applicable_standard,
-    sections_snapshot: sections,
-    reason: "Approved revision",
-    created_by: userId,
-  });
+export async function snapshotApprovedRevision(supabase: SupabaseServerClient, itpId: string, userId: string | null): Promise<string | null> {
+  return writeBaselineSnapshot(supabase, itpId, userId, "Approved revision");
 }
