@@ -101,7 +101,7 @@ export async function notifyDocumentDecision(
       new Set([ctx.uploadedBy]),
       actorId,
       decision === "approved" ? "Document approved" : "Document rejected",
-      `${ctx.documentNumber ? `${ctx.documentNumber} — ` : ""}${ctx.title} was ${decision}.${reason ? ` Reason: ${reason}` : ""}`
+      `${ctx.documentNumber ? `${ctx.documentNumber} — ` : ""}${ctx.title} was ${decision}.${reason ? ` ${decision === "approved" ? "Comment" : "Reason"}: ${reason}` : ""}`
     );
   } catch {
     // Best-effort.

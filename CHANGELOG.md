@@ -13,6 +13,11 @@ Reviewer comments, bulk IRN issue, audit-trail export, per-project report packs,
 of security and reliability fixes.
 
 ### New
+- Document Vault upload limit is 50 MB by default and a JAGS Admin can change it per organisation (1-500 MB) under Settings > Document Retention > Upload size limit. Needs migration 20261211000100.
+- Approving a Document Vault document (one at a time or in bulk) now requires a written comment, kept in the audit trail and sent to the uploader.
+- Header project selector: pick an organisation and project once and the vault, registers and "New" forms default to it.
+- Add a person who already has an account to a project in one step (search by name or email); an existing account is linked, never re-created.
+- Numbering: "Check code for duplicates" for client codes; save confirmations on brand colours and numbering; a grouped site time zone picker.
 - Reviewer comment threads on completed inspections: post, reply and resolve.
 - Bulk IRN issue: up to 50 release notices at once, with a result for each.
 - Project audit-trail export as CSV or PDF.

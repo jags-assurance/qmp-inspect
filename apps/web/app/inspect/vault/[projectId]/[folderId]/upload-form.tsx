@@ -4,7 +4,7 @@ import { nextRevision } from "@/lib/vault/revision";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { uploadWithResume } from "@/lib/storage/upload-client";
-import { VAULT_MAX_UPLOAD_BYTES, VAULT_MAX_UPLOAD_MB, vaultFileTooLargeMessage } from "@/lib/vault/limits";
+import { VAULT_DEFAULT_UPLOAD_MB, vaultFileTooLargeMessage } from "@/lib/vault/limits";
 import { uploadVaultDocumentAction } from "@/lib/vault/actions";
 import { checkVaultDuplicatesAction, type VaultDuplicateMatch } from "@/lib/vault/document-control-actions";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,6 @@ function titleFromFilename(filename: string): string {
   return withoutExt.replace(/[_-]+/g, " ").trim() || filename;
 }
 
-const MAX_UPLOAD_MB = VAULT_MAX_UPLOAD_MB;
-const MAX_UPLOAD_BYTES = VAULT_MAX_UPLOAD_BYTES;
 const BLOCKED_EXTENSIONS = /\.(exe|bat|cmd|com|msi|scr|ps1|sh|js|vbs|jar|dll)$/i;
 
 type FileState = "queued" | "uploading" | "done" | "error";
@@ -55,12 +53,17 @@ export function VaultUploadForm({
   folderId,
   folderKey,
   prefill,
+  maxUploadMb = VAULT_DEFAULT_UPLOAD_MB,
 }: {
   projectId: string;
   folderId: string;
   folderKey: string;
   prefill?: VaultUploadPrefill | null;
+  /** This organisation's per-file limit (default 50 MB); the server enforces the same number. */
+  maxUploadMb?: number;
 }) {
+  const MAX_UPLOAD_MB = maxUploadMb;
+  const MAX_UPLOAD_BYTES = maxUploadMb * 1024 * 1024;
   const tl = useTranslate();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +112,7 @@ export function VaultUploadForm({
     onProgress?: (fraction: number) => void
   ): Promise<{ ok: boolean; error?: string; documentNumber?: string; internalReference?: string | null }> {
     const supabase = createSupabaseBrowserClient();
-    if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: vaultFileTooLargeMessage(file.size) };
+    if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: vaultFileTooLargeMessage(file.size, MAX_UPLOAD_MB) };
     if (BLOCKED_EXTENSIONS.test(file.name)) return { ok: false, error: "Executable/script files can't be stored in the vault." };
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `vault/${projectId}/${folderKey}/${Date.now()}-${safeName}`;

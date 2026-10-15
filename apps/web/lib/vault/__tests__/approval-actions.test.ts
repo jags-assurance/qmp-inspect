@@ -15,7 +15,7 @@ import { bulkApproveDocumentsAction } from "../document-control-actions";
 type Mock = ReturnType<typeof resetTestCtx>;
 
 const approve = (over: Record<string, string> = {}) =>
-  approveDocumentAction({ error: null }, formData({ document_id: "doc-1", project_id: "proj-1", folder_id: "fold-1", ...over }));
+  approveDocumentAction({ error: null }, formData({ document_id: "doc-1", project_id: "proj-1", folder_id: "fold-1", approval_comment: "Checked against the drawing register", ...over }));
 const reject = (over: Record<string, string> = {}) =>
   rejectDocumentAction({ error: null }, formData({ document_id: "doc-1", project_id: "proj-1", folder_id: "fold-1", reason: "Wrong revision", ...over }));
 
@@ -53,7 +53,7 @@ describe("approveDocumentAction (single approver path)", () => {
     expect(mock.rpcCalls).toContainEqual({ name: "vault_approve_document", args: { p_document_id: "doc-1", p_approved_by: "inspector-1" } });
     // Retiring the earlier copy and approving happen inside that one function: no separate table writes.
     expect(mock.writes("vault_documents", "update")).toHaveLength(0);
-    expect(decision.notifyDocumentDecision).toHaveBeenCalledWith(expect.anything(), "doc-1", "inspector-1", "approved");
+    expect(decision.notifyDocumentDecision).toHaveBeenCalledWith(expect.anything(), "doc-1", "inspector-1", "approved", "Checked against the drawing register");
   });
 
   it("lets an admin approve without a custom permission lookup", async () => {
@@ -201,6 +201,7 @@ describe("setDocumentApproversAction / bulkApproveDocumentsAction", () => {
     const fd = formData({ project_id: "proj-1", folder_id: "fold-1" });
     fd.append("document_ids", "doc-1");
     fd.append("document_ids", "doc-2");
+    fd.set("approval_comment", "Reviewed all three");
     const res = await bulkApproveDocumentsAction({ error: null }, fd);
     expect(res.approved).toBe(0);
     expect(res.skipped).toEqual([expect.stringMatching(/Only a JAGS Admin, or someone granted this permission/)]);
@@ -212,6 +213,7 @@ describe("setDocumentApproversAction / bulkApproveDocumentsAction", () => {
     const fd = formData({ project_id: "proj-1", folder_id: "fold-1" });
     fd.append("document_ids", "doc-1");
     fd.append("document_ids", "doc-2");
+    fd.set("approval_comment", "Reviewed both");
     const res = await bulkApproveDocumentsAction({ error: null }, fd);
     expect(res.approved).toBe(2);
     expect(mock.rpcCalls.filter((c) => c.name === "vault_approve_document")).toHaveLength(2);
@@ -249,5 +251,27 @@ describe("segregation of duties (uploader cannot approve own document)", () => {
       name: "vault_approve_document",
       args: { p_document_id: "doc-1", p_approved_by: testCtx.session.userId, p_override_reason: "Client urgent, no other approver" },
     });
+  });
+});
+
+describe("approval comment is mandatory", () => {
+  it("refuses an approval with no comment", async () => {
+    resetTestCtx();
+    const res = await approve({ approval_comment: "" });
+    expect(res.error).toMatch(/approval comment/i);
+  });
+  it("refuses a too-short comment", async () => {
+    resetTestCtx();
+    const res = await approve({ approval_comment: "ok" });
+    expect(res.error).toMatch(/at least 5/);
+  });
+  it("bulk approve refuses without a comment", async () => {
+    resetTestCtx();
+    const fd = new FormData();
+    fd.set("project_id", "proj-1");
+    fd.set("folder_id", "fold-1");
+    fd.append("document_ids", "doc-1");
+    const res = await bulkApproveDocumentsAction({ error: null }, fd);
+    expect(res.error).toMatch(/approval comment/i);
   });
 });

@@ -71,13 +71,35 @@ export function ApproveDocumentButton({
             </button>
           )}
         </>
+      ) : asking ? (
+        <>
+          <input
+            name="approval_comment"
+            required
+            minLength={5}
+            autoFocus
+            placeholder="Approval comment (required)"
+            aria-label="Approval comment"
+            className="min-w-48 rounded-md border border-border bg-surface px-2 py-1 text-xs"
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+          >
+            {pending ? "Approving…" : "Confirm approve"}
+          </button>
+          <button type="button" onClick={() => setAsking(false)} className="text-xs text-muted hover:underline">
+            Cancel
+          </button>
+        </>
       ) : (
         <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+          type="button"
+          onClick={() => setAsking(true)}
+          className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white"
         >
-          {pending ? "Approving…" : label}
+          {label}
         </button>
       )}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}

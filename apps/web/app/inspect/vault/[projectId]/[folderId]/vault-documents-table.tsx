@@ -362,12 +362,20 @@ export function VaultDocumentsTable({
             </span>
           )}
           {selectedApprovable.length > 0 && (
-            <form action={bulkAction} className="inline-flex">
+            <form action={bulkAction} className="inline-flex flex-wrap items-center">
               <input type="hidden" name="project_id" value={projectId} />
               <input type="hidden" name="folder_id" value={folderId} />
               {selectedApprovable.map((r) => (
                 <input key={r.id} type="hidden" name="document_ids" value={r.id} />
               ))}
+              <input
+                name="approval_comment"
+                required
+                minLength={5}
+                placeholder={tl("Approval comment (required)")}
+                aria-label={tl("Approval comment")}
+                className="me-2 min-h-11 rounded-md border border-border bg-surface px-2 text-sm sm:min-h-0 sm:py-1.5"
+              />
               <button
                 type="submit"
                 disabled={bulkPending}
@@ -380,6 +388,11 @@ export function VaultDocumentsTable({
           <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted hover:underline">
             <Tx>Clear selection</Tx>
           </button>
+          {bulkState.error && (
+            <span className="text-xs text-danger" role="alert">
+              {bulkState.error}
+            </span>
+          )}
           {bulkState.approved !== undefined && (
             <span className="text-xs text-muted" role="status">
               <Tx>Approved</Tx> {bulkState.approved}

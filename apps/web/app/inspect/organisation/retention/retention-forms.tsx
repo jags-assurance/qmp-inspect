@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { markRetentionDisposedAction, reviewRetentionFlagAction, saveRetentionSettingsAction, type RetentionState } from "@/lib/retention/actions";
+import { saveVaultUploadLimitAction, type VaultUploadLimitState } from "@/lib/vault/upload-limit-actions";
+import { VAULT_MAX_UPLOAD_MB } from "@/lib/vault/limits";
 import { DISPOSE_CONFIRMATION_WORD, MAX_RETENTION_YEARS, MIN_RETENTION_YEARS } from "@/lib/retention/logic";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
@@ -118,6 +120,41 @@ export function DisposeDocumentForm({ documentId }: { documentId: string }) {
         {pending ? "Removing…" : "Mark disposed"}
       </Button>
       <FormMessage error={state.error} success={state.success} className="w-full" />
+    </form>
+  );
+}
+
+const initialLimitState: VaultUploadLimitState = { error: null };
+
+export function VaultUploadLimitForm({ organizationId, maxUploadMb }: { organizationId: string; maxUploadMb: number }) {
+  const [state, formAction, pending] = useActionState(saveVaultUploadLimitAction, initialLimitState);
+  return (
+    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+      <input type="hidden" name="organization_id" value={organizationId} />
+      <div>
+        <label htmlFor={`max_upload_mb_${organizationId}`} className="block text-xs font-medium text-ink">
+          <Tx>Largest file one upload may be (MB)</Tx>
+        </label>
+        <input
+          id={`max_upload_mb_${organizationId}`}
+          name="max_upload_mb"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={VAULT_MAX_UPLOAD_MB}
+          step={1}
+          required
+          defaultValue={maxUploadMb}
+          className="mt-1 w-28 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        />
+      </div>
+      <p className="text-xs text-muted">
+        <Tx>The default is 50 MB. Larger limits are fine for drawings or scans, but very large files are slow to upload and download. The most the system can store is</Tx> {VAULT_MAX_UPLOAD_MB} MB.
+      </p>
+      <FormMessage error={state.error} success={state.success} />
+      <Button type="submit" disabled={pending}>
+        {pending ? "Saving…" : "Save upload limit"}
+      </Button>
     </form>
   );
 }

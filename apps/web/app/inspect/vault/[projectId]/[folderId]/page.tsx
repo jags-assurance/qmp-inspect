@@ -9,6 +9,7 @@ import { VAULT_DOCUMENTS_TABLE, VAULT_FOLDERS_TABLE, type VaultFolderRow } from 
 import { VAULT_DOCUMENT_APPROVERS_TABLE } from "@/lib/vault/approval-types";
 import { VaultDocumentsTable, type VaultDocumentTableRow } from "./vault-documents-table";
 import { VaultUploadForm, type VaultUploadPrefill } from "./upload-form";
+import { loadVaultUploadLimitMb } from "@/lib/vault/upload-limit";
 
 /** "2" -> "3", "B" -> "C", otherwise "<rev>.1" — the suggested label for the next revision. */
 function nextRevisionLabel(rev: string): string {
@@ -75,6 +76,10 @@ export default async function VaultFolderPage({
   ]);
 
   if (!folder) notFound();
+
+  // This organisation's per-file upload limit (default 50 MB, an Admin can change it).
+  const { data: projectRow } = await supabase.from("projects").select("organization_id").eq("id", projectId).maybeSingle<{ organization_id: string }>();
+  const uploadLimitMb = await loadVaultUploadLimitMb(projectRow?.organization_id);
 
   // Disambiguated FK hint (users!uploaded_by) is now required, not optional — vault_documents grew
   // a second foreign key to users (approved_by, 20260921020000_vault_document_approval.sql), so the
@@ -286,6 +291,7 @@ export default async function VaultFolderPage({
             folderId={folderId}
             folderKey={folder.folder_key}
             prefill={prefill}
+            maxUploadMb={uploadLimitMb}
           />
 
           {isAdminStaff(session) && reviewDocIds.length > 0 && (

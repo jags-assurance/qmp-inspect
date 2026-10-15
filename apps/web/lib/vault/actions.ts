@@ -8,6 +8,7 @@ import { resolveUploadRevision } from "@/lib/vault/revision";
 import { VAULT_DOCUMENTS_TABLE, type VaultDocumentRow } from "@/lib/vault/types";
 import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { VAULT_EXTRACT_MAX_BYTES, VAULT_MAX_UPLOAD_BYTES, vaultFileTooLargeMessage } from "@/lib/vault/limits";
+import { loadVaultUploadLimitMb } from "@/lib/vault/upload-limit";
 import { extractTextFromFile } from "@/lib/vault/extract-text";
 import { notifyDocumentSubmitted } from "@/lib/vault/notifications";
 
@@ -103,10 +104,6 @@ export async function uploadVaultDocumentCore(
   if (!folderCheck) {
     return { error: "That folder doesn't belong to this project." };
   }
-  if (fileSize && Number(fileSize) > VAULT_MAX_UPLOAD_BYTES) {
-    return { error: `Upload failed — ${vaultFileTooLargeMessage(Number(fileSize))}` };
-  }
-
   const { data: project } = await supabase
     .from("projects")
     .select("project_number, organization_id")
@@ -115,6 +112,12 @@ export async function uploadVaultDocumentCore(
 
   if (!project) {
     return { error: "Project not found, or you don't have access to it." };
+  }
+
+  // The organisation's own limit (default 50 MB, an Admin can change it); never above the 500 MB bucket ceiling.
+  const limitMb = await loadVaultUploadLimitMb(project.organization_id);
+  if (fileSize && (Number(fileSize) > limitMb * 1024 * 1024 || Number(fileSize) > VAULT_MAX_UPLOAD_BYTES)) {
+    return { error: `Upload failed — ${vaultFileTooLargeMessage(Number(fileSize), limitMb)}` };
   }
 
   let generatedNumber: Awaited<ReturnType<typeof generateDocumentNumber>>;

@@ -147,6 +147,8 @@ export async function bulkApproveDocumentsAction(
   const folderId = String(formData.get("folder_id") ?? "").trim();
   const ids = formData.getAll("document_ids").map((v) => String(v).trim()).filter(Boolean).slice(0, 100);
   if (ids.length === 0) return { error: "Select at least one document to approve." };
+  const approvalComment = String(formData.get("approval_comment") ?? "").trim();
+  if (approvalComment.length < 5) return { error: "Add an approval comment (at least 5 characters) before approving." };
 
   let approved = 0;
   const skipped: string[] = [];
@@ -155,6 +157,7 @@ export async function bulkApproveDocumentsAction(
     fd.set("document_id", id);
     fd.set("project_id", projectId);
     fd.set("folder_id", folderId);
+    fd.set("approval_comment", approvalComment);
     const result = await approveDocumentAction({ error: null }, fd);
     if (result.error) skipped.push(result.error);
     else approved += 1;

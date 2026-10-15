@@ -16,7 +16,9 @@ import {
   daysPastDue,
   type RetentionFlagRow,
 } from "@/lib/retention/logic";
-import { DisposeDocumentForm, RetentionSettingsForm, ReviewFlagForm } from "./retention-forms";
+import { DisposeDocumentForm, RetentionSettingsForm, ReviewFlagForm, VaultUploadLimitForm } from "./retention-forms";
+import { VAULT_DEFAULT_UPLOAD_MB } from "@/lib/vault/limits";
+import { loadVaultUploadLimitMb } from "@/lib/vault/upload-limit";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 
@@ -66,6 +68,7 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
       flags = res.data ?? [];
     }
   }
+  const uploadLimitMb = selectedOrg ? await loadVaultUploadLimitMb(selectedOrg.id) : VAULT_DEFAULT_UPLOAD_MB;
   const awaiting = flags.filter((f) => !f.review_outcome);
   const toDispose = flags.filter((f) => f.review_outcome === "dispose_approved" && !f.disposed_at);
   // Server component: evaluated once per request, which is the intended "now".
@@ -96,6 +99,16 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
         <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink">
           <T>Retention rules need the latest database update (migration 20261112000103). Ask a JAGS Admin to apply it.</T>
         </p>
+      )}
+
+      {selectedOrg && (
+        <section className="mt-6" aria-label={tl("Upload size limit")}>
+          <h3 className="text-sm font-semibold text-ink"><T>Upload size limit</T></h3>
+          <p className="mt-1 text-xs text-muted"><T>How large a single file can be when someone uploads it to this organisation&apos;s Document Vault.</T></p>
+          <div className="mt-2">
+            <VaultUploadLimitForm key={`${selectedOrg.id}-${uploadLimitMb}`} organizationId={selectedOrg.id} maxUploadMb={uploadLimitMb} />
+          </div>
+        </section>
       )}
 
       {selectedOrg && !unavailable && (

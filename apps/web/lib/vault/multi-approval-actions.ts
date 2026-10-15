@@ -136,6 +136,10 @@ export async function approveDocumentAction(
   const projectId = String(formData.get("project_id") ?? "").trim();
   const folderId = String(formData.get("folder_id") ?? "").trim();
   if (!documentId) return { error: "Missing document." };
+  // Every approval carries a written comment (what was checked / why it is acceptable), recorded in the
+  // audit trail and sent to the uploader. An admin override of segregation of duties has its own, longer
+  // reason, which then also serves as the comment.
+  const approvalComment = String(formData.get("approval_comment") ?? "").trim();
 
   const supabase = await createSupabaseServerClient();
 
@@ -158,6 +162,8 @@ export async function approveDocumentAction(
     }
     overrideReason = reason;
   }
+  const comment = approvalComment || overrideReason || "";
+  if (comment.length < 5) return { error: "Add an approval comment (at least 5 characters) before approving." };
 
   // Never trust a client-posted flag: work out server-side whether this caller may approve outright.
   const canApproveGenerally =
@@ -226,7 +232,7 @@ export async function approveDocumentAction(
         entityId: documentId,
         action: document?.status === "approved" ? "approved" : "approval_step_recorded",
         actorId: session.userId,
-        summary: `Document "${document?.title ?? documentId}" ${document?.status === "approved" ? "approved" : "approval step recorded"}${overrideReason ? ` — admin override of segregation of duties (approver also uploaded it). Reason: ${overrideReason}` : ""}`,
+        summary: `Document "${document?.title ?? documentId}" ${document?.status === "approved" ? "approved" : "approval step recorded"}. Comment: ${comment}${overrideReason ? ` — admin override of segregation of duties (approver also uploaded it). Reason: ${overrideReason}` : ""}`,
       });
     }
   } catch {
@@ -239,7 +245,7 @@ export async function approveDocumentAction(
       .select("status")
       .eq("id", documentId)
       .maybeSingle<{ status: string }>();
-    if (finalDoc?.status === "approved") await notifyDocumentDecision(supabase, documentId, session.userId, "approved");
+    if (finalDoc?.status === "approved") await notifyDocumentDecision(supabase, documentId, session.userId, "approved", comment);
   } catch {
     // Best-effort.
   }
