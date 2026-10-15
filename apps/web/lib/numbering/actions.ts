@@ -16,6 +16,8 @@ import { countTierOnlyPermissions } from "./tier-permissions";
 
 export interface NumberingSettingsState {
   error: string | null;
+  /** Shown as a success confirmation after a save. */
+  message?: string;
 }
 
 /**
@@ -72,7 +74,7 @@ export async function updateEngagementModeAction(
 
   revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath("/inspect/organisation/numbering");
-  return { error: null };
+  return { error: null, message: "Engagement mode saved." };
 }
 
 const ENGAGEMENT_SCOPES = ["full_service", "self_managed", "client_managed"] as const;
@@ -166,7 +168,7 @@ export async function updateEngagementScopeAction(
 
   revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath("/inspect/organisation/numbering");
-  return { error: null };
+  return { error: null, message: "Engagement scope saved." };
 }
 
 /**
@@ -266,5 +268,5 @@ export async function upsertNumberingConfigAction(
   }
 
   revalidatePath("/inspect/organisation/numbering");
-  return { error: null };
+  return { error: null, message: "Numbering format saved." };
 }

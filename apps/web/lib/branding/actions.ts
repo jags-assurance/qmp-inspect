@@ -9,6 +9,8 @@ import { holdsOrgWideGrant } from "@/lib/organizations/org-wide-grant";
 
 export interface BrandingSettingsState {
   error: string | null;
+  /** Shown as a success confirmation after a save. */
+  message?: string;
 }
 
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
@@ -105,7 +107,7 @@ export async function updateOrgBrandColorsAction(
 
   revalidateTag(orgChromeTag(organizationId), { expire: 0 });
   revalidatePath(BRANDING_PATH);
-  return { error: null };
+  return { error: null, message: "Brand colours saved." };
 }
 
 export interface LogoUploadState {

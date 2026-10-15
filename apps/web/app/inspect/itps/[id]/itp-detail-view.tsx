@@ -541,6 +541,18 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   const signoffTotal = ownSignoffs.length;
   const signoffComplete = ownSignoffs.filter((row) => row.status === "signed_off").length;
   const hasPendingSignoffs = ownSignoffs.some((row) => row.status === "pending");
+  // One activity has one sign-off point per party that has an intervention on it, so the point count
+  // is always larger than the activity count. Show progress per ACTIVITY first (an activity is done
+  // when every one of its points is signed off) and keep the raw point count as secondary detail.
+  const pointsByActivity = new Map<string, { total: number; done: number }>();
+  for (const row of ownSignoffs) {
+    const entry = pointsByActivity.get(row.itp_item_id) ?? { total: 0, done: 0 };
+    entry.total += 1;
+    if (row.status === "signed_off") entry.done += 1;
+    pointsByActivity.set(row.itp_item_id, entry);
+  }
+  const activityTotal = pointsByActivity.size;
+  const activityComplete = [...pointsByActivity.values()].filter((e) => e.done === e.total).length;
 
   // R-quick-fix: surfaces when this ITP's content or sign-off state has changed since the last
   // successfully rendered PDF, so "Regenerate PDF" isn't something you have to remember to click on
@@ -811,7 +823,10 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
           {signoffTotal > 0 && (
             <p className="mt-1 text-sm text-muted">
-              {signoffComplete} <T>of</T> {signoffTotal} <T>sign-off points complete</T>
+              {activityComplete} <T>of</T> {activityTotal} <T>activities fully signed off</T>
+              <span className="ms-1 text-xs">
+                ({signoffComplete} <T>of</T> {signoffTotal} <T>party sign-offs, one per party on each activity</T>)
+              </span>
             </p>
           )}
 
@@ -1080,9 +1095,14 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                       kept as its own per-activity block below the grid, since it isn't part of the
                       per-party intervention/sign-off grid itself. */}
                   <div>
+                    {sortedItems.length > 0 && (
+                      <p className="border-t border-border bg-off-white/40 px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                        <T>Records and evidence per activity</T>
+                      </p>
+                    )}
                     {sortedItems.map((item) => (
-                      <div key={item.id} className="border-b border-border px-4 py-3 last:border-0 bg-off-white/40">
-                        <p className="mb-1.5 text-xs font-medium text-muted">
+                      <div key={item.id} className="border-b border-border px-4 py-2.5 last:border-0 bg-off-white/40">
+                        <p className="mb-1.5 text-xs text-muted">
                           <span className="doc-id me-1">{item.item_number}</span>
                           {item.activity}
                         </p>

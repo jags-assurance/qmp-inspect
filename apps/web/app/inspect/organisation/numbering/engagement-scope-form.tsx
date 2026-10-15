@@ -95,7 +95,7 @@ export function EngagementScopeForm({
         </span>
       </label>
 
-      <FormMessage error={state.error} />
+      <FormMessage error={state.error} success={pending ? null : state.message} />
 
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save engagement scope"}

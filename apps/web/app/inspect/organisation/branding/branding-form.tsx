@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateOrgBrandColorsAction, type BrandingSettingsState } from "@/lib/branding/actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { FormMessage } from "@/components/ui/form-message";
 import { MoreDetails } from "@/components/domain/more-details";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -168,7 +169,7 @@ export function BrandingForm({
         <p><Tx>Leave Primary/Accent blank to fall back to the default JAGS palette (</Tx>{DEFAULT_PRIMARY} / {DEFAULT_ACCENT}<Tx>). This overrides the in-app UI only — generated PDF reports keep the standard JAGS palette.</Tx></p>
       </MoreDetails>
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} success={pending ? null : state.message} />
 
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save brand colors"}

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { setItpReviewChainAction, type SetReviewChainState } from "@/lib/itps/review-chain-actions";
 import { Tx } from "@/components/domain/tx";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: SetReviewChainState = { error: null };
 
@@ -63,7 +64,7 @@ export function ItpReviewChainForm({
       >
         {pending ? "Saving…" : "Save this ITP's review chain"}
       </button>
-      {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} success={state.saved && !pending ? "Review chain saved." : null} className="mt-2" />
     </form>
   );
 }

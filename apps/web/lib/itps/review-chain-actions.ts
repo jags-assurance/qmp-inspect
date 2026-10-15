@@ -24,6 +24,8 @@ import {
 } from "@/lib/itps/review-chain";
 
 export interface SetReviewChainState {
+  /** True after a successful save, so the form can show a visible confirmation. */
+  saved?: boolean;
   error: string | null;
 }
 
@@ -123,7 +125,7 @@ export async function setProjectReviewChainAction(_prev: SetReviewChainState, fo
   }
 
   revalidatePath(`/inspect/projects/${projectId}`);
-  return { error: null };
+  return { error: null, saved: true };
 }
 
 /**
@@ -204,7 +206,7 @@ export async function setItpReviewChainAction(_prev: SetReviewChainState, formDa
   }
 
   revalidatePath(`/inspect/itps/${itpId}`);
-  return { error: null };
+  return { error: null, saved: true };
 }
 
 /**

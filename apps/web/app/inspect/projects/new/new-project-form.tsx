@@ -6,7 +6,7 @@ import { suggestProjectNumber } from "@/lib/projects/suggest-number";
 import { createProjectAction, type CreateProjectState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
-import { TimeZoneOptions } from "@/components/domain/timezone-options";
+import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -137,9 +137,8 @@ export function NewProjectForm({
         </div>
         <div>
           <FormField label="Site time zone (optional)">
-            <input name="timezone" list="project-timezones" maxLength={64} placeholder={tl("e.g. Asia/Dubai (default UTC)")} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <TimeZonePicker blankLabel={tl("Default (UTC)")} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
           </FormField>
-          <TimeZoneOptions />
         </div>
         <div>
           <FormField label="Status">

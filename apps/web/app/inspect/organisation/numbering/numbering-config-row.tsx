@@ -7,6 +7,7 @@ import { formatDocumentNumber } from "@/lib/numbering/format";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { FormMessage } from "@/components/ui/form-message";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 const initialState: NumberingSettingsState = { error: null };
@@ -139,7 +140,7 @@ export function NumberingConfigRow({
         <Tx>Discipline</Tx>
       </label>
 
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending} className="col-span-full justify-self-end whitespace-nowrap xl:col-span-1 xl:justify-self-stretch">
         {pending ? "Saving…" : "Save"}
       </Button>
 
@@ -147,7 +148,7 @@ export function NumberingConfigRow({
         <Tx>Sample:</Tx> <span className="doc-id font-medium text-ink">{sample}</span>
       </p>
 
-      {state.error && <p role="alert" className="col-span-full text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} success={pending ? null : state.message} className="col-span-full" />
     </form>
   );
 }

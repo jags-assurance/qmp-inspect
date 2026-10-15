@@ -143,7 +143,7 @@ export function ItpApprovalRoadmap({
       </ol>
       {signoffTotal > 0 && (
         <p className="mt-3 border-t border-border pt-2.5 text-xs text-muted">
-          <T>Intervention points:</T> {signoffComplete} <T>of</T> {signoffTotal} <T>signed off — details in section 3 below</T>
+          <T>Party sign-offs (one per party on each activity):</T> {signoffComplete} <T>of</T> {signoffTotal} <T>signed off — details in section 3 below</T>
         </p>
       )}
     </div>

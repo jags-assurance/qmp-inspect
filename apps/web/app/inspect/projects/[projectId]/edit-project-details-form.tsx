@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { updateProjectDetailsAction, type UpdateProjectDetailsState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
-import { TimeZoneOptions } from "@/components/domain/timezone-options";
+import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -65,8 +65,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
           </label>
           <label className="text-sm text-ink">
             <Tx>Site time zone</Tx>
-            <input name="timezone" list="project-timezones" maxLength={64} placeholder={tl("e.g. Asia/Dubai")} defaultValue={project.timezone ?? ""} className={inputClass} />
-            <TimeZoneOptions />
+            <TimeZonePicker blankLabel={tl("Keep current")} defaultValue={project.timezone ?? ""} className={inputClass} />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm text-ink">

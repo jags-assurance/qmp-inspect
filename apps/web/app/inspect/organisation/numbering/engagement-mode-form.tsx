@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateEngagementModeAction, type NumberingSettingsState } from "@/lib/numbering/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -49,7 +50,7 @@ export function EngagementModeForm({
         ))}
       </div>
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} success={pending ? null : state.message} />
 
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save engagement mode"}
