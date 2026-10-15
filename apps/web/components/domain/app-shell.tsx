@@ -118,7 +118,7 @@ export async function AppShell({
           <header className="no-print sticky top-0 z-20 border-b border-border bg-surface pt-[env(safe-area-inset-top)] ps-[env(safe-area-inset-left)] pe-[env(safe-area-inset-right)] lg:ps-0 lg:pe-0">
             <div className="flex h-14 items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
               <MobileSidebarToggle />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 lg:min-w-[9rem]">
                 <HeaderBreadcrumb root={breadcrumb} navItems={navItems} />
               </div>
               <div className="flex shrink-0 items-center gap-1 sm:gap-2">

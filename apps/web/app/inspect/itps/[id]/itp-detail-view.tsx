@@ -1061,7 +1061,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
 
       <div className="mt-8 space-y-8">
         {(sections ?? []).map((section, sectionIndex) => (
-          <div key={section.id} id={`section-${section.section_number}`} className="scroll-mt-[calc(var(--header-h)+5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xs">
+          <div key={section.id} id={`section-${section.section_number}`} className="scroll-mt-[calc(var(--header-h)+5rem)] [overflow:clip] rounded-lg border border-border bg-surface shadow-xs">
             <div className="border-b border-border bg-surface-subtle px-4 py-3">
               {canEditContent ? (
                 <SectionControls

@@ -1,5 +1,6 @@
 "use client";
 
+import { Children } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -79,5 +80,6 @@ export function StatGrid({ children, max = 4, className }: { children: ReactNode
     4: "grid-cols-2 md:grid-cols-3 xl:grid-cols-4",
     6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 desk:grid-cols-6",
   }[max];
-  return <div className={cn("grid gap-3 sm:gap-4", cols, className)}>{children}</div>;
+  // Children.toArray gives every child a stable key, so tiles passed as Suspense/async server nodes do not trigger React key warnings.
+  return <div className={cn("grid gap-3 sm:gap-4", cols, className)}>{Children.toArray(children)}</div>;
 }
