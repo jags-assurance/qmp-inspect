@@ -23,6 +23,7 @@ import { geminiProvider, getGeminiModel, PROMPT_VERSIONS, withGeminiUsage, type 
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { fetchProjectTimeZone, parseProjectTimeZone } from "@/lib/projects/timezone";
 import { isMissingSchemaError } from "@/lib/offline/missing-schema";
+import { buildReusableParties, type PartyRow, type ReusableParty } from "@/lib/projects/reusable-parties";
 
 export interface CreateProjectState {
   error: string | null;
@@ -1465,4 +1466,26 @@ export async function updateProjectDetailsAction(
   revalidatePath(`/inspect/projects/${projectId}`);
   revalidatePath("/inspect/projects");
   return { error: null, saved: true };
+}
+
+/**
+ * Parties already used on this organisation's OTHER projects (company name, type and last contact), for
+ * "reuse an existing party" when adding one to this project. Only parties the caller can already read
+ * (RLS) are returned; nothing is created or linked here.
+ */
+export async function listOrganisationPartiesAction(projectId: string): Promise<ReusableParty[]> {
+  await requireSession();
+  const id = String(projectId ?? "").trim();
+  if (!id) return [];
+  const supabase = await createSupabaseServerClient();
+  const { data: project } = await supabase.from("projects").select("organization_id").eq("id", id).maybeSingle<{ organization_id: string }>();
+  if (!project) return [];
+  const { data } = await supabase
+    .from("project_parties")
+    .select("project_id, party_type, name, contact_name, contact_email, projects!inner(organization_id)")
+    .eq("projects.organization_id", project.organization_id)
+    .order("created_at", { ascending: false })
+    .limit(1000)
+    .returns<(PartyRow & { projects: { organization_id: string } })[]>();
+  return buildReusableParties(data ?? [], id);
 }

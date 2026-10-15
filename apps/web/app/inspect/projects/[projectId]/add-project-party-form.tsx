@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { addProjectPartyAction, type AddProjectPartyState } from "@/lib/projects/actions";
+import { addProjectPartyAction, listOrganisationPartiesAction, type AddProjectPartyState } from "@/lib/projects/actions";
+import type { ReusableParty } from "@/lib/projects/reusable-parties";
 import { provisionPartyLoginAction, searchExistingPeopleAction, type ExistingPersonMatch } from "@/lib/projects/party-provisioning";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -22,6 +23,9 @@ const PARTY_TYPE_OPTIONS: { value: string; label: string }[] = [
 export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { projectId: string; canGrantAccess?: boolean }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addProjectPartyAction, initialState);
+  const [partyType, setPartyType] = useState(PARTY_TYPE_OPTIONS[0].value);
+  const [partyName, setPartyName] = useState("");
+  const [reusable, setReusable] = useState<ReusableParty[]>([]);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [search, setSearch] = useState("");
@@ -31,6 +35,19 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
   const [grantResult, setGrantResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [, startTransition] = useTransition();
   const handled = useRef<string | null>(null);
+
+  // Parties already used on this organisation's other projects, so the same company is picked, not retyped.
+  useEffect(() => {
+    let cancelled = false;
+    listOrganisationPartiesAction(projectId)
+      .then((list) => {
+        if (!cancelled) setReusable(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, state.partyId]);
 
   // Type-ahead over people who already have an account (Admin only; two characters minimum).
   const searchActive = canGrantAccess && !picked && search.trim().length >= 2;
@@ -62,6 +79,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
         else setGrantResult({ ok: true, text: `Party added and ${email} was linked with their existing account. No new password needed.` });
       });
     }
+    setPartyName("");
     setContactName("");
     setContactEmail("");
     setSearch("");
@@ -73,11 +91,42 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
     <form action={formAction} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
       <input type="hidden" name="project_id" value={projectId} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {reusable.length > 0 && (
+          <div className="sm:col-span-2">
+            <label htmlFor="reuse_party" className="block text-xs font-medium text-ink">
+              <Tx>Already used in this organisation? Reuse a party</Tx> <span className="font-normal text-muted"><Tx>(fills in the details below)</Tx></span>
+            </label>
+            <select
+              id="reuse_party"
+              value=""
+              onChange={(e) => {
+                const p = reusable[Number(e.target.value)];
+                if (!p) return;
+                setPartyType(p.partyType);
+                setPartyName(p.name);
+                setContactName(p.contactName ?? "");
+                setContactEmail(p.contactEmail ?? "");
+                setPicked(false);
+                setGrantNow(false);
+              }}
+              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+            >
+              <option value="">{tl("Choose a party from this organisation's other projects…")}</option>
+              {reusable.map((p, i) => (
+                <option key={`${p.partyType}-${p.name}`} value={i}>
+                  {`${p.name} - ${PARTY_TYPE_OPTIONS.find((o) => o.value === p.partyType)?.label ?? p.partyType} (${p.projectCount} ${p.projectCount === 1 ? "project" : "projects"})`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <FormField label="Party type" error={state.fieldErrors?.party_type}>
             <select
             name="party_type"
             required
+            value={partyType}
+            onChange={(e) => setPartyType(e.target.value)}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           >
             {PARTY_TYPE_OPTIONS.map((opt) => (
@@ -93,6 +142,8 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
             <input
             name="name"
             required
+            value={partyName}
+            onChange={(e) => setPartyName(e.target.value)}
             placeholder={tl("e.g. Voltway Electrical Ltd")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />
