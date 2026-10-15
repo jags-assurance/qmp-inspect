@@ -27,7 +27,7 @@ describe("vault upload limit", () => {
     expect(effectiveVaultUploadLimitMb(120)).toBe(120);
   });
   it("names the organisation's limit in the too-large message and points at the Admin only when raising is possible", () => {
-    expect(vaultFileTooLargeMessage(80 * 1024 * 1024, 50)).toMatch(/50 MB.*80 MB.*raise the upload limit/s);
+    expect(vaultFileTooLargeMessage(80 * 1024 * 1024, 50)).toMatch(/50 MB[\s\S]*80 MB[\s\S]*raise the upload limit/);
     expect(vaultFileTooLargeMessage(600 * 1024 * 1024)).not.toMatch(/raise/);
   });
 });
