@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -44,8 +45,9 @@ export function Sheet({
     };
   }, [open]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  // Portalled to <body>: the opener often lives in the sticky header (a z-20 stacking context), which would cap z-50.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div aria-hidden="true" className="absolute inset-0 bg-overlay" onClick={onClose} />
       <div
@@ -80,6 +82,7 @@ export function Sheet({
           <div className="border-t border-border bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

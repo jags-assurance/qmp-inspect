@@ -14,7 +14,7 @@
      tone toward white first). These keep the same warm/neutral hue but push contrast well past
      WCAG's 3:1 UI-component and 4.5:1 text minimums so outlines and labels stay legible outdoors. */
   /* Decorative dividers / card edges: deliberately light. Controls use --color-control-border below. */
-  --color-border: #ddd6c8;
+  --color-border: #c4bba6;
   /* Form-control outlines (inputs, selects, textareas, outlined buttons): >= 3:1 against white and
      off-white (WCAG 1.4.11). #b3a993 measures only 2.33:1 on white. */
   --color-control-border: #857b66;
@@ -220,7 +220,7 @@ input[type="radio"] {
 }
 ::placeholder {
   color: var(--color-muted);
-  opacity: 0.8;
+  opacity: 1; /* 0.8 dropped it to 4.4:1 on white (< 4.5:1 AA) */
 }
 :disabled {
   cursor: not-allowed;

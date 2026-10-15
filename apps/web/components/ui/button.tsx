@@ -27,7 +27,7 @@ const BASE =
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-burgundy text-white shadow-xs hover:bg-burgundy-dark",
-  outline: "border border-border text-ink bg-surface shadow-xs hover:bg-surface-subtle",
+  outline: "border border-control-border text-ink bg-surface shadow-xs hover:bg-surface-subtle",
   ghost: "text-ink hover:bg-surface-subtle",
   danger: "bg-danger text-white hover:bg-danger/90",
   "danger-outline": "border border-danger/40 text-danger bg-surface hover:bg-danger/5",

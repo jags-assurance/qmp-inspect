@@ -1,5 +1,6 @@
 "use client";
 import { Tx } from "@/components/domain/tx";
+import { useSetFilterParam } from "@/lib/hooks/use-filter-param";
 
 export interface DisciplineOption {
   id: string;
@@ -18,6 +19,7 @@ export function DisciplineFilterForm({
   disciplines: DisciplineOption[];
   selectedDisciplineId: string | null;
 }) {
+  const setParam = useSetFilterParam();
   return (
     <form className="w-full md:w-auto">
       <label htmlFor="discipline" className="block text-xs font-medium text-muted">
@@ -27,7 +29,7 @@ export function DisciplineFilterForm({
         id="discipline"
         name="discipline"
         defaultValue={selectedDisciplineId ?? ""}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        onChange={(e) => setParam("discipline", e.currentTarget.value)}
         className="mt-1 min-h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink [@media(pointer:coarse)]:min-h-11 md:w-auto"
       >
         <option value=""><Tx>All disciplines</Tx></option>

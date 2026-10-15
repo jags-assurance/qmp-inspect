@@ -76,8 +76,8 @@ export function SidebarShell({
   // Optional multi-colour ring for the "JA" badge (Organisation -> Branding).
   const brandCombo = orgBranding?.brandCombo ?? null;
 
-  const isLg = useMediaQuery("(min-width: 1024px)", true);
-  const isDesk = useMediaQuery("(min-width: 1440px)", true);
+  const isLg = useMediaQuery("(min-width: 64rem)", true);
+  const isDesk = useMediaQuery("(min-width: 90rem)", true);
   const pref = useSyncExternalStore(subscribePref, readPref, () => null);
   // Rail only on laptop; desktop is always full; the drawer is always full.
   const railAllowed = isLg && !isDesk;

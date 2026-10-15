@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { searchEntitiesAction, type EntityHit } from "@/lib/search/actions";
@@ -144,7 +145,8 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         </svg>
       </button>
 
-      {open && (
+      {/* Portalled to <body>: the header is a z-20 stacking context, which would cap this z-50 overlay under notices (z-30). */}
+      {open && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label={tl("Search pages and records")}>
           <div aria-hidden="true" className="absolute inset-0 bg-ink/40" onClick={close} />
           <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
@@ -183,7 +185,8 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
               {searching ? "Searching" : `${results.length} result${results.length === 1 ? "" : "s"}`}
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
