@@ -5,7 +5,7 @@ import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
 import { CreateTeamForm } from "./create-team-form";
 import { TeamCard, type TeamCardData, type StaffOption, type ProjectOption } from "./team-card";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -122,12 +122,12 @@ export async function TeamsView({ embedded }: { embedded?: boolean }) {
         <p><T>JAGS-internal staff groupings — which staff belong to which team, who leads it, and which projects that team is responsible for. A team lead can manage their own team&apos;s membership and project assignments; a JAGS Admin can manage every team.</T></p>
       </MoreDetails>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Teams" value={teamCards.length} />
-        <StatCard label="Staff assigned" value={totalMembers} />
-        <StatCard label="Projects covered" value={totalAssignedProjects} />
-        <StatCard label="Unassigned staff" value={Math.max(0, (staff ?? []).length - totalMembers)} />
-      </div>
+      <StatGrid max={4} className="mt-6">
+        <StatTile label="Teams" value={teamCards.length} />
+        <StatTile label="Staff assigned" value={totalMembers} />
+        <StatTile label="Projects covered" value={totalAssignedProjects} />
+        <StatTile label="Unassigned staff" value={Math.max(0, (staff ?? []).length - totalMembers)} />
+      </StatGrid>
 
       {admin && (
         <div className="mt-6">

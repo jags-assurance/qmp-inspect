@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { AI_USAGE_LOG_TABLE, type AiFeature } from "@/lib/ai/log";
@@ -364,16 +364,16 @@ export default async function UsageAndCostPage({
         {projectFilterOptions.length > 0 && <ProjectFilter projects={projectFilterOptions} />}
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total AI calls" value={totalAiCalls} />
-        <StatCard
+      <StatGrid max={4} className="mt-6">
+        <StatTile label="Total AI calls" value={totalAiCalls} />
+        <StatTile
           label="Est. total AI cost"
           value={formatUsd(totalAiCostUsd)}
           caption={totalAiCostFullyKnown ? `Over ${WINDOW_DAYS} days` : "Some calls unestimable — see Guide"}
         />
-        <StatCard label="Total render jobs" value={jobs.length} />
-        <StatCard label="Total render time" value={formatDuration(totalRenderSeconds || null)} />
-      </div>
+        <StatTile label="Total render jobs" value={jobs.length} />
+        <StatTile label="Total render time" value={formatDuration(totalRenderSeconds || null)} />
+      </StatGrid>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
@@ -384,7 +384,7 @@ export default async function UsageAndCostPage({
           ) : (
             <div className="mt-3">
               <ResponsiveTable
-                breakpoint="md"
+                breakpoint="xl"
                 caption="AI cost by model"
                 rows={[...costByModel.entries()].sort((a, b) => b[1].costUsd - a[1].costUsd)}
                 rowKey={([model]) => model}
@@ -409,7 +409,7 @@ export default async function UsageAndCostPage({
           ) : (
             <div className="mt-3">
               <ResponsiveTable
-                breakpoint="md"
+                breakpoint="xl"
                 caption="AI cost by category"
                 rows={CATEGORY_ORDER.filter((c) => costByCategory.has(c)).map((category) => ({ category, entry: costByCategory.get(category)! }))}
                 rowKey={(row) => row.category}
@@ -447,7 +447,7 @@ export default async function UsageAndCostPage({
               rows={filteredProjectRows}
               rowKey={(row) => row.projectId}
               caption="AI and render cost by project"
-              breakpoint="md"
+              breakpoint="xl"
               wrapperClassName="overflow-x-auto"
               headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
               thClassName="py-2"

@@ -231,7 +231,7 @@ export function RecordWalkdownForm({
           <Tx>Recorded</Tx> {state.addedCount} <Tx>item</Tx>{state.addedCount === 1 ? "" : "s"} <Tx>from the walk-down.</Tx>
         </p>
       ) : null}
-      <StickyActionBar className="mt-3 md:mt-3">
+      <StickyActionBar inCard className="mt-3 md:mt-3">
         <Button type="submit" disabled={pending}>
           {pending ? "Recording…" : "Record walk-down"}
         </Button>

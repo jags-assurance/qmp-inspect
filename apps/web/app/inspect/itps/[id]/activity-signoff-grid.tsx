@@ -94,7 +94,10 @@ export function ActivitySignoffGrid({
   blockingCodes,
   disciplines,
   isIssued,
+  jumpBar = true,
 }: {
+  /** Whether the page shows the sticky "Jump to section" bar above (offsets the sticky party header). */
+  jumpBar?: boolean;
   itpId: string;
   rows: GridRow[];
   /** Column axis — the same project_parties iterated to build each row's partyCells, in that order. */
@@ -129,7 +132,7 @@ export function ActivitySignoffGrid({
   } as CSSProperties;
 
   return (
-    <div className="relative">
+    <div className={cn("relative", jumpBar ? "[--jump-h:3.75rem] [@media(pointer:coarse)]:[--jump-h:4.5rem]" : "[--jump-h:0px]")}>
       <span id={labelId} className="sr-only"><T>Activities and party sign-offs</T></span>
       <ScrollRegion
         labelledBy={labelId}
@@ -143,9 +146,9 @@ export function ActivitySignoffGrid({
           </p>
         }
       >
-        <div role="table" aria-labelledby={labelId} style={gridVars} className="text-sm md:min-w-[var(--grid-min)]">
-          <div role="row" className="hidden border-y border-border bg-surface-subtle text-xs text-muted md:grid md:[grid-template-columns:var(--grid-cols)]">
-            <div role="columnheader" className="sticky start-0 z-[1] bg-surface-subtle px-4 py-2 font-medium"><T>Activity</T></div>
+        <div role="table" aria-labelledby={labelId} aria-colcount={parties.length + 1} aria-rowcount={rows.length + 1} style={gridVars} className="text-sm md:min-w-[var(--grid-min)]">
+          <div role="row" aria-rowindex={1} className="hidden border-y border-border bg-surface-subtle text-xs text-muted md:sticky md:top-[calc(var(--header-h)+env(safe-area-inset-top)+var(--jump-h))] md:z-[2] md:grid md:[grid-template-columns:var(--grid-cols)] group-data-[overflowing=true]/scroll:md:top-0">
+            <div role="columnheader" className="sticky start-0 z-[1] bg-surface-subtle px-4 py-2 font-medium group-data-[scrolled=true]/scroll:shadow-[4px_0_6px_-4px_rgba(0,0,0,0.25)]"><T>Activity</T></div>
             {parties.map((party) => (
               <div key={party.id} role="columnheader" className="border-s border-border/60 px-3 py-2 font-medium">
                 <span className="block truncate" title={party.name}>
@@ -155,13 +158,14 @@ export function ActivitySignoffGrid({
             ))}
           </div>
           <div role="rowgroup" className="max-md:space-y-3 max-md:px-3 max-md:pb-3">
-            {rows.map((row) => (
+            {rows.map((row, rowIdx) => (
               <div
                 key={row.itemId}
                 role="row"
-                className="max-md:overflow-hidden max-md:rounded-lg max-md:border max-md:border-border max-md:bg-surface md:grid md:[grid-template-columns:var(--grid-cols)] md:border-b md:border-border md:last:border-0"
+                aria-rowindex={rowIdx + 2}
+                className="max-md:overflow-hidden max-md:rounded-lg max-md:border max-md:border-border max-md:bg-surface md:grid md:[grid-template-columns:var(--grid-cols)] md:border-b md:border-border md:last:border-0 [break-inside:avoid]"
               >
-                <div role="cell" className="min-w-0 bg-surface px-4 py-3 md:sticky md:start-0 md:z-[1]">
+                <div role="rowheader" className="min-w-0 bg-surface px-4 py-3 md:sticky md:start-0 md:z-[1] group-data-[scrolled=true]/scroll:md:shadow-[4px_0_6px_-4px_rgba(0,0,0,0.25)]">
                   {canEditContent ? (
                     <ItemControls
                       itpId={itpId}
@@ -211,6 +215,7 @@ export function ActivitySignoffGrid({
                   >
                     <div className="flex items-center justify-between gap-2 md:justify-start">
                       <span className="min-w-0 truncate text-sm font-medium text-ink md:hidden" title={party.name}>
+                        <span className="sr-only"><T>Party:</T> </span>
                         {party.name}
                       </span>
                       <InterventionSelect

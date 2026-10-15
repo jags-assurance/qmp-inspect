@@ -34,7 +34,7 @@ function ListShell({ title, hint, fullHref, fullLabel, children, empty }: { titl
   );
 }
 
-const rowClass = "flex min-h-14 flex-col gap-1 px-3 py-2 hover:bg-off-white sm:flex-row sm:items-center sm:gap-3";
+const rowClass = "flex min-h-14 flex-col gap-1 px-3 py-2 hover:bg-surface-subtle sm:flex-row sm:items-center sm:gap-3";
 
 const NCR_TONE = { major_ncr: "danger", minor_ncr: "gold", observation: "info" } as const;
 const NCR_LABEL = { major_ncr: "Major", minor_ncr: "Minor", observation: "Observation" } as const;

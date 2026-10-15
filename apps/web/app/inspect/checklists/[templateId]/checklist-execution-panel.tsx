@@ -161,30 +161,49 @@ export function ChecklistExecutionPanel({
       ? "Add at least one photo or document first"
       : null;
 
+  // ONE polite live region: announces only the answered count and the complete state (not saving/sync noise).
+  const liveMessage =
+    totalCount === 0 ? "" : allAnswered ? `All ${totalCount} items answered` : `${answeredCount} of ${totalCount} items answered`;
+
   function jumpToNextUnanswered() {
     const next = items.find((i) => !answeredIds.has(i.id));
     if (!next) return;
     const el = document.getElementById(`item-${next.id}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    // Move keyboard focus to the item's first control (skipped when disabled/hidden).
+    const target = el.querySelector<HTMLElement>('[role="radio"]:not(:disabled), button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)');
+    target?.focus({ preventScroll: true });
   }
 
   return (
     <>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {liveMessage}
+      </p>
       {totalCount > 0 && (
         <div
           className="[@media(min-height:520px)]:sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 border-b border-border bg-surface/95 px-3 py-2.5 backdrop-blur sm:-mx-6 sm:px-6 xl:mx-0 xl:rounded-lg xl:border xl:shadow-xs"
-          aria-live="polite"
         >
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-sm">
             <span className="font-semibold text-ink">
               {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
               <span className="ms-2 font-normal text-muted tabular-nums">{answeredPct}%</span>
             </span>
-            {mandatoryTotal > 0 && (
-              <span className={mandatoryRemaining > 0 ? "font-medium text-danger" : "font-medium text-success"}>
-                {mandatoryRemaining > 0 ? `⚠ ${mandatoryRemaining} mandatory remaining` : "✓ All mandatory done"}
-              </span>
-            )}
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+              {mandatoryTotal > 0 && (
+                <span className={mandatoryRemaining > 0 ? "font-medium text-danger" : "font-medium text-success"}>
+                  {mandatoryRemaining > 0 ? `⚠ ${mandatoryRemaining} mandatory remaining` : "✓ All mandatory done"}
+                </span>
+              )}
+              {canExecute && (
+                <span className={"font-medium " + syncStatus.className}>
+                  {!isOnline ? "⚠ " : savingCount > 0 ? "" : "✓ "}
+                  {syncStatus.label}
+                </span>
+              )}
+            </span>
           </div>
           <div
             className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-sunken"
@@ -196,12 +215,6 @@ export function ChecklistExecutionPanel({
           >
             <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${answeredPct}%` }} />
           </div>
-          {canExecute && (
-            <p className={"mt-1.5 text-xs font-medium " + syncStatus.className}>
-              {!isOnline ? "⚠ " : savingCount > 0 ? "" : "✓ "}
-              {syncStatus.label}
-            </p>
-          )}
         </div>
       )}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
@@ -265,7 +278,7 @@ export function ChecklistExecutionPanel({
       </div>
       {canExecute && totalCount > 0 && (
         <div className="no-print sticky bottom-[var(--notice-h,0px)] z-10 -mx-3 mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6 xl:hidden">
-          <div className="min-w-0 flex-1 basis-full text-sm sm:basis-auto" aria-live="polite">
+          <div className="min-w-0 flex-1 basis-full text-sm sm:basis-auto">
             <p className="font-medium text-ink">
               {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
             </p>

@@ -203,7 +203,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
 
       <CertificateUpload key={formKey} projectId={projectId} kind="material" />
 
-      <StickyActionBar className="md:col-span-2">
+      <StickyActionBar inCard className="md:col-span-2">
         <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add material"}
       </Button>

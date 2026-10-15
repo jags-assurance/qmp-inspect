@@ -2,7 +2,8 @@
 
 import { ActivityDetails } from "./activity-details";
 import { REGISTER_KINDS, REGISTER_KIND_LABEL } from "@/lib/itps/required-registers";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { Sheet } from "@/components/ui/sheet";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import {
   deleteItpItemAction,
@@ -61,6 +62,7 @@ export function ItemControls({
   isIssued: boolean;
 }) {
   const tl = useTranslate();
+  const formId = useId();
   const [isEditing, setIsEditing] = useState(false);
   const [state, formAction, pending] = useActionState(editItpItemAction, initialState);
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteItpItemAction, initialDeleteState);
@@ -102,10 +104,101 @@ export function ItemControls({
     reason: isIssued ? revisionReason : undefined,
   };
 
-  if (!isEditing) {
-    return (
+  const fld = "min-h-11 w-full min-w-0 rounded-md border border-control-border bg-surface px-3 py-2 text-sm";
+  const editSheet = (
+    <Sheet
+      open={isEditing}
+      onClose={() => setIsEditing(false)}
+      title={<Tx>Edit activity</Tx>}
+      description={itemNumber}
+      className="sm:max-w-2xl"
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+            <Tx>Cancel</Tx>
+          </Button>
+          <Button type="submit" form={formId} disabled={pending}>
+            {pending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      }
+    >
+      {/* The ref is only written inside the submit handler, never read during render. */}
+      {/* eslint-disable-next-line react-hooks/refs */}
+      <form id={formId} action={formAction} onSubmit={gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })} className="grid gap-3 sm:grid-cols-2">
+        <input type="hidden" name="itp_id" value={itpId} />
+        <input type="hidden" name="item_id" value={itemId} />
+        <input type="hidden" name="revision_reason" />
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Item number</Tx>
+          <input name="item_number" defaultValue={itemNumber} required className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Activity</Tx>
+          <input name="activity" defaultValue={activity} required className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink sm:col-span-2">
+          <Tx>Acceptance criteria</Tx>
+          <input name="acceptance_criteria" defaultValue={acceptanceCriteria ?? ""} placeholder={tl("Acceptance criteria")} className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink sm:col-span-2">
+          <Tx>Reference spec / clause</Tx>
+          <input name="reference_spec" defaultValue={referenceSpec ?? ""} placeholder={tl("Reference spec / clause")} className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Method</Tx>
+          <input name="method" defaultValue={method ?? ""} placeholder={tl("Method")} className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Frequency / sample</Tx>
+          <input name="frequency" defaultValue={frequency ?? ""} placeholder={tl("Frequency / sample")} className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Evidence</Tx>
+          <select name="evidence_type" defaultValue={String(evidenceType)} className={fld + " mt-1 font-normal"}>
+            <option value="1"><Tx>Checklist</Tx></option>
+            <option value="2"><Tx>Document upload (certificate, test report, readings)</Tx></option>
+            {evidenceType === 3 && <option value="3"><Tx>Measurement (older ITP)</Tx></option>}
+          </select>
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Discipline</Tx>
+          <select name="discipline_id" defaultValue={disciplineId ?? ""} className={fld + " mt-1 font-normal"}>
+            <option value=""><Tx>— Discipline —</Tx></option>
+            {disciplines.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.code}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Notice hrs</Tx>
+          <input name="notice_hours_override" type="number" min={0} defaultValue={noticeHoursOverride ?? ""} placeholder={tl("Notice hrs")} className={fld + " mt-1 font-normal"} />
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          <Tx>Planned date</Tx>
+          <input name="planned_date" type="date" defaultValue={plannedDate ?? ""} className={fld + " mt-1 font-normal"} />
+        </label>
+        <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:col-span-2">
+          <legend className="mb-1 text-sm text-muted"><Tx>Registers this activity needs (leave all unticked to let the system infer it)</Tx></legend>
+          <input type="hidden" name="registers_sent" value="1" />
+          {REGISTER_KINDS.map((kind) => (
+            <label key={kind} className="flex min-h-8 items-center gap-1.5 text-sm text-ink [@media(pointer:coarse)]:min-h-11">
+              <input type="checkbox" name="required_registers" value={kind} defaultChecked={requiredRegisters.includes(kind)} className="h-4 w-4" />
+              {REGISTER_KIND_LABEL[kind]}
+            </label>
+          ))}
+        </fieldset>
+        {state.error && <p role="alert" className="text-sm text-danger sm:col-span-2">{state.error}</p>}
+      </form>
+    </Sheet>
+  );
+
+  return (
       <div>
         {dialog}
+        {editSheet}
         <p className="text-sm text-ink">
           <span className="doc-id me-1.5 text-muted">{itemNumber}</span>
           {activity}
@@ -160,122 +253,4 @@ export function ItemControls({
         {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
       </div>
     );
-  }
-
-  return (
-    // The ref is only written inside the submit handler, never read during render.
-    // eslint-disable-next-line react-hooks/refs
-    <form action={formAction} onSubmit={gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })} className="flex flex-col gap-1.5">
-      {dialog}
-      <input type="hidden" name="itp_id" value={itpId} />
-      <input type="hidden" name="item_id" value={itemId} />
-      <input type="hidden" name="revision_reason" />
-      <div className="flex gap-1.5">
-        <input
-          name="item_number"
-          defaultValue={itemNumber}
-          required
-          className="w-16 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-        <input
-          name="activity"
-          defaultValue={activity}
-          required
-          className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-      </div>
-      <input
-        name="acceptance_criteria"
-        defaultValue={acceptanceCriteria ?? ""}
-        placeholder={tl("Acceptance criteria")}
-        className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-      />
-      <div className="flex flex-wrap gap-1.5">
-        <input
-          name="reference_spec"
-          defaultValue={referenceSpec ?? ""}
-          placeholder={tl("Reference spec / clause")}
-          className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-        <input
-          name="method"
-          defaultValue={method ?? ""}
-          placeholder={tl("Method")}
-          className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-        <input
-          name="frequency"
-          defaultValue={frequency ?? ""}
-          placeholder={tl("Frequency / sample")}
-          className="w-32 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <select
-          name="evidence_type"
-          defaultValue={String(evidenceType)}
-          className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        >
-          <option value="1"><Tx>Checklist</Tx></option>
-          <option value="2"><Tx>Document upload (certificate, test report, readings)</Tx></option>
-          {evidenceType === 3 && <option value="3"><Tx>Measurement (older ITP)</Tx></option>}
-        </select>
-        <select
-          name="discipline_id"
-          defaultValue={disciplineId ?? ""}
-          className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        >
-          <option value=""><Tx>— Discipline —</Tx></option>
-          {disciplines.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.code}
-            </option>
-          ))}
-        </select>
-        <input
-          name="notice_hours_override"
-          type="number"
-          min={0}
-          defaultValue={noticeHoursOverride ?? ""}
-          placeholder={tl("Notice hrs")}
-          className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-        <input
-          name="planned_date"
-          type="date"
-          defaultValue={plannedDate ?? ""}
-          aria-label={tl("Planned date")}
-          title={tl("Planned date")}
-          className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy"
-        />
-      </div>
-      <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <legend className="mb-0.5 text-xs text-muted"><Tx>Registers this activity needs (leave all unticked to let the system infer it)</Tx></legend>
-        <input type="hidden" name="registers_sent" value="1" />
-        {REGISTER_KINDS.map((kind) => (
-          <label key={kind} className="flex items-center gap-1 text-xs text-ink">
-            <input type="checkbox" name="required_registers" value={kind} defaultChecked={requiredRegisters.includes(kind)} />
-            {REGISTER_KIND_LABEL[kind]}
-          </label>
-        ))}
-      </fieldset>
-      <div className="flex items-center gap-1.5">
-        <Button
-          type="submit"
-          disabled={pending}
-          variant="outline" size="sm"
-        >
-          {pending ? "Saving…" : "Save"}
-        </Button>
-        <Button
-          type="button"
-          onClick={() => setIsEditing(false)}
-          variant="outline" size="sm"
-        >
-          <Tx>Cancel</Tx>
-        </Button>
-      </div>
-      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-    </form>
-  );
 }

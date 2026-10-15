@@ -165,6 +165,7 @@ export function NewNcrForm({
 
   return (
     <form action={submitWithCompressedPhotos} className="space-y-5">
+      <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       {onCreated && <input type="hidden" name="stay_on_page" value="true" />}
       <input type="hidden" name="request_id" value={requestId} />
       <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
@@ -182,7 +183,7 @@ export function NewNcrForm({
             required
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           >
             <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
@@ -241,7 +242,7 @@ export function NewNcrForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder={tl("Jot down factual notes — equipment, what was observed…")}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           />
           <Button
             type="button"
@@ -282,7 +283,7 @@ export function NewNcrForm({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={tl("What was observed / not conforming…")}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           />
           </FormField>
         </div>
@@ -295,7 +296,7 @@ export function NewNcrForm({
             value={requirementNotMet}
             onChange={(e) => setRequirementNotMet(e.target.value)}
             placeholder={tl("Spec clause, drawing note, or ITP acceptance criteria not met…")}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           />
           </FormField>
         </div>
@@ -314,7 +315,7 @@ export function NewNcrForm({
               name="assigned_to"
               defaultValue=""
               disabled={!projectId}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm disabled:opacity-60"
             >
               <option value=""><Tx>Unassigned</Tx></option>
               {(peopleByProject[projectId] ?? []).map((person) => (
@@ -326,7 +327,7 @@ export function NewNcrForm({
             {!projectId && <p className="mt-1 text-xs text-muted"><Tx>Select a project first.</Tx></p>}
           </div>
           <div>
-            <FormField label="Due date" error={state.fieldErrors?.due_date}>
+            <FormField required label="Due date" error={state.fieldErrors?.due_date}>
               <input
               name="due_date"
               type="date"
@@ -336,7 +337,7 @@ export function NewNcrForm({
                 setDueDate(e.target.value);
                 setDueTouched(true);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
             </FormField>
           </div>
@@ -351,7 +352,7 @@ export function NewNcrForm({
             name="responsible_party_id"
             defaultValue=""
             disabled={!projectId}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm disabled:opacity-60"
           >
             <option value=""><Tx>Not specified</Tx></option>
             {(partiesByProject[projectId] ?? []).map((party) => (
@@ -369,19 +370,19 @@ export function NewNcrForm({
           <label htmlFor="location" className="block text-sm font-medium text-ink">
             <Tx>Location / area</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
-          <input id="location" name="location" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <input id="location" name="location" maxLength={200} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
         </div>
         <div>
           <label htmlFor="equipment_tag" className="block text-sm font-medium text-ink">
             <Tx>Equipment tag</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
-          <input id="equipment_tag" name="equipment_tag" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <input id="equipment_tag" name="equipment_tag" maxLength={200} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
         </div>
         <div>
           <label htmlFor="spec_reference" className="block text-sm font-medium text-ink">
             <Tx>Spec clause</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
           </label>
-          <input id="spec_reference" name="spec_reference" maxLength={200} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+          <input id="spec_reference" name="spec_reference" maxLength={200} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
         </div>
       </section>
 

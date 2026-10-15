@@ -21,6 +21,7 @@ import { untypedFrom } from "@/lib/supabase/untyped";
 import { RETENTION_FLAGS_TABLE, REVIEW_OUTCOME_LABEL, type RetentionReviewOutcome } from "@/lib/retention/logic";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface DocumentRow {
   id: string;
@@ -313,11 +314,7 @@ export async function VaultDocumentView({
       </div>
       )}
 
-      <details className="group mt-8">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Revision history</T>
-        </summary>
+      <Disclosure variant="pill" className="mt-8" bodyClassName="" summary={<T>Revision history</T>}>
       <section className="mt-2" aria-label={tl("Revision history")}>
         {revisions.length <= 1 ? (
           <p className="mt-1 text-sm text-muted"><T>This is the only revision so far.</T></p>
@@ -345,13 +342,9 @@ export async function VaultDocumentView({
           </ol>
         )}
       </section>
-      </details>
+      </Disclosure>
 
-      <details className="group mt-3">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Where used</T>
-        </summary>
+      <Disclosure variant="pill" className="mt-3" bodyClassName="" summary={<T>Where used</T>}>
       <section className="mt-2" aria-label={tl("Where used")}>
         {usedCount === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>Not linked as evidence to any ITP, inspection or NCR yet.</T></p>
@@ -391,17 +384,13 @@ export async function VaultDocumentView({
           </ul>
         )}
       </section>
-      </details>
+      </Disclosure>
 
       {session.isJagsStaff && (
         <TransmittalSection entityType="vault_document" entityId={documentId} projectId={projectId} status={document.status} />
       )}
 
-      <details className="group mt-3">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Audit trail</T>
-        </summary>
+      <Disclosure variant="pill" className="mt-3" bodyClassName="" summary={<T>Audit trail</T>}>
       <section className="mt-2" aria-label={tl("Audit trail")}>
         {(auditRows ?? []).length === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>No recorded events.</T></p>
@@ -419,7 +408,7 @@ export async function VaultDocumentView({
           </ul>
         )}
       </section>
-      </details>
+      </Disclosure>
     </div>
   );
 }

@@ -143,7 +143,7 @@ export function ConfirmDialog({
               aria-required={min > 0 ? true : undefined}
               aria-invalid={errorText ? true : undefined}
               aria-describedby={errorText ? errId : undefined}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm focus:border-burgundy"
             />
             <div id={errId} role="alert">
               {errorText && <p className="text-xs font-medium text-danger">{errorText}</p>}

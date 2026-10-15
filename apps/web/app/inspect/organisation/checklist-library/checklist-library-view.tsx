@@ -4,7 +4,7 @@ import { CHECKLIST_LIBRARY_TEMPLATES_TABLE } from "@/lib/checklist-library/types
 import { TemplatesTable, type LibraryTemplateRow } from "./templates-table";
 import { CreateTemplateForm } from "./create-template-form";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { MoreDetails } from "@/components/domain/more-details";
@@ -76,12 +76,12 @@ export async function ChecklistLibraryView({ embedded }: { embedded?: boolean })
         </MoreDetails>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Templates" value={(templates ?? []).length} />
-        <StatCard label="Global (shared)" value={globalCount} />
-        <StatCard label="Org-specific" value={(templates ?? []).length - globalCount} />
-        <StatCard label="Total check items" value={totalItems} />
-      </div>
+      <StatGrid max={4} className="mt-6">
+        <StatTile label="Templates" value={(templates ?? []).length} />
+        <StatTile label="Global (shared)" value={globalCount} />
+        <StatTile label="Org-specific" value={(templates ?? []).length - globalCount} />
+        <StatTile label="Total check items" value={totalItems} />
+      </StatGrid>
 
       {session.isJagsStaff && (
         <div className="mt-6">

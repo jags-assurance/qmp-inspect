@@ -5,6 +5,7 @@ import { setDocumentApproversAction, type SetDocumentApproversState } from "@/li
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: SetDocumentApproversState = { error: null };
 
@@ -32,11 +33,7 @@ export function SetApproversForm({
   if (documentOptions.length === 0) return null;
 
   return (
-    <details className="group mt-6">
-    <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-      <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-      <Tx>Require specific approvers (optional)</Tx>
-    </summary>
+    <Disclosure variant="pill" className="mt-6" bodyClassName="" summary={<Tx>Require specific approvers (optional)</Tx>}>
     <form action={formAction} className="mt-2 rounded-lg border border-border bg-surface p-4">
       <p className="text-xs text-muted">
         <Tx>Tick who must all agree. Leave none ticked so any permitted person can approve alone.</Tx>
@@ -81,6 +78,6 @@ export function SetApproversForm({
       </div>
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>
-    </details>
+    </Disclosure>
   );
 }

@@ -32,14 +32,14 @@ export function TermsMenuSection({ onAccepted }: { onAccepted: () => void }) {
   if (state.accepted) return null;
 
   return (
-    <div className="space-y-2 border-b border-border px-4 py-3 text-sm text-ink">
+    <div role="group" aria-label="Terms of use" className="space-y-2 border-b border-border px-4 py-3 text-sm text-ink">
       <p>
         <Tx>Please accept the</Tx>{" "}
-        <Link href="/terms" className="font-medium text-burgundy underline" target="_blank" rel="noopener">
+        <Link href="/terms" role="menuitem" className="font-medium text-burgundy underline" target="_blank" rel="noopener">
           <Tx>terms of use</Tx>
         </Link>{" "}
         <Tx>and the</Tx>{" "}
-        <Link href="/privacy" className="font-medium text-burgundy underline" target="_blank" rel="noopener">
+        <Link href="/privacy" role="menuitem" className="font-medium text-burgundy underline" target="_blank" rel="noopener">
           <Tx>privacy notice</Tx>
         </Link>
         .
@@ -47,6 +47,7 @@ export function TermsMenuSection({ onAccepted }: { onAccepted: () => void }) {
       <form action={formAction}>
         <Button
           type="submit"
+          role="menuitem"
           disabled={pending}
           className="w-full"
         >
@@ -56,7 +57,7 @@ export function TermsMenuSection({ onAccepted }: { onAccepted: () => void }) {
       {stale && (
         <p role="alert" className="text-xs text-danger">
           <Tx>This page is out of date.</Tx>{" "}
-          <button type="button" onClick={() => window.location.reload()} className="font-medium underline">
+          <button type="button" role="menuitem" onClick={() => window.location.reload()} className="font-medium underline">
             <Tx>Reload page</Tx>
           </button>
         </p>

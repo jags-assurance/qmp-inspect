@@ -31,6 +31,14 @@ const STATUS_LABEL: Record<SignoffStatus, string> = {
   proceeded_no_response: "Proceeded (no response)",
 };
 
+/** Short chip text for the narrow (156px) party column; the full label stays in title/aria-label. */
+const STATUS_SHORT: Record<SignoffStatus, string> = {
+  pending: "Pending",
+  notified: "Notified",
+  signed_off: "Signed off",
+  proceeded_no_response: "Proceeded",
+};
+
 const STATUS_HELP: Record<SignoffStatus, string> = {
   pending: "Not yet notified. The party has not been told this inspection is due.",
   notified: "Party notified. The notice period is running.",
@@ -151,7 +159,7 @@ export function SignoffCell({
     });
   }
 
-  const btn = "min-h-8 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50";
+  const btn = "min-h-8 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-surface-subtle disabled:opacity-50";
   const canWithdraw = isJagsStaff && (optimisticStatus === "signed_off" || optimisticStatus === "proceeded_no_response");
   // A party who recorded the sign-off cannot withdraw it (staff only): they ask for a correction instead.
   const canRequestCorrection = !isJagsStaff && canSignOffForThisParty && optimisticStatus === "signed_off";
@@ -237,10 +245,11 @@ export function SignoffCell({
         {dialog}
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[optimisticStatus]}`}
-          title={tl(STATUS_HELP[optimisticStatus])}
+          title={`${tl(STATUS_LABEL[optimisticStatus])}: ${tl(STATUS_HELP[optimisticStatus])}`}
+          aria-label={tl(STATUS_LABEL[optimisticStatus])}
         >
           <StatusIcon status={optimisticStatus} />
-          <Tx>{STATUS_LABEL[optimisticStatus]}</Tx>
+          <Tx>{STATUS_SHORT[optimisticStatus]}</Tx>
         </span>
         {deadlineMs != null && now != null && (
           <span

@@ -1,4 +1,5 @@
 "use client";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
 import { renderingLabel, jobStatusText } from "@/lib/reports/pdf-job-labels";
 
 import { useActionState, useEffect, useRef, useState } from "react";
@@ -26,12 +27,8 @@ function PdfViewerDialog({ url, title, onClose }: { url: string; title: string; 
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
+  useEscapeLayer(true, onClose);
 
   return (
     <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex flex-col bg-black/60 p-2 sm:p-6">

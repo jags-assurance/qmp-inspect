@@ -31,7 +31,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
           <span className="doc-id mt-1 block text-sm font-semibold text-ink">{level.code}</span>
         </div>
         <div>
-          <FormField label="Label">
+          <FormField required label="Label">
             <input
             name="label"
             required

@@ -5,7 +5,7 @@ import { StaffGrantForm, type StaffOption, type OrgOption, type ProjectOption } 
 import { RemoveGrantButton } from "./remove-grant-button";
 import { AccountStatusButton, BulkOffboardForm, OffboardByEmailForm } from "./account-status-controls";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
@@ -109,16 +109,16 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
       </p>
       </MoreDetails>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Staff accounts" value={(staff ?? []).length} />
-        <StatCard label="Admins" value={adminCount} />
-        <StatCard label="Inspectors" value={(staff ?? []).length - adminCount} />
-        <StatCard
+      <StatGrid max={4} className="mt-6">
+        <StatTile label="Staff accounts" value={(staff ?? []).length} />
+        <StatTile label="Admins" value={adminCount} />
+        <StatTile label="Inspectors" value={(staff ?? []).length - adminCount} />
+        <StatTile
           label="No access grants"
           value={staffWithoutAccess}
           caption={staffWithoutAccess === 0 ? "Clear" : "Sees no client data"}
         />
-      </div>
+      </StatGrid>
 
       <div className="mt-6">
         <StaffGrantForm staff={staffOptions} organizations={organizations ?? []} projects={projects ?? []} />

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updatePunchItemAction, type UpdatePunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
 
 const initialState: UpdatePunchItemState = { error: null };
@@ -30,9 +31,9 @@ export function EditPunchItemForm({
     );
   }
 
-  const field = "mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
+  const field = "mt-1 min-h-11 w-full rounded-md border border-control-border bg-surface px-3 py-2 text-sm min-h-11";
   return (
-    <form action={formAction} className="flex flex-col gap-2 rounded-md border border-border p-3">
+    <form action={formAction} className="grid gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label className="text-xs font-medium text-ink">
@@ -60,13 +61,13 @@ export function EditPunchItemForm({
         <Tx>Location</Tx>
         <input name="location" maxLength={200} defaultValue={current.location ?? ""} className={field} />
       </label>
-      {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
-        <Button type="button" onClick={() => setExpanded(false)} variant="outline" size="sm">
+      {state.error && <p role="alert" className="text-sm text-danger md:col-span-2">{state.error}</p>}
+      <StickyActionBar inCard className="md:col-span-2">
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
+        <Button type="button" onClick={() => setExpanded(false)} variant="outline">
           <Tx>Cancel</Tx>
         </Button>
-      </div>
+      </StickyActionBar>
     </form>
   );
 }

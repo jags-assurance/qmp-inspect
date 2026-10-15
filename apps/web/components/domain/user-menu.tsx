@@ -68,6 +68,12 @@ export function UserMenu({
         type="button"
         title={`${userName} (${userRole})`}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" && !open) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${userName} (${userRole})`}
@@ -88,23 +94,23 @@ export function UserMenu({
 
       {/* Portalled to <body> (PopoverPanel) so floating notices can never cover the account menu. */}
       <PopoverPanel open={open} onClose={closeMenu} anchorRef={buttonRef} role="menu" className="overflow-hidden overflow-y-auto sm:w-64">
-        <div>
-          <div className="border-b border-border px-4 py-3">
+        <div role="none">
+          <div role="none" className="border-b border-border px-4 py-3">
             <p className="truncate text-sm font-medium text-ink" title={userName}>{userName}</p>
             <p className="text-xs text-muted">{userRole}</p>
           </div>
           {termsPending && <TermsMenuSection onAccepted={() => setTermsPending(false)} />}
           {canInstall && (
-            <div className="border-b border-border py-1">
+            <div role="none" className="border-b border-border py-1">
               <button type="button" role="menuitem" onClick={installApp} className="block min-h-11 w-full px-4 py-2.5 text-start text-sm text-ink hover:bg-surface-subtle">
                 <Tx>Install app on this device</Tx>
               </button>
             </div>
           )}
           {links.length > 0 && (
-            <ul className="py-1">
+            <ul role="none" className="py-1">
               {links.map((l) => (
-                <li key={l.href}>
+                <li key={l.href} role="none">
                   <Link
                     href={l.href}
                     role="menuitem"
@@ -118,7 +124,7 @@ export function UserMenu({
             </ul>
           )}
           {SUPPORTED_LOCALES.length > 1 && (
-          <form action={setLocaleAction} className="flex items-center gap-2 border-t border-border px-4 py-2.5" aria-label={tl("Language")}>
+          <form action={setLocaleAction} role="group" className="flex items-center gap-2 border-t border-border px-4 py-2.5" aria-label={tl("Language")}>
             <span className="text-xs text-muted"><Tx>Language</Tx></span>
             {SUPPORTED_LOCALES.map((code) => (
               <button
@@ -135,7 +141,7 @@ export function UserMenu({
             ))}
           </form>
           )}
-          <form action={signOutAction} className="border-t border-border">
+          <form action={signOutAction} role="none" className="border-t border-border">
             <button type="submit" role="menuitem" className="block min-h-11 w-full px-4 py-2.5 text-start text-sm font-medium text-danger hover:bg-surface-subtle">
               <Tx>Sign out</Tx>
             </button>

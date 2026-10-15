@@ -367,13 +367,12 @@ export async function StatusView({
                   activities was previously one long always-open page; a still-outstanding activity
                   stays open so the "what's left" detail is visible without an extra click, a
                   finished one collapses to free up space. */}
-              <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 p-4 marker:content-none">
+              <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-lg p-4 marker:content-none hover:bg-surface-subtle [&::-webkit-details-marker]:hidden">
                 <div>
                   <p className="text-sm text-ink">
                     <span className="doc-id me-1.5 text-muted">{item.item_number}</span>
                     {item.activity}
-                    <span className="ms-1.5 text-muted group-open:hidden">▸</span>
-                    <span className="ms-1.5 hidden text-muted group-open:inline">▾</span>
+                    <span aria-hidden="true" className="ms-1.5 inline-block text-muted transition-transform group-open:rotate-90 motion-reduce:transition-none rtl:-scale-x-100 rtl:group-open:-rotate-90">›</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {item.sectionTitle}

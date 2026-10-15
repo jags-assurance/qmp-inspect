@@ -138,7 +138,7 @@ export function StartInspectionForm({
           onClick={useLiveLocation}
           disabled={locating}
           className={`rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
-            source === "gps" ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border bg-surface text-ink hover:bg-off-white"
+            source === "gps" ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border bg-surface text-ink hover:bg-surface-subtle"
           }`}
         >
           {locating ? "Locating…" : "📍 Use live location"}

@@ -31,6 +31,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
           autoComplete="new-password"
           value={password}
           onChange={setPassword}
+          describedBy="pw-hint"
         />
         <PasswordField
           id="confirm_password"
@@ -39,6 +40,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
           autoComplete="new-password"
           value={confirmPassword}
           onChange={setConfirmPassword}
+          describedBy="pw-hint"
         />
 
         <p id="pw-hint" className="text-xs text-muted">

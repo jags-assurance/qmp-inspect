@@ -25,30 +25,23 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
         <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
           <input type="hidden" name="next" value={next} />
           <div>
-            <FormField label={t("Email")} id="email" error={state.fieldErrors?.email ? t(state.fieldErrors.email) : undefined}>
+            <FormField required label={t("Email")} id="email" error={state.fieldErrors?.email ? t(state.fieldErrors.email) : undefined}>
               <input
               name="email"
               type="email"
               required
-              autoComplete="email"
+              autoComplete="username"
               autoFocus
               aria-invalid={state.error ? true : undefined}
-              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 aria-[invalid=true]:border-danger sm:text-sm"
+              className="mt-1 min-h-11 w-full rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 aria-[invalid=true]:border-danger sm:text-sm"
             />
             </FormField>
           </div>
           <div>
-            <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-medium text-ink">
-                {t("Password")}
-              </label>
-              <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline">
-                {t("Forgot password?")}
-              </Link>
-            </div>
-            <div className="mt-1">
-              <PasswordField id="password" name="password" label="" autoComplete="current-password" error={state.fieldErrors?.password ? t(state.fieldErrors.password) : null} />
-            </div>
+            <PasswordField id="password" name="password" label={t("Password")} autoComplete="current-password" error={state.fieldErrors?.password ? t(state.fieldErrors.password) : null} />
+            <Link href="/forgot-password" className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline">
+              {t("Forgot password?")}
+            </Link>
           </div>
 
           <FormMessage

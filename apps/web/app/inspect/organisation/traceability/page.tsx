@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
 import { PrintButton } from "@/app/inspect/itps/print/print-button";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
@@ -171,8 +172,10 @@ export default async function DocumentTraceabilityPage({
   return (
     <div>
       <SettingsBackLink href="/inspect/settings?section=insights" />
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Document Traceability</T></h1>
+      <PageHeader
+        className="mt-2"
+        title={<T>Document Traceability</T>}
+        guide={
         <PageGuide
           title={tl("Document Traceability — how this works")}
           points={[
@@ -182,7 +185,8 @@ export default async function DocumentTraceabilityPage({
             "This aggregates real foreign keys that already exist elsewhere (numbering, ITP revisions, the audit log) — it does not fabricate any relationship the schema doesn't actually have, e.g. there's no link from a record to the master template library it was originally copied from.",
           ]}
         />
-      </div>
+        }
+      />
       <p className="mt-1 text-sm text-muted">
         <T>Look up any ITP, NCR or inspection number.</T>
       </p>

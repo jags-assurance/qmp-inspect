@@ -19,6 +19,7 @@ import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { displayItemNumber } from "@/lib/itps/item-number";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const CAP = 200;
 const ITEM_FETCH_CAP = 3000;
@@ -78,16 +79,60 @@ function CapNote({ n }: { n: number }) {
 function Th({ children }: { children: React.ReactNode }) {
   return <th className="whitespace-nowrap px-2 py-2 font-semibold">{children}</th>;
 }
-function Table({ head, children }: { head: React.ReactNode; children: React.ReactNode }) {
+/** Below md every row becomes a card (no sideways scroll on phones); from md the table is shown. */
+function Table({ head, children, cards }: { head: React.ReactNode; children: React.ReactNode; cards: React.ReactNode }) {
   return (
-    <div className="mt-3 overflow-x-auto rounded-md border border-border">
-      <table className="w-full text-start text-sm">
-        <thead className="border-b border-border bg-background text-xs uppercase text-muted">
-          <tr>{head}</tr>
-        </thead>
-        <tbody className="divide-y divide-border">{children}</tbody>
-      </table>
-    </div>
+    <>
+      <ul className="mt-3 space-y-2 md:hidden">{cards}</ul>
+      <div className="mt-3 hidden overflow-x-auto rounded-md border border-border md:block">
+        <table className="w-full text-start text-sm">
+          <thead className="border-b border-border bg-background text-xs uppercase text-muted">
+            <tr>{head}</tr>
+          </thead>
+          <tbody className="divide-y divide-border">{children}</tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/** Shared phone card: title (with optional link), status badge(s), date and extra detail lines. */
+function DoneCard({
+  title,
+  href,
+  badge,
+  date,
+  dateLabel = "Date",
+  lines = [],
+}: {
+  title: React.ReactNode;
+  href?: string;
+  badge?: React.ReactNode;
+  date?: string | null;
+  dateLabel?: string;
+  lines?: React.ReactNode[];
+}) {
+  return (
+    <li className="rounded-md border border-border bg-surface p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 break-words font-medium text-ink">
+          {href ? (
+            <a href={href} className="inline-flex min-h-11 items-center text-burgundy hover:underline">
+              {title}
+            </a>
+          ) : (
+            title
+          )}
+        </div>
+        {badge && <div className="shrink-0">{badge}</div>}
+      </div>
+      {lines.map((l, i) => (
+        <div key={i} className="mt-0.5 text-xs text-muted">{l}</div>
+      ))}
+      {date !== undefined && (
+        <div className="mt-1 text-xs text-muted"><T>{dateLabel}</T>: {fmt(date)}</div>
+      )}
+    </li>
   );
 }
 
@@ -213,11 +258,7 @@ export async function DoneActivitiesPanel({
         ))}
       </div>
 
-      <details className="group mt-3" open={Boolean(sp_open)}>
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Show the lists</T>
-        </summary>
+      <Disclosure variant="pill" className="mt-3" defaultOpen={Boolean(sp_open)} bodyClassName="" summary={<T>Show the lists</T>}>
       <nav className="mt-3 flex flex-wrap gap-2" aria-label={tl("Done sections")}>
         {TABS.map((t) => (
           <a
@@ -283,6 +324,19 @@ export async function DoneActivitiesPanel({
           ) : (
             <>
               <Table
+                cards={filtered.slice(0, CAP).map(({ it, rec, irn, st }) => (
+                  <DoneCard
+                    key={it.id}
+                    title={it.activity}
+                    href={rec ? `/inspect/inspections/${rec.id}` : `/inspect/itps/${it.itp_sections.itps.id}`}
+                    badge={<Badge showIcon tone={STATUS_META[st].tone}>{STATUS_META[st].label}</Badge>}
+                    date={rec?.inspection_date ?? null}
+                    lines={[
+                      `${it.itp_sections.itps.itp_number} rev ${it.itp_sections.itps.revision} · ${displayItemNumber(it.itp_sections.section_number, it.item_number)}${it.discipline?.code ? ` · ${it.discipline.code}` : ""}`,
+                      rec ? `${rec.record_number}${irn ? ` · ${irn.irn_number}` : ""}` : null,
+                    ].filter(Boolean)}
+                  />
+                ))}
                 head={
                   <>
                     <Th><T>ITP</T></Th>
@@ -340,7 +394,26 @@ export async function DoneActivitiesPanel({
           <Empty text="No inspections have been completed yet." />
         ) : (
           <>
-            <Table head={<><Th><T>Record</T></Th><Th><T>ITP</T></Th><Th><T>Activity</T></Th><Th><T>Date</T></Th><Th><T>Result</T></Th><Th><T>IRN</T></Th></>}>
+            <Table
+              cards={insps.slice(0, CAP).map((r) => {
+                const irn = liveIrnOf(r);
+                const voided = !irn && irnsOf(r).length > 0;
+                return (
+                  <DoneCard
+                    key={r.id}
+                    title={r.record_number}
+                    href={`/inspect/inspections/${r.id}`}
+                    badge={
+                      <Badge tone={r.overall_result === "pass" ? "success" : r.overall_result === "fail" ? "danger" : r.overall_result ? "warning" : "neutral"}>
+                        {r.overall_result ?? "—"}
+                      </Badge>
+                    }
+                    date={r.inspection_date}
+                    lines={[`${r.itp_number} · ${r.activity}`, `IRN: ${irn ? irn.irn_number : voided ? "Voided" : "—"}`]}
+                  />
+                );
+              })}
+              head={<><Th><T>Record</T></Th><Th><T>ITP</T></Th><Th><T>Activity</T></Th><Th><T>Date</T></Th><Th><T>Result</T></Th><Th><T>IRN</T></Th></>}>
               {insps.slice(0, CAP).map((r) => {
                 const irn = liveIrnOf(r);
                 const voided = !irn && irnsOf(r).length > 0;
@@ -371,7 +444,19 @@ export async function DoneActivitiesPanel({
           <Empty text="No NCRs raised on this project." />
         ) : (
           <>
-            <Table head={<><Th><T>NCR</T></Th><Th><T>Severity</T></Th><Th><T>Status</T></Th><Th><T>Description</T></Th><Th><T>Closed</T></Th></>}>
+            <Table
+              cards={(ncrRes.data ?? []).map((n) => (
+                <DoneCard
+                  key={n.id}
+                  title={n.ncr_number}
+                  href={`/inspect/ncrs/${n.id}`}
+                  badge={<Badge tone={n.status === "closed" ? "success" : "info"}>{n.status.replace(/_/g, " ")}</Badge>}
+                  date={n.closed_at}
+                  dateLabel="Closed"
+                  lines={[n.severity.replace(/_/g, " "), n.description]}
+                />
+              ))}
+              head={<><Th><T>NCR</T></Th><Th><T>Severity</T></Th><Th><T>Status</T></Th><Th><T>Description</T></Th><Th><T>Closed</T></Th></>}>
               {(ncrRes.data ?? []).map((n) => (
                 <tr key={n.id} className="align-top">
                   <td className="whitespace-nowrap px-2 py-2">
@@ -397,7 +482,18 @@ export async function DoneActivitiesPanel({
           <Empty text="No punch items have been verified closed yet." />
         ) : (
           <>
-            <Table head={<><Th><T>Item</T></Th><Th><T>Location</T></Th><Th><T>Verification</T></Th><Th><T>Closed</T></Th></>}>
+            <Table
+              cards={(punchRes.data ?? []).map((p) => (
+                <DoneCard
+                  key={p.id}
+                  title={p.description}
+                  href={`/inspect/projects/${projectId}/punch-list`}
+                  date={p.closed_at}
+                  dateLabel="Closed"
+                  lines={[formatLocationForDisplay(p.location), p.verification_notes]}
+                />
+              ))}
+              head={<><Th><T>Item</T></Th><Th><T>Location</T></Th><Th><T>Verification</T></Th><Th><T>Closed</T></Th></>}>
               {(punchRes.data ?? []).map((p) => (
                 <tr key={p.id} className="align-top">
                   <td className="min-w-[12rem] px-2 py-2">
@@ -414,7 +510,7 @@ export async function DoneActivitiesPanel({
         ))}
 
       {tab === "registers" && <RegistersSection projectId={projectId} />}
-      </details>
+      </Disclosure>
     </section>
   );
 }
@@ -436,7 +532,19 @@ async function RegistersSection({ projectId }: { projectId: string }) {
   if (rows.length === 0) return <Empty text="No valid register entries yet." />;
   return (
     <>
-      <Table head={<><Th><T>Type</T></Th><Th><T>Entry</T></Th><Th><T>Detail</T></Th><Th><T>Valid until</T></Th></>}>
+      <Table
+        cards={rows.map((r, i) => (
+          <DoneCard
+            key={i}
+            title={r.label}
+            href={`/inspect/projects/${projectId}/registers`}
+            badge={<Badge tone="success">{r.kind}</Badge>}
+            date={r.until}
+            dateLabel="Valid until"
+            lines={[r.detail]}
+          />
+        ))}
+        head={<><Th><T>Type</T></Th><Th><T>Entry</T></Th><Th><T>Detail</T></Th><Th><T>Valid until</T></Th></>}>
         {rows.map((r, i) => (
           <tr key={i} className="align-top">
             <td className="whitespace-nowrap px-2 py-2"><Badge tone="success">{r.kind}</Badge></td>

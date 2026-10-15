@@ -18,6 +18,7 @@ import type { VaultPickerDocument } from "@/components/domain/vault-file-picker"
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const PILLS: { value: ChecklistResponseResult; label: string; icon: string; activeClass: string }[] = [
   { value: "yes", label: "Yes", icon: "✓", activeClass: "bg-success text-white border-success" },
@@ -324,7 +325,7 @@ export function ResponseRow({
       data-answered={result ? "true" : "false"}
       className={cn(
         "scroll-mt-[calc(var(--header-h)+env(safe-area-inset-top)+7.5rem)] rounded-lg border bg-surface p-4 shadow-xs sm:p-5",
-        attentionReason ? "border-warning" : result ? "border-border" : "border-border"
+        attentionReason ? "border-warning" : "border-border"
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -338,7 +339,7 @@ export function ResponseRow({
         </p>
         <span className="shrink-0">
           {attentionReason ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning" role="status">
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
               <span aria-hidden="true">⚠</span>
               <Tx>{attentionReason}</Tx>
             </span>
@@ -517,31 +518,51 @@ export function ResponseRow({
         )}
 
         <div className={cn("grid gap-2", numeric ? "grid-cols-1" : "grid-cols-3")} role="radiogroup" aria-label={`Result for item ${itemNumber}`}>
-          {(numeric ? PILLS.filter((p) => p.value === "na") : PILLS).map((pill) => (
-            <button
-              key={pill.value}
-              type="button"
-              role="radio"
-              aria-checked={result === pill.value}
-              disabled={readOnly || !overrideSatisfied}
-              title={!overrideSatisfied ? "Enter a reason above before recording a response." : undefined}
-              onClick={() => {
-                // Double-tap protection: re-tapping the already-chosen answer is a no-op unless the
-                // last save failed (then it acts as a retry).
-                if (result === pill.value && !saveError) return;
-                setResult(pill.value);
-                save(pill.value, comment, overrideReason, calibrationAssetId);
-              }}
-              className={cn(
-                "inline-flex min-h-14 min-w-0 items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-base font-bold transition-colors disabled:opacity-60",
-                result === pill.value ? pill.activeClass : "border-control-border bg-surface text-ink hover:bg-surface-subtle"
-              )}
-            >
-              <span aria-hidden="true">{pill.icon}</span>
-              {result === pill.value && <span className="sr-only"><Tx>Selected:</Tx> </span>}
-              {pill.label}
-            </button>
-          ))}
+          {(() => {
+            const visiblePills = numeric ? PILLS.filter((p) => p.value === "na") : PILLS;
+            const disabled = readOnly || !overrideSatisfied;
+            const choose = (value: ChecklistResponseResult) => {
+              // Double-tap protection: re-tapping the already-chosen answer is a no-op unless the
+              // last save failed (then it acts as a retry).
+              if (result === value && !saveError) return;
+              setResult(value);
+              save(value, comment, overrideReason, calibrationAssetId);
+            };
+            // Roving tabindex: the selected radio is the single Tab stop (the first one if none chosen).
+            const tabStopValue = visiblePills.some((p) => p.value === result) ? result : visiblePills[0].value;
+            return visiblePills.map((pill) => (
+              <button
+                key={pill.value}
+                type="button"
+                role="radio"
+                aria-checked={result === pill.value}
+                tabIndex={pill.value === tabStopValue ? 0 : -1}
+                disabled={disabled}
+                title={!overrideSatisfied ? "Enter a reason above before recording a response." : undefined}
+                onClick={() => choose(pill.value)}
+                onKeyDown={(e) => {
+                  const idx = visiblePills.findIndex((p) => p.value === pill.value);
+                  let nextIdx = -1;
+                  if (e.key === "ArrowRight" || e.key === "ArrowDown") nextIdx = (idx + 1) % visiblePills.length;
+                  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") nextIdx = (idx - 1 + visiblePills.length) % visiblePills.length;
+                  else if (e.key === "Home") nextIdx = 0;
+                  else if (e.key === "End") nextIdx = visiblePills.length - 1;
+                  else return;
+                  e.preventDefault();
+                  const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+                  buttons?.[nextIdx]?.focus();
+                  choose(visiblePills[nextIdx].value);
+                }}
+                className={cn(
+                  "inline-flex min-h-14 min-w-0 items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-base font-bold transition-colors disabled:opacity-60",
+                  result === pill.value ? pill.activeClass : "border-control-border bg-surface text-ink hover:bg-surface-subtle"
+                )}
+              >
+                <span aria-hidden="true">{pill.icon}</span>
+                {pill.label}
+              </button>
+            ));
+          })()}
         </div>
 
         {evidenceHint && (
@@ -569,7 +590,7 @@ export function ResponseRow({
           </p>
         )}
         {result === "no" && comment.trim() && (readOnly ? fixAssigneeName : true) && (
-          <div className="rounded-md border border-border bg-off-white px-3 py-2">
+          <div className="rounded-md border border-border bg-surface-subtle px-3 py-2">
             {readOnly ? (
               <p className="text-xs text-ink">
                 <Tx>Assigned to</Tx> {fixAssigneeName}
@@ -636,12 +657,16 @@ export function ResponseRow({
           />
         </div>
 
-        <details className="group" open={result === "no" || !!comment.trim()}>
-          <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-            <Tx>Comment</Tx>
-            {result === "no" && <span className="text-danger">*</span>}
-          </summary>
+        <Disclosure
+          variant="pill"
+          defaultOpen={result === "no" || !!comment.trim()}
+          summary={
+            <>
+              <Tx>Comment</Tx>
+              {result === "no" && <span className="text-danger"> *</span>}
+            </>
+          }
+        >
           <label htmlFor={`comment-${checklistItemId}`} className="sr-only">
             <Tx>Comment for item</Tx> {itemNumber}
           </label>
@@ -660,7 +685,7 @@ export function ResponseRow({
             }}
             className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy disabled:opacity-60 sm:text-sm"
           />
-        </details>
+        </Disclosure>
         {saveError && (
           <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-danger">
             <span>{saveError}</span>

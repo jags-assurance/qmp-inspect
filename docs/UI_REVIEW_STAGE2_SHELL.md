@@ -122,3 +122,19 @@ Use a real phone (375 wide), a tablet (768 portrait and 1024 landscape), a lapto
 **J. Offline banner** In DevTools set offline: banner "You're offline" appears under the header. Every button in it ("Sync now", "Retry", "Export queue", "Discard") measures at least 44px tall on a phone (open item 9: it scrolls away with the page).
 
 **K. Keyboard and screen reader quick pass** Tab from page load: first stop is "Skip to main content" (visible, top-left); Enter lands in main. Each page has one h1. Focus ring is burgundy on white, gold inside the sidebar. With "Reduce motion" on in the OS, the drawer, chevrons and skeletons stop animating.
+
+## Fix pass (builder F3)
+
+Done:
+1. Offline banner status bar is sticky under the header (`top-[calc(var(--header-h)+env(safe-area-inset-top))]`, z-10, opaque surface, slim text, 2-line clamp on phones); queue/review lists scroll normally.
+2. Drawer closes on any pathname change (incl. browser Back/Forward); the existing effect cleanup releases scroll lock, inert and focus.
+3. `--notice-h` = stack height + computed bottom offset (updates on resize), so `StickyActionBar` and main padding clear notices.
+4. `html { scrollbar-gutter: stable }` stops the body-scroll-lock shift.
+5. `PopoverPanel role="menu"` gives arrow/Home/End/Tab/Esc navigation and focus-in on open; account menu items and wrappers have correct roles, trigger opens on ArrowDown; terms section controls are menuitems. Esc returns focus to the trigger for all popovers. `DropdownMenu` intentionally stays a disclosure (not role=menu).
+6. `docs/UI_DESIGN_SYSTEM.md` corrected (border colour, search behaviour, z-scale, sticky offsets) with layer APIs and a page-builder checklist.
+7. Header project picker: `lib/ui/header-projects.ts` (React `cache()` per request, same columns/limit). No `unstable_cache`: per-user RLS data and project create/rename do not revalidate any tag (those actions are outside the shell's files), so a cache could hide new projects.
+8. `ListPageSkeleton` (+ `FilterChipsSkeleton`) used by itps/ncrs loading; `/inspect/loading.tsx` rebuilt on PageHeader/StatGrid skeletons.
+9. Command palette Escape now only via `useEscapeLayer`.
+10. Focus ring: removed ad-hoc ring/outline overrides on the palette and confirm-type inputs; no `hover:bg-off-white` remained in scope.
+
+Not done (outside the files this builder owns): own Escape listeners remain in `components/domain/cell-menu.tsx`, `app/inspect/projects/[projectId]/data-book/data-book-pdf-button.tsx`, `.../registers/register-cells.tsx`, `app/inspect/reports-documents/documents-section.tsx`, `app/inspect/vault/.../drawing-markup-viewer.tsx` (confirm-type-dialog already uses the layer).

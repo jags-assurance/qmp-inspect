@@ -32,15 +32,18 @@ export function VersionHistoryPanel({
           const itemCount = rev.sections_snapshot.reduce((sum, s) => sum + s.items.length, 0);
           return (
             <li key={rev.id}>
-              <details className="rounded-md border border-border">
-                <summary className="cursor-pointer select-none px-3 py-2 text-sm">
+              <details className="group rounded-md border border-border">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm hover:bg-surface-subtle group-open:rounded-b-none [&::-webkit-details-marker]:hidden">
+<span aria-hidden="true" className="shrink-0 text-muted transition-transform group-open:rotate-90 motion-reduce:transition-none rtl:-scale-x-100 rtl:group-open:-rotate-90">›</span>
+<span className="min-w-0 flex-1">
                   <span className="doc-id font-medium text-ink"><T>v</T>{rev.version}</span>{" "}
                   <span className="text-muted">
                     — {new Date(rev.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
                     {rev.users?.full_name ? ` · ${rev.users.full_name}` : ""}
                     {rev.reason ? ` · ${rev.reason}` : ""}
                   </span>
-                </summary>
+                </span>
+</summary>
                 <div className="border-t border-border px-3 py-3 text-sm">
                   <p className="text-ink">{rev.title}</p>
                   <p className="mt-0.5 text-xs text-muted">

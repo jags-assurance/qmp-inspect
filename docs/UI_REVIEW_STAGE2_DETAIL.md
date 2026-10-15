@@ -60,3 +60,18 @@ Use an ITP with at least 6 parties and 2 sections, as a JAGS staff user (and onc
 7. NCR detail, inspection record, project hub and every tab (Guide, Activity, Reports, Audit log, KPIs, Punch list, Registers), 375 and 768: header, badges and action buttons wrap without overlap; the tabs bar stays under the header; register tables show as cards below 768 and as tables from 768.
 8. ITP master library, proposals and template pages at 375 and 1280: lists readable, buttons about 44 px on phones.
 9. Print: use the PDF button on an ITP (not the browser's Print command). Open the punch list and use its Print button: only the heading and table print.
+
+## Fix pass (builder F2)
+
+Items 6-12 and suggestions 14-15 above are addressed; tsc clean, vitest 179 files / 1370 tests pass.
+- Status chips: compact chip shows a short label ("Proceeded"); full label in `title` and `aria-label` (signoff-cell.tsx).
+- ItemControls edit form now opens in a Sheet (portal, focus trap) on all sizes, 44px fields with control-border, two columns from sm, Save/Cancel in the sheet footer via `form=`; same fields and action.
+- Grid semantics: activity cell is `rowheader`; table has aria-colcount/rowcount, rows aria-rowindex; mobile party blocks get a hidden "Party:" prefix.
+- Sticky party header: sticks below app header + jump bar (`--jump-h`, set by the grid, `jumpBar` prop) when the grid fits; when it overflows sideways the region scrolls both ways (max height viewport minus header/jump bar) and the header sticks at its top.
+- Sticky first column gets a right shadow only while the region is scrolled horizontally (`data-scrolled` on ScrollRegion).
+- Print: `.print-area.print-itp` on the ITP detail root and a `/* PRINT: ITP detail */` block appended to globals.css (black on white, no sticky/overflow, rows kept whole, buttons/nav/action forms hidden; intervention selects kept as text). Not browser-verified.
+- Row summaries (hwrs by-party, status-view activity rows, revision/review/version history, checklist preview) have a consistent rotating chevron, control border, 44px min height. Project-overview delete summary left as is (already 44px with chevron).
+- Punch edit/resolve/verify/reopen forms are padded card forms, two columns from md, StickyActionBar inCard; add-punch, walkdown and four register add forms now pass inCard.
+- hover:bg-off-white replaced with hover:bg-surface-subtle in my areas; no StatCard in my areas. Register edit dialog and CellMenu Esc now use useEscapeLayer.
+
+Not done: breakpoint="xl" for ResponsiveTable/DataTable and the usage page flip (tool permission denied; outside my ownership). itp-master other summaries not present beyond version-history.

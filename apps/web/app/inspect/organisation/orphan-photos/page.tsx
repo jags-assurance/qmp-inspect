@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -71,8 +72,10 @@ export default async function OrphanPhotosPage() {
   return (
     <div className="max-w-4xl">
       <SettingsBackLink />
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Orphaned photos</T></h1>
+      <PageHeader
+        className="mt-2"
+        title={<T>Orphaned photos</T>}
+        guide={
         <PageGuide
           title={tl("Orphaned photos — how this works")}
           points={[
@@ -81,7 +84,8 @@ export default async function OrphanPhotosPage() {
             "Remove file deletes the stored file for good. It needs a typed confirmation and is only allowed for a flagged file nothing refers to. Every decision is audited.",
           ]}
         />
-      </div>
+        }
+      />
       <p className="mt-1 text-sm text-muted"><T>Files in storage that no inspection photo or document points at.</T></p>
 
       {error && <p className="mt-6 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink"><T>The orphan list is not available (the database update has not been applied).</T></p>}

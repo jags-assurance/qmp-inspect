@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { RuleForm } from "./rule-form";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import {
   AUTOMATION_RULES_TABLE,
   AUTOMATION_RULE_TYPES,
@@ -98,9 +98,9 @@ export async function AutomationRulesView({ searchParams, embedded }: {
 
       {selectedOrg && (
         <>
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard label="Rules enabled" value={`${enabledCount} / ${AUTOMATION_RULE_TYPES.length}`} />
-          </div>
+          <StatGrid max={3} className="mt-6">
+            <StatTile label="Rules enabled" value={`${enabledCount} / ${AUTOMATION_RULE_TYPES.length}`} />
+          </StatGrid>
 
           <div className="mt-6 space-y-4">
             {AUTOMATION_RULE_TYPES.map((ruleType) => {

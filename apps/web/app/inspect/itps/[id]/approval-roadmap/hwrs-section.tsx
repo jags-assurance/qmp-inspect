@@ -305,8 +305,9 @@ export function HwrsSection({
                 const open = ps.filter((p) => bucketOf(p.status) !== "signed_off").length;
                 const od = ps.filter(isOverdue).length;
                 return (
-                  <details key={id} className="rounded-md border border-border" open={od > 0}>
-                    <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-2 text-sm">
+                  <details key={id} className="group rounded-md border border-border" open={od > 0}>
+                    <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-2.5 py-2 text-sm hover:bg-surface-subtle [&::-webkit-details-marker]:hidden">
+<span aria-hidden="true" className="shrink-0 text-muted transition-transform group-open:rotate-90 motion-reduce:transition-none rtl:-scale-x-100 rtl:group-open:-rotate-90">›</span>
                       <span className="min-w-0 break-words font-medium text-ink">{party?.name ?? "Unknown party"}</span>
                       {party && <span className="text-xs text-muted">{titleCase(party.partyType)}{party.isActive ? "" : " · inactive"}</span>}
                       {party && (party.people?.length ?? 0) > 0 && (

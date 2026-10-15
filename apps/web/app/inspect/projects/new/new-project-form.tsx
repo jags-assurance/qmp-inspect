@@ -46,11 +46,14 @@ export function NewProjectForm({
 
   return (
     <form action={formAction} className="space-y-5">
+      <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <Section title={<Tx>Project details</Tx>} bodyClassName="space-y-4">
       <div>
         <div className="flex items-center justify-between">
           <label htmlFor="organization_id" className="block text-sm font-medium text-ink">
             <Tx>Client organisation</Tx>
+            <span aria-hidden="true" className="ms-0.5 text-danger">*</span>
+            <span className="sr-only"> <Tx>(required)</Tx></span>
           </label>
           {allowCreateOrg && (
             <Link href="/inspect/organisation/clients" className="inline-flex min-h-9 items-center text-sm font-medium text-burgundy hover:underline">
@@ -62,8 +65,9 @@ export function NewProjectForm({
           id="organization_id"
           name="organization_id"
           required
+          aria-required="true"
           onChange={(e) => onOrganisationChange(e.target.value)}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         >
           <option value=""><Tx>Select…</Tx></option>
           {organizations.map((org) => (
@@ -83,7 +87,7 @@ export function NewProjectForm({
       </div>
 
       <div>
-        <FormField label="Project number" error={state.fieldErrors?.project_number}>
+        <FormField required label="Project number" error={state.fieldErrors?.project_number}>
           <input
           name="project_number"
           required
@@ -93,18 +97,18 @@ export function NewProjectForm({
             setNumberEdited(true);
           }}
           placeholder={tl("e.g. MER-2026-001")}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
         <p className="mt-1 text-xs text-muted"><Tx>Suggested from the organisation and year; you can change it.</Tx></p>
       </div>
 
       <div>
-        <FormField label="Project name" error={state.fieldErrors?.name}>
+        <FormField required label="Project name" error={state.fieldErrors?.name}>
           <input
           name="name"
           required
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
       </div>
@@ -113,7 +117,7 @@ export function NewProjectForm({
         <FormField label="Site location">
           <input
           name="site_location"
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
       </div>
@@ -124,32 +128,32 @@ export function NewProjectForm({
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <FormField label="Country (optional)">
-            <input name="country" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <input name="country" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
           <FormField label="Contract number (optional)">
-            <input name="contract_number" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <input name="contract_number" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
           <FormField label="Start date (optional)">
-            <input name="start_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <input name="start_date" type="date" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
           <FormField label="End date (optional)" error={state.fieldErrors?.end_date}>
-            <input name="end_date" type="date" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <input name="end_date" type="date" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
           <FormField label="Site time zone (optional)">
-            <TimeZonePicker blankLabel={tl("Default (UTC)")} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+            <TimeZonePicker blankLabel={tl("Default (UTC)")} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
           <FormField label="Status">
-            <select name="status" defaultValue="active" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
+            <select name="status" defaultValue="active" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm">
             <option value="draft"><Tx>Draft</Tx></option>
             <option value="active"><Tx>Active</Tx></option>
             <option value="on_hold"><Tx>On hold</Tx></option>
@@ -161,7 +165,7 @@ export function NewProjectForm({
         <label htmlFor="locations" className="block text-sm font-medium text-ink">
           <Tx>Inspection locations (optional, one per line)</Tx>
         </label>
-        <textarea id="locations" name="locations" rows={3} placeholder={"Block A\nBlock B\nPump house"} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
+        <textarea id="locations" name="locations" rows={3} placeholder={"Block A\nBlock B\nPump house"} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
         <p className="mt-1 text-xs text-muted"><Tx>These appear in the location dropdown when an inspection is started on this project.</Tx></p>
       </div>
       </Section>
@@ -170,7 +174,7 @@ export function NewProjectForm({
         <Section title={<Tx>Responsibility</Tx>}>
         <div>
           <FormField label="Responsible person (optional)">
-            <select name="responsible_person_id" defaultValue="" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
+            <select name="responsible_person_id" defaultValue="" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm">
             <option value=""><Tx>— none set —</Tx></option>
             {staffUsers.map((u) => (
               <option key={u.id} value={u.id}>

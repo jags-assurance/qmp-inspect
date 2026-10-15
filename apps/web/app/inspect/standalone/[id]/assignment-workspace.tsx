@@ -3,7 +3,7 @@ import { formatLocationForDisplay } from "@/lib/checklists/location";
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
 import type {
@@ -156,11 +156,11 @@ export function AssignmentWorkspace({
   return (
     <div>
       {dialog}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Measurements" value={measurements.length} />
-        <StatCard label="Photos" value={photos.length} />
-        <StatCard label="Open punch items" value={openPunchCount} />
-        <StatCard
+      <StatGrid>
+        <StatTile label="Measurements" value={measurements.length} />
+        <StatTile label="Photos" value={photos.length} />
+        <StatTile label="Open punch items" value={openPunchCount} />
+        <StatTile
           label="Status"
           value={
             isDraft ? (
@@ -173,7 +173,7 @@ export function AssignmentWorkspace({
             )
           }
         />
-      </div>
+      </StatGrid>
 
       {isConditionalOpen && (
         <div role="status" className="mt-4 flex items-start gap-3 rounded-lg border-2 border-warning bg-warning/10 p-4 text-sm text-ink">

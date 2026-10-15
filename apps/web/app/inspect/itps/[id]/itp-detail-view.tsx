@@ -785,7 +785,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   );
 
   return (
-    <div>
+    <div className="print-area print-itp">
       {/* Live cross-party updates: another party's sign-off, or a status/section change, refreshes
           this page automatically instead of requiring a manual reload — the point of the intervention
           grid being multi-party in the first place. Unfiltered on this table (small per-ITP volume;
@@ -1128,6 +1128,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                     blockingCodes={blockingCodes}
                     disciplines={disciplines ?? []}
                     isIssued={isIssued}
+                    jumpBar={(sections ?? []).length > 1}
                   />
                   {/* R54-R56: expected -> received third-party test record tracking per activity —
                       kept as its own per-activity block below the grid, since it isn't part of the

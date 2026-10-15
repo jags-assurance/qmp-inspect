@@ -6,7 +6,7 @@ import { untypedFrom } from "@/lib/supabase/untyped";
 import { isMissingDbObject, formatUtcDate, formatUtcDateTime } from "@/lib/databook/db-errors";
 import { OrgPickerForm } from "../numbering/org-picker-form";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import {
@@ -113,11 +113,11 @@ export async function RetentionSettingsView({ searchParams, embedded }: { search
 
       {selectedOrg && !unavailable && (
         <>
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard label="Retention period" value={setting?.enabled ? `${setting.retention_years} years` : "Off"} />
-            <StatCard label="Awaiting review" value={String(awaiting.length)} />
-            <StatCard label="Reviewed" value={String(flags.length - awaiting.length)} />
-          </div>
+          <StatGrid max={3} className="mt-6">
+            <StatTile label="Retention period" value={setting?.enabled ? `${setting.retention_years} years` : "Off"} />
+            <StatTile label="Awaiting review" value={String(awaiting.length)} />
+            <StatTile label="Reviewed" value={String(flags.length - awaiting.length)} />
+          </StatGrid>
 
           <div className="mt-6">
             <RetentionSettingsForm

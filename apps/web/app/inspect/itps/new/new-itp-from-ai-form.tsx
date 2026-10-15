@@ -155,7 +155,7 @@ export function NewItpFromAiForm({
     return (
       <form action={genFormAction} className="mt-6 space-y-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div>
-          <FormField label="Project">
+          <FormField required label="Project">
             <select
             name="project_id"
             required
@@ -164,7 +164,7 @@ export function NewItpFromAiForm({
               setProjectId(e.target.value);
               setSelectedDocIds([]);
             }}
-            className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+            className="mt-1.5 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           >
             <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
@@ -260,7 +260,7 @@ export function NewItpFromAiForm({
                 max={20}
                 value={customCount}
                 onChange={(e) => setCustomCount(e.target.value)}
-                className="w-24 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+                className="w-24 min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
               />
               <span className="text-xs text-muted"><Tx>activities per section</Tx></span>
             </div>
@@ -277,7 +277,7 @@ export function NewItpFromAiForm({
             value={additionalInstructions}
             onChange={(e) => setAdditionalInstructions(e.target.value)}
             placeholder="Anything the documents don't cover, or a focus to apply — e.g. &quot;electrical works only&quot;, or paste extra scope text if you have no document to attach."
-            className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+            className="mt-1.5 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           />
           {/* Combines the count-mode instruction with the user's free text into the one field the
               server action actually reads — keeps the count control a first-class UI element instead
@@ -398,7 +398,7 @@ export function NewItpFromAiForm({
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             placeholder="e.g. &quot;too many Hold points on Voltway&quot;, &quot;missing a weld inspection step&quot;, &quot;split testing into two activities&quot;…"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           />
           <div className="flex items-center gap-3">
             <Button
@@ -424,26 +424,26 @@ export function NewItpFromAiForm({
           </p>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
-              <FormField label="ITP number">
+              <FormField required label="ITP number">
                 <input
                 name="itp_number"
                 required
                 value={itpNumber}
                 onChange={(e) => setItpNumber(e.target.value)}
                 placeholder={tl("e.g. MER-JAGS-ITP-002")}
-                className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy doc-id"
+                className="mt-1.5 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm doc-id"
               />
               </FormField>
             </div>
 
             <div className="md:col-span-2">
-              <FormField label="Title">
+              <FormField required label="Title">
                 <input
                 name="title"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+                className="mt-1.5 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
               />
               </FormField>
             </div>
@@ -458,7 +458,7 @@ export function NewItpFromAiForm({
                 value={applicableStandard}
                 onChange={(e) => setApplicableStandard(e.target.value)}
                 placeholder={tl("e.g. IEC 61439")}
-                className="mt-1.5 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-burgundy"
+                className="mt-1.5 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
               />
             </div>
           </div>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireSession } from "@/lib/auth/session";
 import { RELEASES } from "@/lib/release/notes";
 import { T } from "@/components/domain/t";
@@ -29,10 +30,7 @@ export default async function WhatsNewPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>What&apos;s new</T></h1>
-        <p className="mt-1 text-sm text-muted"><T>Changes to QMP Inspect, newest first.</T></p>
-      </header>
+      <PageHeader title={<T>What&apos;s new</T>} subtitle={<T>Changes to QMP Inspect, newest first.</T>} />
 
       {RELEASES.map((release, releaseIndex) => (
         <article key={release.version} className="space-y-4">

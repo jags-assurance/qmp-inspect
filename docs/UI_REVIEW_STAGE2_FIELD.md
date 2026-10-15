@@ -68,3 +68,15 @@ Use a draft inspection with about 10 items, at least one mandatory, one needing 
 - Handover: Acknowledge and Reject open inline, checkbox is 20px with a large tap row, bottom bar sticks on phone; make sure Reject cannot be hit by accident next to Cancel (large gap).
 
 Also check with a floating notice showing (offline banner): the bottom bar must sit above it, not under it.
+
+## Fix pass (builder F1)
+- `response-row.tsx`: Yes/No/N/A is now a real radiogroup (roving tabindex, Arrow keys/Home/End move focus and select, Space/Enter select via native button); same `save()` call and values. Removed `role="status"` from the per-item badge, the redundant `border-border` branch, the hand-styled Comment summary (now `Disclosure` pill), `hover:bg-off-white`.
+- `checklist-execution-panel.tsx`: sync status merged into the progress row (third line removed); one sr-only polite live region announcing only answered count / all answered; `aria-live` removed from the sticky strip and bottom bar; "Next unanswered" honours `prefers-reduced-motion` and focuses the item's first enabled control. Strip stays sticky only at height >= 520px (unchanged).
+- `components/domain/signature-pad.tsx`: strokes under 8px of drawn length are discarded (accidental taps); only the first pointer is tracked (`pointerId`), second finger/palm ignored; pointerup and pointercancel finish by id. PNG output and `onChange` unchanged.
+- Handover `reject-form.tsx`: Reject is `danger`, bar `justify="between"` with a gap so it is separated from Cancel.
+- `inCard` added to StickyActionBar in upload-form, handover acknowledge/reject, data-book compile and issue-handover forms (not standalone/new: that form is not in a card).
+- `structure-panel.tsx`: removed `block` conflict on nav pills.
+- `done-activities-panel.tsx`: every tab (activities, inspections, NCRs, punch, registers) renders cards below md via a shared `DoneCard` (title link, status badge, date, detail lines); table from md. `updates-panel.tsx` is already a list (no table), so no change.
+- `Disclosure` adopted for pill summaries in start-work, vault document view (3), set-approvers, done-activities, updates. Row-style summaries left. `data-book-pdf-button.tsx` Esc listener replaced by `useEscapeLayer`. `hover:bg-off-white` replaced by `hover:bg-surface-subtle` across the owned areas. `assignment-workspace.tsx` StatCard replaced by StatGrid/StatTile.
+- Not done: the drawing-markup viewer's Escape is an element-level key handler (clears a pending pin), left as is; data-book boxes are `p-3`, so `inCard` bleed is approximate; `checklists/[templateId]/page.tsx` and `upload-form.tsx` row-style/`<details>` summaries left.
+- Verified: `npx tsc --noEmit` clean; `npx vitest run` result below.

@@ -66,7 +66,7 @@ export function ResponsiveTable<T>({
   /** Makes the desktop scroll wrapper a focusable labelled region (keyboard scrolling). */
   scrollRegionLabel?: string;
   /** Where the table becomes cards: "sm" (640px, existing behaviour) or "md" (768px, design-system default for new pages). */
-  breakpoint?: "sm" | "md";
+  breakpoint?: "sm" | "md" | "xl";
   /** Rendered at the top of each phone card (usually the record link + status badge). */
   cardTitle?: (row: T) => ReactNode;
   /** Rendered at the bottom of each phone card (row actions). Same actions as the table row: never drop one on phones. */
@@ -74,7 +74,12 @@ export function ResponsiveTable<T>({
   /** Card look: each phone row is its own bordered card instead of a divided list. */
   bordered?: boolean;
 }) {
-  const bp = breakpoint === "md" ? { table: "md:block", cards: "md:hidden" } : { table: "sm:block", cards: "sm:hidden" };
+  const bp =
+    breakpoint === "xl"
+      ? { table: "xl:block", cards: "xl:hidden" }
+      : breakpoint === "md"
+        ? { table: "md:block", cards: "md:hidden" }
+        : { table: "sm:block", cards: "sm:hidden" };
   const cardCols = cardRowsFor(columns);
   return (
     <>

@@ -467,7 +467,7 @@ export function VaultUploadForm({
       )}
 
       {!duplicates && (
-        <StickyActionBar>
+        <StickyActionBar inCard>
         <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={uploading || rows.length === 0}>
           {uploading
             ? `Uploading ${doneCount}/${rows.length}…`

@@ -43,7 +43,7 @@ export function AdvanceStatusForm({
         className={
           copy.primary
             ? "rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
-            : "rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+            : "rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-surface-subtle disabled:opacity-50"
         }
       >
         {pending ? copy.pending : copy.idle}

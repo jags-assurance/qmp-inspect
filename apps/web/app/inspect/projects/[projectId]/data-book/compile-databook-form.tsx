@@ -128,7 +128,7 @@ export function CompileDataBookForm({
 
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
 
-      <StickyActionBar className="w-full">
+      <StickyActionBar inCard className="w-full">
       <Button
         type="submit"
         size="lg" className="w-full sm:w-auto"

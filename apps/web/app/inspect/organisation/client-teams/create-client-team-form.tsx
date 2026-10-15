@@ -16,7 +16,7 @@ export function CreateClientTeamForm({ organizationId }: { organizationId: strin
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
-        <FormField label="Team name">
+        <FormField required label="Team name">
           <input
           name="name"
           required

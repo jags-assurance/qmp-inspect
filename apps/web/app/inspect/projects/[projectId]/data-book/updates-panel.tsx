@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const PAGE_SIZE = 50;
 
@@ -172,11 +173,7 @@ export async function DataBookUpdatesPanel({
         </p>
       )}
 
-      <details className="group mt-3" open={Boolean(upd || updn)}>
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Show updates</T>
-        </summary>
+      <Disclosure variant="pill" className="mt-3" defaultOpen={Boolean(upd || updn)} bodyClassName="" summary={<T>Show updates</T>}>
       <nav className="mt-3 flex flex-wrap gap-2" aria-label={tl("Filter updates")}>
         {CATS.map((c) => (
           <a
@@ -238,7 +235,7 @@ export async function DataBookUpdatesPanel({
           </a>
         </div>
       )}
-      </details>
+      </Disclosure>
     </section>
   );
 }

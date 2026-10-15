@@ -8,7 +8,7 @@ const STACK_ID = "notice-stack";
 /**
  * The one floating-notice container (install prompt, terms acceptance, toasts). Fixed to the bottom-end
  * corner on desktop and a full-width bottom sheet on phones, below drawers and modals (z-30). It publishes its own
- * height as --notice-h so the app shell can pad the page and nothing is ever hidden behind it.
+ * height plus bottom offset as --notice-h so the app shell can pad the page and nothing is ever hidden behind it.
  * Mounted once in the app shell; cards render into it through <NoticeCard>.
  */
 export function NoticeStack() {
@@ -17,15 +17,22 @@ export function NoticeStack() {
     const el = ref.current;
     if (!el) return;
     const root = document.documentElement;
-    const update = () => root.style.setProperty("--notice-h", el.childElementCount > 0 ? `${el.offsetHeight}px` : "0px");
+    // Height PLUS the stack's own bottom offset (0 on phones, 16px from sm up), so bottom-anchored bars
+    // and the page's bottom padding clear the notices completely.
+    const update = () => {
+      const offset = parseFloat(getComputedStyle(el).bottom) || 0;
+      root.style.setProperty("--notice-h", el.childElementCount > 0 ? `${el.offsetHeight + offset}px` : "0px");
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
+    window.addEventListener("resize", update);
     const mo = new MutationObserver(update);
     mo.observe(el, { childList: true });
     return () => {
       ro.disconnect();
       mo.disconnect();
+      window.removeEventListener("resize", update);
       root.style.removeProperty("--notice-h");
     };
   }, []);

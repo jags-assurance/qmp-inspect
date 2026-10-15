@@ -62,10 +62,7 @@ export function CellMenu({ items, ariaLabel }: { items: CellMenuItem[]; ariaLabe
       close();
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        close(true);
-      } else if (e.key === "Tab") {
+      if (e.key === "Tab") {
         close();
       } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         const els = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);

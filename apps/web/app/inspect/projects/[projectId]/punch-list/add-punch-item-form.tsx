@@ -130,7 +130,7 @@ export function AddPunchItemForm({
         />
       </div>
 
-      <StickyActionBar className="md:col-span-2">
+      <StickyActionBar inCard className="md:col-span-2">
         <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add punch item"}
       </Button>

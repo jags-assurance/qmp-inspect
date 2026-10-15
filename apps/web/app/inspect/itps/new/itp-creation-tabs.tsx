@@ -37,7 +37,7 @@ export function ItpCreationTabs({
         <button
           type="button"
           onClick={() => setTab("manual")}
-          className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "manual" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+          className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "manual" ? "bg-burgundy text-white" : "text-ink hover:bg-surface-subtle")}
         >
           <Tx>Build from scratch</Tx>
         </button>
@@ -45,7 +45,7 @@ export function ItpCreationTabs({
           <button
             type="button"
             onClick={() => setTab("template")}
-            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-surface-subtle")}
           >
             <Tx>Start from a master template</Tx>
           </button>
@@ -54,7 +54,7 @@ export function ItpCreationTabs({
           <button
             type="button"
             onClick={() => setTab("ai")}
-            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-off-white")}
+            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-surface-subtle")}
           >
             <Tx>Generate from vault documents</Tx>
           </button>

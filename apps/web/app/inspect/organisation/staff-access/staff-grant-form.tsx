@@ -45,7 +45,7 @@ export function StaffGrantForm({
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <div>
-        <FormField label="Staff member">
+        <FormField required label="Staff member">
           <select
           name="staff_user_id"
           required
@@ -77,7 +77,7 @@ export function StaffGrantForm({
 
       {(scopeType === "organization" || scopeType === "project") && (
         <div>
-          <FormField label="Organisation">
+          <FormField required label="Organisation">
             <select
             name="organization_id"
             value={organizationId}
@@ -98,7 +98,7 @@ export function StaffGrantForm({
 
       {scopeType === "project" && (
         <div>
-          <FormField label="Project">
+          <FormField required label="Project">
             <select
             name="project_id"
             required
@@ -117,7 +117,7 @@ export function StaffGrantForm({
       )}
 
       <div>
-        <FormField label="Role label">
+        <FormField required label="Role label">
           <input
           name="role"
           required

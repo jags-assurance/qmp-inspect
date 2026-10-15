@@ -84,7 +84,7 @@ export function NcrDocuments({
         </p>
       )}
       {!readOnly && !open && (
-        <button type="button" onClick={() => setOpen(true)} className={btn + " text-muted hover:bg-off-white"}>
+        <button type="button" onClick={() => setOpen(true)} className={btn + " text-muted hover:bg-surface-subtle"}>
           <Tx>+ Link document from vault</Tx>
         </button>
       )}

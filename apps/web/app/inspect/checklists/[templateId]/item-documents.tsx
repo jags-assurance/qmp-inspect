@@ -105,7 +105,7 @@ export function ItemDocuments({
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Attach a document to item ${itemNumber}`}
-          className={btn + " gap-1 text-muted hover:bg-off-white"}
+          className={btn + " gap-1 text-muted hover:bg-surface-subtle"}
         >
           <span aria-hidden="true">📎</span> <Tx>+ Document</Tx>
         </button>

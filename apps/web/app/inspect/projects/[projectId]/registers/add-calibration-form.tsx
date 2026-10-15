@@ -93,7 +93,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
 
       <CertificateUpload key={formKey} projectId={projectId} kind="calibration" />
 
-      <StickyActionBar className="md:col-span-2">
+      <StickyActionBar inCard className="md:col-span-2">
         <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add instrument"}
       </Button>

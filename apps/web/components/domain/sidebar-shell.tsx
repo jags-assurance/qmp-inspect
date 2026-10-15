@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import type { NavItem, OrgBrandingInfo } from "./app-shell";
 import { SidebarNav } from "./sidebar-nav";
 import { useSidebarMobile } from "./sidebar-mobile-context";
@@ -122,6 +123,13 @@ export function SidebarShell({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external viewport change closes the drawer
     if (isLg && mobileOpen) setMobileOpen(false);
   }, [isLg, mobileOpen, setMobileOpen]);
+  // Any route change (a nav link, browser Back / Forward, a programmatic push) closes the drawer; its
+  // effect cleanup below then releases the scroll lock, un-inerts the page and returns focus.
+  const pathname = usePathname();
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external navigation closes the drawer
+    setMobileOpen(false);
+  }, [pathname, setMobileOpen]);
   useEffect(() => {
     if (!drawerActive) return;
     const opener = document.activeElement as HTMLElement | null;

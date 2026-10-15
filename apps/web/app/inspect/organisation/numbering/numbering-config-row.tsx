@@ -83,7 +83,7 @@ export function NumberingConfigRow({
 
       <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2">
-          <FormField label="Client code">
+          <FormField required label="Client code">
             <input
               name="client_code"
               required

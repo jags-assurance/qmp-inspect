@@ -109,3 +109,14 @@ Result: 0 Blocker, 2 Major, 8 Minor, 5 Suggestion. 5 fixed, the rest open.
 1. Privacy at 375: the data table scrolls sideways inside its own box. Tab to it: a focus ring appears and the arrow keys scroll it.
 2. Terms and Privacy at 1280: body text is no wider than about 70 characters. Headings step down h1 then h2.
 3. Verify page at 375: the result card is full width. "Genuine" shows a tick and "Void" or "Rejected" shows a cross, in addition to the colour. The file picker button is at least 40px tall.
+
+## Fix pass (builder F4)
+
+- Required markers: every `FormField` whose control has the native `required` attribute now passes `required` (asterisk aria-hidden, visually hidden "(required)", aria-required). Raw project-organisation label got the same marker. `PasswordField` shows the marker and sets aria-required. "* required" legend added at the top of the new ITP / NCR / project / standalone forms.
+- PasswordField: eye and eye-off icons both 20px; new `describedBy` prop links hint text (reset-password `pw-hint`) alongside the error; control-border.
+- MFA page now uses AuthShell. Forgot-password confirmation is `role=status` / `aria-live=polite` and takes focus on its heading. Login: email `autoComplete="username"`, Forgot password link moved under the password field (44px).
+- Legal pages: top band is full width, text stays 70ch.
+- New-form inputs: min-h-11, control-border, focus ring, 16px text on phones.
+- StickyActionBar: bars in padded cards already pass `inCard`; others sit outside cards.
+- StatCard replaced by StatTile/StatGrid on 8 organisation pages; hover:bg-off-white replaced; PageHeader adopted on data-requests, orphan-photos, traceability, support, whats-new, account/security.
+- Not done: usage tables at xl (ResponsiveTable only supports "sm" | "md" and is outside this builder's file ownership); no hand-styled summary or Escape listeners were found in these areas.

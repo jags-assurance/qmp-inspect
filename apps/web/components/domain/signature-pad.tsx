@@ -6,6 +6,9 @@ import { Tx } from "@/components/domain/tx";
 
 type Point = { x: number; y: number };
 
+/** Minimum drawn length (CSS px) before a stroke counts; ignores accidental taps. */
+const MIN_STROKE_LENGTH = 8;
+
 /**
  * Plain HTML5 canvas + pointer events signature pad (no dependency). The canvas fills the width of its
  * container at a fixed height (taller on phones), is scaled for devicePixelRatio so strokes stay crisp,
@@ -17,6 +20,8 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
   const wrapRef = useRef<HTMLDivElement>(null);
   const strokes = useRef<Point[][]>([]);
   const current = useRef<Point[] | null>(null);
+  const activePointer = useRef<number | null>(null);
+  const strokeLength = useRef(0);
   const [strokeCount, setStrokeCount] = useState(0);
 
   const redraw = useCallback(() => {
@@ -72,6 +77,10 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
   }
 
   function handlePointerDown(e: PointerEvent<HTMLCanvasElement>) {
+    // Ignore a second finger / palm while a stroke is active.
+    if (activePointer.current !== null) return;
+    activePointer.current = e.pointerId;
+    strokeLength.current = 0;
     const p = pointerPos(e);
     current.current = [p];
     strokes.current.push(current.current);
@@ -83,22 +92,31 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
   }
 
   function handlePointerMove(e: PointerEvent<HTMLCanvasElement>) {
+    if (e.pointerId !== activePointer.current) return;
     const stroke = current.current;
     const ctx = canvasRef.current?.getContext("2d");
     if (!stroke || !ctx) return;
     const prev = stroke[stroke.length - 1];
     const p = pointerPos(e);
+    strokeLength.current += Math.hypot(p.x - prev.x, p.y - prev.y);
     stroke.push(p);
     ctx.beginPath();
     ctx.moveTo(prev.x, prev.y);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
-    if (strokeCount === 0) setStrokeCount(1);
   }
 
-  function handlePointerUp() {
-    if (!current.current) return;
+  function finishStroke(e: PointerEvent<HTMLCanvasElement>) {
+    if (e.pointerId !== activePointer.current) return;
+    activePointer.current = null;
+    const stroke = current.current;
     current.current = null;
+    if (!stroke) return;
+    // An accidental tap (too short) does not count as a signature.
+    if (strokeLength.current < MIN_STROKE_LENGTH) {
+      strokes.current = strokes.current.filter((s) => s !== stroke);
+      redraw();
+    }
     setStrokeCount(strokes.current.length);
     emit();
   }
@@ -134,8 +152,8 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
           className="absolute inset-0 h-full w-full touch-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerUp={finishStroke}
+          onPointerCancel={finishStroke}
         />
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">

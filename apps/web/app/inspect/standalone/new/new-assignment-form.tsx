@@ -91,10 +91,11 @@ export function NewAssignmentForm({
 
   return (
     <form action={formAction} className="mt-6 space-y-6">
+      <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <legend className="px-1 text-sm font-semibold text-ink"><Tx>Project &amp; type</Tx></legend>
         <div>
-          <FormField label="Project">
+          <FormField required label="Project">
             <select
             name="project_id"
             required
@@ -103,7 +104,7 @@ export function NewAssignmentForm({
               setProjectId(e.target.value);
               setLocation((l) => (/^-?\d/.test(l) ? l : ""));
             }}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           >
             <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
@@ -148,13 +149,13 @@ export function NewAssignmentForm({
         <p className="text-xs text-muted">{selected.equipmentNote}</p>
 
         <div>
-          <FormField label="Equipment description">
+          <FormField required label="Equipment description">
             <input
             name="equipment_description"
             required
             maxLength={300}
             placeholder={tl("e.g. Jaw crusher C120")}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           />
           </FormField>
         </div>
@@ -165,7 +166,7 @@ export function NewAssignmentForm({
               <input
               name="manufacturer"
               placeholder={tl("e.g. Metso")}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
             </FormField>
           </div>
@@ -174,7 +175,7 @@ export function NewAssignmentForm({
               <input
               name="model"
               placeholder="e.g. C120"
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
             </FormField>
           </div>
@@ -182,13 +183,13 @@ export function NewAssignmentForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <FormField label={<><Tx>Serial / tag no.</Tx>{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}</>}>
+            <FormField required={selectedType === "fat" || selectedType === "pre_shipment"} label={<Tx>Serial / tag no.</Tx>}>
               <input
               name="serial_tag"
               maxLength={120}
               required={selectedType === "fat" || selectedType === "pre_shipment"}
               placeholder={tl("e.g. SN-48213 / TAG-102")}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
             </FormField>
           </div>
@@ -205,7 +206,7 @@ export function NewAssignmentForm({
                 if (v === "live") captureLive();
                 else setLocation(v);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             >
               <option value=""><Tx>No location</Tx></option>
               <option value="live"><Tx>Use live location</Tx></option>
@@ -230,7 +231,7 @@ export function NewAssignmentForm({
               <input
               name="standard_reference"
               placeholder={tl("e.g. ISO 9001 / client spec no.")}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
             </FormField>
           </div>
@@ -241,7 +242,7 @@ export function NewAssignmentForm({
               type="date"
               min={dateBounds.min}
               max={dateBounds.max}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
             />
             </FormField>
           </div>
@@ -252,7 +253,7 @@ export function NewAssignmentForm({
             <select
             name="discipline_id"
             defaultValue=""
-            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
           >
             <option value="">—</option>
             {disciplines.map((d) => (

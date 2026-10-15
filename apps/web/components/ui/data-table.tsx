@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 const BREAKPOINT = {
   sm: { table: "sm:block", cards: "sm:hidden" },
   md: { table: "md:block", cards: "md:hidden" },
+  xl: { table: "xl:block", cards: "xl:hidden" },
 } as const;
 
 export interface DataTableColumn<T> {
@@ -95,7 +96,7 @@ export function DataTable<T>({
   mobileCards?: boolean;
   /** Where the table turns into cards: "sm" (640px, default for existing pages) or "md" (768px, the
    *  design-system default for new/migrated registers: a 640-767px tablet shows cards, not a cramped grid). */
-  breakpoint?: "sm" | "md";
+  breakpoint?: "sm" | "md" | "xl";
   /** Custom phone card. When omitted every column renders as a label/value row. Receive the row; keep it a
    *  single tappable block (link) with status badge + 2-3 key facts, not every column. */
   renderCard?: (row: T) => ReactNode;

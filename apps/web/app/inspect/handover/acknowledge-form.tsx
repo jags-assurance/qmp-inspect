@@ -217,7 +217,7 @@ export function AcknowledgeForm({
         </span>
       </label>
 
-<StickyActionBar className="w-full">
+<StickyActionBar inCard className="w-full">
       <Button type="submit" size="lg" disabled={pending || !!uploadStatus || !confirmed}>
         {uploadStatus ?? (pending ? "Confirming…" : "Confirm acceptance")}
       </Button>

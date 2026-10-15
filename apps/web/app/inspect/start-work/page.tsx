@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/toolbar";
 import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
+import { Disclosure } from "@/components/ui/disclosure";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -399,11 +400,7 @@ function WorkModeCard({
         <p className="mt-2 text-sm text-muted">{description}</p>
       </div>
 
-      <details className="group flex-1 px-5 py-3">
-        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md border border-control-border px-3 text-sm font-medium text-muted hover:bg-surface-subtle [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Details</T>
-        </summary>
+      <Disclosure variant="pill" className="flex-1 px-5 py-3" bodyClassName="" summary={<T>Details</T>}>
       <ul className="flex-1 space-y-2 px-5 py-4 text-sm text-ink">
         {bullets.map((b) => (
           <li key={b} className="flex items-start gap-2">
@@ -418,7 +415,7 @@ function WorkModeCard({
         {bestFor}
       </p>
 
-      </details>
+      </Disclosure>
 
       <div className="px-5 pb-5">
         <Link

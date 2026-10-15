@@ -56,8 +56,8 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
         <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-5 w-5" />
         <span><Tx>I confirm I am rejecting this handover package on behalf of the client.</Tx></span>
       </label>
-<StickyActionBar className="w-full">
-      <Button type="submit" size="lg" variant="primary" disabled={pending || !confirmed || reason.trim().length < MIN_REJECT_REASON_LENGTH}>
+<StickyActionBar inCard justify="between" className="w-full gap-6">
+      <Button type="submit" size="lg" variant="danger" disabled={pending || !confirmed || reason.trim().length < MIN_REJECT_REASON_LENGTH}>
         {pending ? "Rejecting…" : "Reject package"}
       </Button>
       <Button type="button" size="lg" variant="outline" onClick={() => setExpanded(false)} disabled={pending}>
@@ -102,7 +102,7 @@ export function ReopenRejectionForm({ certificateId }: { certificateId: string }
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
         />
       </div>
-<StickyActionBar className="w-full">
+<StickyActionBar inCard className="w-full">
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Reopening…" : "Reopen"}
       </Button>

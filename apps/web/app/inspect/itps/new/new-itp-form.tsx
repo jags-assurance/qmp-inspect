@@ -25,14 +25,15 @@ export function NewItpForm({
 
   return (
     <form action={formAction} className="mt-6 space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+      <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <div>
-        <FormField label="Project" error={state.fieldErrors?.project_id}>
+        <FormField required label="Project" error={state.fieldErrors?.project_id}>
           <select
           name="project_id"
           required
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         >
           <option value=""><Tx>Select…</Tx></option>
           {projects.map((p) => (
@@ -54,7 +55,7 @@ export function NewItpForm({
           placeholder={tl("Leave blank to auto-generate, e.g. MER-JAGS-ITP-002")}
           aria-invalid={state.fieldErrors?.itp_number ? true : undefined}
           aria-describedby={state.fieldErrors?.itp_number ? "itp_number-err" : undefined}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy doc-id"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm doc-id"
         />
         <NextNumberHint kind="itp" id={projectId} />
         {state.fieldErrors?.itp_number && (
@@ -63,11 +64,11 @@ export function NewItpForm({
       </div>
 
       <div>
-        <FormField label="Title" error={state.fieldErrors?.title}>
+        <FormField required label="Title" error={state.fieldErrors?.title}>
           <input
           name="title"
           required
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
       </div>
@@ -77,7 +78,7 @@ export function NewItpForm({
           <input
           name="applicable_standard"
           placeholder={tl("e.g. IEC 61439")}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
       </div>
@@ -88,7 +89,7 @@ export function NewItpForm({
           name="scope"
           rows={3}
           placeholder={tl("What work this plan covers, e.g. Structural concrete — foundations, Block A")}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
       </div>

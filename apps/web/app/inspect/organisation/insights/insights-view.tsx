@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
@@ -382,31 +382,31 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
         <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Active projects" value={projectIds.length} />
-        <StatCard
+      <StatGrid max={4} className="mt-6">
+        <StatTile label="Active projects" value={projectIds.length} />
+        <StatTile
           label="Inspections completed"
           value={totalPlanned ? `${totalCompleted} / ${totalPlanned}` : totalCompleted}
         />
-        <StatCard
+        <StatTile
           label="Avg ITP completion"
           value={avgItpCompletion !== null ? `${avgItpCompletion.toFixed(1)}%` : "—"}
           caption={avgItpCompletion !== null ? sampleCaption(itpRatesWithData.length) : "No ITP data yet"}
         />
-        <StatCard
+        <StatTile
           label="Avg first-time pass rate"
           value={avgFirstTimePassRate !== null ? `${avgFirstTimePassRate.toFixed(1)}%` : "—"}
           caption={avgFirstTimePassRate !== null ? sampleCaption(firstAttempts.length) : "No inspection attempts yet"}
         />
-      </div>
+      </StatGrid>
 
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard
+        <StatTile
           label="Avg hold-point turnaround"
           value={avgHoldPointHours !== null ? `${avgHoldPointHours.toFixed(1)}h` : "—"}
           caption={avgHoldPointHours !== null ? sampleCaption(holdDurations.length) : "No hold-point signoffs yet"}
         />
-        <StatCard
+        <StatTile
           label="Open NCRs"
           value={openNcrs.length}
           href="/inspect/ncrs"
@@ -416,12 +416,12 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
               : "None open"
           }
         />
-        <StatCard
+        <StatTile
           label="Avg NCR closure time"
           value={avgClosureLabel}
           caption={closureDurations.length > 0 ? sampleCaption(closureDurations.length) : "No closed NCRs yet"}
         />
-        <StatCard
+        <StatTile
           label="Overdue punch items"
           value={overduePunchItems.length}
           caption={overduePunchItems.length === 0 ? "Nothing overdue" : "Past due date, not yet closed"}

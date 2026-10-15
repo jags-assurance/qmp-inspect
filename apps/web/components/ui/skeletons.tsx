@@ -154,3 +154,47 @@ export function DetailSkeleton({ rows = 6 }: { rows?: number }) {
     </Frame>
   );
 }
+
+
+/** Filter-chip row placeholder: matches <FilterChips> (pills, scrolls sideways on phones). */
+export function FilterChipsSkeleton({ chips = 5 }: { chips?: number }) {
+  return (
+    <div aria-hidden="true" className="scrollbar-none -mx-3 flex gap-2 overflow-hidden px-3 sm:mx-0 sm:px-0">
+      {Array.from({ length: chips }).map((_, i) => (
+        <Skeleton key={i} className="h-9 w-24 shrink-0 rounded-full" />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A register / list route: PageHeader, FilterChips, FilterBar, then a table from md and designed cards
+ * below it (the same switch DataTable makes). Use for route `loading.tsx` of list pages (ITPs, NCRs, ...).
+ */
+export function ListPageSkeleton({ rows = 8, chips = 5, action = true }: { rows?: number; chips?: number; action?: boolean }) {
+  return (
+    <Frame>
+      <PageHeaderSkeleton action={action} />
+      <div className="space-y-4">
+        <FilterChipsSkeleton chips={chips} />
+        <div aria-hidden="true" className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <Skeleton className="h-10 w-full rounded-md sm:max-w-xs [@media(pointer:coarse)]:h-11" />
+          <Skeleton className="hidden h-10 w-32 rounded-md md:block" />
+          <Skeleton className="hidden h-10 w-32 rounded-md md:block" />
+          <Skeleton className="h-10 w-24 rounded-md md:hidden [@media(pointer:coarse)]:h-11" />
+        </div>
+        <div aria-hidden="true" className="hidden overflow-hidden rounded-lg border border-border bg-surface md:block">
+          <div className="h-11 border-b border-border bg-surface-subtle" />
+          {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} className="h-12 animate-pulse border-b border-border bg-surface-sunken/60 last:border-b-0" />
+          ))}
+        </div>
+        <div aria-hidden="true" className="space-y-3 md:hidden">
+          {Array.from({ length: Math.min(rows, 5) }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-lg border border-border" />
+          ))}
+        </div>
+      </div>
+    </Frame>
+  );
+}

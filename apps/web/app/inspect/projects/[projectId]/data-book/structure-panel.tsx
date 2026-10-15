@@ -224,7 +224,7 @@ export function DataBookMiniNav() {
             <a
               href={n.href}
               className={cn(
-                "block whitespace-nowrap inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:bg-surface hover:text-burgundy",
+                "whitespace-nowrap inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:bg-surface hover:text-burgundy",
                 "focus:outline-none focus:ring-2 focus:ring-burgundy"
               )}
             >

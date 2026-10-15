@@ -113,11 +113,16 @@
   --shadow-xl: 0 24px 48px -12px rgb(28 28 30 / 0.22);
 }
 
-/* z-index scale (docs/UI_DESIGN_SYSTEM.md): sticky 10, header 20, notices 30, drawer / side panel 40,
-   sheet / palette / toasts 50, confirm dialog 60. Never invent a new number. */
+/* z-index scale (docs/UI_DESIGN_SYSTEM.md): sticky 10, header 20, popovers / notices 30, drawer / side panel 40,
+   sheet / palette / toasts 50, confirm dialog 60. Never invent a new number.
+   --notice-h (set by NoticeStack) = the notice stack's height PLUS its bottom offset, i.e. the whole
+   strip of viewport the notices occupy; bottom-anchored bars use `bottom-[var(--notice-h,0px)]`. */
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* Reserve the scrollbar's width always, so locking body scroll (drawer, sheet, dialog) never shifts the
+     page sideways on desktops with classic scrollbars. */
+  scrollbar-gutter: stable;
   /* Anchors and focus scroll clear of the sticky header AND the notch / status bar inset. */
   scroll-padding-top: calc(var(--header-h) + env(safe-area-inset-top, 0px) + 1rem);
 }
@@ -265,5 +270,68 @@ main li a:not([class]) {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* PRINT: ITP detail
+   The ITP detail page wraps itself in .print-area.print-itp. The generic .print-area rules above already
+   hide the app shell (sidebar, header, notices); this block makes what remains readable on paper: black
+   on white, no sticky or clipped regions, buttons and edit/action forms removed, rows kept whole. */
+@media print {
+  .print-itp {
+    color: #000;
+    background: #fff;
+    font-size: 11pt;
+  }
+  .print-itp * {
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .print-itp,
+  .print-itp [class*="bg-"] {
+    background: #fff !important;
+  }
+  .print-itp [class*="sticky"],
+  .print-itp [class*="fixed"] {
+    position: static !important;
+  }
+  .print-itp [class*="overflow-"],
+  .print-itp [role="region"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .print-itp [role="table"] {
+    min-width: 0 !important;
+  }
+  .print-itp [role="row"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border-bottom: 1px solid #999 !important;
+  }
+  .print-itp [role="columnheader"] {
+    font-weight: 700;
+  }
+  .print-itp button,
+  .print-itp nav,
+  .print-itp textarea,
+  .print-itp [role="menu"],
+  .print-itp form:not(:has(select[name="intervention"])) {
+    display: none !important;
+  }
+  .print-itp select {
+    appearance: none;
+    border: 0 !important;
+    background: none !important;
+    width: auto !important;
+    padding: 0 !important;
+  }
+  .print-itp a {
+    text-decoration: none;
+  }
+  .print-itp h1,
+  .print-itp h2,
+  .print-itp h3 {
+    break-after: avoid;
   }
 }

@@ -15,7 +15,7 @@ export function CreateTeamForm() {
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <div>
-        <FormField label="Team name">
+        <FormField required label="Team name">
           <input
           name="name"
           required

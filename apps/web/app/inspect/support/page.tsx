@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { SUPPORT_EMAIL_PLACEHOLDER, getSupportEmail } from "@/lib/support/contact";
@@ -21,10 +22,7 @@ export default async function SupportPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Help and support</T></h1>
-        <p className="mt-1 text-sm text-muted"><T>Where to find answers and who to contact.</T></p>
-      </header>
+      <PageHeader title={<T>Help and support</T>} subtitle={<T>Where to find answers and who to contact.</T>} />
 
       <section className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <h2 className="text-base font-semibold text-ink"><T>Contact support</T></h2>

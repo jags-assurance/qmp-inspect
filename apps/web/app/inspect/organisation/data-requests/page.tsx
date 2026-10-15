@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
 import { redirect } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -48,8 +49,10 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
   return (
     <div className="max-w-3xl">
       <SettingsBackLink />
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Data requests</T></h1>
+      <PageHeader
+        className="mt-2"
+        title={<T>Data requests</T>}
+        guide={
         <PageGuide
           title={tl("Data requests — how this works")}
           points={[
@@ -59,7 +62,8 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
             "The last active JAGS Admin and your own account cannot be anonymised.",
           ]}
         />
-      </div>
+        }
+      />
       <p className="mt-1 text-sm text-muted">
         <T>Download everything the system holds about one person, or anonymise their account. Both are recorded in the audit log.</T>
       </p>

@@ -26,7 +26,7 @@ export function NewOrganizationForm() {
   return (
     <form action={formAction} className="mt-6 max-w-lg space-y-4 rounded-lg border border-border bg-surface p-5">
       <div>
-        <FormField label="Organisation name">
+        <FormField required label="Organisation name">
           <input
           name="name"
           required

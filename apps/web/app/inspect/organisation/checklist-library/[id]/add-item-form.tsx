@@ -18,7 +18,7 @@ export function AddItemForm({ templateId }: { templateId: string }) {
       <input type="hidden" name="template_id" value={templateId} />
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <FormField label="Item number">
+          <FormField required label="Item number">
             <input
             name="item_number"
             required
@@ -38,7 +38,7 @@ export function AddItemForm({ templateId }: { templateId: string }) {
         </div>
       </div>
       <div>
-        <FormField label="Description">
+        <FormField required label="Description">
           <textarea
           name="description"
           required

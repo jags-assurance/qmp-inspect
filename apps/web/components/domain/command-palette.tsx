@@ -97,10 +97,8 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
   }
 
   function onInputKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      close();
-    } else if (e.key === "ArrowDown") {
+    // Escape is handled by useEscapeLayer (above), which sees it first.
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => Math.min(i + 1, results.length - 1));
     } else if (e.key === "ArrowUp") {
@@ -169,7 +167,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
               aria-expanded="true"
               aria-controls="command-palette-list"
               aria-activedescendant={results[active] ? `cp-${active}` : undefined}
-              className="min-h-12 w-full border-b border-border bg-surface px-4 text-base text-ink outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-burgundy sm:text-sm"
+              className="min-h-12 w-full border-b border-border bg-surface px-4 text-base text-ink focus-visible:outline-offset-[-2px] sm:text-sm"
             />
             <ul id="command-palette-list" role="listbox" className="max-h-80 overflow-y-auto py-1">
               {results.map((r, i) => (

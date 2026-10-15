@@ -182,7 +182,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
                         setGrantNow(true);
                         setMatches([]);
                       }}
-                      className="block min-h-11 w-full px-3 py-1.5 text-left text-sm hover:bg-off-white"
+                      className="block min-h-11 w-full px-3 py-1.5 text-left text-sm hover:bg-surface-subtle"
                     >
                       <span className="font-medium text-ink">{m.name}</span> <span className="text-muted">{m.email}</span>
                     </button>

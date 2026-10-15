@@ -6,7 +6,7 @@ import { getSelfManagedOrgIdsForUser, getClientManagedOrgIdsForUser } from "@/li
 import { CreateRoleForm } from "./create-role-form";
 import { RoleCard, type RoleCardData } from "./role-card";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -159,12 +159,12 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
           : " Roles you create here are scoped to your own organisation only — your own people, your own projects. Which permissions you can self-grant depends on your org's engagement tier (Self-Managed vs Full Client-Managed)."}</p>
       </MoreDetails>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Custom roles" value={roleCards.length} />
-        <StatCard label="Assignments" value={totalAssignments} />
-        <StatCard label="Distinct permission keys in use" value={distinctPermissionsGranted} />
-        <StatCard label="People with a role" value={new Set((assignmentRows ?? []).map((a) => a.users?.email ?? a.id)).size} />
-      </div>
+      <StatGrid max={4} className="mt-6">
+        <StatTile label="Custom roles" value={roleCards.length} />
+        <StatTile label="Assignments" value={totalAssignments} />
+        <StatTile label="Distinct permission keys in use" value={distinctPermissionsGranted} />
+        <StatTile label="People with a role" value={new Set((assignmentRows ?? []).map((a) => a.users?.email ?? a.id)).size} />
+      </StatGrid>
 
       <div className="mt-6">
         <CreateRoleForm organizations={organizations ?? []} lockedOrganizationId={admin ? null : selfManagedOrgIds[0]} />

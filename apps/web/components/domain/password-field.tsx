@@ -13,6 +13,7 @@ export function PasswordField({
   value,
   onChange,
   error,
+  describedBy,
 }: {
   id: string;
   name: string;
@@ -23,6 +24,8 @@ export function PasswordField({
   onChange?: (value: string) => void;
   /** Problem with this field (announced and linked via aria-describedby). */
   error?: string | null;
+  /** id of an external hint paragraph to link via aria-describedby. */
+  describedBy?: string;
 }) {
   const [visible, setVisible] = useState(false);
   const t = useTranslate();
@@ -32,6 +35,12 @@ export function PasswordField({
       {label && (
         <label htmlFor={id} className="block text-sm font-medium text-ink">
           {label}
+          {required && (
+            <span aria-hidden="true" className="ms-0.5 text-danger">
+              *
+            </span>
+          )}
+          {required && <span className="sr-only"> {t("(required)")}</span>}
         </label>
       )}
       <div className="relative mt-1">
@@ -42,10 +51,11 @@ export function PasswordField({
           required={required}
           autoComplete={autoComplete}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-err` : undefined}
+          aria-required={required ? true : undefined}
+          aria-describedby={[describedBy, error ? `${id}-err` : undefined].filter(Boolean).join(" ") || undefined}
           value={value}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className="min-h-11 w-full rounded-md border border-border bg-surface ps-3 pe-12 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 aria-[invalid=true]:border-danger sm:text-sm"
+          className="min-h-11 w-full rounded-md border border-control-border bg-surface ps-3 pe-12 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 aria-[invalid=true]:border-danger sm:text-sm"
         />
         <button
           type="button"
@@ -65,7 +75,7 @@ export function PasswordField({
               <path d="M3 3l14 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           ) : (
-            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
               <path
                 d="M2.5 10.5C4 6.5 7 4.5 10 4.5s6 2 7.5 6c-1.5 4-4.5 6-7.5 6s-6-2-7.5-6z"
                 stroke="currentColor"

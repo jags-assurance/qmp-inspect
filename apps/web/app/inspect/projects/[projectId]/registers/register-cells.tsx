@@ -1,5 +1,6 @@
 "use client";
 
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   deleteRegisterEntryAction,
@@ -122,17 +123,16 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
     if (submitted.current && !pending && state.error === null) onClose();
   }, [pending, state, onClose]);
 
-  // Dialog basics: Escape closes, focus moves in on open, Tab stays inside, focus returns to the trigger on close.
+  useEscapeLayer(true, onClose);
+
+  // Dialog basics: Escape closes (above), focus moves in on open, Tab stays inside, focus returns to the trigger on close.
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const root = dialogRef.current;
     const focusables = () => Array.from(root?.querySelectorAll<HTMLElement>("input, select, textarea, button, a[href]") ?? []).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("type") !== "hidden");
     focusables()[0]?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === "Tab") {
+      if (e.key === "Tab") {
         const items = focusables();
         if (items.length === 0) return;
         const first = items[0];

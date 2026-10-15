@@ -21,7 +21,7 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
     <form action={formAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[90px_1fr_90px_110px_auto]">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
-        <FormField label="Code">
+        <FormField required label="Code">
           <input
           name="code"
           required
@@ -32,7 +32,7 @@ export function AddLevelForm({ organizationId }: { organizationId: string }) {
         </FormField>
       </div>
       <div>
-        <FormField label="Label">
+        <FormField required label="Label">
           <input
           name="label"
           required

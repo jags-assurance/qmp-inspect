@@ -270,18 +270,22 @@ export function OfflineBanner() {
   }
 
   return (
-    <div>
+    <>
       {dialog}
       {updateBar}
+      {/* Sticky just below the header (its height + the notch inset) so "n queued" never scrolls away.
+          An opaque surface sits under the tint so page content cannot show through. Only this slim bar
+          sticks; the queue / review lists below it scroll with the page. */}
+      <div className="no-print sticky top-[calc(var(--header-h)+env(safe-area-inset-top,0px))] z-10 border-b border-border bg-surface">
       <div
         role="status"
         aria-live="polite"
         className={
-          "flex items-center justify-between gap-3 px-4 py-2 text-sm " +
+          "flex items-center justify-between gap-2 px-3 py-1.5 text-xs sm:gap-3 sm:px-6 sm:py-2 sm:text-sm lg:px-8 " +
           (failedCount > 0 ? "bg-danger/10 text-danger" : isOnline ? "bg-info/10 text-info" : "bg-warning/10 text-warning")
         }
       >
-        <span>
+        <span className="max-sm:line-clamp-2">
           {!isOnline && "You're offline. "}
           {syncing && "Syncing… "}
           {pendingCount > 0 && `${pendingCount} change${pendingCount === 1 ? "" : "s"} queued`}
@@ -310,6 +314,7 @@ export function OfflineBanner() {
             </a>
           )}
         </span>
+      </div>
       </div>
       {pendingCount > 0 && (
         <Disclosure
@@ -392,6 +397,6 @@ export function OfflineBanner() {
           ))}
         </ul>
       )}
-    </div>
+    </>
   );
 }
