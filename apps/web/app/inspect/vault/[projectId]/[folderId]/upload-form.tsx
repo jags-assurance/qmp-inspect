@@ -1,5 +1,6 @@
 "use client";
 
+import { nextRevision } from "@/lib/vault/revision";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { uploadWithResume } from "@/lib/storage/upload-client";
@@ -63,12 +64,13 @@ export function VaultUploadForm({
   const tl = useTranslate();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<{ documentNumber: string; internalReference: string | null } | null>(null);
+  const [lastResult, setLastResult] = useState<{ documentNumber: string; internalReference: string | null; count: number; title: string } | null>(null);
   const [rows, setRows] = useState<FileRow[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [duplicates, setDuplicates] = useState<VaultDuplicateMatch[] | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   const isBatch = rows.length > 1;
 
@@ -83,6 +85,10 @@ export function VaultUploadForm({
       }
       return prefill ? next.slice(0, 1) : next;
     });
+    // One file and no title typed yet: use the filename, so the common upload is just "pick file, Upload".
+    if (!prefill && incoming.length === 1 && titleRef.current && !titleRef.current.value.trim()) {
+      titleRef.current.value = titleFromFilename(incoming[0].name);
+    }
   }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {
@@ -192,6 +198,8 @@ export function VaultUploadForm({
     setLastResult(null);
 
     let lastOk: { documentNumber: string; internalReference: string | null } | null = null;
+    let okCount = 0;
+    let lastTitle = "";
     let failures = 0;
     for (let i = 0; i < rows.length; i++) {
       const file = rows[i].file;
@@ -206,6 +214,8 @@ export function VaultUploadForm({
       }, (fraction) => patchRow(i, { progress: fraction }));
       if (result.ok) {
         patchRow(i, { state: "done" });
+        okCount += 1;
+        lastTitle = title;
         if (result.documentNumber) lastOk = { documentNumber: result.documentNumber, internalReference: result.internalReference ?? null };
       } else {
         failures += 1;
@@ -216,8 +226,9 @@ export function VaultUploadForm({
     if (failures === 0) {
       formRef.current?.reset();
       setRows([]);
-      if (lastOk) setLastResult(lastOk);
+      if (lastOk) setLastResult({ ...lastOk, count: okCount, title: lastTitle });
     } else {
+      if (okCount > 0 && lastOk) setLastResult({ ...lastOk, count: okCount, title: lastTitle });
       setError(`${failures} of ${rows.length} file${rows.length === 1 ? "" : "s"} failed. Fix the problem and press Upload again; files that succeeded are marked done and will be skipped.`);
       // Drop the finished ones so a retry only resends the failures.
       setRows((prev) => prev.filter((r) => r.state !== "done"));
@@ -320,10 +331,10 @@ export function VaultUploadForm({
       )}
 
       {!isBatch && (
-        <>
-          <div>
-            <FormField label="Title">
-              <input
+        <div>
+          <FormField label="Title">
+            <input
+              ref={titleRef}
               name="title"
               required
               maxLength={200}
@@ -331,41 +342,71 @@ export function VaultUploadForm({
               key={prefill?.revisesDocumentId ?? "new"}
               className={fieldCls}
             />
-            </FormField>
-          </div>
+          </FormField>
+        </div>
+      )}
 
+      {(() => {
+        const referenceAndRevision = !isBatch && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <FormField label="Document reference (optional)">
                 <input
-                name="document_reference"
-                defaultValue={prefill?.reference ?? ""}
-                readOnly={!!prefill}
-                placeholder={tl("e.g. the drawing number")}
-                className={fieldCls}
-              />
+                  name="document_reference"
+                  defaultValue={prefill?.reference ?? ""}
+                  readOnly={!!prefill}
+                  placeholder={tl("e.g. the drawing number")}
+                  className={fieldCls}
+                />
               </FormField>
             </div>
             <div>
               <FormField label="Revision">
                 <input name="revision" defaultValue={prefill?.nextRevision ?? "0"} key={`rev-${prefill?.revisesDocumentId ?? "new"}`} className={fieldCls} />
               </FormField>
+              {!prefill && (
+                <p className="mt-1 text-xs text-muted">
+                  <Tx>Leave as 0 and the next revision number is assigned automatically when this reference already exists.</Tx>
+                </p>
+              )}
             </div>
           </div>
-        </>
-      )}
-
-      <div>
-        <FormField label="Document date">
-          <input name="document_date" type="date" className={`${fieldCls} max-w-xs`} />
-        </FormField>
-      </div>
-
-      <div>
-        <FormField label={<>{prefill ? "Change note (what changed in this revision)" : "Notes"}</>}>
-          <textarea name="notes" rows={2} required={!!prefill} className={fieldCls} />
-        </FormField>
-      </div>
+        );
+        const dateField = (
+          <div>
+            <FormField label="Document date">
+              <input name="document_date" type="date" className={`${fieldCls} max-w-xs`} />
+            </FormField>
+          </div>
+        );
+        const notesField = (
+          <div>
+            <FormField label={<>{prefill ? "Change note (what changed in this revision)" : "Notes"}</>}>
+              <textarea name="notes" rows={2} required={!!prefill} className={fieldCls} />
+            </FormField>
+          </div>
+        );
+        // A new revision needs its change note, so everything stays visible there. A plain upload only
+        // needs a file (the title comes from the filename): the rest is tucked into one optional block.
+        return prefill ? (
+          <>
+            {referenceAndRevision}
+            {dateField}
+            {notesField}
+          </>
+        ) : (
+          <details className="rounded-md border border-border px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium text-ink">
+              <Tx>More details (optional): reference, revision, date, notes</Tx>
+            </summary>
+            <div className="mt-3 space-y-4">
+              {referenceAndRevision}
+              {dateField}
+              {notesField}
+            </div>
+          </details>
+        );
+      })()}
 
       {duplicates && duplicates.length > 0 && (
         <div role="alertdialog" aria-label={tl("Possible duplicate or new revision")} className="space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
@@ -382,6 +423,7 @@ export function VaultUploadForm({
                     <strong>{row?.file.name}</strong><Tx>: this looks like a new revision of &quot;</Tx>{d.title}<Tx>&quot; (current Rev</Tx> {d.revision},{" "}
                     {d.status.replace("_", " ")}).
                     {d.status === "approved" ? " The approved copy stays current until the new one is approved." : " It will supersede the unapproved one."}
+                    {nextRevision(d.revision) ? ` It will be numbered Rev ${nextRevision(d.revision)} unless you typed a different revision.` : ""}
                   </>
                 )}
               </p>
@@ -399,11 +441,19 @@ export function VaultUploadForm({
       )}
 
       {lastResult && (
-        <p className="text-xs text-muted" role="status">
-          <Tx>Uploaded. Assigned document number:</Tx> <span className="doc-id">{lastResult.documentNumber}</span>
-          {lastResult.internalReference && <> <Tx>(internal JAGS reference:</Tx> {lastResult.internalReference})</>}
-          <Tx>. It now awaits approval.</Tx>
-        </p>
+        <div className="rounded-md border border-success/30 bg-success/5 px-3 py-2 text-sm text-success" role="status" aria-live="polite">
+          <p className="font-medium">
+            {lastResult.count > 1
+              ? `${lastResult.count} documents uploaded.`
+              : `"${lastResult.title}" uploaded.`}
+          </p>
+          <p className="mt-0.5 text-xs">
+            <Tx>Assigned document number:</Tx> <span className="doc-id">{lastResult.documentNumber}</span>
+            {lastResult.internalReference && <> <Tx>(internal JAGS reference:</Tx> {lastResult.internalReference})</>}
+            {lastResult.count > 1 ? " (last of the batch)" : ""}
+            <Tx>. It now awaits approval.</Tx>
+          </p>
+        </div>
       )}
 
       {error && (

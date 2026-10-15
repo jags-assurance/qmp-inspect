@@ -524,7 +524,7 @@ export async function ProjectOverviewView({
           ))}
           {(parties ?? []).length === 0 && <li className="text-sm text-muted"><T>No parties recorded on this project yet.</T></li>}
         </ul>
-        {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} />}
+        {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} canGrantAccess />}
         {canAddSelfManagedParty && <AddSelfManagedPartyForm projectId={project.id} />}
       </div>
 

@@ -360,3 +360,33 @@ async function auditProvisioning(
     changes: { detail },
   });
 }
+
+
+export interface ExistingPersonMatch {
+  name: string;
+  email: string;
+}
+
+/**
+ * Type-ahead for "add a person who already works on another project": matches active, non-staff
+ * accounts by name or email so a JAGS Admin can pick one instead of retyping the address. Admin only
+ * (it reads other people's accounts through the service role), minimum two characters, at most eight
+ * hits, and returns nothing but name + email.
+ */
+export async function searchExistingPeopleAction(query: string): Promise<ExistingPersonMatch[]> {
+  const session = await requireSession();
+  if (!isAdminStaff(session) || !isServiceRoleConfigured()) return [];
+  const q = String(query ?? "").trim().replace(/[%_\\,()*]/g, " ").trim().slice(0, 60);
+  if (q.length < 2) return [];
+  const serviceClient = createSupabaseServiceRoleClient();
+  const { data } = await serviceClient
+    .from("users")
+    .select("full_name, email")
+    .eq("is_active", true)
+    .eq("is_jags_staff", false)
+    .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+    .order("full_name", { ascending: true })
+    .limit(8)
+    .returns<{ full_name: string | null; email: string | null }[]>();
+  return (data ?? []).filter((u) => u.email).map((u) => ({ name: u.full_name?.trim() || u.email!, email: u.email! }));
+}

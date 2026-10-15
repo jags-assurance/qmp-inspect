@@ -142,6 +142,8 @@ export async function createProjectAction(
 
 export interface AddProjectPartyState {
   error: string | null;
+  /** The new party's id after a successful add, so the form can chain "give access now". */
+  partyId?: string;
   /** Per-input problems (keys are form field names), shown next to the field; `error` stays the fallback. */
   fieldErrors?: FieldErrors;
 }
@@ -303,7 +305,7 @@ export async function addProjectPartyAction(
   }
 
   revalidatePath(`/inspect/projects/${projectId}`);
-  return { error: null };
+  return { error: null, partyId: party.id };
 }
 
 export interface AddSelfManagedPartyState {
